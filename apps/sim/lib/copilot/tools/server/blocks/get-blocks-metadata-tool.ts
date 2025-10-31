@@ -10,7 +10,8 @@ import { registry as blockRegistry } from '@/blocks/registry'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
 import { tools as toolsRegistry } from '@/tools/registry'
-import { TRIGGER_REGISTRY } from '@/triggers'
+import { getTrigger, isTriggerValid } from '@/triggers'
+import { SYSTEM_SUBBLOCK_IDS } from '@/triggers/consts'
 
 export interface CopilotSubblockMetadata {
   id: string
@@ -162,17 +163,59 @@ export const getBlocksMetadataServerTool: BaseServerTool<
         const triggers: CopilotTriggerMetadata[] = []
         const availableTriggerIds = blockConfig.triggers?.available || []
         for (const tid of availableTriggerIds) {
-          const trig = TRIGGER_REGISTRY[tid]
+          if (!isTriggerValid(tid)) {
+            logger.debug('Invalid trigger ID found in block config', { blockId, triggerId: tid })
+            continue
+          }
+
+          const trig = getTrigger(tid)
+
+          const configFields: Record<string, any> = {}
+          for (const subBlock of trig.subBlocks) {
+            if (subBlock.mode === 'trigger' && !SYSTEM_SUBBLOCK_IDS.includes(subBlock.id)) {
+              const fieldDef: any = {
+                type: subBlock.type,
+                required: subBlock.required || false,
+              }
+
+              if (subBlock.title) fieldDef.title = subBlock.title
+              if (subBlock.description) fieldDef.description = subBlock.description
+              if (subBlock.placeholder) fieldDef.placeholder = subBlock.placeholder
+              if (subBlock.defaultValue !== undefined) fieldDef.default = subBlock.defaultValue
+
+              if (subBlock.options && Array.isArray(subBlock.options)) {
+                fieldDef.options = subBlock.options.map((opt: any) => ({
+                  id: opt.id,
+                  label: opt.label || opt.id,
+                }))
+              }
+
+              if (subBlock.condition) {
+                const cond =
+                  typeof subBlock.condition === 'function'
+                    ? subBlock.condition()
+                    : subBlock.condition
+                if (cond) {
+                  fieldDef.condition = cond
+                }
+              }
+
+              configFields[subBlock.id] = fieldDef
+            }
+          }
+
           triggers.push({
             id: tid,
-            outputs: trig?.outputs || {},
-            configFields: trig?.configFields || {},
+            outputs: trig.outputs || {},
+            configFields,
           })
         }
 
         const blockInputs = computeBlockLevelInputs(blockConfig)
         const { commonParameters, operationParameters } = splitParametersByOperation(
-          Array.isArray(blockConfig.subBlocks) ? blockConfig.subBlocks : [],
+          Array.isArray(blockConfig.subBlocks)
+            ? blockConfig.subBlocks.filter((sb) => sb.mode !== 'trigger')
+            : [],
           blockInputs
         )
 
@@ -239,7 +282,6 @@ export const getBlocksMetadataServerTool: BaseServerTool<
       }
     }
 
-    // Transform metadata to cleaner format
     const transformedResult: Record<string, any> = {}
     for (const [blockId, metadata] of Object.entries(result)) {
       transformedResult[blockId] = transformBlockMetadata(metadata)
@@ -256,16 +298,13 @@ function transformBlockMetadata(metadata: CopilotBlockMetadata): any {
     description: metadata.description,
   }
 
-  // Add best practices if available
   if (metadata.bestPractices) {
     transformed.bestPractices = metadata.bestPractices
   }
 
-  // Add auth type and required credentials if available
   if (metadata.authType) {
     transformed.authType = metadata.authType
 
-    // Add credential requirements based on auth type
     if (metadata.authType === 'OAuth') {
       transformed.requiredCredentials = {
         type: 'oauth',
@@ -285,13 +324,11 @@ function transformBlockMetadata(metadata: CopilotBlockMetadata): any {
     }
   }
 
-  // Process inputs
   const inputs = extractInputs(metadata)
   if (inputs.required.length > 0 || inputs.optional.length > 0) {
     transformed.inputs = inputs
   }
 
-  // Add operations if available
   const hasOperations = metadata.operations && Object.keys(metadata.operations).length > 0
   if (hasOperations && metadata.operations) {
     const blockLevelInputs = new Set(Object.keys(metadata.inputDefinitions || {}))
@@ -309,8 +346,6 @@ function transformBlockMetadata(metadata: CopilotBlockMetadata): any {
     )
   }
 
-  // Process outputs - only show at block level if there are NO operations
-  // For blocks with operations, outputs are shown per-operation to avoid ambiguity
   if (!hasOperations) {
     const outputs = extractOutputs(metadata)
     if (outputs.length > 0) {
@@ -318,19 +353,14 @@ function transformBlockMetadata(metadata: CopilotBlockMetadata): any {
     }
   }
 
-  // Don't include availableTools - it's internal implementation detail
-  // For agent block, tools.access contains LLM provider APIs (not useful)
-  // For other blocks, it's redundant with operations
-
-  // Add triggers if present
   if (metadata.triggers && metadata.triggers.length > 0) {
     transformed.triggers = metadata.triggers.map((t) => ({
       id: t.id,
       outputs: formatOutputsFromDefinition(t.outputs || {}),
+      configFields: t.configFields || {},
     }))
   }
 
-  // Add YAML documentation if available
   if (metadata.yamlDocumentation) {
     transformed.yamlDocumentation = metadata.yamlDocumentation
   }
@@ -346,9 +376,12 @@ function extractInputs(metadata: CopilotBlockMetadata): {
   const optional: any[] = []
   const inputDefs = metadata.inputDefinitions || {}
 
-  // Process inputSchema to get UI-level input information
   for (const schema of metadata.inputSchema || []) {
-    // Skip credential inputs (handled by requiredCredentials)
+    // Skip trigger subBlocks - they're handled separately in triggers.configFields
+    if (schema.mode === 'trigger') {
+      continue
+    }
+
     if (
       schema.type === 'oauth-credential' ||
       schema.type === 'credential-input' ||
@@ -357,14 +390,12 @@ function extractInputs(metadata: CopilotBlockMetadata): {
       continue
     }
 
-    // Skip trigger config (only relevant when setting up triggers)
     if (schema.id === 'triggerConfig' || schema.type === 'trigger-config') {
       continue
     }
 
     const inputDef = inputDefs[schema.id] || inputDefs[schema.canonicalParamId || '']
 
-    // For operation field, provide a clearer description
     let description = schema.description || inputDef?.description || schema.title
     if (schema.id === 'operation') {
       description = 'Operation to perform'
@@ -376,8 +407,6 @@ function extractInputs(metadata: CopilotBlockMetadata): {
       description,
     }
 
-    // Add options for dropdown/combobox types
-    // For operation field, use IDs instead of labels for clarity
     if (schema.options && schema.options.length > 0) {
       if (schema.id === 'operation') {
         input.options = schema.options.map((opt) => opt.id)
@@ -386,19 +415,16 @@ function extractInputs(metadata: CopilotBlockMetadata): {
       }
     }
 
-    // Add enum from input definitions
     if (inputDef?.enum && Array.isArray(inputDef.enum)) {
       input.options = inputDef.enum
     }
 
-    // Add default value if present
     if (schema.defaultValue !== undefined) {
       input.default = schema.defaultValue
     } else if (inputDef?.default !== undefined) {
       input.default = inputDef.default
     }
 
-    // Add constraints for numbers
     if (schema.type === 'slider' || schema.type === 'number-input') {
       if (schema.min !== undefined) input.min = schema.min
       if (schema.max !== undefined) input.max = schema.max
@@ -407,14 +433,11 @@ function extractInputs(metadata: CopilotBlockMetadata): {
       if (inputDef.maximum !== undefined) input.max = inputDef.maximum
     }
 
-    // Add example if we can infer one
     const example = generateInputExample(schema, inputDef)
     if (example !== undefined) {
       input.example = example
     }
 
-    // Determine if required
-    // For blocks with operations, the operation field is always required
     const isOperationField =
       schema.id === 'operation' &&
       metadata.operations &&
@@ -443,12 +466,10 @@ function extractOperationInputs(
   const inputs = opData.inputs || {}
 
   for (const [key, inputDef] of Object.entries(inputs)) {
-    // Skip inputs that are already defined at block level (avoid duplication)
     if (blockLevelInputs.has(key)) {
       continue
     }
 
-    // Skip credential-related inputs (these are inherited from block-level auth)
     const lowerKey = key.toLowerCase()
     if (
       lowerKey.includes('token') ||
@@ -489,12 +510,10 @@ function extractOperationInputs(
 function extractOutputs(metadata: CopilotBlockMetadata): any[] {
   const outputs: any[] = []
 
-  // Use block's defined outputs if available
   if (metadata.outputs && Object.keys(metadata.outputs).length > 0) {
     return formatOutputsFromDefinition(metadata.outputs)
   }
 
-  // If block has operations, use the first operation's outputs as representative
   if (metadata.operations && Object.keys(metadata.operations).length > 0) {
     const firstOp = Object.values(metadata.operations)[0]
     return formatOutputsFromDefinition(firstOp.outputs || {})
@@ -542,17 +561,14 @@ function mapSchemaTypeToSimpleType(schemaType: string, schema: CopilotSubblockMe
 
   const mappedType = typeMap[schemaType] || schemaType
 
-  // Override with multiSelect
   if (schema.multiSelect) return 'array'
 
   return mappedType
 }
 
 function generateInputExample(schema: CopilotSubblockMetadata, inputDef?: any): any {
-  // Return explicit example if available
   if (inputDef?.example !== undefined) return inputDef.example
 
-  // Generate based on type
   switch (schema.type) {
     case 'short-input':
     case 'long-input':
@@ -579,15 +595,12 @@ function generateInputExample(schema: CopilotSubblockMetadata, inputDef?: any): 
 }
 
 function processSubBlock(sb: any): CopilotSubblockMetadata {
-  // Start with required fields
   const processed: CopilotSubblockMetadata = {
     id: sb.id,
     type: sb.type,
   }
 
-  // Process all optional fields - only add if they exist and are not null/undefined
   const optionalFields = {
-    // Basic properties
     title: sb.title,
     required: sb.required,
     description: sb.description,
@@ -674,7 +687,6 @@ function resolveSubblockOptions(
   sb: any
 ): { id: string; label?: string; hasIcon?: boolean }[] | undefined {
   try {
-    // Resolve options if it's a function
     const rawOptions = typeof sb.options === 'function' ? sb.options() : sb.options
     if (!Array.isArray(rawOptions)) return undefined
 
@@ -682,7 +694,6 @@ function resolveSubblockOptions(
       .map((opt: any) => {
         if (!opt) return undefined
 
-        // Handle both string and object options
         const id = typeof opt === 'object' ? opt.id : opt
         if (id === undefined || id === null) return undefined
 
@@ -690,12 +701,10 @@ function resolveSubblockOptions(
           id: String(id),
         }
 
-        // Add label if present
         if (typeof opt === 'object' && typeof opt.label === 'string') {
           result.label = opt.label
         }
 
-        // Check for icon presence
         if (typeof opt === 'object' && opt.icon) {
           result.hasIcon = true
         }
@@ -778,9 +787,10 @@ function splitParametersByOperation(
 
 function computeBlockLevelInputs(blockConfig: BlockConfig): Record<string, any> {
   const inputs = blockConfig.inputs || {}
-  const subBlocks: any[] = Array.isArray(blockConfig.subBlocks) ? blockConfig.subBlocks : []
+  const subBlocks: any[] = Array.isArray(blockConfig.subBlocks)
+    ? blockConfig.subBlocks.filter((sb) => sb.mode !== 'trigger')
+    : []
 
-  // Build quick lookup of subBlocks by id and canonicalParamId
   const byParamKey: Record<string, any[]> = {}
   for (const sb of subBlocks) {
     if (sb.id) {
@@ -796,7 +806,6 @@ function computeBlockLevelInputs(blockConfig: BlockConfig): Record<string, any> 
   const blockInputs: Record<string, any> = {}
   for (const key of Object.keys(inputs)) {
     const sbs = byParamKey[key] || []
-    // If any related subBlock is gated by operation, treat as operation-level and exclude
     const isOperationGated = sbs.some((sb) => {
       const cond = normalizeCondition(sb.condition)
       return cond && cond.field === 'operation' && !cond.not && cond.value !== undefined
@@ -813,11 +822,12 @@ function computeOperationLevelInputs(
   blockConfig: BlockConfig
 ): Record<string, Record<string, any>> {
   const inputs = blockConfig.inputs || {}
-  const subBlocks = Array.isArray(blockConfig.subBlocks) ? blockConfig.subBlocks : []
+  const subBlocks = Array.isArray(blockConfig.subBlocks)
+    ? blockConfig.subBlocks.filter((sb) => sb.mode !== 'trigger')
+    : []
 
   const opInputs: Record<string, Record<string, any>> = {}
 
-  // Map subblocks to inputs keys via id or canonicalParamId and collect by operation
   for (const sb of subBlocks) {
     const cond = normalizeCondition(sb.condition)
     if (!cond || cond.field !== 'operation' || cond.not) continue
@@ -842,13 +852,11 @@ function resolveOperationIds(
   blockConfig: BlockConfig,
   operationParameters: Record<string, CopilotSubblockMetadata[]>
 ): string[] {
-  // Prefer explicit operation subblock options if present
   const opBlock = (blockConfig.subBlocks || []).find((sb) => sb.id === 'operation')
   if (opBlock && Array.isArray(opBlock.options)) {
     const ids = opBlock.options.map((o) => o.id).filter(Boolean)
     if (ids.length > 0) return ids
   }
-  // Fallback: keys from operationParameters
   return Object.keys(operationParameters)
 }
 

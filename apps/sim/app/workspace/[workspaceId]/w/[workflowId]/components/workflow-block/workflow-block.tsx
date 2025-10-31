@@ -12,13 +12,12 @@ import { parseCronToHumanReadable } from '@/lib/schedules/utils'
 import { cn, validateName } from '@/lib/utils'
 import { type DiffStatus, hasDiffStatus } from '@/lib/workflows/diff/types'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
-import type { BlockConfig, SubBlockConfig, SubBlockType } from '@/blocks/types'
+import type { BlockConfig, SubBlockConfig } from '@/blocks/types'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { useExecutionStore } from '@/stores/execution/store'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
-import { mergeSubblockState } from '@/stores/workflows/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import { useCurrentWorkflow } from '../../hooks'
 import { ActionBar } from './components/action-bar/action-bar'
@@ -231,8 +230,7 @@ export const WorkflowBlock = memo(
 
     // Check if this is a starter block or trigger block
     const isStarterBlock = type === 'starter'
-    const isTriggerBlock = config.category === 'triggers'
-    const isWebhookTriggerBlock = type === 'webhook'
+    const isWebhookTriggerBlock = type === 'webhook' || type === 'generic_webhook'
 
     const reactivateSchedule = async (scheduleId: string) => {
       try {
@@ -466,10 +464,13 @@ export const WorkflowBlock = memo(
         // In diff mode, use the diff workflow's subblock values
         stateToUse = currentBlock.subBlocks || {}
       } else {
-        // In normal mode, use merged state
-        const blocks = useWorkflowStore.getState().blocks
-        const mergedState = mergeSubblockState(blocks, activeWorkflowId || undefined, id)[id]
-        stateToUse = mergedState?.subBlocks || {}
+        stateToUse = Object.entries(blockSubBlockValues).reduce(
+          (acc, [key, value]) => {
+            acc[key] = { value }
+            return acc
+          },
+          {} as Record<string, any>
+        )
       }
 
       const effectiveAdvanced = displayAdvancedMode
@@ -485,23 +486,31 @@ export const WorkflowBlock = memo(
           return false
         }
 
-        // Special handling for trigger mode
-        if (block.type === ('trigger-config' as SubBlockType)) {
-          // Show trigger-config blocks when in trigger mode OR for pure trigger blocks
-          const isPureTriggerBlock = config?.triggers?.enabled && config.category === 'triggers'
-          return effectiveTrigger || isPureTriggerBlock
+        // Determine if this is a pure trigger block (category: 'triggers')
+        const isPureTriggerBlock = config?.triggers?.enabled && config.category === 'triggers'
+
+        // When in trigger mode, filter out non-trigger subblocks
+        if (effectiveTrigger) {
+          // For pure trigger blocks (category: 'triggers'), allow subblocks with mode='trigger' or no mode
+          // For tool blocks with trigger capability, only allow subblocks with mode='trigger'
+          const isValidTriggerSubblock = isPureTriggerBlock
+            ? block.mode === 'trigger' || !block.mode
+            : block.mode === 'trigger'
+
+          if (!isValidTriggerSubblock) {
+            return false
+          }
+          // Continue to condition check below - don't return here!
+        } else {
+          // When NOT in trigger mode, hide trigger-specific subblocks
+          if (block.mode === 'trigger') {
+            return false
+          }
         }
 
-        if (effectiveTrigger && block.type !== ('trigger-config' as SubBlockType)) {
-          // In trigger mode, hide all non-trigger-config blocks
-          return false
-        }
-
-        // Filter by mode if specified
-        if (block.mode) {
-          if (block.mode === 'basic' && effectiveAdvanced) return false
-          if (block.mode === 'advanced' && !effectiveAdvanced) return false
-        }
+        // Handle basic/advanced modes
+        if (block.mode === 'basic' && effectiveAdvanced) return false
+        if (block.mode === 'advanced' && !effectiveAdvanced) return false
 
         // If there's no condition, the block should be shown
         if (!block.condition) return true

@@ -53,7 +53,7 @@ export function Notice({ children, variant = 'info', className, icon, title }: N
   return (
     <div className={cn('flex rounded-md border p-3', styles.container, className)}>
       <div className='flex items-start'>
-        {icon || styles.icon}
+        {icon !== null && (icon || styles.icon)}
         <div className='flex-1'>
           {title && <div className={cn('mb-1', styles.title)}>{title}</div>}
           <div className={cn('text-sm', styles.text)}>{children}</div>

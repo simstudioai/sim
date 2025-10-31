@@ -58,10 +58,10 @@ export function getAllTriggerBlocks(): TriggerInfo[] {
 }
 
 /**
- * Check if a block has trigger capability (contains a trigger-config subblock)
+ * Check if a block has trigger capability (contains trigger mode subblocks)
  */
 export function hasTriggerCapability(block: BlockConfig): boolean {
-  return block.subBlocks.some((subBlock) => subBlock.type === 'trigger-config')
+  return block.subBlocks.some((subBlock) => subBlock.mode === 'trigger')
 }
 
 /**

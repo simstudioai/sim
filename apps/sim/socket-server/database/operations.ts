@@ -1,10 +1,11 @@
 import * as schema from '@sim/db'
-import { workflow, workflowBlocks, workflowEdges, workflowSubflows } from '@sim/db'
-import { and, eq, or, sql } from 'drizzle-orm'
+import { webhook, workflow, workflowBlocks, workflowEdges, workflowSubflows } from '@sim/db'
+import { and, eq, inArray, or, sql } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
 import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
+import { cleanupExternalWebhook } from '@/lib/webhooks/webhook-helpers'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/db-helpers'
 
 const logger = createLogger('SocketDatabase')
@@ -21,10 +22,8 @@ const socketDb = drizzle(
   { schema }
 )
 
-// Use dedicated connection for socket operations, fallback to shared db for compatibility
 const db = socketDb
 
-// Constants
 const DEFAULT_LOOP_ITERATIONS = 5
 
 /**
@@ -55,18 +54,15 @@ async function insertAutoConnectEdge(
   )
 }
 
-// Enum for subflow types
 enum SubflowType {
   LOOP = 'loop',
   PARALLEL = 'parallel',
 }
 
-// Helper function to check if a block type is a subflow type
 function isSubflowBlockType(blockType: string): blockType is SubflowType {
   return Object.values(SubflowType).includes(blockType as SubflowType)
 }
 
-// Helper function to update subflow node lists when child blocks are added/removed
 export async function updateSubflowNodeList(dbOrTx: any, workflowId: string, parentId: string) {
   try {
     // Get all child blocks of this parent
@@ -110,7 +106,6 @@ export async function updateSubflowNodeList(dbOrTx: any, workflowId: string, par
   }
 }
 
-// Get workflow state
 export async function getWorkflowState(workflowId: string) {
   try {
     const workflowData = await db
@@ -123,16 +118,12 @@ export async function getWorkflowState(workflowId: string) {
       throw new Error(`Workflow ${workflowId} not found`)
     }
 
-    // Load from normalized tables first (same logic as REST API)
     const normalizedData = await loadWorkflowFromNormalizedTables(workflowId)
 
     if (normalizedData) {
-      // Use normalized data as source of truth
       const finalState = {
-        // Default values for expected properties
         deploymentStatuses: {},
         hasActiveWebhook: false,
-        // Data from normalized tables
         blocks: normalizedData.blocks,
         edges: normalizedData.edges,
         loops: normalizedData.loops,
@@ -148,7 +139,6 @@ export async function getWorkflowState(workflowId: string) {
         lastModified: Date.now(),
       }
     }
-    // Fallback to JSON blob
     return {
       ...workflowData[0],
       lastModified: Date.now(),
@@ -159,15 +149,12 @@ export async function getWorkflowState(workflowId: string) {
   }
 }
 
-// Persist workflow operation
 export async function persistWorkflowOperation(workflowId: string, operation: any) {
   const startTime = Date.now()
   try {
     const { operation: op, target, payload, timestamp, userId } = operation
 
-    // Log high-frequency operations for monitoring
     if (op === 'update-position' && Math.random() < 0.01) {
-      // Log 1% of position updates
       logger.debug('Socket DB operation sample:', {
         operation: op,
         target,
@@ -176,35 +163,31 @@ export async function persistWorkflowOperation(workflowId: string, operation: an
     }
 
     await db.transaction(async (tx) => {
-      // Update the workflow's last modified timestamp first
       await tx
         .update(workflow)
         .set({ updatedAt: new Date(timestamp) })
         .where(eq(workflow.id, workflowId))
 
-      // Handle different operation types within the transaction
       switch (target) {
         case 'block':
-          await handleBlockOperationTx(tx, workflowId, op, payload, userId)
+          await handleBlockOperationTx(tx, workflowId, op, payload)
           break
         case 'edge':
-          await handleEdgeOperationTx(tx, workflowId, op, payload, userId)
+          await handleEdgeOperationTx(tx, workflowId, op, payload)
           break
         case 'subflow':
-          await handleSubflowOperationTx(tx, workflowId, op, payload, userId)
+          await handleSubflowOperationTx(tx, workflowId, op, payload)
           break
         case 'variable':
-          await handleVariableOperationTx(tx, workflowId, op, payload, userId)
+          await handleVariableOperationTx(tx, workflowId, op, payload)
           break
         default:
           throw new Error(`Unknown operation target: ${target}`)
       }
     })
 
-    // Log slow operations for monitoring
     const duration = Date.now() - startTime
     if (duration > 100) {
-      // Log operations taking more than 100ms
       logger.warn('Slow socket DB operation:', {
         operation: operation.operation,
         target: operation.target,
@@ -222,13 +205,11 @@ export async function persistWorkflowOperation(workflowId: string, operation: an
   }
 }
 
-// Block operations
 async function handleBlockOperationTx(
   tx: any,
   workflowId: string,
   operation: string,
-  payload: any,
-  userId: string
+  payload: any
 ) {
   switch (operation) {
     case 'add': {
@@ -237,9 +218,7 @@ async function handleBlockOperationTx(
         throw new Error('Missing required fields for add block operation')
       }
 
-      // Note: single-API-trigger enforcement is handled client-side to avoid disconnects
-
-      logger.debug(`[SERVER] Adding block: ${payload.type} (${payload.id})`, {
+      logger.debug(`Adding block: ${payload.type} (${payload.id})`, {
         isSubflowType: isSubflowBlockType(payload.type),
       })
 
@@ -247,7 +226,7 @@ async function handleBlockOperationTx(
       const parentId = payload.parentId || payload.data?.parentId || null
       const extent = payload.extent || payload.data?.extent || null
 
-      logger.debug(`[SERVER] Block parent info:`, {
+      logger.debug(`Block parent info:`, {
         blockId: payload.id,
         hasParent: !!parentId,
         parentId,
@@ -281,10 +260,9 @@ async function handleBlockOperationTx(
 
         await tx.insert(workflowBlocks).values(insertData)
 
-        // Handle auto-connect edge if present
         await insertAutoConnectEdge(tx, workflowId, payload.autoConnectEdge, logger)
       } catch (insertError) {
-        logger.error(`[SERVER] ❌ Failed to insert block ${payload.id}:`, insertError)
+        logger.error(`❌ Failed to insert block ${payload.id}:`, insertError)
         throw insertError
       }
 
@@ -309,10 +287,7 @@ async function handleBlockOperationTx(
                   distribution: payload.data?.collection || '',
                 }
 
-          logger.debug(
-            `[SERVER] Auto-creating ${payload.type} subflow ${payload.id}:`,
-            subflowConfig
-          )
+          logger.debug(`Auto-creating ${payload.type} subflow ${payload.id}:`, subflowConfig)
 
           await tx.insert(workflowSubflows).values({
             id: payload.id,
@@ -321,10 +296,7 @@ async function handleBlockOperationTx(
             config: subflowConfig,
           })
         } catch (subflowError) {
-          logger.error(
-            `[SERVER] ❌ Failed to create ${payload.type} subflow ${payload.id}:`,
-            subflowError
-          )
+          logger.error(`❌ Failed to create ${payload.type} subflow ${payload.id}:`, subflowError)
           throw subflowError
         }
       }
@@ -368,6 +340,9 @@ async function handleBlockOperationTx(
         throw new Error('Missing block ID for remove operation')
       }
 
+      // Collect all block IDs that will be deleted (including child blocks)
+      const blocksToDelete = new Set<string>([payload.id])
+
       // Check if this is a subflow block that needs cascade deletion
       const blockToRemove = await tx
         .select({
@@ -391,11 +366,14 @@ async function handleBlockOperationTx(
           )
 
         logger.debug(
-          `[SERVER] Starting cascade deletion for subflow block ${payload.id} (type: ${blockToRemove[0].type})`
+          `Starting cascade deletion for subflow block ${payload.id} (type: ${blockToRemove[0].type})`
         )
         logger.debug(
-          `[SERVER] Found ${childBlocks.length} child blocks to delete: [${childBlocks.map((b: any) => `${b.id} (${b.type})`).join(', ')}]`
+          `Found ${childBlocks.length} child blocks to delete: [${childBlocks.map((b: any) => `${b.id} (${b.type})`).join(', ')}]`
         )
+
+        // Add child blocks to deletion set
+        childBlocks.forEach((child: { id: string; type: string }) => blocksToDelete.add(child.id))
 
         // Remove edges connected to child blocks
         for (const childBlock of childBlocks) {
@@ -428,6 +406,56 @@ async function handleBlockOperationTx(
           .where(
             and(eq(workflowSubflows.id, payload.id), eq(workflowSubflows.workflowId, workflowId))
           )
+      }
+
+      // Clean up external webhooks before deleting blocks
+      try {
+        const blockIdsArray = Array.from(blocksToDelete)
+        const webhooksToCleanup = await tx
+          .select({
+            webhook: webhook,
+            workflow: {
+              id: workflow.id,
+              userId: workflow.userId,
+              workspaceId: workflow.workspaceId,
+            },
+          })
+          .from(webhook)
+          .innerJoin(workflow, eq(webhook.workflowId, workflow.id))
+          .where(and(eq(webhook.workflowId, workflowId), inArray(webhook.blockId, blockIdsArray)))
+
+        if (webhooksToCleanup.length > 0) {
+          logger.debug(
+            `Found ${webhooksToCleanup.length} webhook(s) to cleanup for blocks: ${blockIdsArray.join(', ')}`
+          )
+
+          const requestId = `socket-${workflowId}-${Date.now()}-${Math.random().toString(36).substring(7)}`
+
+          // Clean up each webhook (don't fail if cleanup fails)
+          for (const webhookData of webhooksToCleanup) {
+            try {
+              await cleanupExternalWebhook(webhookData.webhook, webhookData.workflow, requestId)
+            } catch (cleanupError) {
+              logger.error(`Failed to cleanup external webhook during block deletion`, {
+                webhookId: webhookData.webhook.id,
+                workflowId: webhookData.workflow.id,
+                userId: webhookData.workflow.userId,
+                workspaceId: webhookData.workflow.workspaceId,
+                provider: webhookData.webhook.provider,
+                blockId: webhookData.webhook.blockId,
+                error: cleanupError,
+              })
+              // Continue with deletion even if cleanup fails
+            }
+          }
+        }
+      } catch (webhookCleanupError) {
+        logger.error(`Error during webhook cleanup for block deletion (continuing with deletion)`, {
+          workflowId,
+          blockIds: Array.from(blocksToDelete),
+          error: webhookCleanupError,
+        })
+        // Continue with block deletion even if webhook cleanup fails
       }
 
       // Remove any edges connected to this block
@@ -670,13 +698,10 @@ async function handleBlockOperationTx(
         throw new Error('Missing required fields for duplicate block operation')
       }
 
-      logger.debug(
-        `[SERVER] Duplicating block: ${payload.type} (${payload.sourceId} -> ${payload.id})`,
-        {
-          isSubflowType: isSubflowBlockType(payload.type),
-          payload,
-        }
-      )
+      logger.debug(`Duplicating block: ${payload.type} (${payload.sourceId} -> ${payload.id})`, {
+        isSubflowType: isSubflowBlockType(payload.type),
+        payload,
+      })
 
       // Extract parentId and extent from payload
       const parentId = payload.parentId || null
@@ -710,7 +735,7 @@ async function handleBlockOperationTx(
         // Handle auto-connect edge if present
         await insertAutoConnectEdge(tx, workflowId, payload.autoConnectEdge, logger)
       } catch (insertError) {
-        logger.error(`[SERVER] ❌ Failed to insert duplicated block ${payload.id}:`, insertError)
+        logger.error(`❌ Failed to insert duplicated block ${payload.id}:`, insertError)
         throw insertError
       }
 
@@ -736,7 +761,7 @@ async function handleBlockOperationTx(
                 }
 
           logger.debug(
-            `[SERVER] Auto-creating ${payload.type} subflow for duplicated block ${payload.id}:`,
+            `Auto-creating ${payload.type} subflow for duplicated block ${payload.id}:`,
             subflowConfig
           )
 
@@ -748,7 +773,7 @@ async function handleBlockOperationTx(
           })
         } catch (subflowError) {
           logger.error(
-            `[SERVER] ❌ Failed to create ${payload.type} subflow for duplicated block ${payload.id}:`,
+            `❌ Failed to create ${payload.type} subflow for duplicated block ${payload.id}:`,
             subflowError
           )
           throw subflowError
@@ -774,13 +799,7 @@ async function handleBlockOperationTx(
 }
 
 // Edge operations
-async function handleEdgeOperationTx(
-  tx: any,
-  workflowId: string,
-  operation: string,
-  payload: any,
-  userId: string
-) {
+async function handleEdgeOperationTx(tx: any, workflowId: string, operation: string, payload: any) {
   switch (operation) {
     case 'add': {
       // Validate required fields
@@ -825,13 +844,11 @@ async function handleEdgeOperationTx(
   }
 }
 
-// Subflow operations
 async function handleSubflowOperationTx(
   tx: any,
   workflowId: string,
   operation: string,
-  payload: any,
-  userId: string
+  payload: any
 ) {
   switch (operation) {
     case 'update': {
@@ -839,7 +856,7 @@ async function handleSubflowOperationTx(
         throw new Error('Missing required fields for update subflow operation')
       }
 
-      logger.debug(`[SERVER] Updating subflow ${payload.id} with config:`, payload.config)
+      logger.debug(`Updating subflow ${payload.id} with config:`, payload.config)
 
       // Update the subflow configuration
       const updateResult = await tx
@@ -857,7 +874,7 @@ async function handleSubflowOperationTx(
         throw new Error(`Subflow ${payload.id} not found in workflow ${workflowId}`)
       }
 
-      logger.debug(`[SERVER] Successfully updated subflow ${payload.id} in database`)
+      logger.debug(`Successfully updated subflow ${payload.id} in database`)
 
       // Also update the corresponding block's data to keep UI in sync
       if (payload.type === 'loop' && payload.config.iterations !== undefined) {
@@ -934,8 +951,7 @@ async function handleVariableOperationTx(
   tx: any,
   workflowId: string,
   operation: string,
-  payload: any,
-  userId: string
+  payload: any
 ) {
   // Get current workflow variables
   const workflowData = await tx

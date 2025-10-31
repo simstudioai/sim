@@ -1,6 +1,6 @@
 import { getBlock } from '@/blocks'
 import type { BlockConfig } from '@/blocks/types'
-import { getTrigger } from '@/triggers'
+import { getTrigger, isTriggerValid } from '@/triggers'
 
 /**
  * Get the effective outputs for a block, including dynamic outputs from inputFormat
@@ -16,10 +16,19 @@ export function getBlockOutputs(
 
   // If block is in trigger mode, use trigger outputs instead of block outputs
   if (triggerMode && blockConfig.triggers?.enabled) {
-    const triggerId = subBlocks?.triggerId?.value || blockConfig.triggers?.available?.[0]
-    if (triggerId) {
+    const selectedTriggerIdValue = subBlocks?.selectedTriggerId?.value
+    const triggerIdValue = subBlocks?.triggerId?.value
+    const triggerId =
+      (typeof selectedTriggerIdValue === 'string' && isTriggerValid(selectedTriggerIdValue)
+        ? selectedTriggerIdValue
+        : undefined) ||
+      (typeof triggerIdValue === 'string' && isTriggerValid(triggerIdValue)
+        ? triggerIdValue
+        : undefined) ||
+      blockConfig.triggers?.available?.[0]
+    if (triggerId && isTriggerValid(triggerId)) {
       const trigger = getTrigger(triggerId)
-      if (trigger?.outputs) {
+      if (trigger.outputs) {
         return trigger.outputs
       }
     }

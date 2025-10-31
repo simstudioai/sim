@@ -4,7 +4,6 @@ import { createLogger } from '@/lib/logs/console/logger'
 import { registry as blockRegistry } from '@/blocks/registry'
 import type { BlockConfig } from '@/blocks/types'
 
-// Define input and result schemas
 export const GetTriggerBlocksInput = z.object({})
 export const GetTriggerBlocksResult = z.object({
   triggerBlockIds: z.array(z.string()),
@@ -22,24 +21,17 @@ export const getTriggerBlocksServerTool: BaseServerTool<
     const triggerBlockIds: string[] = []
 
     Object.entries(blockRegistry).forEach(([blockType, blockConfig]: [string, BlockConfig]) => {
-      // Skip hidden blocks
       if (blockConfig.hideFromToolbar) return
 
-      // Check if it's a trigger block (category: 'triggers')
       if (blockConfig.category === 'triggers') {
         triggerBlockIds.push(blockType)
-      }
-      // Check if it's a tool with trigger capability (triggerAllowed: true)
-      else if ('triggerAllowed' in blockConfig && blockConfig.triggerAllowed === true) {
+      } else if ('triggerAllowed' in blockConfig && blockConfig.triggerAllowed === true) {
         triggerBlockIds.push(blockType)
-      }
-      // Check if it has a trigger-config subblock
-      else if (blockConfig.subBlocks?.some((subBlock) => subBlock.type === 'trigger-config')) {
+      } else if (blockConfig.subBlocks?.some((subBlock) => subBlock.mode === 'trigger')) {
         triggerBlockIds.push(blockType)
       }
     })
 
-    // Sort alphabetically for consistency
     triggerBlockIds.sort()
 
     logger.debug(`Found ${triggerBlockIds.length} trigger blocks`)

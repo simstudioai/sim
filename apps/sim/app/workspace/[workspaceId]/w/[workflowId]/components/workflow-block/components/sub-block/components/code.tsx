@@ -1,6 +1,6 @@
 import type { ReactElement } from 'react'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Wand2 } from 'lucide-react'
+import { Check, Copy, Wand2 } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { highlight, languages } from 'prismjs'
 import 'prismjs/components/prism-javascript'
@@ -37,6 +37,11 @@ interface CodeProps {
   isPreview?: boolean
   previewValue?: string | null
   disabled?: boolean
+  readOnly?: boolean
+  collapsible?: boolean
+  defaultCollapsed?: boolean
+  defaultValue?: string | number | boolean | Record<string, unknown> | Array<unknown>
+  showCopyButton?: boolean
   onValidationChange?: (isValid: boolean) => void
   wandConfig: {
     enabled: boolean
@@ -76,6 +81,11 @@ export function Code({
   isPreview = false,
   previewValue,
   disabled = false,
+  readOnly = false,
+  collapsible,
+  defaultCollapsed = false,
+  defaultValue,
+  showCopyButton = false,
   onValidationChange,
   wandConfig,
 }: CodeProps) {
@@ -101,20 +111,26 @@ export function Code({
   const [cursorPosition, setCursorPosition] = useState(0)
   const [activeSourceBlockId, setActiveSourceBlockId] = useState<string | null>(null)
   const [visualLineHeights, setVisualLineHeights] = useState<number[]>([])
+  const [copied, setCopied] = useState(false)
 
   const accessiblePrefixes = useAccessibleReferencePrefixes(blockId)
 
   const collapsedStateKey = `${subBlockId}_collapsed`
-  const isCollapsed =
-    (useSubBlockStore((state) => state.getValue(blockId, collapsedStateKey)) as boolean) ?? false
+  const storeCollapsedValue = useSubBlockStore((state) =>
+    state.getValue(blockId, collapsedStateKey)
+  ) as boolean | undefined
+  const isCollapsed = storeCollapsedValue !== undefined ? storeCollapsedValue : defaultCollapsed
 
   const { collaborativeSetSubblockValue } = useCollaborativeWorkflow()
   const setCollapsedValue = (blockId: string, subblockId: string, value: any) => {
     collaborativeSetSubblockValue(blockId, subblockId, value)
   }
 
-  const showCollapseButton =
-    (subBlockId === 'responseFormat' || subBlockId === 'code') && code.split('\n').length > 5
+  const shouldShowCollapseButton = useMemo(() => {
+    if (collapsible === false) return false
+    if (collapsible === true) return true
+    return (subBlockId === 'responseFormat' || subBlockId === 'code') && code.split('\n').length > 5
+  }, [collapsible, subBlockId, code])
 
   const isValidJson = useMemo(() => {
     if (subBlockId !== 'responseFormat' || !code.trim()) {
@@ -211,7 +227,19 @@ IMPORTANT FORMATTING RULES:
 
   const emitTagSelection = useTagSelection(blockId, subBlockId)
 
-  const value = isPreview ? previewValue : propValue !== undefined ? propValue : storeValue
+  const getDefaultValueString = () => {
+    if (defaultValue === undefined || defaultValue === null) return ''
+    if (typeof defaultValue === 'string') return defaultValue
+    return JSON.stringify(defaultValue, null, 2)
+  }
+
+  const value = isPreview
+    ? previewValue
+    : propValue !== undefined
+      ? propValue
+      : readOnly && defaultValue !== undefined
+        ? getDefaultValueString()
+        : storeValue
 
   useEffect(() => {
     handleStreamStartRef.current = () => {
@@ -301,8 +329,36 @@ IMPORTANT FORMATTING RULES:
     }
   }, [code])
 
+  useEffect(() => {
+    if (!editorRef.current) return
+
+    const setReadOnly = () => {
+      const textarea = editorRef.current?.querySelector('textarea')
+      if (textarea) {
+        textarea.readOnly = readOnly
+      }
+    }
+
+    setReadOnly()
+
+    const timeoutId = setTimeout(setReadOnly, 0)
+
+    const observer = new MutationObserver(setReadOnly)
+    if (editorRef.current) {
+      observer.observe(editorRef.current, {
+        childList: true,
+        subtree: true,
+      })
+    }
+
+    return () => {
+      clearTimeout(timeoutId)
+      observer.disconnect()
+    }
+  }, [readOnly])
+
   const handleDrop = (e: React.DragEvent) => {
-    if (isPreview) return
+    if (isPreview || readOnly) return
     e.preventDefault()
     try {
       const data = JSON.parse(e.dataTransfer.getData('application/json'))
@@ -334,8 +390,17 @@ IMPORTANT FORMATTING RULES:
     }
   }
 
+  const handleCopy = () => {
+    const textToCopy = code
+    if (textToCopy) {
+      navigator.clipboard.writeText(textToCopy)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    }
+  }
+
   const handleTagSelect = (newValue: string) => {
-    if (!isPreview) {
+    if (!isPreview && !readOnly) {
       setCode(newValue)
       emitTagSelection(newValue)
     }
@@ -348,7 +413,7 @@ IMPORTANT FORMATTING RULES:
   }
 
   const handleEnvVarSelect = (newValue: string) => {
-    if (!isPreview) {
+    if (!isPreview && !readOnly) {
       setCode(newValue)
       emitTagSelection(newValue)
     }
@@ -439,7 +504,7 @@ IMPORTANT FORMATTING RULES:
         onDrop={handleDrop}
       >
         <div className='absolute top-2 right-3 z-10 flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100'>
-          {wandConfig?.enabled && !isCollapsed && !isAiStreaming && !isPreview && (
+          {wandConfig?.enabled && !isCollapsed && !isAiStreaming && !isPreview && !readOnly && (
             <Button
               variant='ghost'
               size='icon'
@@ -452,7 +517,26 @@ IMPORTANT FORMATTING RULES:
             </Button>
           )}
 
-          {showCollapseButton && !isAiStreaming && !isPreview && (
+          {showCopyButton && code && (
+            <Button
+              type='button'
+              variant='ghost'
+              size='sm'
+              onClick={handleCopy}
+              disabled={!code}
+              className={cn(
+                'h-8 w-8 p-0',
+                'text-muted-foreground/60 transition-all duration-200',
+                'hover:scale-105 hover:bg-muted/50 hover:text-foreground',
+                'active:scale-95'
+              )}
+              aria-label='Copy code'
+            >
+              {copied ? <Check className='h-3.5 w-3.5' /> : <Copy className='h-3.5 w-3.5' />}
+            </Button>
+          )}
+
+          {shouldShowCollapseButton && !isAiStreaming && (
             <Button
               variant='ghost'
               size='sm'
@@ -489,7 +573,7 @@ IMPORTANT FORMATTING RULES:
           <Editor
             value={code}
             onValueChange={(newCode) => {
-              if (!isCollapsed && !isAiStreaming && !isPreview && !disabled) {
+              if (!isCollapsed && !isAiStreaming && !isPreview && !disabled && !readOnly) {
                 setCode(newCode)
                 setStoreValue(newCode)
 
@@ -524,14 +608,12 @@ IMPORTANT FORMATTING RULES:
                 []
               let processedCode = codeToHighlight
 
-              // Replace environment variables with placeholders
               processedCode = processedCode.replace(/\{\{([^}]+)\}\}/g, (match) => {
                 const placeholder = `__ENV_VAR_${placeholders.length}__`
                 placeholders.push({ placeholder, original: match, type: 'env' })
                 return placeholder
               })
 
-              // Replace variable references with placeholders
               processedCode = processedCode.replace(/<([^>]+)>/g, (match) => {
                 if (shouldHighlightReference(match)) {
                   const placeholder = `__VAR_REF_${placeholders.length}__`
@@ -541,11 +623,9 @@ IMPORTANT FORMATTING RULES:
                 return match
               })
 
-              // Apply Prism syntax highlighting
               const lang = effectiveLanguage === 'python' ? 'python' : 'javascript'
               let highlightedCode = highlight(processedCode, languages[lang], lang)
 
-              // Restore and highlight the placeholders
               placeholders.forEach(({ placeholder, original, type }) => {
                 if (type === 'env') {
                   highlightedCode = highlightedCode.replace(
@@ -553,7 +633,6 @@ IMPORTANT FORMATTING RULES:
                     `<span class="text-blue-500">${original}</span>`
                   )
                 } else if (type === 'var') {
-                  // Escape the < and > for display
                   const escaped = original.replace(/</g, '&lt;').replace(/>/g, '&gt;')
                   highlightedCode = highlightedCode.replace(
                     placeholder,
@@ -575,7 +654,8 @@ IMPORTANT FORMATTING RULES:
             className={cn(
               'code-editor-area caret-primary dark:caret-white',
               'bg-transparent focus:outline-none',
-              (isCollapsed || isAiStreaming) && 'cursor-not-allowed opacity-50'
+              (isCollapsed || isAiStreaming) && 'cursor-default opacity-50',
+              readOnly && !isCollapsed && 'cursor-text opacity-100'
             )}
             textareaClassName={cn(
               'focus:outline-none focus:ring-0 border-none bg-transparent resize-none',
@@ -583,7 +663,7 @@ IMPORTANT FORMATTING RULES:
             )}
           />
 
-          {showEnvVars && !isCollapsed && !isAiStreaming && (
+          {showEnvVars && !isCollapsed && !isAiStreaming && !readOnly && (
             <EnvVarDropdown
               visible={showEnvVars}
               onSelect={handleEnvVarSelect}
@@ -598,7 +678,7 @@ IMPORTANT FORMATTING RULES:
             />
           )}
 
-          {showTags && !isCollapsed && !isAiStreaming && (
+          {showTags && !isCollapsed && !isAiStreaming && !readOnly && (
             <TagDropdown
               visible={showTags}
               onSelect={handleTagSelect}

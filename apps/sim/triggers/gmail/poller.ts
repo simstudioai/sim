@@ -1,4 +1,5 @@
 import { GmailIcon } from '@/components/icons'
+import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import type { TriggerConfig } from '@/triggers/types'
 
 export const gmailPollingTrigger: TriggerConfig = {
@@ -9,51 +10,152 @@ export const gmailPollingTrigger: TriggerConfig = {
   version: '1.0.0',
   icon: GmailIcon,
 
-  // Gmail requires OAuth credentials to work
-  requiresCredentials: true,
-  credentialProvider: 'google-email',
-
-  configFields: {
-    labelIds: {
-      type: 'multiselect',
-      label: 'Gmail Labels to Monitor',
+  subBlocks: [
+    {
+      id: 'triggerCredentials',
+      title: 'Credentials',
+      type: 'oauth-input',
+      description: 'This trigger requires google email credentials to access your account.',
+      provider: 'google-email',
+      requiredScopes: [],
+      required: true,
+      mode: 'trigger',
+    },
+    {
+      id: 'labelIds',
+      title: 'Gmail Labels to Monitor',
+      type: 'dropdown',
+      multiSelect: true,
       placeholder: 'Select Gmail labels to monitor for new emails',
       description: 'Choose which Gmail labels to monitor. Leave empty to monitor all emails.',
       required: false,
       options: [], // Will be populated dynamically from user's Gmail labels
+      fetchOptions: async (blockId: string, subBlockId: string) => {
+        const credentialId = useSubBlockStore.getState().getValue(blockId, 'triggerCredentials') as
+          | string
+          | null
+        if (!credentialId) {
+          return []
+        }
+        try {
+          const response = await fetch(`/api/tools/gmail/labels?credentialId=${credentialId}`)
+          if (!response.ok) {
+            throw new Error('Failed to fetch Gmail labels')
+          }
+          const data = await response.json()
+          if (data.labels && Array.isArray(data.labels)) {
+            return data.labels.map((label: { id: string; name: string }) => ({
+              id: label.id,
+              label: label.name,
+            }))
+          }
+          return []
+        } catch (error) {
+          console.error('Error fetching Gmail labels:', error)
+          return []
+        }
+      },
+      mode: 'trigger',
     },
-    labelFilterBehavior: {
-      type: 'select',
-      label: 'Label Filter Behavior',
-      options: ['INCLUDE', 'EXCLUDE'],
+    {
+      id: 'labelFilterBehavior',
+      title: 'Label Filter Behavior',
+      type: 'dropdown',
+      options: [
+        { label: 'INCLUDE', id: 'INCLUDE' },
+        { label: 'EXCLUDE', id: 'EXCLUDE' },
+      ],
       defaultValue: 'INCLUDE',
       description:
         'Include only emails with selected labels, or exclude emails with selected labels',
       required: true,
+      mode: 'trigger',
     },
-    searchQuery: {
-      type: 'string',
-      label: 'Gmail Search Query',
+    {
+      id: 'searchQuery',
+      title: 'Gmail Search Query',
+      type: 'short-input',
       placeholder: 'subject:report OR from:important@example.com',
       description:
         'Optional Gmail search query to filter emails. Use the same format as Gmail search box (e.g., "subject:invoice", "from:boss@company.com", "has:attachment"). Leave empty to search all emails.',
       required: false,
+      mode: 'trigger',
     },
-    markAsRead: {
-      type: 'boolean',
-      label: 'Mark as Read',
+    {
+      id: 'markAsRead',
+      title: 'Mark as Read',
+      type: 'switch',
       defaultValue: false,
       description: 'Automatically mark emails as read after processing',
       required: false,
+      mode: 'trigger',
     },
-    includeAttachments: {
-      type: 'boolean',
-      label: 'Include Attachments',
+    {
+      id: 'includeAttachments',
+      title: 'Include Attachments',
+      type: 'switch',
       defaultValue: false,
       description: 'Download and include email attachments in the trigger payload',
       required: false,
+      mode: 'trigger',
     },
-  },
+    {
+      id: 'triggerInstructions',
+      title: 'Setup Instructions',
+      type: 'text',
+      defaultValue: [
+        'Connect your Gmail account using OAuth credentials',
+        'Configure which Gmail labels to monitor (optional)',
+        'The system will automatically check for new emails and trigger your workflow',
+      ]
+        .map(
+          (instruction, index) =>
+            `<div class="mb-3"><strong>${index + 1}.</strong> ${instruction}</div>`
+        )
+        .join(''),
+      mode: 'trigger',
+    },
+    {
+      id: 'triggerSave',
+      title: '',
+      type: 'trigger-save',
+      mode: 'trigger',
+      triggerId: 'gmail_poller',
+    },
+    {
+      id: 'samplePayload',
+      title: 'Event Payload Example',
+      type: 'code',
+      language: 'json',
+      defaultValue: JSON.stringify(
+        {
+          email: {
+            id: '18e0ffabd5b5a0f4',
+            threadId: '18e0ffabd5b5a0f4',
+            subject: 'Monthly Report - April 2025',
+            from: 'sender@example.com',
+            to: 'recipient@example.com',
+            cc: 'team@example.com',
+            date: '2025-05-10T10:15:23.000Z',
+            bodyText:
+              'Hello,\n\nPlease find attached the monthly report for April 2025.\n\nBest regards,\nSender',
+            bodyHtml:
+              '<div><p>Hello,</p><p>Please find attached the monthly report for April 2025.</p><p>Best regards,<br>Sender</p></div>',
+            labels: ['INBOX', 'IMPORTANT'],
+            hasAttachments: true,
+            attachments: [],
+          },
+          timestamp: '2025-05-10T10:15:30.123Z',
+        },
+        null,
+        2
+      ),
+      readOnly: true,
+      collapsible: true,
+      defaultCollapsed: true,
+      mode: 'trigger',
+    },
+  ],
 
   outputs: {
     email: {
@@ -110,31 +212,5 @@ export const gmailPollingTrigger: TriggerConfig = {
       type: 'string',
       description: 'Event timestamp',
     },
-  },
-
-  instructions: [
-    'Connect your Gmail account using OAuth credentials',
-    'Configure which Gmail labels to monitor (optional)',
-    'The system will automatically check for new emails and trigger your workflow',
-  ],
-
-  samplePayload: {
-    email: {
-      id: '18e0ffabd5b5a0f4',
-      threadId: '18e0ffabd5b5a0f4',
-      subject: 'Monthly Report - April 2025',
-      from: 'sender@example.com',
-      to: 'recipient@example.com',
-      cc: 'team@example.com',
-      date: '2025-05-10T10:15:23.000Z',
-      bodyText:
-        'Hello,\n\nPlease find attached the monthly report for April 2025.\n\nBest regards,\nSender',
-      bodyHtml:
-        '<div><p>Hello,</p><p>Please find attached the monthly report for April 2025.</p><p>Best regards,<br>Sender</p></div>',
-      labels: ['INBOX', 'IMPORTANT'],
-      hasAttachments: true,
-      attachments: [],
-    },
-    timestamp: '2025-05-10T10:15:30.123Z',
   },
 }

@@ -2,6 +2,7 @@ import { WhatsAppIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
 import type { WhatsAppResponse } from '@/tools/whatsapp/types'
+import { getTrigger } from '@/triggers'
 
 export const WhatsAppBlock: BlockConfig<WhatsAppResponse> = {
   type: 'whatsapp',
@@ -48,14 +49,7 @@ export const WhatsAppBlock: BlockConfig<WhatsAppResponse> = {
       password: true,
       required: true,
     },
-    {
-      id: 'triggerConfig',
-      title: 'Trigger Configuration',
-      type: 'trigger-config',
-      layout: 'full',
-      triggerProvider: 'whatsapp',
-      availableTriggers: ['whatsapp_webhook'],
-    },
+    ...getTrigger('whatsapp_webhook').subBlocks,
   ],
   tools: {
     access: ['whatsapp_send_message'],

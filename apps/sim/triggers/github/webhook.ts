@@ -1,5 +1,5 @@
 import { GithubIcon } from '@/components/icons'
-import type { TriggerConfig } from '../types'
+import type { TriggerConfig } from '@/triggers/types'
 
 export const githubWebhookTrigger: TriggerConfig = {
   id: 'github_webhook',
@@ -9,35 +9,134 @@ export const githubWebhookTrigger: TriggerConfig = {
   version: '1.0.0',
   icon: GithubIcon,
 
-  configFields: {
-    contentType: {
-      type: 'select',
-      label: 'Content Type',
-      options: ['application/json', 'application/x-www-form-urlencoded'],
+  subBlocks: [
+    {
+      id: 'webhookUrlDisplay',
+      title: 'Webhook URL',
+      type: 'short-input',
+      readOnly: true,
+      showCopyButton: true,
+      useWebhookUrl: true,
+      placeholder: 'Webhook URL will be generated',
+      mode: 'trigger',
+    },
+    {
+      id: 'contentType',
+      title: 'Content Type',
+      type: 'dropdown',
+      options: [
+        { label: 'application/json', id: 'application/json' },
+        { label: 'application/x-www-form-urlencoded', id: 'application/x-www-form-urlencoded' },
+      ],
       defaultValue: 'application/json',
       description: 'Format GitHub will use when sending the webhook payload.',
       required: true,
+      mode: 'trigger',
     },
-    webhookSecret: {
-      type: 'string',
-      label: 'Webhook Secret (Recommended)',
+    {
+      id: 'webhookSecret',
+      title: 'Webhook Secret (Recommended)',
+      type: 'short-input',
       placeholder: 'Generate or enter a strong secret',
       description: 'Validates that webhook deliveries originate from GitHub.',
+      password: true,
       required: false,
-      isSecret: true,
+      mode: 'trigger',
     },
-    sslVerification: {
-      type: 'select',
-      label: 'SSL Verification',
-      options: ['enabled', 'disabled'],
+    {
+      id: 'sslVerification',
+      title: 'SSL Verification',
+      type: 'dropdown',
+      options: [
+        { label: 'Enabled', id: 'enabled' },
+        { label: 'Disabled', id: 'disabled' },
+      ],
       defaultValue: 'enabled',
       description: 'GitHub verifies SSL certificates when delivering webhooks.',
       required: true,
+      mode: 'trigger',
     },
-  },
+    {
+      id: 'triggerInstructions',
+      title: 'Setup Instructions',
+      type: 'text',
+      defaultValue: [
+        'Go to your GitHub Repository > Settings > Webhooks.',
+        'Click "Add webhook".',
+        'Paste the <strong>Webhook URL</strong> above into the "Payload URL" field.',
+        'Select your chosen Content Type from the dropdown.',
+        'Enter the <strong>Webhook Secret</strong> into the "Secret" field if you\'ve configured one.',
+        'Set SSL verification according to your selection.',
+        'Choose which events should trigger this webhook.',
+        'Ensure "Active" is checked and click "Add webhook".',
+      ]
+        .map(
+          (instruction, index) =>
+            `<div class="mb-3"><strong>${index + 1}.</strong> ${instruction}</div>`
+        )
+        .join(''),
+      mode: 'trigger',
+    },
+    {
+      id: 'triggerSave',
+      title: '',
+      type: 'trigger-save',
+      mode: 'trigger',
+      triggerId: 'github_webhook',
+    },
+    {
+      id: 'samplePayload',
+      title: 'Event Payload Example',
+      type: 'code',
+      language: 'json',
+      defaultValue: JSON.stringify(
+        {
+          action: 'opened',
+          number: 1,
+          pull_request: {
+            id: 1,
+            number: 1,
+            state: 'open',
+            title: 'Update README',
+            user: {
+              login: 'octocat',
+              id: 1,
+            },
+            body: 'This is a pretty simple change that we need to pull into main.',
+            head: {
+              ref: 'feature-branch',
+              sha: 'abc123',
+            },
+            base: {
+              ref: 'main',
+              sha: 'def456',
+            },
+          },
+          repository: {
+            id: 35129377,
+            name: 'public-repo',
+            full_name: 'baxterthehacker/public-repo',
+            owner: {
+              login: 'baxterthehacker',
+              id: 6752317,
+            },
+          },
+          sender: {
+            login: 'baxterthehacker',
+            id: 6752317,
+          },
+        },
+        null,
+        2
+      ),
+      readOnly: true,
+      collapsible: true,
+      defaultCollapsed: true,
+      mode: 'trigger',
+    },
+  ],
 
   outputs: {
-    // GitHub webhook payload structure - now at root for direct access
     ref: {
       type: 'string',
       description: 'Git reference (e.g., refs/heads/fix/telegram-wh)',
@@ -457,54 +556,6 @@ export const githubWebhookTrigger: TriggerConfig = {
     branch: {
       type: 'string',
       description: 'Branch name extracted from ref',
-    },
-  },
-
-  instructions: [
-    'Go to your GitHub Repository > Settings > Webhooks.',
-    'Click "Add webhook".',
-    'Paste the <strong>Webhook URL</strong> (from above) into the "Payload URL" field.',
-    'Select your chosen Content Type from the dropdown above.',
-    'Enter the <strong>Webhook Secret</strong> (from above) into the "Secret" field if you\'ve configured one.',
-    'Set SSL verification according to your selection above.',
-    'Choose which events should trigger this webhook.',
-    'Ensure "Active" is checked and click "Add webhook".',
-  ],
-
-  samplePayload: {
-    action: 'opened',
-    number: 1,
-    pull_request: {
-      id: 1,
-      number: 1,
-      state: 'open',
-      title: 'Update README',
-      user: {
-        login: 'octocat',
-        id: 1,
-      },
-      body: 'This is a pretty simple change that we need to pull into main.',
-      head: {
-        ref: 'feature-branch',
-        sha: 'abc123',
-      },
-      base: {
-        ref: 'main',
-        sha: 'def456',
-      },
-    },
-    repository: {
-      id: 35129377,
-      name: 'public-repo',
-      full_name: 'baxterthehacker/public-repo',
-      owner: {
-        login: 'baxterthehacker',
-        id: 6752317,
-      },
-    },
-    sender: {
-      login: 'baxterthehacker',
-      id: 6752317,
     },
   },
 

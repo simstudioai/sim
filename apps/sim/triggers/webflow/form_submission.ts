@@ -10,26 +10,99 @@ export const webflowFormSubmissionTrigger: TriggerConfig = {
   version: '1.0.0',
   icon: WebflowIcon,
 
-  requiresCredentials: true,
-  credentialProvider: 'webflow',
-
-  configFields: {
-    siteId: {
-      type: 'select',
-      label: 'Site',
+  subBlocks: [
+    {
+      id: 'triggerCredentials',
+      title: 'Credentials',
+      type: 'oauth-input',
+      description: 'This trigger requires webflow credentials to access your account.',
+      provider: 'webflow',
+      requiredScopes: [],
+      required: true,
+      mode: 'trigger',
+    },
+    {
+      id: 'siteId',
+      title: 'Site',
+      type: 'dropdown',
       placeholder: 'Select a site',
       description: 'The Webflow site to monitor',
       required: true,
       options: [],
+      mode: 'trigger',
     },
-    formId: {
-      type: 'string',
-      label: 'Form ID',
+    {
+      id: 'formId',
+      title: 'Form ID',
+      type: 'short-input',
       placeholder: 'form-123abc (optional)',
       description: 'The ID of the specific form to monitor (optional - leave empty for all forms)',
       required: false,
+      mode: 'trigger',
     },
-  },
+    {
+      id: 'triggerInstructions',
+      title: 'Setup Instructions',
+      type: 'text',
+      defaultValue: [
+        'Connect your Webflow account using the "Select Webflow credential" button above.',
+        'Enter your Webflow Site ID (found in the site URL or site settings).',
+        'Optionally enter a Form ID to monitor only a specific form.',
+        'If no Form ID is provided, the trigger will fire for any form submission on the site.',
+        'The webhook will trigger whenever a form is submitted on the specified site.',
+        'Form data will be included in the payload with all submitted field values.',
+        'Make sure your Webflow account has appropriate permissions for the specified site.',
+      ]
+        .map(
+          (instruction, index) =>
+            `<div class="mb-3"><strong>${index + 1}.</strong> ${instruction}</div>`
+        )
+        .join(''),
+      mode: 'trigger',
+    },
+    {
+      id: 'triggerSave',
+      title: '',
+      type: 'trigger-save',
+      mode: 'trigger',
+      triggerId: 'webflow_form_submission',
+    },
+    {
+      id: 'samplePayload',
+      title: 'Event Payload Example',
+      type: 'code',
+      language: 'json',
+      defaultValue: JSON.stringify(
+        {
+          siteId: '68f9666057aa8abaa9b0b668',
+          workspaceId: '68f96081e7018465432953b5',
+          name: 'Contact Form',
+          id: '68fa8445de250e147cd95cfd',
+          submittedAt: '2024-01-15T12:00:00.000Z',
+          data: {
+            name: 'John Doe',
+            email: 'john@example.com',
+            message: 'I would like more information about your services.',
+            'consent-checkbox': 'true',
+          },
+          schema: {
+            fields: [
+              { name: 'name', type: 'text' },
+              { name: 'email', type: 'email' },
+              { name: 'message', type: 'textarea' },
+            ],
+          },
+          formElementId: '68f9666257aa8abaa9b0b6e2',
+        },
+        null,
+        2
+      ),
+      readOnly: true,
+      collapsible: true,
+      defaultCollapsed: true,
+      mode: 'trigger',
+    },
+  ],
 
   outputs: {
     siteId: {
@@ -64,38 +137,6 @@ export const webflowFormSubmissionTrigger: TriggerConfig = {
       type: 'string',
       description: 'The form element ID',
     },
-  },
-
-  instructions: [
-    'Connect your Webflow account using the "Select Webflow credential" button above.',
-    'Enter your Webflow Site ID (found in the site URL or site settings).',
-    'Optionally enter a Form ID to monitor only a specific form.',
-    'If no Form ID is provided, the trigger will fire for any form submission on the site.',
-    'The webhook will trigger whenever a form is submitted on the specified site.',
-    'Form data will be included in the payload with all submitted field values.',
-    'Make sure your Webflow account has appropriate permissions for the specified site.',
-  ],
-
-  samplePayload: {
-    siteId: '68f9666057aa8abaa9b0b668',
-    workspaceId: '68f96081e7018465432953b5',
-    name: 'Contact Form',
-    id: '68fa8445de250e147cd95cfd',
-    submittedAt: '2024-01-15T12:00:00.000Z',
-    data: {
-      name: 'John Doe',
-      email: 'john@example.com',
-      message: 'I would like more information about your services.',
-      'consent-checkbox': 'true',
-    },
-    schema: {
-      fields: [
-        { name: 'name', type: 'text' },
-        { name: 'email', type: 'email' },
-        { name: 'message', type: 'textarea' },
-      ],
-    },
-    formElementId: '68f9666257aa8abaa9b0b6e2',
   },
 
   webhook: {
