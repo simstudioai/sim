@@ -6,7 +6,7 @@ services:
     plan: free
     region: oregon
     buildCommand: bun install && cd apps/sim && NODE_OPTIONS="--max-old-space-size=4096" bun run build
-    startCommand: cd apps/sim && bun run start
+    startCommand: cd apps/sim && NODE_OPTIONS="--max-old-space-size=2048" node .next/standalone/apps/sim/server.js
     healthCheckPath: /
     envVars:
       - key: NODE_ENV
@@ -15,6 +15,8 @@ services:
         value: "true"
       - key: DOCKER_BUILD
         value: "true"
+      - key: PORT
+        value: "10000"
       - key: DATABASE_URL
         fromDatabase:
           name: sim-db
