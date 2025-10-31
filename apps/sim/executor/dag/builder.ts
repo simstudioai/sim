@@ -33,7 +33,7 @@ export class DAGBuilder {
   private nodeConstructor = new NodeConstructor()
   private edgeConstructor = new EdgeConstructor()
 
-  build(workflow: SerializedWorkflow, startBlockId?: string): DAG {
+  build(workflow: SerializedWorkflow, triggerBlockId?: string): DAG {
     const dag: DAG = {
       nodes: new Map(),
       loopConfigs: new Map(),
@@ -42,9 +42,9 @@ export class DAGBuilder {
 
     this.initializeConfigs(workflow, dag)
 
-    const reachableBlocks = this.pathConstructor.execute(workflow, startBlockId)
-    logger.debug('Reachable blocks from start:', {
-      startBlockId,
+    const reachableBlocks = this.pathConstructor.execute(workflow, triggerBlockId)
+    logger.debug('Reachable blocks from trigger:', {
+      triggerBlockId,
       reachableCount: reachableBlocks.size,
       totalBlocks: workflow.blocks.length,
     })

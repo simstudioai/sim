@@ -20,13 +20,13 @@ export class ExecutionEngine {
     private context: ExecutionContext
   ) {}
 
-  async run(startNodeId?: string): Promise<ExecutionResult> {
+  async run(triggerBlockId?: string): Promise<ExecutionResult> {
     const startTime = Date.now()
     try {
-      this.initializeQueue(startNodeId)
+      this.initializeQueue(triggerBlockId)
       logger.debug('Starting execution loop', {
         initialQueueSize: this.readyQueue.length,
-        startNodeId,
+        startNodeId: triggerBlockId,
       })
 
       while (this.hasWork()) {
@@ -121,9 +121,9 @@ export class ExecutionEngine {
     }
   }
 
-  private initializeQueue(startNodeId?: string): void {
-    if (startNodeId) {
-      this.addToQueue(startNodeId)
+  private initializeQueue(triggerBlockId?: string): void {
+    if (triggerBlockId) {
+      this.addToQueue(triggerBlockId)
       return
     }
 

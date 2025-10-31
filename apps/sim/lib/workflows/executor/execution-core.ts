@@ -34,7 +34,7 @@ export interface ExecuteWorkflowCoreOptions {
   executionId: string
   selectedOutputs?: string[]
   workspaceId?: string
-  startBlockId?: string // Optional: start from specific block (for webhooks/schedules)
+  triggerBlockId?: string // Optional: trigger block that started execution (for webhooks/schedules)
   // Callbacks for SSE streaming (optional)
   onBlockStart?: (blockId: string, blockName: string, blockType: string) => Promise<void>
   onBlockComplete?: (
@@ -307,7 +307,7 @@ export async function executeWorkflowCore(
 
     const result = (await executorInstance.execute(
       workflowId,
-      options.startBlockId
+      options.triggerBlockId
     )) as ExecutionResult
 
     // Build trace spans for logging

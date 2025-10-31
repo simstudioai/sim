@@ -276,7 +276,7 @@ async function executeWebhookJobInternal(
           loggingSession,
           executionId,
           workspaceId,
-          startBlockId: payload.blockId,
+          triggerBlockId: payload.blockId,
         })
 
         logger.info(`[${requestId}] Airtable webhook execution completed`, {
@@ -448,7 +448,7 @@ async function executeWebhookJobInternal(
       loggingSession,
       executionId,
       workspaceId,
-      startBlockId: payload.blockId,
+      triggerBlockId: payload.blockId,
     })
 
     logger.info(`[${requestId}] Webhook execution completed`, {

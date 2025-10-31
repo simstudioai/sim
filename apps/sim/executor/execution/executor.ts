@@ -2,7 +2,7 @@ import { createLogger } from '@/lib/logs/console/logger'
 import type { BlockOutput } from '@/blocks/types'
 import { createBlockHandlers } from '@/executor/handlers/registry'
 import type { ExecutionContext, ExecutionResult } from '@/executor/types'
-import { buildStartBlockOutput, resolveExecutorStartBlock } from '@/executor/utils/start-block'
+import { buildStartBlockOutput, resolveExecutorStartBlock, buildResolutionFromBlock } from '@/executor/utils/start-block'
 import type { SerializedWorkflow } from '@/serializer/types'
 import { DAGBuilder } from '../dag/builder'
 import { LoopOrchestrator } from '../orchestrators/loop'
@@ -46,9 +46,9 @@ export class DAGExecutor {
     this.dagBuilder = new DAGBuilder()
   }
 
-  async execute(workflowId: string, startBlockId?: string): Promise<ExecutionResult> {
-    const dag = this.dagBuilder.build(this.workflow, startBlockId)
-    const context = this.createExecutionContext(workflowId)
+  async execute(workflowId: string, triggerBlockId?: string): Promise<ExecutionResult> {
+    const dag = this.dagBuilder.build(this.workflow, triggerBlockId)
+    const context = this.createExecutionContext(workflowId, triggerBlockId)
     const state = new ExecutionState()
     const resolver = new VariableResolver(this.workflow, this.workflowVariables, state)
     const loopOrchestrator = new LoopOrchestrator(dag, state, resolver)
@@ -64,7 +64,7 @@ export class DAGExecutor {
       parallelOrchestrator
     )
     const engine = new ExecutionEngine(dag, edgeManager, nodeOrchestrator, context)
-    return await engine.run(startBlockId)
+    return await engine.run(triggerBlockId)
   }
 
   cancel(): void {
@@ -88,7 +88,7 @@ export class DAGExecutor {
     }
   }
 
-  private createExecutionContext(workflowId: string): ExecutionContext {
+  private createExecutionContext(workflowId: string, triggerBlockId?: string): ExecutionContext {
     const context: ExecutionContext = {
       workflowId,
       blockStates: new Map(),
@@ -117,19 +117,45 @@ export class DAGExecutor {
       onBlockComplete: this.contextExtensions.onBlockComplete,
     }
 
-    this.initializeStarterBlock(context)
+    this.initializeStarterBlock(context, triggerBlockId)
     return context
   }
 
-  private initializeStarterBlock(context: ExecutionContext): void {
-    const startResolution = resolveExecutorStartBlock(this.workflow.blocks, {
-      execution: 'manual',
-      isChildWorkflow: false,
-    })
-
-    if (!startResolution?.block) {
-      logger.warn('No start block found in workflow')
-      return
+  private initializeStarterBlock(context: ExecutionContext, triggerBlockId?: string): void {
+    let startResolution: ReturnType<typeof resolveExecutorStartBlock> | null = null
+    
+    if (triggerBlockId) {
+      const triggerBlock = this.workflow.blocks.find(b => b.id === triggerBlockId)
+      if (!triggerBlock) {
+        logger.error('Specified trigger block not found in workflow', {
+          triggerBlockId,
+        })
+        throw new Error(`Trigger block not found: ${triggerBlockId}`)
+      }
+      
+      startResolution = buildResolutionFromBlock(triggerBlock)
+      
+      if (!startResolution) {
+        logger.debug('Creating generic resolution for trigger block', {
+          triggerBlockId,
+          blockType: triggerBlock.metadata?.id,
+        })
+        startResolution = {
+          blockId: triggerBlock.id,
+          block: triggerBlock,
+          path: 'split_manual' as any,
+        }
+      }
+    } else {
+      startResolution = resolveExecutorStartBlock(this.workflow.blocks, {
+        execution: 'manual',
+        isChildWorkflow: false,
+      })
+      
+      if (!startResolution?.block) {
+        logger.warn('No start block found in workflow')
+        return
+      }
     }
 
     const blockOutput = buildStartBlockOutput({

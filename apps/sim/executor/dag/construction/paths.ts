@@ -5,17 +5,17 @@ import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 const logger = createLogger('PathConstructor')
 
 export class PathConstructor {
-  execute(workflow: SerializedWorkflow, startBlockId?: string): Set<string> {
-    const triggerBlockId = this.findTriggerBlock(workflow, startBlockId)
-    if (!triggerBlockId) {
+  execute(workflow: SerializedWorkflow, triggerBlockId?: string): Set<string> {
+    const resolvedTriggerId = this.findTriggerBlock(workflow, triggerBlockId)
+    if (!resolvedTriggerId) {
       logger.warn('No trigger block found, including all enabled blocks as fallback')
       return this.getAllEnabledBlocks(workflow)
     }
-    logger.debug('Starting reachability traversal', { triggerBlockId })
+    logger.debug('Starting reachability traversal', { triggerBlockId: resolvedTriggerId })
     const adjacency = this.buildAdjacencyMap(workflow)
-    const reachable = this.performBFS(triggerBlockId, adjacency)
+    const reachable = this.performBFS(resolvedTriggerId, adjacency)
     logger.debug('Reachability analysis complete', {
-      triggerBlockId,
+      triggerBlockId: resolvedTriggerId,
       reachableCount: reachable.size,
       totalBlocks: workflow.blocks.length,
     })
@@ -24,18 +24,27 @@ export class PathConstructor {
 
   private findTriggerBlock(
     workflow: SerializedWorkflow,
-    startBlockId?: string
+    triggerBlockId?: string
   ): string | undefined {
-    if (startBlockId) {
-      const block = workflow.blocks.find((b) => b.id === startBlockId)
-      if (block && this.isTriggerBlock(block)) {
-        return startBlockId
+    // If a specific trigger block ID is provided, use it directly
+    // This allows webhooks, schedules, and other entry points to start execution
+    if (triggerBlockId) {
+      const block = workflow.blocks.find((b) => b.id === triggerBlockId)
+      if (!block) {
+        logger.error('Provided triggerBlockId not found in workflow', {
+          triggerBlockId,
+          availableBlocks: workflow.blocks.map(b => ({ id: b.id, type: b.metadata?.id })),
+        })
+        throw new Error(`Trigger block not found: ${triggerBlockId}`)
       }
-      logger.warn('Provided startBlockId is not a trigger, searching for trigger', {
-        startBlockId,
-        blockType: block?.metadata?.id,
+      
+      logger.debug('Using explicitly provided trigger block', {
+        triggerBlockId,
+        blockType: block.metadata?.id,
       })
+      return triggerBlockId
     }
+    
     const explicitTrigger = this.findExplicitTrigger(workflow)
     if (explicitTrigger) {
       return explicitTrigger
@@ -99,23 +108,46 @@ export class PathConstructor {
     return adjacency
   }
 
-  private performBFS(startBlockId: string, adjacency: Map<string, string[]>): Set<string> {
-    const reachable = new Set<string>([startBlockId])
-    const queue = [startBlockId]
+  private performBFS(triggerBlockId: string, adjacency: Map<string, string[]>): Set<string> {
+    const reachable = new Set<string>([triggerBlockId])
+    const queue = [triggerBlockId]
+    
+    logger.debug('Starting BFS traversal', {
+      triggerBlockId,
+      adjacencyMapSize: adjacency.size,
+      adjacencyEntries: Array.from(adjacency.entries()).map(([source, targets]) => ({
+        source,
+        targets,
+      })),
+    })
+    
     while (queue.length > 0) {
       const currentBlockId = queue.shift()
       if (!currentBlockId) break
+      
       const neighbors = adjacency.get(currentBlockId) ?? []
+      logger.debug('BFS processing node', {
+        currentBlockId,
+        neighbors,
+        neighborCount: neighbors.length,
+      })
+      
       for (const neighborId of neighbors) {
         if (!reachable.has(neighborId)) {
+          logger.debug('BFS found new reachable node', {
+            from: currentBlockId,
+            to: neighborId,
+          })
           reachable.add(neighborId)
           queue.push(neighborId)
         }
       }
     }
+    
     logger.debug('BFS traversal complete', {
-      startBlockId,
+      triggerBlockId,
       reachableCount: reachable.size,
+      reachableBlocks: Array.from(reachable),
     })
     return reachable
   }
