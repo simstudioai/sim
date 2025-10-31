@@ -341,12 +341,23 @@ export class ExecutionEngine {
       const shouldActivate = this.shouldActivateEdge(edge, output)
       
       if (!shouldActivate) {
-        this.deactivateEdgeAndDescendants(node.id, edge.target, edge.sourceHandle)
-        logger.debug('Edge deactivated', { 
+        // For loop edges (loop_continue or loop_exit), don't deactivate descendants
+        // These edges are reusable - we're just not traversing them on this iteration
+        const isLoopEdge = edge.sourceHandle === 'loop_continue' || 
+                          edge.sourceHandle === 'loop-continue-source' || 
+                          edge.sourceHandle === 'loop_exit'
+        
+        if (!isLoopEdge) {
+          this.deactivateEdgeAndDescendants(node.id, edge.target, edge.sourceHandle)
+        }
+        
+        logger.debug('Edge not activated', { 
           edgeId, 
           sourceHandle: edge.sourceHandle,
           from: node.id,
           to: edge.target,
+          isLoopEdge,
+          deactivatedDescendants: !isLoopEdge,
         })
         continue
       }
