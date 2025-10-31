@@ -547,34 +547,32 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
           }))
 
           // Initialize subblock values to ensure they're available for sync
-          if (!options.marketplaceId) {
-            const { workflowState, subBlockValues } = buildDefaultWorkflowArtifacts()
+          const { workflowState, subBlockValues } = buildDefaultWorkflowArtifacts()
 
-            useSubBlockStore.setState((state) => ({
-              workflowValues: {
-                ...state.workflowValues,
-                [serverWorkflowId]: subBlockValues,
+          useSubBlockStore.setState((state) => ({
+            workflowValues: {
+              ...state.workflowValues,
+              [serverWorkflowId]: subBlockValues,
+            },
+          }))
+
+          try {
+            logger.info(`Persisting default Start block for new workflow ${serverWorkflowId}`)
+            const response = await fetch(`/api/workflows/${serverWorkflowId}/state`, {
+              method: 'PUT',
+              headers: {
+                'Content-Type': 'application/json',
               },
-            }))
+              body: JSON.stringify(workflowState),
+            })
 
-            try {
-              logger.info(`Persisting default Start block for new workflow ${serverWorkflowId}`)
-              const response = await fetch(`/api/workflows/${serverWorkflowId}/state`, {
-                method: 'PUT',
-                headers: {
-                  'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(workflowState),
-              })
-
-              if (!response.ok) {
-                logger.error('Failed to persist default Start block:', await response.text())
-              } else {
-                logger.info('Successfully persisted default Start block')
-              }
-            } catch (error) {
-              logger.error('Error persisting default Start block:', error)
+            if (!response.ok) {
+              logger.error('Failed to persist default Start block:', await response.text())
+            } else {
+              logger.info('Successfully persisted default Start block')
             }
+          } catch (error) {
+            logger.error('Error persisting default Start block:', error)
           }
 
           // Don't set as active workflow here - let the navigation/URL change handle that
