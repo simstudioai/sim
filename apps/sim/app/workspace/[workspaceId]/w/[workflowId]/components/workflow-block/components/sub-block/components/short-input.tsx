@@ -414,22 +414,21 @@ export function ShortInput({
 
         {/* Copy Button */}
         {showCopyButton && value && (
-          <div className='pointer-events-none absolute top-0 right-0 bottom-0 z-10 flex w-14 items-center justify-end pr-2'>
+          <div className='pointer-events-none absolute top-0 right-0 bottom-0 z-10 flex w-14 items-center justify-end pr-2 opacity-0 transition-opacity group-hover:opacity-100'>
             <Button
               type='button'
               variant='ghost'
-              size='sm'
+              size='icon'
               onClick={handleCopy}
               disabled={!value}
-              className={cn(
-                'pointer-events-auto h-8 w-8 p-0',
-                'text-muted-foreground/60 transition-all duration-200',
-                'hover:scale-105 hover:bg-muted/50 hover:text-foreground',
-                'bg-background/80 backdrop-blur-sm active:scale-95'
-              )}
+              className='pointer-events-auto h-6 w-6 p-0'
               aria-label='Copy value'
             >
-              {copied ? <Check className='h-3.5 w-3.5' /> : <Copy className='h-3.5 w-3.5' />}
+              {copied ? (
+                <Check className='h-3.5 w-3.5 text-green-500' />
+              ) : (
+                <Copy className='h-3.5 w-3.5 text-muted-foreground' />
+              )}
             </Button>
           </div>
         )}
