@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { AlertCircle, Check, Loader2, Save, Trash2 } from 'lucide-react'
+import { AlertCircle, Check, Save, Trash2 } from 'lucide-react'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -265,20 +266,20 @@ export function TriggerSave({
   const isProcessing = saveStatus === 'saving' || deleteStatus === 'deleting' || isLoading
 
   return (
-    <div id={`${blockId}-${subBlockId}`} className='space-y-2'>
+    <div id={`${blockId}-${subBlockId}`}>
       <div className='flex gap-2'>
         <Button
           onClick={handleSave}
           disabled={disabled || isProcessing}
           className={cn(
-            'h-9 flex-1 transition-all duration-200',
+            'h-9 flex-1 rounded-[8px] transition-all duration-200',
             saveStatus === 'saved' && 'bg-green-600 hover:bg-green-700',
             saveStatus === 'error' && 'bg-red-600 hover:bg-red-700'
           )}
         >
           {saveStatus === 'saving' && (
             <>
-              <Loader2 className='mr-2 h-4 w-4 animate-spin' />
+              <div className='mr-2 h-4 w-4 animate-spin rounded-full border-[1.5px] border-current border-t-transparent' />
               Saving...
             </>
           )}
@@ -307,10 +308,10 @@ export function TriggerSave({
             onClick={handleDeleteClick}
             disabled={disabled || isProcessing}
             variant='outline'
-            className='h-9 px-3 text-destructive hover:bg-destructive/10'
+            className='h-9 rounded-[8px] px-3 text-destructive hover:bg-destructive/10'
           >
             {deleteStatus === 'deleting' ? (
-              <Loader2 className='h-4 w-4 animate-spin' />
+              <div className='h-4 w-4 animate-spin rounded-full border-[1.5px] border-current border-t-transparent' />
             ) : (
               <Trash2 className='h-4 w-4' />
             )}
@@ -319,10 +320,9 @@ export function TriggerSave({
       </div>
 
       {errorMessage && (
-        <div className='flex items-start gap-2 rounded-md bg-destructive/10 p-2 text-destructive text-sm'>
-          <AlertCircle className='mt-0.5 h-4 w-4 flex-shrink-0' />
-          <span>{errorMessage}</span>
-        </div>
+        <Alert variant='destructive' className='mt-2'>
+          <AlertDescription>{errorMessage}</AlertDescription>
+        </Alert>
       )}
 
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
