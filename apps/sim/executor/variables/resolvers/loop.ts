@@ -1,5 +1,5 @@
 /**
- * LoopReferenceResolver
+ * Loop Resolver
  * 
  * Resolves references to loop variables: <loop.iteration>, <loop.item>, <loop.index>
  * - Extracts loop scope from context
@@ -8,16 +8,16 @@
 
 import { createLogger } from '@/lib/logs/console/logger'
 import type { SerializedWorkflow } from '@/serializer/types'
-import type { ReferenceResolver, ResolutionContext } from './reference-resolver'
+import type { Resolver, ResolutionContext } from './reference'
 
-const logger = createLogger('LoopReferenceResolver')
+const logger = createLogger('LoopResolver')
 
 const REFERENCE_START = '<'
 const REFERENCE_END = '>'
 const PATH_DELIMITER = '.'
 const LOOP_PREFIX = 'loop'
 
-export class LoopReferenceResolver implements ReferenceResolver {
+export class LoopResolver implements Resolver {
   constructor(private workflow: SerializedWorkflow) {}
 
   canResolve(reference: string): boolean {

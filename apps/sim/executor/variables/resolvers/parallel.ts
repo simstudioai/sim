@@ -1,5 +1,5 @@
 /**
- * ParallelReferenceResolver
+ * Parallel Resolver
  * 
  * Resolves references to parallel variables: <parallel.index>, <parallel.currentItem>, <parallel.items>
  * - Extracts branch index from node ID
@@ -8,16 +8,16 @@
 
 import { createLogger } from '@/lib/logs/console/logger'
 import type { SerializedWorkflow } from '@/serializer/types'
-import type { ReferenceResolver, ResolutionContext } from './reference-resolver'
+import type { Resolver, ResolutionContext } from './reference'
 
-const logger = createLogger('ParallelReferenceResolver')
+const logger = createLogger('ParallelResolver')
 
 const REFERENCE_START = '<'
 const REFERENCE_END = '>'
 const PATH_DELIMITER = '.'
 const PARALLEL_PREFIX = 'parallel'
 
-export class ParallelReferenceResolver implements ReferenceResolver {
+export class ParallelResolver implements Resolver {
   constructor(private workflow: SerializedWorkflow) {}
 
   canResolve(reference: string): boolean {

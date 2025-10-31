@@ -1,5 +1,5 @@
 /**
- * WorkflowVariableResolver
+ * Workflow Resolver
  * 
  * Resolves references to workflow variables: <variable.name>
  * - Looks up variables by name or ID
@@ -7,16 +7,16 @@
  */
 
 import { createLogger } from '@/lib/logs/console/logger'
-import type { ReferenceResolver, ResolutionContext } from './reference-resolver'
+import type { Resolver, ResolutionContext } from './reference'
 
-const logger = createLogger('WorkflowVariableResolver')
+const logger = createLogger('WorkflowResolver')
 
 const REFERENCE_START = '<'
 const REFERENCE_END = '>'
 const PATH_DELIMITER = '.'
 const VARIABLE_PREFIX = 'variable'
 
-export class WorkflowVariableResolver implements ReferenceResolver {
+export class WorkflowResolver implements Resolver {
   constructor(private workflowVariables: Record<string, any>) {}
 
   canResolve(reference: string): boolean {

@@ -1,7 +1,7 @@
 /**
  * Executor - Main entry point
- * Exports the clean DAG executor as the default executor
+ * Exports the DAG executor as the default executor
  */
 
-export { DAGExecutor as Executor } from './execution/dag-executor'
+export { DAGExecutor as Executor } from './execution/executor'
 

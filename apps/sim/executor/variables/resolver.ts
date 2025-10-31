@@ -15,13 +15,13 @@
 import { createLogger } from '@/lib/logs/console/logger'
 import type { ExecutionContext } from '@/executor/types'
 import type { SerializedWorkflow, SerializedBlock } from '@/serializer/types'
-import type { ExecutionState, LoopScope } from '../execution/execution-state'
-import type { ReferenceResolver, ResolutionContext } from './strategies/reference-resolver'
-import { BlockReferenceResolver } from './strategies/block-reference-resolver'
-import { LoopReferenceResolver } from './strategies/loop-reference-resolver'
-import { ParallelReferenceResolver } from './strategies/parallel-reference-resolver'
-import { WorkflowVariableResolver } from './strategies/workflow-variable-resolver'
-import { EnvVariableResolver } from './strategies/env-variable-resolver'
+import type { ExecutionState, LoopScope } from '../execution/state'
+import type { Resolver, ResolutionContext } from './resolvers/reference'
+import { BlockResolver } from './resolvers/block'
+import { LoopResolver } from './resolvers/loop'
+import { ParallelResolver } from './resolvers/parallel'
+import { WorkflowResolver } from './resolvers/workflow'
+import { EnvResolver } from './resolvers/env'
 
 const logger = createLogger('VariableResolver')
 
@@ -34,7 +34,7 @@ const ENV_VAR_END = '}}'
  * Coordinates variable resolution using specialized resolver strategies
  */
 export class VariableResolver {
-  private resolvers: ReferenceResolver[]
+  private resolvers: Resolver[]
 
   constructor(
     private workflow: SerializedWorkflow,
@@ -44,11 +44,11 @@ export class VariableResolver {
     // Initialize all resolver strategies
     // Order matters: more specific resolvers first
     this.resolvers = [
-      new LoopReferenceResolver(workflow),
-      new ParallelReferenceResolver(workflow),
-      new WorkflowVariableResolver(workflowVariables),
-      new EnvVariableResolver(),
-      new BlockReferenceResolver(workflow), // Most general, goes last
+      new LoopResolver(workflow),
+      new ParallelResolver(workflow),
+      new WorkflowResolver(workflowVariables),
+      new EnvResolver(),
+      new BlockResolver(workflow), // Most general, goes last
     ]
   }
 

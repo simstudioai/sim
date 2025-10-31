@@ -1,12 +1,12 @@
 /**
- * ReferenceResolver Interface
+ * Reference Resolver Interface
  * 
  * Strategy interface for resolving different types of variable references.
  * Each implementation handles a specific reference type (block, loop, parallel, etc.)
  */
 
 import type { ExecutionContext } from '@/executor/types'
-import type { ExecutionState, LoopScope } from '../../execution/execution-state'
+import type { ExecutionState, LoopScope } from '../../execution/state'
 
 /**
  * Context needed for reference resolution
@@ -21,7 +21,7 @@ export interface ResolutionContext {
 /**
  * Strategy interface for resolving references
  */
-export interface ReferenceResolver {
+export interface Resolver {
   /**
    * Determine if this resolver can handle the given reference
    * 

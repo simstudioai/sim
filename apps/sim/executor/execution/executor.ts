@@ -7,35 +7,21 @@ import type {
 import type { BlockOutput } from '@/blocks/types'
 import type { SerializedWorkflow } from '@/serializer/types'
 import type { ContextExtensions, WorkflowInput } from './types'
-import {
-  AgentBlockHandler,
-  ApiBlockHandler,
-  ConditionBlockHandler,
-  EvaluatorBlockHandler,
-  FunctionBlockHandler,
-  GenericBlockHandler,
-  ResponseBlockHandler,
-  RouterBlockHandler,
-  SentinelBlockHandler,
-  TriggerBlockHandler,
-  VariablesBlockHandler,
-  WaitBlockHandler,
-  WorkflowBlockHandler,
-} from '@/executor/handlers'
+import { createBlockHandlers } from '@/executor/handlers/registry'
 import {
   buildResolutionFromBlock,
   buildStartBlockOutput,
   resolveExecutorStartBlock,
 } from '@/executor/utils/start-block'
 import { DAGBuilder } from '../dag/builder'
-import { ExecutionState } from './execution-state'
-import { VariableResolver } from '../variables/variable-resolver'
-import { LoopOrchestrator } from '../orchestrators/loop-orchestrator'
-import { ParallelOrchestrator } from '../orchestrators/parallel-orchestrator'
-import { NodeExecutionOrchestrator } from '../orchestrators/node-execution-orchestrator'
+import { ExecutionState } from './state'
+import { VariableResolver } from '../variables/resolver'
+import { LoopOrchestrator } from '../orchestrators/loop'
+import { ParallelOrchestrator } from '../orchestrators/parallel'
+import { NodeExecutionOrchestrator } from '../orchestrators/node'
 import { EdgeManager } from './edge-manager'
 import { BlockExecutor } from './block-executor'
-import { ExecutionEngine } from './execution-engine'
+import { ExecutionEngine } from './engine'
 
 const logger = createLogger('DAGExecutor')
 
@@ -57,7 +43,6 @@ export class DAGExecutor {
   private contextExtensions: ContextExtensions
   private isCancelled = false
 
-  private blockHandlers: BlockHandler[]
   private dagBuilder: DAGBuilder
 
   constructor(options: DAGExecutorOptions) {
@@ -69,7 +54,6 @@ export class DAGExecutor {
     this.contextExtensions = options.contextExtensions || {}
 
     this.dagBuilder = new DAGBuilder()
-    this.blockHandlers = this.initializeBlockHandlers()
   }
 
   async execute(workflowId: string, startBlockId?: string): Promise<ExecutionResult> {
@@ -89,16 +73,13 @@ export class DAGExecutor {
     const loopOrchestrator = new LoopOrchestrator(dag, state, resolver)
     const parallelOrchestrator = new ParallelOrchestrator(dag, state)
     
-    // 6. Create sentinel handler with LoopOrchestrator dependency
-    const sentinelHandler = new SentinelBlockHandler(loopOrchestrator)
+    // 6. Create block handlers (sentinels handled by NodeExecutionOrchestrator)
+    const allHandlers = createBlockHandlers()
     
-    // 7. Combine handlers (sentinel first for priority)
-    const allHandlers = [sentinelHandler, ...this.blockHandlers]
-    
-    // 8. Create block executor
+    // 7. Create block executor
     const blockExecutor = new BlockExecutor(allHandlers, resolver, this.contextExtensions)
     
-    // 9. Create execution components
+    // 8. Create execution components
     const edgeManager = new EdgeManager(dag)
     const nodeOrchestrator = new NodeExecutionOrchestrator(
       dag,
@@ -108,7 +89,7 @@ export class DAGExecutor {
       parallelOrchestrator
     )
     
-    // 10. Create execution engine (now includes queue management)
+    // 9. Create execution engine
     const engine = new ExecutionEngine(
       dag,
       edgeManager,
@@ -202,23 +183,6 @@ export class DAGExecutor {
       blockId: startResolution.block.id,
       blockType: startResolution.block.metadata?.id,
     })
-  }
-
-  private initializeBlockHandlers(): BlockHandler[] {
-    return [
-      new TriggerBlockHandler(),
-      new FunctionBlockHandler(),
-      new ApiBlockHandler(),
-      new ConditionBlockHandler(),
-      new RouterBlockHandler(),
-      new ResponseBlockHandler(),
-      new AgentBlockHandler(),
-      new VariablesBlockHandler(),
-      new WorkflowBlockHandler(),
-      new WaitBlockHandler(),
-      new EvaluatorBlockHandler(),
-      new GenericBlockHandler(),
-    ]
   }
 }
 

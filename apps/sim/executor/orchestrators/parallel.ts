@@ -14,7 +14,7 @@
 import { createLogger } from '@/lib/logs/console/logger'
 import type { NormalizedBlockOutput } from '@/executor/types'
 import type { SerializedParallel } from '@/serializer/types'
-import type { ExecutionState, ParallelScope } from '../execution/execution-state'
+import type { ExecutionState, ParallelScope } from '../execution/state'
 import type { DAG } from '../dag/builder'
 
 const logger = createLogger('ParallelOrchestrator')

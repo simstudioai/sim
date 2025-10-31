@@ -16,7 +16,7 @@ import type {
 } from '@/executor/types'
 import type { DAG } from '../dag/builder'
 import type { EdgeManager } from './edge-manager'
-import type { NodeExecutionOrchestrator } from '../orchestrators/node-execution-orchestrator'
+import type { NodeExecutionOrchestrator } from '../orchestrators/node'
 
 const logger = createLogger('ExecutionEngine')
 

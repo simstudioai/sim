@@ -1,5 +1,5 @@
 /**
- * EnvVariableResolver
+ * Env Resolver
  * 
  * Resolves references to environment variables: {{env.VAR_NAME}}
  * - Looks up environment variables from execution context
@@ -7,14 +7,14 @@
  */
 
 import { createLogger } from '@/lib/logs/console/logger'
-import type { ReferenceResolver, ResolutionContext } from './reference-resolver'
+import type { Resolver, ResolutionContext } from './reference'
 
-const logger = createLogger('EnvVariableResolver')
+const logger = createLogger('EnvResolver')
 
 const ENV_VAR_START = '{{'
 const ENV_VAR_END = '}}'
 
-export class EnvVariableResolver implements ReferenceResolver {
+export class EnvResolver implements Resolver {
   canResolve(reference: string): boolean {
     return reference.startsWith(ENV_VAR_START) && reference.endsWith(ENV_VAR_END)
   }

@@ -1,5 +1,5 @@
 /**
- * BlockReferenceResolver
+ * Block Resolver
  * 
  * Resolves references to block outputs: <blockName.output.field>
  * - Finds blocks by ID or normalized name
@@ -10,15 +10,15 @@
 import { createLogger } from '@/lib/logs/console/logger'
 import { normalizeBlockName } from '@/stores/workflows/utils'
 import type { SerializedWorkflow } from '@/serializer/types'
-import type { ReferenceResolver, ResolutionContext } from './reference-resolver'
+import type { Resolver, ResolutionContext } from './reference'
 
-const logger = createLogger('BlockReferenceResolver')
+const logger = createLogger('BlockResolver')
 
 const REFERENCE_START = '<'
 const REFERENCE_END = '>'
 const PATH_DELIMITER = '.'
 
-export class BlockReferenceResolver implements ReferenceResolver {
+export class BlockResolver implements Resolver {
   private blockByNormalizedName: Map<string, string>
 
   constructor(private workflow: SerializedWorkflow) {

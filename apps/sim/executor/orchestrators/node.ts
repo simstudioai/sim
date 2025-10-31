@@ -13,10 +13,10 @@
 import { createLogger } from '@/lib/logs/console/logger'
 import type { NormalizedBlockOutput } from '@/executor/types'
 import type { DAG, DAGNode } from '../dag/builder'
-import type { ExecutionState } from '../execution/execution-state'
+import type { ExecutionState } from '../execution/state'
 import type { BlockExecutor } from '../execution/block-executor'
-import type { LoopOrchestrator } from './loop-orchestrator'
-import type { ParallelOrchestrator } from './parallel-orchestrator'
+import type { LoopOrchestrator } from './loop'
+import type { ParallelOrchestrator } from './parallel'
 
 const logger = createLogger('NodeExecutionOrchestrator')
 
@@ -80,9 +80,21 @@ export class NodeExecutionOrchestrator {
       }
     }
 
+    // Handle sentinel nodes (infrastructure, not real blocks)
+    if (node.metadata.isSentinel) {
+      logger.debug('Executing sentinel node', { nodeId, sentinelType: node.metadata.sentinelType, loopId })
+      const output = this.handleSentinel(node, context)
+      const isFinalOutput = node.outgoingEdges.size === 0
+      return {
+        nodeId,
+        output,
+        isFinalOutput,
+      }
+    }
+
     logger.debug('Executing node', { nodeId, blockType: node.block.metadata?.id })
 
-    // Execute the node using BlockExecutor
+    // Execute regular blocks using BlockExecutor
     const output = await this.blockExecutor.execute(node, node.block, context)
 
     // Determine if this is the final output (no outgoing edges)
@@ -93,6 +105,62 @@ export class NodeExecutionOrchestrator {
       output,
       isFinalOutput,
     }
+  }
+
+  /**
+   * Handle sentinel nodes (loop infrastructure)
+   */
+  private handleSentinel(node: DAGNode, context: any): NormalizedBlockOutput {
+    const sentinelType = node.metadata.sentinelType
+    const loopId = node.metadata.loopId
+
+    if (sentinelType === 'start') {
+      // Sentinel start just passes through to start the loop
+      logger.debug('Sentinel start - loop entry', { nodeId: node.id, loopId })
+      return { sentinelStart: true }
+    }
+
+    if (sentinelType === 'end') {
+      // Sentinel end evaluates loop continuation
+      logger.debug('Sentinel end - evaluating loop continuation', { nodeId: node.id, loopId })
+
+      if (!loopId) {
+        logger.warn('Sentinel end called without loopId')
+        return { shouldExit: true, selectedRoute: 'loop_exit' }
+      }
+
+      // Delegate to LoopOrchestrator
+      const continuationResult = this.loopOrchestrator.evaluateLoopContinuation(loopId, context)
+
+      logger.debug('Loop continuation evaluated', {
+        loopId,
+        shouldContinue: continuationResult.shouldContinue,
+        shouldExit: continuationResult.shouldExit,
+        iteration: continuationResult.currentIteration,
+      })
+
+      if (continuationResult.shouldContinue) {
+        // Loop continues - return route for backward edge
+        return {
+          shouldContinue: true,
+          shouldExit: false,
+          selectedRoute: continuationResult.selectedRoute, // 'loop_continue'
+          loopIteration: continuationResult.currentIteration,
+        }
+      } else {
+        // Loop exits - return aggregated results
+        return {
+          results: continuationResult.aggregatedResults || [],
+          shouldContinue: false,
+          shouldExit: true,
+          selectedRoute: continuationResult.selectedRoute, // 'loop_exit'
+          totalIterations: continuationResult.aggregatedResults?.length || 0,
+        }
+      }
+    }
+
+    logger.warn('Unknown sentinel type', { sentinelType })
+    return {}
   }
 
   /**
