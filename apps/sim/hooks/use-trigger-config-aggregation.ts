@@ -6,6 +6,17 @@ import { SYSTEM_SUBBLOCK_IDS } from '@/triggers/consts'
 const logger = createLogger('useTriggerConfigAggregation')
 
 /**
+ * Maps old trigger config field names to new subblock IDs for backward compatibility
+ */
+function mapOldFieldNameToNewSubBlockId(oldFieldName: string): string {
+  const fieldMapping: Record<string, string> = {
+    credentialId: 'triggerCredentials',
+    includeCellValuesInFieldIds: 'includeCellValues',
+  }
+  return fieldMapping[oldFieldName] || oldFieldName
+}
+
+/**
  * Aggregates individual trigger field subblocks into a triggerConfig object.
  * This is called on-demand when saving, not continuously.
  *
@@ -95,11 +106,38 @@ export function populateTriggerFieldsFromConfig(
   triggerDef.subBlocks
     .filter((sb) => sb.mode === 'trigger' && !SYSTEM_SUBBLOCK_IDS.includes(sb.id))
     .forEach((subBlock) => {
+      let configValue: any
+
       if (subBlock.id in triggerConfig) {
+        configValue = triggerConfig[subBlock.id]
+      } else {
+        for (const [oldFieldName, value] of Object.entries(triggerConfig)) {
+          const mappedFieldName = mapOldFieldNameToNewSubBlockId(oldFieldName)
+          if (mappedFieldName === subBlock.id) {
+            configValue = value
+            break
+          }
+        }
+      }
+
+      if (configValue !== undefined) {
         const currentValue = subBlockStore.getValue(blockId, subBlock.id)
 
+        let normalizedValue = configValue
+        if (
+          (subBlock.id === 'labelIds' || subBlock.id === 'folderIds') &&
+          typeof configValue === 'string' &&
+          configValue.trim() !== ''
+        ) {
+          try {
+            normalizedValue = JSON.parse(configValue)
+          } catch {
+            normalizedValue = [configValue]
+          }
+        }
+
         if (currentValue === null || currentValue === undefined || currentValue === '') {
-          subBlockStore.setValue(blockId, subBlock.id, triggerConfig[subBlock.id])
+          subBlockStore.setValue(blockId, subBlock.id, normalizedValue)
         }
       }
     })
