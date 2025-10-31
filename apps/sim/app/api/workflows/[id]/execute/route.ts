@@ -126,21 +126,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     } catch (error) {
       logger.warn(`[${requestId}] Failed to parse request body, using defaults`)
     }
-
-    // Determine trigger type: use authType to determine default, but allow explicit override
-    // api_key -> 'api', session -> 'manual', internal_jwt -> 'manual'
+    
     const defaultTriggerType = auth.authType === 'api_key' ? 'api' : 'manual'
     
-    // Extract control parameters, everything else is workflow input
     const { selectedOutputs = [], triggerType = defaultTriggerType, stream: streamParam } = body
     
-    // For API calls, pass the entire body as input (including any user fields)
-    // For manual/session calls, expect input to be in the 'input' field
     const input = auth.authType === 'api_key' ? body : body.input
 
-    // Determine if SSE should be enabled
-    // Default: false (JSON response)
-    // Client must explicitly request streaming via header or body parameter
     const streamHeader = req.headers.get('X-Stream-Response') === 'true'
     const enableSSE = streamHeader || streamParam === true
 
