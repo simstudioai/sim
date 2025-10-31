@@ -62,21 +62,24 @@ export function TraceSpans({ traceSpans, totalDuration = 0, onExpansionChange }:
 
   const actualTotalDuration = workflowEndTime - workflowStartTime
 
-  const handleSpanToggle = useCallback((spanId: string, expanded: boolean, hasSubItems: boolean) => {
-    setExpandedSpans(prev => {
-      const newExpandedSpans = new Set(prev)
-      if (expanded) {
-        newExpandedSpans.add(spanId)
-      } else {
-        newExpandedSpans.delete(spanId)
-      }
-      return newExpandedSpans
-    })
+  const handleSpanToggle = useCallback(
+    (spanId: string, expanded: boolean, hasSubItems: boolean) => {
+      setExpandedSpans((prev) => {
+        const newExpandedSpans = new Set(prev)
+        if (expanded) {
+          newExpandedSpans.add(spanId)
+        } else {
+          newExpandedSpans.delete(spanId)
+        }
+        return newExpandedSpans
+      })
 
-    if (onExpansionChange && hasSubItems) {
-      onExpansionChange(expandedSpans.has(spanId) ? false : true)
-    }
-  }, [onExpansionChange, expandedSpans])
+      if (onExpansionChange && hasSubItems) {
+        onExpansionChange(!expandedSpans.has(spanId))
+      }
+    },
+    [onExpansionChange, expandedSpans]
+  )
 
   const availableTypes = useMemo(() => {
     const set = new Set<string>()

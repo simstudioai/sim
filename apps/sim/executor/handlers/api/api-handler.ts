@@ -64,7 +64,10 @@ export class ApiBlockHandler implements BlockHandler {
             const trimmedBody = processedInputs.body.trim()
             if (trimmedBody.startsWith('{') || trimmedBody.startsWith('[')) {
               processedInputs.body = JSON.parse(trimmedBody)
-              logger.info('[ApiBlockHandler] Parsed JSON body:', stringifyJSON(processedInputs.body))
+              logger.info(
+                '[ApiBlockHandler] Parsed JSON body:',
+                stringifyJSON(processedInputs.body)
+              )
             }
           } catch (e) {
             logger.info('[ApiBlockHandler] Failed to parse body as JSON, using as string:', e)
@@ -74,7 +77,10 @@ export class ApiBlockHandler implements BlockHandler {
         }
       }
 
-      logger.info('[ApiBlockHandler] Final processed request body:', stringifyJSON(processedInputs.body))
+      logger.info(
+        '[ApiBlockHandler] Final processed request body:',
+        stringifyJSON(processedInputs.body)
+      )
 
       const result = await executeTool(
         block.config.tool,

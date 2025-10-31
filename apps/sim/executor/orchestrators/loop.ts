@@ -2,12 +2,12 @@ import { createLogger } from '@/lib/logs/console/logger'
 import { buildLoopIndexCondition, DEFAULTS, EDGE } from '@/executor/consts'
 import type { ExecutionContext, NormalizedBlockOutput } from '@/executor/types'
 import type { LoopConfigWithNodes } from '@/executor/types/loop'
-import type { SerializedLoop } from '@/serializer/types'
 import {
   buildSentinelEndId,
   buildSentinelStartId,
   extractBaseBlockId,
 } from '@/executor/utils/subflow-utils'
+import type { SerializedLoop } from '@/serializer/types'
 import type { DAG } from '../dag/builder'
 import type { ExecutionState, LoopScope } from '../execution/state'
 import type { VariableResolver } from '../variables/resolver'
@@ -87,7 +87,12 @@ export class LoopOrchestrator {
     return scope
   }
 
-  storeLoopNodeOutput(ctx: ExecutionContext, loopId: string, nodeId: string, output: NormalizedBlockOutput): void {
+  storeLoopNodeOutput(
+    ctx: ExecutionContext,
+    loopId: string,
+    nodeId: string,
+    output: NormalizedBlockOutput
+  ): void {
     const scope = this.state.getLoopScope(loopId)
     if (!scope) {
       logger.warn('Loop scope not found for node output storage', { loopId, nodeId })
@@ -162,7 +167,11 @@ export class LoopOrchestrator {
     }
   }
 
-  private createExitResult(ctx: ExecutionContext, loopId: string, scope: LoopScope): LoopContinuationResult {
+  private createExitResult(
+    ctx: ExecutionContext,
+    loopId: string,
+    scope: LoopScope
+  ): LoopContinuationResult {
     const results = scope.allIterationOutputs
     ctx.blockStates?.set(loopId, {
       output: { results },
@@ -280,7 +289,11 @@ export class LoopOrchestrator {
     return undefined
   }
 
-  private evaluateWhileCondition(ctx: ExecutionContext, condition: string, scope: LoopScope): boolean {
+  private evaluateWhileCondition(
+    ctx: ExecutionContext,
+    condition: string,
+    scope: LoopScope
+  ): boolean {
     if (!condition) {
       return false
     }
@@ -359,7 +372,9 @@ export class LoopOrchestrator {
 
       return []
     } catch (error: any) {
-      logger.error('Error resolving forEach items, returning empty array:', { error: error.message })
+      logger.error('Error resolving forEach items, returning empty array:', {
+        error: error.message,
+      })
       return []
     }
   }

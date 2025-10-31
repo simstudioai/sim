@@ -1,5 +1,5 @@
-import type { SerializedBlock } from '@/serializer/types'
 import type { ExecutionContext } from '@/executor/types'
+import type { SerializedBlock } from '@/serializer/types'
 
 export interface BlockExecutionErrorDetails {
   block: SerializedBlock
@@ -9,7 +9,8 @@ export interface BlockExecutionErrorDetails {
 }
 
 export function buildBlockExecutionError(details: BlockExecutionErrorDetails): Error {
-  const errorMessage = details.error instanceof Error ? details.error.message : String(details.error)
+  const errorMessage =
+    details.error instanceof Error ? details.error.message : String(details.error)
   const blockName = details.block.metadata?.name || details.block.id
   const blockType = details.block.metadata?.id || 'unknown'
 
@@ -61,4 +62,3 @@ export function normalizeError(error: unknown): string {
   }
   return String(error)
 }
-

@@ -23,4 +23,3 @@ export function collectBlockData(context: ExecutionContext): BlockDataCollection
 
   return { blockData, blockNameMapping }
 }
-

@@ -294,6 +294,8 @@ describe('Database Helpers', () => {
         iterations: 5,
         loopType: 'for',
         forEachItems: '',
+        doWhileCondition: '',
+        whileCondition: '',
       })
 
       // Verify parallels are transformed correctly

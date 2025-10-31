@@ -7,11 +7,11 @@ import type {
   NormalizedBlockOutput,
 } from '@/executor/types'
 import type { SerializedBlock } from '@/serializer/types'
+import type { SubflowType } from '@/stores/workflows/workflow/types'
 import type { DAGNode } from '../dag/builder'
 import type { VariableResolver } from '../variables/resolver'
 import type { ExecutionState } from './state'
 import type { ContextExtensions } from './types'
-import type { SubflowType } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('BlockExecutor')
 
@@ -133,7 +133,7 @@ export class BlockExecutor {
           blockId,
           parallelId,
           branchIndex: node.metadata.branchIndex,
-          blockName
+          blockName,
         })
       } else if (node.metadata.isLoopNode && node.metadata.loopId && this.state) {
         loopId = node.metadata.loopId
@@ -145,7 +145,7 @@ export class BlockExecutor {
             blockId,
             loopId,
             iteration: loopScope.iteration,
-            blockName
+            blockName,
           })
         } else {
           logger.warn('Loop scope not found for block', { blockId, loopId })
@@ -220,7 +220,9 @@ export class BlockExecutor {
     }
   }
 
-  private getIterationContext(node: DAGNode): { iterationCurrent: number; iterationTotal: number; iterationType: SubflowType } | undefined {
+  private getIterationContext(
+    node: DAGNode
+  ): { iterationCurrent: number; iterationTotal: number; iterationType: SubflowType } | undefined {
     if (!node?.metadata) return undefined
 
     if (node.metadata.branchIndex !== undefined && node.metadata.branchTotal) {

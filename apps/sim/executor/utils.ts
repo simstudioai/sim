@@ -1,5 +1,4 @@
 import { createLogger } from '@/lib/logs/console/logger'
-import { PARSING } from '@/executor/consts'
 import type { ResponseFormatStreamProcessor } from '@/executor/types'
 
 const logger = createLogger('ExecutorUtils')
@@ -114,9 +113,7 @@ export class StreamingResponseFormatProcessor implements ResponseFormatStreamPro
 
         return null
       }
-    } catch (e) {
-      
-    }
+    } catch (e) {}
 
     const openBraces = (buffer.match(/\{/g) || []).length
     const closeBraces = (buffer.match(/\}/g) || []).length
@@ -141,9 +138,7 @@ export class StreamingResponseFormatProcessor implements ResponseFormatStreamPro
 
           return null
         }
-      } catch (e) {
-        
-      }
+      } catch (e) {}
     }
 
     return null

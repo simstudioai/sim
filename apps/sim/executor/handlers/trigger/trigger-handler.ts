@@ -45,15 +45,15 @@ export class TriggerBlockHandler implements BlockHandler {
 
         // Check if this is a webhook execution
         if (starterOutput.webhook?.data) {
-        const webhookData = starterOutput.webhook?.data || {}
-        const provider = webhookData.provider
+          const webhookData = starterOutput.webhook?.data || {}
+          const provider = webhookData.provider
 
-        logger.debug(`Processing webhook trigger for block ${block.id}`, {
-          provider,
-          blockType: block.metadata?.id,
-        })
+          logger.debug(`Processing webhook trigger for block ${block.id}`, {
+            provider,
+            blockType: block.metadata?.id,
+          })
 
-        if (provider === 'github') {
+          if (provider === 'github') {
             const payloadSource = webhookData.payload || {}
             return {
               ...payloadSource,
@@ -61,77 +61,77 @@ export class TriggerBlockHandler implements BlockHandler {
             }
           }
 
-        if (provider === 'microsoftteams') {
-          const providerData = (starterOutput as any)[provider] || webhookData[provider] || {}
-          const payloadSource = providerData?.message?.raw || webhookData.payload || {}
-          return {
-            ...payloadSource,
-            [provider]: providerData,
-            webhook: starterOutput.webhook,
-          }
-        }
-
-        if (provider === 'airtable') {
-          return starterOutput
-        }
-
-        const result: any = {
-          input: starterOutput.input,
-        }
-
-        for (const [key, value] of Object.entries(starterOutput)) {
-          if (key !== 'webhook' && key !== provider) {
-            result[key] = value
-          }
-        }
-
-        if (provider && starterOutput[provider]) {
-          const providerData = starterOutput[provider]
-
-          for (const [key, value] of Object.entries(providerData)) {
-            if (typeof value === 'object' && value !== null) {
-              if (!result[key]) {
-                result[key] = value
-              }
+          if (provider === 'microsoftteams') {
+            const providerData = (starterOutput as any)[provider] || webhookData[provider] || {}
+            const payloadSource = providerData?.message?.raw || webhookData.payload || {}
+            return {
+              ...payloadSource,
+              [provider]: providerData,
+              webhook: starterOutput.webhook,
             }
           }
 
-          result[provider] = providerData
-        } else if (provider && webhookData[provider]) {
-          const providerData = webhookData[provider]
-
-          for (const [key, value] of Object.entries(providerData)) {
-            if (typeof value === 'object' && value !== null) {
-              if (!result[key]) {
-                result[key] = value
-              }
-            }
+          if (provider === 'airtable') {
+            return starterOutput
           }
 
-          result[provider] = providerData
-        } else if (
-          provider &&
-          (provider === 'gmail' || provider === 'outlook') &&
-          webhookData.payload?.email
-        ) {
-          const emailData = webhookData.payload.email
+          const result: any = {
+            input: starterOutput.input,
+          }
 
-          for (const [key, value] of Object.entries(emailData)) {
-            if (!result[key]) {
+          for (const [key, value] of Object.entries(starterOutput)) {
+            if (key !== 'webhook' && key !== provider) {
               result[key] = value
             }
           }
 
-          result.email = emailData
+          if (provider && starterOutput[provider]) {
+            const providerData = starterOutput[provider]
 
-          if (webhookData.payload.timestamp) {
-            result.timestamp = webhookData.payload.timestamp
+            for (const [key, value] of Object.entries(providerData)) {
+              if (typeof value === 'object' && value !== null) {
+                if (!result[key]) {
+                  result[key] = value
+                }
+              }
+            }
+
+            result[provider] = providerData
+          } else if (provider && webhookData[provider]) {
+            const providerData = webhookData[provider]
+
+            for (const [key, value] of Object.entries(providerData)) {
+              if (typeof value === 'object' && value !== null) {
+                if (!result[key]) {
+                  result[key] = value
+                }
+              }
+            }
+
+            result[provider] = providerData
+          } else if (
+            provider &&
+            (provider === 'gmail' || provider === 'outlook') &&
+            webhookData.payload?.email
+          ) {
+            const emailData = webhookData.payload.email
+
+            for (const [key, value] of Object.entries(emailData)) {
+              if (!result[key]) {
+                result[key] = value
+              }
+            }
+
+            result.email = emailData
+
+            if (webhookData.payload.timestamp) {
+              result.timestamp = webhookData.payload.timestamp
+            }
           }
-        }
 
-        if (starterOutput.webhook) result.webhook = starterOutput.webhook
+          if (starterOutput.webhook) result.webhook = starterOutput.webhook
 
-        return result
+          return result
         }
 
         logger.debug(`Returning starter block output for trigger block ${block.id}`, {

@@ -1,5 +1,5 @@
 import { createLogger } from '@/lib/logs/console/logger'
-import { EVALUATOR, PARSING } from '@/executor/consts'
+import { EVALUATOR } from '@/executor/consts'
 
 const logger = createLogger('JSONUtils')
 
@@ -22,9 +22,7 @@ export function parseJSONOrThrow(value: string): any {
   try {
     return JSON.parse(value.trim())
   } catch (error) {
-    throw new Error(
-      `Invalid JSON: ${error instanceof Error ? error.message : 'Parse error'}`
-    )
+    throw new Error(`Invalid JSON: ${error instanceof Error ? error.message : 'Parse error'}`)
   }
 }
 
@@ -45,4 +43,3 @@ export function isJSONString(value: string): boolean {
   const trimmed = value.trim()
   return trimmed.startsWith('{') || trimmed.startsWith('[')
 }
-

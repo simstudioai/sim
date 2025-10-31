@@ -19,7 +19,11 @@ export class ResponseBlockHandler implements BlockHandler {
     return block.metadata?.id === BlockType.RESPONSE
   }
 
-  async execute(ctx: ExecutionContext, block: SerializedBlock, inputs: Record<string, any>): Promise<BlockOutput> {
+  async execute(
+    ctx: ExecutionContext,
+    block: SerializedBlock,
+    inputs: Record<string, any>
+  ): Promise<BlockOutput> {
     logger.info(`Executing response block: ${block.id}`)
 
     try {

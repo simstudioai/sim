@@ -113,11 +113,7 @@ export class WorkflowBlockHandler implements BlockHandler {
 
       logger.info(`Child workflow ${childWorkflowName} completed in ${Math.round(duration)}ms`)
 
-      const childTraceSpans = this.captureChildWorkflowLogs(
-        executionResult,
-        childWorkflowName,
-        ctx
-      )
+      const childTraceSpans = this.captureChildWorkflowLogs(executionResult, childWorkflowName, ctx)
 
       const mappedResult = this.mapChildOutputToParent(
         executionResult,

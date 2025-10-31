@@ -5,9 +5,7 @@ import type { SerializedParallel } from '@/serializer/types'
 const logger = createLogger('SubflowUtils')
 
 const BRANCH_PATTERN = new RegExp(`${PARALLEL.BRANCH.PREFIX}\\d+${PARALLEL.BRANCH.SUFFIX}$`)
-const BRANCH_INDEX_PATTERN = new RegExp(
-  `${PARALLEL.BRANCH.PREFIX}(\\d+)${PARALLEL.BRANCH.SUFFIX}$`
-)
+const BRANCH_INDEX_PATTERN = new RegExp(`${PARALLEL.BRANCH.PREFIX}(\\d+)${PARALLEL.BRANCH.SUFFIX}$`)
 const SENTINEL_START_PATTERN = new RegExp(
   `${LOOP.SENTINEL.PREFIX}(.+)${LOOP.SENTINEL.START_SUFFIX}`
 )

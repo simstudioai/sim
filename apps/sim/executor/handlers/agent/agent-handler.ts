@@ -441,16 +441,8 @@ export class AgentBlockHandler implements BlockHandler {
     responseFormat: any
     streaming: boolean
   }) {
-    const {
-      ctx,
-      providerId,
-      model,
-      messages,
-      inputs,
-      formattedTools,
-      responseFormat,
-      streaming,
-    } = config
+    const { ctx, providerId, model, messages, inputs, formattedTools, responseFormat, streaming } =
+      config
 
     const validMessages = this.validateMessages(messages)
 
@@ -521,13 +513,7 @@ export class AgentBlockHandler implements BlockHandler {
           providerStartTime
         )
       }
-      return this.executeBrowserSide(
-        ctx,
-        providerRequest,
-        block,
-        responseFormat,
-        providerStartTime
-      )
+      return this.executeBrowserSide(ctx, providerRequest, block, responseFormat, providerStartTime)
     } catch (error) {
       this.handleExecutionError(error, providerStartTime, providerId, model, ctx, block)
       throw error
@@ -662,7 +648,6 @@ export class AgentBlockHandler implements BlockHandler {
       throw new Error(error instanceof Error ? error.message : 'API key error')
     }
   }
-
 
   private logExecutionSuccess(
     provider: string,

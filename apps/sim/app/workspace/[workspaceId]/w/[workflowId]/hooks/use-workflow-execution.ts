@@ -603,7 +603,6 @@ export function useWorkflowExecution() {
             }
             ;(result.metadata as any).source = 'chat'
           }
-
         }
         return result
       } catch (error: any) {

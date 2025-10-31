@@ -245,8 +245,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
           // SSE Callbacks
           const onBlockStart = async (
-            blockId: string, 
-            blockName: string, 
+            blockId: string,
+            blockName: string,
             blockType: string,
             iterationContext?: {
               iterationCurrent: number
@@ -260,9 +260,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
               timestamp: new Date().toISOString(),
               executionId,
               workflowId,
-              data: { 
-                blockId, 
-                blockName, 
+              data: {
+                blockId,
+                blockName,
                 blockType,
                 ...(iterationContext && {
                   iterationCurrent: iterationContext.iterationCurrent,

@@ -507,7 +507,7 @@ function groupIterationBlocks(spans: TraceSpan[]): TraceSpan[] {
           const parallelBlock = normalSpans.find(
             (s) => s.blockId === containerId && s.type === 'parallel'
           )
-          
+
           // Use custom name if available, otherwise assign sequential number
           if (parallelBlock?.name) {
             containerName = parallelBlock.name
@@ -521,10 +521,8 @@ function groupIterationBlocks(spans: TraceSpan[]): TraceSpan[] {
           containerType = 'loop'
           containerId = span.loopId
 
-          const loopBlock = normalSpans.find(
-            (s) => s.blockId === containerId && s.type === 'loop'
-          )
-          
+          const loopBlock = normalSpans.find((s) => s.blockId === containerId && s.type === 'loop')
+
           // Use custom name if available, otherwise assign sequential number
           if (loopBlock?.name) {
             containerName = loopBlock.name
@@ -545,7 +543,7 @@ function groupIterationBlocks(spans: TraceSpan[]): TraceSpan[] {
               const parallelBlock = normalSpans.find(
                 (s) => s.blockId === containerId && s.type === 'parallel'
               )
-              
+
               // Use custom name if available, otherwise assign sequential number
               if (parallelBlock?.name) {
                 containerName = parallelBlock.name
@@ -562,7 +560,7 @@ function groupIterationBlocks(spans: TraceSpan[]): TraceSpan[] {
             const loopBlock = normalSpans.find((s) => s.type === 'loop')
             if (loopBlock?.blockId) {
               containerId = loopBlock.blockId
-              
+
               // Use custom name if available, otherwise assign sequential number
               if (loopBlock.name) {
                 containerName = loopBlock.name

@@ -1,13 +1,6 @@
 import '@/executor/__test-utils__/mock-dependencies'
 
-import {
-  beforeEach,
-  describe,
-  expect,
-  it,
-  type Mock,
-  vi,
-} from 'vitest'
+import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 import { generateRouterPrompt } from '@/blocks/blocks/router'
 import { BlockType } from '@/executor/consts'
 import { RouterBlockHandler } from '@/executor/handlers/router/router-handler'
@@ -179,6 +172,7 @@ describe('RouterBlockHandler', () => {
         blockType: 'target',
         blockTitle: 'Option A',
       },
+      selectedRoute: 'target-block-1',
     })
   })
 

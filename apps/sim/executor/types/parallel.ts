@@ -9,4 +9,3 @@ export function isParallelConfigWithNodes(
 ): config is ParallelConfigWithNodes {
   return Array.isArray((config as any).nodes)
 }
-

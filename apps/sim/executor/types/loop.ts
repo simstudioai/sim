@@ -7,4 +7,3 @@ export interface LoopConfigWithNodes extends SerializedLoop {
 export function isLoopConfigWithNodes(config: SerializedLoop): config is LoopConfigWithNodes {
   return Array.isArray((config as any).nodes)
 }
-

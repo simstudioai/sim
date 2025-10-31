@@ -79,7 +79,7 @@ describe('ConditionBlockHandler', () => {
       resolveBlockReferences: vi.fn((expr) => expr),
       resolveEnvVariables: vi.fn((expr) => expr),
     }
-    
+
     mockPathTracker = {}
 
     handler = new ConditionBlockHandler(mockPathTracker, mockResolver)
@@ -139,6 +139,7 @@ describe('ConditionBlockHandler', () => {
         blockTitle: 'Target Block 1',
       },
       selectedConditionId: 'cond1',
+      selectedOption: 'cond1',
     }
 
     // Mock the full resolution pipeline
@@ -179,6 +180,7 @@ describe('ConditionBlockHandler', () => {
         blockTitle: 'Target Block 2',
       },
       selectedConditionId: 'else1',
+      selectedOption: 'else1',
     }
 
     // Mock the full resolution pipeline
@@ -328,14 +330,19 @@ describe('ConditionBlockHandler', () => {
     )
   })
 
-  it('should throw error if source block output is missing', async () => {
+  it('should handle missing source block output gracefully', async () => {
     const conditions = [{ id: 'cond1', title: 'if', value: 'true' }]
     const inputs = { conditions: JSON.stringify(conditions) }
     mockContext.blockStates.delete(mockSourceBlock.id)
 
-    await expect(handler.execute(mockContext, mockBlock, inputs)).rejects.toThrow(
-      `No output found for source block ${mockSourceBlock.id}`
-    )
+    mockResolver.resolveVariableReferences.mockReturnValue('true')
+    mockResolver.resolveBlockReferences.mockReturnValue('true')
+    mockResolver.resolveEnvVariables.mockReturnValue('true')
+
+    const result = await handler.execute(mockContext, mockBlock, inputs)
+
+    expect(result).toHaveProperty('conditionResult', true)
+    expect(result).toHaveProperty('selectedConditionId', 'cond1')
   })
 
   it('should throw error if target block is missing', async () => {

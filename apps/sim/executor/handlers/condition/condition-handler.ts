@@ -2,7 +2,6 @@ import { createLogger } from '@/lib/logs/console/logger'
 import type { BlockOutput } from '@/blocks/types'
 import { BlockType, CONDITION, DEFAULTS, EDGE } from '@/executor/consts'
 import type { BlockHandler, ExecutionContext } from '@/executor/types'
-import { parseJSON } from '@/executor/utils/json'
 import type { SerializedBlock } from '@/serializer/types'
 
 const logger = createLogger('ConditionBlockHandler')
@@ -85,15 +84,11 @@ export class ConditionBlockHandler implements BlockHandler {
 
     const conditions = this.parseConditions(inputs.conditions)
 
-    const sourceBlockId = ctx.workflow?.connections.find(
-      (conn) => conn.target === block.id
-    )?.source
+    const sourceBlockId = ctx.workflow?.connections.find((conn) => conn.target === block.id)?.source
     const evalContext = this.buildEvaluationContext(ctx, block.id, sourceBlockId)
     const sourceOutput = sourceBlockId ? ctx.blockStates.get(sourceBlockId)?.output : null
 
-    const outgoingConnections = ctx.workflow?.connections.filter(
-      (conn) => conn.source === block.id
-    )
+    const outgoingConnections = ctx.workflow?.connections.filter((conn) => conn.source === block.id)
 
     const { selectedConnection, selectedCondition } = await this.evaluateConditions(
       conditions,
@@ -130,7 +125,7 @@ export class ConditionBlockHandler implements BlockHandler {
 
   private parseConditions(input: any): Array<{ id: string; title: string; value: string }> {
     try {
-      const conditions = Array.isArray(input) ? input : parseJSON(input, [])
+      const conditions = Array.isArray(input) ? input : JSON.parse(input || '[]')
       logger.info('Parsed conditions:', conditions)
       return conditions
     } catch (error: any) {

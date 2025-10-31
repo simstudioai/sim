@@ -39,4 +39,3 @@ export async function extractAPIErrorMessage(response: Response): Promise<string
     return defaultMessage
   }
 }
-
