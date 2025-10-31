@@ -97,15 +97,6 @@ services:
 databases:
   - name: simstudio-db
     databaseName: simstudio
-    user: postgres
-    plan: starter
-    region: oregon
-    # Note: Render PostgreSQL databases don't support custom Dockerfiles
-    # You'll need to manually enable the pgvector extension after creation
-    # Run: CREATE EXTENSION IF NOT EXISTS vector;
-databases:
-  - name: simstudio-db
-    databaseName: simstudio
     plan: starter
     region: oregon
     postgresMajorVersion: 16
