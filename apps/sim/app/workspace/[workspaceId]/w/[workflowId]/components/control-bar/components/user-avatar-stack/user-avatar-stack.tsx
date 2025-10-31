@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo } from 'react'
+import { cn } from '@/lib/utils'
 import { ConnectionStatus } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/control-bar/components/user-avatar-stack/components/connection-status/connection-status'
 import { UserAvatar } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/control-bar/components/user-avatar-stack/components/user-avatar/user-avatar'
 import { usePresence } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-presence'
@@ -11,6 +12,7 @@ interface User {
   name?: string
   color?: string
   info?: string
+  avatarUrl?: string | null
 }
 
 interface UserAvatarStackProps {
@@ -55,21 +57,19 @@ export function UserAvatarStack({
     lg: '-space-x-2',
   }[size]
 
-  return (
-    <div className={`flex items-center gap-3 ${className}`}>
-      {/* Connection status - always check, shows when offline or operation errors */}
-      <ConnectionStatus isConnected={isConnected} hasOperationError={hasOperationError} />
+  const shouldShowAvatars = visibleUsers.length > 0
 
-      {/* Only show avatar stack when there are multiple users (>1) */}
-      {users.length > 1 && (
-        <div className={`flex items-center ${spacingClass}`}>
-          {/* Render visible user avatars */}
+  return (
+    <div className={`flex flex-col items-start gap-2 ${className}`}>
+      {shouldShowAvatars && (
+        <div className={cn('flex items-center px-2 py-1', spacingClass)}>
           {visibleUsers.map((user, index) => (
             <UserAvatar
               key={user.connectionId}
               connectionId={user.connectionId}
               name={user.name}
               color={user.color}
+              avatarUrl={user.avatarUrl}
               size={size}
               index={index}
               tooltipContent={
@@ -85,10 +85,9 @@ export function UserAvatarStack({
             />
           ))}
 
-          {/* Render overflow indicator if there are more users */}
           {overflowCount > 0 && (
             <UserAvatar
-              connectionId='overflow-indicator' // Use a unique string identifier
+              connectionId='overflow-indicator'
               name={`+${overflowCount}`}
               size={size}
               index={visibleUsers.length}
@@ -106,6 +105,8 @@ export function UserAvatarStack({
           )}
         </div>
       )}
+
+      <ConnectionStatus isConnected={isConnected} hasOperationError={hasOperationError} />
     </div>
   )
 }

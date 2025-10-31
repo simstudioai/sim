@@ -672,7 +672,7 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
                 </SelectTrigger>
                 <SelectContent align='start'>
                   <SelectGroup>
-                    <SelectLabel className='px-3 py-1 text-muted-foreground text-[11px] uppercase'>
+                    <SelectLabel className='px-3 py-1 text-[11px] text-muted-foreground uppercase'>
                       Workspace admins
                     </SelectLabel>
                     {workspaceAdmins.map((admin) => (
