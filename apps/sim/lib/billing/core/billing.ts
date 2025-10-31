@@ -218,7 +218,9 @@ export async function getSimplifiedBillingSummary(
   status: string | null
   seats: number | null
   metadata: any
-  stripeSubscriptionId: string | null
+  stripeSubscriptionId: string | null // Deprecated - use subscriptionId
+  loopsSubscriptionId: string | null
+  subscriptionId: string | null // Provider-agnostic subscription ID (Loops or Stripe)
   periodEnd: Date | string | null
   cancelAtPeriodEnd?: boolean
   // Usage details
@@ -318,6 +320,8 @@ export async function getSimplifiedBillingSummary(
         seats: subscription.seats || null,
         metadata: subscription.metadata || null,
         stripeSubscriptionId: subscription.stripeSubscriptionId || null,
+        loopsSubscriptionId: subscription.loopsSubscriptionId || null,
+        subscriptionId: subscription.loopsSubscriptionId || subscription.stripeSubscriptionId || null,
         periodEnd: subscription.periodEnd || null,
         cancelAtPeriodEnd: subscription.cancelAtPeriodEnd || undefined,
         // Usage details
@@ -394,6 +398,8 @@ export async function getSimplifiedBillingSummary(
       seats: subscription?.seats || null,
       metadata: subscription?.metadata || null,
       stripeSubscriptionId: subscription?.stripeSubscriptionId || null,
+      loopsSubscriptionId: subscription?.loopsSubscriptionId || null,
+      subscriptionId: subscription?.loopsSubscriptionId || subscription?.stripeSubscriptionId || null,
       periodEnd: subscription?.periodEnd || null,
       cancelAtPeriodEnd: subscription?.cancelAtPeriodEnd || undefined,
       // Usage details
@@ -440,6 +446,8 @@ function getDefaultBillingSummary(type: 'individual' | 'organization') {
     seats: null,
     metadata: null,
     stripeSubscriptionId: null,
+    loopsSubscriptionId: null,
+    subscriptionId: null,
     periodEnd: null,
     // Usage details
     usage: {

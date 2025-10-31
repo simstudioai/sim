@@ -2,11 +2,12 @@ import { db } from '@sim/db'
 import { subscription } from '@sim/db/schema'
 import { and, eq, ne } from 'drizzle-orm'
 import { calculateSubscriptionOverage } from '@/lib/billing/core/billing'
-import { requireStripeClient } from '@/lib/billing/stripe-client'
+import { getStripeClient } from '@/lib/billing/stripe-client'
+import { getLoopsClient } from '@/lib/billing/loops-client'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getBilledOverageForSubscription, resetUsageForSubscription } from './invoices'
 
-const logger = createLogger('StripeSubscriptionWebhooks')
+const logger = createLogger('SubscriptionWebhooks')
 
 /**
  * Handle new subscription creation - reset usage if transitioning from free to paid
@@ -80,20 +81,27 @@ export async function handleSubscriptionDeleted(subscription: {
   id: string
   plan: string | null
   referenceId: string
-  stripeSubscriptionId: string | null
+  stripeSubscriptionId?: string | null
+  loopsSubscriptionId?: string | null
   seats?: number | null
 }) {
   try {
-    const stripeSubscriptionId = subscription.stripeSubscriptionId || ''
+    const subscriptionId = subscription.loopsSubscriptionId || subscription.stripeSubscriptionId || ''
+    const isLoops = !!subscription.loopsSubscriptionId
+    const isStripe = !!subscription.stripeSubscriptionId
 
     logger.info('Processing subscription deletion', {
-      stripeSubscriptionId,
-      subscriptionId: subscription.id,
+      subscriptionId,
+      dbSubscriptionId: subscription.id,
+      provider: isLoops ? 'loops' : isStripe ? 'stripe' : 'unknown',
     })
 
     // Calculate overage for the final billing period
     const totalOverage = await calculateSubscriptionOverage(subscription)
-    const stripe = requireStripeClient()
+
+    // Get the appropriate payment client
+    const stripeClient = isStripe ? getStripeClient() : null
+    const loopsClient = isLoops ? getLoopsClient() : null
 
     // Enterprise plans have no overages - just reset usage
     if (subscription.plan === 'enterprise') {
@@ -117,9 +125,10 @@ export async function handleSubscriptionDeleted(subscription: {
       remainingOverage,
     })
 
-    // Create final overage invoice if needed
-    if (remainingOverage > 0 && stripeSubscriptionId) {
-      const stripeSubscription = await stripe.subscriptions.retrieve(stripeSubscriptionId)
+    // Create final overage invoice if needed (only for Stripe for now)
+    // TODO: Implement Loops overage billing when their API supports it
+    if (remainingOverage > 0 && isStripe && stripeClient && subscription.stripeSubscriptionId) {
+      const stripeSubscription = await stripeClient.subscriptions.retrieve(subscription.stripeSubscriptionId)
       const customerId = stripeSubscription.customer as string
       const cents = Math.round(remainingOverage * 100)
 
@@ -127,12 +136,12 @@ export async function handleSubscriptionDeleted(subscription: {
       const endedAt = stripeSubscription.ended_at || Math.floor(Date.now() / 1000)
       const billingPeriod = new Date(endedAt * 1000).toISOString().slice(0, 7)
 
-      const itemIdemKey = `final-overage-item:${customerId}:${stripeSubscriptionId}:${billingPeriod}`
-      const invoiceIdemKey = `final-overage-invoice:${customerId}:${stripeSubscriptionId}:${billingPeriod}`
+      const itemIdemKey = `final-overage-item:${customerId}:${subscription.stripeSubscriptionId}:${billingPeriod}`
+      const invoiceIdemKey = `final-overage-invoice:${customerId}:${subscription.stripeSubscriptionId}:${billingPeriod}`
 
       try {
         // Create a one-time invoice for the final overage
-        const overageInvoice = await stripe.invoices.create(
+        const overageInvoice = await stripeClient.invoices.create(
           {
             customer: customerId,
             collection_method: 'charge_automatically',
@@ -141,7 +150,7 @@ export async function handleSubscriptionDeleted(subscription: {
             metadata: {
               type: 'final_overage_billing',
               billingPeriod,
-              subscriptionId: stripeSubscriptionId,
+              subscriptionId: subscription.stripeSubscriptionId || '',
               cancelledAt: stripeSubscription.canceled_at?.toString() || '',
             },
           },
@@ -149,7 +158,7 @@ export async function handleSubscriptionDeleted(subscription: {
         )
 
         // Add the overage line item
-        await stripe.invoiceItems.create(
+        await stripeClient.invoiceItems.create(
           {
             customer: customerId,
             invoice: overageInvoice.id,
@@ -169,12 +178,12 @@ export async function handleSubscriptionDeleted(subscription: {
 
         // Finalize the invoice (this will trigger payment collection)
         if (overageInvoice.id) {
-          await stripe.invoices.finalizeInvoice(overageInvoice.id)
+          await stripeClient.invoices.finalizeInvoice(overageInvoice.id)
         }
 
         logger.info('Created final overage invoice for cancelled subscription', {
           subscriptionId: subscription.id,
-          stripeSubscriptionId,
+          paymentSubscriptionId: subscription.stripeSubscriptionId,
           invoiceId: overageInvoice.id,
           totalOverage,
           billedOverage,
@@ -185,7 +194,7 @@ export async function handleSubscriptionDeleted(subscription: {
       } catch (invoiceError) {
         logger.error('Failed to create final overage invoice', {
           subscriptionId: subscription.id,
-          stripeSubscriptionId,
+          paymentSubscriptionId: subscription.stripeSubscriptionId,
           totalOverage,
           billedOverage,
           remainingOverage,
@@ -197,6 +206,7 @@ export async function handleSubscriptionDeleted(subscription: {
       logger.info('No overage to bill for cancelled subscription', {
         subscriptionId: subscription.id,
         plan: subscription.plan,
+        provider: isLoops ? 'loops' : isStripe ? 'stripe' : 'unknown',
       })
     }
 
@@ -206,18 +216,26 @@ export async function handleSubscriptionDeleted(subscription: {
       referenceId: subscription.referenceId,
     })
 
-    // Note: better-auth's Stripe plugin already updates status to 'canceled' before calling this handler
+    // Note: better-auth's payment plugin already updates status to 'canceled' before calling this handler
     // We only need to handle overage billing and usage reset
 
     logger.info('Successfully processed subscription cancellation', {
       subscriptionId: subscription.id,
-      stripeSubscriptionId,
+      paymentSubscriptionId: subscriptionId,
+      provider: isLoops ? 'loops' : isStripe ? 'stripe' : 'unknown',
       totalOverage,
     })
   } catch (error) {
+    const provider = subscription.loopsSubscriptionId
+      ? 'loops'
+      : subscription.stripeSubscriptionId
+        ? 'stripe'
+        : 'unknown'
+
     logger.error('Failed to handle subscription deletion', {
       subscriptionId: subscription.id,
-      stripeSubscriptionId: subscription.stripeSubscriptionId || '',
+      paymentSubscriptionId: subscription.loopsSubscriptionId || subscription.stripeSubscriptionId || '',
+      provider,
       error,
     })
     throw error // Re-throw to signal webhook failure for retry

@@ -14,34 +14,36 @@ export interface BillingPlan {
 }
 
 /**
- * Get the billing plans configuration for Better Auth Stripe plugin
+ * Get the billing plans configuration for Better Auth Loops plugin
+ * priceId is used as paymentLinkId for Loops (primary)
+ * Falls back to Stripe for backward compatibility if Loops is not configured
  */
 export function getPlans(): BillingPlan[] {
   return [
     {
       name: 'free',
-      priceId: env.STRIPE_FREE_PRICE_ID || '',
+      priceId: env.LOOPS_FREE_PAYMENT_LINK_ID || env.STRIPE_FREE_PRICE_ID || '',
       limits: {
         cost: getFreeTierLimit(),
       },
     },
     {
       name: 'pro',
-      priceId: env.STRIPE_PRO_PRICE_ID || '',
+      priceId: env.LOOPS_PRO_PAYMENT_LINK_ID || env.STRIPE_PRO_PRICE_ID || '',
       limits: {
         cost: getProTierLimit(),
       },
     },
     {
       name: 'team',
-      priceId: env.STRIPE_TEAM_PRICE_ID || '',
+      priceId: env.LOOPS_TEAM_PAYMENT_LINK_ID || env.STRIPE_TEAM_PRICE_ID || '',
       limits: {
         cost: getTeamTierLimitPerSeat(),
       },
     },
     {
       name: 'enterprise',
-      priceId: 'price_dynamic',
+      priceId: env.LOOPS_ENTERPRISE_PAYMENT_LINK_ID || env.STRIPE_ENTERPRISE_PRICE_ID || 'price_dynamic',
       limits: {
         cost: getTeamTierLimitPerSeat(),
       },
