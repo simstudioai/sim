@@ -92,17 +92,34 @@ export function populateTriggerFieldsFromConfig(
   triggerId: string | undefined
 ) {
   if (!triggerConfig || !triggerId || !blockId) {
+    logger.debug('populateTriggerFieldsFromConfig: Skipping - missing params', {
+      blockId,
+      triggerId,
+      hasTriggerConfig: !!triggerConfig,
+    })
     return
   }
 
   if (!isTriggerValid(triggerId)) {
+    logger.debug('populateTriggerFieldsFromConfig: Skipping - invalid trigger', {
+      blockId,
+      triggerId,
+    })
     return
   }
+
+  logger.debug('populateTriggerFieldsFromConfig: Starting migration', {
+    blockId,
+    triggerId,
+    triggerConfigKeys: Object.keys(triggerConfig),
+    triggerConfig,
+  })
 
   const triggerDef = getTrigger(triggerId)
 
   const subBlockStore = useSubBlockStore.getState()
 
+  let migratedCount = 0
   triggerDef.subBlocks
     .filter((sb) => sb.mode === 'trigger' && !SYSTEM_SUBBLOCK_IDS.includes(sb.id))
     .forEach((subBlock) => {
@@ -110,11 +127,22 @@ export function populateTriggerFieldsFromConfig(
 
       if (subBlock.id in triggerConfig) {
         configValue = triggerConfig[subBlock.id]
+        logger.debug('populateTriggerFieldsFromConfig: Found new field name', {
+          blockId,
+          subBlockId: subBlock.id,
+          value: configValue,
+        })
       } else {
         for (const [oldFieldName, value] of Object.entries(triggerConfig)) {
           const mappedFieldName = mapOldFieldNameToNewSubBlockId(oldFieldName)
           if (mappedFieldName === subBlock.id) {
             configValue = value
+            logger.debug('populateTriggerFieldsFromConfig: Mapped old field name', {
+              blockId,
+              oldFieldName,
+              newSubBlockId: subBlock.id,
+              value: configValue,
+            })
             break
           }
         }
@@ -124,21 +152,69 @@ export function populateTriggerFieldsFromConfig(
         const currentValue = subBlockStore.getValue(blockId, subBlock.id)
 
         let normalizedValue = configValue
-        if (
-          (subBlock.id === 'labelIds' || subBlock.id === 'folderIds') &&
-          typeof configValue === 'string' &&
-          configValue.trim() !== ''
-        ) {
-          try {
-            normalizedValue = JSON.parse(configValue)
-          } catch {
+        // Handle array fields - normalize strings to arrays, preserve arrays as-is
+        if (subBlock.id === 'labelIds' || subBlock.id === 'folderIds') {
+          if (typeof configValue === 'string' && configValue.trim() !== '') {
+            try {
+              normalizedValue = JSON.parse(configValue)
+              logger.debug('populateTriggerFieldsFromConfig: Parsed string to array', {
+                blockId,
+                subBlockId: subBlock.id,
+                originalValue: configValue,
+                normalizedValue,
+              })
+            } catch {
+              normalizedValue = [configValue]
+              logger.debug(
+                'populateTriggerFieldsFromConfig: Converted string to single-item array',
+                {
+                  blockId,
+                  subBlockId: subBlock.id,
+                  originalValue: configValue,
+                  normalizedValue,
+                }
+              )
+            }
+          } else if (
+            !Array.isArray(configValue) &&
+            configValue !== null &&
+            configValue !== undefined
+          ) {
+            // If it's not already an array and not null/undefined, wrap it
             normalizedValue = [configValue]
+            logger.debug('populateTriggerFieldsFromConfig: Wrapped non-array value in array', {
+              blockId,
+              subBlockId: subBlock.id,
+              originalValue: configValue,
+              normalizedValue,
+            })
           }
+          // If it's already an array or null/undefined, use as-is
         }
 
         if (currentValue === null || currentValue === undefined || currentValue === '') {
           subBlockStore.setValue(blockId, subBlock.id, normalizedValue)
+          migratedCount++
+          logger.debug('populateTriggerFieldsFromConfig: Set value', {
+            blockId,
+            subBlockId: subBlock.id,
+            value: normalizedValue,
+            currentValue,
+          })
+        } else {
+          logger.debug('populateTriggerFieldsFromConfig: Skipped - value already exists', {
+            blockId,
+            subBlockId: subBlock.id,
+            currentValue,
+            wouldSet: normalizedValue,
+          })
         }
       }
     })
+
+  logger.debug('populateTriggerFieldsFromConfig: Migration complete', {
+    blockId,
+    triggerId,
+    migratedCount,
+  })
 }

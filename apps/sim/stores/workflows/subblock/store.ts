@@ -133,12 +133,32 @@ export const useSubBlockStore = create<SubBlockStore>()(
         }
 
         if (!triggerId || !isTriggerValid(triggerId)) {
+          console.log('[initializeFromWorkflow] Skipping - invalid triggerId', {
+            blockId,
+            blockType: block.type,
+            triggerId,
+            isTriggerValid: triggerId ? isTriggerValid(triggerId) : false,
+          })
           return
         }
 
         const triggerConfigSubBlock = block.subBlocks?.triggerConfig
         if (triggerConfigSubBlock?.value && typeof triggerConfigSubBlock.value === 'object') {
+          console.log('[initializeFromWorkflow] Found triggerConfig, migrating', {
+            blockId,
+            triggerId,
+            triggerConfigKeys: Object.keys(triggerConfigSubBlock.value),
+            triggerConfig: triggerConfigSubBlock.value,
+          })
           populateTriggerFieldsFromConfig(blockId, triggerConfigSubBlock.value, triggerId)
+        } else {
+          console.log('[initializeFromWorkflow] No triggerConfig subblock found', {
+            blockId,
+            triggerId,
+            hasTriggerConfigSubBlock: !!triggerConfigSubBlock,
+            triggerConfigValue: triggerConfigSubBlock?.value,
+            allSubBlockIds: Object.keys(block.subBlocks || {}),
+          })
         }
       })
 
