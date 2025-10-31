@@ -1,3 +1,5 @@
+'use client'
+
 import { useCallback, useRef, useState } from 'react'
 import { createLogger } from '@/lib/logs/console/logger'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
