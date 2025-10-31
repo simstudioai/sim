@@ -8,6 +8,7 @@ interface SocketPresenceUser {
   socketId: string
   userId: string
   userName: string
+  avatarUrl?: string | null
   cursor?: { x: number; y: number }
   selection?: { type: 'block' | 'edge' | 'none'; id?: string }
 }
@@ -18,6 +19,7 @@ type PresenceUser = {
   name?: string
   color?: string
   info?: string
+  avatarUrl?: string | null
 }
 
 interface UsePresenceReturn {
@@ -48,6 +50,7 @@ export function usePresence(): UsePresenceReturn {
       name: user.userName,
       color: undefined, // Let the avatar component generate colors
       info: user.selection?.type ? `Editing ${user.selection.type}` : undefined,
+      avatarUrl: user.avatarUrl,
     }))
   }, [presenceUsers])
 

@@ -26,6 +26,7 @@ interface PresenceUser {
   socketId: string
   userId: string
   userName: string
+  avatarUrl?: string | null
   cursor?: { x: number; y: number } | null
   selection?: { type: 'block' | 'edge' | 'none'; id?: string }
 }
@@ -436,7 +437,13 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
         socketInstance.on('cursor-update', (data) => {
           setPresenceUsers((prev) =>
             prev.map((user) =>
-              user.socketId === data.socketId ? { ...user, cursor: data.cursor } : user
+              user.socketId === data.socketId
+                ? {
+                    ...user,
+                    cursor: data.cursor,
+                    avatarUrl: data.avatarUrl ?? user.avatarUrl ?? null,
+                  }
+                : user
             )
           )
           eventHandlers.current.cursorUpdate?.(data)
@@ -446,7 +453,13 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
         socketInstance.on('selection-update', (data) => {
           setPresenceUsers((prev) =>
             prev.map((user) =>
-              user.socketId === data.socketId ? { ...user, selection: data.selection } : user
+              user.socketId === data.socketId
+                ? {
+                    ...user,
+                    selection: data.selection,
+                    avatarUrl: data.avatarUrl ?? user.avatarUrl ?? null,
+                  }
+                : user
             )
           )
           eventHandlers.current.selectionUpdate?.(data)

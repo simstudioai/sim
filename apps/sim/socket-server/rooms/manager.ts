@@ -31,6 +31,7 @@ export interface UserPresence {
   role: string
   cursor?: { x: number; y: number }
   selection?: { type: 'block' | 'edge' | 'none'; id?: string }
+  avatarUrl?: string | null
 }
 
 export interface WorkflowRoom {
@@ -43,7 +44,10 @@ export interface WorkflowRoom {
 export class RoomManager {
   private workflowRooms = new Map<string, WorkflowRoom>()
   private socketToWorkflow = new Map<string, string>()
-  private userSessions = new Map<string, { userId: string; userName: string }>()
+  private userSessions = new Map<
+    string,
+    { userId: string; userName: string; avatarUrl?: string | null }
+  >()
   private io: Server
 
   constructor(io: Server) {
@@ -237,11 +241,16 @@ export class RoomManager {
     this.socketToWorkflow.set(socketId, workflowId)
   }
 
-  getUserSession(socketId: string): { userId: string; userName: string } | undefined {
+  getUserSession(
+    socketId: string
+  ): { userId: string; userName: string; avatarUrl?: string | null } | undefined {
     return this.userSessions.get(socketId)
   }
 
-  setUserSession(socketId: string, session: { userId: string; userName: string }): void {
+  setUserSession(
+    socketId: string,
+    session: { userId: string; userName: string; avatarUrl?: string | null }
+  ): void {
     this.userSessions.set(socketId, session)
   }
 
