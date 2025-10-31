@@ -1,5 +1,5 @@
 import { createLogger } from '@/lib/logs/console/logger'
-import { DEFAULTS, isSentinelBlockType } from '@/executor/consts'
+import { DEFAULTS, EDGE, isSentinelBlockType } from '@/executor/consts'
 import type {
   BlockHandler,
   BlockLog,
@@ -105,12 +105,31 @@ export class BlockExecutor {
         this.callOnBlockComplete(ctx, node, block, resolvedInputs, errorOutput, duration)
       }
 
+      const hasErrorPort = this.hasErrorPortEdge(node)
+      
+      if (hasErrorPort) {
+        logger.info('Block has error port - returning error output instead of throwing', {
+          blockId: node.id,
+          error: errorMessage,
+        })
+        return errorOutput
+      }
+
       throw error
     }
   }
 
   private findHandler(block: SerializedBlock): BlockHandler | undefined {
     return this.blockHandlers.find((h) => h.canHandle(block))
+  }
+
+  private hasErrorPortEdge(node: DAGNode): boolean {
+    for (const [_, edge] of node.outgoingEdges) {
+      if (edge.sourceHandle === EDGE.ERROR) {
+        return true
+      }
+    }
+    return false
   }
 
   private createBlockLog(
