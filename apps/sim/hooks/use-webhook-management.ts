@@ -65,7 +65,6 @@ export function useWebhookManagement({
       return
     }
 
-    // Check if blockId or triggerId changed - if so, reset loaded state
     const blockChanged = lastBlockIdRef.current !== blockId
     const triggerChanged = lastTriggerIdRef.current !== triggerId
 
@@ -75,7 +74,6 @@ export function useWebhookManagement({
       lastTriggerIdRef.current = triggerId
     }
 
-    // Only fetch if we haven't loaded yet, or if block/trigger changed
     if (hasLoadedRef.current && !blockChanged && !triggerChanged) {
       return
     }
@@ -83,13 +81,11 @@ export function useWebhookManagement({
     const loadWebhookOrGenerateUrl = async () => {
       setIsLoading(true)
       try {
-        // Always generate the URL based on blockId (deterministic)
         const baseUrl = getBaseUrl()
         const generatedUrl = `${baseUrl}/api/webhooks/trigger/${blockId}`
         setWebhookUrl(generatedUrl)
         setWebhookPath(blockId)
 
-        // Check if a webhook already exists for this block
         const response = await fetch(`/api/webhooks?workflowId=${workflowId}&blockId=${blockId}`)
         if (response.ok) {
           const data = await response.json()
@@ -97,7 +93,6 @@ export function useWebhookManagement({
             const webhook = data.webhooks[0].webhook
             setWebhookId(webhook.id)
 
-            // Use the webhook's actual path if it exists (for backward compatibility)
             if (webhook.path) {
               const fullUrl = `${baseUrl}/api/webhooks/trigger/${webhook.path}`
               setWebhookUrl(fullUrl)
@@ -109,7 +104,6 @@ export function useWebhookManagement({
               }
             }
 
-            // Populate trigger config and individual fields from existing webhook
             if (webhook.providerConfig) {
               const currentConfig = useSubBlockStore.getState().getValue(blockId, 'triggerConfig')
               if (JSON.stringify(webhook.providerConfig) !== JSON.stringify(currentConfig)) {
@@ -121,7 +115,6 @@ export function useWebhookManagement({
               }
             }
           }
-          // If no webhook exists, we already have the pre-generated URL
         }
         hasLoadedRef.current = true
       } catch (error) {
@@ -142,9 +135,7 @@ export function useWebhookManagement({
     try {
       setIsSaving(true)
 
-      // If no webhook exists, create one
       if (!webhookId) {
-        // Use blockId as the path (deterministic)
         const path = blockId
 
         const selectedCredentialId =
@@ -200,7 +191,6 @@ export function useWebhookManagement({
         return true
       }
 
-      // Update existing webhook
       const triggerConfig = useSubBlockStore.getState().getValue(blockId, 'triggerConfig')
       const triggerCredentials = useSubBlockStore.getState().getValue(blockId, 'triggerCredentials')
       const selectedCredentialId = triggerCredentials as string | null
@@ -233,7 +223,6 @@ export function useWebhookManagement({
       return true
     } catch (error) {
       logger.error('Error saving trigger config:', error)
-      // Re-throw to propagate error message to caller
       throw error
     } finally {
       setIsSaving(false)

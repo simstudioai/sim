@@ -364,7 +364,6 @@ export async function deleteAirtableWebhook(
       return
     }
 
-    // Resolve externalId if missing by listing webhooks and matching our notificationUrl
     let resolvedExternalId: string | undefined = externalId
 
     if (!resolvedExternalId) {
