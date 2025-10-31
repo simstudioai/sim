@@ -58,6 +58,7 @@ export function Dropdown({
   const inputRef = useRef<HTMLInputElement>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
   const previousModeRef = useRef<string | null>(null)
+  const hasAttemptedFetchRef = useRef(false)
 
   const [builderData, setBuilderData] = useSubBlockValue<any[]>(blockId, 'builderData')
   const [data, setData] = useSubBlockValue<string>(blockId, 'data')
@@ -162,6 +163,33 @@ export function Dropdown({
       setStoreValue(defaultOptionValue)
     }
   }, [storeInitialized, storeValue, defaultOptionValue, setStoreValue, multiSelect])
+
+  useEffect(() => {
+    if (
+      !fetchOptions ||
+      fetchedOptions.length > 0 ||
+      !storeInitialized ||
+      hasAttemptedFetchRef.current
+    ) {
+      return
+    }
+
+    const hasSelectedValue = multiSelect
+      ? Array.isArray(storeValue) && storeValue.length > 0
+      : typeof storeValue === 'string' && storeValue !== ''
+
+    if (hasSelectedValue) {
+      hasAttemptedFetchRef.current = true
+      fetchOptionsIfNeeded()
+    }
+  }, [
+    fetchOptions,
+    fetchedOptions.length,
+    storeInitialized,
+    storeValue,
+    multiSelect,
+    fetchOptionsIfNeeded,
+  ])
 
   const normalizeVariableReferences = (jsonString: string): string => {
     return jsonString.replace(/([^"]<[^>]+>)/g, '"$1"')
