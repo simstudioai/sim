@@ -4,6 +4,7 @@ export interface DAGEdge {
   targetHandle?: string
   isActive?: boolean
 }
+
 export interface NodeMetadata {
   isParallelBranch?: boolean
   branchIndex?: number

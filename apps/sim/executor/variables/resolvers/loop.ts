@@ -4,8 +4,10 @@ import type { SerializedWorkflow } from '@/serializer/types'
 import type { ResolutionContext, Resolver } from './reference'
 
 const logger = createLogger('LoopResolver')
+
 export class LoopResolver implements Resolver {
   constructor(private workflow: SerializedWorkflow) {}
+
   canResolve(reference: string): boolean {
     if (!this.isReference(reference)) {
       return false
@@ -18,6 +20,7 @@ export class LoopResolver implements Resolver {
     const [type] = parts
     return type === REFERENCE.PREFIX.LOOP
   }
+
   resolve(reference: string, context: ResolutionContext): any {
     const content = this.extractContent(reference)
     const parts = content.split(REFERENCE.PATH_DELIMITER)
@@ -25,8 +28,10 @@ export class LoopResolver implements Resolver {
       logger.warn('Invalid loop reference - missing property', { reference })
       return undefined
     }
+
     const [_, property] = parts
     let loopScope = context.loopScope
+
     if (!loopScope) {
       const loopId = this.findLoopForBlock(context.currentNodeId)
       if (!loopId) {
@@ -35,6 +40,7 @@ export class LoopResolver implements Resolver {
       }
       loopScope = context.executionState.getLoopScope(loopId)
     }
+
     if (!loopScope) {
       logger.warn('Loop scope not found', { reference })
       return undefined
@@ -53,12 +59,14 @@ export class LoopResolver implements Resolver {
         return undefined
     }
   }
+
   private isReference(value: string): boolean {
     return value.startsWith(REFERENCE.START) && value.endsWith(REFERENCE.END)
   }
   private extractContent(reference: string): string {
     return reference.substring(REFERENCE.START.length, reference.length - REFERENCE.END.length)
   }
+
   private findLoopForBlock(blockId: string): string | undefined {
     const baseId = this.extractBaseId(blockId)
     for (const loopId of Object.keys(this.workflow.loops || {})) {
@@ -67,8 +75,10 @@ export class LoopResolver implements Resolver {
         return loopId
       }
     }
+
     return undefined
   }
+
   private extractBaseId(nodeId: string): string {
     return nodeId.replace(/₍\d+₎$/, '')
   }

@@ -3,6 +3,7 @@ import { isMetadataOnlyBlockType, isTriggerBlockType } from '@/executor/consts'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 
 const logger = createLogger('PathConstructor')
+
 export class PathConstructor {
   execute(workflow: SerializedWorkflow, startBlockId?: string): Set<string> {
     const triggerBlockId = this.findTriggerBlock(workflow, startBlockId)
@@ -20,6 +21,7 @@ export class PathConstructor {
     })
     return reachable
   }
+
   private findTriggerBlock(
     workflow: SerializedWorkflow,
     startBlockId?: string
@@ -44,6 +46,7 @@ export class PathConstructor {
     }
     return undefined
   }
+
   private findExplicitTrigger(workflow: SerializedWorkflow): string | undefined {
     for (const block of workflow.blocks) {
       if (block.enabled && this.isTriggerBlock(block)) {
@@ -56,6 +59,7 @@ export class PathConstructor {
     }
     return undefined
   }
+
   private findRootBlock(workflow: SerializedWorkflow): string | undefined {
     const hasIncoming = new Set(workflow.connections.map((c) => c.target))
     for (const block of workflow.blocks) {
@@ -73,12 +77,14 @@ export class PathConstructor {
     }
     return undefined
   }
+
   private isTriggerBlock(block: SerializedBlock): boolean {
     return isTriggerBlockType(block.metadata?.id)
   }
   private getAllEnabledBlocks(workflow: SerializedWorkflow): Set<string> {
     return new Set(workflow.blocks.filter((b) => b.enabled).map((b) => b.id))
   }
+
   private buildAdjacencyMap(workflow: SerializedWorkflow): Map<string, string[]> {
     const adjacency = new Map<string, string[]>()
     for (const connection of workflow.connections) {
@@ -92,6 +98,7 @@ export class PathConstructor {
     })
     return adjacency
   }
+
   private performBFS(startBlockId: string, adjacency: Map<string, string[]>): Set<string> {
     const reachable = new Set<string>([startBlockId])
     const queue = [startBlockId]

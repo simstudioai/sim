@@ -7,7 +7,9 @@ import type { ExecutionState, LoopScope } from '../execution/state'
 import type { VariableResolver } from '../variables/resolver'
 
 const logger = createLogger('LoopOrchestrator')
+
 export type LoopRoute = typeof EDGE.LOOP_CONTINUE | typeof EDGE.LOOP_EXIT
+
 export interface LoopContinuationResult {
   shouldContinue: boolean
   shouldExit: boolean
@@ -15,30 +17,36 @@ export interface LoopContinuationResult {
   aggregatedResults?: NormalizedBlockOutput[][]
   currentIteration?: number
 }
+
 export class LoopOrchestrator {
   constructor(
     private dag: DAG,
     private state: ExecutionState,
     private resolver: VariableResolver
   ) {}
+
   initializeLoopScope(loopId: string, context: ExecutionContext): LoopScope {
     const loopConfig = this.dag.loopConfigs.get(loopId) as SerializedLoop | undefined
     if (!loopConfig) {
       throw new Error(`Loop config not found: ${loopId}`)
     }
+
     const scope: LoopScope = {
       iteration: 0,
       currentIterationOutputs: new Map(),
       allIterationOutputs: [],
     }
+
     const loopType = loopConfig.loopType
     logger.debug('Initializing loop scope', { loopId, loopType })
+
     switch (loopType) {
       case 'for':
         scope.maxIterations = loopConfig.iterations || 1
         scope.condition = `<loop.index> < ${scope.maxIterations}`
         logger.debug('For loop initialized', { loopId, maxIterations: scope.maxIterations })
         break
+
       case 'forEach': {
         const items = this.resolveForEachItems(loopConfig.forEachItems, context)
         scope.items = items
@@ -48,10 +56,12 @@ export class LoopOrchestrator {
         logger.debug('ForEach loop initialized', { loopId, itemCount: items.length })
         break
       }
+
       case 'while':
         scope.condition = loopConfig.whileCondition
         logger.debug('While loop initialized', { loopId, condition: scope.condition })
         break
+
       case 'doWhile':
         if (loopConfig.doWhileCondition) {
           scope.condition = loopConfig.doWhileCondition
@@ -62,18 +72,22 @@ export class LoopOrchestrator {
         scope.skipFirstConditionCheck = true
         logger.debug('DoWhile loop initialized', { loopId, condition: scope.condition })
         break
+
       default:
         throw new Error(`Unknown loop type: ${loopType}`)
     }
+
     this.state.setLoopScope(loopId, scope)
     return scope
   }
+
   storeLoopNodeOutput(loopId: string, nodeId: string, output: NormalizedBlockOutput): void {
     const scope = this.state.getLoopScope(loopId)
     if (!scope) {
       logger.warn('Loop scope not found for node output storage', { loopId, nodeId })
       return
     }
+
     const baseId = this.extractBaseId(nodeId)
     scope.currentIterationOutputs.set(baseId, output)
     logger.debug('Stored loop node output', {
@@ -83,6 +97,7 @@ export class LoopOrchestrator {
       outputsCount: scope.currentIterationOutputs.size,
     })
   }
+
   evaluateLoopContinuation(loopId: string, context: ExecutionContext): LoopContinuationResult {
     const scope = this.state.getLoopScope(loopId)
     if (!scope) {
@@ -93,10 +108,12 @@ export class LoopOrchestrator {
         selectedRoute: EDGE.LOOP_EXIT,
       }
     }
+
     const iterationResults: NormalizedBlockOutput[] = []
     for (const blockOutput of scope.currentIterationOutputs.values()) {
       iterationResults.push(blockOutput)
     }
+
     if (iterationResults.length > 0) {
       scope.allIterationOutputs.push(iterationResults)
       logger.debug('Collected iteration results', {
@@ -105,7 +122,9 @@ export class LoopOrchestrator {
         resultsCount: iterationResults.length,
       })
     }
+
     scope.currentIterationOutputs.clear()
+
     const isFirstIteration = scope.iteration === 0
     const shouldSkipFirstCheck = scope.skipFirstConditionCheck && isFirstIteration
     if (!shouldSkipFirstCheck) {
@@ -118,15 +137,18 @@ export class LoopOrchestrator {
         return this.createExitResult(loopId, scope, context)
       }
     }
+
     scope.iteration++
     if (scope.items && scope.iteration < scope.items.length) {
       scope.item = scope.items[scope.iteration]
     }
+
     logger.debug('Loop continuing to next iteration', {
       loopId,
       iteration: scope.iteration,
       maxIterations: scope.maxIterations,
     })
+
     return {
       shouldContinue: true,
       shouldExit: false,
@@ -134,46 +156,56 @@ export class LoopOrchestrator {
       currentIteration: scope.iteration,
     }
   }
+
   clearLoopExecutionState(loopId: string, executedBlocks: Set<string>): void {
     const loopConfig = this.dag.loopConfigs.get(loopId)
     if (!loopConfig) {
       logger.warn('Loop config not found for state clearing', { loopId })
       return
     }
+
     const sentinelStartId = `loop-${loopId}-sentinel-start`
     const sentinelEndId = `loop-${loopId}-sentinel-end`
     const loopNodes = (loopConfig as any).nodes as string[]
+
     executedBlocks.delete(sentinelStartId)
     executedBlocks.delete(sentinelEndId)
     for (const loopNodeId of loopNodes) {
       executedBlocks.delete(loopNodeId)
     }
+
     logger.debug('Cleared loop execution state', {
       loopId,
       nodesCleared: loopNodes.length + 2,
     })
   }
+
   restoreLoopEdges(loopId: string): void {
     const loopConfig = this.dag.loopConfigs.get(loopId)
     if (!loopConfig) {
       logger.warn('Loop config not found for edge restoration', { loopId })
       return
     }
+
     const sentinelStartId = `loop-${loopId}-sentinel-start`
     const sentinelEndId = `loop-${loopId}-sentinel-end`
     const loopNodes = (loopConfig as any).nodes as string[]
     const allLoopNodeIds = new Set([sentinelStartId, sentinelEndId, ...loopNodes])
+
     let restoredCount = 0
     for (const nodeId of allLoopNodeIds) {
       const nodeToRestore = this.dag.nodes.get(nodeId)
       if (!nodeToRestore) continue
+
       for (const [potentialSourceId, potentialSourceNode] of this.dag.nodes) {
         if (!allLoopNodeIds.has(potentialSourceId)) continue
+
         for (const [_, edge] of potentialSourceNode.outgoingEdges) {
           if (edge.target === nodeId) {
             const isBackwardEdge =
               edge.sourceHandle === EDGE.LOOP_CONTINUE ||
               edge.sourceHandle === EDGE.LOOP_CONTINUE_ALT
+
             if (!isBackwardEdge) {
               nodeToRestore.incomingEdges.add(potentialSourceId)
               restoredCount++
@@ -182,14 +214,18 @@ export class LoopOrchestrator {
         }
       }
     }
+
     logger.debug('Restored loop edges', { loopId, edgesRestored: restoredCount })
   }
+
   getLoopScope(loopId: string): LoopScope | undefined {
     return this.state.getLoopScope(loopId)
   }
+
   shouldExecuteLoopNode(nodeId: string, loopId: string, context: ExecutionContext): boolean {
     return true
   }
+
   private createExitResult(
     loopId: string,
     scope: LoopScope,
@@ -201,10 +237,12 @@ export class LoopOrchestrator {
       executed: true,
       executionTime: 0,
     })
+
     logger.debug('Loop exiting with aggregated results', {
       loopId,
       totalIterations: scope.allIterationOutputs.length,
     })
+
     return {
       shouldContinue: false,
       shouldExit: true,
@@ -212,6 +250,7 @@ export class LoopOrchestrator {
       aggregatedResults: results,
     }
   }
+
   private evaluateCondition(
     scope: LoopScope,
     context: ExecutionContext,
@@ -221,16 +260,21 @@ export class LoopOrchestrator {
       logger.warn('No condition defined for loop')
       return false
     }
+
     const currentIteration = scope.iteration
     if (iteration !== undefined) {
       scope.iteration = iteration
     }
+
     const result = this.evaluateWhileCondition(scope.condition, scope, context)
+
     if (iteration !== undefined) {
       scope.iteration = currentIteration
     }
+
     return result
   }
+
   private evaluateWhileCondition(
     condition: string,
     scope: LoopScope,
@@ -239,10 +283,12 @@ export class LoopOrchestrator {
     if (!condition) {
       return false
     }
+
     try {
       const referencePattern = /<([^>]+)>/g
       let evaluatedCondition = condition
       const replacements: Record<string, string> = {}
+
       evaluatedCondition = evaluatedCondition.replace(referencePattern, (match) => {
         const resolved = this.resolver.resolveSingleReference(match, '', context, scope)
         if (resolved !== undefined) {
@@ -255,7 +301,9 @@ export class LoopOrchestrator {
         }
         return match
       })
+
       const result = Boolean(new Function(`return (${evaluatedCondition})`)())
+
       logger.debug('Evaluated loop condition', {
         condition,
         replacements,
@@ -263,24 +311,29 @@ export class LoopOrchestrator {
         result,
         iteration: scope.iteration,
       })
+
       return result
     } catch (error) {
       logger.error('Failed to evaluate loop condition', { condition, error })
       return false
     }
   }
+
   private resolveForEachItems(items: any, context: ExecutionContext): any[] {
     if (Array.isArray(items)) {
       return items
     }
+
     if (typeof items === 'object' && items !== null) {
       return Object.entries(items)
     }
+
     if (typeof items === 'string') {
       if (items.startsWith('<') && items.endsWith('>')) {
         const resolved = this.resolver.resolveSingleReference(items, '', context)
         return Array.isArray(resolved) ? resolved : []
       }
+
       try {
         const normalized = items.replace(/'/g, '"')
         const parsed = JSON.parse(normalized)
@@ -290,8 +343,10 @@ export class LoopOrchestrator {
         return []
       }
     }
+
     return []
   }
+
   private extractBaseId(nodeId: string): string {
     return nodeId.replace(/₍\d+₎$/, '')
   }

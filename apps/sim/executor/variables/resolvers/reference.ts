@@ -6,6 +6,7 @@ export interface ResolutionContext {
   currentNodeId: string
   loopScope?: LoopScope
 }
+
 export interface Resolver {
   canResolve(reference: string): boolean
   resolve(reference: string, context: ResolutionContext): any

@@ -4,6 +4,7 @@ import { buildSentinelEndId, buildSentinelStartId } from '@/executor/utils/subfl
 import type { DAG, DAGNode } from '../builder'
 
 const logger = createLogger('LoopConstructor')
+
 export class LoopConstructor {
   execute(dag: DAG, reachableBlocks: Set<string>): void {
     for (const [loopId, loopConfig] of dag.loopConfigs) {
@@ -21,6 +22,7 @@ export class LoopConstructor {
   private hasReachableNodes(loopNodes: string[], reachableBlocks: Set<string>): boolean {
     return loopNodes.some((nodeId) => reachableBlocks.has(nodeId))
   }
+
   private createSentinelPair(dag: DAG, loopId: string): void {
     const startId = buildSentinelStartId(loopId)
     const endId = buildSentinelEndId(loopId)
@@ -44,12 +46,14 @@ export class LoopConstructor {
         name: `Loop End (${loopId})`,
       })
     )
+
     logger.debug('Created sentinel pair for loop', {
       loopId,
       startId,
       endId,
     })
   }
+
   private createSentinelNode(config: {
     id: string
     loopId: string

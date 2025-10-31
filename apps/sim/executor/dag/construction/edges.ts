@@ -12,16 +12,19 @@ import type { SerializedWorkflow } from '@/serializer/types'
 import type { DAG } from '../builder'
 
 const logger = createLogger('EdgeConstructor')
+
 interface ConditionConfig {
   id: string
   label?: string
   condition: string
 }
+
 interface EdgeMetadata {
   blockTypeMap: Map<string, string>
   conditionConfigMap: Map<string, ConditionConfig[]>
   routerBlockIds: Set<string>
 }
+
 export class EdgeConstructor {
   execute(
     workflow: SerializedWorkflow,
@@ -46,6 +49,7 @@ export class EdgeConstructor {
     this.wireLoopSentinels(dag, reachableBlocks)
     this.wireParallelBlocks(workflow, dag, loopBlockIds, parallelBlockIds)
   }
+
   private buildMetadataMaps(workflow: SerializedWorkflow): EdgeMetadata {
     const blockTypeMap = new Map<string, string>()
     const conditionConfigMap = new Map<string, ConditionConfig[]>()
@@ -64,6 +68,7 @@ export class EdgeConstructor {
     }
     return { blockTypeMap, conditionConfigMap, routerBlockIds }
   }
+
   private parseConditionConfig(block: any): ConditionConfig[] | null {
     try {
       const conditionsJson = block.config.params?.conditions
@@ -82,6 +87,7 @@ export class EdgeConstructor {
       return null
     }
   }
+
   private generateSourceHandle(
     source: string,
     target: string,
@@ -107,6 +113,7 @@ export class EdgeConstructor {
     }
     return handle
   }
+
   private wireRegularEdges(
     workflow: SerializedWorkflow,
     dag: DAG,
@@ -193,6 +200,7 @@ export class EdgeConstructor {
       }
     }
   }
+
   private wireLoopSentinels(dag: DAG, reachableBlocks: Set<string>): void {
     for (const [loopId, loopConfig] of dag.loopConfigs) {
       const nodes = loopConfig.nodes
@@ -219,6 +227,7 @@ export class EdgeConstructor {
       logger.debug('Added backward edge for loop', { loopId })
     }
   }
+
   private wireParallelBlocks(
     workflow: SerializedWorkflow,
     dag: DAG,
@@ -282,6 +291,7 @@ export class EdgeConstructor {
       }
     }
   }
+
   private edgeCrossesLoopBoundary(
     source: string,
     target: string,
@@ -308,6 +318,7 @@ export class EdgeConstructor {
     }
     return sourceLoopId !== targetLoopId
   }
+
   private isEdgeReachable(
     source: string,
     target: string,
@@ -322,6 +333,7 @@ export class EdgeConstructor {
     }
     return true
   }
+
   private wireParallelInternalEdge(
     source: string,
     target: string,
@@ -342,6 +354,7 @@ export class EdgeConstructor {
       this.addEdge(dag, sourceNodeId, targetNodeId, sourceHandle, targetHandle)
     }
   }
+
   private findLoopBoundaryNodes(
     nodes: string[],
     dag: DAG,
@@ -383,6 +396,7 @@ export class EdgeConstructor {
       terminalNodes: Array.from(terminalNodesSet),
     }
   }
+
   private findParallelBoundaryNodes(
     nodes: string[],
     parallelId: string,
@@ -451,6 +465,7 @@ export class EdgeConstructor {
       branchCount,
     }
   }
+
   private getParallelId(blockId: string, dag: DAG): string | null {
     for (const [parallelId, parallelConfig] of dag.parallelConfigs) {
       if (parallelConfig.nodes.includes(blockId)) {
@@ -459,6 +474,7 @@ export class EdgeConstructor {
     }
     return null
   }
+
   private addEdge(
     dag: DAG,
     sourceId: string,

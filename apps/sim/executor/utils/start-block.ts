@@ -138,17 +138,20 @@ function coerceValue(type: string | null | undefined, value: unknown): unknown {
   switch (type) {
     case 'string':
       return typeof value === 'string' ? value : String(value)
+
     case 'number': {
       if (typeof value === 'number') return value
       const parsed = Number(value)
       return Number.isNaN(parsed) ? value : parsed
     }
+
     case 'boolean': {
       if (typeof value === 'boolean') return value
       if (value === 'true' || value === '1' || value === 1) return true
       if (value === 'false' || value === '0' || value === 0) return false
       return value
     }
+
     case 'object':
     case 'array': {
       if (typeof value === 'string') {
@@ -161,6 +164,7 @@ function coerceValue(type: string | null | undefined, value: unknown): unknown {
       }
       return value
     }
+
     default:
       return value
   }
@@ -224,6 +228,7 @@ function getRawInputCandidate(workflowInput: unknown): unknown {
   if (isPlainObject(workflowInput) && Object.hasOwn(workflowInput, 'input')) {
     return workflowInput.input
   }
+
   return workflowInput
 }
 
@@ -245,10 +250,12 @@ function getFilesFromWorkflowInput(workflowInput: unknown): UserFile[] | undefin
   if (!isPlainObject(workflowInput)) {
     return undefined
   }
+
   const files = workflowInput.files
   if (Array.isArray(files) && files.every(isUserFile)) {
     return files
   }
+
   return undefined
 }
 
@@ -260,6 +267,7 @@ function mergeFilesIntoOutput(
   if (files) {
     output.files = files
   }
+
   return output
 }
 
@@ -280,6 +288,7 @@ function buildUnifiedStartOutput(workflowInput: unknown): NormalizedBlockOutput 
   if (!Object.hasOwn(output, 'input')) {
     output.input = ''
   }
+
   if (!Object.hasOwn(output, 'conversationId')) {
     output.conversationId = ''
   }
@@ -387,19 +396,24 @@ export function buildStartBlockOutput(options: StartBlockOutputOptions): Normali
   switch (resolution.path) {
     case StartBlockPath.UNIFIED:
       return buildUnifiedStartOutput(workflowInput)
+
     case StartBlockPath.SPLIT_API:
     case StartBlockPath.SPLIT_INPUT:
       return buildApiOrInputOutput(finalInput, workflowInput)
+
     case StartBlockPath.SPLIT_CHAT:
       return buildChatOutput(workflowInput)
+
     case StartBlockPath.SPLIT_MANUAL:
       return buildManualTriggerOutput(finalInput, workflowInput)
+
     case StartBlockPath.LEGACY_STARTER:
       return buildLegacyStarterOutput(
         finalInput,
         workflowInput,
         getLegacyStarterMode({ subBlocks: extractSubBlocks(resolution.block) })
       )
+
     default:
       return buildManualTriggerOutput(finalInput, workflowInput)
   }

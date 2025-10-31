@@ -11,8 +11,10 @@ import type { ResolutionContext, Resolver } from './resolvers/reference'
 import { WorkflowResolver } from './resolvers/workflow'
 
 const logger = createLogger('VariableResolver')
+
 export class VariableResolver {
   private resolvers: Resolver[]
+
   constructor(
     private workflow: SerializedWorkflow,
     private workflowVariables: Record<string, any>,
@@ -26,6 +28,7 @@ export class VariableResolver {
       new BlockResolver(workflow),
     ]
   }
+
   resolveInputs(
     params: Record<string, any>,
     currentNodeId: string,
@@ -41,6 +44,7 @@ export class VariableResolver {
     }
     return resolved
   }
+
   resolveSingleReference(
     reference: string,
     currentNodeId: string,
@@ -49,6 +53,7 @@ export class VariableResolver {
   ): any {
     return this.resolveValue(reference, currentNodeId, context, loopScope)
   }
+
   private resolveValue(
     value: any,
     currentNodeId: string,
@@ -59,9 +64,11 @@ export class VariableResolver {
     if (value === null || value === undefined) {
       return value
     }
+
     if (Array.isArray(value)) {
       return value.map((v) => this.resolveValue(v, currentNodeId, context, loopScope, block))
     }
+
     if (typeof value === 'object') {
       return Object.entries(value).reduce(
         (acc, [key, val]) => ({
@@ -71,6 +78,7 @@ export class VariableResolver {
         {}
       )
     }
+
     if (typeof value === 'string') {
       return this.resolveTemplate(value, currentNodeId, context, loopScope, block)
     }
@@ -118,6 +126,7 @@ export class VariableResolver {
     })
     return result
   }
+
   private resolveReference(reference: string, context: ResolutionContext): any {
     for (const resolver of this.resolvers) {
       if (resolver.canResolve(reference)) {
@@ -130,6 +139,7 @@ export class VariableResolver {
         return result
       }
     }
+
     logger.warn('No resolver found for reference', { reference })
     return undefined
   }

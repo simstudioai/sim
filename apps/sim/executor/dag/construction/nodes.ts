@@ -14,6 +14,7 @@ interface ParallelExpansion {
   branchCount: number
   distributionItems: any[]
 }
+
 export class NodeConstructor {
   execute(
     workflow: SerializedWorkflow,
@@ -36,6 +37,7 @@ export class NodeConstructor {
     }
     return { blocksInLoops, blocksInParallels }
   }
+
   private shouldProcessBlock(block: SerializedBlock, reachableBlocks: Set<string>): boolean {
     if (!block.enabled) {
       return false
@@ -53,6 +55,7 @@ export class NodeConstructor {
     }
     return true
   }
+
   private categorizeBlocks(
     dag: DAG,
     reachableBlocks: Set<string>,
@@ -62,6 +65,7 @@ export class NodeConstructor {
     this.categorizeLoopBlocks(dag, reachableBlocks, blocksInLoops)
     this.categorizeParallelBlocks(dag, reachableBlocks, blocksInParallels)
   }
+
   private categorizeLoopBlocks(
     dag: DAG,
     reachableBlocks: Set<string>,
@@ -75,6 +79,7 @@ export class NodeConstructor {
       }
     }
   }
+
   private categorizeParallelBlocks(
     dag: DAG,
     reachableBlocks: Set<string>,
@@ -88,6 +93,7 @@ export class NodeConstructor {
       }
     }
   }
+
   private createParallelBranchNodes(block: SerializedBlock, parallelId: string, dag: DAG): void {
     const expansion = this.calculateParallelExpansion(parallelId, dag)
     logger.debug('Creating parallel branches', {
@@ -100,6 +106,7 @@ export class NodeConstructor {
       dag.nodes.set(branchNode.id, branchNode)
     }
   }
+
   private calculateParallelExpansion(parallelId: string, dag: DAG): ParallelExpansion {
     const config = dag.parallelConfigs.get(parallelId)
     if (!config) {
@@ -113,6 +120,7 @@ export class NodeConstructor {
       distributionItems,
     }
   }
+
   private createParallelBranchNode(
     baseBlock: SerializedBlock,
     branchIndex: number,
@@ -132,6 +140,7 @@ export class NodeConstructor {
       },
     }
   }
+
   private createRegularOrLoopNode(
     block: SerializedBlock,
     blocksInLoops: Set<string>,
@@ -150,6 +159,7 @@ export class NodeConstructor {
       },
     })
   }
+
   private findLoopIdForBlock(blockId: string, dag: DAG): string | undefined {
     for (const [loopId, loopConfig] of dag.loopConfigs) {
       if (loopConfig.nodes.includes(blockId)) {
@@ -158,6 +168,7 @@ export class NodeConstructor {
     }
     return undefined
   }
+
   private findParallelForBlock(blockId: string, dag: DAG): string | null {
     for (const [parallelId, parallelConfig] of dag.parallelConfigs) {
       if (parallelConfig.nodes.includes(blockId)) {

@@ -13,6 +13,7 @@ export interface ContextExtensions {
     output: { output: NormalizedBlockOutput; executionTime: number }
   ) => Promise<void>
 }
+
 export interface WorkflowInput {
   [key: string]: unknown
 }

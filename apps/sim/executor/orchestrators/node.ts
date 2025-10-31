@@ -8,11 +8,13 @@ import type { LoopOrchestrator } from './loop'
 import type { ParallelOrchestrator } from './parallel'
 
 const logger = createLogger('NodeExecutionOrchestrator')
+
 export interface NodeExecutionResult {
   nodeId: string
   output: NormalizedBlockOutput
   isFinalOutput: boolean
 }
+
 export class NodeExecutionOrchestrator {
   constructor(
     private dag: DAG,
@@ -21,11 +23,13 @@ export class NodeExecutionOrchestrator {
     private loopOrchestrator: LoopOrchestrator,
     private parallelOrchestrator: ParallelOrchestrator
   ) {}
+
   async executeNode(nodeId: string, context: any): Promise<NodeExecutionResult> {
     const node = this.dag.nodes.get(nodeId)
     if (!node) {
       throw new Error(`Node not found in DAG: ${nodeId}`)
     }
+
     if (this.state.hasExecuted(nodeId)) {
       logger.debug('Node already executed, skipping', { nodeId })
       const output = this.state.getBlockOutput(nodeId) || {}
@@ -35,11 +39,13 @@ export class NodeExecutionOrchestrator {
         isFinalOutput: false,
       }
     }
+
     const loopId = node.metadata.loopId
     if (loopId && !this.loopOrchestrator.getLoopScope(loopId)) {
       logger.debug('Initializing loop scope before first execution', { loopId, nodeId })
       this.loopOrchestrator.initializeLoopScope(loopId, context)
     }
+
     if (loopId && !this.loopOrchestrator.shouldExecuteLoopNode(nodeId, loopId, context)) {
       logger.debug('Loop node should not execute', { nodeId, loopId })
       return {
@@ -48,6 +54,7 @@ export class NodeExecutionOrchestrator {
         isFinalOutput: false,
       }
     }
+
     if (node.metadata.isSentinel) {
       logger.debug('Executing sentinel node', {
         nodeId,
@@ -62,6 +69,7 @@ export class NodeExecutionOrchestrator {
         isFinalOutput,
       }
     }
+
     logger.debug('Executing node', { nodeId, blockType: node.block.metadata?.id })
     const output = await this.blockExecutor.execute(node, node.block, context)
     const isFinalOutput = node.outgoingEdges.size === 0
@@ -71,6 +79,7 @@ export class NodeExecutionOrchestrator {
       isFinalOutput,
     }
   }
+
   private handleSentinel(node: DAGNode, context: any): NormalizedBlockOutput {
     const sentinelType = node.metadata.sentinelType
     const loopId = node.metadata.loopId
@@ -78,12 +87,14 @@ export class NodeExecutionOrchestrator {
       logger.debug('Sentinel start - loop entry', { nodeId: node.id, loopId })
       return { sentinelStart: true }
     }
+
     if (sentinelType === 'end') {
       logger.debug('Sentinel end - evaluating loop continuation', { nodeId: node.id, loopId })
       if (!loopId) {
         logger.warn('Sentinel end called without loopId')
         return { shouldExit: true, selectedRoute: EDGE.LOOP_EXIT }
       }
+
       const continuationResult = this.loopOrchestrator.evaluateLoopContinuation(loopId, context)
       logger.debug('Loop continuation evaluated', {
         loopId,
@@ -91,6 +102,7 @@ export class NodeExecutionOrchestrator {
         shouldExit: continuationResult.shouldExit,
         iteration: continuationResult.currentIteration,
       })
+
       if (continuationResult.shouldContinue) {
         return {
           shouldContinue: true,
@@ -110,6 +122,7 @@ export class NodeExecutionOrchestrator {
     logger.warn('Unknown sentinel type', { sentinelType })
     return {}
   }
+
   async handleNodeCompletion(
     nodeId: string,
     output: NormalizedBlockOutput,
@@ -120,12 +133,14 @@ export class NodeExecutionOrchestrator {
       logger.error('Node not found during completion handling', { nodeId })
       return
     }
+
     logger.debug('Handling node completion', {
       nodeId: node.id,
       hasLoopId: !!node.metadata.loopId,
       isParallelBranch: !!node.metadata.isParallelBranch,
       isSentinel: !!node.metadata.isSentinel,
     })
+
     const loopId = node.metadata.loopId
     const isParallelBranch = node.metadata.isParallelBranch
     const isSentinel = node.metadata.isSentinel
@@ -148,6 +163,7 @@ export class NodeExecutionOrchestrator {
       this.handleRegularNodeCompletion(node, output, context)
     }
   }
+
   private handleLoopNodeCompletion(
     node: DAGNode,
     output: NormalizedBlockOutput,
@@ -156,6 +172,7 @@ export class NodeExecutionOrchestrator {
     this.loopOrchestrator.storeLoopNodeOutput(loopId, node.id, output)
     this.state.setBlockOutput(node.id, output)
   }
+
   private handleParallelNodeCompletion(
     node: DAGNode,
     output: NormalizedBlockOutput,
@@ -176,14 +193,17 @@ export class NodeExecutionOrchestrator {
     if (allComplete) {
       this.parallelOrchestrator.aggregateParallelResults(parallelId)
     }
+
     this.state.setBlockOutput(node.id, output)
   }
+
   private handleRegularNodeCompletion(
     node: DAGNode,
     output: NormalizedBlockOutput,
     context: any
   ): void {
     this.state.setBlockOutput(node.id, output)
+
     if (
       node.metadata.isSentinel &&
       node.metadata.sentinelType === 'end' &&
@@ -197,6 +217,7 @@ export class NodeExecutionOrchestrator {
       }
     }
   }
+
   private findParallelIdForNode(nodeId: string): string | undefined {
     const baseId = nodeId.replace(/₍\d+₎$/, '')
     return this.parallelOrchestrator.findParallelIdForNode(baseId)
