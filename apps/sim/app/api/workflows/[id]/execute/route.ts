@@ -22,6 +22,7 @@ import {
 } from '@/lib/workflows/utils'
 import { validateWorkflowAccess } from '@/app/api/workflows/middleware'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
+import { filterEdgesFromTriggerBlocks } from '@/app/workspace/[workspaceId]/w/[workflowId]/lib/workflow-execution-utils'
 import { Executor } from '@/executor'
 import type { ExecutionResult } from '@/executor/types'
 import { Serializer } from '@/serializer'
@@ -292,10 +293,13 @@ export async function executeWorkflow(
       logger.debug(`[${requestId}] No workflow variables found for: ${workflowId}`)
     }
 
+    // Filter out edges between trigger blocks - triggers are independent entry points
+    const filteredEdges = filterEdgesFromTriggerBlocks(mergedStates, edges)
+
     logger.debug(`[${requestId}] Serializing workflow: ${workflowId}`)
     const serializedWorkflow = new Serializer().serializeWorkflow(
       mergedStates,
-      edges,
+      filteredEdges,
       loops,
       parallels,
       true
@@ -335,7 +339,7 @@ export async function executeWorkflow(
     if (streamConfig?.enabled) {
       contextExtensions.stream = true
       contextExtensions.selectedOutputs = streamConfig.selectedOutputs || []
-      contextExtensions.edges = edges.map((e: any) => ({
+      contextExtensions.edges = filteredEdges.map((e: any) => ({
         source: e.source,
         target: e.target,
       }))
