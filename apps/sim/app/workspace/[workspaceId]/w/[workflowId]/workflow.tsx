@@ -32,6 +32,7 @@ import { WorkflowBlock } from '@/app/workspace/[workspaceId]/w/[workflowId]/comp
 import { WorkflowEdge } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-edge/workflow-edge'
 import { CollaboratorCursorLayer } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-presence/collaborator-cursor-layer'
 import { useCurrentWorkflow } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
+import { filterEdgesFromTriggerBlocks } from '@/app/workspace/[workspaceId]/w/[workflowId]/lib/workflow-execution-utils'
 import {
   getNodeAbsolutePosition,
   getNodeDepth,
@@ -151,8 +152,10 @@ const WorkflowContent = React.memo(() => {
   // Get diff analysis for edge reconstruction
   const { diffAnalysis, isShowingDiff, isDiffReady } = useWorkflowDiffStore()
 
-  // Reconstruct deleted edges when viewing original workflow
+  // Reconstruct deleted edges when viewing original workflow and filter trigger edges
   const edgesForDisplay = useMemo(() => {
+    let edgesToFilter = edges
+
     // If we're not in diff mode and we have diff analysis with deleted edges,
     // we need to reconstruct those deleted edges and add them to the display
     // Only do this if diff is ready to prevent race conditions
@@ -214,11 +217,11 @@ const WorkflowContent = React.memo(() => {
       })
 
       // Combine existing edges with reconstructed deleted edges
-      return [...edges, ...reconstructedEdges]
+      edgesToFilter = [...edges, ...reconstructedEdges]
     }
 
-    // Otherwise, just use the edges as-is
-    return edges
+    // Filter out edges between trigger blocks for consistent UI and execution behavior
+    return filterEdgesFromTriggerBlocks(blocks, edgesToFilter)
   }, [edges, isShowingDiff, isDiffReady, diffAnalysis, blocks])
 
   // User permissions - get current user's specific permissions from context
