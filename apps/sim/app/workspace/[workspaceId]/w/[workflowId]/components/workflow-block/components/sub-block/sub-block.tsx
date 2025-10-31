@@ -32,9 +32,10 @@ import {
   SliderInput,
   Switch,
   Table,
+  Text,
   TimeInput,
   ToolInput,
-  TriggerConfig,
+  TriggerSave,
   VariablesInput,
   WebhookConfig,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components'
@@ -100,6 +101,9 @@ export const SubBlock = memo(
               subBlockId={config.id}
               placeholder={config.placeholder}
               password={config.password}
+              readOnly={config.readOnly}
+              showCopyButton={config.showCopyButton}
+              useWebhookUrl={config.useWebhookUrl}
               isConnecting={isConnecting}
               config={config}
               isPreview={isPreview}
@@ -133,7 +137,8 @@ export const SubBlock = memo(
                 isPreview={isPreview}
                 previewValue={previewValue}
                 disabled={isDisabled}
-                config={config}
+                multiSelect={config.multiSelect}
+                fetchOptions={config.fetchOptions}
               />
             </div>
           )
@@ -190,9 +195,17 @@ export const SubBlock = memo(
               placeholder={config.placeholder}
               language={config.language}
               generationType={config.generationType}
+              value={
+                typeof config.value === 'function' ? config.value(subBlockValues || {}) : undefined
+              }
               isPreview={isPreview}
               previewValue={previewValue}
               disabled={isDisabled}
+              readOnly={config.readOnly}
+              collapsible={config.collapsible}
+              defaultCollapsed={config.defaultCollapsed}
+              defaultValue={config.defaultValue}
+              showCopyButton={config.showCopyButton}
               onValidationChange={handleValidationChange}
               wandConfig={
                 config.wandConfig || {
@@ -330,27 +343,6 @@ export const SubBlock = memo(
               isPreview={isPreview}
               value={webhookValue}
               disabled={isDisabled}
-            />
-          )
-        }
-        case 'trigger-config': {
-          // For trigger config, we need to construct the value from multiple subblock values
-          const triggerValue =
-            isPreview && subBlockValues
-              ? {
-                  triggerId: subBlockValues.triggerId?.value,
-                  triggerPath: subBlockValues.triggerPath?.value,
-                  triggerConfig: subBlockValues.triggerConfig?.value,
-                }
-              : previewValue
-          return (
-            <TriggerConfig
-              blockId={blockId}
-              isConnecting={isConnecting}
-              isPreview={isPreview}
-              value={triggerValue}
-              disabled={isDisabled}
-              availableTriggers={config.availableTriggers}
             />
           )
         }
@@ -538,6 +530,28 @@ export const SubBlock = memo(
               isPreview={isPreview}
               previewValue={previewValue}
               isConnecting={isConnecting}
+            />
+          )
+        case 'text':
+          return (
+            <Text
+              blockId={blockId}
+              subBlockId={config.id}
+              content={
+                typeof config.value === 'function'
+                  ? config.value(subBlockValues || {})
+                  : (config.defaultValue as string) || ''
+              }
+            />
+          )
+        case 'trigger-save':
+          return (
+            <TriggerSave
+              blockId={blockId}
+              subBlockId={config.id}
+              triggerId={config.triggerId}
+              isPreview={isPreview}
+              disabled={disabled}
             />
           )
         default:

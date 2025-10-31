@@ -1,8 +1,8 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console/logger'
-import type { StorageContext } from '@/lib/uploads/core/config-resolver'
-import { USE_BLOB_STORAGE } from '@/lib/uploads/core/setup'
+import type { StorageContext } from '@/lib/uploads/config'
+import { USE_BLOB_STORAGE } from '@/lib/uploads/config'
 import {
   generateBatchPresignedUploadUrls,
   hasCloudStorage,

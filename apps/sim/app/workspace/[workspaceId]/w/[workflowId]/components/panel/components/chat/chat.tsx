@@ -622,7 +622,7 @@ export function Chat({ chatMessage, setChatMessage }: ChatProps) {
             if (!(!activeWorkflowId || isExecuting || isUploadingFiles)) {
               const droppedFiles = Array.from(e.dataTransfer.files)
               if (droppedFiles.length > 0) {
-                const remainingSlots = Math.max(0, 5 - chatFiles.length)
+                const remainingSlots = Math.max(0, 15 - chatFiles.length)
                 const candidateFiles = droppedFiles.slice(0, remainingSlots)
                 const errors: string[] = []
                 const validNewFiles: ChatFile[] = []
@@ -781,7 +781,7 @@ export function Chat({ chatMessage, setChatMessage }: ChatProps) {
                 size='icon'
                 onClick={() => document.getElementById('chat-file-input')?.click()}
                 disabled={
-                  !activeWorkflowId || isExecuting || isUploadingFiles || chatFiles.length >= 5
+                  !activeWorkflowId || isExecuting || isUploadingFiles || chatFiles.length >= 15
                 }
                 className='h-6 w-6 shrink-0 text-muted-foreground hover:text-foreground'
                 title='Attach files'
@@ -802,8 +802,8 @@ export function Chat({ chatMessage, setChatMessage }: ChatProps) {
                   const newFiles: ChatFile[] = []
                   const errors: string[] = []
                   for (let i = 0; i < files.length; i++) {
-                    if (chatFiles.length + newFiles.length >= 5) {
-                      errors.push('Maximum 5 files allowed')
+                    if (chatFiles.length + newFiles.length >= 15) {
+                      errors.push('Maximum 15 files allowed')
                       break
                     }
                     const file = files[i]

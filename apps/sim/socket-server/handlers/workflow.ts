@@ -1,3 +1,5 @@
+import { db, user } from '@sim/db'
+import { eq } from 'drizzle-orm'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getWorkflowState } from '@/socket-server/database/operations'
 import type { AuthenticatedSocket } from '@/socket-server/middleware/auth'
@@ -61,13 +63,11 @@ export function setupWorkflowHandlers(
         return
       }
 
-      // Ensure user only joins one workflow at a time
       const currentWorkflowId = roomManager.getWorkflowIdForSocket(socket.id)
       if (currentWorkflowId) {
         socket.leave(currentWorkflowId)
         roomManager.cleanupUserFromRoom(socket.id, currentWorkflowId)
 
-        // Broadcast updated presence list to all remaining users
         roomManager.broadcastPresenceUpdate(currentWorkflowId)
       }
 
@@ -80,6 +80,21 @@ export function setupWorkflowHandlers(
       const room = roomManager.getWorkflowRoom(workflowId)!
       room.activeConnections++
 
+      let avatarUrl = socket.userImage || null
+      if (!avatarUrl) {
+        try {
+          const [userRecord] = await db
+            .select({ image: user.image })
+            .from(user)
+            .where(eq(user.id, userId))
+            .limit(1)
+
+          avatarUrl = userRecord?.image ?? null
+        } catch (error) {
+          logger.warn('Failed to load user avatar for presence', { userId, error })
+        }
+      }
+
       const userPresence: UserPresence = {
         userId,
         workflowId,
@@ -88,16 +103,20 @@ export function setupWorkflowHandlers(
         joinedAt: Date.now(),
         lastActivity: Date.now(),
         role: userRole,
+        avatarUrl,
       }
 
       room.users.set(socket.id, userPresence)
       roomManager.setWorkflowForSocket(socket.id, workflowId)
-      roomManager.setUserSession(socket.id, { userId, userName })
+      roomManager.setUserSession(socket.id, {
+        userId,
+        userName,
+        avatarUrl,
+      })
 
       const workflowState = await getWorkflowState(workflowId)
       socket.emit('workflow-state', workflowState)
 
-      // Broadcast updated presence list to all users in the room
       roomManager.broadcastPresenceUpdate(workflowId)
 
       const uniqueUserCount = roomManager.getUniqueUserCount(workflowId)
@@ -144,7 +163,6 @@ export function setupWorkflowHandlers(
       socket.leave(workflowId)
       roomManager.cleanupUserFromRoom(socket.id, workflowId)
 
-      // Broadcast updated presence list to all remaining users
       roomManager.broadcastPresenceUpdate(workflowId)
 
       logger.info(`User ${session.userId} (${session.userName}) left workflow ${workflowId}`)

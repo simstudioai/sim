@@ -5,7 +5,6 @@ import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('CronAuth')
 
-// Create a secret key for JWT signing
 const getJwtSecret = () => {
   const secret = new TextEncoder().encode(env.INTERNAL_API_SECRET)
   return secret
@@ -14,11 +13,17 @@ const getJwtSecret = () => {
 /**
  * Generate an internal JWT token for server-side API calls
  * Token expires in 5 minutes to keep it short-lived
+ * @param userId Optional user ID to embed in token payload
  */
-export async function generateInternalToken(): Promise<string> {
+export async function generateInternalToken(userId?: string): Promise<string> {
   const secret = getJwtSecret()
 
-  const token = await new SignJWT({ type: 'internal' })
+  const payload: { type: string; userId?: string } = { type: 'internal' }
+  if (userId) {
+    payload.userId = userId
+  }
+
+  const token = await new SignJWT(payload)
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
     .setExpirationTime('5m')
@@ -31,9 +36,11 @@ export async function generateInternalToken(): Promise<string> {
 
 /**
  * Verify an internal JWT token
- * Returns true if valid, false otherwise
+ * Returns verification result with userId if present in token
  */
-export async function verifyInternalToken(token: string): Promise<boolean> {
+export async function verifyInternalToken(
+  token: string
+): Promise<{ valid: boolean; userId?: string }> {
   try {
     const secret = getJwtSecret()
 
@@ -43,10 +50,17 @@ export async function verifyInternalToken(token: string): Promise<boolean> {
     })
 
     // Check that it's an internal token
-    return payload.type === 'internal'
+    if (payload.type === 'internal') {
+      return {
+        valid: true,
+        userId: typeof payload.userId === 'string' ? payload.userId : undefined,
+      }
+    }
+
+    return { valid: false }
   } catch (error) {
     // Token verification failed
-    return false
+    return { valid: false }
   }
 }
 

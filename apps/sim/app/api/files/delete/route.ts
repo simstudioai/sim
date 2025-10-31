@@ -1,14 +1,17 @@
 import type { NextRequest } from 'next/server'
+import { NextResponse } from 'next/server'
+import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { createLogger } from '@/lib/logs/console/logger'
-import type { StorageContext } from '@/lib/uploads/core/config-resolver'
-import { deleteFile } from '@/lib/uploads/core/storage-service'
+import type { StorageContext } from '@/lib/uploads/config'
+import { deleteFile, hasCloudStorage } from '@/lib/uploads/core/storage-service'
+import { extractStorageKey, inferContextFromKey } from '@/lib/uploads/utils/file-utils'
+import { verifyFileAccess } from '@/app/api/files/authorization'
 import {
   createErrorResponse,
   createOptionsResponse,
   createSuccessResponse,
-  extractBlobKey,
   extractFilename,
-  extractS3Key,
+  FileNotFoundError,
   InvalidRequestError,
   isBlobPath,
   isCloudPath,
@@ -24,19 +27,43 @@ const logger = createLogger('FilesDeleteAPI')
  */
 export async function POST(request: NextRequest) {
   try {
+    const authResult = await checkHybridAuth(request, { requireWorkflowId: false })
+
+    if (!authResult.success || !authResult.userId) {
+      logger.warn('Unauthorized file delete request', {
+        error: authResult.error || 'Missing userId',
+      })
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const userId = authResult.userId
     const requestData = await request.json()
     const { filePath, context } = requestData
 
-    logger.info('File delete request received:', { filePath, context })
+    logger.info('File delete request received:', { filePath, context, userId })
 
     if (!filePath) {
       throw new InvalidRequestError('No file path provided')
     }
 
     try {
-      const key = extractStorageKey(filePath)
+      const key = extractStorageKeyFromPath(filePath)
 
       const storageContext: StorageContext = context || inferContextFromKey(key)
+
+      const hasAccess = await verifyFileAccess(
+        key,
+        userId,
+        null,
+        undefined,
+        storageContext,
+        !hasCloudStorage() // isLocal
+      )
+
+      if (!hasAccess) {
+        logger.warn('Unauthorized file delete attempt', { userId, key, context: storageContext })
+        throw new FileNotFoundError(`File not found: ${key}`)
+      }
 
       logger.info(`Deleting file with key: ${key}, context: ${storageContext}`)
 
@@ -53,6 +80,11 @@ export async function POST(request: NextRequest) {
       })
     } catch (error) {
       logger.error('Error deleting file:', error)
+
+      if (error instanceof FileNotFoundError) {
+        return createErrorResponse(error)
+      }
+
       return createErrorResponse(
         error instanceof Error ? error : new Error('Failed to delete file')
       )
@@ -64,69 +96,18 @@ export async function POST(request: NextRequest) {
 }
 
 /**
- * Extract storage key from file path (works for S3, Blob, and local paths)
+ * Extract storage key from file path
  */
-function extractStorageKey(filePath: string): string {
-  if (isS3Path(filePath)) {
-    return extractS3Key(filePath)
+function extractStorageKeyFromPath(filePath: string): string {
+  if (isS3Path(filePath) || isBlobPath(filePath) || filePath.startsWith('/api/files/serve/')) {
+    return extractStorageKey(filePath)
   }
 
-  if (isBlobPath(filePath)) {
-    return extractBlobKey(filePath)
-  }
-
-  // Handle "/api/files/serve/<key>" paths
-  if (filePath.startsWith('/api/files/serve/')) {
-    const pathWithoutQuery = filePath.split('?')[0]
-    return decodeURIComponent(pathWithoutQuery.substring('/api/files/serve/'.length))
-  }
-
-  // For local files, extract filename
   if (!isCloudPath(filePath)) {
     return extractFilename(filePath)
   }
 
-  // As a last resort, assume the incoming string is already a raw key
   return filePath
-}
-
-/**
- * Infer storage context from file key structure
- *
- * Key patterns:
- * - KB: kb/{uuid}-{filename}
- * - Workspace: {workspaceId}/{timestamp}-{random}-{filename}
- * - Execution: {workspaceId}/{workflowId}/{executionId}/{filename}
- * - Copilot: {timestamp}-{random}-{filename} (ambiguous - prefer explicit context)
- * - Chat: Uses execution context (same pattern as execution files)
- * - General: {timestamp}-{random}-{filename} (fallback for ambiguous patterns)
- */
-function inferContextFromKey(key: string): StorageContext {
-  // KB files always start with 'kb/' prefix
-  if (key.startsWith('kb/')) {
-    return 'knowledge-base'
-  }
-
-  // Execution files: three or more UUID segments (workspace/workflow/execution/...)
-  // Pattern: {uuid}/{uuid}/{uuid}/{filename}
-  const segments = key.split('/')
-  if (segments.length >= 4 && segments[0].match(/^[a-f0-9-]{36}$/)) {
-    return 'execution'
-  }
-
-  // Workspace files: UUID-like ID followed by timestamp pattern
-  // Pattern: {uuid}/{timestamp}-{random}-{filename}
-  if (key.match(/^[a-f0-9-]{36}\/\d+-[a-z0-9]+-/)) {
-    return 'workspace'
-  }
-
-  // Copilot/General files: timestamp-random-filename (no path segments)
-  // Pattern: {timestamp}-{random}-{filename}
-  if (key.match(/^\d+-[a-z0-9]+-/)) {
-    return 'general'
-  }
-
-  return 'general'
 }
 
 /**

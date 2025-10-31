@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Wand2 } from 'lucide-react'
+import { Check, Copy, Wand2 } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { useReactFlow } from 'reactflow'
 import { Button } from '@/components/ui/button'
@@ -15,6 +15,7 @@ import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/
 import { useWand } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-wand'
 import type { SubBlockConfig } from '@/blocks/types'
 import { useTagSelection } from '@/hooks/use-tag-selection'
+import { useWebhookManagement } from '@/hooks/use-webhook-management'
 
 const logger = createLogger('ShortInput')
 
@@ -30,6 +31,9 @@ interface ShortInputProps {
   isPreview?: boolean
   previewValue?: string | null
   disabled?: boolean
+  readOnly?: boolean
+  showCopyButton?: boolean
+  useWebhookUrl?: boolean
 }
 
 export function ShortInput({
@@ -44,33 +48,39 @@ export function ShortInput({
   isPreview = false,
   previewValue,
   disabled = false,
+  readOnly = false,
+  showCopyButton = false,
+  useWebhookUrl = false,
 }: ShortInputProps) {
-  // Local state for immediate UI updates during streaming
   const [localContent, setLocalContent] = useState<string>('')
   const [isFocused, setIsFocused] = useState(false)
   const [showEnvVars, setShowEnvVars] = useState(false)
   const [showTags, setShowTags] = useState(false)
+  const [copied, setCopied] = useState(false)
 
-  // Wand functionality (only if wandConfig is enabled)
+  const webhookManagement = useWebhookUrl
+    ? useWebhookManagement({
+        blockId,
+        triggerId: undefined,
+        isPreview,
+      })
+    : null
+
   const wandHook = config.wandConfig?.enabled
     ? useWand({
         wandConfig: config.wandConfig,
         currentValue: localContent,
         onStreamStart: () => {
-          // Clear the content when streaming starts
           setLocalContent('')
         },
         onStreamChunk: (chunk) => {
-          // Update local content with each chunk as it arrives
           setLocalContent((current) => current + chunk)
         },
         onGeneratedContent: (content) => {
-          // Final content update
           setLocalContent(content)
         },
       })
     : null
-  // State management - useSubBlockValue with explicit streaming control
   const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlockId, false, {
     isStreaming: wandHook?.isStreaming || false,
     onStreamingEnd: () => {
@@ -89,16 +99,15 @@ export function ShortInput({
   const params = useParams()
   const workspaceId = params.workspaceId as string
 
-  // Get ReactFlow instance for zoom control
   const reactFlowInstance = useReactFlow()
 
-  // Use preview value when in preview mode, otherwise use store value or prop value
   const baseValue = isPreview ? previewValue : propValue !== undefined ? propValue : storeValue
 
-  // During streaming, use local content; otherwise use base value
-  const value = wandHook?.isStreaming ? localContent : baseValue
+  const effectiveValue =
+    useWebhookUrl && webhookManagement?.webhookUrl ? webhookManagement.webhookUrl : baseValue
 
-  // Sync local content with base value when not streaming
+  const value = wandHook?.isStreaming ? localContent : effectiveValue
+
   useEffect(() => {
     if (!wandHook?.isStreaming) {
       const baseValueString = baseValue?.toString() ?? ''
@@ -108,7 +117,6 @@ export function ShortInput({
     }
   }, [baseValue, wandHook?.isStreaming])
 
-  // Update store value during streaming (but won't persist until streaming ends)
   useEffect(() => {
     if (wandHook?.isStreaming && localContent !== '') {
       if (!isPreview && !disabled) {
@@ -117,12 +125,10 @@ export function ShortInput({
     }
   }, [localContent, wandHook?.isStreaming, isPreview, disabled, setStoreValue])
 
-  // Check if this input is API key related
   const isApiKeyField = useMemo(() => {
     const normalizedId = config?.id?.replace(/\s+/g, '').toLowerCase() || ''
     const normalizedTitle = config?.title?.replace(/\s+/g, '').toLowerCase() || ''
 
-    // Check for common API key naming patterns
     const apiKeyPatterns = [
       'apikey',
       'api_key',
@@ -146,10 +152,17 @@ export function ShortInput({
     )
   }, [config?.id, config?.title])
 
-  // Handle input changes
+  const handleCopy = () => {
+    const textToCopy = useWebhookUrl ? webhookManagement?.webhookUrl : value?.toString()
+    if (textToCopy) {
+      navigator.clipboard.writeText(textToCopy)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    }
+  }
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    // Don't allow changes if disabled
-    if (disabled) {
+    if (disabled || readOnly) {
       e.preventDefault()
       return
     }
@@ -160,52 +173,39 @@ export function ShortInput({
     if (onChange) {
       onChange(newValue)
     } else if (!isPreview) {
-      // Only update store when not in preview mode
       setStoreValue(newValue)
     }
 
     setCursorPosition(newCursorPosition)
 
-    // Check for environment variables trigger
     const envVarTrigger = checkEnvVarTrigger(newValue, newCursorPosition)
 
-    // For API key fields, always show dropdown when typing (without requiring {{ trigger)
     if (isApiKeyField && isFocused) {
-      // Only show dropdown if there's text to filter by or the field is empty
       const shouldShowDropdown = newValue.trim() !== '' || newValue === ''
       setShowEnvVars(shouldShowDropdown)
-      // Use the entire input value as search term for API key fields,
-      // but if {{ is detected, use the standard search term extraction
       setSearchTerm(envVarTrigger.show ? envVarTrigger.searchTerm : newValue)
     } else {
-      // Normal behavior for non-API key fields
       setShowEnvVars(envVarTrigger.show)
       setSearchTerm(envVarTrigger.show ? envVarTrigger.searchTerm : '')
     }
 
-    // Check for tag trigger
     const tagTrigger = checkTagTrigger(newValue, newCursorPosition)
     setShowTags(tagTrigger.show)
   }
 
-  // Sync scroll position between input and overlay
   const handleScroll = (e: React.UIEvent<HTMLInputElement>) => {
     if (overlayRef.current) {
       overlayRef.current.scrollLeft = e.currentTarget.scrollLeft
     }
   }
 
-  // Remove the auto-scroll effect that forces cursor position and replace with natural scrolling
   useEffect(() => {
     if (inputRef.current && overlayRef.current) {
       overlayRef.current.scrollLeft = inputRef.current.scrollLeft
     }
   }, [value])
 
-  // Handle paste events to ensure long values are handled correctly
   const handlePaste = (_e: React.ClipboardEvent<HTMLInputElement>) => {
-    // Let the paste happen normally
-    // Then ensure scroll positions are synced after the content is updated
     setTimeout(() => {
       if (inputRef.current && overlayRef.current) {
         overlayRef.current.scrollLeft = inputRef.current.scrollLeft
@@ -213,37 +213,27 @@ export function ShortInput({
     }, 0)
   }
 
-  // Handle wheel events to control ReactFlow zoom
   const handleWheel = (e: React.WheelEvent<HTMLInputElement>) => {
-    // Only handle zoom when Ctrl/Cmd key is pressed
     if (e.ctrlKey || e.metaKey) {
       e.preventDefault()
       e.stopPropagation()
 
-      // Get current zoom level and viewport
       const currentZoom = reactFlowInstance.getZoom()
       const { x: viewportX, y: viewportY } = reactFlowInstance.getViewport()
 
-      // Calculate zoom factor based on wheel delta
-      // Use a smaller factor for smoother zooming that matches ReactFlow's native behavior
       const delta = e.deltaY > 0 ? 1 : -1
-      // Using 0.98 instead of 0.95 makes the zoom much slower and more gradual
       const zoomFactor = 0.96 ** delta
 
-      // Calculate new zoom level with min/max constraints
       const newZoom = Math.min(Math.max(currentZoom * zoomFactor, 0.1), 1)
 
-      // Get the position of the cursor in the page
       const { x: pointerX, y: pointerY } = reactFlowInstance.screenToFlowPosition({
         x: e.clientX,
         y: e.clientY,
       })
 
-      // Calculate the new viewport position to keep the cursor position fixed
       const newViewportX = viewportX + (pointerX * currentZoom - pointerX * newZoom)
       const newViewportY = viewportY + (pointerY * currentZoom - pointerY * newZoom)
 
-      // Set the new viewport with the calculated position and zoom
       reactFlowInstance.setViewport(
         {
           x: newViewportX,
@@ -256,12 +246,9 @@ export function ShortInput({
       return false
     }
 
-    // For regular scrolling (without Ctrl/Cmd), let the default behavior happen
-    // Don't interfere with normal scrolling
     return true
   }
 
-  // Drag and Drop handlers
   const handleDragOver = (e: React.DragEvent<HTMLInputElement>) => {
     if (config?.connectionDroppable === false) return
     e.preventDefault()
@@ -275,19 +262,14 @@ export function ShortInput({
       const data = JSON.parse(e.dataTransfer.getData('application/json'))
       if (data.type !== 'connectionBlock') return
 
-      // Get current cursor position or append to end
       const dropPosition = inputRef.current?.selectionStart ?? value?.toString().length ?? 0
 
-      // Insert '<' at drop position to trigger the dropdown
       const currentValue = value?.toString() ?? ''
       const newValue = `${currentValue.slice(0, dropPosition)}<${currentValue.slice(dropPosition)}`
 
-      // Focus the input first
       inputRef.current?.focus()
 
-      // Update all state in a single batch
       Promise.resolve().then(() => {
-        // Update value through onChange if provided, otherwise use store
         if (onChange) {
           onChange(newValue)
         } else if (!isPreview) {
@@ -297,12 +279,10 @@ export function ShortInput({
         setCursorPosition(dropPosition + 1)
         setShowTags(true)
 
-        // Pass the source block ID from the dropped connection
         if (data.connectionData?.sourceBlockId) {
           setActiveSourceBlockId(data.connectionData.sourceBlockId)
         }
 
-        // Set cursor position after state updates
         setTimeout(() => {
           if (inputRef.current) {
             inputRef.current.selectionStart = dropPosition + 1
@@ -315,7 +295,6 @@ export function ShortInput({
     }
   }
 
-  // Handle key combinations
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Escape') {
       setShowEnvVars(false)
@@ -323,7 +302,6 @@ export function ShortInput({
       return
     }
 
-    // For API key fields, show env vars when clearing with keyboard shortcuts
     if (
       isApiKeyField &&
       (e.key === 'Delete' || e.key === 'Backspace') &&
@@ -334,13 +312,10 @@ export function ShortInput({
     }
   }
 
-  // Value display logic
   const displayValue =
     password && !isFocused ? '•'.repeat(value?.toString().length ?? 0) : (value?.toString() ?? '')
 
-  // Explicitly mark environment variable references with '{{' and '}}' when inserting
   const handleEnvVarSelect = (newValue: string) => {
-    // For API keys, ensure we're using the full value with {{ }} format
     if (isApiKeyField && !newValue.startsWith('{{')) {
       newValue = `{{${newValue}}}`
     }
@@ -378,21 +353,21 @@ export function ShortInput({
             'allow-scroll w-full overflow-auto text-transparent caret-foreground [-ms-overflow-style:none] [scrollbar-width:none] placeholder:text-muted-foreground/50 [&::-webkit-scrollbar]:hidden',
             isConnecting &&
               config?.connectionDroppable !== false &&
-              'ring-2 ring-blue-500 ring-offset-2 focus-visible:ring-blue-500'
+              'ring-2 ring-blue-500 ring-offset-2 focus-visible:ring-blue-500',
+            showCopyButton && 'pr-14'
           )}
           placeholder={placeholder ?? ''}
           type='text'
           value={displayValue}
           onChange={handleChange}
+          readOnly={readOnly}
           onFocus={() => {
             setIsFocused(true)
 
-            // If this is an API key field, automatically show env vars dropdown
             if (isApiKeyField) {
               setShowEnvVars(true)
               setSearchTerm('')
 
-              // Set cursor position to the end of the input
               const inputLength = value?.toString().length ?? 0
               setCursorPosition(inputLength)
             } else {
@@ -417,11 +392,15 @@ export function ShortInput({
         />
         <div
           ref={overlayRef}
-          className='pointer-events-none absolute inset-0 flex items-center overflow-x-auto bg-transparent px-3 text-sm [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
+          className={cn(
+            'pointer-events-none absolute inset-0 flex items-center overflow-x-auto bg-transparent text-sm [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
+            'pl-3',
+            showCopyButton ? 'pr-14' : 'pr-3'
+          )}
           style={{ overflowX: 'auto', scrollbarWidth: 'none', msOverflowStyle: 'none' }}
         >
           <div
-            className='w-full whitespace-pre'
+            className={cn('whitespace-pre', showCopyButton ? 'mr-12' : '')}
             style={{ scrollbarWidth: 'none', minWidth: 'fit-content' }}
           >
             {password && !isFocused
@@ -432,6 +411,27 @@ export function ShortInput({
                 })}
           </div>
         </div>
+
+        {/* Copy Button */}
+        {showCopyButton && value && (
+          <div className='pointer-events-none absolute top-0 right-0 bottom-0 z-10 flex w-14 items-center justify-end pr-2 opacity-0 transition-opacity group-hover:opacity-100'>
+            <Button
+              type='button'
+              variant='ghost'
+              size='icon'
+              onClick={handleCopy}
+              disabled={!value}
+              className='pointer-events-auto h-6 w-6 p-0'
+              aria-label='Copy value'
+            >
+              {copied ? (
+                <Check className='h-3.5 w-3.5 text-green-500' />
+              ) : (
+                <Copy className='h-3.5 w-3.5 text-muted-foreground' />
+              )}
+            </Button>
+          </div>
+        )}
 
         {/* Wand Button */}
         {wandHook && !isPreview && !wandHook.isStreaming && (
@@ -464,6 +464,7 @@ export function ShortInput({
                 setShowEnvVars(false)
                 setSearchTerm('')
               }}
+              maxHeight='192px'
             />
             <TagDropdown
               visible={showTags}

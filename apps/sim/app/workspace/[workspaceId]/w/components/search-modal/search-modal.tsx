@@ -19,6 +19,7 @@ import { Dialog, DialogOverlay, DialogPortal, DialogTitle } from '@/components/u
 import { Input } from '@/components/ui/input'
 import { useBrandConfig } from '@/lib/branding/branding'
 import { cn } from '@/lib/utils'
+import { getTriggersForSidebar, hasTriggerCapability } from '@/lib/workflows/trigger-utils'
 import { getKeyboardShortcutText } from '@/app/workspace/[workspaceId]/w/hooks/use-keyboard-shortcuts'
 import { getAllBlocks } from '@/blocks'
 import { type NavigationSection, useSearchNavigation } from './hooks/use-search-navigation'
@@ -54,6 +55,7 @@ interface BlockItem {
   icon: React.ComponentType<any>
   bgColor: string
   type: string
+  config?: any // Store block config to check trigger capability
 }
 
 interface ToolItem {
@@ -147,16 +149,13 @@ export function SearchModal({
     return [...regularBlocks, ...specialBlocks].sort((a, b) => a.name.localeCompare(b.name))
   }, [isOnWorkflowPage])
 
-  // Get all available triggers - only when on workflow page
   const triggers = useMemo(() => {
     if (!isOnWorkflowPage) return []
 
-    const allBlocks = getAllBlocks()
-    return allBlocks
-      .filter(
-        (block) =>
-          block.type !== 'starter' && !block.hideFromToolbar && block.category === 'triggers'
-      )
+    const triggerBlocks = getTriggersForSidebar()
+
+    return triggerBlocks
+      .filter((block) => block.type !== 'webhook') // Exclude old webhook block - use generic_webhook instead
       .map(
         (block): BlockItem => ({
           id: block.type,
@@ -166,6 +165,7 @@ export function SearchModal({
           icon: block.icon,
           bgColor: block.bgColor || '#6B7280',
           type: block.type,
+          config: block, // Store config to check trigger capability
         })
       )
       .sort((a, b) => a.name.localeCompare(b.name))
@@ -371,11 +371,12 @@ export function SearchModal({
 
   // Handle block/tool click (same as toolbar interaction)
   const handleBlockClick = useCallback(
-    (blockType: string) => {
+    (blockType: string, enableTriggerMode?: boolean) => {
       // Dispatch a custom event to be caught by the workflow component
       const event = new CustomEvent('add-block-from-toolbar', {
         detail: {
           type: blockType,
+          enableTriggerMode: enableTriggerMode || false,
         },
       })
       window.dispatchEvent(event)
@@ -475,7 +476,9 @@ export function SearchModal({
     const { section, item } = current
 
     if (section.id === 'blocks' || section.id === 'triggers' || section.id === 'tools') {
-      handleBlockClick(item.type)
+      const enableTriggerMode =
+        section.id === 'triggers' && item.config ? hasTriggerCapability(item.config) : false
+      handleBlockClick(item.type, enableTriggerMode)
     } else if (section.id === 'list') {
       switch (item.type) {
         case 'workspace':
@@ -652,7 +655,12 @@ export function SearchModal({
                     {filteredTriggers.map((trigger, index) => (
                       <button
                         key={trigger.id}
-                        onClick={() => handleBlockClick(trigger.type)}
+                        onClick={() =>
+                          handleBlockClick(
+                            trigger.type,
+                            trigger.config ? hasTriggerCapability(trigger.config) : false
+                          )
+                        }
                         data-nav-item={`triggers-${index}`}
                         className={`flex h-auto w-[180px] flex-shrink-0 cursor-pointer flex-col items-start gap-2 rounded-[8px] border p-3 transition-all duration-200 ${
                           isItemSelected('triggers', index)

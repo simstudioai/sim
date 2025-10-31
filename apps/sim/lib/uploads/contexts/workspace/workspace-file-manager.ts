@@ -4,7 +4,7 @@
  */
 
 import { db } from '@sim/db'
-import { workspaceFile } from '@sim/db/schema'
+import { workspaceFiles } from '@sim/db/schema'
 import { and, eq } from 'drizzle-orm'
 import {
   checkStorageQuota,
@@ -15,10 +15,10 @@ import { createLogger } from '@/lib/logs/console/logger'
 import {
   deleteFile,
   downloadFile,
-  generatePresignedDownloadUrl,
   hasCloudStorage,
   uploadFile,
 } from '@/lib/uploads/core/storage-service'
+import { getFileMetadataByKey, insertFileMetadata } from '@/lib/uploads/server/metadata'
 import type { UserFile } from '@/executor/types'
 
 const logger = createLogger('WorkspaceFileStorage')
@@ -71,10 +71,18 @@ export async function uploadWorkspaceFile(
   }
 
   const storageKey = generateWorkspaceFileKey(workspaceId, fileName)
-  const fileId = `wf_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`
+  let fileId = `wf_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`
 
   try {
     logger.info(`Generated storage key: ${storageKey}`)
+
+    const metadata: Record<string, string> = {
+      originalName: fileName,
+      uploadedAt: new Date().toISOString(),
+      purpose: 'workspace',
+      userId: userId,
+      workspaceId: workspaceId,
+    }
 
     const uploadResult = await uploadFile({
       file: fileBuffer,
@@ -83,20 +91,47 @@ export async function uploadWorkspaceFile(
       context: 'workspace',
       preserveKey: true, // Don't add timestamp prefix
       customKey: storageKey, // Explicitly set the key
+      metadata, // Pass metadata for cloud storage consistency
     })
 
     logger.info(`Upload returned key: ${uploadResult.key}`)
 
-    await db.insert(workspaceFile).values({
-      id: fileId,
-      workspaceId,
-      name: fileName,
-      key: uploadResult.key, // This is what actually got stored in S3
-      size: fileBuffer.length,
-      type: contentType,
-      uploadedBy: userId,
-      uploadedAt: new Date(),
-    })
+    const usingCloudStorage = hasCloudStorage()
+
+    if (!usingCloudStorage) {
+      const metadataRecord = await insertFileMetadata({
+        id: fileId,
+        key: uploadResult.key,
+        userId,
+        workspaceId,
+        context: 'workspace',
+        originalName: fileName,
+        contentType,
+        size: fileBuffer.length,
+      })
+      fileId = metadataRecord.id
+      logger.info(`Stored metadata in database for local file: ${uploadResult.key}`)
+    } else {
+      const existing = await getFileMetadataByKey(uploadResult.key, 'workspace')
+
+      if (!existing) {
+        logger.warn(`Metadata not found for cloud file ${uploadResult.key}, inserting...`)
+        const metadataRecord = await insertFileMetadata({
+          id: fileId,
+          key: uploadResult.key,
+          userId,
+          workspaceId,
+          context: 'workspace',
+          originalName: fileName,
+          contentType,
+          size: fileBuffer.length,
+        })
+        fileId = metadataRecord.id
+      } else {
+        fileId = existing.id
+        logger.info(`Using existing metadata record for cloud file: ${uploadResult.key}`)
+      }
+    }
 
     logger.info(`Successfully uploaded workspace file: ${fileName} with key: ${uploadResult.key}`)
 
@@ -106,29 +141,19 @@ export async function uploadWorkspaceFile(
       logger.error(`Failed to update storage tracking:`, storageError)
     }
 
-    let presignedUrl: string | undefined
-
-    if (hasCloudStorage()) {
-      try {
-        presignedUrl = await generatePresignedDownloadUrl(
-          uploadResult.key,
-          'workspace',
-          24 * 60 * 60 // 24 hours
-        )
-      } catch (error) {
-        logger.warn(`Failed to generate presigned URL for ${fileName}:`, error)
-      }
-    }
+    const { getServePathPrefix } = await import('@/lib/uploads')
+    const pathPrefix = getServePathPrefix()
+    const serveUrl = `${pathPrefix}${encodeURIComponent(uploadResult.key)}?context=workspace`
 
     return {
       id: fileId,
       name: fileName,
       size: fileBuffer.length,
       type: contentType,
-      url: presignedUrl || uploadResult.path, // Use presigned URL for external access
+      url: serveUrl, // Use authenticated serve URL (enforces context)
       key: uploadResult.key,
       uploadedAt: new Date().toISOString(),
-      expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(), // 1 year
+      expiresAt: new Date(Date.now() + 100 * 365 * 24 * 60 * 60 * 1000).toISOString(), // Far future date (effectively never expires)
       context: 'workspace',
     }
   } catch (error) {
@@ -149,8 +174,14 @@ export async function fileExistsInWorkspace(
   try {
     const existing = await db
       .select()
-      .from(workspaceFile)
-      .where(and(eq(workspaceFile.workspaceId, workspaceId), eq(workspaceFile.name, fileName)))
+      .from(workspaceFiles)
+      .where(
+        and(
+          eq(workspaceFiles.workspaceId, workspaceId),
+          eq(workspaceFiles.originalName, fileName),
+          eq(workspaceFiles.context, 'workspace')
+        )
+      )
       .limit(1)
 
     return existing.length > 0
@@ -167,16 +198,25 @@ export async function listWorkspaceFiles(workspaceId: string): Promise<Workspace
   try {
     const files = await db
       .select()
-      .from(workspaceFile)
-      .where(eq(workspaceFile.workspaceId, workspaceId))
-      .orderBy(workspaceFile.uploadedAt)
+      .from(workspaceFiles)
+      .where(
+        and(eq(workspaceFiles.workspaceId, workspaceId), eq(workspaceFiles.context, 'workspace'))
+      )
+      .orderBy(workspaceFiles.uploadedAt)
 
     const { getServePathPrefix } = await import('@/lib/uploads')
     const pathPrefix = getServePathPrefix()
 
     return files.map((file) => ({
-      ...file,
+      id: file.id,
+      workspaceId: file.workspaceId || workspaceId, // Use query workspaceId as fallback (should never be null for workspace files)
+      name: file.originalName,
+      key: file.key,
       path: `${pathPrefix}${encodeURIComponent(file.key)}?context=workspace`,
+      size: file.size,
+      type: file.contentType,
+      uploadedBy: file.userId,
+      uploadedAt: file.uploadedAt,
     }))
   } catch (error) {
     logger.error(`Failed to list workspace files for ${workspaceId}:`, error)
@@ -194,8 +234,14 @@ export async function getWorkspaceFile(
   try {
     const files = await db
       .select()
-      .from(workspaceFile)
-      .where(and(eq(workspaceFile.id, fileId), eq(workspaceFile.workspaceId, workspaceId)))
+      .from(workspaceFiles)
+      .where(
+        and(
+          eq(workspaceFiles.id, fileId),
+          eq(workspaceFiles.workspaceId, workspaceId),
+          eq(workspaceFiles.context, 'workspace')
+        )
+      )
       .limit(1)
 
     if (files.length === 0) return null
@@ -203,9 +249,17 @@ export async function getWorkspaceFile(
     const { getServePathPrefix } = await import('@/lib/uploads')
     const pathPrefix = getServePathPrefix()
 
+    const file = files[0]
     return {
-      ...files[0],
-      path: `${pathPrefix}${encodeURIComponent(files[0].key)}?context=workspace`,
+      id: file.id,
+      workspaceId: file.workspaceId || workspaceId, // Use query workspaceId as fallback (should never be null for workspace files)
+      name: file.originalName,
+      key: file.key,
+      path: `${pathPrefix}${encodeURIComponent(file.key)}?context=workspace`,
+      size: file.size,
+      type: file.contentType,
+      uploadedBy: file.userId,
+      uploadedAt: file.uploadedAt,
     }
   } catch (error) {
     logger.error(`Failed to get workspace file ${fileId}:`, error)
@@ -254,8 +308,14 @@ export async function deleteWorkspaceFile(workspaceId: string, fileId: string): 
     })
 
     await db
-      .delete(workspaceFile)
-      .where(and(eq(workspaceFile.id, fileId), eq(workspaceFile.workspaceId, workspaceId)))
+      .delete(workspaceFiles)
+      .where(
+        and(
+          eq(workspaceFiles.id, fileId),
+          eq(workspaceFiles.workspaceId, workspaceId),
+          eq(workspaceFiles.context, 'workspace')
+        )
+      )
 
     try {
       await decrementStorageUsage(fileRecord.uploadedBy, fileRecord.size)

@@ -17,7 +17,7 @@ export const dynamic = 'force-dynamic'
  * Check if transport type requires a URL
  */
 function isUrlBasedTransport(transport: McpTransport): boolean {
-  return transport === 'http' || transport === 'sse' || transport === 'streamable-http'
+  return transport === 'streamable-http'
 }
 
 /**

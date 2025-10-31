@@ -264,7 +264,7 @@ class McpService {
       id: server.id,
       name: server.name,
       description: server.description || undefined,
-      transport: server.transport as 'http' | 'sse',
+      transport: 'streamable-http' as const,
       url: server.url || undefined,
       headers: (server.headers as Record<string, string>) || {},
       timeout: server.timeout || 30000,

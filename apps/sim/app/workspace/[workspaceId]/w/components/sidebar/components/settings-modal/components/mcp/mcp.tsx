@@ -3,19 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { AlertCircle, Plus, Search, X } from 'lucide-react'
 import { useParams } from 'next/navigation'
-import {
-  Alert,
-  AlertDescription,
-  Button,
-  Input,
-  Label,
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-  Skeleton,
-} from '@/components/ui'
+import { Alert, AlertDescription, Button, Input, Label, Skeleton } from '@/components/ui'
 import { checkEnvVarTrigger, EnvVarDropdown } from '@/components/ui/env-var-dropdown'
 import { formatDisplayText } from '@/components/ui/formatted-text'
 import { createLogger } from '@/lib/logs/console/logger'
@@ -346,30 +334,6 @@ export function MCP() {
                         }}
                         className='h-9'
                       />
-                    </div>
-                  </div>
-
-                  <div className='flex items-center justify-between'>
-                    <div className='flex items-center gap-2'>
-                      <Label className='font-normal'>Transport</Label>
-                    </div>
-                    <div className='w-[380px]'>
-                      <Select
-                        value={formData.transport}
-                        onValueChange={(value: 'http' | 'sse' | 'streamable-http') => {
-                          if (testResult) clearTestResult()
-                          setFormData((prev) => ({ ...prev, transport: value }))
-                        }}
-                      >
-                        <SelectTrigger className='h-9'>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value='streamable-http'>Streamable HTTP</SelectItem>
-                          <SelectItem value='http'>HTTP</SelectItem>
-                          <SelectItem value='sse'>Server-Sent Events</SelectItem>
-                        </SelectContent>
-                      </Select>
                     </div>
                   </div>
 
@@ -725,30 +689,6 @@ export function MCP() {
                           }}
                           className='h-9'
                         />
-                      </div>
-                    </div>
-
-                    <div className='flex items-center justify-between'>
-                      <div className='flex items-center gap-2'>
-                        <Label className='font-normal'>Transport</Label>
-                      </div>
-                      <div className='w-[380px]'>
-                        <Select
-                          value={formData.transport}
-                          onValueChange={(value: 'http' | 'sse' | 'streamable-http') => {
-                            if (testResult) clearTestResult()
-                            setFormData((prev) => ({ ...prev, transport: value }))
-                          }}
-                        >
-                          <SelectTrigger className='h-9'>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value='streamable-http'>Streamable HTTP</SelectItem>
-                            <SelectItem value='http'>HTTP</SelectItem>
-                            <SelectItem value='sse'>Server-Sent Events</SelectItem>
-                          </SelectContent>
-                        </Select>
                       </div>
                     </div>
 

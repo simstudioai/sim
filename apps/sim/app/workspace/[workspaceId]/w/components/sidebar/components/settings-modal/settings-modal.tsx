@@ -9,6 +9,7 @@ import {
   ApiKeys,
   Copilot,
   Credentials,
+  CustomTools,
   EnvironmentVariables,
   FileUploads,
   General,
@@ -44,6 +45,7 @@ type SettingsSection =
   | 'privacy'
   | 'copilot'
   | 'mcp'
+  | 'custom-tools'
 
 export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
   const [activeSection, setActiveSection] = useState<SettingsSection>('general')
@@ -200,6 +202,11 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
             {activeSection === 'mcp' && (
               <div className='h-full'>
                 <MCP />
+              </div>
+            )}
+            {activeSection === 'custom-tools' && (
+              <div className='h-full'>
+                <CustomTools />
               </div>
             )}
           </div>

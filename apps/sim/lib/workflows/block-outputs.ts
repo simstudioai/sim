@@ -1,7 +1,7 @@
 import { classifyStartBlockType, StartBlockPath } from '@/lib/workflows/triggers'
 import { getBlock } from '@/blocks'
 import type { BlockConfig } from '@/blocks/types'
-import { getTrigger } from '@/triggers'
+import { getTrigger, isTriggerValid } from '@/triggers'
 
 type InputFormatField = { name?: string; type?: string | undefined | null }
 
@@ -51,10 +51,19 @@ export function getBlockOutputs(
   if (!blockConfig) return {}
 
   if (triggerMode && blockConfig.triggers?.enabled) {
-    const triggerId = subBlocks?.triggerId?.value || blockConfig.triggers?.available?.[0]
-    if (triggerId) {
+    const selectedTriggerIdValue = subBlocks?.selectedTriggerId?.value
+    const triggerIdValue = subBlocks?.triggerId?.value
+    const triggerId =
+      (typeof selectedTriggerIdValue === 'string' && isTriggerValid(selectedTriggerIdValue)
+        ? selectedTriggerIdValue
+        : undefined) ||
+      (typeof triggerIdValue === 'string' && isTriggerValid(triggerIdValue)
+        ? triggerIdValue
+        : undefined) ||
+      blockConfig.triggers?.available?.[0]
+    if (triggerId && isTriggerValid(triggerId)) {
       const trigger = getTrigger(triggerId)
-      if (trigger?.outputs) {
+      if (trigger.outputs) {
         return trigger.outputs
       }
     }

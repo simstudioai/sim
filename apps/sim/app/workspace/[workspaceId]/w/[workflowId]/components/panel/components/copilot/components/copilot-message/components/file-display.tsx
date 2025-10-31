@@ -36,7 +36,7 @@ export const FileAttachmentDisplay = memo(({ fileAttachments }: FileAttachmentDi
       return fileUrls[cacheKey]
     }
 
-    const url = `/api/files/serve/${encodeURIComponent(file.key)}?bucket=copilot`
+    const url = `/api/files/serve/${encodeURIComponent(file.key)}?context=copilot`
     setFileUrls((prev) => ({ ...prev, [cacheKey]: url }))
     return url
   }

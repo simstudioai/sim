@@ -1,3 +1,8 @@
+import type { Logger } from '@/lib/logs/console/logger'
+import type { StorageContext } from '@/lib/uploads'
+import type { UserFile } from '@/executor/types'
+import { ACCEPTED_FILE_TYPES } from './validation'
+
 export interface FileAttachment {
   id: string
   key: string
@@ -144,12 +149,70 @@ export function getMimeTypeFromExtension(extension: string): string {
 }
 
 /**
+ * Format bytes to human-readable file size
+ * @param bytes - File size in bytes
+ * @param options - Formatting options
+ * @returns Formatted string (e.g., "1.5 MB", "500 KB")
+ */
+export function formatFileSize(
+  bytes: number,
+  options?: { includeBytes?: boolean; precision?: number }
+): string {
+  if (bytes === 0) return '0 Bytes'
+
+  const k = 1024
+  const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB']
+  const precision = options?.precision ?? 1
+  const includeBytes = options?.includeBytes ?? false
+
+  const i = Math.floor(Math.log(bytes) / Math.log(k))
+
+  if (i === 0 && !includeBytes) {
+    return '0 Bytes'
+  }
+
+  const value = bytes / k ** i
+  const formattedValue = Number.parseFloat(value.toFixed(precision))
+
+  return `${formattedValue} ${sizes[i]}`
+}
+
+/**
+ * Validate file size and type for knowledge base uploads (client-side)
+ * @param file - File object to validate
+ * @param maxSizeBytes - Maximum file size in bytes (default: 100MB)
+ * @returns Error message string if validation fails, null if valid
+ */
+export function validateKnowledgeBaseFile(
+  file: File,
+  maxSizeBytes: number = 100 * 1024 * 1024
+): string | null {
+  if (file.size > maxSizeBytes) {
+    const maxSizeMB = Math.round(maxSizeBytes / (1024 * 1024))
+    return `File "${file.name}" is too large. Maximum size is ${maxSizeMB}MB.`
+  }
+
+  if (!ACCEPTED_FILE_TYPES.includes(file.type)) {
+    return `File "${file.name}" has an unsupported format. Please use PDF, DOC, DOCX, TXT, CSV, XLS, XLSX, MD, PPT, PPTX, HTML, JSON, YAML, or YML files.`
+  }
+
+  return null
+}
+
+/**
  * Extract storage key from a file path
- * Handles various path formats: /api/files/serve/xyz, /api/files/serve/s3/xyz, etc.
- * Strips query parameters from the path before extracting the key.
  */
 export function extractStorageKey(filePath: string): string {
-  const pathWithoutQuery = filePath.split('?')[0]
+  let pathWithoutQuery = filePath.split('?')[0]
+
+  try {
+    if (pathWithoutQuery.startsWith('http://') || pathWithoutQuery.startsWith('https://')) {
+      const url = new URL(pathWithoutQuery)
+      pathWithoutQuery = url.pathname
+    }
+  } catch {
+    // If URL parsing fails, use the original path
+  }
 
   if (pathWithoutQuery.includes('/api/files/serve/s3/')) {
     return decodeURIComponent(pathWithoutQuery.split('/api/files/serve/s3/')[1])
@@ -161,4 +224,270 @@ export function extractStorageKey(filePath: string): string {
     return decodeURIComponent(pathWithoutQuery.substring('/api/files/serve/'.length))
   }
   return pathWithoutQuery
+}
+
+/**
+ * Check if a URL is an internal file serve URL
+ */
+export function isInternalFileUrl(fileUrl: string): boolean {
+  return fileUrl.includes('/api/files/serve/')
+}
+
+/**
+ * Infer storage context from file key pattern
+ */
+export function inferContextFromKey(key: string): StorageContext {
+  // KB files always start with 'kb/' prefix
+  if (key.startsWith('kb/')) {
+    return 'knowledge-base'
+  }
+
+  // Execution files: three or more UUID segments (workspace/workflow/execution/...)
+  // Pattern: {uuid}/{uuid}/{uuid}/{filename}
+  const segments = key.split('/')
+  if (segments.length >= 4 && segments[0].match(/^[a-f0-9-]{36}$/)) {
+    return 'execution'
+  }
+
+  // Workspace files: UUID-like ID followed by timestamp pattern
+  // Pattern: {uuid}/{timestamp}-{random}-{filename}
+  if (key.match(/^[a-f0-9-]{36}\/\d+-[a-z0-9]+-/)) {
+    return 'workspace'
+  }
+
+  // Copilot/General files: timestamp-random-filename (no path segments)
+  // Pattern: {timestamp}-{random}-{filename}
+  // NOTE: This is ambiguous - prefer explicit context parameter
+  if (key.match(/^\d+-[a-z0-9]+-/)) {
+    return 'general'
+  }
+
+  return 'general'
+}
+
+/**
+ * Extract storage key and context from an internal file URL
+ * @param fileUrl - Internal file URL (e.g., /api/files/serve/key?context=workspace)
+ * @param defaultContext - Default context if not found in URL params
+ * @returns Object with storage key and context
+ */
+export function parseInternalFileUrl(
+  fileUrl: string,
+  defaultContext: StorageContext = 'general'
+): { key: string; context: StorageContext } {
+  const key = extractStorageKey(fileUrl)
+
+  if (!key) {
+    throw new Error('Could not extract storage key from internal file URL')
+  }
+
+  const url = new URL(fileUrl.startsWith('http') ? fileUrl : `http://localhost${fileUrl}`)
+  const contextParam = url.searchParams.get('context')
+
+  const context = (contextParam as StorageContext) || inferContextFromKey(key) || defaultContext
+
+  return { key, context }
+}
+
+/**
+ * Raw file input that can be converted to UserFile
+ * Supports various file object formats from different sources
+ */
+export interface RawFileInput {
+  id?: string
+  key?: string
+  path?: string
+  url?: string
+  name: string
+  size: number
+  type?: string
+  uploadedAt?: string | Date
+  expiresAt?: string | Date
+  [key: string]: unknown // Allow additional properties for flexibility
+}
+
+/**
+ * Converts a single raw file object to UserFile format
+ * @param file - Raw file object
+ * @param requestId - Request ID for logging
+ * @param logger - Logger instance
+ * @returns UserFile object
+ * @throws Error if file has no storage key
+ */
+export function processSingleFileToUserFile(
+  file: RawFileInput,
+  requestId: string,
+  logger: Logger
+): UserFile {
+  if (file.id && file.key && file.uploadedAt) {
+    return file as UserFile
+  }
+
+  const storageKey = file.key || (file.path ? extractStorageKey(file.path) : null)
+
+  if (!storageKey) {
+    logger.warn(`[${requestId}] File has no storage key: ${file.name || 'unknown'}`)
+    throw new Error(`File has no storage key: ${file.name || 'unknown'}`)
+  }
+
+  const userFile: UserFile = {
+    id: file.id || `file-${Date.now()}`,
+    name: file.name,
+    url: file.url || file.path || '',
+    size: file.size,
+    type: file.type || 'application/octet-stream',
+    key: storageKey,
+    uploadedAt: file.uploadedAt
+      ? typeof file.uploadedAt === 'string'
+        ? file.uploadedAt
+        : file.uploadedAt.toISOString()
+      : new Date().toISOString(),
+    expiresAt: file.expiresAt
+      ? typeof file.expiresAt === 'string'
+        ? file.expiresAt
+        : file.expiresAt.toISOString()
+      : new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+  }
+
+  logger.info(`[${requestId}] Converted file to UserFile: ${userFile.name} (key: ${userFile.key})`)
+  return userFile
+}
+
+/**
+ * Converts raw file objects (from file-upload or variable references) to UserFile format
+ * @param files - Array of raw file objects
+ * @param requestId - Request ID for logging
+ * @param logger - Logger instance
+ * @returns Array of UserFile objects
+ */
+export function processFilesToUserFiles(
+  files: RawFileInput[],
+  requestId: string,
+  logger: Logger
+): UserFile[] {
+  const userFiles: UserFile[] = []
+
+  for (const file of files) {
+    try {
+      const userFile = processSingleFileToUserFile(file, requestId, logger)
+      userFiles.push(userFile)
+    } catch (error) {
+      logger.warn(
+        `[${requestId}] Skipping file: ${error instanceof Error ? error.message : 'Unknown error'}`
+      )
+    }
+  }
+
+  return userFiles
+}
+
+/**
+ * Sanitize a filename for use in storage metadata headers
+ * Storage metadata headers must contain only ASCII printable characters (0x20-0x7E)
+ * and cannot contain certain special characters
+ */
+export function sanitizeFilenameForMetadata(filename: string): string {
+  return (
+    filename
+      // Remove non-ASCII characters (keep only printable ASCII 0x20-0x7E)
+      .replace(/[^\x20-\x7E]/g, '')
+      // Remove characters that are problematic in HTTP headers
+      .replace(/["\\]/g, '')
+      // Replace multiple spaces with single space
+      .replace(/\s+/g, ' ')
+      // Trim whitespace
+      .trim() ||
+    // Provide fallback if completely sanitized
+    'file'
+  )
+}
+
+/**
+ * Sanitize metadata values for storage providers
+ * Removes non-printable ASCII characters and limits length
+ * @param metadata Original metadata object
+ * @param maxLength Maximum length per value (Azure Blob: 8000, S3: 2000)
+ * @returns Sanitized metadata object
+ */
+export function sanitizeStorageMetadata(
+  metadata: Record<string, string>,
+  maxLength: number
+): Record<string, string> {
+  const sanitized: Record<string, string> = {}
+  for (const [key, value] of Object.entries(metadata)) {
+    const sanitizedValue = String(value)
+      .replace(/[^\x20-\x7E]/g, '')
+      .replace(/["\\]/g, '')
+      .substring(0, maxLength)
+    if (sanitizedValue) {
+      sanitized[key] = sanitizedValue
+    }
+  }
+  return sanitized
+}
+
+/**
+ * Sanitize a file key/path for local storage
+ * Removes dangerous characters and prevents path traversal
+ * @param key Original file key/path
+ * @returns Sanitized key safe for filesystem use
+ */
+export function sanitizeFileKey(key: string): string {
+  return key.replace(/[^a-zA-Z0-9.-]/g, '_').replace(/\.\./g, '')
+}
+
+/**
+ * Extract clean filename from URL or path, stripping query parameters
+ * Handles both internal serve URLs (/api/files/serve/...) and external URLs
+ * @param urlOrPath URL or path string that may contain query parameters
+ * @returns Clean filename without query parameters
+ */
+export function extractCleanFilename(urlOrPath: string): string {
+  const withoutQuery = urlOrPath.split('?')[0]
+
+  try {
+    const url = new URL(
+      withoutQuery.startsWith('http') ? withoutQuery : `http://localhost${withoutQuery}`
+    )
+    const pathname = url.pathname
+    const filename = pathname.split('/').pop() || 'unknown'
+    return decodeURIComponent(filename)
+  } catch {
+    const filename = withoutQuery.split('/').pop() || 'unknown'
+    return decodeURIComponent(filename)
+  }
+}
+
+/**
+ * Extract workspaceId from execution file key pattern
+ * Execution files have format: workspaceId/workflowId/executionId/filename
+ * @param key File storage key
+ * @returns workspaceId if key matches execution file pattern, null otherwise
+ */
+export function extractWorkspaceIdFromExecutionKey(key: string): string | null {
+  const segments = key.split('/')
+  if (segments.length >= 4) {
+    const workspaceId = segments[0]
+    if (workspaceId && /^[a-f0-9-]{36}$/.test(workspaceId)) {
+      return workspaceId
+    }
+  }
+  return null
+}
+
+/**
+ * Construct viewer URL for a file
+ * Viewer URL format: /workspace/{workspaceId}/files/{fileKey}/view
+ * @param fileKey File storage key
+ * @param workspaceId Optional workspace ID (will be extracted from key if not provided)
+ * @returns Viewer URL string or null if workspaceId cannot be determined
+ */
+export function getViewerUrl(fileKey: string, workspaceId?: string): string | null {
+  const resolvedWorkspaceId = workspaceId || extractWorkspaceIdFromExecutionKey(fileKey)
+
+  if (!resolvedWorkspaceId) {
+    return null
+  }
+
+  return `/workspace/${resolvedWorkspaceId}/files/${fileKey}/view`
 }

@@ -7,9 +7,6 @@ export interface McpServerWithStatus {
   transport: McpTransport
   url?: string
   headers?: Record<string, string>
-  command?: string
-  args?: string[]
-  env?: Record<string, string>
   timeout?: number
   retries?: number
   enabled?: boolean

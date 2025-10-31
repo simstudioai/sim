@@ -11,6 +11,7 @@ import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import { decryptSecret } from '@/lib/utils'
 import { loadDeployedWorkflowState } from '@/lib/workflows/db-helpers'
 import { updateWorkflowRunCounts } from '@/lib/workflows/utils'
+import { filterEdgesFromTriggerBlocks } from '@/app/workspace/[workspaceId]/w/[workflowId]/lib/workflow-execution-utils'
 import { Executor } from '@/executor'
 import { Serializer } from '@/serializer'
 import { mergeSubblockState } from '@/stores/workflows/server-utils'
@@ -107,11 +108,14 @@ export async function executeWorkflowJob(payload: WorkflowExecutionPayload) {
       variables: decryptedEnvVars,
     })
 
+    // Filter out edges between trigger blocks - triggers are independent entry points
+    const filteredEdges = filterEdgesFromTriggerBlocks(mergedStates, edges)
+
     // Create serialized workflow
     const serializer = new Serializer()
     const serializedWorkflow = serializer.serializeWorkflow(
       mergedStates,
-      edges,
+      filteredEdges,
       loops || {},
       parallels || {},
       true // Enable validation during execution

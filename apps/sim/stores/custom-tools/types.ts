@@ -13,6 +13,8 @@ export interface CustomToolSchema {
 
 export interface CustomToolDefinition {
   id: string
+  workspaceId: string | null
+  userId: string | null
   title: string
   schema: CustomToolSchema
   code: string
@@ -20,22 +22,30 @@ export interface CustomToolDefinition {
   updatedAt?: string
 }
 
-export interface CustomToolsStore {
-  tools: Record<string, CustomToolDefinition>
+export interface CustomToolsState {
+  tools: CustomToolDefinition[]
   isLoading: boolean
   error: string | null
+}
 
-  // CRUD operations
-  addTool: (tool: Omit<CustomToolDefinition, 'id' | 'createdAt' | 'updatedAt'>) => string
+export interface CustomToolsActions {
+  fetchTools: (workspaceId: string) => Promise<void>
+  createTool: (
+    workspaceId: string,
+    tool: Omit<CustomToolDefinition, 'id' | 'workspaceId' | 'userId' | 'createdAt' | 'updatedAt'>
+  ) => Promise<CustomToolDefinition>
   updateTool: (
+    workspaceId: string,
     id: string,
-    updates: Partial<Omit<CustomToolDefinition, 'id' | 'createdAt' | 'updatedAt'>>
-  ) => boolean
-  removeTool: (id: string) => void
+    updates: Partial<
+      Omit<CustomToolDefinition, 'id' | 'workspaceId' | 'userId' | 'createdAt' | 'updatedAt'>
+    >
+  ) => Promise<void>
+  deleteTool: (workspaceId: string | null, id: string) => Promise<void>
   getTool: (id: string) => CustomToolDefinition | undefined
   getAllTools: () => CustomToolDefinition[]
-
-  // Server sync operations
-  loadCustomTools: () => Promise<void>
-  sync: () => Promise<void>
+  clearError: () => void
+  reset: () => void
 }
+
+export interface CustomToolsStore extends CustomToolsState, CustomToolsActions {}

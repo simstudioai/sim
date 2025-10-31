@@ -1,44 +1,84 @@
 import { createLogger } from '@/lib/logs/console/logger'
-import { USE_BLOB_STORAGE, USE_S3_STORAGE } from '@/lib/uploads/core/setup'
-import { getStorageConfig, type StorageContext } from './config-resolver'
-import type { FileInfo } from './storage-client'
+import { getStorageConfig, USE_BLOB_STORAGE, USE_S3_STORAGE } from '@/lib/uploads/config'
+import type { BlobConfig } from '@/lib/uploads/providers/blob/types'
+import type { S3Config } from '@/lib/uploads/providers/s3/types'
+import type {
+  DeleteFileOptions,
+  DownloadFileOptions,
+  FileInfo,
+  GeneratePresignedUrlOptions,
+  PresignedUrlResponse,
+  StorageConfig,
+  StorageContext,
+  UploadFileOptions,
+} from '@/lib/uploads/shared/types'
+import {
+  sanitizeFileKey,
+  sanitizeFilenameForMetadata,
+  sanitizeStorageMetadata,
+} from '@/lib/uploads/utils/file-utils'
 
 const logger = createLogger('StorageService')
 
-export interface UploadFileOptions {
-  file: Buffer
-  fileName: string
-  contentType: string
-  context: StorageContext
-  preserveKey?: boolean // Skip timestamp prefix (for workspace/execution files)
-  customKey?: string // Provide exact key to use (overrides fileName)
-  metadata?: Record<string, string>
+/**
+ * Create a Blob config from StorageConfig
+ * @throws Error if required properties are missing
+ */
+function createBlobConfig(config: StorageConfig): BlobConfig {
+  if (!config.containerName || !config.accountName) {
+    throw new Error('Blob configuration missing required properties: containerName and accountName')
+  }
+
+  if (!config.connectionString && !config.accountKey) {
+    throw new Error(
+      'Blob configuration missing authentication: either connectionString or accountKey must be provided'
+    )
+  }
+
+  return {
+    containerName: config.containerName,
+    accountName: config.accountName,
+    accountKey: config.accountKey,
+    connectionString: config.connectionString,
+  }
 }
 
-export interface DownloadFileOptions {
-  key: string
-  context?: StorageContext
+/**
+ * Create an S3 config from StorageConfig
+ * @throws Error if required properties are missing
+ */
+function createS3Config(config: StorageConfig): S3Config {
+  if (!config.bucket || !config.region) {
+    throw new Error('S3 configuration missing required properties: bucket and region')
+  }
+
+  return {
+    bucket: config.bucket,
+    region: config.region,
+  }
 }
 
-export interface DeleteFileOptions {
-  key: string
-  context?: StorageContext
-}
-
-export interface GeneratePresignedUrlOptions {
-  fileName: string
-  contentType: string
+/**
+ * Insert file metadata into the database
+ */
+async function insertFileMetadataHelper(
+  key: string,
+  metadata: Record<string, string>,
+  context: StorageContext,
+  fileName: string,
+  contentType: string,
   fileSize: number
-  context: StorageContext
-  userId?: string
-  expirationSeconds?: number
-  metadata?: Record<string, string>
-}
-
-export interface PresignedUrlResponse {
-  url: string
-  key: string
-  uploadHeaders?: Record<string, string>
+): Promise<void> {
+  const { insertFileMetadata } = await import('../server/metadata')
+  await insertFileMetadata({
+    key,
+    userId: metadata.userId,
+    workspaceId: metadata.workspaceId || null,
+    context,
+    originalName: metadata.originalName || fileName,
+    contentType,
+    size: fileSize,
+  })
 }
 
 /**
@@ -54,44 +94,69 @@ export async function uploadFile(options: UploadFileOptions): Promise<FileInfo> 
   const keyToUse = customKey || fileName
 
   if (USE_BLOB_STORAGE) {
-    const { uploadToBlob } = await import('../providers/blob/blob-client')
-    const blobConfig = {
-      containerName: config.containerName!,
-      accountName: config.accountName!,
-      accountKey: config.accountKey,
-      connectionString: config.connectionString,
+    const { uploadToBlob } = await import('@/lib/uploads/providers/blob/client')
+    const uploadResult = await uploadToBlob(
+      file,
+      keyToUse,
+      contentType,
+      createBlobConfig(config),
+      file.length,
+      metadata
+    )
+
+    if (metadata) {
+      await insertFileMetadataHelper(
+        uploadResult.key,
+        metadata,
+        context,
+        fileName,
+        contentType,
+        file.length
+      )
     }
 
-    return uploadToBlob(file, keyToUse, contentType, blobConfig, file.length)
+    return uploadResult
   }
 
   if (USE_S3_STORAGE) {
-    const { uploadToS3 } = await import('../providers/s3/s3-client')
-    const s3Config = {
-      bucket: config.bucket!,
-      region: config.region!,
+    const { uploadToS3 } = await import('@/lib/uploads/providers/s3/client')
+    const uploadResult = await uploadToS3(
+      file,
+      keyToUse,
+      contentType,
+      createS3Config(config),
+      file.length,
+      preserveKey,
+      metadata
+    )
+
+    if (metadata) {
+      await insertFileMetadataHelper(
+        uploadResult.key,
+        metadata,
+        context,
+        fileName,
+        contentType,
+        file.length
+      )
     }
 
-    return uploadToS3(file, keyToUse, contentType, s3Config, file.length, preserveKey)
+    return uploadResult
   }
 
-  logger.info('Using local file storage')
   const { writeFile } = await import('fs/promises')
   const { join } = await import('path')
   const { v4: uuidv4 } = await import('uuid')
   const { UPLOAD_DIR_SERVER } = await import('./setup.server')
 
-  const safeKey = keyToUse.replace(/[^a-zA-Z0-9.-]/g, '_').replace(/\.\./g, '')
+  const safeKey = sanitizeFileKey(keyToUse)
   const uniqueKey = `${uuidv4()}-${safeKey}`
   const filePath = join(UPLOAD_DIR_SERVER, uniqueKey)
 
-  try {
-    await writeFile(filePath, file)
-  } catch (error) {
-    logger.error(`Failed to write file to local storage: ${fileName}`, error)
-    throw new Error(
-      `Failed to write file to local storage: ${error instanceof Error ? error.message : 'Unknown error'}`
-    )
+  await writeFile(filePath, file)
+
+  if (metadata) {
+    await insertFileMetadataHelper(uniqueKey, metadata, context, fileName, contentType, file.length)
   }
 
   return {
@@ -109,29 +174,17 @@ export async function uploadFile(options: UploadFileOptions): Promise<FileInfo> 
 export async function downloadFile(options: DownloadFileOptions): Promise<Buffer> {
   const { key, context } = options
 
-  logger.info(`Downloading file: ${key}${context ? ` (context: ${context})` : ''}`)
-
   if (context) {
     const config = getStorageConfig(context)
 
     if (USE_BLOB_STORAGE) {
-      const { downloadFromBlob } = await import('../providers/blob/blob-client')
-      const blobConfig = {
-        containerName: config.containerName!,
-        accountName: config.accountName!,
-        accountKey: config.accountKey,
-        connectionString: config.connectionString,
-      }
-      return downloadFromBlob(key, blobConfig)
+      const { downloadFromBlob } = await import('@/lib/uploads/providers/blob/client')
+      return downloadFromBlob(key, createBlobConfig(config))
     }
 
     if (USE_S3_STORAGE) {
-      const { downloadFromS3 } = await import('../providers/s3/s3-client')
-      const s3Config = {
-        bucket: config.bucket!,
-        region: config.region!,
-      }
-      return downloadFromS3(key, s3Config)
+      const { downloadFromS3 } = await import('@/lib/uploads/providers/s3/client')
+      return downloadFromS3(key, createS3Config(config))
     }
   }
 
@@ -145,33 +198,21 @@ export async function downloadFile(options: DownloadFileOptions): Promise<Buffer
 export async function deleteFile(options: DeleteFileOptions): Promise<void> {
   const { key, context } = options
 
-  logger.info(`Deleting file: ${key}${context ? ` (context: ${context})` : ''}`)
-
   if (context) {
     const config = getStorageConfig(context)
 
     if (USE_BLOB_STORAGE) {
-      const { deleteFromBlob } = await import('../providers/blob/blob-client')
-      const blobConfig = {
-        containerName: config.containerName!,
-        accountName: config.accountName!,
-        accountKey: config.accountKey,
-        connectionString: config.connectionString,
-      }
-      return deleteFromBlob(key, blobConfig)
+      const { deleteFromBlob } = await import('@/lib/uploads/providers/blob/client')
+      return deleteFromBlob(key, createBlobConfig(config))
     }
 
     if (USE_S3_STORAGE) {
-      const { deleteFromS3 } = await import('../providers/s3/s3-client')
-      const s3Config = {
-        bucket: config.bucket!,
-        region: config.region!,
-      }
-      return deleteFromS3(key, s3Config)
+      const { deleteFromS3 } = await import('@/lib/uploads/providers/s3/client')
+      return deleteFromS3(key, createS3Config(config))
     }
   }
 
-  const { deleteFile: defaultDelete } = await import('./storage-client')
+  const { deleteFile: defaultDelete } = await import('@/lib/uploads/core/storage-client')
   return defaultDelete(key)
 }
 
@@ -191,14 +232,12 @@ export async function generatePresignedUploadUrl(
     metadata = {},
   } = options
 
-  logger.info(`Generating presigned upload URL for ${context}: ${fileName}`)
-
   const allMetadata = {
     ...metadata,
-    originalname: fileName,
-    uploadedat: new Date().toISOString(),
+    originalName: fileName,
+    uploadedAt: new Date().toISOString(),
     purpose: context,
-    ...(userId && { userid: userId }),
+    ...(userId && { userId }),
   }
 
   const config = getStorageConfig(context)
@@ -237,7 +276,7 @@ async function generateS3PresignedUrl(
   config: { bucket?: string; region?: string },
   expirationSeconds: number
 ): Promise<PresignedUrlResponse> {
-  const { getS3Client, sanitizeFilenameForMetadata } = await import('../providers/s3/s3-client')
+  const { getS3Client } = await import('@/lib/uploads/providers/s3/client')
   const { PutObjectCommand } = await import('@aws-sdk/client-s3')
   const { getSignedUrl } = await import('@aws-sdk/s3-request-presigner')
 
@@ -245,13 +284,9 @@ async function generateS3PresignedUrl(
     throw new Error('S3 configuration missing bucket or region')
   }
 
-  const sanitizedMetadata: Record<string, string> = {}
-  for (const [key, value] of Object.entries(metadata)) {
-    if (key === 'originalname') {
-      sanitizedMetadata[key] = sanitizeFilenameForMetadata(value)
-    } else {
-      sanitizedMetadata[key] = value
-    }
+  const sanitizedMetadata = sanitizeStorageMetadata(metadata, 2000)
+  if (sanitizedMetadata.originalName) {
+    sanitizedMetadata.originalName = sanitizeFilenameForMetadata(sanitizedMetadata.originalName)
   }
 
   const command = new PutObjectCommand({
@@ -285,7 +320,7 @@ async function generateBlobPresignedUrl(
   },
   expirationSeconds: number
 ): Promise<PresignedUrlResponse> {
-  const { getBlobServiceClient } = await import('../providers/blob/blob-client')
+  const { getBlobServiceClient } = await import('@/lib/uploads/providers/blob/client')
   const { BlobSASPermissions, generateBlobSASQueryParameters, StorageSharedKeyCredential } =
     await import('@azure/storage-blob')
 
@@ -293,7 +328,7 @@ async function generateBlobPresignedUrl(
     throw new Error('Blob configuration missing container name')
   }
 
-  const blobServiceClient = getBlobServiceClient()
+  const blobServiceClient = await getBlobServiceClient()
   const containerClient = blobServiceClient.getContainerClient(config.containerName)
   const blobClient = containerClient.getBlockBlobClient(key)
 
@@ -351,8 +386,6 @@ export async function generateBatchPresignedUploadUrls(
   userId?: string,
   expirationSeconds?: number
 ): Promise<PresignedUrlResponse[]> {
-  logger.info(`Generating ${files.length} presigned upload URLs for ${context}`)
-
   const results: PresignedUrlResponse[] = []
 
   for (const file of files) {
@@ -378,34 +411,16 @@ export async function generatePresignedDownloadUrl(
   context: StorageContext,
   expirationSeconds = 3600
 ): Promise<string> {
-  logger.info(`Generating presigned download URL for ${context}: ${key}`)
-
   const config = getStorageConfig(context)
 
   if (USE_S3_STORAGE) {
-    const { getPresignedUrlWithConfig } = await import('../providers/s3/s3-client')
-    return getPresignedUrlWithConfig(
-      key,
-      {
-        bucket: config.bucket!,
-        region: config.region!,
-      },
-      expirationSeconds
-    )
+    const { getPresignedUrlWithConfig } = await import('@/lib/uploads/providers/s3/client')
+    return getPresignedUrlWithConfig(key, createS3Config(config), expirationSeconds)
   }
 
   if (USE_BLOB_STORAGE) {
-    const { getPresignedUrlWithConfig } = await import('../providers/blob/blob-client')
-    return getPresignedUrlWithConfig(
-      key,
-      {
-        containerName: config.containerName!,
-        accountName: config.accountName!,
-        accountKey: config.accountKey,
-        connectionString: config.connectionString,
-      },
-      expirationSeconds
-    )
+    const { getPresignedUrlWithConfig } = await import('@/lib/uploads/providers/blob/client')
+    return getPresignedUrlWithConfig(key, createBlobConfig(config), expirationSeconds)
   }
 
   return `/api/files/serve/${encodeURIComponent(key)}`

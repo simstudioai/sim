@@ -2,7 +2,7 @@ import { existsSync } from 'fs'
 import { join, resolve, sep } from 'path'
 import { NextResponse } from 'next/server'
 import { createLogger } from '@/lib/logs/console/logger'
-import { UPLOAD_DIR } from '@/lib/uploads/core/setup'
+import { UPLOAD_DIR } from '@/lib/uploads/config'
 
 const logger = createLogger('FilesUtils')
 
@@ -100,22 +100,6 @@ export function isBlobPath(path: string): boolean {
 
 export function isCloudPath(path: string): boolean {
   return isS3Path(path) || isBlobPath(path)
-}
-
-export function extractStorageKey(path: string, storageType: 's3' | 'blob'): string {
-  const prefix = `/api/files/serve/${storageType}/`
-  if (path.includes(prefix)) {
-    return decodeURIComponent(path.split(prefix)[1])
-  }
-  return path
-}
-
-export function extractS3Key(path: string): string {
-  return extractStorageKey(path, 's3')
-}
-
-export function extractBlobKey(path: string): string {
-  return extractStorageKey(path, 'blob')
 }
 
 export function extractFilename(path: string): string {

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { AlertTriangle, Code, FileJson, Trash2, X } from 'lucide-react'
+import { AlertCircle, Code, FileJson, Trash2, X } from 'lucide-react'
 import { useParams } from 'next/navigation'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -23,7 +24,6 @@ import {
 import { checkEnvVarTrigger, EnvVarDropdown } from '@/components/ui/env-var-dropdown'
 import { Label } from '@/components/ui/label'
 import { checkTagTrigger, TagDropdown } from '@/components/ui/tag-dropdown'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
 import { WandPromptBar } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/wand-prompt-bar/wand-prompt-bar'
@@ -156,8 +156,8 @@ Example 2:
     },
     currentValue: jsonSchema,
     onGeneratedContent: (content) => {
-      handleJsonSchemaChange(content)
-      setSchemaError(null) // Clear error on successful generation
+      setJsonSchema(content)
+      setSchemaError(null)
     },
     onStreamChunk: (chunk) => {
       setJsonSchema((prev) => {
@@ -254,9 +254,9 @@ try {
   // Schema params keyboard navigation
   const [schemaParamSelectedIndex, setSchemaParamSelectedIndex] = useState(0)
 
-  const addTool = useCustomToolsStore((state) => state.addTool)
+  const createTool = useCustomToolsStore((state) => state.createTool)
   const updateTool = useCustomToolsStore((state) => state.updateTool)
-  const removeTool = useCustomToolsStore((state) => state.removeTool)
+  const deleteTool = useCustomToolsStore((state) => state.deleteTool)
 
   // Initialize form with initial values if provided
   useEffect(() => {
@@ -303,7 +303,6 @@ try {
     setActiveSection('schema')
     setIsEditing(false)
     setToolId(undefined)
-    // Reset AI state as well
     schemaGeneration.closePrompt()
     schemaGeneration.hidePromptInline()
     codeGeneration.closePrompt()
@@ -377,18 +376,15 @@ try {
   const isSchemaValid = useMemo(() => validateJsonSchema(jsonSchema), [jsonSchema])
   const isCodeValid = useMemo(() => validateFunctionCode(functionCode), [functionCode])
 
-  const handleSave = () => {
-    setSchemaError(null)
-    setCodeError(null)
-
-    // Validation with error messages
-    if (!jsonSchema) {
-      setSchemaError('Schema cannot be empty')
-      setActiveSection('schema')
-      return
-    }
-
+  const handleSave = async () => {
     try {
+      // Validation with error messages
+      if (!jsonSchema) {
+        setSchemaError('Schema cannot be empty')
+        setActiveSection('schema')
+        return
+      }
+
       const parsed = JSON.parse(jsonSchema)
 
       if (!parsed.type || parsed.type !== 'function') {
@@ -431,66 +427,49 @@ try {
         return
       }
 
-      // Check for duplicate tool name
-      const toolName = parsed.function.name
-      const customToolsStore = useCustomToolsStore.getState()
-      const existingTools = customToolsStore.getAllTools()
+      // No errors, proceed with save - clear any existing errors
+      setSchemaError(null)
+      setCodeError(null)
 
-      // If editing, we need to find the original tool to get its ID
-      let originalToolId = toolId
-
-      if (isEditing && !originalToolId) {
-        // If we're editing but don't have an ID, try to find the tool by its original name
-        const originalSchema = initialValues?.schema
-        const originalName = originalSchema?.function?.name
-
-        if (originalName) {
-          const originalTool = existingTools.find(
-            (tool) => tool.schema.function.name === originalName
-          )
-          if (originalTool) {
-            originalToolId = originalTool.id
-          }
-        }
-      }
-
-      // Check for duplicates, excluding the current tool if editing
-      const isDuplicate = existingTools.some((tool) => {
-        // Skip the current tool when checking for duplicates
-        if (isEditing && tool.id === originalToolId) {
-          return false
-        }
-        return tool.schema.function.name === toolName
-      })
-
-      if (isDuplicate) {
-        setSchemaError(`A tool with the name "${toolName}" already exists`)
-        setActiveSection('schema')
-        return
-      }
-
-      // Save to custom tools store
+      // Parse schema to get tool details
       const schema = JSON.parse(jsonSchema)
       const name = schema.function.name
       const description = schema.function.description || ''
 
-      let _finalToolId: string | undefined = originalToolId
+      // Determine the tool ID for editing
+      let toolIdToUpdate: string | undefined = toolId
+      if (isEditing && !toolIdToUpdate && initialValues?.schema) {
+        const originalName = initialValues.schema.function?.name
+        if (originalName) {
+          const customToolsStore = useCustomToolsStore.getState()
+          const existingTools = customToolsStore.getAllTools()
+          const originalTool = existingTools.find(
+            (tool) => tool.schema.function.name === originalName
+          )
+          if (originalTool) {
+            toolIdToUpdate = originalTool.id
+          }
+        }
+      }
 
-      // Only save to the store if we're not reusing an existing tool
-      if (isEditing && originalToolId) {
-        // Update existing tool in store
-        updateTool(originalToolId, {
+      // Save to the store (server validates duplicates)
+      let _finalToolId: string | undefined = toolIdToUpdate
+
+      if (isEditing && toolIdToUpdate) {
+        // Update existing tool
+        await updateTool(workspaceId, toolIdToUpdate, {
           title: name,
           schema,
           code: functionCode || '',
         })
       } else {
-        // Add new tool to store
-        _finalToolId = addTool({
+        // Create new tool
+        const createdTool = await createTool(workspaceId, {
           title: name,
           schema,
           code: functionCode || '',
         })
+        _finalToolId = createdTool.id
       }
 
       // Create the custom tool object for the parent component
@@ -512,7 +491,19 @@ try {
       handleClose()
     } catch (error) {
       logger.error('Error saving custom tool:', { error })
-      setSchemaError('Failed to save custom tool. Please check your inputs and try again.')
+
+      // Check if it's an API error with status code (from store)
+      const hasStatus = error && typeof error === 'object' && 'status' in error
+      const errorStatus = hasStatus ? (error as { status: number }).status : null
+      const errorMessage = error instanceof Error ? error.message : 'Failed to save custom tool'
+
+      // Display server validation errors (400) directly, generic message for others
+      setSchemaError(
+        errorStatus === 400
+          ? errorMessage
+          : 'Failed to save custom tool. Please check your inputs and try again.'
+      )
+      setActiveSection('schema')
     }
   }
 
@@ -784,19 +775,8 @@ try {
     try {
       setShowDeleteConfirm(false)
 
-      // Call API to delete the tool
-      const response = await fetch(`/api/tools/custom?id=${toolId}`, {
-        method: 'DELETE',
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        const errorMessage = errorData.error || response.statusText || 'Failed to delete tool'
-        throw new Error(errorMessage)
-      }
-
-      // Remove from local store
-      removeTool(toolId)
+      // Delete from store (which calls the API)
+      await deleteTool(workspaceId, toolId)
       logger.info(`Deleted tool: ${toolId}`)
 
       // Notify parent component if callback provided
@@ -862,6 +842,16 @@ try {
               {activeSection === 'schema' ? 'Define schema' : 'Implement code'}
             </DialogDescription>
           </DialogHeader>
+
+          {/* Error Alert */}
+          {schemaError && (
+            <div className='px-6 pt-4'>
+              <Alert variant='destructive'>
+                <AlertCircle className='h-4 w-4' />
+                <AlertDescription>{schemaError}</AlertDescription>
+              </Alert>
+            </div>
+          )}
 
           <div className='flex min-h-0 flex-1 flex-col overflow-hidden'>
             <div className='flex border-b'>
@@ -934,17 +924,6 @@ try {
                     <Label htmlFor='json-schema' className='font-medium'>
                       JSON Schema
                     </Label>
-                    {schemaError &&
-                      !schemaGeneration.isStreaming && ( // Hide schema error while streaming
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <AlertTriangle className='h-4 w-4 cursor-pointer text-destructive' />
-                          </TooltipTrigger>
-                          <TooltipContent side='top'>
-                            <p>Invalid JSON</p>
-                          </TooltipContent>
-                        </Tooltip>
-                      )}
                   </div>
                 </div>
                 <CodeEditor
@@ -1186,20 +1165,9 @@ try {
                     Next
                   </Button>
                 ) : (
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <span>
-                        <Button onClick={handleSave} disabled={!isSchemaValid}>
-                          {isEditing ? 'Update Tool' : 'Save Tool'}
-                        </Button>
-                      </span>
-                    </TooltipTrigger>
-                    {!isSchemaValid && (
-                      <TooltipContent side='top'>
-                        <p>Invalid JSON schema</p>
-                      </TooltipContent>
-                    )}
-                  </Tooltip>
+                  <Button onClick={handleSave} disabled={!isSchemaValid || !!schemaError}>
+                    {isEditing ? 'Update Tool' : 'Save Tool'}
+                  </Button>
                 )}
               </div>
             </div>

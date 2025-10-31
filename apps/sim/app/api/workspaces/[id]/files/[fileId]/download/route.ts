@@ -1,7 +1,6 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console/logger'
-import { StorageService } from '@/lib/uploads'
 import { getWorkspaceFile } from '@/lib/uploads/contexts/workspace'
 import { generateRequestId } from '@/lib/utils'
 import { verifyWorkspaceMembership } from '@/app/api/workflows/utils'
@@ -12,8 +11,8 @@ const logger = createLogger('WorkspaceFileDownloadAPI')
 
 /**
  * POST /api/workspaces/[id]/files/[fileId]/download
- * Generate presigned download URL (requires read permission)
- * Reuses execution file helper pattern for 5-minute presigned URLs
+ * Return authenticated file serve URL (requires read permission)
+ * Uses /api/files/serve endpoint which enforces authentication and context
  */
 export async function POST(
   request: NextRequest,
@@ -28,7 +27,6 @@ export async function POST(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Check workspace permissions (requires read)
     const userPermission = await verifyWorkspaceMembership(session.user.id, workspaceId)
     if (!userPermission) {
       logger.warn(
@@ -42,20 +40,18 @@ export async function POST(
       return NextResponse.json({ error: 'File not found' }, { status: 404 })
     }
 
-    // Generate 5-minute presigned URL using unified storage service
-    const downloadUrl = await StorageService.generatePresignedDownloadUrl(
-      fileRecord.key,
-      'workspace',
-      5 * 60 // 5 minutes
-    )
+    const { getBaseUrl } = await import('@/lib/urls/utils')
+    const serveUrl = `${getBaseUrl()}/api/files/serve/${encodeURIComponent(fileRecord.key)}?context=workspace`
+    const viewerUrl = `${getBaseUrl()}/workspace/${workspaceId}/files/${fileId}/view`
 
     logger.info(`[${requestId}] Generated download URL for workspace file: ${fileRecord.name}`)
 
     return NextResponse.json({
       success: true,
-      downloadUrl,
+      downloadUrl: serveUrl,
+      viewerUrl: viewerUrl,
       fileName: fileRecord.name,
-      expiresIn: 300, // 5 minutes
+      expiresIn: null,
     })
   } catch (error) {
     logger.error(`[${requestId}] Error generating download URL:`, error)

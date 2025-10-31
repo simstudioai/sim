@@ -3,9 +3,11 @@
  * This allows workflow execution with proper logging from both React hooks and tools
  */
 
+import type { Edge } from 'reactflow'
 import { v4 as uuidv4 } from 'uuid'
 import { createLogger } from '@/lib/logs/console/logger'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
+import { TriggerUtils } from '@/lib/workflows/triggers'
 import type { BlockOutput } from '@/blocks/types'
 import { Executor } from '@/executor'
 import type { ExecutionResult, StreamingExecution } from '@/executor/types'
@@ -79,6 +81,37 @@ export function getWorkflowExecutionContext(): WorkflowExecutionContext {
     getVariablesByWorkflowId,
     setExecutor,
   }
+}
+
+/**
+ * Filter out edges between trigger blocks.
+ * Trigger blocks are independent entry points and should not have edges to other trigger blocks.
+ * However, trigger blocks can have edges to regular blocks.
+ */
+export function filterEdgesFromTriggerBlocks(blocks: Record<string, any>, edges: Edge[]): Edge[] {
+  return edges.filter((edge) => {
+    const sourceBlock = blocks[edge.source]
+    const targetBlock = blocks[edge.target]
+
+    // If either block not found, keep the edge (might be in a different state structure)
+    if (!sourceBlock || !targetBlock) {
+      return true
+    }
+
+    const sourceIsTrigger = TriggerUtils.isTriggerBlock({
+      type: sourceBlock.type,
+      triggerMode: sourceBlock.triggerMode,
+    })
+
+    const targetIsTrigger = TriggerUtils.isTriggerBlock({
+      type: targetBlock.type,
+      triggerMode: targetBlock.triggerMode,
+    })
+
+    // Filter out edges where source is trigger AND target is trigger
+    // Keep edges from triggers to regular blocks
+    return !(sourceIsTrigger && targetIsTrigger)
+  })
 }
 
 /**
@@ -168,9 +201,9 @@ export async function executeWorkflowWithLogging(
     {} as Record<string, any>
   )
 
-  // Don't filter edges - let all connections remain intact
-  // The executor's routing system will handle execution paths properly
-  const filteredEdges = workflowEdges
+  // Filter out edges from trigger blocks - triggers are independent entry points
+  // and should not have edges to other trigger blocks
+  const filteredEdges = filterEdgesFromTriggerBlocks(validBlocks, workflowEdges)
 
   // Create serialized workflow with filtered blocks and edges
   const workflow = new Serializer().serializeWorkflow(

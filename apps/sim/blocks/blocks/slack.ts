@@ -2,6 +2,7 @@ import { SlackIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
 import type { SlackResponse } from '@/tools/slack/types'
+import { getTrigger } from '@/triggers'
 
 export const SlackBlock: BlockConfig<SlackResponse> = {
   type: 'slack',
@@ -182,15 +183,7 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
         value: 'read',
       },
     },
-    // TRIGGER MODE: Trigger configuration (only shown when trigger mode is active)
-    {
-      id: 'triggerConfig',
-      title: 'Trigger Configuration',
-      type: 'trigger-config',
-      layout: 'full',
-      triggerProvider: 'slack',
-      availableTriggers: ['slack_webhook'],
-    },
+    ...getTrigger('slack_webhook').subBlocks,
   ],
   tools: {
     access: ['slack_message', 'slack_canvas', 'slack_message_reader'],

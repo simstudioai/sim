@@ -53,7 +53,6 @@ export type SubBlockType =
   | 'time-input' // Time input
   | 'oauth-input' // OAuth credential selector
   | 'webhook-config' // Webhook configuration
-  | 'trigger-config' // Trigger configuration
   | 'schedule-config' // Schedule status and information
   | 'file-selector' // File selector for Google Drive, etc.
   | 'project-selector' // Project selector for Jira, Discord, etc.
@@ -68,9 +67,11 @@ export type SubBlockType =
   | 'mcp-dynamic-args' // MCP dynamic arguments based on tool schema
   | 'input-format' // Input structure format
   | 'response-format' // Response structure format
+  | 'trigger-save' // Trigger save button with validation
   | 'file-upload' // File uploader
   | 'input-mapping' // Map parent variables to child workflow input schema
   | 'variables-input' // Variable assignments for updating workflow variables
+  | 'text' // Read-only text display
 
 export type SubBlockLayout = 'full' | 'half'
 
@@ -120,7 +121,7 @@ export interface SubBlockConfig {
   title?: string
   type: SubBlockType
   layout?: SubBlockLayout
-  mode?: 'basic' | 'advanced' | 'both' // Default is 'both' if not specified
+  mode?: 'basic' | 'advanced' | 'both' | 'trigger' // Default is 'both' if not specified. 'trigger' means only shown in trigger mode
   canonicalParamId?: string
   required?: boolean
   defaultValue?: string | number | boolean | Record<string, unknown> | Array<unknown>
@@ -142,6 +143,8 @@ export interface SubBlockConfig {
   columns?: string[]
   placeholder?: string
   password?: boolean
+  readOnly?: boolean
+  showCopyButton?: boolean
   connectionDroppable?: boolean
   hidden?: boolean
   description?: string
@@ -174,6 +177,8 @@ export interface SubBlockConfig {
   // Props specific to 'code' sub-block type
   language?: 'javascript' | 'json'
   generationType?: GenerationType
+  collapsible?: boolean // Whether the code block can be collapsed
+  defaultCollapsed?: boolean // Whether the code block is collapsed by default
   // OAuth specific properties
   provider?: string
   serviceId?: string
@@ -199,12 +204,18 @@ export interface SubBlockConfig {
     placeholder?: string // Custom placeholder for the prompt input
     maintainHistory?: boolean // Whether to maintain conversation history
   }
-  // Trigger-specific configuration
-  availableTriggers?: string[] // List of trigger IDs available for this subblock
-  triggerProvider?: string // Which provider's triggers to show
   // Declarative dependency hints for cross-field clearing or invalidation
   // Example: dependsOn: ['credential'] means this field should be cleared when credential changes
   dependsOn?: string[]
+  // Copyable-text specific: Use webhook URL from webhook management hook
+  useWebhookUrl?: boolean
+  // Trigger-save specific: The trigger ID for validation and saving
+  triggerId?: string
+  // Dropdown specific: Function to fetch options dynamically (for multi-select or single-select)
+  fetchOptions?: (
+    blockId: string,
+    subBlockId: string
+  ) => Promise<Array<{ label: string; id: string }>>
 }
 
 export interface BlockConfig<T extends ToolResponse = ToolResponse> {

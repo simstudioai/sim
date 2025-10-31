@@ -197,14 +197,30 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
     // Extract and persist custom tools to database
     try {
-      const { saved, errors } = await extractAndPersistCustomTools(workflowState, userId)
+      const workspaceId = workflowData.workspaceId
+      if (workspaceId) {
+        const { saved, errors } = await extractAndPersistCustomTools(
+          workflowState,
+          workspaceId,
+          userId
+        )
 
-      if (saved > 0) {
-        logger.info(`[${requestId}] Persisted ${saved} custom tool(s) to database`, { workflowId })
-      }
+        if (saved > 0) {
+          logger.info(`[${requestId}] Persisted ${saved} custom tool(s) to database`, {
+            workflowId,
+          })
+        }
 
-      if (errors.length > 0) {
-        logger.warn(`[${requestId}] Some custom tools failed to persist`, { errors, workflowId })
+        if (errors.length > 0) {
+          logger.warn(`[${requestId}] Some custom tools failed to persist`, { errors, workflowId })
+        }
+      } else {
+        logger.warn(
+          `[${requestId}] Workflow has no workspaceId, skipping custom tools persistence`,
+          {
+            workflowId,
+          }
+        )
       }
     } catch (error) {
       logger.error(`[${requestId}] Failed to persist custom tools`, { error, workflowId })

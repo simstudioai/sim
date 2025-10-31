@@ -15,6 +15,7 @@ import 'reactflow/dist/style.css'
 import { createLogger } from '@/lib/logs/console/logger'
 import { TriggerUtils } from '@/lib/workflows/triggers'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
+import { UserAvatarStack } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/control-bar/components/user-avatar-stack/user-avatar-stack'
 import { ControlBar } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/control-bar/control-bar'
 import { DiffControls } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/diff-controls'
 import { ErrorBoundary } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/error/index'
@@ -29,7 +30,9 @@ import {
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/trigger-warning-dialog'
 import { WorkflowBlock } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/workflow-block'
 import { WorkflowEdge } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-edge/workflow-edge'
+import { CollaboratorCursorLayer } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-presence/collaborator-cursor-layer'
 import { useCurrentWorkflow } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
+import { filterEdgesFromTriggerBlocks } from '@/app/workspace/[workspaceId]/w/[workflowId]/lib/workflow-execution-utils'
 import {
   getNodeAbsolutePosition,
   getNodeDepth,
@@ -39,11 +42,13 @@ import {
   updateNodeParent as updateNodeParentUtil,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils'
 import { getBlock } from '@/blocks'
+import { useSocket } from '@/contexts/socket-context'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { useStreamCleanup } from '@/hooks/use-stream-cleanup'
 import { useWorkspacePermissions } from '@/hooks/use-workspace-permissions'
 import { useCopilotStore } from '@/stores/copilot/store'
 import { useExecutionStore } from '@/stores/execution/store'
+import { useEnvironmentStore } from '@/stores/settings/environment/store'
 import { useGeneralStore } from '@/stores/settings/general/store'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 import { hasWorkflowsInitiallyLoaded, useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -112,6 +117,7 @@ const WorkflowContent = React.memo(() => {
   const params = useParams()
   const router = useRouter()
   const { project, getNodes, fitView } = useReactFlow()
+  const { emitCursorUpdate } = useSocket()
 
   // Get workspace ID from the params
   const workspaceId = params.workspaceId as string
@@ -146,8 +152,10 @@ const WorkflowContent = React.memo(() => {
   // Get diff analysis for edge reconstruction
   const { diffAnalysis, isShowingDiff, isDiffReady } = useWorkflowDiffStore()
 
-  // Reconstruct deleted edges when viewing original workflow
+  // Reconstruct deleted edges when viewing original workflow and filter trigger edges
   const edgesForDisplay = useMemo(() => {
+    let edgesToFilter = edges
+
     // If we're not in diff mode and we have diff analysis with deleted edges,
     // we need to reconstruct those deleted edges and add them to the display
     // Only do this if diff is ready to prevent race conditions
@@ -209,11 +217,11 @@ const WorkflowContent = React.memo(() => {
       })
 
       // Combine existing edges with reconstructed deleted edges
-      return [...edges, ...reconstructedEdges]
+      edgesToFilter = [...edges, ...reconstructedEdges]
     }
 
-    // Otherwise, just use the edges as-is
-    return edges
+    // Filter out edges between trigger blocks for consistent UI and execution behavior
+    return filterEdgesFromTriggerBlocks(blocks, edgesToFilter)
   }, [edges, isShowingDiff, isDiffReady, diffAnalysis, blocks])
 
   // User permissions - get current user's specific permissions from context
@@ -1064,6 +1072,31 @@ const WorkflowContent = React.memo(() => {
     ]
   )
 
+  const handleCanvasPointerMove = useCallback(
+    (event: React.PointerEvent<Element>) => {
+      const target = event.currentTarget as HTMLElement
+      const bounds = target.getBoundingClientRect()
+
+      const position = project({
+        x: event.clientX - bounds.left,
+        y: event.clientY - bounds.top,
+      })
+
+      emitCursorUpdate(position)
+    },
+    [project, emitCursorUpdate]
+  )
+
+  const handleCanvasPointerLeave = useCallback(() => {
+    emitCursorUpdate(null)
+  }, [emitCursorUpdate])
+
+  useEffect(() => {
+    return () => {
+      emitCursorUpdate(null)
+    }
+  }, [emitCursorUpdate])
+
   // Handle drag over for ReactFlow canvas
   const onDragOver = useCallback(
     (event: React.DragEvent) => {
@@ -1144,6 +1177,20 @@ const WorkflowContent = React.memo(() => {
 
     setIsWorkflowReady(shouldBeReady)
   }, [activeWorkflowId, params.workflowId, workflows, isLoading])
+
+  const loadWorkspaceEnvironment = useEnvironmentStore((state) => state.loadWorkspaceEnvironment)
+  const clearWorkspaceEnvCache = useEnvironmentStore((state) => state.clearWorkspaceEnvCache)
+  const prevWorkspaceIdRef = useRef<string | null>(null)
+
+  useEffect(() => {
+    if (!workspaceId) return
+    if (prevWorkspaceIdRef.current && prevWorkspaceIdRef.current !== workspaceId) {
+      clearWorkspaceEnvCache(prevWorkspaceIdRef.current)
+    }
+    void loadWorkspaceEnvironment(workspaceId)
+
+    prevWorkspaceIdRef.current = workspaceId
+  }, [workspaceId, loadWorkspaceEnvironment, clearWorkspaceEnvCache])
 
   // Handle navigation and validation
   useEffect(() => {
@@ -1922,6 +1969,9 @@ const WorkflowContent = React.memo(() => {
     return (
       <div className='flex h-screen w-full flex-col overflow-hidden'>
         <div className='relative h-full w-full flex-1 transition-all duration-200'>
+          <div className='pointer-events-none absolute top-6 left-64 z-40 ml-4 sm:top-8 sm:ml-6'>
+            <UserAvatarStack className='pointer-events-auto w-fit max-w-xs' />
+          </div>
           <div className='fixed top-0 right-0 z-10'>
             <Panel />
           </div>
@@ -1942,6 +1992,9 @@ const WorkflowContent = React.memo(() => {
   return (
     <div className='flex h-screen w-full flex-col overflow-hidden'>
       <div className='relative h-full w-full flex-1 transition-all duration-200'>
+        <div className='pointer-events-none absolute top-6 left-64 z-40 ml-4 sm:top-8 sm:ml-6'>
+          <UserAvatarStack className='pointer-events-auto w-fit max-w-xs' />
+        </div>
         <div className='fixed top-0 right-0 z-10'>
           <Panel />
         </div>
@@ -1984,6 +2037,8 @@ const WorkflowContent = React.memo(() => {
           }}
           onPaneClick={onPaneClick}
           onEdgeClick={onEdgeClick}
+          onPointerMove={handleCanvasPointerMove}
+          onPointerLeave={handleCanvasPointerLeave}
           elementsSelectable={true}
           selectNodesOnDrag={false}
           nodesConnectable={effectivePermissions.canEdit}
@@ -2006,6 +2061,7 @@ const WorkflowContent = React.memo(() => {
           autoPanOnConnect={effectivePermissions.canEdit}
           autoPanOnNodeDrag={effectivePermissions.canEdit}
         >
+          <CollaboratorCursorLayer />
           <Background
             color='hsl(var(--workflow-dots))'
             size={4}
