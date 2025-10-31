@@ -6,8 +6,6 @@ interface TextProps {
 }
 
 export function Text({ blockId, subBlockId, content, className }: TextProps) {
-  // If content contains HTML tags, render as HTML
-  // Otherwise render as plain text
   const containsHtml = /<[^>]+>/.test(content)
 
   if (containsHtml) {
