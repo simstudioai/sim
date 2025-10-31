@@ -11,7 +11,6 @@ export const webflowCollectionItemCreatedTrigger: TriggerConfig = {
   icon: WebflowIcon,
 
   subBlocks: [
-    // Trigger Type Selector
     {
       id: 'selectedTriggerId',
       title: 'Trigger Type',
@@ -25,7 +24,6 @@ export const webflowCollectionItemCreatedTrigger: TriggerConfig = {
       value: () => 'webflow_collection_item_created',
       required: true,
     },
-    // Credentials
     {
       id: 'triggerCredentials',
       title: 'Credentials',
@@ -40,7 +38,6 @@ export const webflowCollectionItemCreatedTrigger: TriggerConfig = {
         value: 'webflow_collection_item_created',
       },
     },
-    // Site
     {
       id: 'siteId',
       title: 'Site',
@@ -55,7 +52,6 @@ export const webflowCollectionItemCreatedTrigger: TriggerConfig = {
         value: 'webflow_collection_item_created',
       },
     },
-    // Collection
     {
       id: 'collectionId',
       title: 'Collection',
@@ -70,7 +66,6 @@ export const webflowCollectionItemCreatedTrigger: TriggerConfig = {
         value: 'webflow_collection_item_created',
       },
     },
-    // Setup Instructions
     {
       id: 'triggerInstructions',
       title: 'Setup Instructions',
@@ -94,22 +89,6 @@ export const webflowCollectionItemCreatedTrigger: TriggerConfig = {
         value: 'webflow_collection_item_created',
       },
     },
-    // Webhook URL
-    {
-      id: 'webhookUrlDisplay',
-      title: 'Webhook URL',
-      type: 'short-input',
-      readOnly: true,
-      showCopyButton: true,
-      useWebhookUrl: true,
-      placeholder: 'Webhook URL will be generated',
-      mode: 'trigger',
-      condition: {
-        field: 'selectedTriggerId',
-        value: 'webflow_collection_item_created',
-      },
-    },
-    // Save Button
     {
       id: 'triggerSave',
       title: '',
@@ -121,7 +100,6 @@ export const webflowCollectionItemCreatedTrigger: TriggerConfig = {
         value: 'webflow_collection_item_created',
       },
     },
-    // Sample Payload
     {
       id: 'samplePayload',
       title: 'Event Payload Example',

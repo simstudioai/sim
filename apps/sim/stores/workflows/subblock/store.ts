@@ -19,6 +19,8 @@ import type { SubBlockStore } from '@/stores/workflows/subblock/types'
 export const useSubBlockStore = create<SubBlockStore>()(
   devtools((set, get) => ({
     workflowValues: {},
+    loadingWebhooks: new Set<string>(),
+    checkedWebhooks: new Set<string>(),
 
     setValue: (blockId: string, subBlockId: string, value: any) => {
       const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
@@ -72,9 +74,6 @@ export const useSubBlockStore = create<SubBlockStore>()(
           },
         },
       }))
-
-      // Trigger debounced sync to DB
-      get().syncWithDB()
     },
 
     getValue: (blockId: string, subBlockId: string) => {
@@ -114,11 +113,6 @@ export const useSubBlockStore = create<SubBlockStore>()(
           [workflowId]: values,
         },
       }))
-    },
-
-    // Removed syncWithDB - Socket.IO handles real-time sync automatically
-    syncWithDB: () => {
-      // No-op: Socket.IO handles real-time sync
     },
   }))
 )

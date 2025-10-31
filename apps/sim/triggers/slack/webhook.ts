@@ -11,6 +11,16 @@ export const slackWebhookTrigger: TriggerConfig = {
 
   subBlocks: [
     {
+      id: 'webhookUrlDisplay',
+      title: 'Webhook URL',
+      type: 'short-input',
+      readOnly: true,
+      showCopyButton: true,
+      useWebhookUrl: true,
+      placeholder: 'Webhook URL will be generated',
+      mode: 'trigger',
+    },
+    {
       id: 'signingSecret',
       title: 'Signing Secret',
       type: 'short-input',
@@ -29,7 +39,7 @@ export const slackWebhookTrigger: TriggerConfig = {
         'If you don\'t have an app:<br><ul class="mt-1 ml-5 list-disc"><li>Create an app from scratch</li><li>Give it a name and select your workspace</li></ul>',
         'Go to "Basic Information", find the "Signing Secret", and paste it in the field above.',
         'Go to "OAuth & Permissions" and add bot token scopes:<br><ul class="mt-1 ml-5 list-disc"><li><code>app_mentions:read</code> - For viewing messages that tag your bot with an @</li><li><code>chat:write</code> - To send messages to channels your bot is a part of</li></ul>',
-        'Go to "Event Subscriptions":<br><ul class="mt-1 ml-5 list-disc"><li>Enable events</li><li>Under "Subscribe to Bot Events", add <code>app_mention</code> to listen to messages that mention your bot</li><li>Paste the Webhook URL into the "Request URL" field</li></ul>',
+        'Go to "Event Subscriptions":<br><ul class="mt-1 ml-5 list-disc"><li>Enable events</li><li>Under "Subscribe to Bot Events", add <code>app_mention</code> to listen to messages that mention your bot</li><li>Paste the Webhook URL above into the "Request URL" field</li></ul>',
         'Go to "Install App" in the left sidebar and install the app into your desired Slack workspace and channel.',
         'Save changes in both Slack and here.',
       ]
@@ -38,16 +48,6 @@ export const slackWebhookTrigger: TriggerConfig = {
             `<div class="mb-3"><strong>${index + 1}.</strong> ${instruction}</div>`
         )
         .join(''),
-      mode: 'trigger',
-    },
-    {
-      id: 'webhookUrlDisplay',
-      title: 'Webhook URL',
-      type: 'short-input',
-      readOnly: true,
-      showCopyButton: true,
-      useWebhookUrl: true,
-      placeholder: 'Webhook URL will be generated',
       mode: 'trigger',
     },
     {

@@ -11,6 +11,16 @@ export const genericWebhookTrigger: TriggerConfig = {
 
   subBlocks: [
     {
+      id: 'webhookUrlDisplay',
+      title: 'Webhook URL',
+      type: 'short-input',
+      readOnly: true,
+      showCopyButton: true,
+      useWebhookUrl: true,
+      placeholder: 'Webhook URL will be generated',
+      mode: 'trigger',
+    },
+    {
       id: 'requireAuth',
       title: 'Require Authentication',
       type: 'switch',
@@ -39,6 +49,15 @@ export const genericWebhookTrigger: TriggerConfig = {
       mode: 'trigger',
     },
     {
+      id: 'inputFormat',
+      title: 'Input Format',
+      type: 'input-format',
+      layout: 'full',
+      description:
+        'Define the expected JSON input schema for this webhook (optional). Use type "files" for file uploads.',
+      mode: 'trigger',
+    },
+    {
       id: 'triggerInstructions',
       title: 'Setup Instructions',
       type: 'text',
@@ -55,16 +74,6 @@ export const genericWebhookTrigger: TriggerConfig = {
             `<div class="mb-3"><strong>${index + 1}.</strong> ${instruction}</div>`
         )
         .join(''),
-      mode: 'trigger',
-    },
-    {
-      id: 'webhookUrlDisplay',
-      title: 'Webhook URL',
-      type: 'short-input',
-      readOnly: true,
-      showCopyButton: true,
-      useWebhookUrl: true,
-      placeholder: 'Webhook URL will be generated',
       mode: 'trigger',
     },
     {

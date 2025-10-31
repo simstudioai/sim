@@ -11,6 +11,16 @@ export const telegramWebhookTrigger: TriggerConfig = {
 
   subBlocks: [
     {
+      id: 'webhookUrlDisplay',
+      title: 'Webhook URL',
+      type: 'short-input',
+      readOnly: true,
+      showCopyButton: true,
+      useWebhookUrl: true,
+      placeholder: 'Webhook URL will be generated',
+      mode: 'trigger',
+    },
+    {
       id: 'botToken',
       title: 'Bot Token',
       type: 'short-input',
@@ -34,16 +44,6 @@ export const telegramWebhookTrigger: TriggerConfig = {
             `<div class="mb-3"><strong>${index + 1}.</strong> ${instruction}</div>`
         )
         .join(''),
-      mode: 'trigger',
-    },
-    {
-      id: 'webhookUrlDisplay',
-      title: 'Webhook URL',
-      type: 'short-input',
-      readOnly: true,
-      showCopyButton: true,
-      useWebhookUrl: true,
-      placeholder: 'Webhook URL will be generated',
       mode: 'trigger',
     },
     {

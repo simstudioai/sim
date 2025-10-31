@@ -11,6 +11,16 @@ export const whatsappWebhookTrigger: TriggerConfig = {
 
   subBlocks: [
     {
+      id: 'webhookUrlDisplay',
+      title: 'Webhook URL',
+      type: 'short-input',
+      readOnly: true,
+      showCopyButton: true,
+      useWebhookUrl: true,
+      placeholder: 'Webhook URL will be generated',
+      mode: 'trigger',
+    },
+    {
       id: 'verificationToken',
       title: 'Verification Token',
       type: 'short-input',
@@ -30,7 +40,7 @@ export const whatsappWebhookTrigger: TriggerConfig = {
         'If you don\'t have an app:<br><ul class="mt-1 ml-5 list-disc"><li>Create an app from scratch</li><li>Give it a name and select your workspace</li></ul>',
         'Select your App, then navigate to WhatsApp > Configuration.',
         'Find the Webhooks section and click "Edit".',
-        'Paste the <strong>Webhook URL</strong> into the "Callback URL" field.',
+        'Paste the <strong>Webhook URL</strong> above into the "Callback URL" field.',
         'Paste the <strong>Verification Token</strong> into the "Verify token" field.',
         'Click "Verify and save".',
         'Click "Manage" next to Webhook fields and subscribe to `messages`.',
@@ -40,16 +50,6 @@ export const whatsappWebhookTrigger: TriggerConfig = {
             `<div class="mb-3"><strong>${index + 1}.</strong> ${instruction}</div>`
         )
         .join(''),
-      mode: 'trigger',
-    },
-    {
-      id: 'webhookUrlDisplay',
-      title: 'Webhook URL',
-      type: 'short-input',
-      readOnly: true,
-      showCopyButton: true,
-      useWebhookUrl: true,
-      placeholder: 'Webhook URL will be generated',
       mode: 'trigger',
     },
     {

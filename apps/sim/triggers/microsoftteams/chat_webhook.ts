@@ -72,20 +72,6 @@ export const microsoftTeamsChatSubscriptionTrigger: TriggerConfig = {
       },
     },
     {
-      id: 'webhookUrlDisplay',
-      title: 'Webhook URL',
-      type: 'short-input',
-      readOnly: true,
-      showCopyButton: true,
-      useWebhookUrl: true,
-      placeholder: 'Webhook URL will be generated',
-      mode: 'trigger',
-      condition: {
-        field: 'selectedTriggerId',
-        value: 'microsoftteams_chat_subscription',
-      },
-    },
-    {
       id: 'triggerSave',
       title: '',
       type: 'trigger-save',

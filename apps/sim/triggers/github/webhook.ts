@@ -11,6 +11,16 @@ export const githubWebhookTrigger: TriggerConfig = {
 
   subBlocks: [
     {
+      id: 'webhookUrlDisplay',
+      title: 'Webhook URL',
+      type: 'short-input',
+      readOnly: true,
+      showCopyButton: true,
+      useWebhookUrl: true,
+      placeholder: 'Webhook URL will be generated',
+      mode: 'trigger',
+    },
+    {
       id: 'contentType',
       title: 'Content Type',
       type: 'dropdown',
@@ -53,7 +63,7 @@ export const githubWebhookTrigger: TriggerConfig = {
       defaultValue: [
         'Go to your GitHub Repository > Settings > Webhooks.',
         'Click "Add webhook".',
-        'Paste the <strong>Webhook URL</strong> into the "Payload URL" field.',
+        'Paste the <strong>Webhook URL</strong> above into the "Payload URL" field.',
         'Select your chosen Content Type from the dropdown.',
         'Enter the <strong>Webhook Secret</strong> into the "Secret" field if you\'ve configured one.',
         'Set SSL verification according to your selection.',
@@ -65,16 +75,6 @@ export const githubWebhookTrigger: TriggerConfig = {
             `<div class="mb-3"><strong>${index + 1}.</strong> ${instruction}</div>`
         )
         .join(''),
-      mode: 'trigger',
-    },
-    {
-      id: 'webhookUrlDisplay',
-      title: 'Webhook URL',
-      type: 'short-input',
-      readOnly: true,
-      showCopyButton: true,
-      useWebhookUrl: true,
-      placeholder: 'Webhook URL will be generated',
       mode: 'trigger',
     },
     {

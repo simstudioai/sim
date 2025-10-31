@@ -11,7 +11,6 @@ export const webflowCollectionItemChangedTrigger: TriggerConfig = {
   icon: WebflowIcon,
 
   subBlocks: [
-    // Credentials
     {
       id: 'triggerCredentials',
       title: 'Credentials',
@@ -26,7 +25,6 @@ export const webflowCollectionItemChangedTrigger: TriggerConfig = {
         value: 'webflow_collection_item_changed',
       },
     },
-    // Site
     {
       id: 'siteId',
       title: 'Site',
@@ -41,7 +39,6 @@ export const webflowCollectionItemChangedTrigger: TriggerConfig = {
         value: 'webflow_collection_item_changed',
       },
     },
-    // Collection
     {
       id: 'collectionId',
       title: 'Collection',
@@ -56,7 +53,6 @@ export const webflowCollectionItemChangedTrigger: TriggerConfig = {
         value: 'webflow_collection_item_changed',
       },
     },
-    // Setup Instructions
     {
       id: 'triggerInstructions',
       title: 'Setup Instructions',
@@ -80,22 +76,6 @@ export const webflowCollectionItemChangedTrigger: TriggerConfig = {
         value: 'webflow_collection_item_changed',
       },
     },
-    // Webhook URL
-    {
-      id: 'webhookUrlDisplay',
-      title: 'Webhook URL',
-      type: 'short-input',
-      readOnly: true,
-      showCopyButton: true,
-      useWebhookUrl: true,
-      placeholder: 'Webhook URL will be generated',
-      mode: 'trigger',
-      condition: {
-        field: 'selectedTriggerId',
-        value: 'webflow_collection_item_changed',
-      },
-    },
-    // Save Button
     {
       id: 'triggerSave',
       title: '',
@@ -107,7 +87,6 @@ export const webflowCollectionItemChangedTrigger: TriggerConfig = {
         value: 'webflow_collection_item_changed',
       },
     },
-    // Sample Payload
     {
       id: 'samplePayload',
       title: 'Event Payload Example',

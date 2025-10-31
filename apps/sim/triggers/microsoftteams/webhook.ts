@@ -23,6 +23,20 @@ export const microsoftTeamsWebhookTrigger: TriggerConfig = {
       required: true,
     },
     {
+      id: 'webhookUrlDisplay',
+      title: 'Webhook URL',
+      type: 'short-input',
+      readOnly: true,
+      showCopyButton: true,
+      useWebhookUrl: true,
+      placeholder: 'Webhook URL will be generated',
+      mode: 'trigger',
+      condition: {
+        field: 'selectedTriggerId',
+        value: 'microsoftteams_webhook',
+      },
+    },
+    {
       id: 'hmacSecret',
       title: 'HMAC Secret',
       type: 'short-input',
@@ -46,7 +60,7 @@ export const microsoftTeamsWebhookTrigger: TriggerConfig = {
         'Click the three dots (•••) next to the team name and select "Manage team".',
         'Go to the "Apps" tab and click "Create an outgoing webhook".',
         'Provide a name, description, and optionally a profile picture.',
-        'Set the callback URL to your Sim webhook URL.',
+        'Set the callback URL to your Sim webhook URL above.',
         'Copy the HMAC security token and paste it into the "HMAC Secret" field.',
         'Click "Create" to finish setup.',
       ]
@@ -55,20 +69,6 @@ export const microsoftTeamsWebhookTrigger: TriggerConfig = {
             `<div class="mb-3"><strong>${index + 1}.</strong> ${instruction}</div>`
         )
         .join(''),
-      mode: 'trigger',
-      condition: {
-        field: 'selectedTriggerId',
-        value: 'microsoftteams_webhook',
-      },
-    },
-    {
-      id: 'webhookUrlDisplay',
-      title: 'Webhook URL',
-      type: 'short-input',
-      readOnly: true,
-      showCopyButton: true,
-      useWebhookUrl: true,
-      placeholder: 'Webhook URL will be generated',
       mode: 'trigger',
       condition: {
         field: 'selectedTriggerId',

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { AlertCircle, Check, Save, Trash2 } from 'lucide-react'
+import { AlertCircle, Check, Copy, Save, Trash2 } from 'lucide-react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
   AlertDialog,
@@ -12,6 +12,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
 import { useTriggerConfigAggregation } from '@/hooks/use-trigger-config-aggregation'
@@ -42,6 +43,10 @@ export function TriggerSave({
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [deleteStatus, setDeleteStatus] = useState<'idle' | 'deleting'>('idle')
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+  const [testUrl, setTestUrl] = useState<string | null>(null)
+  const [testUrlExpiresAt, setTestUrlExpiresAt] = useState<string | null>(null)
+  const [isGeneratingTestUrl, setIsGeneratingTestUrl] = useState(false)
+  const [copied, setCopied] = useState<string | null>(null)
 
   const { webhookId, saveConfig, deleteConfig, isLoading } = useWebhookManagement({
     blockId,
@@ -55,6 +60,9 @@ export function TriggerSave({
   )
 
   const triggerDef = triggerId && isTriggerValid(triggerId) ? getTrigger(triggerId) : null
+
+  const hasWebhookUrlDisplay =
+    triggerDef?.subBlocks.some((sb) => sb.id === 'webhookUrlDisplay') ?? false
 
   const validateRequiredFields = useCallback(
     (
@@ -225,6 +233,38 @@ export function TriggerSave({
     }
   }
 
+  const generateTestUrl = async () => {
+    if (!webhookId) return
+    try {
+      setIsGeneratingTestUrl(true)
+      const res = await fetch(`/api/webhooks/${webhookId}/test-url`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err?.error || 'Failed to generate test URL')
+      }
+      const json = await res.json()
+      setTestUrl(json.url)
+      setTestUrlExpiresAt(json.expiresAt)
+    } catch (e) {
+      logger.error('Failed to generate test webhook URL', { error: e })
+      setErrorMessage(
+        e instanceof Error ? e.message : 'Failed to generate test URL. Please try again.'
+      )
+    } finally {
+      setIsGeneratingTestUrl(false)
+    }
+  }
+
+  const copyToClipboard = (text: string, type: string): void => {
+    navigator.clipboard.writeText(text)
+    setCopied(type)
+    setTimeout(() => setCopied(null), 2000)
+  }
+
   const handleDeleteClick = () => {
     if (isPreview || disabled || !webhookId) return
     setShowDeleteDialog(true)
@@ -242,6 +282,8 @@ export function TriggerSave({
         setDeleteStatus('idle')
         setSaveStatus('idle')
         setErrorMessage(null)
+        setTestUrl(null)
+        setTestUrlExpiresAt(null)
 
         logger.info('Trigger configuration deleted successfully', {
           blockId,
@@ -323,6 +365,67 @@ export function TriggerSave({
         <Alert variant='destructive' className='mt-2'>
           <AlertDescription>{errorMessage}</AlertDescription>
         </Alert>
+      )}
+
+      {webhookId && hasWebhookUrlDisplay && (
+        <div className='mt-2 space-y-1'>
+          <div className='flex items-center justify-between'>
+            <span className='font-medium text-sm'>Test Webhook URL</span>
+            <Button
+              variant='outline'
+              size='sm'
+              onClick={generateTestUrl}
+              disabled={isGeneratingTestUrl || isProcessing}
+              className='h-8 rounded-[8px]'
+            >
+              {isGeneratingTestUrl ? (
+                <>
+                  <div className='mr-2 h-3 w-3 animate-spin rounded-full border-[1.5px] border-current border-t-transparent' />
+                  Generating…
+                </>
+              ) : testUrl ? (
+                'Regenerate'
+              ) : (
+                'Generate'
+              )}
+            </Button>
+          </div>
+          {testUrl ? (
+            <div className='flex items-center gap-2'>
+              <Input
+                readOnly
+                value={testUrl}
+                className='h-9 flex-1 rounded-[8px] font-mono text-xs'
+                onClick={(e: React.MouseEvent<HTMLInputElement>) =>
+                  (e.target as HTMLInputElement).select()
+                }
+              />
+              <Button
+                type='button'
+                size='icon'
+                variant='outline'
+                className='h-9 w-9 rounded-[8px]'
+                onClick={() => copyToClipboard(testUrl, 'testUrl')}
+              >
+                {copied === 'testUrl' ? (
+                  <Check className='h-4 w-4 text-green-500' />
+                ) : (
+                  <Copy className='h-4 w-4' />
+                )}
+              </Button>
+            </div>
+          ) : (
+            <p className='text-muted-foreground text-xs'>
+              Generate a temporary URL that executes this webhook against the live (un-deployed)
+              workflow state.
+            </p>
+          )}
+          {testUrlExpiresAt && (
+            <p className='text-muted-foreground text-xs'>
+              Expires at {new Date(testUrlExpiresAt).toLocaleString()}
+            </p>
+          )}
+        </div>
       )}
 
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>

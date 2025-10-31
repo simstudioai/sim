@@ -78,20 +78,6 @@ export const webflowCollectionItemDeletedTrigger: TriggerConfig = {
       },
     },
     {
-      id: 'webhookUrlDisplay',
-      title: 'Webhook URL',
-      type: 'short-input',
-      readOnly: true,
-      showCopyButton: true,
-      useWebhookUrl: true,
-      placeholder: 'Webhook URL will be generated',
-      mode: 'trigger',
-      condition: {
-        field: 'selectedTriggerId',
-        value: 'webflow_collection_item_deleted',
-      },
-    },
-    {
       id: 'triggerSave',
       title: '',
       type: 'trigger-save',

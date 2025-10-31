@@ -1,5 +1,5 @@
 import { ShieldCheck } from 'lucide-react'
-import type { TriggerConfig } from '../types'
+import type { TriggerConfig } from '@/triggers/types'
 
 export const stripeWebhookTrigger: TriggerConfig = {
   id: 'stripe_webhook',
@@ -10,7 +10,16 @@ export const stripeWebhookTrigger: TriggerConfig = {
   icon: ShieldCheck,
 
   subBlocks: [
-    // Setup Instructions
+    {
+      id: 'webhookUrlDisplay',
+      title: 'Webhook URL',
+      type: 'short-input',
+      readOnly: true,
+      showCopyButton: true,
+      useWebhookUrl: true,
+      placeholder: 'Webhook URL will be generated',
+      mode: 'trigger',
+    },
     {
       id: 'triggerInstructions',
       title: 'Setup Instructions',
@@ -19,7 +28,7 @@ export const stripeWebhookTrigger: TriggerConfig = {
         'Go to your Stripe Dashboard at https://dashboard.stripe.com/',
         'Navigate to Developers > Webhooks',
         'Click "Add endpoint"',
-        'Paste the Webhook URL into the "Endpoint URL" field',
+        'Paste the Webhook URL above into the "Endpoint URL" field',
         'Select the events you want to listen to (e.g., charge.succeeded)',
         'Click "Add endpoint"',
         'Stripe will send a test event to verify your webhook endpoint',
@@ -31,18 +40,6 @@ export const stripeWebhookTrigger: TriggerConfig = {
         .join(''),
       mode: 'trigger',
     },
-    // Webhook URL
-    {
-      id: 'webhookUrlDisplay',
-      title: 'Webhook URL',
-      type: 'short-input',
-      readOnly: true,
-      showCopyButton: true,
-      useWebhookUrl: true,
-      placeholder: 'Webhook URL will be generated',
-      mode: 'trigger',
-    },
-    // Save Button
     {
       id: 'triggerSave',
       title: '',
@@ -50,7 +47,6 @@ export const stripeWebhookTrigger: TriggerConfig = {
       mode: 'trigger',
       triggerId: 'stripe_webhook',
     },
-    // Sample Payload
     {
       id: 'samplePayload',
       title: 'Event Payload Example',

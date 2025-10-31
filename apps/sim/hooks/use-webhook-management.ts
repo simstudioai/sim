@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getBaseUrl } from '@/lib/urls/utils'
@@ -39,16 +39,27 @@ export function useWebhookManagement({
   const params = useParams()
   const workflowId = params.workflowId as string
 
-  const [webhookUrl, setWebhookUrl] = useState('')
-  const [webhookPath, setWebhookPath] = useState('')
-  const [webhookId, setWebhookId] = useState<string | null>(null)
-  const [isLoading, setIsLoading] = useState(false)
-  const [isSaving, setIsSaving] = useState(false)
-
   const triggerDef = triggerId && isTriggerValid(triggerId) ? getTrigger(triggerId) : null
-  const hasLoadedRef = useRef(false)
-  const lastBlockIdRef = useRef<string | null>(null)
-  const lastTriggerIdRef = useRef<string | undefined>(undefined)
+
+  const webhookId = useSubBlockStore(
+    useCallback((state) => state.getValue(blockId, 'webhookId') as string | null, [blockId])
+  )
+  const webhookPath = useSubBlockStore(
+    useCallback((state) => state.getValue(blockId, 'triggerPath') as string | null, [blockId])
+  )
+  const isLoading = useSubBlockStore((state) => state.loadingWebhooks.has(blockId))
+  const isChecked = useSubBlockStore((state) => state.checkedWebhooks.has(blockId))
+
+  const webhookUrl = useMemo(() => {
+    if (!webhookPath) {
+      const baseUrl = getBaseUrl()
+      return `${baseUrl}/api/webhooks/trigger/${blockId}`
+    }
+    const baseUrl = getBaseUrl()
+    return `${baseUrl}/api/webhooks/trigger/${webhookPath}`
+  }, [webhookPath, blockId])
+
+  const [isSaving, setIsSaving] = useState(false)
 
   useEffect(() => {
     if (triggerId && !isPreview) {
@@ -61,43 +72,42 @@ export function useWebhookManagement({
 
   useEffect(() => {
     if (isPreview) {
-      setIsLoading(false)
       return
     }
 
-    const blockChanged = lastBlockIdRef.current !== blockId
-    const triggerChanged = lastTriggerIdRef.current !== triggerId
+    const store = useSubBlockStore.getState()
+    const currentlyLoading = store.loadingWebhooks.has(blockId)
+    const alreadyChecked = store.checkedWebhooks.has(blockId)
 
-    if (blockChanged || triggerChanged) {
-      hasLoadedRef.current = false
-      lastBlockIdRef.current = blockId
-      lastTriggerIdRef.current = triggerId
-    }
-
-    if (hasLoadedRef.current && !blockChanged && !triggerChanged) {
+    if (currentlyLoading) {
       return
     }
+
+    if (alreadyChecked) {
+      return
+    }
+
+    let isMounted = true
 
     const loadWebhookOrGenerateUrl = async () => {
-      setIsLoading(true)
-      try {
-        const baseUrl = getBaseUrl()
-        const generatedUrl = `${baseUrl}/api/webhooks/trigger/${blockId}`
-        setWebhookUrl(generatedUrl)
-        setWebhookPath(blockId)
+      const currentStore = useSubBlockStore.getState()
+      if (currentStore.loadingWebhooks.has(blockId)) {
+        return
+      }
 
+      useSubBlockStore.setState((state) => ({
+        loadingWebhooks: new Set([...state.loadingWebhooks, blockId]),
+      }))
+
+      try {
         const response = await fetch(`/api/webhooks?workflowId=${workflowId}&blockId=${blockId}`)
-        if (response.ok) {
+        if (response.ok && isMounted) {
           const data = await response.json()
           if (data.webhooks && data.webhooks.length > 0) {
             const webhook = data.webhooks[0].webhook
-            setWebhookId(webhook.id)
+            useSubBlockStore.getState().setValue(blockId, 'webhookId', webhook.id)
 
             if (webhook.path) {
-              const fullUrl = `${baseUrl}/api/webhooks/trigger/${webhook.path}`
-              setWebhookUrl(fullUrl)
-              setWebhookPath(webhook.path)
-
               const currentPath = useSubBlockStore.getState().getValue(blockId, 'triggerPath')
               if (webhook.path !== currentPath) {
                 useSubBlockStore.getState().setValue(blockId, 'triggerPath', webhook.path)
@@ -114,17 +124,32 @@ export function useWebhookManagement({
                 populateTriggerFieldsFromConfig(blockId, webhook.providerConfig, triggerId)
               }
             }
+          } else if (isMounted) {
+            useSubBlockStore.getState().setValue(blockId, 'webhookId', null)
+          }
+
+          if (isMounted) {
+            useSubBlockStore.setState((state) => ({
+              checkedWebhooks: new Set([...state.checkedWebhooks, blockId]),
+            }))
           }
         }
-        hasLoadedRef.current = true
       } catch (error) {
         logger.error('Error loading webhook:', { error })
       } finally {
-        setIsLoading(false)
+        useSubBlockStore.setState((state) => {
+          const newSet = new Set(state.loadingWebhooks)
+          newSet.delete(blockId)
+          return { loadingWebhooks: newSet }
+        })
       }
     }
 
     loadWebhookOrGenerateUrl()
+
+    return () => {
+      isMounted = false
+    }
   }, [isPreview, triggerId, workflowId, blockId])
 
   const saveConfig = async (): Promise<boolean> => {
@@ -176,10 +201,13 @@ export function useWebhookManagement({
 
         const data = await response.json()
         const savedWebhookId = data.webhook.id
-        setWebhookId(savedWebhookId)
 
         useSubBlockStore.getState().setValue(blockId, 'triggerPath', path)
         useSubBlockStore.getState().setValue(blockId, 'triggerId', triggerId)
+        useSubBlockStore.getState().setValue(blockId, 'webhookId', savedWebhookId)
+        useSubBlockStore.setState((state) => ({
+          checkedWebhooks: new Set([...state.checkedWebhooks, blockId]),
+        }))
 
         logger.info('Trigger webhook created successfully', {
           webhookId: savedWebhookId,
@@ -246,10 +274,13 @@ export function useWebhookManagement({
         return false
       }
 
-      setWebhookId(null)
-      setWebhookUrl('')
-      setWebhookPath('')
       useSubBlockStore.getState().setValue(blockId, 'triggerPath', '')
+      useSubBlockStore.getState().setValue(blockId, 'webhookId', null)
+      useSubBlockStore.setState((state) => {
+        const newSet = new Set(state.checkedWebhooks)
+        newSet.delete(blockId)
+        return { checkedWebhooks: newSet }
+      })
 
       logger.info('Webhook deleted successfully')
       return true
@@ -263,7 +294,7 @@ export function useWebhookManagement({
 
   return {
     webhookUrl,
-    webhookPath,
+    webhookPath: webhookPath || blockId,
     webhookId,
     isLoading,
     isSaving,

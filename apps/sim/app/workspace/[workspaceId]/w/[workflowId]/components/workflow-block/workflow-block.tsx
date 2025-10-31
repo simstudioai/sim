@@ -230,8 +230,7 @@ export const WorkflowBlock = memo(
 
     // Check if this is a starter block or trigger block
     const isStarterBlock = type === 'starter'
-    const isTriggerBlock = config.category === 'triggers'
-    const isWebhookTriggerBlock = type === 'webhook'
+    const isWebhookTriggerBlock = type === 'webhook' || type === 'generic_webhook'
 
     const reactivateSchedule = async (scheduleId: string) => {
       try {

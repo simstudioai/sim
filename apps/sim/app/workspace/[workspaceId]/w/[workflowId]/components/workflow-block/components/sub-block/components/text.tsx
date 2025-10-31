@@ -15,7 +15,7 @@ export function Text({ blockId, subBlockId, content, className }: TextProps) {
         className={`rounded-md border bg-card p-4 shadow-sm ${className || ''}`}
       >
         <div
-          className='prose prose-sm dark:prose-invert max-w-none text-sm [&_a]:text-primary [&_a]:underline [&_code]:rounded [&_code]:bg-muted [&_code]:px-1 [&_code]:py-0.5 [&_code]:text-xs [&_strong]:font-semibold [&_ul]:ml-5 [&_ul]:list-disc'
+          className='prose prose-sm dark:prose-invert max-w-none text-sm [&_a]:text-blue-600 [&_a]:underline [&_a]:hover:text-blue-700 [&_a]:dark:text-blue-400 [&_a]:dark:hover:text-blue-300 [&_code]:rounded [&_code]:bg-muted [&_code]:px-1 [&_code]:py-0.5 [&_code]:text-xs [&_strong]:font-semibold [&_ul]:ml-5 [&_ul]:list-disc'
           dangerouslySetInnerHTML={{ __html: content }}
         />
       </div>
