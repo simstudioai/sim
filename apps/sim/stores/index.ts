@@ -37,9 +37,6 @@ async function initializeApplication(): Promise<void> {
     // Load environment variables directly from DB
     await useEnvironmentStore.getState().loadEnvironmentVariables()
 
-    // Load custom tools from server
-    await useCustomToolsStore.getState().loadCustomTools()
-
     // Mark data as initialized only after sync managers have loaded data from DB
     dataInitialized = true
 
@@ -221,7 +218,7 @@ export const resetAllStores = () => {
   useExecutionStore.getState().reset()
   useConsoleStore.setState({ entries: [], isOpen: false })
   useCopilotStore.setState({ messages: [], isSendingMessage: false, error: null })
-  useCustomToolsStore.setState({ tools: {} })
+  useCustomToolsStore.getState().reset()
   // Variables store has no tracking to reset; registry hydrates
   useSubscriptionStore.getState().reset() // Reset subscription store
 }
