@@ -1,27 +1,29 @@
 /**
  * Environment utility functions for consistent environment detection across the application
  */
-import { env, isTruthy } from './env'
+import { env, getEnv, isTruthy } from './env'
 
 /**
  * Is the application running in production mode
  */
-export const isProd = true
+export const isProd = env.NODE_ENV === 'production'
 
 /**
  * Is the application running in development mode
  */
-export const isDev = false
+export const isDev = env.NODE_ENV === 'development'
 
 /**
  * Is the application running in test mode
  */
-export const isTest = false
+export const isTest = env.NODE_ENV === 'test'
 
 /**
  * Is this the hosted version of the application
  */
-export const isHosted = true
+export const isHosted =
+  getEnv('NEXT_PUBLIC_APP_URL') === 'https://www.sim.ai' ||
+  getEnv('NEXT_PUBLIC_APP_URL') === 'https://www.staging.sim.ai'
 
 /**
  * Is billing enforcement enabled
