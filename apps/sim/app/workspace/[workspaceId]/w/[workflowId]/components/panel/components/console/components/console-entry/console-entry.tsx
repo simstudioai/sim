@@ -427,8 +427,8 @@ export function ConsoleEntry({ entry, consoleWidth }: ConsoleEntryProps) {
           <div className='flex h-5 items-center rounded-lg bg-secondary px-2'>
             <span className='font-normal text-muted-foreground text-xs leading-normal'>
               {entry.iterationTotal !== undefined
-                ? `${entry.iterationCurrent}/${entry.iterationTotal}`
-                : `${entry.iterationCurrent}`}
+                ? `${entry.iterationCurrent + 1}/${entry.iterationTotal}`
+                : `${entry.iterationCurrent + 1}`}
             </span>
           </div>
         )}

@@ -930,6 +930,10 @@ export function useWorkflowExecution() {
                 executionId: executionId || uuidv4(),
                 blockName: data.blockName || 'Unknown Block',
                 blockType: data.blockType || 'unknown',
+                // Pass through iteration context for console pills
+                iterationCurrent: data.iterationCurrent,
+                iterationTotal: data.iterationTotal,
+                iterationType: data.iterationType,
               })
 
               // Call onBlockComplete callback if provided
@@ -959,6 +963,10 @@ export function useWorkflowExecution() {
                 executionId: executionId || uuidv4(),
                 blockName: data.blockName,
                 blockType: data.blockType,
+                // Pass through iteration context for console pills
+                iterationCurrent: data.iterationCurrent,
+                iterationTotal: data.iterationTotal,
+                iterationType: data.iterationType,
               })
             },
 

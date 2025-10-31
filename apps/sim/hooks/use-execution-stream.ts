@@ -1,6 +1,7 @@
 import { useCallback, useRef } from 'react'
 import { createLogger } from '@/lib/logs/console/logger'
-import type { ExecutionEvent } from '@/lib/workflows/execution-events'
+import type { ExecutionEvent } from '@/lib/workflows/executor/execution-events'
+import type { SubflowType } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('useExecutionStream')
 
@@ -15,13 +16,23 @@ export interface ExecutionStreamCallbacks {
   }) => void
   onExecutionError?: (data: { error: string; duration: number }) => void
   onExecutionCancelled?: (data: { duration: number }) => void
-  onBlockStarted?: (data: { blockId: string; blockName: string; blockType: string }) => void
+  onBlockStarted?: (data: {
+    blockId: string
+    blockName: string
+    blockType: string
+    iterationCurrent?: number
+    iterationTotal?: number
+    iterationType?: SubflowType
+  }) => void
   onBlockCompleted?: (data: {
     blockId: string
     blockName: string
     blockType: string
     output: any
     durationMs: number
+    iterationCurrent?: number
+    iterationTotal?: number
+    iterationType?: SubflowType
   }) => void
   onBlockError?: (data: {
     blockId: string
@@ -29,6 +40,9 @@ export interface ExecutionStreamCallbacks {
     blockType: string
     error: string
     durationMs: number
+    iterationCurrent?: number
+    iterationTotal?: number
+    iterationType?: SubflowType
   }) => void
   onStreamChunk?: (data: { blockId: string; chunk: string }) => void
   onStreamDone?: (data: { blockId: string }) => void

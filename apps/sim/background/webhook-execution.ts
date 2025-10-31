@@ -17,7 +17,7 @@ import {
   loadDeployedWorkflowState,
   loadWorkflowFromNormalizedTables,
 } from '@/lib/workflows/db-helpers'
-import { executeWorkflowCore } from '@/lib/workflows/execution-core'
+import { executeWorkflowCore } from '@/lib/workflows/executor/execution-core'
 import { getWorkflowById } from '@/lib/workflows/utils'
 import type { ExecutionResult } from '@/executor/types'
 import { Serializer } from '@/serializer'

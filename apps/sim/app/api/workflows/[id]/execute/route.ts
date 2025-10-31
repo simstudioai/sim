@@ -7,10 +7,11 @@ import { checkServerSideUsageLimits } from '@/lib/billing'
 import { createLogger } from '@/lib/logs/console/logger'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { generateRequestId, SSE_HEADERS } from '@/lib/utils'
-import { executeWorkflowCore } from '@/lib/workflows/execution-core'
-import { type ExecutionEvent, encodeSSEEvent } from '@/lib/workflows/execution-events'
+import { executeWorkflowCore } from '@/lib/workflows/executor/execution-core'
+import { type ExecutionEvent, encodeSSEEvent } from '@/lib/workflows/executor/execution-events'
 import { validateWorkflowAccess } from '@/app/api/workflows/middleware'
 import type { StreamingExecution } from '@/executor/types'
+import type { SubflowType } from '@/stores/workflows/workflow/types'
 
 const EnvVarsSchema = z.record(z.string())
 
@@ -243,14 +244,32 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           })
 
           // SSE Callbacks
-          const onBlockStart = async (blockId: string, blockName: string, blockType: string) => {
+          const onBlockStart = async (
+            blockId: string, 
+            blockName: string, 
+            blockType: string,
+            iterationContext?: {
+              iterationCurrent: number
+              iterationTotal: number
+              iterationType: SubflowType
+            }
+          ) => {
             logger.info(`[${requestId}] 🔷 onBlockStart called:`, { blockId, blockName, blockType })
             sendEvent({
               type: 'block:started',
               timestamp: new Date().toISOString(),
               executionId,
               workflowId,
-              data: { blockId, blockName, blockType },
+              data: { 
+                blockId, 
+                blockName, 
+                blockType,
+                ...(iterationContext && {
+                  iterationCurrent: iterationContext.iterationCurrent,
+                  iterationTotal: iterationContext.iterationTotal,
+                  iterationType: iterationContext.iterationType,
+                }),
+              },
             })
           }
 
@@ -258,7 +277,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
             blockId: string,
             blockName: string,
             blockType: string,
-            callbackData: any
+            callbackData: any,
+            iterationContext?: {
+              iterationCurrent: number
+              iterationTotal: number
+              iterationType: SubflowType
+            }
           ) => {
             // Check if this is an error completion
             const hasError = callbackData.output?.error
@@ -281,6 +305,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
                   blockType,
                   error: callbackData.output.error,
                   durationMs: callbackData.executionTime || 0,
+                  ...(iterationContext && {
+                    iterationCurrent: iterationContext.iterationCurrent,
+                    iterationTotal: iterationContext.iterationTotal,
+                    iterationType: iterationContext.iterationType,
+                  }),
                 },
               })
             } else {
@@ -300,6 +329,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
                   blockType,
                   output: callbackData.output,
                   durationMs: callbackData.executionTime || 0,
+                  ...(iterationContext && {
+                    iterationCurrent: iterationContext.iterationCurrent,
+                    iterationTotal: iterationContext.iterationTotal,
+                    iterationType: iterationContext.iterationType,
+                  }),
                 },
               })
             }

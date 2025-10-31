@@ -11,6 +11,7 @@ import type { DAGNode } from '../dag/builder'
 import type { VariableResolver } from '../variables/resolver'
 import type { ExecutionState } from './state'
 import type { ContextExtensions } from './types'
+import type { SubflowType } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('BlockExecutor')
 const FALLBACK_VALUE = {
@@ -120,10 +121,8 @@ export class BlockExecutor {
     let parallelId: string | undefined
     let iterationIndex: number | undefined
     
-    // Add iteration suffix for loop/parallel blocks to enable grouping in trace spans
     if (node?.metadata) {
       if (node.metadata.branchIndex !== undefined && node.metadata.parallelId) {
-        // Parallel iteration
         blockName = `${blockName} (iteration ${node.metadata.branchIndex})`
         iterationIndex = node.metadata.branchIndex
         parallelId = node.metadata.parallelId
@@ -134,11 +133,9 @@ export class BlockExecutor {
           blockName 
         })
       } else if (node.metadata.isLoopNode && node.metadata.loopId && this.state) {
-        // Loop iteration - get current iteration from state
         loopId = node.metadata.loopId
         const loopScope = this.state.getLoopScope(loopId)
         if (loopScope && loopScope.iteration !== undefined) {
-          // Use the current iteration (already 0-based)
           blockName = `${blockName} (iteration ${loopScope.iteration})`
           iterationIndex = loopScope.iteration
           logger.debug('Added loop iteration suffix', { 
@@ -180,12 +177,14 @@ export class BlockExecutor {
   }
 
   private callOnBlockStart(blockId: string, block: SerializedBlock, node: DAGNode, context: ExecutionContext): void {
-    // Use original block name for user-facing console output (no iteration suffix)
     const blockName = block.metadata?.name || blockId
     const blockType = block.metadata?.id || FALLBACK_VALUE.BLOCK_TYPE
 
+    // Calculate iteration context for console pills
+    const iterationContext = this.getIterationContext(node)
+
     if (this.contextExtensions.onBlockStart) {
-      this.contextExtensions.onBlockStart(blockId, blockName, blockType)
+      this.contextExtensions.onBlockStart(blockId, blockName, blockType, iterationContext)
     }
   }
 
@@ -197,15 +196,45 @@ export class BlockExecutor {
     duration: number,
     context: ExecutionContext
   ): void {
-    // Use original block name for user-facing console output (no iteration suffix)
+
     const blockName = block.metadata?.name || blockId
     const blockType = block.metadata?.id || FALLBACK_VALUE.BLOCK_TYPE
+
+    // Calculate iteration context for console pills
+    const iterationContext = this.getIterationContext(node)
 
     if (this.contextExtensions.onBlockComplete) {
       this.contextExtensions.onBlockComplete(blockId, blockName, blockType, {
         output,
         executionTime: duration,
-      })
+      }, iterationContext)
     }
+  }
+
+  private getIterationContext(node: DAGNode): { iterationCurrent: number; iterationTotal: number; iterationType: SubflowType } | undefined {
+    if (!node?.metadata) return undefined
+
+    // For parallel branches
+    if (node.metadata.branchIndex !== undefined && node.metadata.branchTotal) {
+      return {
+        iterationCurrent: node.metadata.branchIndex,
+        iterationTotal: node.metadata.branchTotal,
+        iterationType: 'parallel',
+      }
+    }
+
+    // For loop iterations
+    if (node.metadata.isLoopNode && node.metadata.loopId && this.state) {
+      const loopScope = this.state.getLoopScope(node.metadata.loopId)
+      if (loopScope && loopScope.iteration !== undefined && loopScope.maxIterations) {
+        return {
+          iterationCurrent: loopScope.iteration,
+          iterationTotal: loopScope.maxIterations,
+          iterationType: 'loop',
+        }
+      }
+    }
+
+    return undefined
   }
 }
