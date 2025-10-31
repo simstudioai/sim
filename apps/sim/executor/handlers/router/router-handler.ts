@@ -2,7 +2,7 @@ import { createLogger } from '@/lib/logs/console/logger'
 import { getBaseUrl } from '@/lib/urls/utils'
 import { generateRouterPrompt } from '@/blocks/blocks/router'
 import type { BlockOutput } from '@/blocks/types'
-import { BlockType } from '@/executor/consts'
+import { BlockType, DEFAULTS, HTTP, isAgentBlockType, ROUTER } from '@/executor/consts'
 import type { BlockHandler, ExecutionContext } from '@/executor/types'
 import { calculateCost, getProviderFromModel } from '@/providers/utils'
 import type { SerializedBlock } from '@/serializer/types'
@@ -31,9 +31,9 @@ export class RouterBlockHandler implements BlockHandler {
 
     const routerConfig = {
       prompt: inputs.prompt,
-      model: inputs.model || 'gpt-4o',
+      model: inputs.model || ROUTER.DEFAULT_MODEL,
       apiKey: inputs.apiKey,
-      temperature: inputs.temperature || 0,
+      temperature: inputs.temperature || ROUTER.DEFAULT_TEMPERATURE,
     }
 
     const providerId = getProviderFromModel(routerConfig.model)
@@ -49,7 +49,7 @@ export class RouterBlockHandler implements BlockHandler {
         model: routerConfig.model,
         systemPrompt: systemPrompt,
         context: JSON.stringify(messages),
-        temperature: 0.1,
+        temperature: ROUTER.INFERENCE_TEMPERATURE,
         apiKey: routerConfig.apiKey,
         workflowId: context.workflowId,
       }
@@ -57,7 +57,7 @@ export class RouterBlockHandler implements BlockHandler {
       const response = await fetch(url.toString(), {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
+          'Content-Type': HTTP.CONTENT_TYPE.JSON,
         },
         body: JSON.stringify(providerRequest),
       })
@@ -89,23 +89,27 @@ export class RouterBlockHandler implements BlockHandler {
         throw new Error(`Invalid routing decision: ${chosenBlockId}`)
       }
 
-      const tokens = result.tokens || { prompt: 0, completion: 0, total: 0 }
+      const tokens = result.tokens || {
+        prompt: DEFAULTS.TOKENS.PROMPT,
+        completion: DEFAULTS.TOKENS.COMPLETION,
+        total: DEFAULTS.TOKENS.TOTAL,
+      }
 
       // Calculate cost based on token usage, similar to how providers do it
       const cost = calculateCost(
         result.model,
-        tokens.prompt || 0,
-        tokens.completion || 0,
-        false // Router blocks don't typically use cached input
+        tokens.prompt || DEFAULTS.TOKENS.PROMPT,
+        tokens.completion || DEFAULTS.TOKENS.COMPLETION,
+        false
       )
 
       return {
         prompt: inputs.prompt,
         model: result.model,
         tokens: {
-          prompt: tokens.prompt || 0,
-          completion: tokens.completion || 0,
-          total: tokens.total || 0,
+          prompt: tokens.prompt || DEFAULTS.TOKENS.PROMPT,
+          completion: tokens.completion || DEFAULTS.TOKENS.COMPLETION,
+          total: tokens.total || DEFAULTS.TOKENS.TOTAL,
         },
         cost: {
           input: cost.input,
@@ -114,8 +118,8 @@ export class RouterBlockHandler implements BlockHandler {
         },
         selectedPath: {
           blockId: chosenBlock.id,
-          blockType: chosenBlock.type || 'unknown',
-          blockTitle: chosenBlock.title || 'Untitled Block',
+          blockType: chosenBlock.type || DEFAULTS.BLOCK_TYPE,
+          blockTitle: chosenBlock.title || DEFAULTS.BLOCK_TITLE,
         },
         selectedRoute: String(chosenBlock.id), // Used by ExecutionEngine to activate the correct edge
       } as BlockOutput
@@ -144,7 +148,7 @@ export class RouterBlockHandler implements BlockHandler {
 
         // Extract system prompt for agent blocks
         let systemPrompt = ''
-        if (targetBlock.metadata?.id === BlockType.AGENT) {
+        if (isAgentBlockType(targetBlock.metadata?.id)) {
           // Try to get system prompt from different possible locations
           systemPrompt =
             targetBlock.config?.params?.systemPrompt || targetBlock.inputs?.systemPrompt || ''

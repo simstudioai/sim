@@ -1,18 +1,17 @@
-/**
- * Subflow Utilities
- *
- * Common utilities for loop and parallel (subflow) configurations.
- * Consolidates logic for:
- * - Loop sentinel ID construction
- * - Parallel branch ID construction
- * - Distribution item parsing
- * - Branch count calculation
- */
 import { createLogger } from '@/lib/logs/console/logger'
-import { LOOP, PARALLEL, REFERENCE } from '@/executor/consts'
+import { LOOP, PARALLEL, PARSING, REFERENCE } from '@/executor/consts'
 import type { SerializedParallel } from '@/serializer/types'
 
 const logger = createLogger('SubflowUtils')
+
+const BRANCH_PATTERN = new RegExp(`${PARALLEL.BRANCH.PREFIX}\\d+${PARALLEL.BRANCH.SUFFIX}$`)
+const BRANCH_INDEX_PATTERN = new RegExp(
+  `${PARALLEL.BRANCH.PREFIX}(\\d+)${PARALLEL.BRANCH.SUFFIX}$`
+)
+const SENTINEL_START_PATTERN = new RegExp(
+  `${LOOP.SENTINEL.PREFIX}(.+)${LOOP.SENTINEL.START_SUFFIX}`
+)
+const SENTINEL_END_PATTERN = new RegExp(`${LOOP.SENTINEL.PREFIX}(.+)${LOOP.SENTINEL.END_SUFFIX}`)
 /**
  * ==================
  * LOOP UTILITIES
@@ -36,18 +35,11 @@ export function buildSentinelEndId(loopId: string): string {
 export function isSentinelNodeId(nodeId: string): boolean {
   return nodeId.includes(LOOP.SENTINEL.START_SUFFIX) || nodeId.includes(LOOP.SENTINEL.END_SUFFIX)
 }
-/**
- * Extract loop ID from sentinel node ID
- * Example: "loop-abc123-sentinel-start" → "abc123"
- */
+
 export function extractLoopIdFromSentinel(sentinelId: string): string | null {
-  const startMatch = sentinelId.match(
-    new RegExp(`${LOOP.SENTINEL.PREFIX}(.+)${LOOP.SENTINEL.START_SUFFIX}`)
-  )
+  const startMatch = sentinelId.match(SENTINEL_START_PATTERN)
   if (startMatch) return startMatch[1]
-  const endMatch = sentinelId.match(
-    new RegExp(`${LOOP.SENTINEL.PREFIX}(.+)${LOOP.SENTINEL.END_SUFFIX}`)
-  )
+  const endMatch = sentinelId.match(SENTINEL_END_PATTERN)
   if (endMatch) return endMatch[1]
   return null
 }
@@ -102,28 +94,33 @@ export function calculateBranchCount(config: SerializedParallel, distributionIte
 export function buildBranchNodeId(baseId: string, branchIndex: number): string {
   return `${baseId}${PARALLEL.BRANCH.PREFIX}${branchIndex}${PARALLEL.BRANCH.SUFFIX}`
 }
-/**
- * Extract base block ID from branch ID
- * Example: "blockId₍2₎" → "blockId"
- */
 export function extractBaseBlockId(branchNodeId: string): string {
-  const branchPattern = new RegExp(`${PARALLEL.BRANCH.PREFIX}\\d+${PARALLEL.BRANCH.SUFFIX}$`)
-  return branchNodeId.replace(branchPattern, '')
+  return branchNodeId.replace(BRANCH_PATTERN, '')
 }
-/**
- * Extract branch index from branch node ID
- * Example: "blockId₍2₎" → 2
- */
+
 export function extractBranchIndex(branchNodeId: string): number | null {
-  const match = branchNodeId.match(
-    new RegExp(`${PARALLEL.BRANCH.PREFIX}(\\d+)${PARALLEL.BRANCH.SUFFIX}$`)
-  )
-  return match ? Number.parseInt(match[1], 10) : null
+  const match = branchNodeId.match(BRANCH_INDEX_PATTERN)
+  return match ? Number.parseInt(match[1], PARSING.JSON_RADIX) : null
 }
-/**
- * Check if a node ID is a branch node
- */
+
 export function isBranchNodeId(nodeId: string): boolean {
-  const branchPattern = new RegExp(`${PARALLEL.BRANCH.PREFIX}\\d+${PARALLEL.BRANCH.SUFFIX}$`)
-  return branchPattern.test(nodeId)
+  return BRANCH_PATTERN.test(nodeId)
+}
+
+export function isLoopNode(nodeId: string): boolean {
+  return isSentinelNodeId(nodeId) || nodeId.startsWith(LOOP.SENTINEL.PREFIX)
+}
+
+export function isParallelNode(nodeId: string): boolean {
+  return isBranchNodeId(nodeId)
+}
+
+export function normalizeNodeId(nodeId: string): string {
+  if (isBranchNodeId(nodeId)) {
+    return extractBaseBlockId(nodeId)
+  }
+  if (isSentinelNodeId(nodeId)) {
+    return extractLoopIdFromSentinel(nodeId) || nodeId
+  }
+  return nodeId
 }

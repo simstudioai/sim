@@ -1,5 +1,5 @@
 import { createLogger } from '@/lib/logs/console/logger'
-import { EDGE, isConditionBlockType, isRouterBlockType } from '@/executor/consts'
+import { DEFAULTS, EDGE, isConditionBlockType, isRouterBlockType } from '@/executor/consts'
 import {
   buildBranchNodeId,
   buildSentinelEndId,

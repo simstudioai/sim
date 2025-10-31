@@ -1,5 +1,5 @@
 import { createLogger } from '@/lib/logs/console/logger'
-import { REFERENCE } from '@/executor/consts'
+import { isReference, parseReferencePath, REFERENCE } from '@/executor/consts'
 import type { ResolutionContext, Resolver } from './reference'
 
 const logger = createLogger('WorkflowResolver')
@@ -8,11 +8,10 @@ export class WorkflowResolver implements Resolver {
   constructor(private workflowVariables: Record<string, any>) {}
 
   canResolve(reference: string): boolean {
-    if (!this.isReference(reference)) {
+    if (!isReference(reference)) {
       return false
     }
-    const content = this.extractContent(reference)
-    const parts = content.split(REFERENCE.PATH_DELIMITER)
+    const parts = parseReferencePath(reference)
     if (parts.length === 0) {
       return false
     }
@@ -21,8 +20,7 @@ export class WorkflowResolver implements Resolver {
   }
 
   resolve(reference: string, context: ResolutionContext): any {
-    const content = this.extractContent(reference)
-    const parts = content.split(REFERENCE.PATH_DELIMITER)
+    const parts = parseReferencePath(reference)
     if (parts.length < 2) {
       logger.warn('Invalid variable reference - missing variable name', { reference })
       return undefined
@@ -47,13 +45,5 @@ export class WorkflowResolver implements Resolver {
     }
     logger.debug('Workflow variable not found', { variableName })
     return undefined
-  }
-
-  private isReference(value: string): boolean {
-    return value.startsWith(REFERENCE.START) && value.endsWith(REFERENCE.END)
-  }
-
-  private extractContent(reference: string): string {
-    return reference.substring(REFERENCE.START.length, reference.length - REFERENCE.END.length)
   }
 }

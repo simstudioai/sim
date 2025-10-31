@@ -1,6 +1,11 @@
 import { createLogger } from '@/lib/logs/console/logger'
 import type { NormalizedBlockOutput } from '@/executor/types'
-import { calculateBranchCount, parseDistributionItems } from '@/executor/utils/subflow-utils'
+import {
+  calculateBranchCount,
+  extractBaseBlockId,
+  extractBranchIndex,
+  parseDistributionItems,
+} from '@/executor/utils/subflow-utils'
 import type { SerializedParallel } from '@/serializer/types'
 import type { DAG } from '../dag/builder'
 import type { ExecutionState, ParallelScope } from '../execution/state'
@@ -60,7 +65,7 @@ export class ParallelOrchestrator {
       return false
     }
 
-    const branchIndex = this.extractBranchIndex(nodeId)
+    const branchIndex = extractBranchIndex(nodeId)
     if (branchIndex === null) {
       logger.warn('Could not extract branch index from node ID', { nodeId })
       return false
@@ -119,12 +124,12 @@ export class ParallelOrchestrator {
     }
   }
   extractBranchMetadata(nodeId: string): ParallelBranchMetadata | null {
-    const branchIndex = this.extractBranchIndex(nodeId)
+    const branchIndex = extractBranchIndex(nodeId)
     if (branchIndex === null) {
       return null
     }
 
-    const baseId = this.extractBaseId(nodeId)
+    const baseId = extractBaseBlockId(nodeId)
     const parallelId = this.findParallelIdForNode(baseId)
     if (!parallelId) {
       return null
@@ -157,19 +162,6 @@ export class ParallelOrchestrator {
       }
     }
     return undefined
-  }
-
-  isParallelBranchNode(nodeId: string): boolean {
-    return /₍\d+₎$/.test(nodeId)
-  }
-
-  private extractBranchIndex(nodeId: string): number | null {
-    const match = nodeId.match(/₍(\d+)₎$/)
-    return match ? Number.parseInt(match[1], 10) : null
-  }
-
-  private extractBaseId(nodeId: string): string {
-    return nodeId.replace(/₍\d+₎$/, '')
   }
 
   private getParallelConfigInfo(

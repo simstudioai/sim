@@ -1,15 +1,11 @@
 import { createLogger } from '@/lib/logs/console/logger'
+import { BlockType } from '@/executor/consts'
 import type { ExecutionContext, ExecutionResult, NormalizedBlockOutput } from '@/executor/types'
 import type { DAG } from '../dag/builder'
 import type { NodeExecutionOrchestrator } from '../orchestrators/node'
 import type { EdgeManager } from './edge-manager'
 
 const logger = createLogger('ExecutionEngine')
-
-const TRIGGER_BLOCK_TYPE = {
-  START: 'start_trigger',
-  STARTER: 'starter',
-} as const
 
 export class ExecutionEngine {
   private readyQueue: string[] = []
@@ -133,8 +129,8 @@ export class ExecutionEngine {
 
     const startNode = Array.from(this.dag.nodes.values()).find(
       (node) =>
-        node.block.metadata?.id === TRIGGER_BLOCK_TYPE.START ||
-        node.block.metadata?.id === TRIGGER_BLOCK_TYPE.STARTER
+        node.block.metadata?.id === BlockType.START_TRIGGER ||
+        node.block.metadata?.id === BlockType.STARTER
     )
     if (startNode) {
       this.addToQueue(startNode.id)

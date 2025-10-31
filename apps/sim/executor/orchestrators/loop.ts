@@ -1,7 +1,12 @@
 import { createLogger } from '@/lib/logs/console/logger'
-import { EDGE } from '@/executor/consts'
+import { buildLoopIndexCondition, DEFAULTS, EDGE } from '@/executor/consts'
 import type { ExecutionContext, NormalizedBlockOutput } from '@/executor/types'
 import type { SerializedLoop } from '@/serializer/types'
+import {
+  buildSentinelEndId,
+  buildSentinelStartId,
+  extractBaseBlockId,
+} from '@/executor/utils/subflow-utils'
 import type { DAG } from '../dag/builder'
 import type { ExecutionState, LoopScope } from '../execution/state'
 import type { VariableResolver } from '../variables/resolver'
@@ -42,8 +47,8 @@ export class LoopOrchestrator {
 
     switch (loopType) {
       case 'for':
-        scope.maxIterations = loopConfig.iterations || 1
-        scope.condition = `<loop.index> < ${scope.maxIterations}`
+        scope.maxIterations = loopConfig.iterations || DEFAULTS.MAX_LOOP_ITERATIONS
+        scope.condition = buildLoopIndexCondition(scope.maxIterations)
         logger.debug('For loop initialized', { loopId, maxIterations: scope.maxIterations })
         break
 
@@ -52,7 +57,7 @@ export class LoopOrchestrator {
         scope.items = items
         scope.maxIterations = items.length
         scope.item = items[0]
-        scope.condition = `<loop.index> < ${scope.maxIterations}`
+        scope.condition = buildLoopIndexCondition(scope.maxIterations)
         logger.debug('ForEach loop initialized', { loopId, itemCount: items.length })
         break
       }
@@ -66,8 +71,8 @@ export class LoopOrchestrator {
         if (loopConfig.doWhileCondition) {
           scope.condition = loopConfig.doWhileCondition
         } else {
-          scope.maxIterations = loopConfig.iterations || 1
-          scope.condition = `<loop.index> < ${scope.maxIterations}`
+          scope.maxIterations = loopConfig.iterations || DEFAULTS.MAX_LOOP_ITERATIONS
+          scope.condition = buildLoopIndexCondition(scope.maxIterations)
         }
         scope.skipFirstConditionCheck = true
         logger.debug('DoWhile loop initialized', { loopId, condition: scope.condition })
@@ -88,7 +93,7 @@ export class LoopOrchestrator {
       return
     }
 
-    const baseId = this.extractBaseId(nodeId)
+    const baseId = extractBaseBlockId(nodeId)
     scope.currentIterationOutputs.set(baseId, output)
     logger.debug('Stored loop node output', {
       loopId,
@@ -164,8 +169,8 @@ export class LoopOrchestrator {
       return
     }
 
-    const sentinelStartId = `loop-${loopId}-sentinel-start`
-    const sentinelEndId = `loop-${loopId}-sentinel-end`
+    const sentinelStartId = buildSentinelStartId(loopId)
+    const sentinelEndId = buildSentinelEndId(loopId)
     const loopNodes = (loopConfig as any).nodes as string[]
 
     executedBlocks.delete(sentinelStartId)
@@ -187,8 +192,8 @@ export class LoopOrchestrator {
       return
     }
 
-    const sentinelStartId = `loop-${loopId}-sentinel-start`
-    const sentinelEndId = `loop-${loopId}-sentinel-end`
+    const sentinelStartId = buildSentinelStartId(loopId)
+    const sentinelEndId = buildSentinelEndId(loopId)
     const loopNodes = (loopConfig as any).nodes as string[]
     const allLoopNodeIds = new Set([sentinelStartId, sentinelEndId, ...loopNodes])
 
@@ -235,7 +240,7 @@ export class LoopOrchestrator {
     context.blockStates?.set(loopId, {
       output: { results },
       executed: true,
-      executionTime: 0,
+      executionTime: DEFAULTS.EXECUTION_TIME,
     })
 
     logger.debug('Loop exiting with aggregated results', {
@@ -345,9 +350,5 @@ export class LoopOrchestrator {
     }
 
     return []
-  }
-
-  private extractBaseId(nodeId: string): string {
-    return nodeId.replace(/₍\d+₎$/, '')
   }
 }

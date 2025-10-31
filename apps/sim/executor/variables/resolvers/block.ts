@@ -1,5 +1,5 @@
 import { createLogger } from '@/lib/logs/console/logger'
-import { REFERENCE } from '@/executor/consts'
+import { isReference, parseReferencePath, SPECIAL_REFERENCE_PREFIXES } from '@/executor/consts'
 import type { SerializedWorkflow } from '@/serializer/types'
 import { normalizeBlockName } from '@/stores/workflows/utils'
 import type { ResolutionContext, Resolver } from './reference'
@@ -21,22 +21,19 @@ export class BlockResolver implements Resolver {
   }
 
   canResolve(reference: string): boolean {
-    if (!this.isReference(reference)) {
+    if (!isReference(reference)) {
       return false
     }
-    const content = this.extractContent(reference)
-    const parts = content.split(REFERENCE.PATH_DELIMITER)
+    const parts = parseReferencePath(reference)
     if (parts.length === 0) {
       return false
     }
     const [type] = parts
-    const specialTypes = ['loop', 'parallel', 'variable']
-    return !specialTypes.includes(type)
+    return !SPECIAL_REFERENCE_PREFIXES.includes(type as any)
   }
 
   resolve(reference: string, context: ResolutionContext): any {
-    const content = this.extractContent(reference)
-    const parts = content.split(REFERENCE.PATH_DELIMITER)
+    const parts = parseReferencePath(reference)
     if (parts.length === 0) {
       return undefined
     }
@@ -75,13 +72,6 @@ export class BlockResolver implements Resolver {
       result,
     })
     return result
-  }
-
-  private isReference(value: string): boolean {
-    return value.startsWith(REFERENCE.START) && value.endsWith(REFERENCE.END)
-  }
-  private extractContent(reference: string): string {
-    return reference.substring(REFERENCE.START.length, reference.length - REFERENCE.END.length)
   }
 
   private getBlockOutput(blockId: string, context: ResolutionContext): any {

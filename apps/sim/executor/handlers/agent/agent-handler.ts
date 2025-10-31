@@ -3,7 +3,7 @@ import { createMcpToolId } from '@/lib/mcp/utils'
 import { getBaseUrl } from '@/lib/urls/utils'
 import { getAllBlocks } from '@/blocks'
 import type { BlockOutput } from '@/blocks/types'
-import { BlockType } from '@/executor/consts'
+import { AGENT, BlockType, DEFAULTS, HTTP } from '@/executor/consts'
 import type {
   AgentInputs,
   Message,
@@ -18,11 +18,6 @@ import { executeTool } from '@/tools'
 import { getTool, getToolAsync } from '@/tools/utils'
 
 const logger = createLogger('AgentBlockHandler')
-
-const DEFAULT_MODEL = 'gpt-4o'
-const DEFAULT_FUNCTION_TIMEOUT = 5000
-const REQUEST_TIMEOUT = 120000
-const CUSTOM_TOOL_PREFIX = 'custom_'
 
 /**
  * Helper function to collect runtime block outputs and name mappings
@@ -67,7 +62,7 @@ export class AgentBlockHandler implements BlockHandler {
     logger.info(`Executing agent block: ${block.id}`)
 
     const responseFormat = this.parseResponseFormat(inputs.responseFormat)
-    const model = inputs.model || DEFAULT_MODEL
+    const model = inputs.model || AGENT.DEFAULT_MODEL
     const providerId = getProviderFromModel(model)
     const formattedTools = await this.formatTools(inputs.tools || [], context)
     const streamingConfig = this.getStreamingConfig(block, context)
@@ -188,7 +183,7 @@ export class AgentBlockHandler implements BlockHandler {
 
     const filteredSchema = filterSchemaForLLM(tool.schema.function.parameters, userProvidedParams)
 
-    const toolId = `${CUSTOM_TOOL_PREFIX}${tool.title}`
+    const toolId = `${AGENT.CUSTOM_TOOL_PREFIX}${tool.title}`
     const base: any = {
       id: toolId,
       name: tool.schema.function.name,
@@ -214,7 +209,7 @@ export class AgentBlockHandler implements BlockHandler {
           {
             code: tool.code,
             ...mergedParams,
-            timeout: tool.timeout ?? DEFAULT_FUNCTION_TIMEOUT,
+            timeout: tool.timeout ?? AGENT.DEFAULT_FUNCTION_TIMEOUT,
             envVars: context.environmentVariables || {},
             workflowVariables: context.workflowVariables || {},
             blockData,
@@ -249,7 +244,7 @@ export class AgentBlockHandler implements BlockHandler {
     }
 
     try {
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+      const headers: Record<string, string> = { 'Content-Type': HTTP.CONTENT_TYPE.JSON }
 
       if (typeof window === 'undefined') {
         try {
@@ -310,7 +305,7 @@ export class AgentBlockHandler implements BlockHandler {
         executeFunction: async (callParams: Record<string, any>) => {
           logger.info(`Executing MCP tool ${toolName} on server ${serverId}`)
 
-          const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+          const headers: Record<string, string> = { 'Content-Type': HTTP.CONTENT_TYPE.JSON }
 
           if (typeof window === 'undefined') {
             try {
@@ -646,9 +641,9 @@ export class AgentBlockHandler implements BlockHandler {
     const url = new URL('/api/providers', getBaseUrl())
     const response = await fetch(url.toString(), {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': HTTP.CONTENT_TYPE.JSON },
       body: JSON.stringify(providerRequest),
-      signal: AbortSignal.timeout(REQUEST_TIMEOUT),
+      signal: AbortSignal.timeout(AGENT.REQUEST_TIMEOUT),
     })
 
     if (!response.ok) {
@@ -667,7 +662,7 @@ export class AgentBlockHandler implements BlockHandler {
 
     // Check if this is a streaming response
     const contentType = response.headers.get('Content-Type')
-    if (contentType?.includes('text/event-stream')) {
+    if (contentType?.includes(HTTP.CONTENT_TYPE.EVENT_STREAM)) {
       // Handle streaming response
       logger.info('Received streaming response')
       return this.handleStreamingResponse(response, block)
@@ -862,7 +857,7 @@ export class AgentBlockHandler implements BlockHandler {
         output: {},
         logs: [],
         metadata: {
-          duration: 0,
+          duration: DEFAULTS.EXECUTION_TIME,
           startTime: new Date().toISOString(),
         },
       },
@@ -916,10 +911,14 @@ export class AgentBlockHandler implements BlockHandler {
 
   private createResponseMetadata(result: any) {
     return {
-      tokens: result.tokens || { prompt: 0, completion: 0, total: 0 },
+      tokens: result.tokens || {
+        prompt: DEFAULTS.TOKENS.PROMPT,
+        completion: DEFAULTS.TOKENS.COMPLETION,
+        total: DEFAULTS.TOKENS.TOTAL,
+      },
       toolCalls: {
         list: result.toolCalls ? result.toolCalls.map(this.formatToolCall.bind(this)) : [],
-        count: result.toolCalls?.length || 0,
+        count: result.toolCalls?.length || DEFAULTS.EXECUTION_TIME,
       },
       providerTiming: result.timing,
       cost: result.cost,
@@ -941,6 +940,8 @@ export class AgentBlockHandler implements BlockHandler {
   }
 
   private stripCustomToolPrefix(name: string): string {
-    return name.startsWith('custom_') ? name.replace('custom_', '') : name
+    return name.startsWith(AGENT.CUSTOM_TOOL_PREFIX)
+      ? name.replace(AGENT.CUSTOM_TOOL_PREFIX, '')
+      : name
   }
 }

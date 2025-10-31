@@ -1,5 +1,6 @@
 import { createLogger } from '@/lib/logs/console/logger'
-import { REFERENCE } from '@/executor/consts'
+import { isReference, parseReferencePath, REFERENCE } from '@/executor/consts'
+import { extractBaseBlockId, extractBranchIndex } from '@/executor/utils/subflow-utils'
 import type { SerializedWorkflow } from '@/serializer/types'
 import type { ResolutionContext, Resolver } from './reference'
 
@@ -9,11 +10,10 @@ export class ParallelResolver implements Resolver {
   constructor(private workflow: SerializedWorkflow) {}
 
   canResolve(reference: string): boolean {
-    if (!this.isReference(reference)) {
+    if (!isReference(reference)) {
       return false
     }
-    const content = this.extractContent(reference)
-    const parts = content.split(REFERENCE.PATH_DELIMITER)
+    const parts = parseReferencePath(reference)
     if (parts.length === 0) {
       return false
     }
@@ -22,8 +22,7 @@ export class ParallelResolver implements Resolver {
   }
 
   resolve(reference: string, context: ResolutionContext): any {
-    const content = this.extractContent(reference)
-    const parts = content.split(REFERENCE.PATH_DELIMITER)
+    const parts = parseReferencePath(reference)
     if (parts.length < 2) {
       logger.warn('Invalid parallel reference - missing property', { reference })
       return undefined
@@ -42,7 +41,7 @@ export class ParallelResolver implements Resolver {
       return undefined
     }
 
-    const branchIndex = this.extractBranchIndex(context.currentNodeId)
+    const branchIndex = extractBranchIndex(context.currentNodeId)
     if (branchIndex === null) {
       logger.debug('Node ID does not have branch index', { nodeId: context.currentNodeId })
       return undefined
@@ -71,15 +70,8 @@ export class ParallelResolver implements Resolver {
     }
   }
 
-  private isReference(value: string): boolean {
-    return value.startsWith(REFERENCE.START) && value.endsWith(REFERENCE.END)
-  }
-  private extractContent(reference: string): string {
-    return reference.substring(REFERENCE.START.length, reference.length - REFERENCE.END.length)
-  }
-
   private findParallelForBlock(blockId: string): string | undefined {
-    const baseId = this.extractBaseId(blockId)
+    const baseId = extractBaseBlockId(blockId)
     if (!this.workflow.parallels) {
       return undefined
     }
@@ -91,15 +83,6 @@ export class ParallelResolver implements Resolver {
     }
 
     return undefined
-  }
-
-  private extractBaseId(nodeId: string): string {
-    return nodeId.replace(/₍\d+₎$/, '')
-  }
-
-  private extractBranchIndex(nodeId: string): number | null {
-    const match = nodeId.match(/₍(\d+)₎$/)
-    return match ? Number.parseInt(match[1], 10) : null
   }
 
   private getDistributionItems(parallelConfig: any): any {

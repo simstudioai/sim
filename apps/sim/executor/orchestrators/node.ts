@@ -1,6 +1,7 @@
 import { createLogger } from '@/lib/logs/console/logger'
 import { EDGE } from '@/executor/consts'
 import type { NormalizedBlockOutput } from '@/executor/types'
+import { extractBaseBlockId } from '@/executor/utils/subflow-utils'
 import type { DAG, DAGNode } from '../dag/builder'
 import type { BlockExecutor } from '../execution/block-executor'
 import type { ExecutionState } from '../execution/state'
@@ -219,7 +220,7 @@ export class NodeExecutionOrchestrator {
   }
 
   private findParallelIdForNode(nodeId: string): string | undefined {
-    const baseId = nodeId.replace(/₍\d+₎$/, '')
+    const baseId = extractBaseBlockId(nodeId)
     return this.parallelOrchestrator.findParallelIdForNode(baseId)
   }
 }

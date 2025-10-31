@@ -1,4 +1,5 @@
 import { createLogger } from '@/lib/logs/console/logger'
+import { PARSING } from '@/executor/consts'
 import type { ResponseFormatStreamProcessor } from '@/executor/types'
 
 const logger = createLogger('ExecutorUtils')

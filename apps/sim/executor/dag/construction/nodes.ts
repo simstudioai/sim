@@ -134,7 +134,7 @@ export class NodeConstructor {
       outgoingEdges: new Map(),
       metadata: {
         isParallelBranch: true,
-        parallelId: expansion.parallelId, // Add parallelId for log grouping
+        parallelId: expansion.parallelId,
         branchIndex,
         branchTotal: expansion.branchCount,
         distributionItem: expansion.distributionItems[branchIndex],

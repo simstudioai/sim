@@ -1,5 +1,5 @@
 import { createLogger } from '@/lib/logs/console/logger'
-import { isSentinelBlockType } from '@/executor/consts'
+import { DEFAULTS, isSentinelBlockType } from '@/executor/consts'
 import type {
   BlockHandler,
   BlockLog,
@@ -14,9 +14,6 @@ import type { ContextExtensions } from './types'
 import type { SubflowType } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('BlockExecutor')
-const FALLBACK_VALUE = {
-  BLOCK_TYPE: 'unknown',
-} as const
 
 export class BlockExecutor {
   constructor(
@@ -160,7 +157,7 @@ export class BlockExecutor {
     return {
       blockId,
       blockName,
-      blockType: block.metadata?.id || FALLBACK_VALUE.BLOCK_TYPE,
+      blockType: block.metadata?.id || DEFAULTS.BLOCK_TYPE,
       startedAt: new Date().toISOString(),
       endedAt: '',
       durationMs: 0,
@@ -185,7 +182,7 @@ export class BlockExecutor {
 
   private callOnBlockStart(blockId: string, block: SerializedBlock, node: DAGNode, context: ExecutionContext): void {
     const blockName = block.metadata?.name || blockId
-    const blockType = block.metadata?.id || FALLBACK_VALUE.BLOCK_TYPE
+    const blockType = block.metadata?.id || DEFAULTS.BLOCK_TYPE
 
     // Calculate iteration context for console pills
     const iterationContext = this.getIterationContext(node)
@@ -206,7 +203,7 @@ export class BlockExecutor {
   ): void {
 
     const blockName = block.metadata?.name || blockId
-    const blockType = block.metadata?.id || FALLBACK_VALUE.BLOCK_TYPE
+    const blockType = block.metadata?.id || DEFAULTS.BLOCK_TYPE
 
     // Calculate iteration context for console pills
     const iterationContext = this.getIterationContext(node)

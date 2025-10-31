@@ -1,5 +1,6 @@
 import { createLogger } from '@/lib/logs/console/logger'
-import { REFERENCE } from '@/executor/consts'
+import { isReference, parseReferencePath, REFERENCE } from '@/executor/consts'
+import { extractBaseBlockId } from '@/executor/utils/subflow-utils'
 import type { SerializedWorkflow } from '@/serializer/types'
 import type { ResolutionContext, Resolver } from './reference'
 
@@ -9,11 +10,10 @@ export class LoopResolver implements Resolver {
   constructor(private workflow: SerializedWorkflow) {}
 
   canResolve(reference: string): boolean {
-    if (!this.isReference(reference)) {
+    if (!isReference(reference)) {
       return false
     }
-    const content = this.extractContent(reference)
-    const parts = content.split(REFERENCE.PATH_DELIMITER)
+    const parts = parseReferencePath(reference)
     if (parts.length === 0) {
       return false
     }
@@ -22,8 +22,7 @@ export class LoopResolver implements Resolver {
   }
 
   resolve(reference: string, context: ResolutionContext): any {
-    const content = this.extractContent(reference)
-    const parts = content.split(REFERENCE.PATH_DELIMITER)
+    const parts = parseReferencePath(reference)
     if (parts.length < 2) {
       logger.warn('Invalid loop reference - missing property', { reference })
       return undefined
@@ -60,15 +59,8 @@ export class LoopResolver implements Resolver {
     }
   }
 
-  private isReference(value: string): boolean {
-    return value.startsWith(REFERENCE.START) && value.endsWith(REFERENCE.END)
-  }
-  private extractContent(reference: string): string {
-    return reference.substring(REFERENCE.START.length, reference.length - REFERENCE.END.length)
-  }
-
   private findLoopForBlock(blockId: string): string | undefined {
-    const baseId = this.extractBaseId(blockId)
+    const baseId = extractBaseBlockId(blockId)
     for (const loopId of Object.keys(this.workflow.loops || {})) {
       const loopConfig = this.workflow.loops[loopId]
       if (loopConfig.nodes.includes(baseId)) {
@@ -77,9 +69,5 @@ export class LoopResolver implements Resolver {
     }
 
     return undefined
-  }
-
-  private extractBaseId(nodeId: string): string {
-    return nodeId.replace(/₍\d+₎$/, '')
   }
 }

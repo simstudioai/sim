@@ -1,6 +1,6 @@
 import { createLogger } from '@/lib/logs/console/logger'
 import type { BlockOutput } from '@/blocks/types'
-import { BlockType } from '@/executor/consts'
+import { BlockType, DEFAULTS } from '@/executor/consts'
 import type { BlockHandler, ExecutionContext } from '@/executor/types'
 import type { SerializedBlock } from '@/serializer/types'
 
@@ -229,11 +229,11 @@ export class ConditionBlockHandler implements BlockHandler {
     // Return output, preserving source output structure if possible
     return {
       ...((sourceOutput as any) || {}), // Keep original fields if they exist
-      conditionResult: true, // Indicate a path was successfully chosen
+      conditionResult: true,
       selectedPath: {
         blockId: targetBlock.id,
-        blockType: targetBlock.metadata?.id || 'unknown',
-        blockTitle: targetBlock.metadata?.name || 'Untitled Block',
+        blockType: targetBlock.metadata?.id || DEFAULTS.BLOCK_TYPE,
+        blockTitle: targetBlock.metadata?.name || DEFAULTS.BLOCK_TITLE,
       },
       selectedOption: selectedCondition.id, // Used by ExecutionEngine to activate the correct edge
       selectedConditionId: selectedCondition.id,

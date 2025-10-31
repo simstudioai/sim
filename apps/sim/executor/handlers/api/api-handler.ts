@@ -1,5 +1,5 @@
 import { createLogger } from '@/lib/logs/console/logger'
-import { BlockType } from '@/executor/consts'
+import { BlockType, HTTP } from '@/executor/consts'
 import type { BlockHandler, ExecutionContext } from '@/executor/types'
 import type { SerializedBlock } from '@/serializer/types'
 import { executeTool } from '@/tools'
@@ -27,7 +27,7 @@ export class ApiBlockHandler implements BlockHandler {
 
     // Early return with empty success response if URL is not provided or empty
     if (tool.name?.includes('HTTP') && (!inputs.url || inputs.url.trim() === '')) {
-      return { data: null, status: 200, headers: {} }
+      return { data: null, status: HTTP.STATUS.OK, headers: {} }
     }
 
     // Pre-validate common HTTP request issues to provide better error messages
@@ -121,13 +121,13 @@ export class ApiBlockHandler implements BlockHandler {
 
         // Add specific suggestions for common error codes
         let suggestion = ''
-        if (result.output?.status === 403) {
+        if (result.output?.status === HTTP.STATUS.FORBIDDEN) {
           suggestion = ' - This may be due to CORS restrictions or authorization issues'
-        } else if (result.output?.status === 404) {
+        } else if (result.output?.status === HTTP.STATUS.NOT_FOUND) {
           suggestion = ' - The requested resource was not found'
-        } else if (result.output?.status === 429) {
+        } else if (result.output?.status === HTTP.STATUS.TOO_MANY_REQUESTS) {
           suggestion = ' - Too many requests, you may need to implement rate limiting'
-        } else if (result.output?.status >= 500) {
+        } else if (result.output?.status >= HTTP.STATUS.SERVER_ERROR) {
           suggestion = ' - Server error, the target server is experiencing issues'
         } else if (result.error?.includes('CORS')) {
           suggestion =

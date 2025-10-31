@@ -1,19 +1,10 @@
 import { createLogger } from '@/lib/logs/console/logger'
+import { EDGE } from '@/executor/consts'
 import type { NormalizedBlockOutput } from '@/executor/types'
 import type { DAG, DAGNode } from '../dag/builder'
 import type { DAGEdge } from '../dag/types'
 
 const logger = createLogger('EdgeManager')
-const EDGE_HANDLE = {
-  CONDITION_PREFIX: 'condition-',
-  ROUTER_PREFIX: 'router-',
-  ERROR: 'error',
-  SOURCE: 'source',
-  LOOP_CONTINUE: 'loop_continue',
-  LOOP_CONTINUE_ALT: 'loop-continue-source',
-  LOOP_EXIT: 'loop_exit',
-  DEFAULT: 'default',
-} as const
 
 export class EdgeManager {
   private deactivatedEdges = new Set<string>()
@@ -41,9 +32,9 @@ export class EdgeManager {
       const shouldActivate = this.shouldActivateEdge(edge, output)
       if (!shouldActivate) {
         const isLoopEdge =
-          edge.sourceHandle === EDGE_HANDLE.LOOP_CONTINUE ||
-          edge.sourceHandle === EDGE_HANDLE.LOOP_CONTINUE_ALT ||
-          edge.sourceHandle === EDGE_HANDLE.LOOP_EXIT
+          edge.sourceHandle === EDGE.LOOP_CONTINUE ||
+          edge.sourceHandle === EDGE.LOOP_CONTINUE_ALT ||
+          edge.sourceHandle === EDGE.LOOP_EXIT
 
         if (!isLoopEdge) {
           this.deactivateEdgeAndDescendants(node.id, edge.target, edge.sourceHandle)
@@ -125,29 +116,29 @@ export class EdgeManager {
   private shouldActivateEdge(edge: DAGEdge, output: NormalizedBlockOutput): boolean {
     const handle = edge.sourceHandle
 
-    if (handle?.startsWith(EDGE_HANDLE.CONDITION_PREFIX)) {
-      const conditionValue = handle.substring(EDGE_HANDLE.CONDITION_PREFIX.length)
+    if (handle?.startsWith(EDGE.CONDITION_PREFIX)) {
+      const conditionValue = handle.substring(EDGE.CONDITION_PREFIX.length)
       return output.selectedOption === conditionValue
     }
 
-    if (handle?.startsWith(EDGE_HANDLE.ROUTER_PREFIX)) {
-      const routeId = handle.substring(EDGE_HANDLE.ROUTER_PREFIX.length)
+    if (handle?.startsWith(EDGE.ROUTER_PREFIX)) {
+      const routeId = handle.substring(EDGE.ROUTER_PREFIX.length)
       return output.selectedRoute === routeId
     }
 
-    if (handle === EDGE_HANDLE.LOOP_CONTINUE || handle === EDGE_HANDLE.LOOP_CONTINUE_ALT) {
-      return output.selectedRoute === 'loop_continue'
+    if (handle === EDGE.LOOP_CONTINUE || handle === EDGE.LOOP_CONTINUE_ALT) {
+      return output.selectedRoute === EDGE.LOOP_CONTINUE
     }
 
-    if (handle === EDGE_HANDLE.LOOP_EXIT) {
-      return output.selectedRoute === 'loop_exit'
+    if (handle === EDGE.LOOP_EXIT) {
+      return output.selectedRoute === EDGE.LOOP_EXIT
     }
 
-    if (handle === EDGE_HANDLE.ERROR && !output.error) {
+    if (handle === EDGE.ERROR && !output.error) {
       return false
     }
 
-    if (handle === EDGE_HANDLE.SOURCE && output.error) {
+    if (handle === EDGE.SOURCE && output.error) {
       return false
     }
 
@@ -155,9 +146,7 @@ export class EdgeManager {
   }
 
   private isBackwardsEdge(sourceHandle?: string): boolean {
-    return (
-      sourceHandle === EDGE_HANDLE.LOOP_CONTINUE || sourceHandle === EDGE_HANDLE.LOOP_CONTINUE_ALT
-    )
+    return sourceHandle === EDGE.LOOP_CONTINUE || sourceHandle === EDGE.LOOP_CONTINUE_ALT
   }
 
   private deactivateEdgeAndDescendants(
@@ -229,6 +218,6 @@ export class EdgeManager {
   }
 
   private createEdgeKey(sourceId: string, targetId: string, sourceHandle?: string): string {
-    return `${sourceId}-${targetId}-${sourceHandle || EDGE_HANDLE.DEFAULT}`
+    return `${sourceId}-${targetId}-${sourceHandle || EDGE.DEFAULT}`
   }
 }

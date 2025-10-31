@@ -69,37 +69,10 @@ export type SentinelType = 'start' | 'end'
  */
 export type ParallelType = 'collection' | 'count'
 
-/**
- * Edge handles for routing block outputs
- */
-export const EDGE_HANDLE = {
-  // Condition block outputs
-  CONDITION_TRUE: 'condition-true',
-  CONDITION_FALSE: 'condition-false',
-  CONDITION_PREFIX: 'condition-',
-
-  // Router block outputs
-  ROUTER_PREFIX: 'router-',
-  ROUTER_DEFAULT: 'default',
-
-  // Loop sentinel outputs
-  LOOP_CONTINUE: 'loop_continue',
-  LOOP_CONTINUE_ALT: 'loop-continue-source', // Alternative handle name
-  LOOP_EXIT: 'loop_exit',
-
-  // Error handling
-  ERROR: 'error',
-
-  // Default/fallback
-  SOURCE: 'source',
-  DEFAULT: 'default',
-} as const
-
-/**
- * Edge handle naming conventions
- */
 export const EDGE = {
   CONDITION_PREFIX: 'condition-',
+  CONDITION_TRUE: 'condition-true',
+  CONDITION_FALSE: 'condition-false',
   ROUTER_PREFIX: 'router-',
   LOOP_CONTINUE: 'loop_continue',
   LOOP_CONTINUE_ALT: 'loop-continue-source',
@@ -155,22 +128,23 @@ export const PARALLEL = {
  * Reference syntax for variable resolution
  */
 export const REFERENCE = {
-  // Reference delimiters
   START: '<',
   END: '>',
   PATH_DELIMITER: '.',
-
-  // Environment variable syntax
   ENV_VAR_START: '{{',
   ENV_VAR_END: '}}',
-
-  // Reference prefixes
   PREFIX: {
     LOOP: 'loop',
     PARALLEL: 'parallel',
     VARIABLE: 'variable',
   },
 } as const
+
+export const SPECIAL_REFERENCE_PREFIXES = [
+  REFERENCE.PREFIX.LOOP,
+  REFERENCE.PREFIX.PARALLEL,
+  REFERENCE.PREFIX.VARIABLE,
+] as const
 
 /**
  * Loop reference fields
@@ -179,6 +153,7 @@ export const LOOP_REFERENCE = {
   ITERATION: 'iteration',
   INDEX: 'index',
   ITEM: 'item',
+  INDEX_PATH: 'loop.index',
 } as const
 
 /**
@@ -190,13 +165,54 @@ export const PARALLEL_REFERENCE = {
   ITEMS: 'items',
 } as const
 
-/**
- * Default/fallback values
- */
 export const DEFAULTS = {
   BLOCK_TYPE: 'unknown',
+  BLOCK_TITLE: 'Untitled Block',
   MAX_LOOP_ITERATIONS: 1000,
   EXECUTION_TIME: 0,
+  TOKENS: {
+    PROMPT: 0,
+    COMPLETION: 0,
+    TOTAL: 0,
+  },
+  COST: {
+    INPUT: 0,
+    OUTPUT: 0,
+    TOTAL: 0,
+  },
+} as const
+
+export const HTTP = {
+  STATUS: {
+    OK: 200,
+    FORBIDDEN: 403,
+    NOT_FOUND: 404,
+    TOO_MANY_REQUESTS: 429,
+    SERVER_ERROR: 500,
+  },
+  CONTENT_TYPE: {
+    JSON: 'application/json',
+    EVENT_STREAM: 'text/event-stream',
+  },
+} as const
+
+export const AGENT = {
+  DEFAULT_MODEL: 'gpt-4o',
+  DEFAULT_FUNCTION_TIMEOUT: 5000,
+  REQUEST_TIMEOUT: 120000,
+  CUSTOM_TOOL_PREFIX: 'custom_',
+} as const
+
+export const ROUTER = {
+  DEFAULT_MODEL: 'gpt-4o',
+  DEFAULT_TEMPERATURE: 0,
+  INFERENCE_TEMPERATURE: 0.1,
+} as const
+
+export const PARSING = {
+  JSON_RADIX: 10,
+  PREVIEW_LENGTH: 200,
+  PREVIEW_SUFFIX: '...',
 } as const
 
 /**
@@ -208,9 +224,6 @@ export interface ConditionConfig {
   condition: string
 }
 
-/**
- * Type guards
- */
 export function isTriggerBlockType(blockType: string | undefined): boolean {
   return TRIGGER_BLOCK_TYPES.includes(blockType as any)
 }
@@ -233,4 +246,76 @@ export function isConditionBlockType(blockType: string | undefined): boolean {
 
 export function isRouterBlockType(blockType: string | undefined): boolean {
   return blockType === BlockType.ROUTER
+}
+
+export function isAgentBlockType(blockType: string | undefined): boolean {
+  return blockType === BlockType.AGENT
+}
+
+export function getDefaultTokens() {
+  return {
+    prompt: DEFAULTS.TOKENS.PROMPT,
+    completion: DEFAULTS.TOKENS.COMPLETION,
+    total: DEFAULTS.TOKENS.TOTAL,
+  }
+}
+
+export function getDefaultCost() {
+  return {
+    input: DEFAULTS.COST.INPUT,
+    output: DEFAULTS.COST.OUTPUT,
+    total: DEFAULTS.COST.TOTAL,
+  }
+}
+
+export function buildReference(path: string): string {
+  return `${REFERENCE.START}${path}${REFERENCE.END}`
+}
+
+export function buildLoopReference(property: string): string {
+  return buildReference(`${REFERENCE.PREFIX.LOOP}${REFERENCE.PATH_DELIMITER}${property}`)
+}
+
+export function buildParallelReference(property: string): string {
+  return buildReference(`${REFERENCE.PREFIX.PARALLEL}${REFERENCE.PATH_DELIMITER}${property}`)
+}
+
+export function buildVariableReference(variableName: string): string {
+  return buildReference(`${REFERENCE.PREFIX.VARIABLE}${REFERENCE.PATH_DELIMITER}${variableName}`)
+}
+
+export function buildBlockReference(blockId: string, path?: string): string {
+  return buildReference(path ? `${blockId}${REFERENCE.PATH_DELIMITER}${path}` : blockId)
+}
+
+export function buildLoopIndexCondition(maxIterations: number): string {
+  return `${buildLoopReference(LOOP_REFERENCE.INDEX)} < ${maxIterations}`
+}
+
+export function buildEnvVarReference(varName: string): string {
+  return `${REFERENCE.ENV_VAR_START}${varName}${REFERENCE.ENV_VAR_END}`
+}
+
+export function isReference(value: string): boolean {
+  return value.startsWith(REFERENCE.START) && value.endsWith(REFERENCE.END)
+}
+
+export function isEnvVarReference(value: string): boolean {
+  return value.startsWith(REFERENCE.ENV_VAR_START) && value.endsWith(REFERENCE.ENV_VAR_END)
+}
+
+export function extractEnvVarName(reference: string): string {
+  return reference.substring(
+    REFERENCE.ENV_VAR_START.length,
+    reference.length - REFERENCE.ENV_VAR_END.length
+  )
+}
+
+export function extractReferenceContent(reference: string): string {
+  return reference.substring(REFERENCE.START.length, reference.length - REFERENCE.END.length)
+}
+
+export function parseReferencePath(reference: string): string[] {
+  const content = extractReferenceContent(reference)
+  return content.split(REFERENCE.PATH_DELIMITER)
 }
