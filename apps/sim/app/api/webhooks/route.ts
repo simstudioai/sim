@@ -545,7 +545,6 @@ async function createAirtableWebhookSubscription(
         { type: errorType, message: errorMessage, response: responseBody }
       )
 
-      // Throw error to surface it to the user
       let userFriendlyMessage = 'Failed to create webhook subscription in Airtable'
       if (airtableResponse.status === 404) {
         userFriendlyMessage =
@@ -562,7 +561,6 @@ async function createAirtableWebhookSubscription(
         airtableWebhookId: responseBody.id,
       }
     )
-    // Return the externalId to be included in providerConfig before saving to DB
     return responseBody.id
   } catch (error: any) {
     logger.error(
@@ -680,7 +678,6 @@ async function createWebflowWebhookSubscription(
       }
     )
 
-    // Return the externalId to be included in providerConfig before saving to DB
     return responseBody.id || responseBody._id
   } catch (error: any) {
     logger.error(

@@ -243,11 +243,9 @@ export async function DELETE(
 
     const foundWebhook = webhookData.webhook
 
-    // Clean up external webhook subscriptions
     const { cleanupExternalWebhook } = await import('@/lib/webhooks/webhook-helpers')
     await cleanupExternalWebhook(foundWebhook, webhookData.workflow, requestId)
 
-    // Delete the webhook from the database
     await db.delete(webhook).where(eq(webhook.id, id))
 
     logger.info(`[${requestId}] Successfully deleted webhook: ${id}`)

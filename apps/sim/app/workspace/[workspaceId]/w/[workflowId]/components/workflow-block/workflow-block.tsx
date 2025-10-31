@@ -465,8 +465,6 @@ export const WorkflowBlock = memo(
         // In diff mode, use the diff workflow's subblock values
         stateToUse = currentBlock.subBlocks || {}
       } else {
-        // In normal mode, convert blockSubBlockValues to the format expected by condition checks
-        // blockSubBlockValues contains raw values from SubBlockStore, wrap them in {value: ...} format
         stateToUse = Object.entries(blockSubBlockValues).reduce(
           (acc, [key, value]) => {
             acc[key] = { value }

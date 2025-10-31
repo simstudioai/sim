@@ -119,7 +119,6 @@ export function Code({
   const storeCollapsedValue = useSubBlockStore((state) =>
     state.getValue(blockId, collapsedStateKey)
   ) as boolean | undefined
-  // Use defaultCollapsed if no value is stored, otherwise use stored value
   const isCollapsed = storeCollapsedValue !== undefined ? storeCollapsedValue : defaultCollapsed
 
   const { collaborativeSetSubblockValue } = useCollaborativeWorkflow()
@@ -127,11 +126,9 @@ export function Code({
     collaborativeSetSubblockValue(blockId, subblockId, value)
   }
 
-  // Determine if collapse button should be shown
   const shouldShowCollapseButton = useMemo(() => {
     if (collapsible === false) return false
     if (collapsible === true) return true
-    // Auto-detect: show if it's responseFormat or code subblock and has more than 5 lines
     return (subBlockId === 'responseFormat' || subBlockId === 'code') && code.split('\n').length > 5
   }, [collapsible, subBlockId, code])
 
@@ -230,7 +227,6 @@ IMPORTANT FORMATTING RULES:
 
   const emitTagSelection = useTagSelection(blockId, subBlockId)
 
-  // For read-only mode, use defaultValue if provided and no value prop
   const getDefaultValueString = () => {
     if (defaultValue === undefined || defaultValue === null) return ''
     if (typeof defaultValue === 'string') return defaultValue
@@ -333,7 +329,6 @@ IMPORTANT FORMATTING RULES:
     }
   }, [code])
 
-  // Set textarea readOnly attribute when readOnly prop changes
   useEffect(() => {
     if (!editorRef.current) return
 
@@ -344,13 +339,10 @@ IMPORTANT FORMATTING RULES:
       }
     }
 
-    // Set immediately if textarea exists
     setReadOnly()
 
-    // Also set after a brief delay to catch cases where Editor hasn't rendered yet
     const timeoutId = setTimeout(setReadOnly, 0)
 
-    // Use MutationObserver to catch when textarea is added dynamically
     const observer = new MutationObserver(setReadOnly)
     if (editorRef.current) {
       observer.observe(editorRef.current, {
@@ -616,14 +608,12 @@ IMPORTANT FORMATTING RULES:
                 []
               let processedCode = codeToHighlight
 
-              // Replace environment variables with placeholders
               processedCode = processedCode.replace(/\{\{([^}]+)\}\}/g, (match) => {
                 const placeholder = `__ENV_VAR_${placeholders.length}__`
                 placeholders.push({ placeholder, original: match, type: 'env' })
                 return placeholder
               })
 
-              // Replace variable references with placeholders
               processedCode = processedCode.replace(/<([^>]+)>/g, (match) => {
                 if (shouldHighlightReference(match)) {
                   const placeholder = `__VAR_REF_${placeholders.length}__`
@@ -633,11 +623,9 @@ IMPORTANT FORMATTING RULES:
                 return match
               })
 
-              // Apply Prism syntax highlighting
               const lang = effectiveLanguage === 'python' ? 'python' : 'javascript'
               let highlightedCode = highlight(processedCode, languages[lang], lang)
 
-              // Restore and highlight the placeholders
               placeholders.forEach(({ placeholder, original, type }) => {
                 if (type === 'env') {
                   highlightedCode = highlightedCode.replace(
@@ -645,7 +633,6 @@ IMPORTANT FORMATTING RULES:
                     `<span class="text-blue-500">${original}</span>`
                   )
                 } else if (type === 'var') {
-                  // Escape the < and > for display
                   const escaped = original.replace(/</g, '&lt;').replace(/>/g, '&gt;')
                   highlightedCode = highlightedCode.replace(
                     placeholder,

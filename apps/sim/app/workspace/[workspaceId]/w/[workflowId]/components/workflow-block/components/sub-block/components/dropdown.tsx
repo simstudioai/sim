@@ -59,7 +59,6 @@ export function Dropdown({
   const dropdownRef = useRef<HTMLDivElement>(null)
   const previousModeRef = useRef<string | null>(null)
 
-  // For response dataMode conversion - get builderData and data sub-blocks (only for single-select mode)
   const [builderData, setBuilderData] = useSubBlockValue<any[]>(blockId, 'builderData')
   const [data, setData] = useSubBlockValue<string>(blockId, 'data')
 
@@ -159,7 +158,6 @@ export function Dropdown({
     if (multiSelect || !storeInitialized || defaultOptionValue === undefined) {
       return
     }
-    // Only set default if store value is null or undefined (not if it's already set)
     if (storeValue === null || storeValue === undefined || storeValue === '') {
       setStoreValue(defaultOptionValue)
     }
@@ -204,7 +202,6 @@ export function Dropdown({
     return 'string'
   }
 
-  // Handle data conversion when dataMode changes (only for single-select)
   useEffect(() => {
     if (multiSelect || subBlockId !== 'dataMode' || isPreview || disabled) return
 
