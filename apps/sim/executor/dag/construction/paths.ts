@@ -1,45 +1,25 @@
-/**
- * PathConstructor
- *
- * Finds all blocks reachable from the workflow trigger using BFS traversal.
- * Uses actual connections as single source of truth (not loop/parallel metadata).
- */
-
 import { createLogger } from '@/lib/logs/console/logger'
 import { isMetadataOnlyBlockType, isTriggerBlockType } from '@/executor/consts'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 
 const logger = createLogger('PathConstructor')
-
 export class PathConstructor {
-  /**
-   * Find all blocks reachable from the workflow trigger
-   */
   execute(workflow: SerializedWorkflow, startBlockId?: string): Set<string> {
     const triggerBlockId = this.findTriggerBlock(workflow, startBlockId)
-
     if (!triggerBlockId) {
       logger.warn('No trigger block found, including all enabled blocks as fallback')
       return this.getAllEnabledBlocks(workflow)
     }
-
     logger.debug('Starting reachability traversal', { triggerBlockId })
-
     const adjacency = this.buildAdjacencyMap(workflow)
     const reachable = this.performBFS(triggerBlockId, adjacency)
-
     logger.debug('Reachability analysis complete', {
       triggerBlockId,
       reachableCount: reachable.size,
       totalBlocks: workflow.blocks.length,
     })
-
     return reachable
   }
-
-  /**
-   * Find the trigger block to start traversal from
-   */
   private findTriggerBlock(
     workflow: SerializedWorkflow,
     startBlockId?: string
@@ -49,31 +29,21 @@ export class PathConstructor {
       if (block && this.isTriggerBlock(block)) {
         return startBlockId
       }
-
       logger.warn('Provided startBlockId is not a trigger, searching for trigger', {
         startBlockId,
         blockType: block?.metadata?.id,
       })
     }
-
-    // Priority 1: Find explicit trigger block
     const explicitTrigger = this.findExplicitTrigger(workflow)
     if (explicitTrigger) {
       return explicitTrigger
     }
-
-    // Priority 2: Find block with no incoming connections
     const rootBlock = this.findRootBlock(workflow)
     if (rootBlock) {
       return rootBlock
     }
-
     return undefined
   }
-
-  /**
-   * Find a block marked as a trigger
-   */
   private findExplicitTrigger(workflow: SerializedWorkflow): string | undefined {
     for (const block of workflow.blocks) {
       if (block.enabled && this.isTriggerBlock(block)) {
@@ -86,13 +56,8 @@ export class PathConstructor {
     }
     return undefined
   }
-
-  /**
-   * Find a block with no incoming connections (root of workflow)
-   */
   private findRootBlock(workflow: SerializedWorkflow): string | undefined {
     const hasIncoming = new Set(workflow.connections.map((c) => c.target))
-
     for (const block of workflow.blocks) {
       if (
         !hasIncoming.has(block.id) &&
@@ -106,57 +71,34 @@ export class PathConstructor {
         return block.id
       }
     }
-
     return undefined
   }
-
-  /**
-   * Check if a block is a trigger type
-   */
   private isTriggerBlock(block: SerializedBlock): boolean {
     return isTriggerBlockType(block.metadata?.id)
   }
-
-  /**
-   * Fallback: Get all enabled blocks when no trigger is found
-   */
   private getAllEnabledBlocks(workflow: SerializedWorkflow): Set<string> {
     return new Set(workflow.blocks.filter((b) => b.enabled).map((b) => b.id))
   }
-
-  /**
-   * Build adjacency map from workflow connections
-   */
   private buildAdjacencyMap(workflow: SerializedWorkflow): Map<string, string[]> {
     const adjacency = new Map<string, string[]>()
-
     for (const connection of workflow.connections) {
       const neighbors = adjacency.get(connection.source) ?? []
       neighbors.push(connection.target)
       adjacency.set(connection.source, neighbors)
     }
-
     logger.debug('Built adjacency map', {
       nodeCount: adjacency.size,
       connectionCount: workflow.connections.length,
     })
-
     return adjacency
   }
-
-  /**
-   * Perform BFS traversal to find all reachable blocks
-   */
   private performBFS(startBlockId: string, adjacency: Map<string, string[]>): Set<string> {
     const reachable = new Set<string>([startBlockId])
     const queue = [startBlockId]
-
     while (queue.length > 0) {
       const currentBlockId = queue.shift()
       if (!currentBlockId) break
-
       const neighbors = adjacency.get(currentBlockId) ?? []
-
       for (const neighborId of neighbors) {
         if (!reachable.has(neighborId)) {
           reachable.add(neighborId)
@@ -164,12 +106,10 @@ export class PathConstructor {
         }
       }
     }
-
     logger.debug('BFS traversal complete', {
       startBlockId,
       reachableCount: reachable.size,
     })
-
     return reachable
   }
 }

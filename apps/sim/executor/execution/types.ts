@@ -1,11 +1,4 @@
-/**
- * Execution-specific types
- *
- * Types used for workflow execution and context extensions.
- */
-
 import type { NormalizedBlockOutput } from '@/executor/types'
-
 export interface ContextExtensions {
   stream?: boolean
   selectedOutputs?: string[]
@@ -20,7 +13,6 @@ export interface ContextExtensions {
     output: { output: NormalizedBlockOutput; executionTime: number }
   ) => Promise<void>
 }
-
 export interface WorkflowInput {
   [key: string]: unknown
 }

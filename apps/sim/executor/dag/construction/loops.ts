@@ -1,52 +1,29 @@
-/**
- * LoopConstructor
- *
- * Creates sentinel nodes (start/end gates) for each loop.
- * Sentinels control loop entry, continuation, and exit.
- */
-
 import { createLogger } from '@/lib/logs/console/logger'
 import { BlockType, LOOP, type SentinelType } from '@/executor/consts'
 import { buildSentinelEndId, buildSentinelStartId } from '@/executor/utils/subflow-utils'
 import type { DAG, DAGNode } from '../builder'
 
 const logger = createLogger('LoopConstructor')
-
 export class LoopConstructor {
-  /**
-   * Create sentinel nodes for all loops with reachable nodes
-   */
   execute(dag: DAG, reachableBlocks: Set<string>): void {
     for (const [loopId, loopConfig] of dag.loopConfigs) {
       const loopNodes = loopConfig.nodes
-
       if (loopNodes.length === 0) {
         continue
       }
-
       if (!this.hasReachableNodes(loopNodes, reachableBlocks)) {
         logger.debug('Skipping sentinel creation for unreachable loop', { loopId })
         continue
       }
-
       this.createSentinelPair(dag, loopId)
     }
   }
-
-  /**
-   * Check if loop has at least one reachable node
-   */
   private hasReachableNodes(loopNodes: string[], reachableBlocks: Set<string>): boolean {
     return loopNodes.some((nodeId) => reachableBlocks.has(nodeId))
   }
-
-  /**
-   * Create start and end sentinel nodes for a loop
-   */
   private createSentinelPair(dag: DAG, loopId: string): void {
     const startId = buildSentinelStartId(loopId)
     const endId = buildSentinelEndId(loopId)
-
     dag.nodes.set(
       startId,
       this.createSentinelNode({
@@ -57,7 +34,6 @@ export class LoopConstructor {
         name: `Loop Start (${loopId})`,
       })
     )
-
     dag.nodes.set(
       endId,
       this.createSentinelNode({
@@ -68,17 +44,12 @@ export class LoopConstructor {
         name: `Loop End (${loopId})`,
       })
     )
-
     logger.debug('Created sentinel pair for loop', {
       loopId,
       startId,
       endId,
     })
   }
-
-  /**
-   * Create a sentinel node with specified configuration
-   */
   private createSentinelNode(config: {
     id: string
     loopId: string
@@ -97,7 +68,7 @@ export class LoopConstructor {
           loopId: config.loopId,
         },
         config: { params: {} },
-      } as any, // SerializedBlock type - sentinels don't match exact schema
+      } as any,
       incomingEdges: new Set(),
       outgoingEdges: new Map(),
       metadata: {

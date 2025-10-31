@@ -1,16 +1,9 @@
-/**
- * DAG-specific types
- *
- * Types used for DAG construction and graph structure.
- */
-
 export interface DAGEdge {
   target: string
   sourceHandle?: string
   targetHandle?: string
   isActive?: boolean
 }
-
 export interface NodeMetadata {
   isParallelBranch?: boolean
   branchIndex?: number

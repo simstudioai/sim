@@ -16,7 +16,6 @@ import { ExecutionState } from './state'
 import type { ContextExtensions, WorkflowInput } from './types'
 
 const logger = createLogger('DAGExecutor')
-
 export interface DAGExecutorOptions {
   workflow: SerializedWorkflow
   currentBlockStates?: Record<string, BlockOutput>
@@ -25,7 +24,6 @@ export interface DAGExecutorOptions {
   workflowVariables?: Record<string, unknown>
   contextExtensions?: ContextExtensions
 }
-
 export class DAGExecutor {
   private workflow: SerializedWorkflow
   private initialBlockStates: Record<string, BlockOutput>
@@ -34,9 +32,7 @@ export class DAGExecutor {
   private workflowVariables: Record<string, unknown>
   private contextExtensions: ContextExtensions
   private isCancelled = false
-
   private dagBuilder: DAGBuilder
-
   constructor(options: DAGExecutorOptions) {
     this.workflow = options.workflow
     this.initialBlockStates = options.currentBlockStates || {}
@@ -44,34 +40,17 @@ export class DAGExecutor {
     this.workflowInput = options.workflowInput || {}
     this.workflowVariables = options.workflowVariables || {}
     this.contextExtensions = options.contextExtensions || {}
-
     this.dagBuilder = new DAGBuilder()
   }
-
   async execute(workflowId: string, startBlockId?: string): Promise<ExecutionResult> {
-    // 1. Build the DAG from workflow
     const dag = this.dagBuilder.build(this.workflow, startBlockId)
-
-    // 2. Create execution context
     const context = this.createExecutionContext(workflowId)
-
-    // 3. Create execution state
     const state = new ExecutionState()
-
-    // 4. Create variable resolver
     const resolver = new VariableResolver(this.workflow, this.workflowVariables, state)
-
-    // 5. Create control flow orchestrators
     const loopOrchestrator = new LoopOrchestrator(dag, state, resolver)
     const parallelOrchestrator = new ParallelOrchestrator(dag, state)
-
-    // 6. Create block handlers (sentinels handled by NodeExecutionOrchestrator)
     const allHandlers = createBlockHandlers()
-
-    // 7. Create block executor
     const blockExecutor = new BlockExecutor(allHandlers, resolver, this.contextExtensions)
-
-    // 8. Create execution components
     const edgeManager = new EdgeManager(dag)
     const nodeOrchestrator = new NodeExecutionOrchestrator(
       dag,
@@ -80,17 +59,12 @@ export class DAGExecutor {
       loopOrchestrator,
       parallelOrchestrator
     )
-
-    // 9. Create execution engine
     const engine = new ExecutionEngine(dag, edgeManager, nodeOrchestrator, context)
-
     return await engine.run(startBlockId)
   }
-
   cancel(): void {
     this.isCancelled = true
   }
-
   async continueExecution(
     pendingBlocks: string[],
     context: ExecutionContext
@@ -107,7 +81,6 @@ export class DAGExecutor {
       },
     }
   }
-
   private createExecutionContext(workflowId: string): ExecutionContext {
     const context: ExecutionContext = {
       workflowId,
@@ -136,36 +109,28 @@ export class DAGExecutor {
       onBlockStart: this.contextExtensions.onBlockStart,
       onBlockComplete: this.contextExtensions.onBlockComplete,
     }
-
-    // Initialize starter block output with processed inputFormat
     this.initializeStarterBlock(context)
-
     return context
   }
-
   private initializeStarterBlock(context: ExecutionContext): void {
     const startResolution = resolveExecutorStartBlock(this.workflow.blocks, {
       execution: 'manual',
       isChildWorkflow: false,
     })
-
     if (!startResolution?.block) {
       logger.warn('No start block found in workflow')
       return
     }
-
     const blockOutput = buildStartBlockOutput({
       resolution: startResolution,
       workflowInput: this.workflowInput,
       isDeployedExecution: this.contextExtensions?.isDeployedContext === true,
     })
-
     context.blockStates.set(startResolution.block.id, {
       output: blockOutput,
       executed: true,
       executionTime: 0,
     })
-
     logger.debug('Initialized start block', {
       blockId: startResolution.block.id,
       blockType: startResolution.block.metadata?.id,

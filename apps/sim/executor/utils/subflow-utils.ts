@@ -8,40 +8,34 @@
  * - Distribution item parsing
  * - Branch count calculation
  */
-
 import { createLogger } from '@/lib/logs/console/logger'
 import { LOOP, PARALLEL, REFERENCE } from '@/executor/consts'
 import type { SerializedParallel } from '@/serializer/types'
 
 const logger = createLogger('SubflowUtils')
-
 /**
  * ==================
  * LOOP UTILITIES
  * ==================
  */
-
 /**
  * Build sentinel start node ID
  */
 export function buildSentinelStartId(loopId: string): string {
   return `${LOOP.SENTINEL.PREFIX}${loopId}${LOOP.SENTINEL.START_SUFFIX}`
 }
-
 /**
  * Build sentinel end node ID
  */
 export function buildSentinelEndId(loopId: string): string {
   return `${LOOP.SENTINEL.PREFIX}${loopId}${LOOP.SENTINEL.END_SUFFIX}`
 }
-
 /**
  * Check if a node ID is a sentinel node
  */
 export function isSentinelNodeId(nodeId: string): boolean {
   return nodeId.includes(LOOP.SENTINEL.START_SUFFIX) || nodeId.includes(LOOP.SENTINEL.END_SUFFIX)
 }
-
 /**
  * Extract loop ID from sentinel node ID
  * Example: "loop-abc123-sentinel-start" → "abc123"
@@ -51,34 +45,26 @@ export function extractLoopIdFromSentinel(sentinelId: string): string | null {
     new RegExp(`${LOOP.SENTINEL.PREFIX}(.+)${LOOP.SENTINEL.START_SUFFIX}`)
   )
   if (startMatch) return startMatch[1]
-
   const endMatch = sentinelId.match(
     new RegExp(`${LOOP.SENTINEL.PREFIX}(.+)${LOOP.SENTINEL.END_SUFFIX}`)
   )
   if (endMatch) return endMatch[1]
-
   return null
 }
-
 /**
  * ==================
  * PARALLEL UTILITIES
  * ==================
  */
-
 /**
  * Parse distribution items from parallel config
  * Handles: arrays, JSON strings, and references
  */
 export function parseDistributionItems(config: SerializedParallel): any[] {
   const rawItems = config.distribution ?? []
-
-  // If it's a reference (e.g., <block.output>), return empty (will be resolved at runtime)
   if (typeof rawItems === 'string' && rawItems.startsWith(REFERENCE.START)) {
     return []
   }
-
-  // If it's a JSON string, parse it
   if (typeof rawItems === 'string') {
     try {
       const normalizedJSON = rawItems.replace(/'/g, '"')
@@ -91,34 +77,24 @@ export function parseDistributionItems(config: SerializedParallel): any[] {
       return []
     }
   }
-
-  // If it's already an array
   if (Array.isArray(rawItems)) {
     return rawItems
   }
-
-  // If it's an object, wrap in array
   if (typeof rawItems === 'object' && rawItems !== null) {
     return [rawItems]
   }
-
   return []
 }
-
 /**
  * Calculate branch count from parallel config
  */
 export function calculateBranchCount(config: SerializedParallel, distributionItems: any[]): number {
   const explicitCount = config.count ?? PARALLEL.DEFAULT_COUNT
-
-  // For collection type, use distribution item count
   if (config.parallelType === PARALLEL.TYPE.COLLECTION && distributionItems.length > 0) {
     return distributionItems.length
   }
-
   return explicitCount
 }
-
 /**
  * Build branch node ID with subscript notation
  * Example: ("blockId", 2) → "blockId₍2₎"
@@ -126,7 +102,6 @@ export function calculateBranchCount(config: SerializedParallel, distributionIte
 export function buildBranchNodeId(baseId: string, branchIndex: number): string {
   return `${baseId}${PARALLEL.BRANCH.PREFIX}${branchIndex}${PARALLEL.BRANCH.SUFFIX}`
 }
-
 /**
  * Extract base block ID from branch ID
  * Example: "blockId₍2₎" → "blockId"
@@ -135,7 +110,6 @@ export function extractBaseBlockId(branchNodeId: string): string {
   const branchPattern = new RegExp(`${PARALLEL.BRANCH.PREFIX}\\d+${PARALLEL.BRANCH.SUFFIX}$`)
   return branchNodeId.replace(branchPattern, '')
 }
-
 /**
  * Extract branch index from branch node ID
  * Example: "blockId₍2₎" → 2
@@ -146,7 +120,6 @@ export function extractBranchIndex(branchNodeId: string): number | null {
   )
   return match ? Number.parseInt(match[1], 10) : null
 }
-
 /**
  * Check if a node ID is a branch node
  */
