@@ -1,104 +1,47 @@
 services:
-
-  # Database Migrations Service (runs once on deploy)
-  - type: web
-    name: simstudio-migrations
-    env: docker
-    dockerfilePath: ./docker/app.Dockerfile
-    dockerContext: .
-    dockerCommand: cd packages/db && bun run db:migrate && sleep infinity
-    plan: starter
-    region: oregon
-    healthCheckPath: /
-    envVars:
-      - key: DATABASE_URL
-        fromDatabase:
-          name: simstudio-db
-          property: connectionString
-
   # Main Sim Studio Application
   - type: web
-    name: simstudio-app
-    env: docker
-    dockerfilePath: ./docker/app.Dockerfile
-    dockerContext: .
-    dockerCommand: cd apps/sim && bun run start
-    plan: standard
+    name: sim-app
+    runtime: node
+    plan: free
     region: oregon
+    buildCommand: npm install && npm run build
+    startCommand: cd apps/sim && npm run start
     healthCheckPath: /
     envVars:
       - key: NODE_ENV
         value: production
       - key: DATABASE_URL
         fromDatabase:
-          name: simstudio-db
+          name: sim-db
           property: connectionString
       - key: BETTER_AUTH_URL
-        fromService:
-          type: web
-          name: simstudio-app
-          property: host
+        value: https://sim-app-3m6k.onrender.com
+      - key: HOST
+        value: "0.0.0.0"
       - key: NEXT_PUBLIC_APP_URL
-        fromService:
-          type: web
-          name: simstudio-app
-          property: host
+        value: https://sim-app-3m6k.onrender.com
       - key: BETTER_AUTH_SECRET
-        generateValue: true
-      - key: ENCRYPTION_KEY
-        generateValue: true
-      - key: SOCKET_SERVER_URL
-        fromService:
-          type: web
-          name: simstudio-realtime
-          property: host
-      - key: NEXT_PUBLIC_SOCKET_URL
-        fromService:
-          type: web
-          name: simstudio-realtime
-          property: host
-      - key: COPILOT_API_KEY
-        sync: false
-      - key: SIM_AGENT_API_URL
-        sync: false
-      - key: OLLAMA_URL
-        sync: false
+        value: e95f824f0a10903d13a24aa63bca43b54fae43a33a911e10c597a680b178c859
+      - key: INTERNAL_API_SECRET
+        value: 6c5169f72f8fbd982550bb3f04a62e8b3ad11bd2101129bef82e39db92dbaa45
 
-  # Realtime Socket Server
-  - type: web
-    name: simstudio-realtime
-    env: docker
-    dockerfilePath: ./docker/realtime.Dockerfile
-    dockerContext: .
-    plan: starter
+jobs:
+  - type: job
+    name: sim-migrations
+    runtime: node
+    plan: free
     region: oregon
-    healthCheckPath: /health
+    buildCommand: npm install drizzle-orm postgres drizzle-kit
+    startCommand: cd packages/db && npx drizzle-kit migrate
     envVars:
       - key: DATABASE_URL
         fromDatabase:
-          name: simstudio-db
+          name: sim-db
           property: connectionString
-      - key: NEXT_PUBLIC_APP_URL
-        fromService:
-          type: web
-          name: simstudio-app
-          property: host
-      - key: BETTER_AUTH_URL
-        fromService:
-          type: web
-          name: simstudio-app
-          property: host
-      - key: BETTER_AUTH_SECRET
-        fromService:
-          type: web
-          name: simstudio-app
-          envVarKey: BETTER_AUTH_SECRET
 
 databases:
-  - name: simstudio-db
+  - name: sim-db
     databaseName: simstudio
-    plan: starter
+    plan: free
     region: oregon
-    postgresMajorVersion: 16
-    # Note: After database creation, manually enable the pgvector extension by running:
-    # CREATE EXTENSION IF NOT EXISTS vector;
