@@ -28,6 +28,7 @@ export interface ExecutionStreamCallbacks {
     blockId: string
     blockName: string
     blockType: string
+    input?: any
     output: any
     durationMs: number
     iterationCurrent?: number
@@ -38,6 +39,7 @@ export interface ExecutionStreamCallbacks {
     blockId: string
     blockName: string
     blockType: string
+    input?: any
     error: string
     durationMs: number
     iterationCurrent?: number

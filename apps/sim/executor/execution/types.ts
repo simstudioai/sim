@@ -21,7 +21,7 @@ export interface ContextExtensions {
     blockId: string,
     blockName: string,
     blockType: string,
-    output: { output: NormalizedBlockOutput; executionTime: number },
+    output: { input?: any; output: NormalizedBlockOutput; executionTime: number },
     iterationContext?: {
       iterationCurrent: number
       iterationTotal: number

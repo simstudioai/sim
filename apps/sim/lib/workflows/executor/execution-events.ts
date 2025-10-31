@@ -100,6 +100,7 @@ export interface BlockCompletedEvent extends BaseExecutionEvent {
     blockId: string
     blockName: string
     blockType: string
+    input?: any
     output: any
     durationMs: number
     // Iteration context for loops and parallels
@@ -119,6 +120,7 @@ export interface BlockErrorEvent extends BaseExecutionEvent {
     blockId: string
     blockName: string
     blockType: string
+    input?: any
     error: string
     durationMs: number
     // Iteration context for loops and parallels

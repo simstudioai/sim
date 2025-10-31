@@ -36,7 +36,14 @@ export class BlockExecutor {
       throw new Error(`No handler found for block type: ${block.metadata?.id}`)
     }
 
-    const resolvedInputs = this.resolver.resolveInputs(block.config.params, node.id, context, block)
+    let resolvedInputs: Record<string, any>
+    try {
+      resolvedInputs = this.resolver.resolveInputs(block.config.params, node.id, context, block)
+    } catch (error) {
+      // If input resolution fails, use empty object and let the block handle it
+      resolvedInputs = {}
+    }
+    
     const isSentinel = isSentinelBlockType(block.metadata?.id ?? '')
 
     let blockLog: BlockLog | undefined
@@ -67,7 +74,7 @@ export class BlockExecutor {
       })
 
       if (!isSentinel) {
-        this.callOnBlockComplete(node.id, block, node, normalizedOutput, duration, context)
+        this.callOnBlockComplete(node.id, block, node, resolvedInputs, normalizedOutput, duration, context)
       }
 
       return normalizedOutput
@@ -99,7 +106,7 @@ export class BlockExecutor {
       })
 
       if (!isSentinel) {
-        this.callOnBlockComplete(node.id, block, node, errorOutput, duration, context)
+        this.callOnBlockComplete(node.id, block, node, resolvedInputs, errorOutput, duration, context)
       }
 
       throw error
@@ -192,6 +199,7 @@ export class BlockExecutor {
     blockId: string,
     block: SerializedBlock,
     node: DAGNode,
+    input: Record<string, any>,
     output: NormalizedBlockOutput,
     duration: number,
     context: ExecutionContext
@@ -205,6 +213,7 @@ export class BlockExecutor {
 
     if (this.contextExtensions.onBlockComplete) {
       this.contextExtensions.onBlockComplete(blockId, blockName, blockType, {
+        input,
         output,
         executionTime: duration,
       }, iterationContext)

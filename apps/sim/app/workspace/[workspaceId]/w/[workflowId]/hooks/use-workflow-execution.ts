@@ -919,7 +919,7 @@ export function useWorkflowExecution() {
 
               // Add to console
               addConsole({
-                input: {},
+                input: data.input || {},
                 output: data.output,
                 success: true,
                 durationMs: data.durationMs,
@@ -951,7 +951,7 @@ export function useWorkflowExecution() {
 
               // Add error to console
               addConsole({
-                input: {},
+                input: data.input || {},
                 output: {},
                 success: false,
                 error: data.error,

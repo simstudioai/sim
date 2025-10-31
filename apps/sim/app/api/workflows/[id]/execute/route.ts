@@ -303,6 +303,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
                   blockId,
                   blockName,
                   blockType,
+                  input: callbackData.input,
                   error: callbackData.output.error,
                   durationMs: callbackData.executionTime || 0,
                   ...(iterationContext && {
@@ -327,6 +328,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
                   blockId,
                   blockName,
                   blockType,
+                  input: callbackData.input,
                   output: callbackData.output,
                   durationMs: callbackData.executionTime || 0,
                   ...(iterationContext && {
