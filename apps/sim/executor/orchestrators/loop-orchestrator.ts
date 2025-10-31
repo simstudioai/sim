@@ -15,9 +15,9 @@
 import { createLogger } from '@/lib/logs/console/logger'
 import type { ExecutionContext, NormalizedBlockOutput } from '@/executor/types'
 import type { SerializedLoop } from '@/serializer/types'
-import type { ExecutionState, LoopScope } from '../dag/execution-state'
+import type { ExecutionState, LoopScope } from '../execution/execution-state'
 import type { VariableResolver } from '../variables/variable-resolver'
-import type { DAG, DAGNode } from '../dag/dag-builder'
+import type { DAG, DAGNode } from '../dag/builder'
 
 const logger = createLogger('LoopOrchestrator')
 
@@ -85,7 +85,6 @@ export class LoopOrchestrator {
         break
 
       case 'doWhile':
-      case 'do-while':
         if (loopConfig.doWhileCondition) {
           scope.condition = loopConfig.doWhileCondition
         } else {

@@ -15,7 +15,7 @@
 import { createLogger } from '@/lib/logs/console/logger'
 import type { ExecutionContext } from '@/executor/types'
 import type { SerializedWorkflow, SerializedBlock } from '@/serializer/types'
-import type { ExecutionState, LoopScope } from '../dag/execution-state'
+import type { ExecutionState, LoopScope } from '../execution/execution-state'
 import type { ReferenceResolver, ResolutionContext } from './strategies/reference-resolver'
 import { BlockReferenceResolver } from './strategies/block-reference-resolver'
 import { LoopReferenceResolver } from './strategies/loop-reference-resolver'

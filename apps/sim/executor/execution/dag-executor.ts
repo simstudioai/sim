@@ -6,7 +6,7 @@ import type {
 } from '@/executor/types'
 import type { BlockOutput } from '@/blocks/types'
 import type { SerializedWorkflow } from '@/serializer/types'
-import type { ContextExtensions, WorkflowInput } from '../dag/types'
+import type { ContextExtensions, WorkflowInput } from './types'
 import {
   AgentBlockHandler,
   ApiBlockHandler,
@@ -27,8 +27,8 @@ import {
   buildStartBlockOutput,
   resolveExecutorStartBlock,
 } from '@/executor/utils/start-block'
-import { DAGBuilder } from '../dag/dag-builder'
-import { ExecutionState } from '../dag/execution-state'
+import { DAGBuilder } from '../dag/builder'
+import { ExecutionState } from './execution-state'
 import { VariableResolver } from '../variables/variable-resolver'
 import { LoopOrchestrator } from '../orchestrators/loop-orchestrator'
 import { ParallelOrchestrator } from '../orchestrators/parallel-orchestrator'

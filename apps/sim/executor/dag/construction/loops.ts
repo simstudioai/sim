@@ -1,16 +1,16 @@
 /**
- * LoopSentinelPhase
+ * LoopConstructor
  * 
- * Creates sentinel nodes (start/end) for each loop.
+ * Constructs sentinel nodes (start/end) for each loop.
  * Sentinels act as gates that manage loop entry, exit, and continuation.
  */
 
 import { createLogger } from '@/lib/logs/console/logger'
-import type { DAG } from '../dag-builder'
+import type { DAG } from '../builder'
 
-const logger = createLogger('LoopSentinelPhase')
+const logger = createLogger('LoopConstructor')
 
-export class LoopSentinelPhase {
+export class LoopConstructor {
   /**
    * Create sentinel nodes for all reachable loops
    */

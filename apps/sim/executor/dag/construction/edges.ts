@@ -1,7 +1,7 @@
 /**
- * EdgeWiringPhase
+ * EdgeConstructor
  * 
- * Wires all edges in the DAG.
+ * Constructs all edges in the DAG.
  * Handles:
  * - Regular edges between nodes
  * - Loop boundary edges (redirect to sentinels)
@@ -12,12 +12,12 @@
 
 import { createLogger } from '@/lib/logs/console/logger'
 import type { SerializedWorkflow } from '@/serializer/types'
-import type { DAG } from '../dag-builder'
+import type { DAG } from '../builder'
 import type { DAGEdge } from '../types'
 
-const logger = createLogger('EdgeWiringPhase')
+const logger = createLogger('EdgeConstructor')
 
-export class EdgeWiringPhase {
+export class EdgeConstructor {
   /**
    * Wire all edges in the DAG
    */

@@ -14,7 +14,7 @@ import type {
   ExecutionResult,
   NormalizedBlockOutput,
 } from '@/executor/types'
-import type { DAG } from '../dag/dag-builder'
+import type { DAG } from '../dag/builder'
 import type { EdgeManager } from './edge-manager'
 import type { NodeExecutionOrchestrator } from '../orchestrators/node-execution-orchestrator'
 

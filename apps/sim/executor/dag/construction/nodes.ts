@@ -1,7 +1,7 @@
 /**
- * NodeCreationPhase
+ * NodeConstructor
  * 
- * Creates DAG nodes for blocks in the workflow.
+ * Constructs DAG nodes for blocks in the workflow.
  * Handles:
  * - Regular blocks (1:1 mapping)
  * - Parallel blocks (expands into N branches: blockId₍0₎, blockId₍1₎, etc.)
@@ -10,11 +10,11 @@
 
 import { createLogger } from '@/lib/logs/console/logger'
 import type { SerializedWorkflow } from '@/serializer/types'
-import type { DAG } from '../dag-builder'
+import type { DAG } from '../builder'
 
-const logger = createLogger('NodeCreationPhase')
+const logger = createLogger('NodeConstructor')
 
-export class NodeCreationPhase {
+export class NodeConstructor {
   /**
    * Create all DAG nodes
    */

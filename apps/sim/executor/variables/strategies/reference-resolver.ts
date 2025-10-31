@@ -6,7 +6,7 @@
  */
 
 import type { ExecutionContext } from '@/executor/types'
-import type { ExecutionState, LoopScope } from '../../dag/execution-state'
+import type { ExecutionState, LoopScope } from '../../execution/execution-state'
 
 /**
  * Context needed for reference resolution

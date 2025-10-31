@@ -2,14 +2,13 @@
  * DAGBuilder
  * 
  * Orchestrates the construction of a DAG from a serialized workflow.
- * Uses a phase-based approach for clarity and maintainability.
+ * Uses specialized constructors for clarity and maintainability.
  * 
- * Phases:
- * 1. ReachabilityPhase - Find blocks reachable from trigger
- * 2. ConfigFilterPhase - Filter loop/parallel configs  
- * 3. LoopSentinelPhase - Create loop sentinel nodes
- * 4. NodeCreationPhase - Create DAG nodes (regular + parallel expansion)
- * 5. EdgeWiringPhase - Wire all edges
+ * Steps:
+ * 1. PathConstructor - Construct reachable paths from trigger (using only actual connections)
+ * 2. LoopConstructor - Construct loop sentinel nodes
+ * 3. NodeConstructor - Construct DAG nodes (regular + parallel expansion)
+ * 4. EdgeConstructor - Construct all edges
  */
 
 import { createLogger } from '@/lib/logs/console/logger'
@@ -20,11 +19,10 @@ import type {
   SerializedParallel,
 } from '@/serializer/types'
 import type { DAGEdge, NodeMetadata } from './types'
-import { ReachabilityPhase } from './phases/reachability-phase'
-import { ConfigFilterPhase } from './phases/config-filter-phase'
-import { LoopSentinelPhase } from './phases/loop-sentinel-phase'
-import { NodeCreationPhase } from './phases/node-creation-phase'
-import { EdgeWiringPhase } from './phases/edge-wiring-phase'
+import { PathConstructor } from './construction/paths'
+import { LoopConstructor } from './construction/loops'
+import { NodeConstructor } from './construction/nodes'
+import { EdgeConstructor } from './construction/edges'
 
 const logger = createLogger('DAGBuilder')
 
@@ -43,14 +41,13 @@ export interface DAG {
 }
 
 /**
- * Builds a DAG from a serialized workflow using a phase-based approach
+ * Builds a DAG from a serialized workflow using specialized constructors
  */
 export class DAGBuilder {
-  private reachabilityPhase = new ReachabilityPhase()
-  private configFilterPhase = new ConfigFilterPhase()
-  private loopSentinelPhase = new LoopSentinelPhase()
-  private nodeCreationPhase = new NodeCreationPhase()
-  private edgeWiringPhase = new EdgeWiringPhase()
+  private pathConstructor = new PathConstructor()
+  private loopConstructor = new LoopConstructor()
+  private nodeConstructor = new NodeConstructor()
+  private edgeConstructor = new EdgeConstructor()
 
   build(workflow: SerializedWorkflow, startBlockId?: string): DAG {
     const dag: DAG = {
@@ -62,29 +59,26 @@ export class DAGBuilder {
     // Initialize configs
     this.initializeConfigs(workflow, dag)
 
-    // Phase 1: Find reachable blocks
-    const reachableBlocks = this.reachabilityPhase.execute(workflow, startBlockId)
+    // Step 1: Construct reachable paths (using only actual connections)
+    const reachableBlocks = this.pathConstructor.execute(workflow, startBlockId)
     logger.debug('Reachable blocks from start:', {
       startBlockId,
       reachableCount: reachableBlocks.size,
       totalBlocks: workflow.blocks.length,
     })
 
-    // Phase 2: Filter configs to reachable blocks
-    this.configFilterPhase.execute(dag, reachableBlocks)
+    // Step 2: Construct loop sentinels
+    this.loopConstructor.execute(dag, reachableBlocks)
 
-    // Phase 3: Create loop sentinels
-    this.loopSentinelPhase.execute(dag, reachableBlocks)
-
-    // Phase 4: Create nodes (regular + parallel expansion)
-    const { blocksInLoops, blocksInParallels } = this.nodeCreationPhase.execute(
+    // Step 3: Construct nodes (regular + parallel expansion)
+    const { blocksInLoops, blocksInParallels } = this.nodeConstructor.execute(
       workflow,
       dag,
       reachableBlocks
     )
 
-    // Phase 5: Wire all edges
-    this.edgeWiringPhase.execute(
+    // Step 4: Construct edges
+    this.edgeConstructor.execute(
       workflow,
       dag,
       blocksInParallels,

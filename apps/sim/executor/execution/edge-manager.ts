@@ -12,7 +12,7 @@
 
 import { createLogger } from '@/lib/logs/console/logger'
 import type { NormalizedBlockOutput } from '@/executor/types'
-import type { DAG, DAGNode } from '../dag/dag-builder'
+import type { DAG, DAGNode } from '../dag/builder'
 import type { DAGEdge } from '../dag/types'
 
 const logger = createLogger('EdgeManager')
