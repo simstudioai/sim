@@ -32,6 +32,9 @@ import { ExecutionState } from './execution-state'
 import { VariableResolver } from './variable-resolver'
 import { LoopOrchestrator } from './loop-orchestrator'
 import { ParallelOrchestrator } from './parallel-orchestrator'
+import { ExecutionCoordinator } from './execution-coordinator'
+import { EdgeManager } from './edge-manager'
+import { NodeExecutionOrchestrator } from './node-execution-orchestrator'
 import { BlockExecutor } from './block-executor'
 import { ExecutionEngine } from './execution-engine'
 
@@ -71,33 +74,48 @@ export class DAGExecutor {
   }
 
   async execute(workflowId: string, startBlockId?: string): Promise<ExecutionResult> {
+    // 1. Build the DAG from workflow
     const dag = this.dagBuilder.build(this.workflow, startBlockId)
     
+    // 2. Create execution context
     const context = this.createExecutionContext(workflowId)
     
+    // 3. Create execution state
     const state = new ExecutionState()
     
+    // 4. Create variable resolver
     const resolver = new VariableResolver(this.workflow, this.workflowVariables, state)
     
-    // Create orchestrators for loop and parallel execution
+    // 5. Create control flow orchestrators
     const loopOrchestrator = new LoopOrchestrator(dag, state, resolver)
     const parallelOrchestrator = new ParallelOrchestrator(dag, state)
     
-    // Create sentinel handler with LoopOrchestrator dependency
+    // 6. Create sentinel handler with LoopOrchestrator dependency
     const sentinelHandler = new SentinelBlockHandler(loopOrchestrator)
     
-    // Combine handlers (sentinel first for priority)
+    // 7. Combine handlers (sentinel first for priority)
     const allHandlers = [sentinelHandler, ...this.blockHandlers]
     
+    // 8. Create block executor
     const blockExecutor = new BlockExecutor(allHandlers, resolver, this.contextExtensions)
     
-    const engine = new ExecutionEngine(
-      this.workflow,
+    // 9. Create execution components
+    const coordinator = new ExecutionCoordinator()
+    const edgeManager = new EdgeManager(dag)
+    const nodeOrchestrator = new NodeExecutionOrchestrator(
       dag,
       state,
       blockExecutor,
       loopOrchestrator,
-      parallelOrchestrator,
+      parallelOrchestrator
+    )
+    
+    // 10. Create execution engine that coordinates everything
+    const engine = new ExecutionEngine(
+      dag,
+      coordinator,
+      edgeManager,
+      nodeOrchestrator,
       context
     )
     
