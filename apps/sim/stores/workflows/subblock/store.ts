@@ -1,8 +1,11 @@
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
+import { getBlock } from '@/blocks'
 import type { SubBlockConfig } from '@/blocks/types'
+import { populateTriggerFieldsFromConfig } from '@/hooks/use-trigger-config-aggregation'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import type { SubBlockStore } from '@/stores/workflows/subblock/types'
+import { isTriggerValid } from '@/triggers'
 
 /**
  * SubBlockState stores values for all subblocks in workflows
@@ -93,13 +96,11 @@ export const useSubBlockStore = create<SubBlockStore>()(
           [activeWorkflowId]: {},
         },
       }))
-
-      // Note: Socket.IO handles real-time sync automatically
     },
 
     initializeFromWorkflow: (workflowId: string, blocks: Record<string, any>) => {
-      // Initialize from blocks
       const values: Record<string, Record<string, any>> = {}
+
       Object.entries(blocks).forEach(([blockId, block]) => {
         values[blockId] = {}
         Object.entries(block.subBlocks || {}).forEach(([subBlockId, subBlock]) => {
@@ -113,6 +114,37 @@ export const useSubBlockStore = create<SubBlockStore>()(
           [workflowId]: values,
         },
       }))
+
+      const originalActiveWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
+      useWorkflowRegistry.setState({ activeWorkflowId: workflowId })
+
+      Object.entries(blocks).forEach(([blockId, block]) => {
+        const blockConfig = getBlock(block.type)
+        if (!blockConfig) return
+
+        const isTriggerBlock = blockConfig.category === 'triggers' || block.triggerMode === true
+        if (!isTriggerBlock) return
+
+        let triggerId: string | undefined
+        if (blockConfig.category === 'triggers') {
+          triggerId = block.type
+        } else if (block.triggerMode === true && blockConfig.triggers?.enabled) {
+          triggerId = block.subBlocks?.triggerId?.value || blockConfig.triggers?.available?.[0]
+        }
+
+        if (!triggerId || !isTriggerValid(triggerId)) {
+          return
+        }
+
+        const triggerConfigSubBlock = block.subBlocks?.triggerConfig
+        if (triggerConfigSubBlock?.value && typeof triggerConfigSubBlock.value === 'object') {
+          populateTriggerFieldsFromConfig(blockId, triggerConfigSubBlock.value, triggerId)
+        }
+      })
+
+      if (originalActiveWorkflowId !== workflowId) {
+        useWorkflowRegistry.setState({ activeWorkflowId: originalActiveWorkflowId })
+      }
     },
   }))
 )
