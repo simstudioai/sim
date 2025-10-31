@@ -898,18 +898,32 @@ export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, any> = {
     // Extract and persist custom tools to database
     if (context?.userId) {
       try {
-        const finalWorkflowState = validation.sanitizedState || modifiedWorkflowState
-        const { saved, errors } = await extractAndPersistCustomTools(
-          finalWorkflowState,
-          context.userId
-        )
+        // Get workspaceId from the workflow
+        const [workflowRecord] = await db
+          .select({ workspaceId: workflowTable.workspaceId })
+          .from(workflowTable)
+          .where(eq(workflowTable.id, workflowId))
+          .limit(1)
 
-        if (saved > 0) {
-          logger.info(`Persisted ${saved} custom tool(s) to database`, { workflowId })
-        }
+        if (workflowRecord?.workspaceId) {
+          const finalWorkflowState = validation.sanitizedState || modifiedWorkflowState
+          const { saved, errors } = await extractAndPersistCustomTools(
+            finalWorkflowState,
+            workflowRecord.workspaceId,
+            context.userId
+          )
 
-        if (errors.length > 0) {
-          logger.warn('Some custom tools failed to persist', { errors, workflowId })
+          if (saved > 0) {
+            logger.info(`Persisted ${saved} custom tool(s) to database`, { workflowId })
+          }
+
+          if (errors.length > 0) {
+            logger.warn('Some custom tools failed to persist', { errors, workflowId })
+          }
+        } else {
+          logger.warn('Workflow has no workspaceId, skipping custom tools persistence', {
+            workflowId,
+          })
         }
       } catch (error) {
         logger.error('Failed to persist custom tools', { error, workflowId })

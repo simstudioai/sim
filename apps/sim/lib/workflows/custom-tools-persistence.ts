@@ -1,6 +1,6 @@
 import { db } from '@sim/db'
 import { customTools } from '@sim/db/schema'
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('CustomToolsPersistence')
@@ -96,9 +96,17 @@ export function extractCustomToolsFromWorkflowState(workflowState: any): CustomT
  */
 export async function persistCustomToolsToDatabase(
   customToolsList: CustomTool[],
+  workspaceId: string | null,
   userId: string
 ): Promise<{ saved: number; errors: string[] }> {
   if (!customToolsList || customToolsList.length === 0) {
+    return { saved: 0, errors: [] }
+  }
+
+  // Only persist if workspaceId is provided (new workspace-scoped tools)
+  // Skip persistence for existing user-scoped tools to maintain backward compatibility
+  if (!workspaceId) {
+    logger.debug('Skipping custom tools persistence - no workspaceId provided (user-scoped tools)')
     return { saved: 0, errors: [] }
   }
 
@@ -123,17 +131,18 @@ export async function persistCustomToolsToDatabase(
 
           const nowTime = new Date()
 
-          // Check if tool already exists
+          // Check if tool already exists in this workspace
           const existingTool = await tx
             .select()
             .from(customTools)
-            .where(eq(customTools.id, baseId))
+            .where(and(eq(customTools.id, baseId), eq(customTools.workspaceId, workspaceId)))
             .limit(1)
 
           if (existingTool.length === 0) {
             // Create new tool
             await tx.insert(customTools).values({
               id: baseId,
+              workspaceId,
               userId,
               title: tool.title,
               schema: tool.schema,
@@ -142,10 +151,10 @@ export async function persistCustomToolsToDatabase(
               updatedAt: nowTime,
             })
 
-            logger.info(`Created custom tool: ${tool.title}`, { toolId: baseId })
+            logger.info(`Created custom tool: ${tool.title}`, { toolId: baseId, workspaceId })
             saved++
-          } else if (existingTool[0].userId === userId) {
-            // Update existing tool if it belongs to the user
+          } else {
+            // Update existing tool in workspace (workspace members can update)
             await tx
               .update(customTools)
               .set({
@@ -154,16 +163,10 @@ export async function persistCustomToolsToDatabase(
                 code: tool.code,
                 updatedAt: nowTime,
               })
-              .where(eq(customTools.id, baseId))
+              .where(and(eq(customTools.id, baseId), eq(customTools.workspaceId, workspaceId)))
 
-            logger.info(`Updated custom tool: ${tool.title}`, { toolId: baseId })
+            logger.info(`Updated custom tool: ${tool.title}`, { toolId: baseId, workspaceId })
             saved++
-          } else {
-            // Tool exists but belongs to different user - skip
-            logger.warn(`Skipping custom tool - belongs to different user: ${tool.title}`, {
-              toolId: baseId,
-            })
-            errors.push(`Tool ${tool.title} belongs to a different user`)
           }
         } catch (error) {
           const errorMsg = `Failed to persist tool ${tool.title}: ${error instanceof Error ? error.message : String(error)}`
@@ -186,6 +189,7 @@ export async function persistCustomToolsToDatabase(
  */
 export async function extractAndPersistCustomTools(
   workflowState: any,
+  workspaceId: string | null,
   userId: string
 ): Promise<{ saved: number; errors: string[] }> {
   const customToolsList = extractCustomToolsFromWorkflowState(workflowState)
@@ -197,7 +201,8 @@ export async function extractAndPersistCustomTools(
 
   logger.info(`Found ${customToolsList.length} custom tool(s) to persist`, {
     tools: customToolsList.map((t) => t.title),
+    workspaceId,
   })
 
-  return await persistCustomToolsToDatabase(customToolsList, userId)
+  return await persistCustomToolsToDatabase(customToolsList, workspaceId, userId)
 }

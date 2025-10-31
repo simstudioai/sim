@@ -729,6 +729,13 @@
       "when": 1761848118406,
       "tag": "0104_orange_shinobi_shaw",
       "breakpoints": true
+    },
+    {
+      "idx": 105,
+      "version": "7",
+      "when": 1761860659858,
+      "tag": "0105_glamorous_wrecking_crew",
+      "breakpoints": true
     }
   ]
 }

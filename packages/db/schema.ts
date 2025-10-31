@@ -576,17 +576,22 @@ export const userStats = pgTable('user_stats', {
   billingBlocked: boolean('billing_blocked').notNull().default(false),
 })
 
-export const customTools = pgTable('custom_tools', {
-  id: text('id').primaryKey(),
-  userId: text('user_id')
-    .notNull()
-    .references(() => user.id, { onDelete: 'cascade' }),
-  title: text('title').notNull(),
-  schema: json('schema').notNull(),
-  code: text('code').notNull(),
-  createdAt: timestamp('created_at').notNull().defaultNow(),
-  updatedAt: timestamp('updated_at').notNull().defaultNow(),
-})
+export const customTools = pgTable(
+  'custom_tools',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id').references(() => workspace.id, { onDelete: 'cascade' }),
+    userId: text('user_id').references(() => user.id, { onDelete: 'set null' }),
+    title: text('title').notNull(),
+    schema: json('schema').notNull(),
+    code: text('code').notNull(),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    workspaceIdIdx: index('custom_tools_workspace_id_idx').on(table.workspaceId),
+  })
+)
 
 export const subscription = pgTable(
   'subscription',
