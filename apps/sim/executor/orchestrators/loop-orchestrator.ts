@@ -15,9 +15,9 @@
 import { createLogger } from '@/lib/logs/console/logger'
 import type { ExecutionContext, NormalizedBlockOutput } from '@/executor/types'
 import type { SerializedLoop } from '@/serializer/types'
-import type { ExecutionState, LoopScope } from './execution-state'
-import type { VariableResolver } from './variable-resolver'
-import type { DAG, DAGNode } from './dag-builder'
+import type { ExecutionState, LoopScope } from '../dag/execution-state'
+import type { VariableResolver } from '../variables/variable-resolver'
+import type { DAG, DAGNode } from '../dag/dag-builder'
 
 const logger = createLogger('LoopOrchestrator')
 

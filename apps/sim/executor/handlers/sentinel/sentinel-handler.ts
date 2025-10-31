@@ -2,7 +2,7 @@ import { createLogger } from '@/lib/logs/console/logger'
 import { BlockType } from '@/executor/consts'
 import type { BlockHandler, ExecutionContext, NormalizedBlockOutput } from '@/executor/types'
 import type { SerializedBlock } from '@/serializer/types'
-import type { LoopOrchestrator } from '@/executor/dag/loop-orchestrator'
+import type { LoopOrchestrator } from '@/executor/orchestrators/loop-orchestrator'
 
 const logger = createLogger('SentinelBlockHandler')
 

@@ -6,7 +6,7 @@ import type {
 } from '@/executor/types'
 import type { BlockOutput } from '@/blocks/types'
 import type { SerializedWorkflow } from '@/serializer/types'
-import type { ContextExtensions, WorkflowInput } from './types'
+import type { ContextExtensions, WorkflowInput } from '../dag/types'
 import {
   AgentBlockHandler,
   ApiBlockHandler,
@@ -27,14 +27,13 @@ import {
   buildStartBlockOutput,
   resolveExecutorStartBlock,
 } from '@/executor/utils/start-block'
-import { DAGBuilder } from './dag-builder'
-import { ExecutionState } from './execution-state'
-import { VariableResolver } from './variable-resolver'
-import { LoopOrchestrator } from './loop-orchestrator'
-import { ParallelOrchestrator } from './parallel-orchestrator'
-import { ExecutionCoordinator } from './execution-coordinator'
+import { DAGBuilder } from '../dag/dag-builder'
+import { ExecutionState } from '../dag/execution-state'
+import { VariableResolver } from '../variables/variable-resolver'
+import { LoopOrchestrator } from '../orchestrators/loop-orchestrator'
+import { ParallelOrchestrator } from '../orchestrators/parallel-orchestrator'
+import { NodeExecutionOrchestrator } from '../orchestrators/node-execution-orchestrator'
 import { EdgeManager } from './edge-manager'
-import { NodeExecutionOrchestrator } from './node-execution-orchestrator'
 import { BlockExecutor } from './block-executor'
 import { ExecutionEngine } from './execution-engine'
 
@@ -100,7 +99,6 @@ export class DAGExecutor {
     const blockExecutor = new BlockExecutor(allHandlers, resolver, this.contextExtensions)
     
     // 9. Create execution components
-    const coordinator = new ExecutionCoordinator()
     const edgeManager = new EdgeManager(dag)
     const nodeOrchestrator = new NodeExecutionOrchestrator(
       dag,
@@ -110,10 +108,9 @@ export class DAGExecutor {
       parallelOrchestrator
     )
     
-    // 10. Create execution engine that coordinates everything
+    // 10. Create execution engine (now includes queue management)
     const engine = new ExecutionEngine(
       dag,
-      coordinator,
       edgeManager,
       nodeOrchestrator,
       context

@@ -1,13 +1,11 @@
 /**
  * ExecutionEngine
  * 
- * Thin orchestrator that coordinates the execution of a workflow DAG.
- * Delegates to specialized components:
- * - ExecutionCoordinator: Queue and concurrency management
- * - EdgeManager: Graph traversal and edge activation
- * - NodeExecutionOrchestrator: Node execution lifecycle
- * 
- * This class simply wires these components together.
+ * Orchestrates the execution of a workflow DAG.
+ * Manages:
+ * - Queue and concurrency (ready queue, promise tracking)
+ * - Main execution loop (continuous queue processing)
+ * - Coordination with EdgeManager and NodeExecutionOrchestrator
  */
 
 import { createLogger } from '@/lib/logs/console/logger'
@@ -16,10 +14,9 @@ import type {
   ExecutionResult,
   NormalizedBlockOutput,
 } from '@/executor/types'
-import type { DAG } from './dag-builder'
-import type { ExecutionCoordinator } from './execution-coordinator'
+import type { DAG } from '../dag/dag-builder'
 import type { EdgeManager } from './edge-manager'
-import type { NodeExecutionOrchestrator } from './node-execution-orchestrator'
+import type { NodeExecutionOrchestrator } from '../orchestrators/node-execution-orchestrator'
 
 const logger = createLogger('ExecutionEngine')
 
@@ -29,14 +26,19 @@ const TRIGGER_BLOCK_TYPE = {
 } as const
 
 /**
- * Orchestrates workflow execution using specialized components
+ * Orchestrates workflow execution with built-in queue management
  */
 export class ExecutionEngine {
+  // Queue management (merged from ExecutionCoordinator)
+  private readyQueue: string[] = []
+  private executing = new Set<Promise<void>>()
+  private queueLock = Promise.resolve()
+  
+  // Execution state
   private finalOutput: NormalizedBlockOutput = {}
 
   constructor(
     private dag: DAG,
-    private coordinator: ExecutionCoordinator,
     private edgeManager: EdgeManager,
     private nodeOrchestrator: NodeExecutionOrchestrator,
     private context: ExecutionContext
@@ -53,12 +55,12 @@ export class ExecutionEngine {
       this.initializeQueue(startNodeId)
 
       logger.debug('Starting execution loop', {
-        initialQueueSize: this.coordinator.getQueueSize(),
+        initialQueueSize: this.readyQueue.length,
         startNodeId,
       })
 
       // Main execution loop
-      while (this.coordinator.hasWork()) {
+      while (this.hasWork()) {
         await this.processQueue()
       }
 
@@ -67,7 +69,7 @@ export class ExecutionEngine {
       })
 
       // Wait for any remaining executions
-      await this.coordinator.waitForAllExecutions()
+      await this.waitForAllExecutions()
 
       const endTime = Date.now()
       this.context.metadata.endTime = new Date(endTime).toISOString()
@@ -102,7 +104,98 @@ export class ExecutionEngine {
   }
 
   /**
-   * PRIVATE METHODS
+   * PRIVATE METHODS - Queue Management
+   */
+
+  /**
+   * Check if there is work to be done
+   * Work exists if there are nodes in the queue or promises executing
+   */
+  private hasWork(): boolean {
+    return this.readyQueue.length > 0 || this.executing.size > 0
+  }
+
+  /**
+   * Add a node to the ready queue
+   * Nodes in the queue are ready to execute (all dependencies met)
+   */
+  private addToQueue(nodeId: string): void {
+    if (!this.readyQueue.includes(nodeId)) {
+      this.readyQueue.push(nodeId)
+      logger.debug('Added to queue', { nodeId, queueLength: this.readyQueue.length })
+    }
+  }
+
+  /**
+   * Add multiple nodes to the ready queue at once
+   */
+  private addMultipleToQueue(nodeIds: string[]): void {
+    for (const nodeId of nodeIds) {
+      this.addToQueue(nodeId)
+    }
+  }
+
+  /**
+   * Get the next node from the queue (FIFO)
+   * Returns undefined if queue is empty
+   */
+  private dequeue(): string | undefined {
+    return this.readyQueue.shift()
+  }
+
+  /**
+   * Track a promise for concurrent execution
+   * The promise is automatically removed when it completes
+   */
+  private trackExecution(promise: Promise<void>): void {
+    this.executing.add(promise)
+
+    promise.finally(() => {
+      this.executing.delete(promise)
+    })
+  }
+
+  /**
+   * Wait for any executing promise to complete
+   * Used for concurrent execution coordination
+   */
+  private async waitForAnyExecution(): Promise<void> {
+    if (this.executing.size > 0) {
+      await Promise.race(this.executing)
+    }
+  }
+
+  /**
+   * Wait for all executing promises to complete
+   * Used at the end of execution to ensure all work finishes
+   */
+  private async waitForAllExecutions(): Promise<void> {
+    await Promise.all(Array.from(this.executing))
+  }
+
+  /**
+   * Execute a function with queue lock
+   * Ensures operations on the queue are atomic
+   */
+  private async withQueueLock<T>(fn: () => Promise<T> | T): Promise<T> {
+    const prevLock = this.queueLock
+    let resolveLock: () => void
+
+    this.queueLock = new Promise((resolve) => {
+      resolveLock = resolve
+    })
+
+    await prevLock
+
+    try {
+      return await fn()
+    } finally {
+      resolveLock!()
+    }
+  }
+
+  /**
+   * PRIVATE METHODS - Execution Flow
    */
 
   /**
@@ -110,7 +203,7 @@ export class ExecutionEngine {
    */
   private initializeQueue(startNodeId?: string): void {
     if (startNodeId) {
-      this.coordinator.addToQueue(startNodeId)
+      this.addToQueue(startNodeId)
       return
     }
 
@@ -122,7 +215,7 @@ export class ExecutionEngine {
     )
 
     if (startNode) {
-      this.coordinator.addToQueue(startNode.id)
+      this.addToQueue(startNode.id)
     } else {
       logger.warn('No start node found in DAG')
     }
@@ -134,18 +227,18 @@ export class ExecutionEngine {
    */
   private async processQueue(): Promise<void> {
     // Dequeue and execute all ready nodes
-    while (this.coordinator.getQueueSize() > 0) {
-      const nodeId = this.coordinator.dequeue()
+    while (this.readyQueue.length > 0) {
+      const nodeId = this.dequeue()
       if (!nodeId) continue
 
       // Execute node asynchronously
       const promise = this.executeNodeAsync(nodeId)
-      this.coordinator.trackExecution(promise)
+      this.trackExecution(promise)
     }
 
     // Wait for at least one execution to complete before continuing
-    if (this.coordinator.getExecutingCount() > 0) {
-      await this.coordinator.waitForAnyExecution()
+    if (this.executing.size > 0) {
+      await this.waitForAnyExecution()
     }
   }
 
@@ -159,7 +252,7 @@ export class ExecutionEngine {
       const result = await this.nodeOrchestrator.executeNode(nodeId, this.context)
 
       // Handle completion with queue lock to ensure atomicity
-      await this.coordinator.withQueueLock(async () => {
+      await this.withQueueLock(async () => {
         await this.handleNodeCompletion(nodeId, result.output, result.isFinalOutput)
       })
     } catch (error) {
@@ -196,12 +289,12 @@ export class ExecutionEngine {
     const readyNodes = this.edgeManager.processOutgoingEdges(node, output, false)
 
     // Add ready nodes to queue
-    this.coordinator.addMultipleToQueue(readyNodes)
+    this.addMultipleToQueue(readyNodes)
 
     logger.debug('Node completion handled', {
       nodeId,
       readyNodesCount: readyNodes.length,
-      queueSize: this.coordinator.getQueueSize(),
+      queueSize: this.readyQueue.length,
     })
   }
 }

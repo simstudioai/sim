@@ -12,9 +12,9 @@
 
 import { createLogger } from '@/lib/logs/console/logger'
 import type { NormalizedBlockOutput } from '@/executor/types'
-import type { DAG, DAGNode } from './dag-builder'
-import type { ExecutionState } from './execution-state'
-import type { BlockExecutor } from './block-executor'
+import type { DAG, DAGNode } from '../dag/dag-builder'
+import type { ExecutionState } from '../dag/execution-state'
+import type { BlockExecutor } from '../execution/block-executor'
 import type { LoopOrchestrator } from './loop-orchestrator'
 import type { ParallelOrchestrator } from './parallel-orchestrator'
 

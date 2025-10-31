@@ -6,9 +6,9 @@ import type {
   NormalizedBlockOutput,
 } from '@/executor/types'
 import type { SerializedBlock } from '@/serializer/types'
-import type { DAGNode } from './dag-builder'
-import type { VariableResolver } from './variable-resolver'
-import type { ContextExtensions } from './types'
+import type { DAGNode } from '../dag/dag-builder'
+import type { VariableResolver } from '../variables/variable-resolver'
+import type { ContextExtensions } from '../dag/types'
 
 const logger = createLogger('BlockExecutor')
 
