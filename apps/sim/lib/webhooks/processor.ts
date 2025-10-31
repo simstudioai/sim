@@ -28,12 +28,7 @@ export interface WebhookProcessorOptions {
   executionTarget?: 'deployed' | 'live'
 }
 
-/**
- * Reconstruct the actual external URL from request headers
- * This is needed for signature validation when behind proxies/ngrok
- */
 function getExternalUrl(request: NextRequest): string {
-  // Check for forwarded protocol and host (from ngrok, nginx, etc.)
   const proto = request.headers.get('x-forwarded-proto') || 'https'
   const host = request.headers.get('x-forwarded-host') || request.headers.get('host')
 
@@ -42,7 +37,6 @@ function getExternalUrl(request: NextRequest): string {
     return `${proto}://${host}${url.pathname}${url.search}`
   }
 
-  // Fallback to request URL
   return request.url
 }
 
@@ -88,13 +82,16 @@ export async function parseWebhookBody(
       const formData = new URLSearchParams(rawBody)
       const payloadString = formData.get('payload')
 
-      if (payloadString) {
-        body = JSON.parse(payloadString)
-      } else {
-        body = Object.fromEntries(formData.entries())
+      if (!payloadString) {
+        logger.warn(`[${requestId}] No payload field found in form-encoded data`)
+        return new NextResponse('Missing payload field', { status: 400 })
       }
+
+      body = JSON.parse(payloadString)
+      logger.debug(`[${requestId}] Parsed form-encoded GitHub webhook payload`)
     } else {
       body = JSON.parse(rawBody)
+      logger.debug(`[${requestId}] Parsed JSON webhook payload`)
     }
 
     if (Object.keys(body).length === 0) {
