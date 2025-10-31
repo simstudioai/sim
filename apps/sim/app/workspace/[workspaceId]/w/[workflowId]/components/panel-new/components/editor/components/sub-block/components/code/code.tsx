@@ -319,7 +319,7 @@ export function Code({
   }, [isPreview, disabled, setStoreValue])
 
   // Effects: Set read only state for textarea
-    useEffect(() => {
+  useEffect(() => {
     if (!editorRef.current) return
 
     const setReadOnly = () => {

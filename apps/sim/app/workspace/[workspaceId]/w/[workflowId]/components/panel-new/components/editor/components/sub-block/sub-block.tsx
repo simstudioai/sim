@@ -1,7 +1,6 @@
 import { type JSX, type MouseEvent, memo, useState } from 'react'
 import { AlertTriangle } from 'lucide-react'
-import { Tooltip } from '@/components/emcn'
-import { Label } from '@/components/ui'
+import { Label, Tooltip } from '@/components/emcn/components'
 import { cn } from '@/lib/utils'
 import type { FieldDiffStatus } from '@/lib/workflows/diff/types'
 import type { SubBlockConfig } from '@/blocks/types'
@@ -94,7 +93,7 @@ const renderLabel = (config: SubBlockConfig, isValidJson: boolean): JSX.Element 
   if (!config.title) return null
 
   return (
-    <Label className='flex items-center gap-[6px] pl-[2px] text-[#E6E6E6]'>
+    <Label className='flex items-center gap-[6px] pl-[2px]'>
       {config.title}
       {config.id === 'responseFormat' && (
         <Tooltip.Root>

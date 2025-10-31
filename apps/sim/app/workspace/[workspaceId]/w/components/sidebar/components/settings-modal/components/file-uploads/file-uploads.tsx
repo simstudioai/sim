@@ -354,7 +354,7 @@ export function FileUploads() {
       {uploadError && <div className='px-6 pb-2 text-red-600 text-sm'>{uploadError}</div>}
 
       {/* Files Table */}
-      <div className='scrollbar-thin scrollbar-thumb-muted scrollbar-track-transparent min-h-0 flex-1 overflow-y-auto px-6'>
+      <div className='min-h-0 flex-1 overflow-y-auto px-6'>
         {loading ? (
           <div className='py-8 text-center text-muted-foreground text-sm'>Loading files...</div>
         ) : files.length === 0 ? (

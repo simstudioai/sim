@@ -21,7 +21,6 @@ import {
   LogsFilters,
   SettingsModal,
   SubscriptionModal,
-  Toolbar,
   UsageIndicator,
   WorkspaceHeader,
   WorkspaceSelector,

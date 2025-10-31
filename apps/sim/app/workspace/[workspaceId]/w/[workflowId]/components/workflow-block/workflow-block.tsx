@@ -15,7 +15,6 @@ import { useCurrentWorkflow } from '../../hooks'
 import { useSubBlockValue } from '../panel-new/components/editor/components/sub-block/hooks/use-sub-block-value'
 import { BlockHandles, BlockHeader } from './components'
 import { ActionBar } from './components/action-bar/action-bar'
-import { ConnectionBlocks } from './components/connection-blocks/connection-blocks'
 import { useBlockProperties } from './hooks/use-block-properties'
 import { useChildDeployment } from './hooks/use-child-deployment'
 import { useScheduleInfo } from './hooks/use-schedule-info'
@@ -69,7 +68,7 @@ export const WorkflowBlock = memo(
     const isDeletedBlock = !isShowingDiff && diffAnalysis?.deleted_blocks?.includes(id)
 
     // Get block properties using custom hook
-    const { horizontalHandles, blockHeight, blockWidth, displayTriggerMode } = useBlockProperties(
+    const { horizontalHandles, displayTriggerMode } = useBlockProperties(
       id,
       currentWorkflow.isDiffMode,
       data.isPreview ?? false,
@@ -226,16 +225,6 @@ export const WorkflowBlock = memo(
 
           {/* Action Bar */}
           <ActionBar blockId={id} blockType={type} disabled={!userPermissions.canEdit} />
-
-          {/* Connection Blocks */}
-          {config.category !== 'triggers' && type !== 'starter' && !displayTriggerMode && (
-            <ConnectionBlocks
-              blockId={id}
-              setIsConnecting={() => {}}
-              isDisabled={!userPermissions.canEdit}
-              horizontalHandles={horizontalHandles}
-            />
-          )}
 
           {/* Connection Handles */}
           <BlockHandles

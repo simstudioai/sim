@@ -13,7 +13,7 @@ const Providers = React.memo<ProvidersProps>(({ children }) => {
   return (
     <>
       <SettingsLoader />
-      <Tooltip.Provider delayDuration={1000} skipDelayDuration={0}>
+      <Tooltip.Provider delayDuration={600} skipDelayDuration={0}>
         <WorkspacePermissionsProvider>{children}</WorkspacePermissionsProvider>
       </Tooltip.Provider>
     </>

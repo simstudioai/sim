@@ -335,10 +335,7 @@ export function CreateModal({ open, onOpenChange, onKnowledgeBaseCreated }: Crea
         <div className='flex flex-1 flex-col overflow-hidden'>
           <form onSubmit={handleSubmit(onSubmit)} className='flex h-full flex-col'>
             {/* Scrollable Content */}
-            <div
-              ref={scrollContainerRef}
-              className='scrollbar-thin scrollbar-thumb-muted-foreground/20 hover:scrollbar-thumb-muted-foreground/25 scrollbar-track-transparent min-h-0 flex-1 overflow-y-auto px-6'
-            >
+            <div ref={scrollContainerRef} className='min-h-0 flex-1 overflow-y-auto px-6'>
               <div className='flex min-h-full flex-col py-4'>
                 {/* Show upload error first, then submit error only if no upload error */}
                 {uploadError && (

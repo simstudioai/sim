@@ -1,21 +1,22 @@
 'use client'
 
-import { useRef } from 'react'
+import { useEffect, useRef } from 'react'
 import { BubbleChatPreview, Button, MoreHorizontal, Play, Rocket } from '@/components/emcn'
 import { usePanelStore } from '@/stores/panel-new/store'
 import type { PanelTab } from '@/stores/panel-new/types'
-import { Copilot, Editor } from './components'
+import { Copilot, Editor, Toolbar } from './components'
 import { usePanelResize } from './hooks/use-panel-resize'
-
 /**
  * Panel component with resizable width and tab navigation that persists across page refreshes.
  *
- * Uses a CSS-based approach to prevent hydration mismatches:
+ * Uses a CSS-based approach to prevent hydration mismatches and flash on load:
  * 1. Width is controlled by CSS variable (--panel-width)
- * 2. Blocking script in layout.tsx can set CSS variable before React hydrates
- * 3. Store updates CSS variable when width changes
+ * 2. Blocking script in layout.tsx sets CSS variable and data-panel-active-tab before React hydrates
+ * 3. CSS rules control initial visibility based on data-panel-active-tab attribute
+ * 4. React takes over visibility control after hydration completes
+ * 5. Store updates CSS variable when width changes
  *
- * This ensures server and client render identical HTML, preventing hydration errors.
+ * This ensures server and client render identical HTML, preventing hydration errors and visual flash.
  *
  * Note: All tabs are kept mounted but hidden to preserve component state during tab switches.
  * This prevents unnecessary remounting which would trigger data reloads and reset state.
@@ -24,7 +25,7 @@ import { usePanelResize } from './hooks/use-panel-resize'
  */
 export function Panel() {
   const panelRef = useRef<HTMLElement>(null)
-  const { activeTab, setActiveTab, panelWidth } = usePanelStore()
+  const { activeTab, setActiveTab, panelWidth, _hasHydrated, setHasHydrated } = usePanelStore()
   const copilotRef = useRef<{
     createNewChat: () => void
     setInputValueAndFocus: (value: string) => void
@@ -32,6 +33,14 @@ export function Panel() {
 
   // Panel resize hook
   const { handleMouseDown } = usePanelResize()
+
+  /**
+   * Mark hydration as complete on mount
+   * This allows React to take over visibility control from CSS
+   */
+  useEffect(() => {
+    setHasHydrated(true)
+  }, [setHasHydrated])
 
   /**
    * Handles tab click events
@@ -71,30 +80,75 @@ export function Panel() {
           </div>
 
           {/* Tabs */}
-          <div className='flex flex-shrink-0 items-center gap-[4px] px-[8px] pt-[14px]'>
-            <Button
-              className='px-[8px] py-[5px] text-[12.5px] hover:bg-[#353535] hover:text-[#E6E6E6] dark:hover:bg-[#353535] dark:hover:text-[#E6E6E6]'
-              variant={activeTab === 'copilot' ? 'active' : 'ghost'}
-              onClick={() => handleTabClick('copilot')}
-            >
-              Copilot
-            </Button>
-            <Button
-              className='px-[8px] py-[5px] text-[12.5px] hover:bg-[#353535] hover:text-[#E6E6E6] dark:hover:bg-[#353535] dark:hover:text-[#E6E6E6]'
-              variant={activeTab === 'editor' ? 'active' : 'ghost'}
-              onClick={() => handleTabClick('editor')}
-            >
-              Editor
-            </Button>
+          <div className='flex flex-shrink-0 items-center justify-between px-[8px] pt-[14px]'>
+            <div className='flex gap-[4px]'>
+              <Button
+                className='h-[28px] px-[8px] py-[5px] text-[12.5px] hover:bg-[#353535] hover:text-[#E6E6E6] dark:hover:bg-[#353535] dark:hover:text-[#E6E6E6]'
+                variant={_hasHydrated && activeTab === 'copilot' ? 'active' : 'ghost'}
+                onClick={() => handleTabClick('copilot')}
+                data-tab-button='copilot'
+              >
+                Copilot
+              </Button>
+              <Button
+                className='h-[28px] px-[8px] py-[5px] text-[12.5px] hover:bg-[#353535] hover:text-[#E6E6E6] dark:hover:bg-[#353535] dark:hover:text-[#E6E6E6]'
+                variant={_hasHydrated && activeTab === 'toolbar' ? 'active' : 'ghost'}
+                onClick={() => handleTabClick('toolbar')}
+                data-tab-button='toolbar'
+              >
+                Toolbar
+              </Button>
+              <Button
+                className='h-[28px] px-[8px] py-[5px] text-[12.5px] hover:bg-[#353535] hover:text-[#E6E6E6] dark:hover:bg-[#353535] dark:hover:text-[#E6E6E6]'
+                variant={_hasHydrated && activeTab === 'editor' ? 'active' : 'ghost'}
+                onClick={() => handleTabClick('editor')}
+                data-tab-button='editor'
+              >
+                Editor
+              </Button>
+            </div>
+
+            {/* Workflow Controls (Undo/Redo and Zoom) */}
+            {/* <WorkflowControls /> */}
           </div>
 
           {/* Tab Content - Keep all tabs mounted but hidden to preserve state */}
           <div className='flex-1 overflow-hidden pt-[12px]'>
-            <div className={activeTab === 'copilot' ? 'h-full' : 'hidden'}>
+            <div
+              className={
+                _hasHydrated && activeTab === 'copilot'
+                  ? 'h-full'
+                  : _hasHydrated
+                    ? 'hidden'
+                    : 'h-full'
+              }
+              data-tab-content='copilot'
+            >
               <Copilot ref={copilotRef} panelWidth={panelWidth} />
             </div>
-            <div className={activeTab === 'editor' ? 'h-full' : 'hidden'}>
+            <div
+              className={
+                _hasHydrated && activeTab === 'editor'
+                  ? 'h-full'
+                  : _hasHydrated
+                    ? 'hidden'
+                    : 'h-full'
+              }
+              data-tab-content='editor'
+            >
               <Editor />
+            </div>
+            <div
+              className={
+                _hasHydrated && activeTab === 'toolbar'
+                  ? 'h-full'
+                  : _hasHydrated
+                    ? 'hidden'
+                    : 'h-full'
+              }
+              data-tab-content='toolbar'
+            >
+              <Toolbar />
             </div>
           </div>
         </div>

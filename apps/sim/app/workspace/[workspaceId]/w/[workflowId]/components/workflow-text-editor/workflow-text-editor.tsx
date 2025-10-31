@@ -181,7 +181,7 @@ export function WorkflowTextEditor({
 
       {/* Alerts section - fixed height, scrollable if needed */}
       {(validationErrors.length > 0 || saveResult) && (
-        <div className='scrollbar-thin scrollbar-thumb-muted-foreground/20 scrollbar-track-transparent max-h-32 flex-shrink-0 overflow-y-auto border-b bg-muted/20'>
+        <div className='max-h-32 flex-shrink-0 overflow-y-auto border-b bg-muted/20'>
           <div className='space-y-2 p-4'>
             {/* Validation errors */}
             {validationErrors.length > 0 && (

@@ -11,12 +11,12 @@ import {
   useState,
 } from 'react'
 import { cva, type VariantProps } from 'class-variance-authority'
-import { Check, ChevronDown } from 'lucide-react'
+import { Check, ChevronDown, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Input } from '../input/input'
 
 const comboboxVariants = cva(
-  'flex w-full rounded-[4px] border border-[#3D3D3D] bg-[#282828] dark:bg-[#353535] px-[8px] py-[7px] font-sans font-medium text-sm text-foreground placeholder:text-[#787878] dark:placeholder:text-[#787878] outline-none focus:outline-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 disabled:cursor-not-allowed disabled:opacity-50 hover:border-[#4A4A4A] hover:bg-[#353535] dark:hover:border-[#454545] dark:hover:bg-[#3D3D3D]',
+  'flex w-full rounded-[4px] border border-[#3D3D3D] bg-[#282828] dark:bg-[#353535] px-[8px] py-[7px] font-sans font-medium text-sm text-[#E6E6E6] placeholder:text-[#787878] dark:placeholder:text-[#787878] outline-none focus:outline-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 disabled:cursor-not-allowed disabled:opacity-50 hover:border-[#4A4A4A] hover:bg-[#353535] dark:hover:border-[#454545] dark:hover:bg-[#3D3D3D]',
   {
     variants: {
       variant: {
@@ -45,8 +45,12 @@ export interface ComboboxProps
   options: ComboboxOption[]
   /** Current selected value */
   value?: string
+  /** Current selected values for multi-select mode */
+  multiSelectValues?: string[]
   /** Callback when value changes */
   onChange?: (value: string) => void
+  /** Callback when multi-select values change */
+  onMultiSelectChange?: (values: string[]) => void
   /** Placeholder text when no value is selected */
   placeholder?: string
   /** Whether the combobox is disabled */
@@ -64,6 +68,12 @@ export interface ComboboxProps
   inputRef?: React.RefObject<HTMLInputElement | null>
   /** Whether to filter options based on input value (default: true for editable mode) */
   filterOptions?: boolean
+  /** Enable multi-select mode */
+  multiSelect?: boolean
+  /** Loading state */
+  isLoading?: boolean
+  /** Error message to display */
+  error?: string | null
 }
 
 /**
@@ -78,7 +88,9 @@ const Combobox = forwardRef<HTMLDivElement, ComboboxProps>(
       variant,
       options,
       value,
+      multiSelectValues,
       onChange,
+      onMultiSelectChange,
       placeholder = 'Select...',
       disabled,
       editable = false,
@@ -86,6 +98,9 @@ const Combobox = forwardRef<HTMLDivElement, ComboboxProps>(
       inputProps = {},
       inputRef: externalInputRef,
       filterOptions = editable,
+      multiSelect = false,
+      isLoading = false,
+      error = null,
       ...props
     },
     ref
@@ -129,14 +144,22 @@ const Combobox = forwardRef<HTMLDivElement, ComboboxProps>(
      */
     const handleSelect = useCallback(
       (selectedValue: string) => {
-        onChange?.(selectedValue)
-        setOpen(false)
-        setHighlightedIndex(-1)
-        if (editable && inputRef.current) {
-          inputRef.current.blur()
+        if (multiSelect && onMultiSelectChange) {
+          const currentValues = multiSelectValues || []
+          const newValues = currentValues.includes(selectedValue)
+            ? currentValues.filter((v) => v !== selectedValue)
+            : [...currentValues, selectedValue]
+          onMultiSelectChange(newValues)
+        } else {
+          onChange?.(selectedValue)
+          setOpen(false)
+          setHighlightedIndex(-1)
+          if (editable && inputRef.current) {
+            inputRef.current.blur()
+          }
         }
       },
-      [onChange, editable, inputRef]
+      [onChange, multiSelect, onMultiSelectChange, multiSelectValues, editable, inputRef]
     )
 
     /**
@@ -345,7 +368,7 @@ const Combobox = forwardRef<HTMLDivElement, ComboboxProps>(
                     {SelectedIcon && (
                       <SelectedIcon className='mr-[8px] h-3 w-3 flex-shrink-0 opacity-60' />
                     )}
-                    <span className='truncate text-foreground'>{selectedOption?.label}</span>
+                    <span className='truncate text-[#E6E6E6]'>{selectedOption?.label}</span>
                   </>
                 )}
               </div>
@@ -390,18 +413,27 @@ const Combobox = forwardRef<HTMLDivElement, ComboboxProps>(
         {open && (
           <div className='absolute top-full left-0 z-[100] mt-[4px] w-full'>
             <div className='fade-in-0 zoom-in-95 animate-in rounded-[4px] border border-[#3D3D3D] bg-[#282828] shadow-lg dark:bg-[#353535]'>
-              <div
-                ref={dropdownRef}
-                role='listbox'
-                className='max-h-48 overflow-y-auto p-[4px] [scrollbar-width:thin]'
-              >
-                {filteredOptions.length === 0 ? (
+              <div ref={dropdownRef} role='listbox' className='max-h-48 overflow-y-auto p-[4px]'>
+                {isLoading ? (
+                  <div className='flex items-center justify-center py-[14px]'>
+                    <Loader2 className='h-[16px] w-[16px] animate-spin text-[#787878]' />
+                    <span className='ml-[8px] font-medium font-sans text-[#787878] text-sm'>
+                      Loading options...
+                    </span>
+                  </div>
+                ) : error ? (
+                  <div className='px-[8px] py-[14px] text-center font-medium font-sans text-red-500 text-sm'>
+                    {error}
+                  </div>
+                ) : filteredOptions.length === 0 ? (
                   <div className='py-[14px] text-center font-medium font-sans text-[#787878] text-sm'>
                     {editable && value ? 'No matching options found.' : 'No options available.'}
                   </div>
                 ) : (
                   filteredOptions.map((option, index) => {
-                    const isSelected = value === option.value
+                    const isSelected = multiSelect
+                      ? multiSelectValues?.includes(option.value)
+                      : value === option.value
                     const isHighlighted = index === highlightedIndex
                     const OptionIcon = option.icon
 
@@ -427,7 +459,7 @@ const Combobox = forwardRef<HTMLDivElement, ComboboxProps>(
                         )}
                       >
                         {OptionIcon && <OptionIcon className='mr-[8px] h-3 w-3 opacity-60' />}
-                        <span className='flex-1 truncate text-foreground'>{option.label}</span>
+                        <span className='flex-1 truncate text-[#E6E6E6]'>{option.label}</span>
                         {isSelected && <Check className='ml-[8px] h-4 w-4 flex-shrink-0' />}
                       </div>
                     )

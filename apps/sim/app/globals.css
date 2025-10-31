@@ -17,9 +17,8 @@
  */
 :root {
   --sidebar-width: 232px;
-  --triggers-height: 200px;
-  --blocks-height: 200px;
   --panel-width: 244px;
+  --toolbar-triggers-height: 300px;
 }
 
 .sidebar-container {
@@ -28,27 +27,6 @@
 
 .panel-container {
   width: var(--panel-width);
-}
-
-.triggers-container {
-  height: var(--triggers-height);
-}
-
-.blocks-container {
-  height: var(--blocks-height);
-}
-
-/* Scrollable area constraints for sidebar panels */
-.workflows-section {
-  padding-bottom: var(--triggers-height);
-}
-
-.triggers-scrollable {
-  max-height: calc(var(--triggers-height) - 28px - var(--blocks-height));
-}
-
-.blocks-scrollable {
-  max-height: calc(var(--blocks-height) - 28px);
 }
 
 /* ==========================================================================
@@ -304,7 +282,7 @@
   }
 
   ::-webkit-scrollbar-track {
-    background: transparent;
+    background: #f5f5f5;
   }
 
   ::-webkit-scrollbar-thumb {
@@ -313,35 +291,35 @@
   }
 
   ::-webkit-scrollbar-thumb:hover {
-    background-color: hsl(var(--muted-foreground) / 0.3);
+    background-color: hsl(var(--muted-foreground) / 0.4);
   }
 
-  /* Dark Mode Sidebar Scrollbar - Match search div background */
-  .dark .sidebar-container ::-webkit-scrollbar-track {
+  /* Dark Mode Global Scrollbar */
+  .dark ::-webkit-scrollbar-track {
     background: #272727;
   }
 
-  .dark .sidebar-container {
+  .dark ::-webkit-scrollbar-thumb {
+    background-color: hsl(var(--muted-foreground) / 0.3);
+  }
+
+  .dark ::-webkit-scrollbar-thumb:hover {
+    background-color: hsl(var(--muted-foreground) / 0.4);
+  }
+
+  /* Firefox Scrollbar */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--muted-foreground) / 0.3) #f5f5f5;
+  }
+
+  .dark * {
     scrollbar-color: hsl(var(--muted-foreground) / 0.3) #272727;
   }
 
-  /* Dark Mode Copilot Scrollbar - Match copilot background */
+  /* Copilot Scrollbar - Ensure stable gutter */
   .copilot-scrollable {
     scrollbar-gutter: stable;
-  }
-
-  .dark .copilot-scrollable::-webkit-scrollbar-track {
-    background: #232323;
-  }
-
-  .dark .copilot-scrollable {
-    scrollbar-color: hsl(var(--muted-foreground) / 0.3) #232323;
-  }
-
-  /* For Firefox */
-  * {
-    scrollbar-width: thin;
-    scrollbar-color: hsl(var(--muted-foreground) / 0.3) transparent;
   }
 }
 
@@ -717,5 +695,64 @@ input[type="search"]::-ms-clear {
     50% {
       opacity: 0.8;
     }
+  }
+
+  /**
+   * Panel tab visibility - prevent flash on hydration
+   * Before React hydrates, use data attribute set by blocking script
+   * to show the correct tab content and button states
+   */
+  html[data-panel-active-tab="copilot"] .panel-container [data-tab-content="toolbar"],
+  html[data-panel-active-tab="copilot"] .panel-container [data-tab-content="editor"] {
+    display: none !important;
+  }
+
+  html[data-panel-active-tab="toolbar"] .panel-container [data-tab-content="copilot"],
+  html[data-panel-active-tab="toolbar"] .panel-container [data-tab-content="editor"] {
+    display: none !important;
+  }
+
+  html[data-panel-active-tab="editor"] .panel-container [data-tab-content="copilot"],
+  html[data-panel-active-tab="editor"] .panel-container [data-tab-content="toolbar"] {
+    display: none !important;
+  }
+
+  /**
+   * Style active and inactive tab buttons before hydration
+   * Ensure only the correct tab shows as active
+   * Note: Colors match the ghost button variant for consistency
+   */
+
+  /* Make only copilot active when it's the active tab */
+  html[data-panel-active-tab="copilot"] .panel-container [data-tab-button="copilot"] {
+    background-color: rgb(53 53 53) !important;
+    color: rgb(230 230 230) !important;
+  }
+  html[data-panel-active-tab="copilot"] .panel-container [data-tab-button="toolbar"],
+  html[data-panel-active-tab="copilot"] .panel-container [data-tab-button="editor"] {
+    background-color: transparent !important;
+    color: rgb(174 174 174) !important; /* Muted gray for inactive tabs */
+  }
+
+  /* Make only toolbar active when it's the active tab */
+  html[data-panel-active-tab="toolbar"] .panel-container [data-tab-button="toolbar"] {
+    background-color: rgb(53 53 53) !important;
+    color: rgb(230 230 230) !important;
+  }
+  html[data-panel-active-tab="toolbar"] .panel-container [data-tab-button="copilot"],
+  html[data-panel-active-tab="toolbar"] .panel-container [data-tab-button="editor"] {
+    background-color: transparent !important;
+    color: rgb(174 174 174) !important; /* Muted gray for inactive tabs */
+  }
+
+  /* Make only editor active when it's the active tab */
+  html[data-panel-active-tab="editor"] .panel-container [data-tab-button="editor"] {
+    background-color: rgb(53 53 53) !important;
+    color: rgb(230 230 230) !important;
+  }
+  html[data-panel-active-tab="editor"] .panel-container [data-tab-button="copilot"],
+  html[data-panel-active-tab="editor"] .panel-container [data-tab-button="toolbar"] {
+    background-color: transparent !important;
+    color: rgb(174 174 174) !important; /* Muted gray for inactive tabs */
   }
 }

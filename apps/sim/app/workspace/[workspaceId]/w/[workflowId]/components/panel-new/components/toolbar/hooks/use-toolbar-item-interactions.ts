@@ -1,9 +1,9 @@
 import { useCallback } from 'react'
 import { createLogger } from '@/lib/logs/console/logger'
 
-const logger = createLogger('SidebarItemInteractions')
+const logger = createLogger('ToolbarItemInteractions')
 
-interface UseSidebarItemInteractionsProps {
+interface UseToolbarItemInteractionsProps {
   /**
    * Whether interactions are disabled
    */
@@ -11,20 +11,20 @@ interface UseSidebarItemInteractionsProps {
 }
 
 /**
- * Hook for managing drag and click interactions on sidebar panel items (blocks/triggers).
+ * Hook for managing drag and click interactions on toolbar items.
  * Provides unified handlers for dragging items to canvas and clicking to add them.
  *
  * @param props - Hook configuration
  * @returns Interaction handlers for drag and click events
  */
-export function useSidebarItemInteractions({
+export function useToolbarItemInteractions({
   disabled = false,
-}: UseSidebarItemInteractionsProps = {}) {
+}: UseToolbarItemInteractionsProps = {}) {
   /**
-   * Handle drag start for sidebar panel items
+   * Handle drag start for toolbar items
    *
    * @param e - React drag event
-   * @param type - Block/trigger type identifier
+   * @param type - Block type identifier
    * @param enableTriggerMode - Whether to enable trigger mode for the block
    */
   const handleDragStart = useCallback(
@@ -51,9 +51,9 @@ export function useSidebarItemInteractions({
   )
 
   /**
-   * Handle click on sidebar panel item to add to canvas
+   * Handle click on toolbar item to add to canvas
    *
-   * @param type - Block/trigger type identifier
+   * @param type - Block type identifier
    * @param enableTriggerMode - Whether to enable trigger mode for the block
    */
   const handleItemClick = useCallback(

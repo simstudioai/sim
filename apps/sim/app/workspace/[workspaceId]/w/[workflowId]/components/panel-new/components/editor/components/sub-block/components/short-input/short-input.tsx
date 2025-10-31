@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Copy, Wand2, Check } from 'lucide-react'
+import { Check, Copy, Wand2 } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { useReactFlow } from 'reactflow'
 import { Input } from '@/components/emcn/components/input/input'
@@ -117,7 +117,7 @@ export function ShortInput({
   const baseValue = isPreview ? previewValue : propValue !== undefined ? propValue : storeValue
 
   // During streaming, use local content; otherwise use base value
-    const effectiveValue =
+  const effectiveValue =
     useWebhookUrl && webhookManagement?.webhookUrl ? webhookManagement.webhookUrl : baseValue
 
   const value = wandHook?.isStreaming ? localContent : effectiveValue
@@ -400,7 +400,7 @@ export function ShortInput({
   /**
    * Handles copying the value to the clipboard.
    */
-   const handleCopy = () => {
+  const handleCopy = () => {
     const textToCopy = useWebhookUrl ? webhookManagement?.webhookUrl : value?.toString()
     if (textToCopy) {
       navigator.clipboard.writeText(textToCopy)

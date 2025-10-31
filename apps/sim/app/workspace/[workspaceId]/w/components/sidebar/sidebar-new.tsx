@@ -6,25 +6,25 @@ import { useParams } from 'next/navigation'
 import { Badge, Button, ChevronDown, FolderPlus, Tooltip } from '@/components/emcn'
 import { useSession } from '@/lib/auth-client'
 import { useFolderStore } from '@/stores/folders/store'
-import { Blocks } from './components-new/blocks/blocks'
-import { Triggers } from './components-new/triggers/triggers'
-import { WorkflowList } from './components-new/workflow-list/workflow-list'
-import { useFolderOperations } from './hooks/use-folder-operations'
-import { useSidebarResize } from './hooks/use-sidebar-resize'
-import { useWorkflowOperations } from './hooks/use-workflow-operations'
-import { useWorkspaceManagement } from './hooks/use-workspace-management'
+import { WorkflowList } from './components-new'
+import {
+  useFolderOperations,
+  useSidebarResize,
+  useWorkflowOperations,
+  useWorkspaceManagement,
+} from './hooks'
 
 /**
- * Sidebar component with resizable width and panel heights that persist across page refreshes.
+ * Sidebar component with resizable width that persists across page refreshes.
  *
  * Uses a CSS-based approach to prevent hydration mismatches:
- * 1. Dimensions are controlled by CSS variables (--sidebar-width, --triggers-height, --blocks-height)
+ * 1. Dimensions are controlled by CSS variables (--sidebar-width)
  * 2. Blocking script in layout.tsx sets CSS variables before React hydrates
  * 3. Store updates CSS variables when dimensions change
  *
  * This ensures server and client render identical HTML, preventing hydration errors.
  *
- * @returns Sidebar with workflows, triggers, and blocks panels
+ * @returns Sidebar with workflows panel
  */
 export function SidebarNew() {
   const params = useParams()
@@ -220,10 +220,6 @@ export function SidebarNew() {
                 scrollContainerRef={scrollContainerRef}
               />
             </div>
-
-            {/* Triggers and Blocks sections - absolutely positioned overlays */}
-            <Triggers disabled={isLoading} />
-            <Blocks disabled={isLoading} />
           </div>
         </div>
       </aside>

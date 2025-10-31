@@ -301,7 +301,7 @@ export function Copilot() {
       )}
 
       {/* Scrollable Content - Models Section */}
-      <div className='scrollbar-thin scrollbar-thumb-muted scrollbar-track-transparent flex-1 overflow-y-auto px-6 py-4'>
+      <div className='flex-1 overflow-y-auto px-6 py-4'>
         <div className='space-y-3'>
           {/* Models Header */}
           <div>

@@ -8,6 +8,7 @@ import { useSocket } from '@/contexts/socket-context'
 import { useUndoRedo } from '@/hooks/use-undo-redo'
 import { registerEmitFunctions, useOperationQueue } from '@/stores/operation-queue/store'
 import { useVariablesStore } from '@/stores/panel/variables/store'
+import { usePanelEditorStore } from '@/stores/panel-new/editor/store'
 import { useUndoRedoStore } from '@/stores/undo-redo'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -710,7 +711,7 @@ export function useCollaborativeWorkflow() {
           autoConnectEdge, // Include edge data for atomic operation
         }
 
-        // Skip if applying remote changes
+        // Skip if applying remote changes (don't auto-select blocks added by other users)
         if (isApplyingRemoteChange.current) {
           workflowStore.addBlock(id, type, name, position, data, parentId, extent, {
             triggerMode: triggerMode || false,
@@ -746,6 +747,9 @@ export function useCollaborativeWorkflow() {
 
         // Record for undo AFTER adding (pass the autoConnectEdge explicitly)
         undoRedo.recordAddBlock(id, autoConnectEdge)
+
+        // Automatically select the newly added block (opens editor tab)
+        usePanelEditorStore.getState().setCurrentBlockId(id)
 
         return
       }
@@ -791,7 +795,7 @@ export function useCollaborativeWorkflow() {
         autoConnectEdge, // Include edge data for atomic operation
       }
 
-      // Skip if applying remote changes
+      // Skip if applying remote changes (don't auto-select blocks added by other users)
       if (isApplyingRemoteChange.current) return
 
       // Generate operation ID
@@ -819,6 +823,9 @@ export function useCollaborativeWorkflow() {
 
       // Record for undo AFTER adding (pass the autoConnectEdge explicitly)
       undoRedo.recordAddBlock(id, autoConnectEdge)
+
+      // Automatically select the newly added block (opens editor tab)
+      usePanelEditorStore.getState().setCurrentBlockId(id)
     },
     [
       workflowStore,

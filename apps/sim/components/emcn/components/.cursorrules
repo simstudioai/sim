@@ -1,0 +1,40 @@
+# EMCN Component Guidelines
+
+## Variant Management
+
+**Use CVA (class-variance-authority) ONLY when you have multiple meaningful variants:**
+- Component has 2+ different visual styles (e.g., primary, secondary, outline)
+- Component has multiple size options or state variations
+- Example: Button with variants (default, active, 3d, outline, primary, ghost)
+
+**Use direct className when you have a single style:**
+- Component has one consistent appearance with no variations
+- Simpler, more efficient, easier to maintain
+- Example: Label with one style applied directly via `cn()`
+
+## Component Structure
+
+- Use Radix UI primitives when available for accessibility
+- Export component and variants (if using CVA)
+- Include TSDoc comments for component purpose and usage examples
+- Use `font-medium`, `text-[12px]`, `rounded-[4px]` for consistency
+- Always use `transition-colors` for hover states
+
+## Example Patterns
+
+**With CVA (multiple variants):**
+```tsx
+const buttonVariants = cva('base-classes', {
+  variants: { variant: { default: '...', primary: '...' } }
+})
+export { Button, buttonVariants }
+```
+
+**Without CVA (single style):**
+```tsx
+function Label({ className, ...props }) {
+  return <Primitive className={cn('single-style-classes', className)} {...props} />
+}
+export { Label }
+```
+

@@ -1,18 +1,20 @@
 'use client'
 
 import { useCallback } from 'react'
-import { BookOpen, Settings } from 'lucide-react'
-import { Button } from '@/components/emcn'
+import clsx from 'clsx'
+import { BookOpen, Crosshair, Settings } from 'lucide-react'
+import { Button, Tooltip } from '@/components/emcn'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
-import { SubBlock } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/components/sub-block/sub-block'
 import { getSubBlockStableKey } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/utils'
 import { useCurrentWorkflow } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
 import { getBlock } from '@/blocks/registry'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
+import { useFocusOnBlock } from '@/hooks/use-focus-on-block'
 import { usePanelEditorStore } from '@/stores/panel-new/editor/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
-import { useEditorBlockProperties, useEditorSubblockLayout } from './hooks'
+import { ConnectionBlocks, SubBlock } from './components'
+import { useBlockConnections, useEditorBlockProperties, useEditorSubblockLayout } from './hooks'
 
 /**
  * Icon component for rendering block icons.
@@ -45,6 +47,9 @@ export function Editor() {
   // Get active workflow ID
   const activeWorkflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
 
+  // Focus on block hook - can be used by any component
+  const focusOnBlock = useFocusOnBlock()
+
   // Get block properties (advanced/trigger modes)
   const { advancedMode, triggerMode } = useEditorBlockProperties(currentBlockId)
 
@@ -69,6 +74,9 @@ export function Editor() {
     blockSubBlockValues
   )
 
+  // Get block connections
+  const { incomingConnections, hasIncomingConnections } = useBlockConnections(currentBlockId || '')
+
   // Collaborative actions
   const { collaborativeToggleBlockAdvancedMode } = useCollaborativeWorkflow()
 
@@ -78,6 +86,13 @@ export function Editor() {
       collaborativeToggleBlockAdvancedMode(currentBlockId)
     }
   }, [currentBlockId, userPermissions.canEdit, collaborativeToggleBlockAdvancedMode])
+
+  // Focus on block handler
+  const handleFocusOnBlock = useCallback(() => {
+    if (currentBlockId) {
+      focusOnBlock(currentBlockId)
+    }
+  }, [currentBlockId, focusOnBlock])
 
   // Check if block has advanced mode or trigger mode available
   const hasAdvancedMode = blockConfig?.subBlocks?.some((sb) => sb.mode === 'advanced')
@@ -96,36 +111,78 @@ export function Editor() {
             </div>
           )}
           <h2
-            className='min-w-0 flex-1 truncate font-medium text-[#FFFFFF] text-[14px] dark:text-[#FFFFFF]'
+            className='min-w-0 flex-1 truncate pr-[8px] font-medium text-[#FFFFFF] text-[14px] dark:text-[#FFFFFF]'
             title={title}
           >
             {title}
           </h2>
         </div>
         <div className='flex shrink-0 items-center gap-[8px]'>
+          {/* Focus on block button */}
+          {currentBlockId && (
+            <Tooltip.Root>
+              <Tooltip.Trigger asChild>
+                <Button
+                  variant='ghost'
+                  className='p-0'
+                  onClick={handleFocusOnBlock}
+                  aria-label='Focus on block'
+                >
+                  <Crosshair className='h-[14px] w-[14px]' />
+                </Button>
+              </Tooltip.Trigger>
+              <Tooltip.Content side='top'>
+                <p>Focus on block</p>
+              </Tooltip.Content>
+            </Tooltip.Root>
+          )}
           {/* Mode toggles */}
           {currentBlockId && hasAdvancedMode && (
-            <Button
-              variant='ghost'
-              className='p-0'
-              onClick={handleToggleAdvancedMode}
-              disabled={!userPermissions.canEdit}
-              aria-label='Toggle advanced mode'
-            >
-              <Settings className='h-[14px] w-[14px]' />
-            </Button>
+            <Tooltip.Root>
+              <Tooltip.Trigger asChild>
+                <Button
+                  variant='ghost'
+                  className='p-0'
+                  onClick={handleToggleAdvancedMode}
+                  disabled={!userPermissions.canEdit}
+                  aria-label='Toggle advanced mode'
+                >
+                  <Settings className='h-[14px] w-[14px]' />
+                </Button>
+              </Tooltip.Trigger>
+              <Tooltip.Content side='top'>
+                <p>Advanced mode</p>
+              </Tooltip.Content>
+            </Tooltip.Root>
           )}
-          <Button variant='ghost' className='p-0' aria-label='Open documentation'>
-            <BookOpen className='h-[14px] w-[14px]' />
-          </Button>
+          <Tooltip.Root>
+            <Tooltip.Trigger asChild>
+              <Button variant='ghost' className='p-0' aria-label='Open documentation'>
+                <BookOpen className='h-[14px] w-[14px]' />
+              </Button>
+            </Tooltip.Trigger>
+            <Tooltip.Content side='top'>
+              <p>Open docs</p>
+            </Tooltip.Content>
+          </Tooltip.Root>
         </div>
       </div>
 
+      {/* Connection Blocks Section */}
+      {currentBlockId && hasIncomingConnections && (
+        <ConnectionBlocks connections={incomingConnections} currentBlockId={currentBlockId} />
+      )}
+
       {/* Content area - Subblocks */}
-      <div className='flex-1 overflow-y-auto overflow-x-hidden px-[8px] py-[8px]'>
+      <div
+        className={clsx(
+          'flex-1 overflow-y-auto overflow-x-hidden px-[8px] pb-[8px]',
+          currentBlockId && hasIncomingConnections ? 'pt-[4px]' : 'pt-[8px]'
+        )}
+      >
         {!currentBlockId ? (
           <div className='flex h-full items-center justify-center text-muted-foreground text-sm'>
-            Select a block to edit its configuration
+            Select a block to configure
           </div>
         ) : subBlocks.length === 0 ? (
           <div className='flex h-full items-center justify-center text-muted-foreground text-sm'>

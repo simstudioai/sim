@@ -573,7 +573,7 @@ export function ComboBox({
   const overlayContent = useMemo(() => {
     const SelectedIcon = selectedOptionIcon
     return (
-      <div className='flex w-full items-center truncate text-foreground [scrollbar-width:none]'>
+      <div className='flex w-full items-center truncate [scrollbar-width:none]'>
         {SelectedIcon && <SelectedIcon className='mr-[8px] h-3 w-3 flex-shrink-0 opacity-60' />}
         <div className='truncate'>
           {formatDisplayText(displayValue, {
@@ -635,7 +635,7 @@ export function ComboBox({
         inputRef={inputRef}
         filterOptions
         className={cn(
-          'allow-scroll overflow-x-auto placeholder:text-muted-foreground/50',
+          'allow-scroll overflow-x-auto',
           selectedOptionIcon && 'pl-[28px]',
           isConnecting &&
             config?.connectionDroppable !== false &&

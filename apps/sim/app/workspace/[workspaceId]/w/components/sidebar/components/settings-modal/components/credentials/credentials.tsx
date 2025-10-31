@@ -349,7 +349,7 @@ export function Credentials({ onOpenChange, registerCloseHandler }: CredentialsP
       </div>
 
       {/* Scrollable Content */}
-      <div className='scrollbar-thin scrollbar-thumb-muted scrollbar-track-transparent min-h-0 flex-1 overflow-y-auto px-6'>
+      <div className='min-h-0 flex-1 overflow-y-auto px-6'>
         <div className='flex flex-col gap-6 pt-2 pb-6'>
           {/* Success message */}
           {authSuccess && (

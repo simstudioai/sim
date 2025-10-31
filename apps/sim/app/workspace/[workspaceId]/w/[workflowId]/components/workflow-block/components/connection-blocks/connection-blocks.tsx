@@ -4,7 +4,7 @@ import { cn } from '@/lib/utils'
 import {
   type ConnectedBlock,
   useBlockConnections,
-} from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-block-connections'
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/hooks/use-block-connections'
 import { getBlock } from '@/blocks'
 
 interface ConnectionBlocksProps {
@@ -79,7 +79,7 @@ export function ConnectionBlocks({
     const blockConfig = getBlock(connection.type)
     const displayName = connection.name // Use the actual block name instead of transforming it
 
-    // Handle special blocks that aren't in the registry (loop and parallel)
+    // Handle special blocks that aren't in the registry (loop, parallel, while)
     let Icon = blockConfig?.icon
     let bgColor = blockConfig?.bgColor || '#6B7280' // Fallback to gray
 
@@ -90,6 +90,9 @@ export function ConnectionBlocks({
       } else if (connection.type === 'parallel') {
         Icon = SplitIcon as typeof Icon
         bgColor = '#FEE12B' // Yellow color for parallel blocks
+      } else if (connection.type === 'while') {
+        Icon = RepeatIcon as typeof Icon
+        bgColor = '#FF9F43' // Orange color for while blocks
       }
     }
 
@@ -100,7 +103,7 @@ export function ConnectionBlocks({
         onDragStart={(e) => handleDragStart(e, connection)}
         onDragEnd={handleDragEnd}
         className={cn(
-          'group flex w-max items-center gap-2 rounded-lg border bg-card p-2 shadow-sm transition-colors',
+          'group flex w-max items-center gap-2 rounded-lg border bg-card p-2 shadow-xs transition-colors',
           !isDisabled
             ? 'cursor-grab hover:bg-accent/50 active:cursor-grabbing'
             : 'cursor-not-allowed opacity-60'
@@ -109,7 +112,7 @@ export function ConnectionBlocks({
         {/* Block icon with color */}
         {Icon && (
           <div
-            className='flex h-5 w-5 flex-shrink-0 items-center justify-center rounded'
+            className='flex h-5 w-5 shrink-0 items-center justify-center rounded'
             style={{ backgroundColor: bgColor }}
           >
             <Icon className='h-3 w-3 text-white' />

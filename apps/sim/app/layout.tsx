@@ -71,27 +71,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                     if (width >= 232 && width <= 400) {
                       document.documentElement.style.setProperty('--sidebar-width', width + 'px');
                     }
-                    
-                    // Set triggers height with constraint validation
-                    var triggersHeight = state?.triggersHeight;
-                    var blocksHeight = state?.blocksHeight;
-                    
-                    if (blocksHeight !== undefined && blocksHeight >= 28 && blocksHeight <= 500) {
-                      document.documentElement.style.setProperty('--blocks-height', blocksHeight + 'px');
-                    }
-                    
-                    if (triggersHeight !== undefined && triggersHeight >= 28 && triggersHeight <= 500) {
-                      // Ensure triggers height respects blocks constraint
-                      var minTriggersHeight = (blocksHeight || 200) + 28;
-                      var validTriggersHeight = Math.max(triggersHeight, minTriggersHeight);
-                      document.documentElement.style.setProperty('--triggers-height', validTriggersHeight + 'px');
-                    }
                   }
                 } catch (e) {
                   // Fallback handled by CSS defaults
                 }
                 
-                // Set panel width
+                // Set panel width and active tab
                 try {
                   var panelStored = localStorage.getItem('panel-state');
                   if (panelStored) {
@@ -100,6 +85,27 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                     var panelWidth = panelState?.panelWidth;
                     if (panelWidth >= 236 && panelWidth <= 400) {
                       document.documentElement.style.setProperty('--panel-width', panelWidth + 'px');
+                    }
+                    
+                    // Set active tab to prevent flash on hydration
+                    var activeTab = panelState?.activeTab;
+                    if (activeTab) {
+                      document.documentElement.setAttribute('data-panel-active-tab', activeTab);
+                    }
+                  }
+                } catch (e) {
+                  // Fallback handled by CSS defaults
+                }
+                
+                // Set toolbar triggers height
+                try {
+                  var toolbarStored = localStorage.getItem('toolbar-state');
+                  if (toolbarStored) {
+                    var toolbarParsed = JSON.parse(toolbarStored);
+                    var toolbarState = toolbarParsed?.state;
+                    var toolbarTriggersHeight = toolbarState?.toolbarTriggersHeight;
+                    if (toolbarTriggersHeight !== undefined && toolbarTriggersHeight >= 100 && toolbarTriggersHeight <= 800) {
+                      document.documentElement.style.setProperty('--toolbar-triggers-height', toolbarTriggersHeight + 'px');
                     }
                   }
                 } catch (e) {

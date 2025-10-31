@@ -336,21 +336,21 @@ export const ChatInput: React.FC<{
 
             <div className='flex items-center gap-2 p-3 md:p-4'>
               {/* Paperclip Button */}
-                <Tooltip.Root>
-                  <Tooltip.Trigger asChild>
-                    <button
-                      type='button'
-                      onClick={() => fileInputRef.current?.click()}
-                      disabled={isStreaming || attachedFiles.length >= 15}
-                      className='flex items-center justify-center rounded-full p-1.5 text-gray-600 transition-colors hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50 md:p-2'
-                    >
-                      <Paperclip size={16} className='md:h-5 md:w-5' />
-                    </button>
-                  </Tooltip.Trigger>
-                  <Tooltip.Content side='top'>
-                    <p>Attach files</p>
-                  </Tooltip.Content>
-                </Tooltip.Root>
+              <Tooltip.Root>
+                <Tooltip.Trigger asChild>
+                  <button
+                    type='button'
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isStreaming || attachedFiles.length >= 15}
+                    className='flex items-center justify-center rounded-full p-1.5 text-gray-600 transition-colors hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50 md:p-2'
+                  >
+                    <Paperclip size={16} className='md:h-5 md:w-5' />
+                  </button>
+                </Tooltip.Trigger>
+                <Tooltip.Content side='top'>
+                  <p>Attach files</p>
+                </Tooltip.Content>
+              </Tooltip.Root>
 
               {/* Hidden file input */}
               <input

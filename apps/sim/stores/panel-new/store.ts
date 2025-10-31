@@ -26,7 +26,21 @@ export const usePanelStore = create<PanelState>()(
         }
       },
       activeTab: DEFAULT_TAB,
-      setActiveTab: (tab) => set({ activeTab: tab }),
+      setActiveTab: (tab) => {
+        set({ activeTab: tab })
+        // Remove data attribute once React takes control
+        if (typeof document !== 'undefined') {
+          document.documentElement.removeAttribute('data-panel-active-tab')
+        }
+      },
+      previousTab: null,
+      setPreviousTab: (tab) => {
+        set({ previousTab: tab })
+      },
+      _hasHydrated: false,
+      setHasHydrated: (hasHydrated) => {
+        set({ _hasHydrated: hasHydrated })
+      },
     }),
     {
       name: 'panel-state',
@@ -34,6 +48,8 @@ export const usePanelStore = create<PanelState>()(
         // Sync CSS variables with stored state after rehydration
         if (state && typeof window !== 'undefined') {
           document.documentElement.style.setProperty('--panel-width', `${state.panelWidth}px`)
+          // Remove the data attribute so CSS rules stop interfering
+          document.documentElement.removeAttribute('data-panel-active-tab')
         }
       },
     }
