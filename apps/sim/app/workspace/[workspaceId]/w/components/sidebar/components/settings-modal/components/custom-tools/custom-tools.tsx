@@ -97,7 +97,7 @@ export function CustomTools() {
         <div className='flex items-center justify-between'>
           <div>
             <h2 className='font-semibold text-foreground text-lg'>Custom Tools</h2>
-            <p className='text-muted-foreground text-sm mt-1'>
+            <p className='mt-1 text-muted-foreground text-sm'>
               Manage workspace-scoped custom tools for your agents
             </p>
           </div>
@@ -155,14 +155,14 @@ export function CustomTools() {
                   key={tool.id}
                   className='flex items-center justify-between gap-4 rounded-[8px] border bg-background p-4'
                 >
-                  <div className='flex-1 min-w-0'>
-                    <div className='flex items-center gap-2 mb-1'>
-                      <code className='font-mono text-foreground text-sm font-medium'>
+                  <div className='min-w-0 flex-1'>
+                    <div className='mb-1 flex items-center gap-2'>
+                      <code className='font-medium font-mono text-foreground text-sm'>
                         {tool.title}
                       </code>
                     </div>
                     {tool.schema?.function?.description && (
-                      <p className='text-muted-foreground text-xs truncate'>
+                      <p className='truncate text-muted-foreground text-xs'>
                         {tool.schema.function.description}
                       </p>
                     )}

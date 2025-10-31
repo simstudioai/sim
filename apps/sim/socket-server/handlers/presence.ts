@@ -30,6 +30,7 @@ export function setupPresenceHandlers(
       socketId: socket.id,
       userId: session.userId,
       userName: session.userName,
+      avatarUrl: session.avatarUrl,
       cursor,
     })
   })
@@ -54,6 +55,7 @@ export function setupPresenceHandlers(
       socketId: socket.id,
       userId: session.userId,
       userName: session.userName,
+      avatarUrl: session.avatarUrl,
       selection,
     })
   })
