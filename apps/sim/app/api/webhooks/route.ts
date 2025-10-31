@@ -258,6 +258,7 @@ export async function POST(request: NextRequest) {
 
     // Create external subscriptions before saving to DB to prevent orphaned records
     let externalSubscriptionId: string | undefined
+    let externalSubscriptionCreated = false
 
     const createTempWebhookData = () => ({
       id: targetWebhookId || nanoid(),
@@ -276,6 +277,7 @@ export async function POST(request: NextRequest) {
         )
         if (externalSubscriptionId) {
           finalProviderConfig.externalId = externalSubscriptionId
+          externalSubscriptionCreated = true
         }
       } catch (err) {
         logger.error(`[${requestId}] Error creating Airtable webhook subscription`, err)
@@ -294,6 +296,7 @@ export async function POST(request: NextRequest) {
       logger.info(`[${requestId}] Creating Teams subscription before saving to database`)
       try {
         await createTeamsSubscription(request, createTempWebhookData(), workflowRecord, requestId)
+        externalSubscriptionCreated = true
       } catch (err) {
         logger.error(`[${requestId}] Error creating Teams subscription`, err)
         return NextResponse.json(
@@ -311,6 +314,7 @@ export async function POST(request: NextRequest) {
       logger.info(`[${requestId}] Creating Telegram webhook before saving to database`)
       try {
         await createTelegramWebhook(request, createTempWebhookData(), requestId)
+        externalSubscriptionCreated = true
       } catch (err) {
         logger.error(`[${requestId}] Error creating Telegram webhook`, err)
         return NextResponse.json(
@@ -334,6 +338,7 @@ export async function POST(request: NextRequest) {
         )
         if (externalSubscriptionId) {
           finalProviderConfig.externalId = externalSubscriptionId
+          externalSubscriptionCreated = true
         }
       } catch (err) {
         logger.error(`[${requestId}] Error creating Webflow webhook subscription`, err)
@@ -348,48 +353,64 @@ export async function POST(request: NextRequest) {
     }
 
     // Now save to database (only if subscription succeeded or provider doesn't need external subscription)
-    if (targetWebhookId) {
-      logger.info(`[${requestId}] Updating existing webhook for path: ${finalPath}`, {
-        webhookId: targetWebhookId,
-        provider,
-        hasCredentialId: !!(finalProviderConfig as any)?.credentialId,
-        credentialId: (finalProviderConfig as any)?.credentialId,
-      })
-      const updatedResult = await db
-        .update(webhook)
-        .set({
-          blockId,
+    try {
+      if (targetWebhookId) {
+        logger.info(`[${requestId}] Updating existing webhook for path: ${finalPath}`, {
+          webhookId: targetWebhookId,
           provider,
-          providerConfig: finalProviderConfig,
-          isActive: true,
-          updatedAt: new Date(),
+          hasCredentialId: !!(finalProviderConfig as any)?.credentialId,
+          credentialId: (finalProviderConfig as any)?.credentialId,
         })
-        .where(eq(webhook.id, targetWebhookId))
-        .returning()
-      savedWebhook = updatedResult[0]
-      logger.info(`[${requestId}] Webhook updated successfully`, {
-        webhookId: savedWebhook.id,
-        savedProviderConfig: savedWebhook.providerConfig,
-      })
-    } else {
-      // Create a new webhook
-      const webhookId = nanoid()
-      logger.info(`[${requestId}] Creating new webhook with ID: ${webhookId}`)
-      const newResult = await db
-        .insert(webhook)
-        .values({
-          id: webhookId,
-          workflowId,
-          blockId,
-          path: finalPath,
-          provider,
-          providerConfig: finalProviderConfig,
-          isActive: true,
-          createdAt: new Date(),
-          updatedAt: new Date(),
+        const updatedResult = await db
+          .update(webhook)
+          .set({
+            blockId,
+            provider,
+            providerConfig: finalProviderConfig,
+            isActive: true,
+            updatedAt: new Date(),
+          })
+          .where(eq(webhook.id, targetWebhookId))
+          .returning()
+        savedWebhook = updatedResult[0]
+        logger.info(`[${requestId}] Webhook updated successfully`, {
+          webhookId: savedWebhook.id,
+          savedProviderConfig: savedWebhook.providerConfig,
         })
-        .returning()
-      savedWebhook = newResult[0]
+      } else {
+        // Create a new webhook
+        const webhookId = nanoid()
+        logger.info(`[${requestId}] Creating new webhook with ID: ${webhookId}`)
+        const newResult = await db
+          .insert(webhook)
+          .values({
+            id: webhookId,
+            workflowId,
+            blockId,
+            path: finalPath,
+            provider,
+            providerConfig: finalProviderConfig,
+            isActive: true,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          })
+          .returning()
+        savedWebhook = newResult[0]
+      }
+    } catch (dbError) {
+      if (externalSubscriptionCreated) {
+        logger.error(`[${requestId}] DB save failed, cleaning up external subscription`, dbError)
+        try {
+          const { cleanupExternalWebhook } = await import('@/lib/webhooks/webhook-helpers')
+          await cleanupExternalWebhook(createTempWebhookData(), workflowRecord, requestId)
+        } catch (cleanupError) {
+          logger.error(
+            `[${requestId}] Failed to cleanup external subscription after DB save failure`,
+            cleanupError
+          )
+        }
+      }
+      throw dbError
     }
 
     // --- Gmail/Outlook webhook setup (these don't require external subscriptions, configure after DB save) ---

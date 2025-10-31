@@ -436,19 +436,25 @@ async function handleBlockOperationTx(
             try {
               await cleanupExternalWebhook(webhookData.webhook, webhookData.workflow, requestId)
             } catch (cleanupError) {
-              logger.warn(
-                `Failed to cleanup external webhook ${webhookData.webhook.id} during block deletion`,
-                cleanupError
-              )
+              logger.error(`Failed to cleanup external webhook during block deletion`, {
+                webhookId: webhookData.webhook.id,
+                workflowId: webhookData.workflow.id,
+                userId: webhookData.workflow.userId,
+                workspaceId: webhookData.workflow.workspaceId,
+                provider: webhookData.webhook.provider,
+                blockId: webhookData.webhook.blockId,
+                error: cleanupError,
+              })
               // Continue with deletion even if cleanup fails
             }
           }
         }
       } catch (webhookCleanupError) {
-        logger.warn(
-          `Error during webhook cleanup for block deletion (continuing with deletion)`,
-          webhookCleanupError
-        )
+        logger.error(`Error during webhook cleanup for block deletion (continuing with deletion)`, {
+          workflowId,
+          blockIds: Array.from(blocksToDelete),
+          error: webhookCleanupError,
+        })
         // Continue with block deletion even if webhook cleanup fails
       }
 
