@@ -1,5 +1,6 @@
 import { createLogger } from '@/lib/logs/console/logger'
 import type { NormalizedBlockOutput } from '@/executor/types'
+import type { ParallelConfigWithNodes } from '@/executor/types/parallel'
 import {
   calculateBranchCount,
   extractBaseBlockId,
@@ -156,8 +157,8 @@ export class ParallelOrchestrator {
 
   findParallelIdForNode(baseNodeId: string): string | undefined {
     for (const [parallelId, config] of this.dag.parallelConfigs) {
-      const nodes = (config as any).nodes || []
-      if (nodes.includes(baseNodeId)) {
+      const parallelConfig = config as ParallelConfigWithNodes
+      if (parallelConfig.nodes?.includes(baseNodeId)) {
         return parallelId
       }
     }

@@ -37,10 +37,9 @@ export class BlockExecutor {
     try {
       resolvedInputs = this.resolver.resolveInputs(block.config.params, node.id, context, block)
     } catch (error) {
-      // If input resolution fails, use empty object and let the block handle it
       resolvedInputs = {}
     }
-    
+
     const isSentinel = isSentinelBlockType(block.metadata?.id ?? '')
 
     let blockLog: BlockLog | undefined
@@ -124,17 +123,17 @@ export class BlockExecutor {
     let loopId: string | undefined
     let parallelId: string | undefined
     let iterationIndex: number | undefined
-    
+
     if (node?.metadata) {
       if (node.metadata.branchIndex !== undefined && node.metadata.parallelId) {
         blockName = `${blockName} (iteration ${node.metadata.branchIndex})`
         iterationIndex = node.metadata.branchIndex
         parallelId = node.metadata.parallelId
-        logger.debug('Added parallel iteration suffix', { 
-          blockId, 
+        logger.debug('Added parallel iteration suffix', {
+          blockId,
           parallelId,
-          branchIndex: node.metadata.branchIndex, 
-          blockName 
+          branchIndex: node.metadata.branchIndex,
+          blockName
         })
       } else if (node.metadata.isLoopNode && node.metadata.loopId && this.state) {
         loopId = node.metadata.loopId
@@ -142,18 +141,18 @@ export class BlockExecutor {
         if (loopScope && loopScope.iteration !== undefined) {
           blockName = `${blockName} (iteration ${loopScope.iteration})`
           iterationIndex = loopScope.iteration
-          logger.debug('Added loop iteration suffix', { 
-            blockId, 
-            loopId, 
-            iteration: loopScope.iteration, 
-            blockName 
+          logger.debug('Added loop iteration suffix', {
+            blockId,
+            loopId,
+            iteration: loopScope.iteration,
+            blockName
           })
         } else {
           logger.warn('Loop scope not found for block', { blockId, loopId })
         }
       }
     }
-    
+
     return {
       blockId,
       blockName,
@@ -184,7 +183,6 @@ export class BlockExecutor {
     const blockName = block.metadata?.name || blockId
     const blockType = block.metadata?.id || DEFAULTS.BLOCK_TYPE
 
-    // Calculate iteration context for console pills
     const iterationContext = this.getIterationContext(node)
 
     if (this.contextExtensions.onBlockStart) {
@@ -205,7 +203,6 @@ export class BlockExecutor {
     const blockName = block.metadata?.name || blockId
     const blockType = block.metadata?.id || DEFAULTS.BLOCK_TYPE
 
-    // Calculate iteration context for console pills
     const iterationContext = this.getIterationContext(node)
 
     if (this.contextExtensions.onBlockComplete) {
@@ -220,7 +217,6 @@ export class BlockExecutor {
   private getIterationContext(node: DAGNode): { iterationCurrent: number; iterationTotal: number; iterationType: SubflowType } | undefined {
     if (!node?.metadata) return undefined
 
-    // For parallel branches
     if (node.metadata.branchIndex !== undefined && node.metadata.branchTotal) {
       return {
         iterationCurrent: node.metadata.branchIndex,
@@ -229,7 +225,6 @@ export class BlockExecutor {
       }
     }
 
-    // For loop iterations
     if (node.metadata.isLoopNode && node.metadata.loopId && this.state) {
       const loopScope = this.state.getLoopScope(node.metadata.loopId)
       if (loopScope && loopScope.iteration !== undefined && loopScope.maxIterations) {

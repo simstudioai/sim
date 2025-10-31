@@ -1,6 +1,7 @@
 import { createLogger } from '@/lib/logs/console/logger'
 import { buildLoopIndexCondition, DEFAULTS, EDGE } from '@/executor/consts'
 import type { ExecutionContext, NormalizedBlockOutput } from '@/executor/types'
+import type { LoopConfigWithNodes } from '@/executor/types/loop'
 import type { SerializedLoop } from '@/serializer/types'
 import {
   buildSentinelEndId,
@@ -163,7 +164,7 @@ export class LoopOrchestrator {
   }
 
   clearLoopExecutionState(loopId: string, executedBlocks: Set<string>): void {
-    const loopConfig = this.dag.loopConfigs.get(loopId)
+    const loopConfig = this.dag.loopConfigs.get(loopId) as LoopConfigWithNodes | undefined
     if (!loopConfig) {
       logger.warn('Loop config not found for state clearing', { loopId })
       return
@@ -171,7 +172,7 @@ export class LoopOrchestrator {
 
     const sentinelStartId = buildSentinelStartId(loopId)
     const sentinelEndId = buildSentinelEndId(loopId)
-    const loopNodes = (loopConfig as any).nodes as string[]
+    const loopNodes = loopConfig.nodes
 
     executedBlocks.delete(sentinelStartId)
     executedBlocks.delete(sentinelEndId)
@@ -186,7 +187,7 @@ export class LoopOrchestrator {
   }
 
   restoreLoopEdges(loopId: string): void {
-    const loopConfig = this.dag.loopConfigs.get(loopId)
+    const loopConfig = this.dag.loopConfigs.get(loopId) as LoopConfigWithNodes | undefined
     if (!loopConfig) {
       logger.warn('Loop config not found for edge restoration', { loopId })
       return
@@ -194,7 +195,7 @@ export class LoopOrchestrator {
 
     const sentinelStartId = buildSentinelStartId(loopId)
     const sentinelEndId = buildSentinelEndId(loopId)
-    const loopNodes = (loopConfig as any).nodes as string[]
+    const loopNodes = loopConfig.nodes
     const allLoopNodeIds = new Set([sentinelStartId, sentinelEndId, ...loopNodes])
 
     let restoredCount = 0

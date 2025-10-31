@@ -168,7 +168,9 @@ export const PARALLEL_REFERENCE = {
 export const DEFAULTS = {
   BLOCK_TYPE: 'unknown',
   BLOCK_TITLE: 'Untitled Block',
+  WORKFLOW_NAME: 'Workflow',
   MAX_LOOP_ITERATIONS: 1000,
+  MAX_WORKFLOW_DEPTH: 10,
   EXECUTION_TIME: 0,
   TOKENS: {
     PROMPT: 0,
@@ -207,6 +209,18 @@ export const ROUTER = {
   DEFAULT_MODEL: 'gpt-4o',
   DEFAULT_TEMPERATURE: 0,
   INFERENCE_TEMPERATURE: 0.1,
+} as const
+
+export const EVALUATOR = {
+  DEFAULT_MODEL: 'gpt-4o',
+  DEFAULT_TEMPERATURE: 0,
+  RESPONSE_SCHEMA_NAME: 'evaluation_response',
+  JSON_INDENT: 2,
+} as const
+
+export const CONDITION = {
+  ELSE_LABEL: 'else',
+  ELSE_TITLE: 'else',
 } as const
 
 export const PARSING = {

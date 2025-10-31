@@ -1,6 +1,5 @@
 import { createLogger } from '@/lib/logs/console/logger'
 import { createMcpToolId } from '@/lib/mcp/utils'
-import { getBaseUrl } from '@/lib/urls/utils'
 import { getAllBlocks } from '@/blocks'
 import type { BlockOutput } from '@/blocks/types'
 import { AGENT, BlockType, DEFAULTS, HTTP } from '@/executor/consts'
@@ -11,6 +10,9 @@ import type {
   ToolInput,
 } from '@/executor/handlers/agent/types'
 import type { BlockHandler, ExecutionContext, StreamingExecution } from '@/executor/types'
+import { collectBlockData } from '@/executor/utils/block-data'
+import { buildAPIUrl, buildAuthHeaders, extractAPIErrorMessage } from '@/executor/utils/http'
+import { stringifyJSON } from '@/executor/utils/json'
 import { executeProviderRequest } from '@/providers'
 import { getApiKey, getProviderFromModel, transformBlockTool } from '@/providers/utils'
 import type { SerializedBlock } from '@/serializer/types'
@@ -18,33 +20,6 @@ import { executeTool } from '@/tools'
 import { getTool, getToolAsync } from '@/tools/utils'
 
 const logger = createLogger('AgentBlockHandler')
-
-/**
- * Helper function to collect runtime block outputs and name mappings
- * for tag resolution in custom tools and prompts
- */
-function collectBlockData(context: ExecutionContext): {
-  blockData: Record<string, any>
-  blockNameMapping: Record<string, string>
-} {
-  const blockData: Record<string, any> = {}
-  const blockNameMapping: Record<string, string> = {}
-
-  for (const [id, state] of context.blockStates.entries()) {
-    if (state.output !== undefined) {
-      blockData[id] = state.output
-      const workflowBlock = context.workflow?.blocks?.find((b) => b.id === id)
-      if (workflowBlock?.metadata?.name) {
-        // Map both the display name and normalized form
-        blockNameMapping[workflowBlock.metadata.name] = id
-        const normalized = workflowBlock.metadata.name.replace(/\s+/g, '').toLowerCase()
-        blockNameMapping[normalized] = id
-      }
-    }
-  }
-
-  return { blockData, blockNameMapping }
-}
 
 /**
  * Handler for Agent blocks that process LLM requests with optional tools.
@@ -85,7 +60,6 @@ export class AgentBlockHandler implements BlockHandler {
   private parseResponseFormat(responseFormat?: string | object): any {
     if (!responseFormat || responseFormat === '') return undefined
 
-    // If already an object, process it directly
     if (typeof responseFormat === 'object' && responseFormat !== null) {
       const formatObj = responseFormat as any
       if (!formatObj.schema && !formatObj.name) {
@@ -98,22 +72,16 @@ export class AgentBlockHandler implements BlockHandler {
       return responseFormat
     }
 
-    // Handle string values
     if (typeof responseFormat === 'string') {
       const trimmedValue = responseFormat.trim()
 
-      // Check for variable references like <start.input>
       if (trimmedValue.startsWith('<') && trimmedValue.includes('>')) {
         logger.info('Response format contains variable reference:', {
           value: trimmedValue,
         })
-        // Variable references should have been resolved by the resolver before reaching here
-        // If we still have a variable reference, it means it couldn't be resolved
-        // Return undefined to use default behavior (no structured response)
         return undefined
       }
 
-      // Try to parse as JSON
       try {
         const parsed = JSON.parse(trimmedValue)
 
@@ -130,13 +98,10 @@ export class AgentBlockHandler implements BlockHandler {
           error: error.message,
           value: trimmedValue,
         })
-        // Return undefined instead of throwing - this allows execution to continue
-        // without structured response format
         return undefined
       }
     }
 
-    // For any other type, return undefined
     logger.warn('Unexpected response format type, using default behavior:', {
       type: typeof responseFormat,
       value: responseFormat,
@@ -220,9 +185,9 @@ export class AgentBlockHandler implements BlockHandler {
               workspaceId: context.workspaceId,
             },
           },
-          false, // skipProxy
-          false, // skipPostProcess
-          context // execution context for file processing
+          false,
+          false,
+          context
         )
 
         if (!result.success) {
@@ -244,30 +209,19 @@ export class AgentBlockHandler implements BlockHandler {
     }
 
     try {
-      const headers: Record<string, string> = { 'Content-Type': HTTP.CONTENT_TYPE.JSON }
-
-      if (typeof window === 'undefined') {
-        try {
-          const { generateInternalToken } = await import('@/lib/auth/internal')
-          const internalToken = await generateInternalToken()
-          headers.Authorization = `Bearer ${internalToken}`
-        } catch (error) {
-          logger.error(`Failed to generate internal token for MCP tool discovery:`, error)
-        }
-      }
-
-      const url = new URL('/api/mcp/tools/discover', getBaseUrl())
-      url.searchParams.set('serverId', serverId)
-      if (context.workspaceId) {
-        url.searchParams.set('workspaceId', context.workspaceId)
-      } else {
+      if (!context.workspaceId) {
         throw new Error('workspaceId is required for MCP tool discovery')
       }
-      if (context.workflowId) {
-        url.searchParams.set('workflowId', context.workflowId)
-      } else {
+      if (!context.workflowId) {
         throw new Error('workflowId is required for internal JWT authentication')
       }
+
+      const headers = await buildAuthHeaders()
+      const url = buildAPIUrl('/api/mcp/tools/discover', {
+        serverId,
+        workspaceId: context.workspaceId,
+        workflowId: context.workflowId,
+      })
 
       const response = await fetch(url.toString(), {
         method: 'GET',
@@ -305,22 +259,13 @@ export class AgentBlockHandler implements BlockHandler {
         executeFunction: async (callParams: Record<string, any>) => {
           logger.info(`Executing MCP tool ${toolName} on server ${serverId}`)
 
-          const headers: Record<string, string> = { 'Content-Type': HTTP.CONTENT_TYPE.JSON }
+          const headers = await buildAuthHeaders()
+          const execUrl = buildAPIUrl('/api/mcp/tools/execute')
 
-          if (typeof window === 'undefined') {
-            try {
-              const { generateInternalToken } = await import('@/lib/auth/internal')
-              const internalToken = await generateInternalToken()
-              headers.Authorization = `Bearer ${internalToken}`
-            } catch (error) {
-              logger.error(`Failed to generate internal token for MCP tool ${toolName}:`, error)
-            }
-          }
-
-          const execResponse = await fetch(`${getBaseUrl()}/api/mcp/tools/execute`, {
+          const execResponse = await fetch(execUrl.toString(), {
             method: 'POST',
             headers,
-            body: JSON.stringify({
+            body: stringifyJSON({
               serverId,
               toolName,
               arguments: callParams,
@@ -509,14 +454,13 @@ export class AgentBlockHandler implements BlockHandler {
 
     const validMessages = this.validateMessages(messages)
 
-    // Collect block outputs for runtime resolution
     const { blockData, blockNameMapping } = collectBlockData(context)
 
     return {
       provider: providerId,
       model,
       systemPrompt: validMessages ? undefined : inputs.systemPrompt,
-      context: JSON.stringify(messages),
+      context: stringifyJSON(messages),
       tools: formattedTools,
       temperature: inputs.temperature,
       maxTokens: inputs.maxTokens,
@@ -601,7 +545,6 @@ export class AgentBlockHandler implements BlockHandler {
   ) {
     const finalApiKey = this.getApiKey(providerId, model, providerRequest.apiKey)
 
-    // Collect block outputs for runtime resolution
     const { blockData, blockNameMapping } = collectBlockData(context)
 
     const response = await executeProviderRequest(providerId, {
@@ -638,16 +581,16 @@ export class AgentBlockHandler implements BlockHandler {
   ) {
     logger.info('Using HTTP provider request (browser environment)')
 
-    const url = new URL('/api/providers', getBaseUrl())
+    const url = buildAPIUrl('/api/providers')
     const response = await fetch(url.toString(), {
       method: 'POST',
       headers: { 'Content-Type': HTTP.CONTENT_TYPE.JSON },
-      body: JSON.stringify(providerRequest),
+      body: stringifyJSON(providerRequest),
       signal: AbortSignal.timeout(AGENT.REQUEST_TIMEOUT),
     })
 
     if (!response.ok) {
-      const errorMessage = await this.extractErrorMessage(response)
+      const errorMessage = await extractAPIErrorMessage(response)
       throw new Error(errorMessage)
     }
 
@@ -663,12 +606,10 @@ export class AgentBlockHandler implements BlockHandler {
     // Check if this is a streaming response
     const contentType = response.headers.get('Content-Type')
     if (contentType?.includes(HTTP.CONTENT_TYPE.EVENT_STREAM)) {
-      // Handle streaming response
       logger.info('Received streaming response')
       return this.handleStreamingResponse(response, block)
     }
 
-    // Handle regular JSON response
     const result = await response.json()
     return this.processProviderResponse(result, block, responseFormat)
   }
@@ -677,24 +618,21 @@ export class AgentBlockHandler implements BlockHandler {
     response: Response,
     block: SerializedBlock
   ): Promise<StreamingExecution> {
-    // Check if we have execution data in headers (from StreamingExecution)
     const executionDataHeader = response.headers.get('X-Execution-Data')
 
     if (executionDataHeader) {
-      // Parse execution data from header
       try {
         const executionData = JSON.parse(executionDataHeader)
 
-        // Create StreamingExecution object
         return {
           stream: response.body!,
           execution: {
             success: executionData.success,
             output: executionData.output || {},
             error: executionData.error,
-            logs: [], // Logs are stripped from headers, will be populated by executor
+            logs: [],
             metadata: executionData.metadata || {
-              duration: 0,
+              duration: DEFAULTS.EXECUTION_TIME,
               startTime: new Date().toISOString(),
             },
             isStreaming: true,
@@ -705,11 +643,9 @@ export class AgentBlockHandler implements BlockHandler {
         }
       } catch (error) {
         logger.error('Failed to parse execution data from header:', error)
-        // Fall back to minimal streaming execution
       }
     }
 
-    // Fallback for plain ReadableStream or when header parsing fails
     return this.createMinimalStreamingExecution(response.body!)
   }
 
@@ -727,18 +663,6 @@ export class AgentBlockHandler implements BlockHandler {
     }
   }
 
-  private async extractErrorMessage(response: Response): Promise<string> {
-    let errorMessage = `Provider API request failed with status ${response.status}`
-    try {
-      const errorData = await response.json()
-      if (errorData.error) {
-        errorMessage = errorData.error
-      }
-    } catch (_e) {
-      // Use default message if JSON parsing fails
-    }
-    return errorMessage
-  }
 
   private logExecutionSuccess(
     provider: string,
@@ -887,7 +811,6 @@ export class AgentBlockHandler implements BlockHandler {
         error: error instanceof Error ? error.message : 'Unknown error',
       })
 
-      // LLM did not adhere to structured response format
       logger.error('LLM did not adhere to structured response format:', {
         content: content.substring(0, 200) + (content.length > 200 ? '...' : ''),
         responseFormat: responseFormat,
@@ -909,7 +832,12 @@ export class AgentBlockHandler implements BlockHandler {
     }
   }
 
-  private createResponseMetadata(result: any) {
+  private createResponseMetadata(result: {
+    tokens?: { prompt?: number; completion?: number; total?: number }
+    toolCalls?: Array<any>
+    timing?: any
+    cost?: any
+  }) {
     return {
       tokens: result.tokens || {
         prompt: DEFAULTS.TOKENS.PROMPT,
@@ -917,7 +845,7 @@ export class AgentBlockHandler implements BlockHandler {
         total: DEFAULTS.TOKENS.TOTAL,
       },
       toolCalls: {
-        list: result.toolCalls ? result.toolCalls.map(this.formatToolCall.bind(this)) : [],
+        list: result.toolCalls?.map(this.formatToolCall.bind(this)) || [],
         count: result.toolCalls?.length || DEFAULTS.EXECUTION_TIME,
       },
       providerTiming: result.timing,

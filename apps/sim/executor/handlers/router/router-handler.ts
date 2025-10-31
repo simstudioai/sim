@@ -13,9 +13,6 @@ const logger = createLogger('RouterBlockHandler')
  * Handler for Router blocks that dynamically select execution paths.
  */
 export class RouterBlockHandler implements BlockHandler {
-  /**
-   * PathTracker is optional - only used by old BFS executor
-   */
   constructor(private pathTracker?: any) {}
 
   canHandle(block: SerializedBlock): boolean {
@@ -129,14 +126,6 @@ export class RouterBlockHandler implements BlockHandler {
     }
   }
 
-  /**
-   * Gets all potential target blocks for this router.
-   *
-   * @param block - Router block
-   * @param context - Current execution context
-   * @returns Array of potential target blocks with metadata
-   * @throws Error if target block not found
-   */
   private getTargetBlocks(block: SerializedBlock, context: ExecutionContext) {
     return context.workflow?.connections
       .filter((conn) => conn.source === block.id)
@@ -149,11 +138,9 @@ export class RouterBlockHandler implements BlockHandler {
         // Extract system prompt for agent blocks
         let systemPrompt = ''
         if (isAgentBlockType(targetBlock.metadata?.id)) {
-          // Try to get system prompt from different possible locations
           systemPrompt =
             targetBlock.config?.params?.systemPrompt || targetBlock.inputs?.systemPrompt || ''
 
-          // If system prompt is still not found, check if we can extract it from inputs
           if (!systemPrompt && targetBlock.inputs) {
             systemPrompt = targetBlock.inputs.systemPrompt || ''
           }
