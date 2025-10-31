@@ -25,20 +25,37 @@ services:
         value: e95f824f0a10903d13a24aa63bca43b54fae43a33a911e10c597a680b178c859
       - key: INTERNAL_API_SECRET
         value: 6c5169f72f8fbd982550bb3f04a62e8b3ad11bd2101129bef82e39db92dbaa45
+      - key: SOCKET_SERVER_URL
+        fromService:
+          type: web
+          name: sim-realtime
+          property: host
+      - key: NEXT_PUBLIC_SOCKET_URL
+        fromService:
+          type: web
+          name: sim-realtime
+          property: host
 
-jobs:
-  - type: job
-    name: sim-migrations
+  # Realtime Socket Server
+  - type: web
+    name: sim-realtime
     runtime: node
     plan: free
     region: oregon
-    buildCommand: npm install drizzle-orm postgres drizzle-kit
-    startCommand: cd packages/db && npx drizzle-kit migrate
+    buildCommand: npm install
+    startCommand: cd apps/sim && npm run dev:sockets
+    healthCheckPath: /health
     envVars:
       - key: DATABASE_URL
         fromDatabase:
           name: sim-db
           property: connectionString
+      - key: NEXT_PUBLIC_APP_URL
+        value: https://sim-app-3m6k.onrender.com
+      - key: BETTER_AUTH_URL
+        value: https://sim-app-3m6k.onrender.com
+      - key: BETTER_AUTH_SECRET
+        value: e95f824f0a10903d13a24aa63bca43b54fae43a33a911e10c597a680b178c859
 
 databases:
   - name: sim-db
