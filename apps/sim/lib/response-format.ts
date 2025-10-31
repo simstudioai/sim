@@ -207,3 +207,115 @@ export function traverseObjectPath(obj: any, path: string): any {
   const parsed = parseOutputContentSafely(obj)
   return traverseObjectPathInternal(parsed, path)
 }
+
+/**
+ * Resolve a $ref in the schema by traversing the root object.
+ * Supports only internal #/ refs; logs/warns on invalid/unsupported.
+ * Recursively resolves if target has $ref/allOf.
+ * @param ref The reference string (e.g., "#/components/schemas/Input")
+ * @param root The root schema object for resolving references
+ * @returns The resolved schema object
+ */
+function resolveRef(ref: string, root: any): any {
+  if (!ref.startsWith('#/')) {
+    const errMsg = `Unsupported ref: ${ref}`
+    logger.warn(errMsg)
+    throw new Error(errMsg)
+  }
+
+  // Convert #/components/schemas/foo to components.schemas.foo
+  const path = ref.slice(2).replace(/\//g, '.')
+  const target = traverseObjectPathInternal(root, path)
+
+  if (target === undefined) {
+    const errMsg = `Invalid ref path: ${ref}`
+    logger.error(errMsg)
+    throw new Error(errMsg)
+  }
+
+  // Recursively dereference the target
+  return dereferenceSchema(target, root)
+}
+
+/**
+ * Basic dereference for a schema node: resolve $ref/allOf recursively.
+ * Merges allOf by combining properties/required; handles arrays/objects.
+ * Uses memo to avoid cycles (simple Map).
+ *
+ * This is particularly useful for Replicate's OpenAPI schemas which use
+ * $ref to reference enum types and allOf to compose schemas.
+ *
+ * @param schema The schema node to dereference
+ * @param root The root schema object (for resolving $ref)
+ * @param memo Memoization map to prevent infinite recursion
+ * @returns Fully dereferenced schema
+ */
+export function dereferenceSchema(
+  schema: any,
+  root: any,
+  memo: Map<any, any> = new Map()
+): any {
+  // Handle primitives and arrays
+  if (schema === null || typeof schema !== 'object' || Array.isArray(schema)) {
+    return schema
+  }
+
+  // Check memo to prevent cycles
+  if (memo.has(schema)) {
+    return memo.get(schema)
+  }
+
+  // Create result object and memoize immediately
+  const result: any = {}
+  memo.set(schema, result)
+
+  // Handle $ref
+  if (schema.$ref) {
+    const resolved = resolveRef(schema.$ref, root)
+    // Copy resolved properties to result
+    Object.assign(result, resolved)
+    return result
+  }
+
+  // Handle allOf
+  if (schema.allOf) {
+    let merged: any = { properties: {}, required: [] }
+
+    for (const sub of schema.allOf) {
+      const derefSub = dereferenceSchema(sub, root, memo)
+
+      // Merge top-level properties
+      Object.assign(merged, derefSub)
+
+      // Merge properties objects
+      if (derefSub.properties) {
+        merged.properties = { ...merged.properties, ...derefSub.properties }
+      }
+
+      // Merge required arrays (deduplicate)
+      if (derefSub.required) {
+        merged.required = [...new Set([...(merged.required || []), ...derefSub.required])]
+      }
+    }
+
+    // Apply merged allOf result first, then overlay original properties to preserve them
+    // This ensures default, description, x-order from the original schema are not lost
+    Object.assign(result, merged, schema)
+
+    // Clean up: Remove allOf after processing
+    delete result.allOf
+  } else {
+    // Copy schema to result
+    Object.assign(result, schema)
+  }
+
+  // Recursively dereference nested objects
+  for (const key in result) {
+    if (result[key] && typeof result[key] === 'object') {
+      result[key] = dereferenceSchema(result[key], root, memo)
+    }
+  }
+
+  return result
+}
+

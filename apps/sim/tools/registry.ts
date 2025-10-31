@@ -151,6 +151,7 @@ import {
 } from '@/tools/postgresql'
 import { qdrantFetchTool, qdrantSearchTool, qdrantUpsertTool } from '@/tools/qdrant'
 import { redditGetCommentsTool, redditGetPostsTool, redditHotPostsTool } from '@/tools/reddit'
+import { createPredictionTool } from '@/tools/replicate'
 import { mailSendTool } from '@/tools/resend'
 import {
   s3CopyObjectTool,
@@ -259,6 +260,7 @@ export const tools: Record<string, ToolConfig> = {
   guardrails_validate: guardrailsValidateTool,
   jina_read_url: readUrlTool,
   linkup_search: linkupSearchTool,
+  replicate_create_prediction: createPredictionTool,
   resend_send: mailSendTool,
   sms_send: smsSendTool,
   jira_retrieve: jiraRetrieveTool,

@@ -25,6 +25,7 @@ import {
   McpDynamicArgs,
   McpServerSelector,
   McpToolSelector,
+  OpenApiDynamicInputs,
   ProjectSelectorInput,
   ResponseFormat,
   ScheduleConfig,
@@ -552,6 +553,19 @@ export const SubBlock = memo(
               triggerId={config.triggerId}
               isPreview={isPreview}
               disabled={disabled}
+            />
+          )
+        case 'openapi-dynamic-inputs':
+          return (
+            <OpenApiDynamicInputs
+              blockId={blockId}
+              subBlockId={config.id}
+              schema={config.schema}
+              {...config.props}
+              disabled={isDisabled}
+              isPreview={isPreview}
+              previewValue={previewValue}
+              isConnecting={isConnecting}
             />
           )
         default:
