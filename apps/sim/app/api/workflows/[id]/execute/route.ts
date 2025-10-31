@@ -1,8 +1,7 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
 import { z } from 'zod'
-import { authenticateApiKeyFromHeader, updateApiKeyLastUsed } from '@/lib/api-key/service'
-import { getSession } from '@/lib/auth'
+import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { checkServerSideUsageLimits } from '@/lib/billing'
 import { createLogger } from '@/lib/logs/console/logger'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
@@ -97,23 +96,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const { id: workflowId } = await params
 
   try {
-    // Authenticate user (API key or session)
-    const apiKey = req.headers.get('x-api-key')
-    let userId: string
-
-    if (apiKey) {
-      const authResult = await authenticateApiKeyFromHeader(apiKey)
-      if (!authResult.success || !authResult.userId) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-      }
-      userId = authResult.userId
-    } else {
-      const session = await getSession()
-      if (!session?.user?.id) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-      }
-      userId = session.user.id
+    // Authenticate user (API key, session, or internal JWT)
+    const auth = await checkHybridAuth(req, { requireWorkflowId: false })
+    if (!auth.success || !auth.userId) {
+      return NextResponse.json(
+        { error: auth.error || 'Unauthorized' },
+        { status: 401 }
+      )
     }
+    const userId = auth.userId
 
     // Validate workflow access (don't require deployment for manual client runs)
     const workflowValidation = await validateWorkflowAccess(req, workflowId, false)
@@ -136,7 +127,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       logger.warn(`[${requestId}] Failed to parse request body, using defaults`)
     }
 
-    const { input, selectedOutputs = [], triggerType = 'manual', stream: streamParam } = body
+    // Determine trigger type: use authType to determine default, but allow explicit override
+    // api_key -> 'api', session -> 'manual', internal_jwt -> 'manual'
+    const defaultTriggerType = auth.authType === 'api_key' ? 'api' : 'manual'
+    
+    // Extract control parameters, everything else is workflow input
+    const { selectedOutputs = [], triggerType = defaultTriggerType, stream: streamParam } = body
+    
+    // For API calls, pass the entire body as input (including any user fields)
+    // For manual/session calls, expect input to be in the 'input' field
+    const input = auth.authType === 'api_key' ? body : body.input
 
     // Determine if SSE should be enabled
     // Default: false (JSON response)
@@ -153,17 +153,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       )
     }
 
-    // Update API key last used if present
-    if (apiKey) {
-      await updateApiKeyLastUsed(apiKey)
-    }
-
     logger.info(`[${requestId}] Starting server-side execution`, {
       workflowId,
       userId,
       hasInput: !!input,
       triggerType,
-      hasApiKey: !!apiKey,
+      authType: auth.authType,
       streamParam,
       streamHeader,
       enableSSE,
