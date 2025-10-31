@@ -180,20 +180,8 @@ export class BlockExecutor {
   }
 
   private callOnBlockStart(blockId: string, block: SerializedBlock, node: DAGNode, context: ExecutionContext): void {
-    let blockName = block.metadata?.name || blockId
-    
-    // Add iteration suffix for streaming callbacks (same logic as BlockLog)
-    if (node?.metadata) {
-      if (node.metadata.branchIndex !== undefined) {
-        blockName = `${blockName} (iteration ${node.metadata.branchIndex})`
-      } else if (node.metadata.isLoopNode && node.metadata.loopId && this.state) {
-        const loopScope = this.state.getLoopScope(node.metadata.loopId)
-        if (loopScope && loopScope.iteration !== undefined) {
-          blockName = `${blockName} (iteration ${loopScope.iteration})`
-        }
-      }
-    }
-    
+    // Use original block name for user-facing console output (no iteration suffix)
+    const blockName = block.metadata?.name || blockId
     const blockType = block.metadata?.id || FALLBACK_VALUE.BLOCK_TYPE
 
     if (this.contextExtensions.onBlockStart) {
@@ -209,20 +197,8 @@ export class BlockExecutor {
     duration: number,
     context: ExecutionContext
   ): void {
-    let blockName = block.metadata?.name || blockId
-    
-    // Add iteration suffix for streaming callbacks (same logic as BlockLog)
-    if (node?.metadata) {
-      if (node.metadata.branchIndex !== undefined) {
-        blockName = `${blockName} (iteration ${node.metadata.branchIndex})`
-      } else if (node.metadata.isLoopNode && node.metadata.loopId && this.state) {
-        const loopScope = this.state.getLoopScope(node.metadata.loopId)
-        if (loopScope && loopScope.iteration !== undefined) {
-          blockName = `${blockName} (iteration ${loopScope.iteration})`
-        }
-      }
-    }
-    
+    // Use original block name for user-facing console output (no iteration suffix)
+    const blockName = block.metadata?.name || blockId
     const blockType = block.metadata?.id || FALLBACK_VALUE.BLOCK_TYPE
 
     if (this.contextExtensions.onBlockComplete) {

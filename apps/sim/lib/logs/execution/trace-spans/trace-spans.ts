@@ -486,6 +486,12 @@ function groupIterationBlocks(spans: TraceSpan[]): TraceSpan[] {
       }
     >()
 
+    // Track sequential numbers for loops and parallels
+    const loopNumbers = new Map<string, number>()
+    const parallelNumbers = new Map<string, number>()
+    let loopCounter = 1
+    let parallelCounter = 1
+
     iterationSpans.forEach((span) => {
       const iterationMatch = span.name.match(/^(.+) \(iteration (\d+)\)$/)
       if (iterationMatch) {
@@ -501,7 +507,16 @@ function groupIterationBlocks(spans: TraceSpan[]): TraceSpan[] {
           const parallelBlock = normalSpans.find(
             (s) => s.blockId === containerId && s.type === 'parallel'
           )
-          containerName = parallelBlock?.name || `Parallel ${containerId}`
+          
+          // Use custom name if available, otherwise assign sequential number
+          if (parallelBlock?.name) {
+            containerName = parallelBlock.name
+          } else {
+            if (!parallelNumbers.has(containerId)) {
+              parallelNumbers.set(containerId, parallelCounter++)
+            }
+            containerName = `Parallel ${parallelNumbers.get(containerId)}`
+          }
         } else if (span.loopId) {
           containerType = 'loop'
           containerId = span.loopId
@@ -509,7 +524,16 @@ function groupIterationBlocks(spans: TraceSpan[]): TraceSpan[] {
           const loopBlock = normalSpans.find(
             (s) => s.blockId === containerId && s.type === 'loop'
           )
-          containerName = loopBlock?.name || `Loop ${loopBlock?.blockId || containerId}`
+          
+          // Use custom name if available, otherwise assign sequential number
+          if (loopBlock?.name) {
+            containerName = loopBlock.name
+          } else {
+            if (!loopNumbers.has(containerId)) {
+              loopNumbers.set(containerId, loopCounter++)
+            }
+            containerName = `Loop ${loopNumbers.get(containerId)}`
+          }
         } else {
           // Fallback to old logic if metadata is missing
           if (span.blockId?.includes('_parallel_')) {
@@ -521,15 +545,33 @@ function groupIterationBlocks(spans: TraceSpan[]): TraceSpan[] {
               const parallelBlock = normalSpans.find(
                 (s) => s.blockId === containerId && s.type === 'parallel'
               )
-              containerName = parallelBlock?.name || `Parallel ${containerId}`
+              
+              // Use custom name if available, otherwise assign sequential number
+              if (parallelBlock?.name) {
+                containerName = parallelBlock.name
+              } else {
+                if (!parallelNumbers.has(containerId)) {
+                  parallelNumbers.set(containerId, parallelCounter++)
+                }
+                containerName = `Parallel ${parallelNumbers.get(containerId)}`
+              }
             }
           } else {
             containerType = 'loop'
-            // This was the bug - it would find ANY loop, not the specific one
+            // Find the first loop as fallback
             const loopBlock = normalSpans.find((s) => s.type === 'loop')
-            if (loopBlock) {
-              containerId = loopBlock.blockId || 'loop-1'
-              containerName = loopBlock.name || `Loop ${loopBlock.blockId || '1'}`
+            if (loopBlock?.blockId) {
+              containerId = loopBlock.blockId
+              
+              // Use custom name if available, otherwise assign sequential number
+              if (loopBlock.name) {
+                containerName = loopBlock.name
+              } else {
+                if (!loopNumbers.has(containerId)) {
+                  loopNumbers.set(containerId, loopCounter++)
+                }
+                containerName = `Loop ${loopNumbers.get(containerId)}`
+              }
             } else {
               containerId = 'loop-1'
               containerName = 'Loop 1'
