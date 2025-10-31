@@ -99,10 +99,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     // Authenticate user (API key, session, or internal JWT)
     const auth = await checkHybridAuth(req, { requireWorkflowId: false })
     if (!auth.success || !auth.userId) {
-      return NextResponse.json(
-        { error: auth.error || 'Unauthorized' },
-        { status: 401 }
-      )
+      return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
     }
     const userId = auth.userId
 
@@ -126,11 +123,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     } catch (error) {
       logger.warn(`[${requestId}] Failed to parse request body, using defaults`)
     }
-    
+
     const defaultTriggerType = auth.authType === 'api_key' ? 'api' : 'manual'
-    
+
     const { selectedOutputs = [], triggerType = defaultTriggerType, stream: streamParam } = body
-    
+
     const input = auth.authType === 'api_key' ? body : body.input
 
     const streamHeader = req.headers.get('X-Stream-Response') === 'true'
