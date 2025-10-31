@@ -26,7 +26,6 @@ export function UserAvatar({
 }: AvatarProps) {
   const { gradient } = useMemo(() => getPresenceColors(connectionId, color), [connectionId, color])
 
-  // Determine avatar size
   const sizeClass = {
     sm: 'h-5 w-5 text-[10px]',
     md: 'h-7 w-7 text-xs',
@@ -49,7 +48,7 @@ export function UserAvatar({
       style={
         {
           background: hasAvatar ? undefined : gradient,
-          zIndex: 10 - index, // Higher index = lower z-index for stacking effect
+          zIndex: 10 - index,
         } as CSSProperties
       }
     >
@@ -69,7 +68,6 @@ export function UserAvatar({
     </div>
   )
 
-  // If tooltip content is provided, wrap in tooltip
   if (tooltipContent) {
     return (
       <Tooltip>
