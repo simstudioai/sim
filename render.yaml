@@ -1,34 +1,15 @@
 services:
-  # PostgreSQL Database with pgvector extension
-  - type: pserv
-    name: simstudio-db
-    env: docker
-    plan: standard
-    region: oregon
-    dockerfilePath: ./docker/db.Dockerfile
-    dockerContext: ./docker
-    envVars:
-      - key: POSTGRES_USER
-        value: postgres
-      - key: POSTGRES_PASSWORD
-        generateValue: true
-      - key: POSTGRES_DB
-        value: simstudio
-    disk:
-      name: simstudio-db-data
-      mountPath: /var/lib/postgresql/data
-      sizeGB: 10
-    healthCheckPath: /
 
   # Database Migrations Service (runs once on deploy)
-  - type: worker
+  - type: web
     name: simstudio-migrations
     env: docker
     dockerfilePath: ./docker/app.Dockerfile
     dockerContext: .
-    dockerCommand: cd packages/db && bun run db:migrate
+    dockerCommand: cd packages/db && bun run db:migrate && sleep infinity
     plan: starter
     region: oregon
+    healthCheckPath: /
     envVars:
       - key: DATABASE_URL
         fromDatabase:
@@ -122,3 +103,11 @@ databases:
     # Note: Render PostgreSQL databases don't support custom Dockerfiles
     # You'll need to manually enable the pgvector extension after creation
     # Run: CREATE EXTENSION IF NOT EXISTS vector;
+databases:
+  - name: simstudio-db
+    databaseName: simstudio
+    plan: starter
+    region: oregon
+    postgresMajorVersion: 16
+    # Note: After database creation, manually enable the pgvector extension by running:
+    # CREATE EXTENSION IF NOT EXISTS vector;
