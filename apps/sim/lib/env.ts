@@ -37,19 +37,26 @@ export const env = createEnv({
     // Database & Storage
     REDIS_URL:                             z.string().url().optional(),            // Redis connection string for caching/sessions
 
-    // Payment & Billing
-    STRIPE_SECRET_KEY:                     z.string().min(1).optional(),           // Stripe secret key for payment processing
-    STRIPE_WEBHOOK_SECRET:                 z.string().min(1).optional(),           // General Stripe webhook secret
-    STRIPE_FREE_PRICE_ID:                  z.string().min(1).optional(),           // Stripe price ID for free tier
+    // Payment & Billing - Loops
+    LOOPS_API_KEY:                         z.string().min(1).optional(),           // Loops API key for payment processing
+    LOOPS_WEBHOOK_SECRET:                  z.string().min(1).optional(),           // General Loops webhook secret
+    LOOPS_FREE_PAYMENT_LINK_ID:           z.string().min(1).optional(),           // Loops payment link ID for free tier
+    LOOPS_PRO_PAYMENT_LINK_ID:             z.string().min(1).optional(),           // Loops payment link ID for pro tier
+    LOOPS_TEAM_PAYMENT_LINK_ID:            z.string().min(1).optional(),           // Loops payment link ID for team tier
+    LOOPS_ENTERPRISE_PAYMENT_LINK_ID:      z.string().min(1).optional(),           // Loops payment link ID for enterprise tier
+    // Payment & Billing - Stripe (deprecated, kept for backwards compatibility)
+    STRIPE_SECRET_KEY:                     z.string().min(1).optional(),           // Stripe secret key for payment processing (deprecated)
+    STRIPE_WEBHOOK_SECRET:                 z.string().min(1).optional(),           // General Stripe webhook secret (deprecated)
+    STRIPE_FREE_PRICE_ID:                  z.string().min(1).optional(),           // Stripe price ID for free tier (deprecated, fallback)
     FREE_TIER_COST_LIMIT:                  z.number().optional(),                  // Cost limit for free tier users
     FREE_STORAGE_LIMIT_GB:                 z.number().optional().default(5),       // Storage limit in GB for free tier users
-    STRIPE_PRO_PRICE_ID:                   z.string().min(1).optional(),           // Stripe price ID for pro tier
+    STRIPE_PRO_PRICE_ID:                   z.string().min(1).optional(),           // Stripe price ID for pro tier (deprecated, fallback)
     PRO_TIER_COST_LIMIT:                   z.number().optional(),                  // Cost limit for pro tier users
     PRO_STORAGE_LIMIT_GB:                  z.number().optional().default(50),      // Storage limit in GB for pro tier users
-    STRIPE_TEAM_PRICE_ID:                  z.string().min(1).optional(),           // Stripe price ID for team tier
+    STRIPE_TEAM_PRICE_ID:                  z.string().min(1).optional(),           // Stripe price ID for team tier (deprecated, fallback)
     TEAM_TIER_COST_LIMIT:                  z.number().optional(),                  // Cost limit for team tier users
     TEAM_STORAGE_LIMIT_GB:                 z.number().optional().default(500),     // Storage limit in GB for team tier organizations (pooled)
-    STRIPE_ENTERPRISE_PRICE_ID:            z.string().min(1).optional(),           // Stripe price ID for enterprise tier
+    STRIPE_ENTERPRISE_PRICE_ID:            z.string().min(1).optional(),           // Stripe price ID for enterprise tier (deprecated, fallback)
     ENTERPRISE_TIER_COST_LIMIT:            z.number().optional(),                  // Cost limit for enterprise tier users
     ENTERPRISE_STORAGE_LIMIT_GB:           z.number().optional().default(500),     // Default storage limit in GB for enterprise tier (can be overridden per org)
     BILLING_ENABLED:                       z.boolean().optional(),                 // Enable billing enforcement and usage tracking
