@@ -30,7 +30,6 @@ const getProviderIcon = (providerName: OAuthProvider) => {
   if (!baseProviderConfig) {
     return <ExternalLink className='h-4 w-4' />
   }
-  // Always use the base provider icon for a more consistent UI
   return baseProviderConfig.icon({ className: 'h-4 w-4' })
 }
 
@@ -42,7 +41,6 @@ const getProviderName = (providerName: OAuthProvider) => {
     return baseProviderConfig.name
   }
 
-  // Fallback: capitalize the provider name
   return providerName
     .split('-')
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
@@ -75,7 +73,6 @@ export function ToolCredentialSelector({
   const [selectedId, setSelectedId] = useState('')
   const { activeWorkflowId } = useWorkflowRegistry()
 
-  // Update selected ID when value changes
   useEffect(() => {
     setSelectedId(value)
   }, [value])
@@ -88,7 +85,6 @@ export function ToolCredentialSelector({
         const data = await response.json()
         setCredentials(data.credentials || [])
 
-        // If persisted selection is not among viewer's credentials, attempt to fetch its metadata
         if (
           value &&
           !(data.credentials || []).some((cred: Credential) => cred.id === value) &&
@@ -127,7 +123,6 @@ export function ToolCredentialSelector({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Listen for visibility changes to update credentials when user returns from settings
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
@@ -150,15 +145,12 @@ export function ToolCredentialSelector({
 
   const handleOAuthClose = () => {
     setShowOAuthModal(false)
-    // Refetch credentials to include any new ones
     fetchCredentials()
   }
 
-  // Handle popover open to fetch fresh credentials
   const handleOpenChange = (isOpen: boolean) => {
     setOpen(isOpen)
     if (isOpen) {
-      // Fetch fresh credentials when opening the dropdown
       fetchCredentials()
     }
   }

@@ -35,7 +35,6 @@ import {
   type CustomTool,
   CustomToolModal,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/tool-input/components/custom-tool-modal/custom-tool-modal'
-import { McpServerModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/tool-input/components/mcp-server-modal/mcp-server-modal'
 import { McpToolsList } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/tool-input/components/mcp-tools-list'
 import { ToolCommand } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/tool-input/components/tool-command/tool-command'
 import { ToolCredentialSelector } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/tool-input/components/tool-credential-selector'
@@ -430,7 +429,6 @@ export function ToolInput({
   const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlockId)
   const [open, setOpen] = useState(false)
   const [customToolModalOpen, setCustomToolModalOpen] = useState(false)
-  const [mcpServerModalOpen, setMcpServerModalOpen] = useState(false)
   const [editingToolIndex, setEditingToolIndex] = useState<number | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
@@ -1274,8 +1272,10 @@ export function ToolInput({
                     value='Add MCP Server'
                     onSelect={() => {
                       if (!isPreview) {
-                        setMcpServerModalOpen(true)
                         setOpen(false)
+                        window.dispatchEvent(
+                          new CustomEvent('open-settings', { detail: { tab: 'mcp' } })
+                        )
                       }
                     }}
                     className='mb-1 flex cursor-pointer items-center gap-2'
@@ -1839,7 +1839,9 @@ export function ToolInput({
                       value='Add MCP Server'
                       onSelect={() => {
                         setOpen(false)
-                        setMcpServerModalOpen(true)
+                        window.dispatchEvent(
+                          new CustomEvent('open-settings', { detail: { tab: 'mcp' } })
+                        )
                       }}
                       className='mb-1 flex cursor-pointer items-center gap-2'
                     >
@@ -1975,17 +1977,6 @@ export function ToolInput({
               }
             : undefined
         }
-      />
-
-      {/* MCP Server Modal */}
-      <McpServerModal
-        open={mcpServerModalOpen}
-        onOpenChange={setMcpServerModalOpen}
-        onServerCreated={() => {
-          // Refresh MCP tools when a new server is created
-          refreshTools(true)
-        }}
-        blockId={blockId}
       />
     </div>
   )
