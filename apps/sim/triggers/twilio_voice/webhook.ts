@@ -166,47 +166,88 @@ export const twilioVoiceWebhookTrigger: TriggerConfig = {
       type: 'string',
       description: 'Recording SID if available',
     },
+    called: {
+      type: 'string',
+      description: 'Phone number that was called (same as "to")',
+    },
+    caller: {
+      type: 'string',
+      description: 'Phone number of the caller (same as "from")',
+    },
+    toCity: {
+      type: 'string',
+      description: 'City of the called number',
+    },
+    toState: {
+      type: 'string',
+      description: 'State/province of the called number',
+    },
+    toZip: {
+      type: 'string',
+      description: 'Zip/postal code of the called number',
+    },
+    toCountry: {
+      type: 'string',
+      description: 'Country of the called number',
+    },
+    fromCity: {
+      type: 'string',
+      description: 'City of the caller',
+    },
+    fromState: {
+      type: 'string',
+      description: 'State/province of the caller',
+    },
+    fromZip: {
+      type: 'string',
+      description: 'Zip/postal code of the caller',
+    },
+    fromCountry: {
+      type: 'string',
+      description: 'Country of the caller',
+    },
+    calledCity: {
+      type: 'string',
+      description: 'City of the called number (same as toCity)',
+    },
+    calledState: {
+      type: 'string',
+      description: 'State of the called number (same as toState)',
+    },
+    calledZip: {
+      type: 'string',
+      description: 'Zip code of the called number (same as toZip)',
+    },
+    calledCountry: {
+      type: 'string',
+      description: 'Country of the called number (same as toCountry)',
+    },
+    callerCity: {
+      type: 'string',
+      description: 'City of the caller (same as fromCity)',
+    },
+    callerState: {
+      type: 'string',
+      description: 'State of the caller (same as fromState)',
+    },
+    callerZip: {
+      type: 'string',
+      description: 'Zip code of the caller (same as fromZip)',
+    },
+    callerCountry: {
+      type: 'string',
+      description: 'Country of the caller (same as fromCountry)',
+    },
+    callToken: {
+      type: 'string',
+      description: 'Twilio call token for authentication',
+    },
     raw: {
       type: 'string',
       description: 'Complete raw webhook payload from Twilio as JSON string',
     },
   },
 
-<<<<<<< HEAD
-=======
-  instructions: [
-    'Enter a <strong>TwiML Response</strong> above - this tells Twilio what to do when a call comes in (e.g., play a message, record, gather input).',
-    'Example TwiML for recording with transcription: <code>&lt;Response&gt;&lt;Say&gt;Please leave a message.&lt;/Say&gt;&lt;Record transcribe="true" maxLength="120"/&gt;&lt;/Response&gt;</code>',
-    'Go to your <a href="https://console.twilio.com/us1/develop/phone-numbers/manage/incoming" target="_blank" rel="noopener noreferrer" class="text-muted-foreground underline transition-colors hover:text-muted-foreground/80">Twilio Console Phone Numbers</a> page.',
-    'Select the phone number you want to use for incoming calls.',
-    'Scroll down to the "Voice Configuration" section.',
-    'In the "A CALL COMES IN" field, select "Webhook" and paste the <strong>Webhook URL</strong> (from above).',
-    'Ensure the HTTP method is set to <strong>POST</strong>.',
-    'Click "Save configuration".',
-    '<strong>How it works:</strong> When a call comes in, Twilio receives your TwiML response immediately and executes those instructions. Your workflow runs in the background with access to caller information, call status, and any recorded/transcribed data.',
-  ],
-
-  samplePayload: {
-    CallSid: 'CA_NOT_A_REAL_SID',
-    AccountSid: 'AC_NOT_A_REAL_SID',
-    From: '+14155551234',
-    To: '+14155556789',
-    CallStatus: 'ringing',
-    ApiVersion: '2010-04-01',
-    Direction: 'inbound',
-    ForwardedFrom: '',
-    CallerName: 'John Doe',
-    FromCity: 'SAN FRANCISCO',
-    FromState: 'CA',
-    FromZip: '94105',
-    FromCountry: 'US',
-    ToCity: 'SAN FRANCISCO',
-    ToState: 'CA',
-    ToZip: '94105',
-    ToCountry: 'US',
-  },
-
->>>>>>> 2153001b3 (cleaned up operations)
   webhook: {
     method: 'POST',
     headers: {

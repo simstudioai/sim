@@ -27,7 +27,6 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { cn } from '@/lib/utils'
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
 import type { TriggerConfig } from '@/triggers/types'
-import { CredentialSelector } from '../../credential-selector/credential-selector'
 
 interface TriggerConfigSectionProps {
   blockId: string

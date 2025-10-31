@@ -525,11 +525,6 @@ async function formatTeamsGraphNotification(
   }
 }
 
-/**
- * Validate Twilio webhook signature
- * Twilio uses HMAC-SHA1 for signature validation
- * https://www.twilio.com/docs/usage/security#validating-requests
- */
 export async function validateTwilioSignature(
   authToken: string,
   signature: string,
@@ -537,19 +532,16 @@ export async function validateTwilioSignature(
   params: Record<string, any>
 ): Promise<boolean> {
   try {
-    // Basic validation
     if (!authToken || !signature || !url) {
       return false
     }
 
-    // Sort parameters alphabetically and concatenate with URL
     const sortedKeys = Object.keys(params).sort()
     let data = url
     for (const key of sortedKeys) {
       data += key + params[key]
     }
 
-    // Create HMAC-SHA1 signature
     const encoder = new TextEncoder()
     const key = await crypto.subtle.importKey(
       'raw',
@@ -561,11 +553,9 @@ export async function validateTwilioSignature(
 
     const signatureBytes = await crypto.subtle.sign('HMAC', key, encoder.encode(data))
 
-    // Convert to base64
     const signatureArray = Array.from(new Uint8Array(signatureBytes))
     const signatureBase64 = btoa(String.fromCharCode(...signatureArray))
 
-    // Constant-time comparison
     if (signatureBase64.length !== signature.length) {
       return false
     }
@@ -788,27 +778,43 @@ export async function formatWebhookInput(
   }
 
   if (foundWebhook.provider === 'twilio_voice') {
-    // Twilio sends data as URL-encoded form data
-    // The body will already be parsed by parseWebhookBody
     return {
-      twilioVoice: {
-        data: {
-          callSid: body.CallSid,
-          accountSid: body.AccountSid,
-          from: body.From,
-          to: body.To,
-          callStatus: body.CallStatus,
-          direction: body.Direction,
-          apiVersion: body.ApiVersion,
-          callerName: body.CallerName,
-          forwardedFrom: body.ForwardedFrom,
-          digits: body.Digits,
-          speechResult: body.SpeechResult,
-          recordingUrl: body.RecordingUrl,
-          recordingSid: body.RecordingSid,
-          raw: JSON.stringify(body),
-        },
-      },
+      // Root-level properties matching trigger outputs for easy access
+      callSid: body.CallSid,
+      accountSid: body.AccountSid,
+      from: body.From,
+      to: body.To,
+      callStatus: body.CallStatus,
+      direction: body.Direction,
+      apiVersion: body.ApiVersion,
+      callerName: body.CallerName,
+      forwardedFrom: body.ForwardedFrom,
+      digits: body.Digits,
+      speechResult: body.SpeechResult,
+      recordingUrl: body.RecordingUrl,
+      recordingSid: body.RecordingSid,
+
+      // Additional fields from Twilio payload
+      called: body.Called,
+      caller: body.Caller,
+      toCity: body.ToCity,
+      toState: body.ToState,
+      toZip: body.ToZip,
+      toCountry: body.ToCountry,
+      fromCity: body.FromCity,
+      fromState: body.FromState,
+      fromZip: body.FromZip,
+      fromCountry: body.FromCountry,
+      calledCity: body.CalledCity,
+      calledState: body.CalledState,
+      calledZip: body.CalledZip,
+      calledCountry: body.CalledCountry,
+      callerCity: body.CallerCity,
+      callerState: body.CallerState,
+      callerZip: body.CallerZip,
+      callerCountry: body.CallerCountry,
+      callToken: body.CallToken,
+
       webhook: {
         data: {
           provider: 'twilio_voice',

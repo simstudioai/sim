@@ -28,6 +28,24 @@ export interface WebhookProcessorOptions {
   executionTarget?: 'deployed' | 'live'
 }
 
+/**
+ * Reconstruct the actual external URL from request headers
+ * This is needed for signature validation when behind proxies/ngrok
+ */
+function getExternalUrl(request: NextRequest): string {
+  // Check for forwarded protocol and host (from ngrok, nginx, etc.)
+  const proto = request.headers.get('x-forwarded-proto') || 'https'
+  const host = request.headers.get('x-forwarded-host') || request.headers.get('host')
+
+  if (host) {
+    const url = new URL(request.url)
+    return `${proto}://${host}${url.pathname}${url.search}`
+  }
+
+  // Fallback to request URL
+  return request.url
+}
+
 async function resolveWorkflowActorUserId(foundWorkflow: {
   workspaceId?: string | null
   userId?: string | null
@@ -70,16 +88,13 @@ export async function parseWebhookBody(
       const formData = new URLSearchParams(rawBody)
       const payloadString = formData.get('payload')
 
-      if (!payloadString) {
-        logger.warn(`[${requestId}] No payload field found in form-encoded data`)
-        return new NextResponse('Missing payload field', { status: 400 })
+      if (payloadString) {
+        body = JSON.parse(payloadString)
+      } else {
+        body = Object.fromEntries(formData.entries())
       }
-
-      body = JSON.parse(payloadString)
-      logger.debug(`[${requestId}] Parsed form-encoded GitHub webhook payload`)
     } else {
       body = JSON.parse(rawBody)
-      logger.debug(`[${requestId}] Parsed JSON webhook payload`)
     }
 
     if (Object.keys(body).length === 0) {
@@ -266,11 +281,8 @@ export async function verifyProviderAuth(
         return new NextResponse('Bad Request - Invalid body format', { status: 400 })
       }
 
-      // Construct the full URL (needed for Twilio signature validation)
-      const url = new URL(request.url)
-      const fullUrl = url.toString()
+      const fullUrl = getExternalUrl(request)
 
-      // Dynamically import the validation function to avoid issues
       const { validateTwilioSignature } = await import('@/lib/webhooks/utils')
 
       const isValidSignature = await validateTwilioSignature(authToken, signature, fullUrl, params)
@@ -284,7 +296,6 @@ export async function verifyProviderAuth(
     }
   }
 
-  // Generic webhook authentication
   if (foundWebhook.provider === 'generic') {
     const providerConfig = (foundWebhook.providerConfig as Record<string, any>) || {}
 
@@ -296,13 +307,11 @@ export async function verifyProviderAuth(
         let isTokenValid = false
 
         if (secretHeaderName) {
-          // Check custom header (headers are case-insensitive)
           const headerValue = request.headers.get(secretHeaderName.toLowerCase())
           if (headerValue === configToken) {
             isTokenValid = true
           }
         } else {
-          // Check Authorization: Bearer <token> (case-insensitive)
           const authHeader = request.headers.get('authorization')
           if (authHeader?.toLowerCase().startsWith('bearer ')) {
             const token = authHeader.substring(7)
@@ -570,19 +579,19 @@ export async function queueWebhookExecution(
     // Twilio Voice requires TwiML XML response
     if (foundWebhook.provider === 'twilio_voice') {
       const providerConfig = (foundWebhook.providerConfig as Record<string, any>) || {}
-      const twimlResponse = providerConfig.twimlResponse as string | undefined
+      const twimlResponse = (providerConfig.twimlResponse as string | undefined)?.trim()
 
-      // If user provided custom TwiML, return it
-      if (twimlResponse) {
+      // If user provided custom TwiML, return it (must be non-empty after trimming)
+      if (twimlResponse && twimlResponse.length > 0) {
         return new NextResponse(twimlResponse, {
           status: 200,
           headers: {
-            'Content-Type': 'text/xml',
+            'Content-Type': 'text/xml; charset=utf-8',
           },
         })
       }
 
-      // Default TwiML if none provided - just hangs up after brief pause
+      // Default TwiML if none provided
       const defaultTwiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Say>Your call is being processed.</Say>
@@ -592,7 +601,7 @@ export async function queueWebhookExecution(
       return new NextResponse(defaultTwiml, {
         status: 200,
         headers: {
-          'Content-Type': 'text/xml',
+          'Content-Type': 'text/xml; charset=utf-8',
         },
       })
     }
