@@ -36,7 +36,8 @@ export const user = pgTable('user', {
   image: text('image'),
   createdAt: timestamp('created_at').notNull(),
   updatedAt: timestamp('updated_at').notNull(),
-  stripeCustomerId: text('stripe_customer_id'),
+  stripeCustomerId: text('stripe_customer_id'), // Deprecated - use loopsCustomerId
+  loopsCustomerId: text('loops_customer_id'),
 })
 
 export const session = pgTable(
@@ -597,8 +598,10 @@ export const subscription = pgTable(
     id: text('id').primaryKey(),
     plan: text('plan').notNull(),
     referenceId: text('reference_id').notNull(),
-    stripeCustomerId: text('stripe_customer_id'),
-    stripeSubscriptionId: text('stripe_subscription_id'),
+    stripeCustomerId: text('stripe_customer_id'), // Deprecated - use loopsCustomerId
+    stripeSubscriptionId: text('stripe_subscription_id'), // Deprecated - use loopsSubscriptionId
+    loopsCustomerId: text('loops_customer_id'),
+    loopsSubscriptionId: text('loops_subscription_id'),
     status: text('status'),
     periodStart: timestamp('period_start'),
     periodEnd: timestamp('period_end'),
