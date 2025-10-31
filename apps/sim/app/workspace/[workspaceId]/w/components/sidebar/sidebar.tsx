@@ -822,7 +822,7 @@ export function Sidebar() {
 
       // Cmd/Ctrl + K - Open search modal
       if (
-        event.key?.toLowerCase() === 'k' &&
+        event.key.toLowerCase() === 'k' &&
         ((event.metaKey &&
           typeof navigator !== 'undefined' &&
           navigator.platform.toUpperCase().indexOf('MAC') >= 0) ||
