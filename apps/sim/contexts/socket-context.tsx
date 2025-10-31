@@ -437,13 +437,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
         socketInstance.on('cursor-update', (data) => {
           setPresenceUsers((prev) =>
             prev.map((user) =>
-              user.socketId === data.socketId
-                ? {
-                    ...user,
-                    cursor: data.cursor,
-                    avatarUrl: data.avatarUrl ?? user.avatarUrl ?? null,
-                  }
-                : user
+              user.socketId === data.socketId ? { ...user, cursor: data.cursor } : user
             )
           )
           eventHandlers.current.cursorUpdate?.(data)
@@ -453,13 +447,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
         socketInstance.on('selection-update', (data) => {
           setPresenceUsers((prev) =>
             prev.map((user) =>
-              user.socketId === data.socketId
-                ? {
-                    ...user,
-                    selection: data.selection,
-                    avatarUrl: data.avatarUrl ?? user.avatarUrl ?? null,
-                  }
-                : user
+              user.socketId === data.socketId ? { ...user, selection: data.selection } : user
             )
           )
           eventHandlers.current.selectionUpdate?.(data)
