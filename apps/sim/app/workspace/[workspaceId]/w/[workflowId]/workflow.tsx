@@ -1966,7 +1966,7 @@ const WorkflowContent = React.memo(() => {
     return (
       <div className='flex h-screen w-full flex-col overflow-hidden'>
         <div className='relative h-full w-full flex-1 transition-all duration-200'>
-          <div className='pointer-events-none absolute top-6 left-64 ml-4 z-40 sm:top-8 sm:ml-6'>
+          <div className='pointer-events-none absolute top-6 left-64 z-40 ml-4 sm:top-8 sm:ml-6'>
             <UserAvatarStack className='pointer-events-auto w-fit max-w-xs' />
           </div>
           <div className='fixed top-0 right-0 z-10'>
@@ -1989,7 +1989,7 @@ const WorkflowContent = React.memo(() => {
   return (
     <div className='flex h-screen w-full flex-col overflow-hidden'>
       <div className='relative h-full w-full flex-1 transition-all duration-200'>
-        <div className='pointer-events-none absolute top-6 left-64 ml-4 z-40 sm:top-8 sm:ml-6'>
+        <div className='pointer-events-none absolute top-6 left-64 z-40 ml-4 sm:top-8 sm:ml-6'>
           <UserAvatarStack className='pointer-events-auto w-fit max-w-xs' />
         </div>
         <div className='fixed top-0 right-0 z-10'>

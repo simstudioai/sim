@@ -89,7 +89,7 @@ const CollaboratorCursorLayerComponent = () => {
               </svg>
 
               <div
-                className='absolute left-4 top-[-28px] flex items-center gap-2 rounded-full px-2 py-1 text-xs font-medium text-white shadow-lg'
+                className='absolute top-[-28px] left-4 flex items-center gap-2 rounded-full px-2 py-1 font-medium text-white text-xs shadow-lg'
                 style={{
                   background: LABEL_BACKGROUND,
                   border: `1px solid ${accentColor}`,
