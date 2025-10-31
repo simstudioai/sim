@@ -63,13 +63,11 @@ export function setupWorkflowHandlers(
         return
       }
 
-      // Ensure user only joins one workflow at a time
       const currentWorkflowId = roomManager.getWorkflowIdForSocket(socket.id)
       if (currentWorkflowId) {
         socket.leave(currentWorkflowId)
         roomManager.cleanupUserFromRoom(socket.id, currentWorkflowId)
 
-        // Broadcast updated presence list to all remaining users
         roomManager.broadcastPresenceUpdate(currentWorkflowId)
       }
 
@@ -119,7 +117,6 @@ export function setupWorkflowHandlers(
       const workflowState = await getWorkflowState(workflowId)
       socket.emit('workflow-state', workflowState)
 
-      // Broadcast updated presence list to all users in the room
       roomManager.broadcastPresenceUpdate(workflowId)
 
       const uniqueUserCount = roomManager.getUniqueUserCount(workflowId)
@@ -166,7 +163,6 @@ export function setupWorkflowHandlers(
       socket.leave(workflowId)
       roomManager.cleanupUserFromRoom(socket.id, workflowId)
 
-      // Broadcast updated presence list to all remaining users
       roomManager.broadcastPresenceUpdate(workflowId)
 
       logger.info(`User ${session.userId} (${session.userName}) left workflow ${workflowId}`)
