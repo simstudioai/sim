@@ -3,6 +3,20 @@ import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import type { WorkflowBlockProps } from '../types'
 
 /**
+ * Return type for the useBlockProperties hook
+ */
+export interface UseBlockPropertiesReturn {
+  /** Whether the block uses horizontal handles for connections */
+  horizontalHandles: boolean
+  /** The measured height of the block in pixels */
+  blockHeight: number
+  /** The measured width of the block in pixels */
+  blockWidth: number
+  /** Whether the block is in trigger mode */
+  displayTriggerMode: boolean
+}
+
+/**
  * Custom hook for managing block properties (trigger mode, handles, dimensions)
  *
  * @param blockId - The ID of the block

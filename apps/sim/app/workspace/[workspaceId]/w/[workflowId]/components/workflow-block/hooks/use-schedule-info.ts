@@ -6,6 +6,20 @@ import type { ScheduleInfo } from '../types'
 const logger = createLogger('useScheduleInfo')
 
 /**
+ * Return type for the useScheduleInfo hook
+ */
+export interface UseScheduleInfoReturn {
+  /** The schedule configuration and timing information */
+  scheduleInfo: ScheduleInfo | null
+  /** Whether the schedule information is currently being fetched */
+  isLoading: boolean
+  /** Function to reactivate a disabled schedule */
+  reactivateSchedule: (scheduleId: string) => Promise<void>
+  /** Function to disable an active schedule */
+  disableSchedule: (scheduleId: string) => Promise<void>
+}
+
+/**
  * Custom hook for managing schedule information
  *
  * @param blockId - The ID of the block
@@ -13,7 +27,11 @@ const logger = createLogger('useScheduleInfo')
  * @param workflowId - The current workflow ID
  * @returns Schedule information state and operations
  */
-export function useScheduleInfo(blockId: string, blockType: string, workflowId: string) {
+export function useScheduleInfo(
+  blockId: string,
+  blockType: string,
+  workflowId: string
+): UseScheduleInfoReturn {
   const [isLoading, setIsLoading] = useState(false)
   const [scheduleInfo, setScheduleInfo] = useState<ScheduleInfo | null>(null)
 

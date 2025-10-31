@@ -1,12 +1,24 @@
 import { useEffect, useState } from 'react'
 
 /**
+ * Return type for the useChildDeployment hook
+ */
+export interface UseChildDeploymentReturn {
+  /** The active version number of the child workflow */
+  activeVersion: number | null
+  /** Whether the child workflow has an active deployment */
+  isDeployed: boolean
+  /** Whether the deployment information is currently being fetched */
+  isLoading: boolean
+}
+
+/**
  * Custom hook for managing child workflow deployment information
  *
  * @param childWorkflowId - The ID of the child workflow
  * @returns Deployment status and version information
  */
-export function useChildDeployment(childWorkflowId: string | undefined) {
+export function useChildDeployment(childWorkflowId: string | undefined): UseChildDeploymentReturn {
   const [activeVersion, setActiveVersion] = useState<number | null>(null)
   const [isDeployed, setIsDeployed] = useState<boolean>(false)
   const [isLoading, setIsLoading] = useState(false)

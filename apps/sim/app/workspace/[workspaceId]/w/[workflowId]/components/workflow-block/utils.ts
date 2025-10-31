@@ -1,5 +1,7 @@
+import type { NodeProps } from 'reactflow'
 import type { SubBlockConfig } from '@/blocks/types'
 import { WEBHOOK_PROVIDERS } from './constants'
+import type { WorkflowBlockProps } from './types'
 
 /**
  * Gets the display name for a webhook provider
@@ -9,6 +11,35 @@ import { WEBHOOK_PROVIDERS } from './constants'
  */
 export function getProviderName(providerId: string): string {
   return WEBHOOK_PROVIDERS[providerId] || 'Webhook'
+}
+
+/**
+ * Compares two WorkflowBlock props to determine if a re-render should be skipped
+ * Used as the comparison function for React.memo
+ *
+ * @param prevProps - Previous node props
+ * @param nextProps - Next node props
+ * @returns True if render should be skipped (props are equal), false otherwise
+ */
+export function shouldSkipBlockRender(
+  prevProps: NodeProps<WorkflowBlockProps>,
+  nextProps: NodeProps<WorkflowBlockProps>
+): boolean {
+  return (
+    prevProps.id === nextProps.id &&
+    prevProps.data.type === nextProps.data.type &&
+    prevProps.data.name === nextProps.data.name &&
+    prevProps.data.isActive === nextProps.data.isActive &&
+    prevProps.data.isPending === nextProps.data.isPending &&
+    prevProps.data.isPreview === nextProps.data.isPreview &&
+    prevProps.data.config === nextProps.data.config &&
+    prevProps.data.subBlockValues === nextProps.data.subBlockValues &&
+    prevProps.data.blockState === nextProps.data.blockState &&
+    prevProps.selected === nextProps.selected &&
+    prevProps.dragging === nextProps.dragging &&
+    prevProps.xPos === nextProps.xPos &&
+    prevProps.yPos === nextProps.yPos
+  )
 }
 
 /**

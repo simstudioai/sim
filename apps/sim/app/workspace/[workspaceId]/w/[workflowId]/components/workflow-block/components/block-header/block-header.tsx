@@ -96,19 +96,19 @@ export function BlockHeader({
 
   return (
     <div
-      className='workflow-drag-handle flex cursor-grab items-center justify-between p-3 [&:active]:cursor-grabbing'
+      className='workflow-drag-handle flex cursor-grab items-center justify-between px-[8px] py-[8px] [&:active]:cursor-grabbing'
       onMouseDown={(e) => {
         e.stopPropagation()
       }}
     >
-      <div className='flex min-w-0 flex-1 items-center gap-3'>
+      <div className='flex min-w-0 flex-1 items-center gap-[10px]'>
         <div
-          className='flex h-7 w-7 flex-shrink-0 items-center justify-center rounded'
-          style={{ backgroundColor: isEnabled ? config.bgColor : 'gray' }}
+          className='flex h-[24px] w-[24px] flex-shrink-0 items-center justify-center rounded-[6px]'
+          style={{ backgroundColor: isEnabled ? config.bgColor : '[#787878]' }}
         >
-          <config.icon className='h-5 w-5 text-white' />
+          <config.icon className='h-[14px] w-[14px] text-[#ffffff]' />
         </div>
-        <div className='min-w-0'>
+        <div className='flex min-w-0 items-center'>
           {isEditing ? (
             <input
               ref={nameInputRef}
@@ -117,20 +117,17 @@ export function BlockHeader({
               onChange={(e) => handleNodeNameChange(e.target.value)}
               onBlur={handleNameSubmit}
               onKeyDown={handleNameKeyDown}
-              className='border-none bg-transparent p-0 font-medium text-md outline-none'
+              className='border-none bg-transparent p-0 font-medium text-[#ffffff] text-[14px] outline-none'
               maxLength={MAX_BLOCK_NAME_LENGTH}
             />
           ) : (
             <span
               className={cn(
-                'inline-block cursor-text font-medium text-md hover:text-muted-foreground',
-                !isEnabled && 'text-muted-foreground'
+                'inline-block cursor-text truncate font-medium text-[#ffffff] text-[14px]',
+                !isEnabled && '[#787878]'
               )}
               onClick={handleNameClick}
               title={name}
-              style={{
-                maxWidth: !isEnabled ? '140px' : '180px',
-              }}
             >
               {name}
             </span>
