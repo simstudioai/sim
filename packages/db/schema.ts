@@ -145,15 +145,10 @@ export const workflow = pgTable(
     createdAt: timestamp('created_at').notNull(),
     updatedAt: timestamp('updated_at').notNull(),
     isDeployed: boolean('is_deployed').notNull().default(false),
-    deployedState: json('deployed_state'),
     deployedAt: timestamp('deployed_at'),
-    pinnedApiKeyId: text('pinned_api_key_id').references(() => apiKey.id, { onDelete: 'set null' }),
-    collaborators: json('collaborators').notNull().default('[]'),
     runCount: integer('run_count').notNull().default(0),
     lastRunAt: timestamp('last_run_at'),
     variables: json('variables').default('{}'),
-    isPublished: boolean('is_published').notNull().default(false),
-    marketplaceData: json('marketplace_data'),
   },
   (table) => ({
     userIdIdx: index('workflow_user_id_idx').on(table.userId),
@@ -571,6 +566,8 @@ export const userStats = pgTable('user_stats', {
   proPeriodCostSnapshot: decimal('pro_period_cost_snapshot').default('0'), // Snapshot of Pro usage when joining team
   // Copilot usage tracking
   totalCopilotCost: decimal('total_copilot_cost').notNull().default('0'),
+  currentPeriodCopilotCost: decimal('current_period_copilot_cost').notNull().default('0'),
+  lastPeriodCopilotCost: decimal('last_period_copilot_cost').default('0'),
   totalCopilotTokens: integer('total_copilot_tokens').notNull().default(0),
   totalCopilotCalls: integer('total_copilot_calls').notNull().default(0),
   // Storage tracking (for free/pro users)
@@ -579,17 +576,22 @@ export const userStats = pgTable('user_stats', {
   billingBlocked: boolean('billing_blocked').notNull().default(false),
 })
 
-export const customTools = pgTable('custom_tools', {
-  id: text('id').primaryKey(),
-  userId: text('user_id')
-    .notNull()
-    .references(() => user.id, { onDelete: 'cascade' }),
-  title: text('title').notNull(),
-  schema: json('schema').notNull(),
-  code: text('code').notNull(),
-  createdAt: timestamp('created_at').notNull().defaultNow(),
-  updatedAt: timestamp('updated_at').notNull().defaultNow(),
-})
+export const customTools = pgTable(
+  'custom_tools',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id').references(() => workspace.id, { onDelete: 'cascade' }),
+    userId: text('user_id').references(() => user.id, { onDelete: 'set null' }),
+    title: text('title').notNull(),
+    schema: json('schema').notNull(),
+    code: text('code').notNull(),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    workspaceIdIdx: index('custom_tools_workspace_id_idx').on(table.workspaceId),
+  })
+)
 
 export const subscription = pgTable(
   'subscription',
@@ -725,6 +727,10 @@ export const workspace = pgTable('workspace', {
   ownerId: text('owner_id')
     .notNull()
     .references(() => user.id, { onDelete: 'cascade' }),
+  billedAccountUserId: text('billed_account_user_id')
+    .notNull()
+    .references(() => user.id, { onDelete: 'no action' }),
+  allowPersonalApiKeys: boolean('allow_personal_api_keys').notNull().default(true),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
@@ -748,6 +754,29 @@ export const workspaceFile = pgTable(
   (table) => ({
     workspaceIdIdx: index('workspace_file_workspace_id_idx').on(table.workspaceId),
     keyIdx: index('workspace_file_key_idx').on(table.key),
+  })
+)
+
+export const workspaceFiles = pgTable(
+  'workspace_files',
+  {
+    id: text('id').primaryKey(),
+    key: text('key').notNull().unique(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    workspaceId: text('workspace_id').references(() => workspace.id, { onDelete: 'cascade' }),
+    context: text('context').notNull(), // 'workspace', 'copilot', 'chat', 'knowledge-base', 'profile-pictures', 'general', 'execution'
+    originalName: text('original_name').notNull(),
+    contentType: text('content_type').notNull(),
+    size: integer('size').notNull(),
+    uploadedAt: timestamp('uploaded_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    keyIdx: index('workspace_files_key_idx').on(table.key),
+    userIdIdx: index('workspace_files_user_id_idx').on(table.userId),
+    workspaceIdIdx: index('workspace_files_workspace_id_idx').on(table.workspaceId),
+    contextIdx: index('workspace_files_context_idx').on(table.context),
   })
 )
 

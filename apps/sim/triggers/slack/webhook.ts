@@ -1,5 +1,5 @@
 import { SlackIcon } from '@/components/icons'
-import type { TriggerConfig } from '../types'
+import type { TriggerConfig } from '@/triggers/types'
 
 export const slackWebhookTrigger: TriggerConfig = {
   id: 'slack_webhook',
@@ -9,16 +9,83 @@ export const slackWebhookTrigger: TriggerConfig = {
   version: '1.0.0',
   icon: SlackIcon,
 
-  configFields: {
-    signingSecret: {
-      type: 'string',
-      label: 'Signing Secret',
+  subBlocks: [
+    {
+      id: 'webhookUrlDisplay',
+      title: 'Webhook URL',
+      type: 'short-input',
+      readOnly: true,
+      showCopyButton: true,
+      useWebhookUrl: true,
+      placeholder: 'Webhook URL will be generated',
+      mode: 'trigger',
+    },
+    {
+      id: 'signingSecret',
+      title: 'Signing Secret',
+      type: 'short-input',
       placeholder: 'Enter your Slack app signing secret',
       description: 'The signing secret from your Slack app to validate request authenticity.',
+      password: true,
       required: true,
-      isSecret: true,
+      mode: 'trigger',
     },
-  },
+    {
+      id: 'triggerInstructions',
+      title: 'Setup Instructions',
+      type: 'text',
+      defaultValue: [
+        'Go to <a href="https://api.slack.com/apps" target="_blank" rel="noopener noreferrer" class="text-muted-foreground underline transition-colors hover:text-muted-foreground/80">Slack Apps page</a>',
+        'If you don\'t have an app:<br><ul class="mt-1 ml-5 list-disc"><li>Create an app from scratch</li><li>Give it a name and select your workspace</li></ul>',
+        'Go to "Basic Information", find the "Signing Secret", and paste it in the field above.',
+        'Go to "OAuth & Permissions" and add bot token scopes:<br><ul class="mt-1 ml-5 list-disc"><li><code>app_mentions:read</code> - For viewing messages that tag your bot with an @</li><li><code>chat:write</code> - To send messages to channels your bot is a part of</li></ul>',
+        'Go to "Event Subscriptions":<br><ul class="mt-1 ml-5 list-disc"><li>Enable events</li><li>Under "Subscribe to Bot Events", add <code>app_mention</code> to listen to messages that mention your bot</li><li>Paste the Webhook URL above into the "Request URL" field</li></ul>',
+        'Go to "Install App" in the left sidebar and install the app into your desired Slack workspace and channel.',
+        'Save changes in both Slack and here.',
+      ]
+        .map(
+          (instruction, index) =>
+            `<div class="mb-3"><strong>${index + 1}.</strong> ${instruction}</div>`
+        )
+        .join(''),
+      mode: 'trigger',
+    },
+    {
+      id: 'triggerSave',
+      title: '',
+      type: 'trigger-save',
+      mode: 'trigger',
+      triggerId: 'slack_webhook',
+    },
+    {
+      id: 'samplePayload',
+      title: 'Event Payload Example',
+      type: 'code',
+      language: 'json',
+      defaultValue: JSON.stringify(
+        {
+          type: 'event_callback',
+          event: {
+            type: 'app_mention',
+            channel: 'C0123456789',
+            user: 'U0123456789',
+            text: '<@U0BOTUSER123> Hello from Slack!',
+            ts: '1234567890.123456',
+            channel_type: 'channel',
+          },
+          team_id: 'T0123456789',
+          event_id: 'Ev0123456789',
+          event_time: 1234567890,
+        },
+        null,
+        2
+      ),
+      readOnly: true,
+      collapsible: true,
+      defaultCollapsed: true,
+      mode: 'trigger',
+    },
+  ],
 
   outputs: {
     event: {
@@ -59,31 +126,6 @@ export const slackWebhookTrigger: TriggerConfig = {
         description: 'Unique event identifier',
       },
     },
-  },
-
-  instructions: [
-    'Go to <a href="https://api.slack.com/apps" target="_blank" rel="noopener noreferrer" class="text-muted-foreground underline transition-colors hover:text-muted-foreground/80">Slack Apps page</a>',
-    'If you don\'t have an app:<br><ul class="mt-1 ml-5 list-disc"><li>Create an app from scratch</li><li>Give it a name and select your workspace</li></ul>',
-    'Go to "Basic Information", find the "Signing Secret", and paste it in the field above.',
-    'Go to "OAuth & Permissions" and add bot token scopes:<br><ul class="mt-1 ml-5 list-disc"><li><code>app_mentions:read</code> - For viewing messages that tag your bot with an @</li><li><code>chat:write</code> - To send messages to channels your bot is a part of</li></ul>',
-    'Go to "Event Subscriptions":<br><ul class="mt-1 ml-5 list-disc"><li>Enable events</li><li>Under "Subscribe to Bot Events", add <code>app_mention</code> to listen to messages that mention your bot</li><li>Paste the Webhook URL (from above) into the "Request URL" field</li></ul>',
-    'Go to "Install App" in the left sidebar and install the app into your desired Slack workspace and channel.',
-    'Save changes in both Slack and here.',
-  ],
-
-  samplePayload: {
-    type: 'event_callback',
-    event: {
-      type: 'app_mention',
-      channel: 'C0123456789',
-      user: 'U0123456789',
-      text: '<@U0BOTUSER123> Hello from Slack!',
-      ts: '1234567890.123456',
-      channel_type: 'channel',
-    },
-    team_id: 'T0123456789',
-    event_id: 'Ev0123456789',
-    event_time: 1234567890,
   },
 
   webhook: {

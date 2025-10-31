@@ -22,7 +22,7 @@ import { getWorkflowById } from '@/lib/workflows/utils'
 import type { ExecutionResult } from '@/executor/types'
 import { Serializer } from '@/serializer'
 import { mergeSubblockState } from '@/stores/workflows/server-utils'
-import { getTrigger } from '@/triggers'
+import { getTrigger, isTriggerValid } from '@/triggers'
 
 const logger = createLogger('TriggerWebhookExecution')
 
@@ -160,11 +160,12 @@ async function executeWebhookJobInternal(
     const { blocks, edges, loops, parallels } = workflowData
 
     const wfRows = await db
-      .select({ workspaceId: workflowTable.workspaceId })
+      .select({ workspaceId: workflowTable.workspaceId, variables: workflowTable.variables })
       .from(workflowTable)
       .where(eq(workflowTable.id, payload.workflowId))
       .limit(1)
     const workspaceId = wfRows[0]?.workspaceId || undefined
+    const workflowVariables = (wfRows[0]?.variables as Record<string, any>) || {}
 
     const { personalEncrypted, workspaceEncrypted } = await getPersonalAndWorkspaceEnv(
       payload.userId,
@@ -207,9 +208,6 @@ async function executeWebhookJobInternal(
       },
       {} as Record<string, Record<string, any>>
     )
-
-    // Handle workflow variables (for now, use empty object since we don't have workflow metadata)
-    const workflowVariables = {}
 
     // Create serialized workflow
     const serializer = new Serializer()
@@ -362,10 +360,10 @@ async function executeWebhookJobInternal(
         const triggerBlock = blocks[payload.blockId]
         const triggerId = triggerBlock?.subBlocks?.triggerId?.value
 
-        if (triggerId && typeof triggerId === 'string') {
+        if (triggerId && typeof triggerId === 'string' && isTriggerValid(triggerId)) {
           const triggerConfig = getTrigger(triggerId)
 
-          if (triggerConfig?.outputs) {
+          if (triggerConfig.outputs) {
             logger.debug(`[${requestId}] Processing trigger ${triggerId} file outputs`)
             const processedInput = await processTriggerFileOutputs(input, triggerConfig.outputs, {
               workspaceId: workspaceId || '',
@@ -410,7 +408,8 @@ async function executeWebhookJobInternal(
                 const uploadedFiles = await processExecutionFiles(
                   fieldValue,
                   executionContext,
-                  requestId
+                  requestId,
+                  payload.userId
                 )
 
                 if (uploadedFiles.length > 0) {

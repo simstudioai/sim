@@ -679,46 +679,34 @@ export function Sidebar() {
   const [showSearchModal, setShowSearchModal] = useState(false)
   const [showSubscriptionModal, setShowSubscriptionModal] = useState(false)
 
-  // Separate regular workflows from temporary marketplace workflows
-  const { regularWorkflows, tempWorkflows } = useMemo(() => {
+  // Get workflows for the current workspace
+  const regularWorkflows = useMemo(() => {
+    if (isLoading) return []
+
     const regular: WorkflowMetadata[] = []
-    const temp: WorkflowMetadata[] = []
-
-    if (!isLoading) {
-      Object.values(workflows).forEach((workflow) => {
-        if (workflow.workspaceId === workspaceId || !workflow.workspaceId) {
-          if (workflow.marketplaceData?.status === 'temp') {
-            temp.push(workflow)
-          } else {
-            regular.push(workflow)
-          }
-        }
-      })
-
-      // Sort by creation date (newest first) for stable ordering
-      const sortByCreatedAt = (a: WorkflowMetadata, b: WorkflowMetadata) => {
-        return b.createdAt.getTime() - a.createdAt.getTime()
+    Object.values(workflows).forEach((workflow) => {
+      if (workflow.workspaceId === workspaceId || !workflow.workspaceId) {
+        regular.push(workflow)
       }
+    })
 
-      regular.sort(sortByCreatedAt)
-      temp.sort(sortByCreatedAt)
-    }
+    // Sort by creation date (newest first) for stable ordering
+    regular.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
 
-    return { regularWorkflows: regular, tempWorkflows: temp }
+    return regular
   }, [workflows, isLoading, workspaceId])
 
   // Prepare workflows for search modal
   const searchWorkflows = useMemo(() => {
     if (isLoading) return []
 
-    const allWorkflows = [...regularWorkflows, ...tempWorkflows]
-    return allWorkflows.map((workflow) => ({
+    return regularWorkflows.map((workflow) => ({
       id: workflow.id,
       name: workflow.name,
       href: `/workspace/${workspaceId}/w/${workflow.id}`,
       isCurrent: workflow.id === workflowId,
     }))
-  }, [regularWorkflows, tempWorkflows, workspaceId, workflowId, isLoading])
+  }, [regularWorkflows, workspaceId, workflowId, isLoading])
 
   // Prepare workspaces for search modal (include all workspaces)
   const searchWorkspaces = useMemo(() => {
@@ -942,7 +930,6 @@ export function Sidebar() {
                 <div ref={workflowScrollAreaRef}>
                   <FolderTree
                     regularWorkflows={regularWorkflows}
-                    marketplaceWorkflows={tempWorkflows}
                     isLoading={isLoading}
                     onCreateWorkflow={handleCreateWorkflow}
                   />

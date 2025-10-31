@@ -26,7 +26,8 @@ interface PresenceUser {
   socketId: string
   userId: string
   userName: string
-  cursor?: { x: number; y: number }
+  avatarUrl?: string | null
+  cursor?: { x: number; y: number } | null
   selection?: { type: 'block' | 'edge' | 'none'; id?: string }
 }
 
@@ -52,7 +53,7 @@ interface SocketContextType {
   ) => void
   emitVariableUpdate: (variableId: string, field: string, value: any, operationId?: string) => void
 
-  emitCursorUpdate: (cursor: { x: number; y: number }) => void
+  emitCursorUpdate: (cursor: { x: number; y: number } | null) => void
   emitSelectionUpdate: (selection: { type: 'block' | 'edge' | 'none'; id?: string }) => void
   // Event handlers for receiving real-time updates
   onWorkflowOperation: (handler: (data: any) => void) => void
@@ -707,14 +708,23 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
   // Cursor throttling optimized for database connection health
   const lastCursorEmit = useRef(0)
   const emitCursorUpdate = useCallback(
-    (cursor: { x: number; y: number }) => {
-      if (socket && currentWorkflowId) {
-        const now = performance.now()
-        // Reduced to 30fps (33ms) to reduce database load while maintaining smooth UX
-        if (now - lastCursorEmit.current >= 33) {
-          socket.emit('cursor-update', { cursor })
-          lastCursorEmit.current = now
-        }
+    (cursor: { x: number; y: number } | null) => {
+      if (!socket || !currentWorkflowId) {
+        return
+      }
+
+      const now = performance.now()
+
+      if (cursor === null) {
+        socket.emit('cursor-update', { cursor: null })
+        lastCursorEmit.current = now
+        return
+      }
+
+      // Reduced to 30fps (33ms) to reduce database load while maintaining smooth UX
+      if (now - lastCursorEmit.current >= 33) {
+        socket.emit('cursor-update', { cursor })
+        lastCursorEmit.current = now
       }
     },
     [socket, currentWorkflowId]

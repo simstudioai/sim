@@ -2,7 +2,6 @@ import { db, webhook, workflow } from '@sim/db'
 import { tasks } from '@trigger.dev/sdk'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { getApiKeyOwnerUserId } from '@/lib/api-key/service'
 import { checkServerSideUsageLimits } from '@/lib/billing'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { env, isTruthy } from '@/lib/env'
@@ -13,6 +12,7 @@ import {
   validateMicrosoftTeamsSignature,
   verifyProviderWebhook,
 } from '@/lib/webhooks/utils'
+import { getWorkspaceBilledAccountUserId } from '@/lib/workspaces/utils'
 import { executeWebhookJob } from '@/background/webhook-execution'
 import { RateLimiter } from '@/services/queue'
 
@@ -24,6 +24,20 @@ export interface WebhookProcessorOptions {
   webhookId?: string
   testMode?: boolean
   executionTarget?: 'deployed' | 'live'
+}
+
+async function resolveWorkflowActorUserId(foundWorkflow: {
+  workspaceId?: string | null
+  userId?: string | null
+}): Promise<string | null> {
+  if (foundWorkflow?.workspaceId) {
+    const billedAccount = await getWorkspaceBilledAccountUserId(foundWorkflow.workspaceId)
+    if (billedAccount) {
+      return billedAccount
+    }
+  }
+
+  return foundWorkflow?.userId ?? null
 }
 
 export async function parseWebhookBody(
@@ -269,11 +283,11 @@ export async function checkRateLimits(
   requestId: string
 ): Promise<NextResponse | null> {
   try {
-    const actorUserId = await getApiKeyOwnerUserId(foundWorkflow.pinnedApiKeyId)
+    const actorUserId = await resolveWorkflowActorUserId(foundWorkflow)
 
     if (!actorUserId) {
-      logger.warn(`[${requestId}] Webhook requires pinned API key to attribute usage`)
-      return NextResponse.json({ message: 'Pinned API key required' }, { status: 200 })
+      logger.warn(`[${requestId}] Webhook requires a workspace billing account to attribute usage`)
+      return NextResponse.json({ message: 'Workspace billing account required' }, { status: 200 })
     }
 
     const userSubscription = await getHighestPrioritySubscription(actorUserId)
@@ -327,11 +341,11 @@ export async function checkUsageLimits(
   }
 
   try {
-    const actorUserId = await getApiKeyOwnerUserId(foundWorkflow.pinnedApiKeyId)
+    const actorUserId = await resolveWorkflowActorUserId(foundWorkflow)
 
     if (!actorUserId) {
-      logger.warn(`[${requestId}] Webhook requires pinned API key to attribute usage`)
-      return NextResponse.json({ message: 'Pinned API key required' }, { status: 200 })
+      logger.warn(`[${requestId}] Webhook requires a workspace billing account to attribute usage`)
+      return NextResponse.json({ message: 'Workspace billing account required' }, { status: 200 })
     }
 
     const usageCheck = await checkServerSideUsageLimits(actorUserId)
@@ -376,10 +390,12 @@ export async function queueWebhookExecution(
   options: WebhookProcessorOptions
 ): Promise<NextResponse> {
   try {
-    const actorUserId = await getApiKeyOwnerUserId(foundWorkflow.pinnedApiKeyId)
+    const actorUserId = await resolveWorkflowActorUserId(foundWorkflow)
     if (!actorUserId) {
-      logger.warn(`[${options.requestId}] Webhook requires pinned API key to attribute usage`)
-      return NextResponse.json({ message: 'Pinned API key required' }, { status: 200 })
+      logger.warn(
+        `[${options.requestId}] Webhook requires a workspace billing account to attribute usage`
+      )
+      return NextResponse.json({ message: 'Workspace billing account required' }, { status: 200 })
     }
 
     const headers = Object.fromEntries(request.headers.entries())

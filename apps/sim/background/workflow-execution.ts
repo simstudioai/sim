@@ -5,8 +5,19 @@ import { eq } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 import { createLogger } from '@/lib/logs/console/logger'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
+<<<<<<< HEAD
 import { getWorkflowById } from '@/lib/workflows/utils'
 import { executeWorkflow } from '@/app/api/workflows/[id]/execute/route'
+=======
+import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
+import { decryptSecret } from '@/lib/utils'
+import { loadDeployedWorkflowState } from '@/lib/workflows/db-helpers'
+import { updateWorkflowRunCounts } from '@/lib/workflows/utils'
+import { filterEdgesFromTriggerBlocks } from '@/app/workspace/[workspaceId]/w/[workflowId]/lib/workflow-execution-utils'
+import { Executor } from '@/executor'
+import { Serializer } from '@/serializer'
+import { mergeSubblockState } from '@/stores/workflows/server-utils'
+>>>>>>> origin/improvement/sim-294
 
 const logger = createLogger('TriggerWorkflowExecution')
 
@@ -48,10 +59,76 @@ export async function executeWorkflowJob(payload: WorkflowExecutionPayload) {
       .limit(1)
     const workspaceId = wfRows[0]?.workspaceId || undefined
 
+<<<<<<< HEAD
     // Set workspace on workflow object for executeWorkflow function
     const workflowWithWorkspace = {
       ...workflow,
       workspaceId,
+=======
+    const { personalEncrypted, workspaceEncrypted } = await getPersonalAndWorkspaceEnv(
+      payload.userId,
+      workspaceId
+    )
+    const mergedEncrypted = { ...personalEncrypted, ...workspaceEncrypted }
+    const decryptionPromises = Object.entries(mergedEncrypted).map(async ([key, encrypted]) => {
+      const { decrypted } = await decryptSecret(encrypted)
+      return [key, decrypted] as const
+    })
+    const decryptedPairs = await Promise.all(decryptionPromises)
+    const decryptedEnvVars: Record<string, string> = Object.fromEntries(decryptedPairs)
+
+    // Start logging session
+    await loggingSession.safeStart({
+      userId: payload.userId,
+      workspaceId: workspaceId || '',
+      variables: decryptedEnvVars,
+    })
+
+    // Filter out edges between trigger blocks - triggers are independent entry points
+    const filteredEdges = filterEdgesFromTriggerBlocks(mergedStates, edges)
+
+    // Create serialized workflow
+    const serializer = new Serializer()
+    const serializedWorkflow = serializer.serializeWorkflow(
+      mergedStates,
+      filteredEdges,
+      loops || {},
+      parallels || {},
+      true // Enable validation during execution
+    )
+
+    // Create executor and execute
+    const executor = new Executor({
+      workflow: serializedWorkflow,
+      currentBlockStates: processedBlockStates,
+      envVarValues: decryptedEnvVars,
+      workflowInput: payload.input || {},
+      workflowVariables: {},
+      contextExtensions: {
+        executionId,
+        workspaceId: workspaceId || '',
+        isDeployedContext: true,
+      },
+    })
+
+    // Set up logging on the executor
+    loggingSession.setupExecutor(executor)
+
+    const result = await executor.execute(workflowId)
+
+    // Handle streaming vs regular result
+    const executionResult = 'stream' in result && 'execution' in result ? result.execution : result
+
+    logger.info(`[${requestId}] Workflow execution completed: ${workflowId}`, {
+      success: executionResult.success,
+      executionTime: executionResult.metadata?.duration,
+      executionId,
+    })
+
+    // Update workflow run counts on success
+    if (executionResult.success) {
+      await updateWorkflowRunCounts(workflowId)
+>>>>>>> origin/improvement/sim-294
     }
 
     // Use the unified executeWorkflow function (non-SSE for background jobs)

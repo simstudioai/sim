@@ -387,8 +387,6 @@ export async function migrateWorkflowToNormalizedTables(
 export async function deployWorkflow(params: {
   workflowId: string
   deployedBy: string // User ID of the person deploying
-  pinnedApiKeyId?: string
-  includeDeployedState?: boolean
   workflowName?: string
 }): Promise<{
   success: boolean
@@ -397,13 +395,7 @@ export async function deployWorkflow(params: {
   currentState?: any
   error?: string
 }> {
-  const {
-    workflowId,
-    deployedBy,
-    pinnedApiKeyId,
-    includeDeployedState = false,
-    workflowName,
-  } = params
+  const { workflowId, deployedBy, workflowName } = params
 
   try {
     const normalizedData = await loadWorkflowFromNormalizedTables(workflowId)
@@ -451,14 +443,6 @@ export async function deployWorkflow(params: {
       const updateData: Record<string, unknown> = {
         isDeployed: true,
         deployedAt: now,
-      }
-
-      if (includeDeployedState) {
-        updateData.deployedState = currentState
-      }
-
-      if (pinnedApiKeyId) {
-        updateData.pinnedApiKeyId = pinnedApiKeyId
       }
 
       await tx.update(workflow).set(updateData).where(eq(workflow.id, workflowId))

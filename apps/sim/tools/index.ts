@@ -450,12 +450,10 @@ async function handleInternalRequest(
 ): Promise<ToolResponse> {
   const requestId = generateRequestId()
 
-  // Format the request parameters
   const requestParams = formatRequestParams(tool, params)
 
   try {
     const baseUrl = getBaseUrl()
-    // Handle the case where url may be a function or string
     const endpointUrl =
       typeof tool.request.url === 'function' ? tool.request.url(params) : tool.request.url
 

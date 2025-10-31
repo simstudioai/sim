@@ -69,7 +69,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     return createSuccessResponse({
       isDeployed: validation.workflow.isDeployed,
       deployedAt: validation.workflow.deployedAt,
-      isPublished: validation.workflow.isPublished,
       needsRedeployment,
     })
   } catch (error) {

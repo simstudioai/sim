@@ -419,6 +419,21 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
           const outputPaths = generateOutputPaths(blockConfig.outputs)
           blockTags = outputPaths.map((path) => `${normalizedBlockName}.${path}`)
         }
+      } else if (sourceBlock.type === 'variables') {
+        // For variables block, show assigned variable names as outputs
+        const variablesValue = getSubBlockValue(activeSourceBlockId, 'variables')
+
+        if (variablesValue && Array.isArray(variablesValue) && variablesValue.length > 0) {
+          const validAssignments = variablesValue.filter((assignment: { variableName?: string }) =>
+            assignment?.variableName?.trim()
+          )
+          blockTags = validAssignments.map(
+            (assignment: { variableName: string }) =>
+              `${normalizedBlockName}.${assignment.variableName.trim()}`
+          )
+        } else {
+          blockTags = [normalizedBlockName]
+        }
       } else if (responseFormat) {
         const schemaFields = extractFieldsFromSchema(responseFormat)
         if (schemaFields.length > 0) {
@@ -764,6 +779,21 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
         } else {
           const outputPaths = generateOutputPaths(blockConfig.outputs)
           blockTags = outputPaths.map((path) => `${normalizedBlockName}.${path}`)
+        }
+      } else if (accessibleBlock.type === 'variables') {
+        // For variables block, show assigned variable names as outputs
+        const variablesValue = getSubBlockValue(accessibleBlockId, 'variables')
+
+        if (variablesValue && Array.isArray(variablesValue) && variablesValue.length > 0) {
+          const validAssignments = variablesValue.filter((assignment: { variableName?: string }) =>
+            assignment?.variableName?.trim()
+          )
+          blockTags = validAssignments.map(
+            (assignment: { variableName: string }) =>
+              `${normalizedBlockName}.${assignment.variableName.trim()}`
+          )
+        } else {
+          blockTags = [normalizedBlockName]
         }
       } else if (responseFormat) {
         const schemaFields = extractFieldsFromSchema(responseFormat)

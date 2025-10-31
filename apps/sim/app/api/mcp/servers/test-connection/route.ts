@@ -13,9 +13,10 @@ export const dynamic = 'force-dynamic'
 
 /**
  * Check if transport type requires a URL
+ * All modern MCP connections use Streamable HTTP which requires a URL
  */
 function isUrlBasedTransport(transport: McpTransport): boolean {
-  return transport === 'http' || transport === 'sse' || transport === 'streamable-http'
+  return transport === 'streamable-http'
 }
 
 /**
@@ -151,16 +152,21 @@ export const POST = withMcpAuth('write')(
         client = new McpClient(testConfig, testSecurityPolicy)
         await client.connect()
 
-        result.success = true
         result.negotiatedVersion = client.getNegotiatedVersion()
 
         try {
           const tools = await client.listTools()
           result.toolCount = tools.length
+          result.success = true
         } catch (toolError) {
-          logger.warn(`[${requestId}] Could not list tools from test server:`, toolError)
+          logger.warn(`[${requestId}] Connection established but could not list tools:`, toolError)
+          result.success = false
+          const errorMessage = toolError instanceof Error ? toolError.message : 'Unknown error'
+          result.error = `Connection established but could not list tools: ${errorMessage}`
           result.warnings = result.warnings || []
-          result.warnings.push('Could not list tools from server')
+          result.warnings.push(
+            'Server connected but tool listing failed - connection may be incomplete'
+          )
         }
 
         const clientVersionInfo = McpClient.getVersionInfo()

@@ -203,3 +203,13 @@ Escribir o enviar un mensaje a un canal de Microsoft Teams
 
 - Categoría: `tools`
 - Tipo: `microsoft_teams`
+
+### Mencionar a usuarios
+
+Para mencionar a usuarios en tus mensajes (tanto en chats como en canales), envuelve su nombre de visualización con etiquetas `<at>`:
+
+```
+<at>John Doe</at> can you review this?
+```
+
+La mención se resolverá automáticamente al usuario correcto y recibirán una notificación en Microsoft Teams. Esto funciona tanto para mensajes de chat como para mensajes de canal. Los bots/aplicaciones no pueden ser etiquetados.

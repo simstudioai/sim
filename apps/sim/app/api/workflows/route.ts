@@ -143,11 +143,8 @@ export async function POST(req: NextRequest) {
       createdAt: now,
       updatedAt: now,
       isDeployed: false,
-      collaborators: [],
       runCount: 0,
       variables: {},
-      isPublished: false,
-      marketplaceData: null,
     })
 
     logger.info(`[${requestId}] Successfully created empty workflow ${workflowId}`)

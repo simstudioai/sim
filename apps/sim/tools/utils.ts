@@ -365,7 +365,22 @@ async function getCustomTool(
       url.searchParams.append('workflowId', workflowId)
     }
 
-    const response = await fetch(url.toString())
+    // For server-side calls (during workflow execution), use internal JWT token
+    const headers: Record<string, string> = {}
+    if (typeof window === 'undefined') {
+      try {
+        const { generateInternalToken } = await import('@/lib/auth/internal')
+        const internalToken = await generateInternalToken()
+        headers.Authorization = `Bearer ${internalToken}`
+      } catch (error) {
+        logger.warn('Failed to generate internal token for custom tools fetch', { error })
+        // Continue without token - will fail auth and be reported upstream
+      }
+    }
+
+    const response = await fetch(url.toString(), {
+      headers,
+    })
 
     if (!response.ok) {
       logger.error(`Failed to fetch custom tools: ${response.statusText}`)

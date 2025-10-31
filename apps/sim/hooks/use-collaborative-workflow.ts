@@ -1202,7 +1202,7 @@ export function useCollaborativeWorkflow() {
         horizontalHandles: sourceBlock.horizontalHandles ?? true,
         isWide: sourceBlock.isWide ?? false,
         advancedMode: sourceBlock.advancedMode ?? false,
-        triggerMode: false, // Always duplicate as normal mode to avoid webhook conflicts
+        triggerMode: sourceBlock.triggerMode ?? false,
         height: sourceBlock.height || 0,
       }
 
@@ -1219,7 +1219,7 @@ export function useCollaborativeWorkflow() {
           horizontalHandles: sourceBlock.horizontalHandles,
           isWide: sourceBlock.isWide,
           advancedMode: sourceBlock.advancedMode,
-          triggerMode: false, // Always duplicate as normal mode
+          triggerMode: sourceBlock.triggerMode ?? false,
           height: sourceBlock.height,
         }
       )
@@ -1238,7 +1238,7 @@ export function useCollaborativeWorkflow() {
             horizontalHandles: sourceBlock.horizontalHandles,
             isWide: sourceBlock.isWide,
             advancedMode: sourceBlock.advancedMode,
-            triggerMode: false, // Always duplicate as normal mode
+            triggerMode: sourceBlock.triggerMode ?? false,
             height: sourceBlock.height,
           }
         )

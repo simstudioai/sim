@@ -3,7 +3,6 @@ import { task } from '@trigger.dev/sdk'
 import { Cron } from 'croner'
 import { eq } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
-import { getApiKeyOwnerUserId } from '@/lib/api-key/service'
 import { checkServerSideUsageLimits } from '@/lib/billing'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { getPersonalAndWorkspaceEnv } from '@/lib/environment/utils'
@@ -21,6 +20,7 @@ import { executeWorkflowCore } from '@/lib/workflows/executor/execution-core'
 import { Serializer } from '@/serializer'
 import { RateLimiter } from '@/services/queue'
 import { mergeSubblockState } from '@/stores/workflows/server-utils'
+import { getWorkspaceBilledAccountUserId } from '@/lib/workspaces/utils'
 
 const logger = createLogger('TriggerScheduleExecution')
 
@@ -89,11 +89,19 @@ export async function executeScheduleJob(payload: ScheduleExecutionPayload) {
       return
     }
 
-    const actorUserId = await getApiKeyOwnerUserId(workflowRecord.pinnedApiKeyId)
+    let actorUserId: string | null = null
+
+    if (workflowRecord.workspaceId) {
+      actorUserId = await getWorkspaceBilledAccountUserId(workflowRecord.workspaceId)
+    }
+
+    if (!actorUserId) {
+      actorUserId = workflowRecord.userId ?? null
+    }
 
     if (!actorUserId) {
       logger.warn(
-        `[${requestId}] Skipping schedule ${payload.scheduleId}: pinned API key required to attribute usage.`
+        `[${requestId}] Skipping schedule ${payload.scheduleId}: unable to resolve billed account.`
       )
       return
     }
@@ -304,18 +312,7 @@ export async function executeScheduleJob(payload: ScheduleExecutionPayload) {
             {} as Record<string, Record<string, any>>
           )
 
-          let workflowVariables = {}
-          if (workflowRecord.variables) {
-            try {
-              if (typeof workflowRecord.variables === 'string') {
-                workflowVariables = JSON.parse(workflowRecord.variables)
-              } else {
-                workflowVariables = workflowRecord.variables
-              }
-            } catch (error) {
-              logger.error(`Failed to parse workflow variables: ${payload.workflowId}`, error)
-            }
-          }
+          const workflowVariables = (workflowRecord.variables as Record<string, any>) || {}
 
           const serializedWorkflow = new Serializer().serializeWorkflow(
             mergedStates,

@@ -1,5 +1,6 @@
 import { GoogleFormsIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
+import { getTrigger } from '@/triggers'
 
 export const GoogleFormsBlock: BlockConfig = {
   type: 'google_forms',
@@ -46,15 +47,7 @@ export const GoogleFormsBlock: BlockConfig = {
       layout: 'full',
       placeholder: 'Max responses to retrieve (default 5000)',
     },
-    // Trigger configuration (shown when block is in trigger mode)
-    {
-      id: 'triggerConfig',
-      title: 'Trigger Configuration',
-      type: 'trigger-config',
-      layout: 'full',
-      triggerProvider: 'google_forms',
-      availableTriggers: ['google_forms_webhook'],
-    },
+    ...getTrigger('google_forms_webhook').subBlocks,
   ],
   tools: {
     access: ['google_forms_get_responses'],

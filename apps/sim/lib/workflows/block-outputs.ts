@@ -1,7 +1,42 @@
 import { classifyStartBlockType, StartBlockPath } from '@/lib/workflows/triggers'
 import { getBlock } from '@/blocks'
 import type { BlockConfig } from '@/blocks/types'
-import { getTrigger } from '@/triggers'
+import { getTrigger, isTriggerValid } from '@/triggers'
+
+type InputFormatField = { name?: string; type?: string | undefined | null }
+
+function normalizeInputFormatValue(inputFormatValue: any): InputFormatField[] {
+  if (
+    inputFormatValue === null ||
+    inputFormatValue === undefined ||
+    (Array.isArray(inputFormatValue) && inputFormatValue.length === 0)
+  ) {
+    return []
+  }
+
+  if (!Array.isArray(inputFormatValue)) {
+    return []
+  }
+
+  return inputFormatValue.filter((field) => field && typeof field === 'object')
+}
+
+function applyInputFormatFields(
+  inputFormat: InputFormatField[],
+  outputs: Record<string, any>
+): Record<string, any> {
+  for (const field of inputFormat) {
+    const fieldName = field?.name?.trim()
+    if (!fieldName) continue
+
+    outputs[fieldName] = {
+      type: (field?.type || 'any') as any,
+      description: `Field from input format`,
+    }
+  }
+
+  return outputs
+}
 
 type InputFormatField = { name?: string; type?: string | undefined | null }
 
@@ -51,10 +86,19 @@ export function getBlockOutputs(
   if (!blockConfig) return {}
 
   if (triggerMode && blockConfig.triggers?.enabled) {
-    const triggerId = subBlocks?.triggerId?.value || blockConfig.triggers?.available?.[0]
-    if (triggerId) {
+    const selectedTriggerIdValue = subBlocks?.selectedTriggerId?.value
+    const triggerIdValue = subBlocks?.triggerId?.value
+    const triggerId =
+      (typeof selectedTriggerIdValue === 'string' && isTriggerValid(selectedTriggerIdValue)
+        ? selectedTriggerIdValue
+        : undefined) ||
+      (typeof triggerIdValue === 'string' && isTriggerValid(triggerIdValue)
+        ? triggerIdValue
+        : undefined) ||
+      blockConfig.triggers?.available?.[0]
+    if (triggerId && isTriggerValid(triggerId)) {
       const trigger = getTrigger(triggerId)
-      if (trigger?.outputs) {
+      if (trigger.outputs) {
         return trigger.outputs
       }
     }

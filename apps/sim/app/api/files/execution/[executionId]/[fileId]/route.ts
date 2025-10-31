@@ -1,5 +1,10 @@
+import { db } from '@sim/db'
+import { workflow, workflowExecutionLogs } from '@sim/db/schema'
+import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
+import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { createLogger } from '@/lib/logs/console/logger'
+import { getUserEntityPermissions } from '@/lib/permissions/utils'
 import {
   generateExecutionFileDownloadUrl,
   getExecutionFiles,
@@ -17,6 +22,16 @@ export async function GET(
   { params }: { params: Promise<{ executionId: string; fileId: string }> }
 ) {
   try {
+    const authResult = await checkHybridAuth(request, { requireWorkflowId: false })
+
+    if (!authResult.success || !authResult.userId) {
+      logger.warn('Unauthorized execution file download request', {
+        error: authResult.error || 'Missing userId',
+      })
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const userId = authResult.userId
     const { executionId, fileId } = await params
 
     if (!executionId || !fileId) {
@@ -24,6 +39,49 @@ export async function GET(
     }
 
     logger.info(`Generating download URL for file ${fileId} in execution ${executionId}`)
+
+    const [executionLog] = await db
+      .select({
+        workflowId: workflowExecutionLogs.workflowId,
+      })
+      .from(workflowExecutionLogs)
+      .where(eq(workflowExecutionLogs.executionId, executionId))
+      .limit(1)
+
+    if (!executionLog) {
+      return NextResponse.json({ error: 'Execution not found' }, { status: 404 })
+    }
+
+    const [workflowData] = await db
+      .select({
+        workspaceId: workflow.workspaceId,
+      })
+      .from(workflow)
+      .where(eq(workflow.id, executionLog.workflowId))
+      .limit(1)
+
+    if (!workflowData) {
+      return NextResponse.json({ error: 'Workflow not found' }, { status: 404 })
+    }
+
+    if (!workflowData.workspaceId) {
+      logger.warn('Workflow missing workspaceId', {
+        workflowId: executionLog.workflowId,
+        executionId,
+      })
+      return NextResponse.json({ error: 'Workflow not found' }, { status: 404 })
+    }
+
+    const permission = await getUserEntityPermissions(userId, 'workspace', workflowData.workspaceId)
+    if (permission === null) {
+      logger.warn('User does not have workspace access for execution file', {
+        userId,
+        workspaceId: workflowData.workspaceId,
+        executionId,
+        fileId,
+      })
+      return NextResponse.json({ error: 'File not found' }, { status: 404 })
+    }
 
     const executionFiles = await getExecutionFiles(executionId)
 

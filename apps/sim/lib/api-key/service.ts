@@ -1,11 +1,13 @@
 import { createCipheriv, createDecipheriv, randomBytes } from 'crypto'
 import { db } from '@sim/db'
-import { apiKey as apiKeyTable, workspace } from '@sim/db/schema'
+import { apiKey as apiKeyTable } from '@sim/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { authenticateApiKey } from '@/lib/api-key/auth'
 import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
+import { getUserEntityPermissions } from '@/lib/permissions/utils'
+import { getWorkspaceBillingSettings } from '@/lib/workspaces/utils'
 
 const logger = createLogger('ApiKeyService')
 
@@ -36,6 +38,18 @@ export async function authenticateApiKeyFromHeader(
   }
 
   try {
+    let workspaceSettings: {
+      billedAccountUserId: string | null
+      allowPersonalApiKeys: boolean
+    } | null = null
+
+    if (options.workspaceId) {
+      workspaceSettings = await getWorkspaceBillingSettings(options.workspaceId)
+      if (!workspaceSettings) {
+        return { success: false, error: 'Workspace not found' }
+      }
+    }
+
     // Build query based on options
     let query = db
       .select({
@@ -48,20 +62,11 @@ export async function authenticateApiKeyFromHeader(
       })
       .from(apiKeyTable)
 
-    // Add workspace join if needed for workspace keys
-    if (options.workspaceId || options.keyTypes?.includes('workspace')) {
-      query = query.leftJoin(workspace, eq(apiKeyTable.workspaceId, workspace.id)) as any
-    }
-
     // Apply filters
     const conditions = []
 
     if (options.userId) {
       conditions.push(eq(apiKeyTable.userId, options.userId))
-    }
-
-    if (options.workspaceId) {
-      conditions.push(eq(apiKeyTable.workspaceId, options.workspaceId))
     }
 
     if (options.keyTypes?.length) {
@@ -78,17 +83,56 @@ export async function authenticateApiKeyFromHeader(
 
     const keyRecords = await query
 
-    // Filter by keyTypes in memory if multiple types specified
-    const filteredRecords =
-      options.keyTypes?.length && options.keyTypes.length > 1
-        ? keyRecords.filter((record) => options.keyTypes!.includes(record.type as any))
-        : keyRecords
+    const filteredRecords = keyRecords.filter((record) => {
+      const keyType = record.type as 'personal' | 'workspace'
+
+      if (options.keyTypes?.length && !options.keyTypes.includes(keyType)) {
+        return false
+      }
+
+      if (options.workspaceId) {
+        if (keyType === 'workspace') {
+          return record.workspaceId === options.workspaceId
+        }
+
+        if (keyType === 'personal') {
+          return workspaceSettings?.allowPersonalApiKeys ?? false
+        }
+      }
+
+      return true
+    })
+
+    const permissionCache = new Map<string, boolean>()
 
     // Authenticate each key
     for (const storedKey of filteredRecords) {
       // Skip expired keys
       if (storedKey.expiresAt && storedKey.expiresAt < new Date()) {
         continue
+      }
+
+      if (options.workspaceId && (storedKey.type as 'personal' | 'workspace') === 'personal') {
+        if (!workspaceSettings?.allowPersonalApiKeys) {
+          continue
+        }
+
+        if (!storedKey.userId) {
+          continue
+        }
+
+        if (!permissionCache.has(storedKey.userId)) {
+          const permission = await getUserEntityPermissions(
+            storedKey.userId,
+            'workspace',
+            options.workspaceId
+          )
+          permissionCache.set(storedKey.userId, permission !== null)
+        }
+
+        if (!permissionCache.get(storedKey.userId)) {
+          continue
+        }
       }
 
       try {
@@ -99,7 +143,7 @@ export async function authenticateApiKeyFromHeader(
             userId: storedKey.userId,
             keyId: storedKey.id,
             keyType: storedKey.type as 'personal' | 'workspace',
-            workspaceId: storedKey.workspaceId || undefined,
+            workspaceId: storedKey.workspaceId || options.workspaceId || undefined,
           }
         }
       } catch (error) {
@@ -122,27 +166,6 @@ export async function updateApiKeyLastUsed(keyId: string): Promise<void> {
     await db.update(apiKeyTable).set({ lastUsed: new Date() }).where(eq(apiKeyTable.id, keyId))
   } catch (error) {
     logger.error('Error updating API key last used:', error)
-  }
-}
-
-/**
- * Given a pinned API key ID, resolve the owning userId (actor).
- * Returns null if not found.
- */
-export async function getApiKeyOwnerUserId(
-  pinnedApiKeyId: string | null | undefined
-): Promise<string | null> {
-  if (!pinnedApiKeyId) return null
-  try {
-    const rows = await db
-      .select({ userId: apiKeyTable.userId })
-      .from(apiKeyTable)
-      .where(eq(apiKeyTable.id, pinnedApiKeyId))
-      .limit(1)
-    return rows[0]?.userId ?? null
-  } catch (error) {
-    logger.error('Error resolving API key owner', { error, pinnedApiKeyId })
-    return null
   }
 }
 

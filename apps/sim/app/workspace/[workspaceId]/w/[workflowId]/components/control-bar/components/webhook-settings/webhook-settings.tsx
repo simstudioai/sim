@@ -506,6 +506,31 @@ export function WebhookSettings({ workflowId, open, onOpenChange }: WebhookSetti
   return (
     <Dialog open={open} onOpenChange={handleCloseModal}>
       <DialogContent className='flex h-[70vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-[800px]'>
+        {/* Hidden dummy inputs to prevent browser password manager autofill */}
+        <input
+          type='text'
+          name='fakeusernameremembered'
+          autoComplete='username'
+          style={{ position: 'absolute', left: '-9999px', opacity: 0, pointerEvents: 'none' }}
+          tabIndex={-1}
+          readOnly
+        />
+        <input
+          type='password'
+          name='fakepasswordremembered'
+          autoComplete='current-password'
+          style={{ position: 'absolute', left: '-9999px', opacity: 0, pointerEvents: 'none' }}
+          tabIndex={-1}
+          readOnly
+        />
+        <input
+          type='email'
+          name='fakeemailremembered'
+          autoComplete='email'
+          style={{ position: 'absolute', left: '-9999px', opacity: 0, pointerEvents: 'none' }}
+          tabIndex={-1}
+          readOnly
+        />
         <DialogHeader className='flex-shrink-0 border-b px-6 py-4'>
           <DialogTitle className='font-medium text-lg'>Webhook Notifications</DialogTitle>
         </DialogHeader>
@@ -817,7 +842,7 @@ export function WebhookSettings({ workflowId, open, onOpenChange }: WebhookSetti
                       <div className='relative'>
                         <Input
                           id='secret'
-                          type={showSecret ? 'text' : 'password'}
+                          type='text'
                           placeholder='Webhook secret for signature verification'
                           value={newWebhook.secret}
                           onChange={(e) => {
@@ -825,11 +850,16 @@ export function WebhookSettings({ workflowId, open, onOpenChange }: WebhookSetti
                             setFieldErrors({ ...fieldErrors, general: undefined })
                           }}
                           className='h-9 rounded-[8px] pr-32'
-                          autoComplete='new-password'
+                          autoComplete='off'
                           autoCorrect='off'
                           autoCapitalize='off'
                           spellCheck='false'
                           data-form-type='other'
+                          style={
+                            !showSecret
+                              ? ({ WebkitTextSecurity: 'disc' } as React.CSSProperties)
+                              : undefined
+                          }
                         />
                         <div className='absolute top-0.5 right-0.5 flex h-8 items-center gap-1 pr-1'>
                           <Tooltip>

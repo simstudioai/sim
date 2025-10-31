@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Check, Copy, Plus, Search } from 'lucide-react'
+import { Check, Copy, Info, Plus, Search } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
   AlertDialog,
@@ -17,6 +17,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Switch } from '@/components/ui/switch'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { useSession } from '@/lib/auth-client'
 import { createLogger } from '@/lib/logs/console/logger'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
@@ -58,7 +60,7 @@ export function ApiKeys({ onOpenChange, registerCloseHandler }: ApiKeysProps) {
   const params = useParams()
   const workspaceId = (params?.workspaceId as string) || ''
   const userPermissions = useUserPermissionsContext()
-  const canManageWorkspaceKeys = userPermissions.canEdit || userPermissions.canAdmin
+  const canManageWorkspaceKeys = userPermissions.canAdmin
 
   // State for both workspace and personal keys
   const [workspaceKeys, setWorkspaceKeys] = useState<ApiKey[]>([])
@@ -78,6 +80,18 @@ export function ApiKeys({ onOpenChange, registerCloseHandler }: ApiKeysProps) {
   const [keyType, setKeyType] = useState<'personal' | 'workspace'>('personal')
   const [shouldScrollToBottom, setShouldScrollToBottom] = useState(false)
   const [createError, setCreateError] = useState<string | null>(null)
+
+  const [billedAccountUserId, setBilledAccountUserId] = useState<string | null>(null)
+  const [allowPersonalApiKeys, setAllowPersonalApiKeys] = useState<boolean>(true)
+  const [workspaceAdmins, setWorkspaceAdmins] = useState<
+    Array<{ userId: string; name: string; email: string; permissionType: string }>
+  >([])
+  const [workspaceSettingsLoading, setWorkspaceSettingsLoading] = useState<boolean>(true)
+  const [workspaceSettingsUpdating, setWorkspaceSettingsUpdating] = useState<boolean>(false)
+
+  const defaultKeyType = allowPersonalApiKeys ? 'personal' : 'workspace'
+  const createButtonDisabled =
+    workspaceSettingsLoading || (!allowPersonalApiKeys && !canManageWorkspaceKeys)
 
   const scrollContainerRef = useRef<HTMLDivElement>(null)
 
@@ -144,6 +158,75 @@ export function ApiKeys({ onOpenChange, registerCloseHandler }: ApiKeysProps) {
       logger.error('Error fetching API keys:', { error })
     } finally {
       setIsLoading(false)
+    }
+  }
+
+  const fetchWorkspaceSettings = async () => {
+    if (!workspaceId) return
+
+    setWorkspaceSettingsLoading(true)
+    try {
+      const [workspaceResponse, permissionsResponse] = await Promise.all([
+        fetch(`/api/workspaces/${workspaceId}`),
+        fetch(`/api/workspaces/${workspaceId}/permissions`),
+      ])
+
+      if (workspaceResponse.ok) {
+        const data = await workspaceResponse.json()
+        const workspaceData = data.workspace ?? {}
+        setBilledAccountUserId(workspaceData.billedAccountUserId ?? null)
+        setAllowPersonalApiKeys(
+          workspaceData.allowPersonalApiKeys === undefined
+            ? true
+            : Boolean(workspaceData.allowPersonalApiKeys)
+        )
+      } else {
+        logger.error('Failed to fetch workspace details', { status: workspaceResponse.status })
+      }
+
+      if (permissionsResponse.ok) {
+        const data = await permissionsResponse.json()
+        const users = Array.isArray(data.users) ? data.users : []
+        const admins = users.filter((user: any) => user.permissionType === 'admin')
+        setWorkspaceAdmins(admins)
+      } else {
+        logger.error('Failed to fetch workspace permissions', {
+          status: permissionsResponse.status,
+        })
+      }
+    } catch (error) {
+      logger.error('Error fetching workspace settings:', { error })
+    } finally {
+      setWorkspaceSettingsLoading(false)
+    }
+  }
+
+  const updateWorkspaceSettings = async (updates: {
+    billedAccountUserId?: string
+    allowPersonalApiKeys?: boolean
+  }) => {
+    if (!workspaceId) return
+    setWorkspaceSettingsUpdating(true)
+    try {
+      const response = await fetch(`/api/workspaces/${workspaceId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(updates),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.error || 'Failed to update workspace settings')
+      }
+
+      await fetchWorkspaceSettings()
+    } catch (error) {
+      logger.error('Error updating workspace settings:', { error })
+      throw error
+    } finally {
+      setWorkspaceSettingsUpdating(false)
     }
   }
 
@@ -282,6 +365,18 @@ export function ApiKeys({ onOpenChange, registerCloseHandler }: ApiKeysProps) {
   }, [registerCloseHandler])
 
   useEffect(() => {
+    if (workspaceId) {
+      fetchWorkspaceSettings()
+    }
+  }, [workspaceId])
+
+  useEffect(() => {
+    if (!allowPersonalApiKeys && keyType === 'personal') {
+      setKeyType('workspace')
+    }
+  }, [allowPersonalApiKeys, keyType])
+
+  useEffect(() => {
     if (shouldScrollToBottom && scrollContainerRef.current) {
       scrollContainerRef.current.scrollTo({
         top: scrollContainerRef.current.scrollHeight,
@@ -303,7 +398,7 @@ export function ApiKeys({ onOpenChange, registerCloseHandler }: ApiKeysProps) {
   return (
     <div className='relative flex h-full flex-col'>
       {/* Fixed Header */}
-      <div className='px-6 pt-4 pb-2'>
+      <div className='px-6 pt-2 pb-2'>
         {/* Search Input */}
         {isLoading ? (
           <Skeleton className='h-9 w-56 rounded-lg' />
@@ -338,6 +433,50 @@ export function ApiKeys({ onOpenChange, registerCloseHandler }: ApiKeysProps) {
             </div>
           ) : (
             <>
+              {/* Allow Personal API Keys Toggle */}
+              {!searchTerm.trim() && (
+                <TooltipProvider delayDuration={150}>
+                  <div className='mb-6 flex items-center justify-between'>
+                    <div className='flex items-center gap-2'>
+                      <span className='font-medium text-[12px] text-foreground'>
+                        Allow personal API keys
+                      </span>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <button
+                            type='button'
+                            className='rounded-full p-1 text-muted-foreground transition hover:text-foreground'
+                          >
+                            <Info className='h-3 w-3' strokeWidth={2} />
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent side='top' className='max-w-xs text-xs'>
+                          Allow collaborators to create and use their own keys with billing charged
+                          to them.
+                        </TooltipContent>
+                      </Tooltip>
+                    </div>
+                    {workspaceSettingsLoading ? (
+                      <Skeleton className='h-5 w-16 rounded-full' />
+                    ) : (
+                      <Switch
+                        checked={allowPersonalApiKeys}
+                        disabled={!canManageWorkspaceKeys || workspaceSettingsUpdating}
+                        onCheckedChange={async (checked) => {
+                          const previous = allowPersonalApiKeys
+                          setAllowPersonalApiKeys(checked)
+                          try {
+                            await updateWorkspaceSettings({ allowPersonalApiKeys: checked })
+                          } catch (error) {
+                            setAllowPersonalApiKeys(previous)
+                          }
+                        }}
+                      />
+                    )}
+                  </div>
+                </TooltipProvider>
+              )}
+
               {/* Workspace section */}
               {!searchTerm.trim() ? (
                 <div className='mb-6 space-y-2'>
@@ -468,27 +607,26 @@ export function ApiKeys({ onOpenChange, registerCloseHandler }: ApiKeysProps) {
 
       {/* Footer */}
       <div className='bg-background'>
-        <div className='flex w-full items-center justify-between px-6 py-4'>
+        <div className='flex w-full items-center px-6 py-4'>
           {isLoading ? (
-            <>
-              <Skeleton className='h-9 w-[117px] rounded-[8px]' />
-              <div className='w-[108px]' />
-            </>
+            <Skeleton className='h-9 w-[117px] rounded-[8px]' />
           ) : (
-            <>
-              <Button
-                onClick={() => {
-                  setIsCreateDialogOpen(true)
-                  setKeyType('personal')
-                  setCreateError(null)
-                }}
-                variant='ghost'
-                className='h-9 rounded-[8px] border bg-background px-3 shadow-xs hover:bg-muted focus:outline-none focus-visible:ring-0 focus-visible:ring-offset-0'
-              >
-                <Plus className='h-4 w-4 stroke-[2px]' />
-                Create Key
-              </Button>
-            </>
+            <Button
+              onClick={() => {
+                if (createButtonDisabled) {
+                  return
+                }
+                setIsCreateDialogOpen(true)
+                setKeyType(defaultKeyType)
+                setCreateError(null)
+              }}
+              variant='ghost'
+              disabled={createButtonDisabled}
+              className='h-8 rounded-[8px] border bg-background px-3 shadow-xs hover:bg-muted focus:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 disabled:cursor-not-allowed disabled:opacity-60'
+            >
+              <Plus className='h-4 w-4 stroke-[2px]' />
+              Create Key
+            </Button>
           )}
         </div>
       </div>
@@ -518,7 +656,8 @@ export function ApiKeys({ onOpenChange, registerCloseHandler }: ApiKeysProps) {
                       setKeyType('personal')
                       if (createError) setCreateError(null)
                     }}
-                    className='h-8 data-[variant=outline]:border-border data-[variant=outline]:bg-background data-[variant=outline]:text-foreground data-[variant=outline]:hover:bg-muted dark:data-[variant=outline]:border-border dark:data-[variant=outline]:bg-background dark:data-[variant=outline]:text-foreground dark:data-[variant=outline]:hover:bg-muted/80'
+                    disabled={!allowPersonalApiKeys}
+                    className='h-8 disabled:cursor-not-allowed disabled:opacity-60 data-[variant=outline]:border-border data-[variant=outline]:bg-background data-[variant=outline]:text-foreground data-[variant=outline]:hover:bg-muted dark:data-[variant=outline]:border-border dark:data-[variant=outline]:bg-background dark:data-[variant=outline]:text-foreground dark:data-[variant=outline]:hover:bg-muted/80'
                   >
                     Personal
                   </Button>
@@ -560,7 +699,7 @@ export function ApiKeys({ onOpenChange, registerCloseHandler }: ApiKeysProps) {
               className='h-9 w-full rounded-[8px] border-border bg-background text-foreground hover:bg-muted dark:border-border dark:bg-background dark:text-foreground dark:hover:bg-muted/80'
               onClick={() => {
                 setNewKeyName('')
-                setKeyType('personal')
+                setKeyType(defaultKeyType)
               }}
             >
               Cancel

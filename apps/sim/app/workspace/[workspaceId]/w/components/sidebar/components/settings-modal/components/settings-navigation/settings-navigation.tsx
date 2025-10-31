@@ -13,6 +13,7 @@ import {
   User,
   Users,
   Waypoints,
+  Wrench,
 } from 'lucide-react'
 import { useSession } from '@/lib/auth-client'
 import { getEnv, isTruthy } from '@/lib/env'
@@ -40,6 +41,7 @@ interface SettingsNavigationProps {
       | 'privacy'
       | 'copilot'
       | 'mcp'
+      | 'custom-tools'
   ) => void
   hasOrganization: boolean
 }
@@ -58,6 +60,7 @@ type NavigationItem = {
     | 'copilot'
     | 'privacy'
     | 'mcp'
+    | 'custom-tools'
   label: string
   icon: React.ComponentType<{ className?: string }>
   hideWhenBillingDisabled?: boolean
@@ -81,6 +84,11 @@ const allNavigationItems: NavigationItem[] = [
     id: 'mcp',
     label: 'MCP Servers',
     icon: Server,
+  },
+  {
+    id: 'custom-tools',
+    label: 'Custom Tools',
+    icon: Wrench,
   },
   {
     id: 'environment',
