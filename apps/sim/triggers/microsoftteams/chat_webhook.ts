@@ -11,7 +11,6 @@ export const microsoftTeamsChatSubscriptionTrigger: TriggerConfig = {
   icon: MicrosoftTeamsIcon,
 
   subBlocks: [
-    // Credentials
     {
       id: 'triggerCredentials',
       title: 'Credentials',
@@ -21,8 +20,11 @@ export const microsoftTeamsChatSubscriptionTrigger: TriggerConfig = {
       requiredScopes: [],
       required: true,
       mode: 'trigger',
+      condition: {
+        field: 'selectedTriggerId',
+        value: 'microsoftteams_chat_subscription',
+      },
     },
-    // Chat ID
     {
       id: 'chatId',
       title: 'Chat ID',
@@ -31,8 +33,11 @@ export const microsoftTeamsChatSubscriptionTrigger: TriggerConfig = {
       description: 'The ID of the Teams chat to monitor',
       required: true,
       mode: 'trigger',
+      condition: {
+        field: 'selectedTriggerId',
+        value: 'microsoftteams_chat_subscription',
+      },
     },
-    // Include Attachments
     {
       id: 'includeAttachments',
       title: 'Include Attachments',
@@ -41,8 +46,11 @@ export const microsoftTeamsChatSubscriptionTrigger: TriggerConfig = {
       description: 'Fetch hosted contents and upload to storage',
       required: false,
       mode: 'trigger',
+      condition: {
+        field: 'selectedTriggerId',
+        value: 'microsoftteams_chat_subscription',
+      },
     },
-    // Setup Instructions
     {
       id: 'triggerInstructions',
       title: 'Setup Instructions',
@@ -58,8 +66,11 @@ export const microsoftTeamsChatSubscriptionTrigger: TriggerConfig = {
         )
         .join(''),
       mode: 'trigger',
+      condition: {
+        field: 'selectedTriggerId',
+        value: 'microsoftteams_chat_subscription',
+      },
     },
-    // Webhook URL
     {
       id: 'webhookUrlDisplay',
       title: 'Webhook URL',
@@ -69,16 +80,22 @@ export const microsoftTeamsChatSubscriptionTrigger: TriggerConfig = {
       useWebhookUrl: true,
       placeholder: 'Webhook URL will be generated',
       mode: 'trigger',
+      condition: {
+        field: 'selectedTriggerId',
+        value: 'microsoftteams_chat_subscription',
+      },
     },
-    // Save Button
     {
       id: 'triggerSave',
       title: '',
       type: 'trigger-save',
       mode: 'trigger',
       triggerId: 'microsoftteams_chat_subscription',
+      condition: {
+        field: 'selectedTriggerId',
+        value: 'microsoftteams_chat_subscription',
+      },
     },
-    // Sample Payload
     {
       id: 'samplePayload',
       title: 'Event Payload Example',
@@ -100,11 +117,14 @@ export const microsoftTeamsChatSubscriptionTrigger: TriggerConfig = {
       collapsible: true,
       defaultCollapsed: true,
       mode: 'trigger',
+      condition: {
+        field: 'selectedTriggerId',
+        value: 'microsoftteams_chat_subscription',
+      },
     },
   ],
 
   outputs: {
-    // Core message fields
     message_id: { type: 'string', description: 'Message ID' },
     chat_id: { type: 'string', description: 'Chat ID' },
     from_name: { type: 'string', description: 'Sender display name' },

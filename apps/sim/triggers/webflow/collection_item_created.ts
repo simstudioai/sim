@@ -11,6 +11,20 @@ export const webflowCollectionItemCreatedTrigger: TriggerConfig = {
   icon: WebflowIcon,
 
   subBlocks: [
+    // Trigger Type Selector
+    {
+      id: 'selectedTriggerId',
+      title: 'Trigger Type',
+      type: 'dropdown',
+      mode: 'trigger',
+      options: [
+        { label: 'Collection Item Created', id: 'webflow_collection_item_created' },
+        { label: 'Collection Item Changed', id: 'webflow_collection_item_changed' },
+        { label: 'Collection Item Deleted', id: 'webflow_collection_item_deleted' },
+      ],
+      value: () => 'webflow_collection_item_created',
+      required: true,
+    },
     // Credentials
     {
       id: 'triggerCredentials',
@@ -21,6 +35,10 @@ export const webflowCollectionItemCreatedTrigger: TriggerConfig = {
       requiredScopes: [],
       required: true,
       mode: 'trigger',
+      condition: {
+        field: 'selectedTriggerId',
+        value: 'webflow_collection_item_created',
+      },
     },
     // Site
     {
@@ -32,6 +50,10 @@ export const webflowCollectionItemCreatedTrigger: TriggerConfig = {
       required: true,
       options: [],
       mode: 'trigger',
+      condition: {
+        field: 'selectedTriggerId',
+        value: 'webflow_collection_item_created',
+      },
     },
     // Collection
     {
@@ -43,6 +65,10 @@ export const webflowCollectionItemCreatedTrigger: TriggerConfig = {
       required: false,
       options: [],
       mode: 'trigger',
+      condition: {
+        field: 'selectedTriggerId',
+        value: 'webflow_collection_item_created',
+      },
     },
     // Setup Instructions
     {
@@ -63,6 +89,10 @@ export const webflowCollectionItemCreatedTrigger: TriggerConfig = {
         )
         .join(''),
       mode: 'trigger',
+      condition: {
+        field: 'selectedTriggerId',
+        value: 'webflow_collection_item_created',
+      },
     },
     // Webhook URL
     {
@@ -74,6 +104,10 @@ export const webflowCollectionItemCreatedTrigger: TriggerConfig = {
       useWebhookUrl: true,
       placeholder: 'Webhook URL will be generated',
       mode: 'trigger',
+      condition: {
+        field: 'selectedTriggerId',
+        value: 'webflow_collection_item_created',
+      },
     },
     // Save Button
     {
@@ -82,6 +116,10 @@ export const webflowCollectionItemCreatedTrigger: TriggerConfig = {
       type: 'trigger-save',
       mode: 'trigger',
       triggerId: 'webflow_collection_item_created',
+      condition: {
+        field: 'selectedTriggerId',
+        value: 'webflow_collection_item_created',
+      },
     },
     // Sample Payload
     {
@@ -117,6 +155,10 @@ export const webflowCollectionItemCreatedTrigger: TriggerConfig = {
       collapsible: true,
       defaultCollapsed: true,
       mode: 'trigger',
+      condition: {
+        field: 'selectedTriggerId',
+        value: 'webflow_collection_item_created',
+      },
     },
   ],
 

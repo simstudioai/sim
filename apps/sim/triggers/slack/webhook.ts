@@ -1,5 +1,5 @@
 import { SlackIcon } from '@/components/icons'
-import type { TriggerConfig } from '../types'
+import type { TriggerConfig } from '@/triggers/types'
 
 export const slackWebhookTrigger: TriggerConfig = {
   id: 'slack_webhook',
@@ -10,7 +10,6 @@ export const slackWebhookTrigger: TriggerConfig = {
   icon: SlackIcon,
 
   subBlocks: [
-    // Signing Secret
     {
       id: 'signingSecret',
       title: 'Signing Secret',
@@ -21,7 +20,6 @@ export const slackWebhookTrigger: TriggerConfig = {
       required: true,
       mode: 'trigger',
     },
-    // Setup Instructions
     {
       id: 'triggerInstructions',
       title: 'Setup Instructions',
@@ -42,7 +40,6 @@ export const slackWebhookTrigger: TriggerConfig = {
         .join(''),
       mode: 'trigger',
     },
-    // Webhook URL
     {
       id: 'webhookUrlDisplay',
       title: 'Webhook URL',
@@ -53,7 +50,6 @@ export const slackWebhookTrigger: TriggerConfig = {
       placeholder: 'Webhook URL will be generated',
       mode: 'trigger',
     },
-    // Save Button
     {
       id: 'triggerSave',
       title: '',
@@ -61,7 +57,6 @@ export const slackWebhookTrigger: TriggerConfig = {
       mode: 'trigger',
       triggerId: 'slack_webhook',
     },
-    // Sample Payload
     {
       id: 'samplePayload',
       title: 'Event Payload Example',

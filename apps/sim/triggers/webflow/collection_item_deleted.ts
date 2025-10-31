@@ -11,7 +11,6 @@ export const webflowCollectionItemDeletedTrigger: TriggerConfig = {
   icon: WebflowIcon,
 
   subBlocks: [
-    // Credentials
     {
       id: 'triggerCredentials',
       title: 'Credentials',
@@ -21,8 +20,11 @@ export const webflowCollectionItemDeletedTrigger: TriggerConfig = {
       requiredScopes: [],
       required: true,
       mode: 'trigger',
+      condition: {
+        field: 'selectedTriggerId',
+        value: 'webflow_collection_item_deleted',
+      },
     },
-    // Site
     {
       id: 'siteId',
       title: 'Site',
@@ -32,8 +34,11 @@ export const webflowCollectionItemDeletedTrigger: TriggerConfig = {
       required: true,
       options: [],
       mode: 'trigger',
+      condition: {
+        field: 'selectedTriggerId',
+        value: 'webflow_collection_item_deleted',
+      },
     },
-    // Collection
     {
       id: 'collectionId',
       title: 'Collection',
@@ -43,8 +48,11 @@ export const webflowCollectionItemDeletedTrigger: TriggerConfig = {
       required: false,
       options: [],
       mode: 'trigger',
+      condition: {
+        field: 'selectedTriggerId',
+        value: 'webflow_collection_item_deleted',
+      },
     },
-    // Setup Instructions
     {
       id: 'triggerInstructions',
       title: 'Setup Instructions',
@@ -64,8 +72,11 @@ export const webflowCollectionItemDeletedTrigger: TriggerConfig = {
         )
         .join(''),
       mode: 'trigger',
+      condition: {
+        field: 'selectedTriggerId',
+        value: 'webflow_collection_item_deleted',
+      },
     },
-    // Webhook URL
     {
       id: 'webhookUrlDisplay',
       title: 'Webhook URL',
@@ -75,16 +86,22 @@ export const webflowCollectionItemDeletedTrigger: TriggerConfig = {
       useWebhookUrl: true,
       placeholder: 'Webhook URL will be generated',
       mode: 'trigger',
+      condition: {
+        field: 'selectedTriggerId',
+        value: 'webflow_collection_item_deleted',
+      },
     },
-    // Save Button
     {
       id: 'triggerSave',
       title: '',
       type: 'trigger-save',
       mode: 'trigger',
       triggerId: 'webflow_collection_item_deleted',
+      condition: {
+        field: 'selectedTriggerId',
+        value: 'webflow_collection_item_deleted',
+      },
     },
-    // Sample Payload
     {
       id: 'samplePayload',
       title: 'Event Payload Example',
@@ -107,6 +124,10 @@ export const webflowCollectionItemDeletedTrigger: TriggerConfig = {
       collapsible: true,
       defaultCollapsed: true,
       mode: 'trigger',
+      condition: {
+        field: 'selectedTriggerId',
+        value: 'webflow_collection_item_deleted',
+      },
     },
   ],
 

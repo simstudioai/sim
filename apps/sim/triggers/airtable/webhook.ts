@@ -1,5 +1,5 @@
 import { AirtableIcon } from '@/components/icons'
-import type { TriggerConfig } from '../types'
+import type { TriggerConfig } from '@/triggers/types'
 
 export const airtableWebhookTrigger: TriggerConfig = {
   id: 'airtable_webhook',
@@ -11,7 +11,6 @@ export const airtableWebhookTrigger: TriggerConfig = {
   icon: AirtableIcon,
 
   subBlocks: [
-    // Credentials
     {
       id: 'triggerCredentials',
       title: 'Credentials',
@@ -22,7 +21,6 @@ export const airtableWebhookTrigger: TriggerConfig = {
       required: true,
       mode: 'trigger',
     },
-    // Base ID
     {
       id: 'baseId',
       title: 'Base ID',
@@ -32,7 +30,6 @@ export const airtableWebhookTrigger: TriggerConfig = {
       required: true,
       mode: 'trigger',
     },
-    // Table ID
     {
       id: 'tableId',
       title: 'Table ID',
@@ -42,7 +39,6 @@ export const airtableWebhookTrigger: TriggerConfig = {
       required: true,
       mode: 'trigger',
     },
-    // Include Cell Values
     {
       id: 'includeCellValues',
       title: 'Include Full Record Data',
@@ -51,7 +47,6 @@ export const airtableWebhookTrigger: TriggerConfig = {
       defaultValue: false,
       mode: 'trigger',
     },
-    // Setup Instructions
     {
       id: 'triggerInstructions',
       title: 'Setup Instructions',
@@ -71,7 +66,6 @@ export const airtableWebhookTrigger: TriggerConfig = {
         .join(''),
       mode: 'trigger',
     },
-    // Webhook URL
     {
       id: 'webhookUrlDisplay',
       title: 'Webhook URL',
@@ -82,7 +76,6 @@ export const airtableWebhookTrigger: TriggerConfig = {
       placeholder: 'Webhook URL will be generated',
       mode: 'trigger',
     },
-    // Save Button
     {
       id: 'triggerSave',
       title: '',
@@ -90,7 +83,6 @@ export const airtableWebhookTrigger: TriggerConfig = {
       mode: 'trigger',
       triggerId: 'airtable_webhook',
     },
-    // Sample Payload
     {
       id: 'samplePayload',
       title: 'Event Payload Example',

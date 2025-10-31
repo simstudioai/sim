@@ -1,5 +1,5 @@
 import { GithubIcon } from '@/components/icons'
-import type { TriggerConfig } from '../types'
+import type { TriggerConfig } from '@/triggers/types'
 
 export const githubWebhookTrigger: TriggerConfig = {
   id: 'github_webhook',
@@ -10,7 +10,6 @@ export const githubWebhookTrigger: TriggerConfig = {
   icon: GithubIcon,
 
   subBlocks: [
-    // Content Type
     {
       id: 'contentType',
       title: 'Content Type',
@@ -24,7 +23,6 @@ export const githubWebhookTrigger: TriggerConfig = {
       required: true,
       mode: 'trigger',
     },
-    // Webhook Secret
     {
       id: 'webhookSecret',
       title: 'Webhook Secret (Recommended)',
@@ -35,7 +33,6 @@ export const githubWebhookTrigger: TriggerConfig = {
       required: false,
       mode: 'trigger',
     },
-    // SSL Verification
     {
       id: 'sslVerification',
       title: 'SSL Verification',
@@ -49,7 +46,6 @@ export const githubWebhookTrigger: TriggerConfig = {
       required: true,
       mode: 'trigger',
     },
-    // Setup Instructions
     {
       id: 'triggerInstructions',
       title: 'Setup Instructions',
@@ -71,7 +67,6 @@ export const githubWebhookTrigger: TriggerConfig = {
         .join(''),
       mode: 'trigger',
     },
-    // Webhook URL
     {
       id: 'webhookUrlDisplay',
       title: 'Webhook URL',
@@ -82,7 +77,6 @@ export const githubWebhookTrigger: TriggerConfig = {
       placeholder: 'Webhook URL will be generated',
       mode: 'trigger',
     },
-    // Save Button
     {
       id: 'triggerSave',
       title: '',
@@ -90,7 +84,6 @@ export const githubWebhookTrigger: TriggerConfig = {
       mode: 'trigger',
       triggerId: 'github_webhook',
     },
-    // Sample Payload
     {
       id: 'samplePayload',
       title: 'Event Payload Example',
@@ -144,7 +137,6 @@ export const githubWebhookTrigger: TriggerConfig = {
   ],
 
   outputs: {
-    // GitHub webhook payload structure - now at root for direct access
     ref: {
       type: 'string',
       description: 'Git reference (e.g., refs/heads/fix/telegram-wh)',

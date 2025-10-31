@@ -1,6 +1,6 @@
 import { createLogger } from '@/lib/logs/console/logger'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
-import { getTrigger } from '@/triggers'
+import { getTrigger, isTriggerValid } from '@/triggers'
 import { SYSTEM_SUBBLOCK_IDS } from '@/triggers/consts'
 
 const logger = createLogger('useTriggerConfigAggregation')
@@ -22,11 +22,12 @@ export function useTriggerConfigAggregation(
     return null
   }
 
-  const triggerDef = getTrigger(triggerId)
-  if (!triggerDef) {
+  if (!isTriggerValid(triggerId)) {
     logger.warn(`Trigger definition not found for ID: ${triggerId}`)
     return null
   }
+
+  const triggerDef = getTrigger(triggerId)
 
   const subBlockStore = useSubBlockStore.getState()
 
@@ -83,10 +84,11 @@ export function populateTriggerFieldsFromConfig(
     return
   }
 
-  const triggerDef = getTrigger(triggerId)
-  if (!triggerDef) {
+  if (!isTriggerValid(triggerId)) {
     return
   }
+
+  const triggerDef = getTrigger(triggerId)
 
   const subBlockStore = useSubBlockStore.getState()
 

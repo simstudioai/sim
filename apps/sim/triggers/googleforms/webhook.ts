@@ -1,5 +1,5 @@
 import { GoogleFormsIcon } from '@/components/icons'
-import type { TriggerConfig } from '../types'
+import type { TriggerConfig } from '@/triggers/types'
 
 export const googleFormsWebhookTrigger: TriggerConfig = {
   id: 'google_forms_webhook',
@@ -10,7 +10,6 @@ export const googleFormsWebhookTrigger: TriggerConfig = {
   icon: GoogleFormsIcon,
 
   subBlocks: [
-    // Shared Secret
     {
       id: 'token',
       title: 'Shared Secret',
@@ -22,7 +21,6 @@ export const googleFormsWebhookTrigger: TriggerConfig = {
       required: true,
       mode: 'trigger',
     },
-    // Custom Secret Header
     {
       id: 'secretHeaderName',
       title: 'Custom Secret Header (optional)',
@@ -33,7 +31,6 @@ export const googleFormsWebhookTrigger: TriggerConfig = {
       required: false,
       mode: 'trigger',
     },
-    // Form ID
     {
       id: 'formId',
       title: 'Form ID (optional)',
@@ -44,7 +41,6 @@ export const googleFormsWebhookTrigger: TriggerConfig = {
       required: false,
       mode: 'trigger',
     },
-    // Include Raw Payload
     {
       id: 'includeRawPayload',
       title: 'Include Raw Payload',
@@ -53,7 +49,6 @@ export const googleFormsWebhookTrigger: TriggerConfig = {
       defaultValue: true,
       mode: 'trigger',
     },
-    // Setup Instructions
     {
       id: 'triggerInstructions',
       title: 'Setup Instructions',
@@ -71,7 +66,6 @@ export const googleFormsWebhookTrigger: TriggerConfig = {
         .join(''),
       mode: 'trigger',
     },
-    // Webhook URL
     {
       id: 'webhookUrlDisplay',
       title: 'Webhook URL',
@@ -82,7 +76,6 @@ export const googleFormsWebhookTrigger: TriggerConfig = {
       placeholder: 'Webhook URL will be generated',
       mode: 'trigger',
     },
-    // Apps Script Code
     {
       id: 'setupScript',
       title: 'Apps Script Code',
@@ -151,7 +144,6 @@ export const googleFormsWebhookTrigger: TriggerConfig = {
       description: 'Copy this code and paste it into your Google Forms Apps Script editor',
       mode: 'trigger',
     },
-    // Save Button
     {
       id: 'triggerSave',
       title: '',
@@ -159,7 +151,6 @@ export const googleFormsWebhookTrigger: TriggerConfig = {
       mode: 'trigger',
       triggerId: 'google_forms_webhook',
     },
-    // Sample Payload
     {
       id: 'samplePayload',
       title: 'Event Payload Example',
@@ -190,7 +181,6 @@ export const googleFormsWebhookTrigger: TriggerConfig = {
   ],
 
   outputs: {
-    // Expose flattened fields at the root; nested google_forms exists at runtime for back-compat
     responseId: { type: 'string', description: 'Unique response identifier (if available)' },
     createTime: { type: 'string', description: 'Response creation timestamp' },
     lastSubmittedTime: { type: 'string', description: 'Last submitted timestamp' },

@@ -1,8 +1,8 @@
 import { WhatsAppIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
-import { getTriggerSubBlocks } from '@/blocks/utils/get-trigger-subblocks'
 import type { WhatsAppResponse } from '@/tools/whatsapp/types'
+import { getTrigger } from '@/triggers'
 
 export const WhatsAppBlock: BlockConfig<WhatsAppResponse> = {
   type: 'whatsapp',
@@ -49,8 +49,7 @@ export const WhatsAppBlock: BlockConfig<WhatsAppResponse> = {
       password: true,
       required: true,
     },
-    // TRIGGER MODE: Trigger configuration
-    ...getTriggerSubBlocks('whatsapp_webhook'),
+    ...getTrigger('whatsapp_webhook').subBlocks,
   ],
   tools: {
     access: ['whatsapp_send_message'],

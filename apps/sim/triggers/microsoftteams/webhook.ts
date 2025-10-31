@@ -10,7 +10,18 @@ export const microsoftTeamsWebhookTrigger: TriggerConfig = {
   icon: MicrosoftTeamsIcon,
 
   subBlocks: [
-    // HMAC Secret
+    {
+      id: 'selectedTriggerId',
+      title: 'Trigger Type',
+      type: 'dropdown',
+      mode: 'trigger',
+      options: [
+        { label: 'Microsoft Teams Channel', id: 'microsoftteams_webhook' },
+        { label: 'Microsoft Teams Chat', id: 'microsoftteams_chat_subscription' },
+      ],
+      value: () => 'microsoftteams_webhook',
+      required: true,
+    },
     {
       id: 'hmacSecret',
       title: 'HMAC Secret',
@@ -21,8 +32,11 @@ export const microsoftTeamsWebhookTrigger: TriggerConfig = {
       password: true,
       required: true,
       mode: 'trigger',
+      condition: {
+        field: 'selectedTriggerId',
+        value: 'microsoftteams_webhook',
+      },
     },
-    // Setup Instructions
     {
       id: 'triggerInstructions',
       title: 'Setup Instructions',
@@ -42,8 +56,11 @@ export const microsoftTeamsWebhookTrigger: TriggerConfig = {
         )
         .join(''),
       mode: 'trigger',
+      condition: {
+        field: 'selectedTriggerId',
+        value: 'microsoftteams_webhook',
+      },
     },
-    // Webhook URL
     {
       id: 'webhookUrlDisplay',
       title: 'Webhook URL',
@@ -53,16 +70,22 @@ export const microsoftTeamsWebhookTrigger: TriggerConfig = {
       useWebhookUrl: true,
       placeholder: 'Webhook URL will be generated',
       mode: 'trigger',
+      condition: {
+        field: 'selectedTriggerId',
+        value: 'microsoftteams_webhook',
+      },
     },
-    // Save Button
     {
       id: 'triggerSave',
       title: '',
       type: 'trigger-save',
       mode: 'trigger',
       triggerId: 'microsoftteams_webhook',
+      condition: {
+        field: 'selectedTriggerId',
+        value: 'microsoftteams_webhook',
+      },
     },
-    // Sample Payload
     {
       id: 'samplePayload',
       title: 'Event Payload Example',
@@ -92,11 +115,14 @@ export const microsoftTeamsWebhookTrigger: TriggerConfig = {
       collapsible: true,
       defaultCollapsed: true,
       mode: 'trigger',
+      condition: {
+        field: 'selectedTriggerId',
+        value: 'microsoftteams_webhook',
+      },
     },
   ],
 
   outputs: {
-    // Top-level valid payloads only
     from: {
       id: { type: 'string', description: 'Sender ID' },
       name: { type: 'string', description: 'Sender name' },

@@ -1,5 +1,5 @@
 import { TelegramIcon } from '@/components/icons'
-import type { TriggerConfig } from '../types'
+import type { TriggerConfig } from '@/triggers/types'
 
 export const telegramWebhookTrigger: TriggerConfig = {
   id: 'telegram_webhook',
@@ -10,7 +10,6 @@ export const telegramWebhookTrigger: TriggerConfig = {
   icon: TelegramIcon,
 
   subBlocks: [
-    // Bot Token
     {
       id: 'botToken',
       title: 'Bot Token',
@@ -21,7 +20,6 @@ export const telegramWebhookTrigger: TriggerConfig = {
       required: true,
       mode: 'trigger',
     },
-    // Setup Instructions
     {
       id: 'triggerInstructions',
       title: 'Setup Instructions',
@@ -38,7 +36,6 @@ export const telegramWebhookTrigger: TriggerConfig = {
         .join(''),
       mode: 'trigger',
     },
-    // Webhook URL
     {
       id: 'webhookUrlDisplay',
       title: 'Webhook URL',
@@ -49,7 +46,6 @@ export const telegramWebhookTrigger: TriggerConfig = {
       placeholder: 'Webhook URL will be generated',
       mode: 'trigger',
     },
-    // Save Button
     {
       id: 'triggerSave',
       title: '',
@@ -57,7 +53,6 @@ export const telegramWebhookTrigger: TriggerConfig = {
       mode: 'trigger',
       triggerId: 'telegram_webhook',
     },
-    // Sample Payload
     {
       id: 'samplePayload',
       title: 'Event Payload Example',
@@ -105,8 +100,6 @@ export const telegramWebhookTrigger: TriggerConfig = {
   ],
 
   outputs: {
-    // Matches the formatted payload built in `formatWebhookInput` for provider "telegram"
-    // Supports tags like <telegram.message.text> and deep paths like <telegram.message.raw.chat.id>
     message: {
       id: {
         type: 'number',

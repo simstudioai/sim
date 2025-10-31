@@ -21,6 +21,10 @@ export const webflowCollectionItemChangedTrigger: TriggerConfig = {
       requiredScopes: [],
       required: true,
       mode: 'trigger',
+      condition: {
+        field: 'selectedTriggerId',
+        value: 'webflow_collection_item_changed',
+      },
     },
     // Site
     {
@@ -32,6 +36,10 @@ export const webflowCollectionItemChangedTrigger: TriggerConfig = {
       required: true,
       options: [],
       mode: 'trigger',
+      condition: {
+        field: 'selectedTriggerId',
+        value: 'webflow_collection_item_changed',
+      },
     },
     // Collection
     {
@@ -43,6 +51,10 @@ export const webflowCollectionItemChangedTrigger: TriggerConfig = {
       required: false,
       options: [],
       mode: 'trigger',
+      condition: {
+        field: 'selectedTriggerId',
+        value: 'webflow_collection_item_changed',
+      },
     },
     // Setup Instructions
     {
@@ -63,6 +75,10 @@ export const webflowCollectionItemChangedTrigger: TriggerConfig = {
         )
         .join(''),
       mode: 'trigger',
+      condition: {
+        field: 'selectedTriggerId',
+        value: 'webflow_collection_item_changed',
+      },
     },
     // Webhook URL
     {
@@ -74,6 +90,10 @@ export const webflowCollectionItemChangedTrigger: TriggerConfig = {
       useWebhookUrl: true,
       placeholder: 'Webhook URL will be generated',
       mode: 'trigger',
+      condition: {
+        field: 'selectedTriggerId',
+        value: 'webflow_collection_item_changed',
+      },
     },
     // Save Button
     {
@@ -82,6 +102,10 @@ export const webflowCollectionItemChangedTrigger: TriggerConfig = {
       type: 'trigger-save',
       mode: 'trigger',
       triggerId: 'webflow_collection_item_changed',
+      condition: {
+        field: 'selectedTriggerId',
+        value: 'webflow_collection_item_changed',
+      },
     },
     // Sample Payload
     {
@@ -117,6 +141,10 @@ export const webflowCollectionItemChangedTrigger: TriggerConfig = {
       collapsible: true,
       defaultCollapsed: true,
       mode: 'trigger',
+      condition: {
+        field: 'selectedTriggerId',
+        value: 'webflow_collection_item_changed',
+      },
     },
   ],
 

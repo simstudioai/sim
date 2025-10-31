@@ -11,7 +11,6 @@ export const webflowFormSubmissionTrigger: TriggerConfig = {
   icon: WebflowIcon,
 
   subBlocks: [
-    // Credentials
     {
       id: 'triggerCredentials',
       title: 'Credentials',
@@ -22,7 +21,6 @@ export const webflowFormSubmissionTrigger: TriggerConfig = {
       required: true,
       mode: 'trigger',
     },
-    // Site ID
     {
       id: 'siteId',
       title: 'Site',
@@ -33,7 +31,6 @@ export const webflowFormSubmissionTrigger: TriggerConfig = {
       options: [],
       mode: 'trigger',
     },
-    // Form ID
     {
       id: 'formId',
       title: 'Form ID',
@@ -43,7 +40,6 @@ export const webflowFormSubmissionTrigger: TriggerConfig = {
       required: false,
       mode: 'trigger',
     },
-    // Setup Instructions
     {
       id: 'triggerInstructions',
       title: 'Setup Instructions',
@@ -64,7 +60,6 @@ export const webflowFormSubmissionTrigger: TriggerConfig = {
         .join(''),
       mode: 'trigger',
     },
-    // Webhook URL
     {
       id: 'webhookUrlDisplay',
       title: 'Webhook URL',
@@ -75,7 +70,6 @@ export const webflowFormSubmissionTrigger: TriggerConfig = {
       placeholder: 'Webhook URL will be generated',
       mode: 'trigger',
     },
-    // Save Button
     {
       id: 'triggerSave',
       title: '',
@@ -83,7 +77,6 @@ export const webflowFormSubmissionTrigger: TriggerConfig = {
       mode: 'trigger',
       triggerId: 'webflow_form_submission',
     },
-    // Sample Payload
     {
       id: 'samplePayload',
       title: 'Event Payload Example',

@@ -1,5 +1,5 @@
 import { WebhookIcon } from '@/components/icons'
-import type { TriggerConfig } from '../types'
+import type { TriggerConfig } from '@/triggers/types'
 
 export const genericWebhookTrigger: TriggerConfig = {
   id: 'generic_webhook',
@@ -10,7 +10,6 @@ export const genericWebhookTrigger: TriggerConfig = {
   icon: WebhookIcon,
 
   subBlocks: [
-    // Require Authentication
     {
       id: 'requireAuth',
       title: 'Require Authentication',
@@ -19,7 +18,6 @@ export const genericWebhookTrigger: TriggerConfig = {
       defaultValue: false,
       mode: 'trigger',
     },
-    // Authentication Token
     {
       id: 'token',
       title: 'Authentication Token',
@@ -30,7 +28,6 @@ export const genericWebhookTrigger: TriggerConfig = {
       required: false,
       mode: 'trigger',
     },
-    // Secret Header Name
     {
       id: 'secretHeaderName',
       title: 'Secret Header Name (Optional)',
@@ -41,7 +38,6 @@ export const genericWebhookTrigger: TriggerConfig = {
       required: false,
       mode: 'trigger',
     },
-    // Setup Instructions
     {
       id: 'triggerInstructions',
       title: 'Setup Instructions',
@@ -61,7 +57,6 @@ export const genericWebhookTrigger: TriggerConfig = {
         .join(''),
       mode: 'trigger',
     },
-    // Webhook URL
     {
       id: 'webhookUrlDisplay',
       title: 'Webhook URL',
@@ -72,7 +67,6 @@ export const genericWebhookTrigger: TriggerConfig = {
       placeholder: 'Webhook URL will be generated',
       mode: 'trigger',
     },
-    // Save Button
     {
       id: 'triggerSave',
       title: '',
@@ -80,7 +74,6 @@ export const genericWebhookTrigger: TriggerConfig = {
       mode: 'trigger',
       triggerId: 'generic_webhook',
     },
-    // Sample Payload
     {
       id: 'samplePayload',
       title: 'Event Payload Example',

@@ -22,7 +22,7 @@ import { Executor } from '@/executor'
 import type { ExecutionResult } from '@/executor/types'
 import { Serializer } from '@/serializer'
 import { mergeSubblockState } from '@/stores/workflows/server-utils'
-import { getTrigger } from '@/triggers'
+import { getTrigger, isTriggerValid } from '@/triggers'
 
 const logger = createLogger('TriggerWebhookExecution')
 
@@ -380,10 +380,10 @@ async function executeWebhookJobInternal(
         const triggerBlock = blocks[payload.blockId]
         const triggerId = triggerBlock?.subBlocks?.triggerId?.value
 
-        if (triggerId && typeof triggerId === 'string') {
+        if (triggerId && typeof triggerId === 'string' && isTriggerValid(triggerId)) {
           const triggerConfig = getTrigger(triggerId)
 
-          if (triggerConfig?.outputs) {
+          if (triggerConfig.outputs) {
             logger.debug(`[${requestId}] Processing trigger ${triggerId} file outputs`)
             const processedInput = await processTriggerFileOutputs(input, triggerConfig.outputs, {
               workspaceId: workspaceId || '',

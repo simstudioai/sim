@@ -1,8 +1,8 @@
 import { OutlookIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
-import { getTriggerSubBlocks } from '@/blocks/utils/get-trigger-subblocks'
 import type { OutlookResponse } from '@/tools/outlook/types'
+import { getTrigger } from '@/triggers'
 
 export const OutlookBlock: BlockConfig<OutlookResponse> = {
   type: 'outlook',
@@ -206,8 +206,7 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
       layout: 'full',
       condition: { field: 'operation', value: 'read_outlook' },
     },
-    // TRIGGER MODE: Trigger configuration
-    ...getTriggerSubBlocks('outlook_poller'),
+    ...getTrigger('outlook_poller').subBlocks,
   ],
   tools: {
     access: ['outlook_send', 'outlook_draft', 'outlook_read', 'outlook_forward'],

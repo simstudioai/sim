@@ -10,7 +10,6 @@ export const whatsappWebhookTrigger: TriggerConfig = {
   icon: WhatsAppIcon,
 
   subBlocks: [
-    // Verification Token
     {
       id: 'verificationToken',
       title: 'Verification Token',
@@ -22,7 +21,6 @@ export const whatsappWebhookTrigger: TriggerConfig = {
       required: true,
       mode: 'trigger',
     },
-    // Setup Instructions
     {
       id: 'triggerInstructions',
       title: 'Setup Instructions',
@@ -44,7 +42,6 @@ export const whatsappWebhookTrigger: TriggerConfig = {
         .join(''),
       mode: 'trigger',
     },
-    // Webhook URL
     {
       id: 'webhookUrlDisplay',
       title: 'Webhook URL',
@@ -55,7 +52,6 @@ export const whatsappWebhookTrigger: TriggerConfig = {
       placeholder: 'Webhook URL will be generated',
       mode: 'trigger',
     },
-    // Save Button
     {
       id: 'triggerSave',
       title: '',
@@ -63,7 +59,6 @@ export const whatsappWebhookTrigger: TriggerConfig = {
       mode: 'trigger',
       triggerId: 'whatsapp_webhook',
     },
-    // Sample Payload
     {
       id: 'samplePayload',
       title: 'Event Payload Example',

@@ -11,7 +11,6 @@ export const gmailPollingTrigger: TriggerConfig = {
   icon: GmailIcon,
 
   subBlocks: [
-    // Credentials
     {
       id: 'triggerCredentials',
       title: 'Credentials',
@@ -22,7 +21,6 @@ export const gmailPollingTrigger: TriggerConfig = {
       required: true,
       mode: 'trigger',
     },
-    // Gmail Labels to Monitor
     {
       id: 'labelIds',
       title: 'Gmail Labels to Monitor',
@@ -59,7 +57,6 @@ export const gmailPollingTrigger: TriggerConfig = {
       },
       mode: 'trigger',
     },
-    // Label Filter Behavior
     {
       id: 'labelFilterBehavior',
       title: 'Label Filter Behavior',
@@ -74,7 +71,6 @@ export const gmailPollingTrigger: TriggerConfig = {
       required: true,
       mode: 'trigger',
     },
-    // Gmail Search Query
     {
       id: 'searchQuery',
       title: 'Gmail Search Query',
@@ -85,7 +81,6 @@ export const gmailPollingTrigger: TriggerConfig = {
       required: false,
       mode: 'trigger',
     },
-    // Mark as Read
     {
       id: 'markAsRead',
       title: 'Mark as Read',
@@ -95,7 +90,6 @@ export const gmailPollingTrigger: TriggerConfig = {
       required: false,
       mode: 'trigger',
     },
-    // Include Attachments
     {
       id: 'includeAttachments',
       title: 'Include Attachments',
@@ -105,7 +99,6 @@ export const gmailPollingTrigger: TriggerConfig = {
       required: false,
       mode: 'trigger',
     },
-    // Setup Instructions
     {
       id: 'triggerInstructions',
       title: 'Setup Instructions',
@@ -122,7 +115,6 @@ export const gmailPollingTrigger: TriggerConfig = {
         .join(''),
       mode: 'trigger',
     },
-    // Webhook URL
     {
       id: 'webhookUrlDisplay',
       title: 'Webhook URL',
@@ -133,7 +125,6 @@ export const gmailPollingTrigger: TriggerConfig = {
       placeholder: 'Webhook URL will be generated',
       mode: 'trigger',
     },
-    // Save Button
     {
       id: 'triggerSave',
       title: '',
@@ -141,7 +132,6 @@ export const gmailPollingTrigger: TriggerConfig = {
       mode: 'trigger',
       triggerId: 'gmail_poller',
     },
-    // Sample Payload
     {
       id: 'samplePayload',
       title: 'Event Payload Example',

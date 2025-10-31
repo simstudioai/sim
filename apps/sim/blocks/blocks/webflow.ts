@@ -1,8 +1,8 @@
 import { WebflowIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
-import { getTriggerSubBlocks } from '@/blocks/utils/get-trigger-subblocks'
 import type { WebflowResponse } from '@/tools/webflow/types'
+import { getTrigger } from '@/triggers'
 
 export const WebflowBlock: BlockConfig<WebflowResponse> = {
   type: 'webflow',
@@ -86,12 +86,9 @@ export const WebflowBlock: BlockConfig<WebflowResponse> = {
       condition: { field: 'operation', value: ['create', 'update'] },
       required: true,
     },
-    // TRIGGER MODE: Trigger configuration (supports multiple trigger types)
-    ...getTriggerSubBlocks([
-      'webflow_collection_item_created',
-      'webflow_collection_item_changed',
-      'webflow_collection_item_deleted',
-    ]),
+    ...getTrigger('webflow_collection_item_created').subBlocks,
+    ...getTrigger('webflow_collection_item_changed').subBlocks,
+    ...getTrigger('webflow_collection_item_deleted').subBlocks,
   ],
   tools: {
     access: [

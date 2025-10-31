@@ -2,7 +2,7 @@ import type { SVGProps } from 'react'
 import { createElement } from 'react'
 import { Webhook } from 'lucide-react'
 import type { BlockConfig } from '@/blocks/types'
-import { getTriggerSubBlocks } from '@/blocks/utils/get-trigger-subblocks'
+import { getTrigger } from '@/triggers'
 
 const WebhookIcon = (props: SVGProps<SVGSVGElement>) => createElement(Webhook, props)
 
@@ -21,8 +21,7 @@ export const GenericWebhookBlock: BlockConfig = {
   `,
   subBlocks: [
     // Generic webhook configuration - always visible
-    // TRIGGER MODE: Trigger configuration
-    ...getTriggerSubBlocks('generic_webhook'),
+    ...getTrigger('generic_webhook').subBlocks,
     // Optional input format for structured data including files
     {
       id: 'inputFormat',

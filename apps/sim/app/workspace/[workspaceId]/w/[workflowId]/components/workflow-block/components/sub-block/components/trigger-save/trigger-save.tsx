@@ -16,7 +16,7 @@ import { cn } from '@/lib/utils'
 import { useTriggerConfigAggregation } from '@/hooks/use-trigger-config-aggregation'
 import { useWebhookManagement } from '@/hooks/use-webhook-management'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
-import { getTrigger } from '@/triggers'
+import { getTrigger, isTriggerValid } from '@/triggers'
 
 const logger = createLogger('TriggerSave')
 
@@ -53,7 +53,7 @@ export function TriggerSave({
     state.getValue(blockId, 'triggerCredentials')
   )
 
-  const triggerDef = triggerId ? getTrigger(triggerId) : null
+  const triggerDef = triggerId && isTriggerValid(triggerId) ? getTrigger(triggerId) : null
 
   const validateRequiredFields = useCallback(
     (

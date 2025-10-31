@@ -11,7 +11,6 @@ export const outlookPollingTrigger: TriggerConfig = {
   icon: OutlookIcon,
 
   subBlocks: [
-    // Credentials
     {
       id: 'triggerCredentials',
       title: 'Credentials',
@@ -22,7 +21,6 @@ export const outlookPollingTrigger: TriggerConfig = {
       required: true,
       mode: 'trigger',
     },
-    // Outlook Folders to Monitor
     {
       id: 'folderIds',
       title: 'Outlook Folders to Monitor',
@@ -59,7 +57,6 @@ export const outlookPollingTrigger: TriggerConfig = {
       },
       mode: 'trigger',
     },
-    // Folder Filter Behavior
     {
       id: 'folderFilterBehavior',
       title: 'Folder Filter Behavior',
@@ -74,7 +71,6 @@ export const outlookPollingTrigger: TriggerConfig = {
       required: true,
       mode: 'trigger',
     },
-    // Mark as Read
     {
       id: 'markAsRead',
       title: 'Mark as Read',
@@ -84,7 +80,6 @@ export const outlookPollingTrigger: TriggerConfig = {
       required: false,
       mode: 'trigger',
     },
-    // Include Attachments
     {
       id: 'includeAttachments',
       title: 'Include Attachments',
@@ -94,7 +89,6 @@ export const outlookPollingTrigger: TriggerConfig = {
       required: false,
       mode: 'trigger',
     },
-    // Setup Instructions
     {
       id: 'triggerInstructions',
       title: 'Setup Instructions',
@@ -111,7 +105,6 @@ export const outlookPollingTrigger: TriggerConfig = {
         .join(''),
       mode: 'trigger',
     },
-    // Webhook URL
     {
       id: 'webhookUrlDisplay',
       title: 'Webhook URL',
@@ -122,7 +115,6 @@ export const outlookPollingTrigger: TriggerConfig = {
       placeholder: 'Webhook URL will be generated',
       mode: 'trigger',
     },
-    // Save Button
     {
       id: 'triggerSave',
       title: '',
@@ -130,7 +122,6 @@ export const outlookPollingTrigger: TriggerConfig = {
       mode: 'trigger',
       triggerId: 'outlook_poller',
     },
-    // Sample Payload
     {
       id: 'samplePayload',
       title: 'Event Payload Example',

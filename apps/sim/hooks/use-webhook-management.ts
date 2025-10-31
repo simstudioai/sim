@@ -3,7 +3,7 @@ import { useParams } from 'next/navigation'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getBaseUrl } from '@/lib/urls/utils'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
-import { getTrigger } from '@/triggers'
+import { getTrigger, isTriggerValid } from '@/triggers'
 import { populateTriggerFieldsFromConfig } from './use-trigger-config-aggregation'
 
 const logger = createLogger('useWebhookManagement')
@@ -45,7 +45,7 @@ export function useWebhookManagement({
   const [isLoading, setIsLoading] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
 
-  const triggerDef = triggerId ? getTrigger(triggerId) : null
+  const triggerDef = triggerId && isTriggerValid(triggerId) ? getTrigger(triggerId) : null
   const hasLoadedRef = useRef(false)
   const lastBlockIdRef = useRef<string | null>(null)
   const lastTriggerIdRef = useRef<string | undefined>(undefined)
