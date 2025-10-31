@@ -53,7 +53,8 @@ export class DAGExecutor {
   async execute(workflowId: string, triggerBlockId?: string): Promise<ExecutionResult> {
     const dag = this.dagBuilder.build(this.workflow, triggerBlockId)
     const context = this.createExecutionContext(workflowId, triggerBlockId)
-    const state = new ExecutionState()
+    // Create state with shared references to context's maps/sets for single source of truth
+    const state = new ExecutionState(context.blockStates, context.executedBlocks)
     const resolver = new VariableResolver(this.workflow, this.workflowVariables, state)
     const loopOrchestrator = new LoopOrchestrator(dag, state, resolver)
     const parallelOrchestrator = new ParallelOrchestrator(dag, state)

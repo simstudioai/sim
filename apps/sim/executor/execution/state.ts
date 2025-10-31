@@ -19,17 +19,26 @@ export interface ParallelScope {
 }
 
 export class ExecutionState {
-  readonly blockStates = new Map<string, { output: NormalizedBlockOutput; executed: boolean }>()
-  readonly executedBlocks = new Set<string>()
+  // Shared references with ExecutionContext for single source of truth
+  readonly blockStates: Map<string, { output: NormalizedBlockOutput; executed: boolean; executionTime: number }>
+  readonly executedBlocks: Set<string>
   readonly loopScopes = new Map<string, LoopScope>()
   readonly parallelScopes = new Map<string, ParallelScope>()
+
+  constructor(
+    blockStates: Map<string, { output: NormalizedBlockOutput; executed: boolean; executionTime: number }>,
+    executedBlocks: Set<string>
+  ) {
+    this.blockStates = blockStates
+    this.executedBlocks = executedBlocks
+  }
 
   getBlockOutput(blockId: string): NormalizedBlockOutput | undefined {
     return this.blockStates.get(blockId)?.output
   }
 
   setBlockOutput(blockId: string, output: NormalizedBlockOutput): void {
-    this.blockStates.set(blockId, { output, executed: true })
+    this.blockStates.set(blockId, { output, executed: true, executionTime: 0 })
     this.executedBlocks.add(blockId)
   }
 

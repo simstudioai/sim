@@ -154,10 +154,15 @@ export class ExecutionEngine {
 
   private async executeNodeAsync(nodeId: string): Promise<void> {
     try {
+      const wasAlreadyExecuted = this.context.executedBlocks.has(nodeId)
       const result = await this.nodeOrchestrator.executeNode(nodeId, this.context)
-      await this.withQueueLock(async () => {
-        await this.handleNodeCompletion(nodeId, result.output, result.isFinalOutput)
-      })
+      if (!wasAlreadyExecuted) {
+        await this.withQueueLock(async () => {
+          await this.handleNodeCompletion(nodeId, result.output, result.isFinalOutput)
+        })
+      } else {
+        logger.debug('Node was already executed, skipping edge processing to avoid loops', { nodeId })
+      }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error)
       logger.error('Node execution failed', { nodeId, error: errorMessage })
