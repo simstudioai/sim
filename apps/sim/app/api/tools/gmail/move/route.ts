@@ -47,7 +47,6 @@ export async function POST(request: NextRequest) {
       removeLabelIds: validatedData.removeLabelIds,
     })
 
-    // Parse comma-separated label IDs
     const addLabelIds = validatedData.addLabelIds
       .split(',')
       .map((id) => id.trim())
