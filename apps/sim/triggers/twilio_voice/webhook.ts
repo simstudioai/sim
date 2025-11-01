@@ -55,14 +55,14 @@ export const twilioVoiceWebhookTrigger: TriggerConfig = {
       type: 'text',
       defaultValue: [
         'Enter a <strong>TwiML Response</strong> above - this tells Twilio what to do when a call comes in (e.g., play a message, record, gather input).',
-        'Example TwiML: <code>&lt;Response&gt;&lt;Say&gt;Thank you for calling. Please hold.&lt;/Say&gt;&lt;/Response&gt;</code>',
+        'Example TwiML for recording with transcription: <code>&lt;Response&gt;&lt;Say&gt;Please leave a message.&lt;/Say&gt;&lt;Record transcribe="true" maxLength="120"/&gt;&lt;/Response&gt;</code>',
         'Go to your <a href="https://console.twilio.com/us1/develop/phone-numbers/manage/incoming" target="_blank" rel="noopener noreferrer" class="text-muted-foreground underline transition-colors hover:text-muted-foreground/80">Twilio Console Phone Numbers</a> page.',
         'Select the phone number you want to use for incoming calls.',
         'Scroll down to the "Voice Configuration" section.',
         'In the "A CALL COMES IN" field, select "Webhook" and paste the <strong>Webhook URL</strong> (from above).',
         'Ensure the HTTP method is set to <strong>POST</strong>.',
         'Click "Save configuration".',
-        '<strong>How it works:</strong> When a call comes in, Twilio receives your TwiML response immediately. Your workflow executes in the background and can use "Send TwiML" to update the call, record it, or hangup.',
+        '<strong>How it works:</strong> When a call comes in, Twilio receives your TwiML response immediately and executes those instructions. Your workflow runs in the background with access to caller information, call status, and any recorded/transcribed data.',
       ]
         .map(
           (instruction, index) =>

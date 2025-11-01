@@ -11,6 +11,7 @@ import { outlookPollingTrigger } from '@/triggers/outlook'
 import { slackWebhookTrigger } from '@/triggers/slack'
 import { stripeWebhookTrigger } from '@/triggers/stripe'
 import { telegramWebhookTrigger } from '@/triggers/telegram'
+import { twilioVoiceWebhookTrigger } from '@/triggers/twilio_voice/webhook'
 import type { TriggerRegistry } from '@/triggers/types'
 import {
   webflowCollectionItemChangedTrigger,
@@ -19,7 +20,6 @@ import {
   webflowFormSubmissionTrigger,
 } from '@/triggers/webflow'
 import { whatsappWebhookTrigger } from '@/triggers/whatsapp'
-import { twilioVoiceWebhookTrigger } from '@/triggers/twilio_voice/webhook'
 
 export const TRIGGER_REGISTRY: TriggerRegistry = {
   slack_webhook: slackWebhookTrigger,
