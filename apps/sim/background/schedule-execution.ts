@@ -345,7 +345,7 @@ export async function executeScheduleJob(payload: ScheduleExecutionPayload) {
             loggingSession,
             executionId,
             workspaceId: workflowRecord.workspaceId || '',
-            startBlockId: payload.blockId || undefined,
+            triggerBlockId: payload.blockId || undefined,
           })
 
           logger.info(`[${requestId}] Workflow execution completed: ${payload.workflowId}`, {

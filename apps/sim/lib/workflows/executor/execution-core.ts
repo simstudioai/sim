@@ -37,8 +37,8 @@ export interface ExecuteWorkflowCoreOptions {
   executionId: string
   selectedOutputs?: string[]
   workspaceId?: string
-  triggerBlockId?: string // Optional: trigger block that started execution (for webhooks/schedules)
-  // Callbacks for SSE streaming (optional)
+  triggerBlockId?: string
+  useDraftState?: boolean
   onBlockStart?: (blockId: string, blockName: string, blockType: string) => Promise<void>
   onBlockComplete?: (
     blockId: string,
@@ -47,7 +47,7 @@ export interface ExecuteWorkflowCoreOptions {
     output: any
   ) => Promise<void>
   onStream?: (streamingExec: any) => Promise<void>
-  onExecutorCreated?: (executor: any) => void // Callback when executor is created (for cancellation)
+  onExecutorCreated?: (executor: any) => void
 }
 
 /**
@@ -147,9 +147,7 @@ export async function executeWorkflowCore(
     let loops
     let parallels
 
-    const isClientExecution = !workflow?.isDeployed
-    
-    if (isClientExecution) {
+    if (options.useDraftState) {
       const draftData = await loadWorkflowFromNormalizedTables(workflowId)
 
       if (!draftData) {
@@ -161,7 +159,7 @@ export async function executeWorkflowCore(
       loops = draftData.loops
       parallels = draftData.parallels
 
-      logger.info(`[${requestId}] Using draft workflow state from normalized tables`)
+      logger.info(`[${requestId}] Using draft workflow state from normalized tables (client execution)`)
     } else {
       const deployedData = await loadDeployedWorkflowState(workflowId)
       blocks = deployedData.blocks
@@ -169,7 +167,7 @@ export async function executeWorkflowCore(
       loops = deployedData.loops
       parallels = deployedData.parallels
 
-      logger.info(`[${requestId}] Using deployed workflow state`)
+      logger.info(`[${requestId}] Using deployed workflow state (deployed execution)`)
     }
 
     // Merge block states

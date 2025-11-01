@@ -6,7 +6,7 @@ import { v4 as uuidv4 } from 'uuid'
 import { createLogger } from '@/lib/logs/console/logger'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { getWorkflowById } from '@/lib/workflows/utils'
-import { executeWorkflow } from '@/app/api/workflows/[id]/execute/route'
+import { executeWorkflowCore } from '@/lib/workflows/executor/execution-core'
 
 const logger = createLogger('TriggerWorkflowExecution')
 
@@ -54,8 +54,8 @@ export async function executeWorkflowJob(payload: WorkflowExecutionPayload) {
       workspaceId,
     }
 
-    // Use the unified executeWorkflow function (non-SSE for background jobs)
-    const response = await executeWorkflow({
+    // Use executeWorkflowCore directly for background jobs
+    const result = await executeWorkflowCore({
       requestId,
       workflowId,
       userId: payload.userId,
@@ -66,9 +66,6 @@ export async function executeWorkflowJob(payload: WorkflowExecutionPayload) {
       executionId,
       selectedOutputs: undefined,
     })
-
-    // Extract JSON from NextResponse
-    const result = await response.json()
 
     logger.info(`[${requestId}] Workflow execution completed: ${workflowId}`, {
       success: result.success,

@@ -905,6 +905,7 @@ export function useWorkflowExecution() {
           input: finalWorkflowInput,
           selectedOutputs,
           triggerType: overrideTriggerType || 'manual',
+          useDraftState: true,
           callbacks: {
             onExecutionStarted: (data) => {
               logger.info('Server execution started:', data)

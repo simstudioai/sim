@@ -60,6 +60,7 @@ export interface ExecuteStreamOptions {
   selectedOutputs?: string[]
   startBlockId?: string
   triggerType?: string
+  useDraftState?: boolean
   callbacks?: ExecutionStreamCallbacks
 }
 

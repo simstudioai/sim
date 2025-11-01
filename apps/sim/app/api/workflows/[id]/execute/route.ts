@@ -143,9 +143,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     const defaultTriggerType = auth.authType === 'api_key' ? 'api' : 'manual'
 
-    const { selectedOutputs = [], triggerType = defaultTriggerType, stream: streamParam } = body
+    const { selectedOutputs = [], triggerType = defaultTriggerType, stream: streamParam, useDraftState } = body
 
     const input = auth.authType === 'api_key' ? body : body.input
+    
+    const shouldUseDraftState = useDraftState ?? (auth.authType === 'session')
 
     const streamHeader = req.headers.get('X-Stream-Response') === 'true'
     const enableSSE = streamHeader || streamParam === true
@@ -205,6 +207,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           loggingSession,
           executionId,
           selectedOutputs,
+          useDraftState: shouldUseDraftState,
         })
 
         // Filter out logs and internal metadata for API responses
@@ -428,6 +431,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
             loggingSession,
             executionId,
             selectedOutputs,
+            useDraftState: shouldUseDraftState,
             onBlockStart,
             onBlockComplete,
             onStream,

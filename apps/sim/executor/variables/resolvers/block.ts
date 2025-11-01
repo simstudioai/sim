@@ -109,7 +109,11 @@ export class BlockResolver implements Resolver {
       if (current === null || current === undefined) {
         return undefined
       }
-      if (/^\d+$/.test(part)) {
+      
+      const arrayMatch = part.match(/^([^[]+)\[(\d+)\](.*)$/)
+      if (arrayMatch) {
+        current = this.resolvePartWithIndices(current, part, '', 'block')
+      } else if (/^\d+$/.test(part)) {
         const index = Number.parseInt(part, 10)
         current = Array.isArray(current) ? current[index] : undefined
       } else {
@@ -117,5 +121,39 @@ export class BlockResolver implements Resolver {
       }
     }
     return current
+  }
+
+  private resolvePartWithIndices(base: any, part: string, fullPath: string, sourceName: string): any {
+    let value = base
+
+    const propMatch = part.match(/^([^[]+)/)
+    let rest = part
+    if (propMatch) {
+      const prop = propMatch[1]
+      value = value[prop]
+      rest = part.slice(prop.length)
+      if (value === undefined) {
+        throw new Error(`No value found at path "${fullPath}" in block "${sourceName}".`)
+      }
+    }
+
+    const indexRe = /^\[(\d+)\]/
+    while (rest.length > 0) {
+      const m = rest.match(indexRe)
+      if (!m) {
+        throw new Error(`Invalid path "${part}" in "${fullPath}" for block "${sourceName}".`)
+      }
+      const idx = Number.parseInt(m[1], 10)
+      if (!Array.isArray(value)) {
+        throw new Error(`Invalid path "${part}" in "${fullPath}" for block "${sourceName}".`)
+      }
+      if (idx < 0 || idx >= value.length) {
+        throw new Error(`Array index ${idx} out of bounds (length: ${value.length}) in path "${part}"`)
+      }
+      value = value[idx]
+      rest = rest.slice(m[0].length)
+    }
+
+    return value
   }
 }

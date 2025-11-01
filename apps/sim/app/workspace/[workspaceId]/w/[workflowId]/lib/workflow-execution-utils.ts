@@ -42,6 +42,7 @@ export async function executeWorkflowWithFullLogging(
       input: options.workflowInput,
       stream: false, // Copilot doesn't need SSE streaming
       triggerType: options.overrideTriggerType || 'manual',
+      useDraftState: true,
     }),
   })
 
