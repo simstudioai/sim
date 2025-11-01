@@ -96,7 +96,14 @@ export default async function Layout({ children, params }: LayoutProps) {
         />
       </head>
       <body className='flex min-h-screen flex-col font-sans'>
-        <RootProvider i18n={provider(lang)}>
+        <RootProvider
+          i18n={provider(lang)}
+          search={{
+            options: {
+              type: 'static',
+            },
+          }}
+        >
           <Navbar />
           <DocsLayout
             tree={source.pageTree[lang]}

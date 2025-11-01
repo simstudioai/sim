@@ -1,6 +1,6 @@
 'use client'
 
-import { type ReactNode, useState } from 'react'
+import { type ReactNode, useEffect, useState } from 'react'
 import type { PageTree } from 'fumadocs-core/server'
 import { ChevronRight } from 'lucide-react'
 import Link from 'next/link'
@@ -45,6 +45,10 @@ export function SidebarFolder({
   const pathname = usePathname()
   const hasActiveChild = checkHasActiveChild(item, pathname)
   const [open, setOpen] = useState(hasActiveChild)
+
+  useEffect(() => {
+    setOpen(hasActiveChild)
+  }, [hasActiveChild])
 
   return (
     <li className='mb-[0.0625rem] list-none'>
