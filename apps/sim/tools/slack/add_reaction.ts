@@ -74,7 +74,11 @@ export const slackAddReactionTool: ToolConfig<SlackAddReactionParams, SlackAddRe
         success: false,
         output: {
           content: data.error || 'Failed to add reaction',
-          metadata: {},
+          metadata: {
+            channel: '',
+            timestamp: '',
+            reaction: '',
+          },
         },
         error: data.error,
       }

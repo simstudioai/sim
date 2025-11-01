@@ -70,7 +70,10 @@ export const slackDeleteMessageTool: ToolConfig<
         success: false,
         output: {
           content: data.error || 'Failed to delete message',
-          metadata: {},
+          metadata: {
+            channel: '',
+            timestamp: '',
+          },
         },
         error: data.error,
       }

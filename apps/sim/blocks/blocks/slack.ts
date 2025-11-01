@@ -507,12 +507,13 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
     event_type: { type: 'string', description: 'Type of Slack event that triggered the workflow' },
     channel_name: { type: 'string', description: 'Human-readable channel name' },
     user_name: { type: 'string', description: 'Username who triggered the event' },
-    team_id: { type: 'string', description: 'Slack workspace/team ID' },
-    event_id: { type: 'string', description: 'Unique event identifier for the trigger' },
+    timestamp: { type: 'string', description: 'Message timestamp from the triggering event' },
     thread_ts: {
       type: 'string',
       description: 'Parent thread timestamp (if message is in a thread)',
     },
+    team_id: { type: 'string', description: 'Slack workspace/team ID' },
+    event_id: { type: 'string', description: 'Unique event identifier for the trigger' },
   },
   // New: Trigger capabilities
   triggers: {

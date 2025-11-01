@@ -116,7 +116,7 @@ export const slackWebhookTrigger: TriggerConfig = {
       },
       timestamp: {
         type: 'string',
-        description: 'Event timestamp',
+        description: 'Message timestamp from the triggering event',
       },
       thread_ts: {
         type: 'string',

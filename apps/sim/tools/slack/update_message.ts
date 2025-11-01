@@ -77,7 +77,11 @@ export const slackUpdateMessageTool: ToolConfig<
         success: false,
         output: {
           content: data.error || 'Failed to update message',
-          metadata: {},
+          metadata: {
+            channel: '',
+            timestamp: '',
+            text: '',
+          },
         },
         error: data.error,
       }
