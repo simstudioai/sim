@@ -33,13 +33,6 @@ export class BlockExecutor {
       throw new Error(`No handler found for block type: ${block.metadata?.id}`)
     }
 
-    let resolvedInputs: Record<string, any>
-    try {
-      resolvedInputs = this.resolver.resolveInputs(ctx, node.id, block.config.params, block)
-    } catch (error) {
-      resolvedInputs = {}
-    }
-
     const isSentinel = isSentinelBlockType(block.metadata?.id ?? '')
 
     let blockLog: BlockLog | undefined
@@ -50,8 +43,12 @@ export class BlockExecutor {
     }
 
     const startTime = Date.now()
+    let resolvedInputs: Record<string, any> = {}
 
     try {
+      logger.debug('About to resolve inputs', { nodeId: node.id, params: block.config.params })
+      resolvedInputs = this.resolver.resolveInputs(ctx, node.id, block.config.params, block)
+      logger.debug('Inputs resolved successfully', { nodeId: node.id, resolvedInputs })
       const output = await handler.execute(ctx, block, resolvedInputs)
       const normalizedOutput = this.normalizeOutput(output)
       const duration = Date.now() - startTime

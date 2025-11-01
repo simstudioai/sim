@@ -46,8 +46,8 @@ export class BlockResolver implements Resolver {
 
     const blockId = this.findBlockIdByName(blockName)
     if (!blockId) {
-      logger.warn('Block not found by name', { blockName })
-      return undefined
+      logger.error('Block not found by name', { blockName, reference })
+      throw new Error(`Block "${blockName}" not found`)
     }
 
     const output = this.getBlockOutput(blockId, context)
@@ -59,13 +59,26 @@ export class BlockResolver implements Resolver {
     })
 
     if (!output) {
-      return undefined
+      throw new Error(`No state found for block "${blockName}"`)
     }
     if (pathParts.length === 0) {
       return output
     }
 
     const result = this.navigatePath(output, pathParts)
+    
+    if (result === undefined) {
+      const availableKeys = output && typeof output === 'object' ? Object.keys(output) : []
+      const errorMsg = `No value found at path "${pathParts.join('.')}" in block "${blockName}". Available fields: ${availableKeys.join(', ')}`
+      logger.error('Path navigation returned undefined, throwing error', {
+        blockName,
+        pathParts,
+        availableKeys,
+        errorMsg,
+      })
+      throw new Error(errorMsg)
+    }
+    
     logger.debug('Navigated path result', {
       blockName,
       pathParts,

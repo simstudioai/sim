@@ -12,6 +12,53 @@ import { WorkflowResolver } from './resolvers/workflow'
 
 const logger = createLogger('VariableResolver')
 
+const INVALID_REFERENCE_CHARS = /[+*/=<>!]/
+
+function isLikelyReferenceSegment(segment: string): boolean {
+  if (!segment.startsWith(REFERENCE.START) || !segment.endsWith(REFERENCE.END)) {
+    return false
+  }
+
+  const inner = segment.slice(1, -1)
+
+  // Starts with space - not a reference
+  if (inner.startsWith(' ')) {
+    return false
+  }
+
+  // Contains only comparison operators or has operators with spaces
+  if (inner.match(/^\s*[<>=!]+\s*$/) || inner.match(/\s[<>=!]+\s/)) {
+    return false
+  }
+
+  // Starts with comparison operator followed by space
+  if (inner.match(/^[<>=!]+\s/)) {
+    return false
+  }
+
+  // For dotted references (like <block.field>)
+  if (inner.includes('.')) {
+    const dotIndex = inner.indexOf('.')
+    const beforeDot = inner.substring(0, dotIndex)
+    const afterDot = inner.substring(dotIndex + 1)
+
+    // No spaces after dot
+    if (afterDot.includes(' ')) {
+      return false
+    }
+
+    // No invalid chars in either part
+    if (INVALID_REFERENCE_CHARS.test(beforeDot) || INVALID_REFERENCE_CHARS.test(afterDot)) {
+      return false
+    }
+  } else if (INVALID_REFERENCE_CHARS.test(inner) || inner.match(/^\d/) || inner.match(/\s\d/)) {
+    // No invalid chars, doesn't start with digit, no space before digit
+    return false
+  }
+
+  return true
+}
+
 export class VariableResolver {
   private resolvers: Resolver[]
 
@@ -102,23 +149,49 @@ export class VariableResolver {
       `${REFERENCE.START}([^${REFERENCE.END}]+)${REFERENCE.END}`,
       'g'
     )
+    
+    // Track errors during replacement since throwing inside replace() doesn't propagate
+    let replacementError: Error | null = null
+    
     result = result.replace(referenceRegex, (match) => {
-      const resolved = this.resolveReference(match, resolutionContext)
-      if (resolved === undefined) {
+      if (replacementError) return match // Skip further replacements if error occurred
+      
+      // Filter out false positives like comparison operators (< 5, i < length, etc)
+      if (!isLikelyReferenceSegment(match)) {
         return match
       }
-      const isFunctionBlock = block?.metadata?.id === BlockType.FUNCTION
-      if (typeof resolved === 'string') {
-        if (isFunctionBlock) {
-          return JSON.stringify(resolved)
+      
+      try {
+        const resolved = this.resolveReference(match, resolutionContext)
+        if (resolved === undefined) {
+          return match
         }
-        return resolved
+        const isFunctionBlock = block?.metadata?.id === BlockType.FUNCTION
+        if (typeof resolved === 'string') {
+          if (isFunctionBlock) {
+            return JSON.stringify(resolved)
+          }
+          return resolved
+        }
+        if (typeof resolved === 'number' || typeof resolved === 'boolean') {
+          return String(resolved)
+        }
+        return JSON.stringify(resolved)
+      } catch (error) {
+        replacementError = error instanceof Error ? error : new Error(String(error))
+        return match
       }
-      if (typeof resolved === 'number' || typeof resolved === 'boolean') {
-        return String(resolved)
-      }
-      return JSON.stringify(resolved)
     })
+    
+    // Re-throw any error that occurred during replacement
+    if (replacementError !== null) {
+      logger.error('Re-throwing error that occurred during reference resolution', {
+        error: (replacementError as Error).message,
+        template,
+      })
+      throw replacementError
+    }
+    
     const envRegex = new RegExp(`${REFERENCE.ENV_VAR_START}([^}]+)${REFERENCE.ENV_VAR_END}`, 'g')
     result = result.replace(envRegex, (match) => {
       const resolved = this.resolveReference(match, resolutionContext)
