@@ -33,11 +33,18 @@ import {
   githubRepoInfoTool,
 } from '@/tools/github'
 import {
+  gmailAddLabelTool,
+  gmailArchiveTool,
+  gmailDeleteTool,
   gmailDraftTool,
+  gmailMarkReadTool,
+  gmailMarkUnreadTool,
   gmailMoveTool,
   gmailReadTool,
+  gmailRemoveLabelTool,
   gmailSearchTool,
   gmailSendTool,
+  gmailUnarchiveTool,
 } from '@/tools/gmail'
 import { searchTool as googleSearchTool } from '@/tools/google'
 import {
@@ -140,8 +147,12 @@ import {
 } from '@/tools/onedrive'
 import { imageTool, embeddingsTool as openAIEmbeddings } from '@/tools/openai'
 import {
+  outlookCopyTool,
+  outlookDeleteTool,
   outlookDraftTool,
   outlookForwardTool,
+  outlookMarkReadTool,
+  outlookMarkUnreadTool,
   outlookMoveTool,
   outlookReadTool,
   outlookSendTool,
@@ -184,10 +195,13 @@ import {
   sharepointUploadFileTool,
 } from '@/tools/sharepoint'
 import {
+  slackAddReactionTool,
   slackCanvasTool,
+  slackDeleteMessageTool,
   slackDownloadTool,
   slackMessageReaderTool,
   slackMessageTool,
+  slackUpdateMessageTool,
 } from '@/tools/slack'
 import { smsSendTool } from '@/tools/sms'
 import { stagehandAgentTool, stagehandExtractTool } from '@/tools/stagehand'
@@ -288,6 +302,9 @@ export const tools: Record<string, ToolConfig> = {
   slack_message_reader: slackMessageReaderTool,
   slack_canvas: slackCanvasTool,
   slack_download: slackDownloadTool,
+  slack_update_message: slackUpdateMessageTool,
+  slack_delete_message: slackDeleteMessageTool,
+  slack_add_reaction: slackAddReactionTool,
   github_repo_info: githubRepoInfoTool,
   github_latest_commit: githubLatestCommitTool,
   serper_search: serperSearch,
@@ -320,6 +337,13 @@ export const tools: Record<string, ToolConfig> = {
   gmail_search: gmailSearchTool,
   gmail_draft: gmailDraftTool,
   gmail_move: gmailMoveTool,
+  gmail_mark_read: gmailMarkReadTool,
+  gmail_mark_unread: gmailMarkUnreadTool,
+  gmail_archive: gmailArchiveTool,
+  gmail_unarchive: gmailUnarchiveTool,
+  gmail_delete: gmailDeleteTool,
+  gmail_add_label: gmailAddLabelTool,
+  gmail_remove_label: gmailRemoveLabelTool,
   whatsapp_send_message: whatsappSendMessageTool,
   x_write: xWriteTool,
   x_read: xReadTool,
@@ -430,6 +454,10 @@ export const tools: Record<string, ToolConfig> = {
   outlook_draft: outlookDraftTool,
   outlook_forward: outlookForwardTool,
   outlook_move: outlookMoveTool,
+  outlook_mark_read: outlookMarkReadTool,
+  outlook_mark_unread: outlookMarkUnreadTool,
+  outlook_delete: outlookDeleteTool,
+  outlook_copy: outlookCopyTool,
   linear_read_issues: linearReadIssuesTool,
   linear_create_issue: linearCreateIssueTool,
   onedrive_create_folder: onedriveCreateFolderTool,

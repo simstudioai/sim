@@ -130,6 +130,7 @@ const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'files:write': 'Upload files',
   'files:read': 'Download and read files',
   'canvases:write': 'Create canvas documents',
+  'reactions:write': 'Add emoji reactions to messages',
   'sites:read': 'View your Webflow sites',
   'sites:write': 'Manage webhooks and site settings',
   'cms:read': 'View your CMS content',

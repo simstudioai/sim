@@ -45,7 +45,15 @@ With Gmail, you can:
 - **Access from anywhere**: Use Gmail across devices with synchronized content and settings
 - **Integrate with other services**: Connect with Google Calendar, Drive, and other productivity tools
 
-In Sim, the Gmail integration enables your agents to send, read, and search emails programmatically. This allows for powerful automation scenarios such as sending notifications, processing incoming messages, extracting information from emails, and managing communication workflows. Your agents can compose and send personalized emails, search for specific messages using Gmail's query syntax, and extract content from emails to use in other parts of your workflow. Coming soon, agents will also be able to listen for new emails in real-time, enabling responsive workflows that can trigger actions based on incoming messages. This integration bridges the gap between your AI workflows and email communications, enabling seamless interaction with one of the world's most widely used communication platforms.
+In Sim, the Gmail integration enables your agents to fully manage emails programmatically with comprehensive automation capabilities. This allows for powerful automation scenarios such as sending notifications, processing incoming messages, extracting information from emails, and managing communication workflows at scale. Your agents can:
+
+- **Compose and send**: Create personalized emails with attachments and send to recipients
+- **Read and search**: Find specific messages using Gmail's query syntax and extract content
+- **Organize intelligently**: Mark messages as read/unread, archive or unarchive emails, and manage labels
+- **Clean up inbox**: Delete messages, move emails between labels, and maintain inbox zero
+- **Trigger workflows**: Listen for new emails in real-time, enabling responsive workflows that react to incoming messages
+
+This integration bridges the gap between your AI workflows and email communications, enabling seamless interaction with one of the world's most widely used communication platforms. Whether you're automating customer support responses, processing receipts, managing subscriptions, or coordinating team communications, the Gmail integration provides all the tools you need for comprehensive email automation.
 {/* MANUAL-CONTENT-END */}
 
 
@@ -156,6 +164,127 @@ Move emails between Gmail labels/folders
 | `messageId` | string | Yes | ID of the message to move |
 | `addLabelIds` | string | Yes | Comma-separated label IDs to add \(e.g., INBOX, Label_123\) |
 | `removeLabelIds` | string | No | Comma-separated label IDs to remove \(e.g., INBOX, SPAM\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | string | Success message |
+| `metadata` | object | Email metadata |
+
+### `gmail_mark_read`
+
+Mark a Gmail message as read
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `messageId` | string | Yes | ID of the message to mark as read |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | string | Success message |
+| `metadata` | object | Email metadata |
+
+### `gmail_mark_unread`
+
+Mark a Gmail message as unread
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `messageId` | string | Yes | ID of the message to mark as unread |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | string | Success message |
+| `metadata` | object | Email metadata |
+
+### `gmail_archive`
+
+Archive a Gmail message (remove from inbox)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `messageId` | string | Yes | ID of the message to archive |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | string | Success message |
+| `metadata` | object | Email metadata |
+
+### `gmail_unarchive`
+
+Unarchive a Gmail message (move back to inbox)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `messageId` | string | Yes | ID of the message to unarchive |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | string | Success message |
+| `metadata` | object | Email metadata |
+
+### `gmail_delete`
+
+Delete a Gmail message (move to trash)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `messageId` | string | Yes | ID of the message to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | string | Success message |
+| `metadata` | object | Email metadata |
+
+### `gmail_add_label`
+
+Add label(s) to a Gmail message
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `messageId` | string | Yes | ID of the message to add labels to |
+| `labelIds` | string | Yes | Comma-separated label IDs to add \(e.g., INBOX, Label_123\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | string | Success message |
+| `metadata` | object | Email metadata |
+
+### `gmail_remove_label`
+
+Remove label(s) from a Gmail message
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `messageId` | string | Yes | ID of the message to remove labels from |
+| `labelIds` | string | Yes | Comma-separated label IDs to remove \(e.g., INBOX, Label_123\) |
 
 #### Output
 

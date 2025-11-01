@@ -179,4 +179,57 @@ export interface OutlookMoveResponse extends ToolResponse {
   }
 }
 
-export type OutlookExtendedResponse = OutlookResponse | OutlookForwardResponse | OutlookMoveResponse
+export interface OutlookMarkReadParams {
+  accessToken: string
+  messageId: string
+}
+
+export interface OutlookMarkReadResponse extends ToolResponse {
+  output: {
+    message: string
+    results: {
+      messageId: string
+      isRead: boolean
+    }
+  }
+}
+
+export interface OutlookDeleteParams {
+  accessToken: string
+  messageId: string
+}
+
+export interface OutlookDeleteResponse extends ToolResponse {
+  output: {
+    message: string
+    results: {
+      messageId: string
+      status: string
+    }
+  }
+}
+
+export interface OutlookCopyParams {
+  accessToken: string
+  messageId: string
+  destinationId: string
+}
+
+export interface OutlookCopyResponse extends ToolResponse {
+  output: {
+    message: string
+    results: {
+      originalMessageId: string
+      copiedMessageId: string
+      destinationFolderId: string
+    }
+  }
+}
+
+export type OutlookExtendedResponse =
+  | OutlookResponse
+  | OutlookForwardResponse
+  | OutlookMoveResponse
+  | OutlookMarkReadResponse
+  | OutlookDeleteResponse
+  | OutlookCopyResponse

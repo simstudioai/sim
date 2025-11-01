@@ -29,6 +29,13 @@ export const GmailBlock: BlockConfig<GmailToolResponse> = {
         { label: 'Draft Email', id: 'draft_gmail' },
         { label: 'Search Email', id: 'search_gmail' },
         { label: 'Move Email', id: 'move_gmail' },
+        { label: 'Mark as Read', id: 'mark_read_gmail' },
+        { label: 'Mark as Unread', id: 'mark_unread_gmail' },
+        { label: 'Archive Email', id: 'archive_gmail' },
+        { label: 'Unarchive Email', id: 'unarchive_gmail' },
+        { label: 'Delete Email', id: 'delete_gmail' },
+        { label: 'Add Label', id: 'add_label_gmail' },
+        { label: 'Remove Label', id: 'remove_label_gmail' },
       ],
       value: () => 'send_gmail',
     },
@@ -292,10 +299,83 @@ export const GmailBlock: BlockConfig<GmailToolResponse> = {
       condition: { field: 'operation', value: 'move_gmail' },
       required: false,
     },
+    // Mark as Read/Unread, Archive/Unarchive, Delete - Message ID field
+    {
+      id: 'actionMessageId',
+      title: 'Message ID',
+      type: 'short-input',
+      layout: 'full',
+      placeholder: 'ID of the email',
+      condition: {
+        field: 'operation',
+        value: [
+          'mark_read_gmail',
+          'mark_unread_gmail',
+          'archive_gmail',
+          'unarchive_gmail',
+          'delete_gmail',
+        ],
+      },
+      required: true,
+    },
+    // Add/Remove Label - Message ID field
+    {
+      id: 'labelActionMessageId',
+      title: 'Message ID',
+      type: 'short-input',
+      layout: 'full',
+      placeholder: 'ID of the email',
+      condition: { field: 'operation', value: ['add_label_gmail', 'remove_label_gmail'] },
+      required: true,
+    },
+    // Add/Remove Label - Label selector (basic mode)
+    {
+      id: 'labelManagement',
+      title: 'Label',
+      type: 'folder-selector',
+      layout: 'full',
+      canonicalParamId: 'labelIds',
+      provider: 'google-email',
+      serviceId: 'gmail',
+      requiredScopes: [
+        'https://www.googleapis.com/auth/gmail.readonly',
+        'https://www.googleapis.com/auth/gmail.labels',
+      ],
+      placeholder: 'Select label',
+      dependsOn: ['credential'],
+      mode: 'basic',
+      condition: { field: 'operation', value: ['add_label_gmail', 'remove_label_gmail'] },
+      required: true,
+    },
+    // Add/Remove Label - Manual label input (advanced mode)
+    {
+      id: 'manualLabelManagement',
+      title: 'Label',
+      type: 'short-input',
+      layout: 'full',
+      canonicalParamId: 'labelIds',
+      placeholder: 'Enter label ID (e.g., INBOX, Label_123)',
+      mode: 'advanced',
+      condition: { field: 'operation', value: ['add_label_gmail', 'remove_label_gmail'] },
+      required: true,
+    },
     ...getTrigger('gmail_poller').subBlocks,
   ],
   tools: {
-    access: ['gmail_send', 'gmail_draft', 'gmail_read', 'gmail_search', 'gmail_move'],
+    access: [
+      'gmail_send',
+      'gmail_draft',
+      'gmail_read',
+      'gmail_search',
+      'gmail_move',
+      'gmail_mark_read',
+      'gmail_mark_unread',
+      'gmail_archive',
+      'gmail_unarchive',
+      'gmail_delete',
+      'gmail_add_label',
+      'gmail_remove_label',
+    ],
     config: {
       tool: (params) => {
         switch (params.operation) {
@@ -309,6 +389,20 @@ export const GmailBlock: BlockConfig<GmailToolResponse> = {
             return 'gmail_read'
           case 'move_gmail':
             return 'gmail_move'
+          case 'mark_read_gmail':
+            return 'gmail_mark_read'
+          case 'mark_unread_gmail':
+            return 'gmail_mark_unread'
+          case 'archive_gmail':
+            return 'gmail_archive'
+          case 'unarchive_gmail':
+            return 'gmail_unarchive'
+          case 'delete_gmail':
+            return 'gmail_delete'
+          case 'add_label_gmail':
+            return 'gmail_add_label'
+          case 'remove_label_gmail':
+            return 'gmail_remove_label'
           default:
             throw new Error(`Invalid Gmail operation: ${params.operation}`)
         }
@@ -323,6 +417,10 @@ export const GmailBlock: BlockConfig<GmailToolResponse> = {
           sourceLabel,
           manualSourceLabel,
           moveMessageId,
+          actionMessageId,
+          labelActionMessageId,
+          labelManagement,
+          manualLabelManagement,
           ...rest
         } = params
 
@@ -338,6 +436,25 @@ export const GmailBlock: BlockConfig<GmailToolResponse> = {
           rest.messageId = moveMessageId
           rest.addLabelIds = (destinationLabel || manualDestinationLabel || '').trim()
           rest.removeLabelIds = (sourceLabel || manualSourceLabel || '').trim()
+        }
+
+        // Handle simple message ID operations
+        if (
+          [
+            'mark_read_gmail',
+            'mark_unread_gmail',
+            'archive_gmail',
+            'unarchive_gmail',
+            'delete_gmail',
+          ].includes(rest.operation)
+        ) {
+          rest.messageId = actionMessageId
+        }
+
+        // Handle label management operations
+        if (['add_label_gmail', 'remove_label_gmail'].includes(rest.operation)) {
+          rest.messageId = labelActionMessageId
+          rest.labelIds = (labelManagement || manualLabelManagement || '').trim()
         }
 
         return {
@@ -379,6 +496,12 @@ export const GmailBlock: BlockConfig<GmailToolResponse> = {
     manualSourceLabel: { type: 'string', description: 'Manual source label ID' },
     addLabelIds: { type: 'string', description: 'Label IDs to add' },
     removeLabelIds: { type: 'string', description: 'Label IDs to remove' },
+    // Action operation inputs
+    actionMessageId: { type: 'string', description: 'Message ID for actions' },
+    labelActionMessageId: { type: 'string', description: 'Message ID for label actions' },
+    labelManagement: { type: 'string', description: 'Label ID for management' },
+    manualLabelManagement: { type: 'string', description: 'Manual label ID' },
+    labelIds: { type: 'string', description: 'Label IDs for add/remove operations' },
   },
   outputs: {
     // Tool outputs

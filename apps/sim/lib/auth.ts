@@ -1179,6 +1179,7 @@ export const auth = betterAuth({
             'files:write',
             'files:read',
             'canvases:write',
+            'reactions:write',
           ],
           responseType: 'code',
           accessType: 'offline',
