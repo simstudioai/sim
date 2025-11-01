@@ -96,6 +96,9 @@ export class DAGExecutor {
   private createExecutionContext(workflowId: string, triggerBlockId?: string): ExecutionContext {
     const context: ExecutionContext = {
       workflowId,
+      workspaceId: this.contextExtensions.workspaceId,
+      executionId: this.contextExtensions.executionId,
+      isDeployedContext: this.contextExtensions.isDeployedContext,
       blockStates: new Map(),
       blockLogs: [],
       metadata: {

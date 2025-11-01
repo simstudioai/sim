@@ -2,6 +2,8 @@ import type { NormalizedBlockOutput } from '@/executor/types'
 import type { SubflowType } from '@/stores/workflows/workflow/types'
 
 export interface ContextExtensions {
+  workspaceId?: string
+  executionId?: string
   stream?: boolean
   selectedOutputs?: string[]
   edges?: Array<{ source: string; target: string }>
