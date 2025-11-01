@@ -115,6 +115,19 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
       },
       required: true,
     },
+    {
+      id: 'threadTs',
+      title: 'Thread Timestamp (Optional)',
+      type: 'short-input',
+      layout: 'full',
+      canonicalParamId: 'thread_ts',
+      placeholder: 'Reply to thread (e.g., 1405894322.002768)',
+      condition: {
+        field: 'operation',
+        value: 'send',
+      },
+      required: false,
+    },
     // File upload (basic mode)
     {
       id: 'attachmentFiles',
@@ -328,6 +341,7 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
           oldest,
           attachmentFiles,
           files,
+          threadTs,
           updateTimestamp,
           updateText,
           deleteTimestamp,
@@ -368,6 +382,10 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
               throw new Error('Message text is required for send operation')
             }
             baseParams.text = rest.text
+            // Add thread_ts if provided
+            if (threadTs) {
+              baseParams.thread_ts = threadTs
+            }
             // Add files if provided
             const fileParam = attachmentFiles || files
             if (fileParam) {
@@ -461,6 +479,8 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
     emojiName: { type: 'string', description: 'Emoji name for reaction' },
     timestamp: { type: 'string', description: 'Message timestamp' },
     name: { type: 'string', description: 'Emoji name' },
+    threadTs: { type: 'string', description: 'Thread timestamp' },
+    thread_ts: { type: 'string', description: 'Thread timestamp for reply' },
   },
   outputs: {
     // slack_message outputs
@@ -489,6 +509,10 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
     user_name: { type: 'string', description: 'Username who triggered the event' },
     team_id: { type: 'string', description: 'Slack workspace/team ID' },
     event_id: { type: 'string', description: 'Unique event identifier for the trigger' },
+    thread_ts: {
+      type: 'string',
+      description: 'Parent thread timestamp (if message is in a thread)',
+    },
   },
   // New: Trigger capabilities
   triggers: {

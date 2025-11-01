@@ -71,6 +71,7 @@ export const slackWebhookTrigger: TriggerConfig = {
             user: 'U0123456789',
             text: '<@U0BOTUSER123> Hello from Slack!',
             ts: '1234567890.123456',
+            thread_ts: '1234567890.000000',
             channel_type: 'channel',
           },
           team_id: 'T0123456789',
@@ -116,6 +117,10 @@ export const slackWebhookTrigger: TriggerConfig = {
       timestamp: {
         type: 'string',
         description: 'Event timestamp',
+      },
+      thread_ts: {
+        type: 'string',
+        description: 'Parent thread timestamp (if message is in a thread)',
       },
       team_id: {
         type: 'string',
