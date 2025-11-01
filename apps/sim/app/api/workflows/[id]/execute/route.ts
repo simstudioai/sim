@@ -28,60 +28,77 @@ class UsageLimitError extends Error {
 }
 
 /**
- * Execute workflow without SSE - returns JSON response
- * Used by background jobs, webhooks, schedules, and API calls
+ * Execute workflow with streaming support - used by chat and other streaming endpoints
+ * Returns ExecutionResult instead of NextResponse
  */
-export async function executeWorkflow(options: {
-  requestId: string
-  workflowId: string
-  userId: string
-  workflow: any
-  input: any
-  triggerType: string
-  loggingSession: LoggingSession
-  executionId: string
-  selectedOutputs?: string[]
-}): Promise<NextResponse> {
-  try {
-    // Use the core execution function
-    const result = await executeWorkflowCore(options)
+export async function executeWorkflow(
+  workflow: any,
+  requestId: string,
+  input: any | undefined,
+  actorUserId: string,
+  streamConfig?: {
+    enabled: boolean
+    selectedOutputs?: string[]
+    isSecureMode?: boolean
+    workflowTriggerType?: 'api' | 'chat'
+    onStream?: (streamingExec: any) => Promise<void>
+    onBlockComplete?: (blockId: string, output: any) => Promise<void>
+    skipLoggingComplete?: boolean
+  },
+  providedExecutionId?: string
+): Promise<any> {
+  const workflowId = workflow.id
+  const executionId = providedExecutionId || uuidv4()
+  const triggerType = streamConfig?.workflowTriggerType || 'api'
+  const loggingSession = new LoggingSession(workflowId, executionId, triggerType, requestId)
 
-    // Filter out logs and internal metadata for API responses
-    const filteredResult = {
-      success: result.success,
-      output: result.output,
-      error: result.error,
-      metadata: result.metadata
-        ? {
-            duration: result.metadata.duration,
-            startTime: result.metadata.startTime,
-            endTime: result.metadata.endTime,
+  try {
+    const result = await executeWorkflowCore({
+      requestId,
+      workflowId,
+      userId: actorUserId,
+      workflow,
+      input,
+      triggerType,
+      loggingSession,
+      executionId,
+      selectedOutputs: streamConfig?.selectedOutputs,
+      onStream: streamConfig?.onStream,
+      onBlockComplete: streamConfig?.onBlockComplete
+        ? async (blockId: string, _blockName: string, _blockType: string, output: any) => {
+            await streamConfig.onBlockComplete!(blockId, output)
           }
         : undefined,
+    })
+
+    if (streamConfig?.skipLoggingComplete) {
+      // Add streaming metadata for later completion
+      return {
+        ...result,
+        _streamingMetadata: {
+          loggingSession,
+          processedInput: input,
+        },
+      }
     }
 
-    return NextResponse.json(filteredResult)
+    return result
   } catch (error: any) {
-    logger.error(`[${options.requestId}] Non-SSE execution failed:`, error)
+    logger.error(`[${requestId}] Workflow execution failed:`, error)
+    throw error
+  }
+}
 
-    // Extract execution result from error if available
-    const executionResult = error.executionResult
-
-    return NextResponse.json(
-      {
-        success: false,
-        output: executionResult?.output,
-        error: executionResult?.error || error.message || 'Execution failed',
-        metadata: executionResult?.metadata
-          ? {
-              duration: executionResult.metadata.duration,
-              startTime: executionResult.metadata.startTime,
-              endTime: executionResult.metadata.endTime,
-            }
-          : undefined,
-      },
-      { status: 500 }
-    )
+export function createFilteredResult(result: any) {
+  return {
+    ...result,
+    logs: undefined,
+    metadata: result.metadata
+      ? {
+          ...result.metadata,
+          workflowConnections: undefined,
+        }
+      : undefined,
   }
 }
 
@@ -177,17 +194,56 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     // NON-SSE PATH: Direct JSON execution for API calls, background jobs
     if (!enableSSE) {
       logger.info(`[${requestId}] Using non-SSE execution (direct JSON response)`)
-      return await executeWorkflow({
-        requestId,
-        workflowId,
-        userId,
-        workflow,
-        input,
-        triggerType,
-        loggingSession,
-        executionId,
-        selectedOutputs,
-      })
+      try {
+        const result = await executeWorkflowCore({
+          requestId,
+          workflowId,
+          userId,
+          workflow,
+          input,
+          triggerType,
+          loggingSession,
+          executionId,
+          selectedOutputs,
+        })
+
+        // Filter out logs and internal metadata for API responses
+        const filteredResult = {
+          success: result.success,
+          output: result.output,
+          error: result.error,
+          metadata: result.metadata
+            ? {
+                duration: result.metadata.duration,
+                startTime: result.metadata.startTime,
+                endTime: result.metadata.endTime,
+              }
+            : undefined,
+        }
+
+        return NextResponse.json(filteredResult)
+      } catch (error: any) {
+        logger.error(`[${requestId}] Non-SSE execution failed:`, error)
+
+        // Extract execution result from error if available
+        const executionResult = error.executionResult
+
+        return NextResponse.json(
+          {
+            success: false,
+            output: executionResult?.output,
+            error: executionResult?.error || error.message || 'Execution failed',
+            metadata: executionResult?.metadata
+              ? {
+                  duration: executionResult.metadata.duration,
+                  startTime: executionResult.metadata.startTime,
+                  endTime: executionResult.metadata.endTime,
+                }
+              : undefined,
+          },
+          { status: 500 }
+        )
+      }
     }
 
     // SSE PATH: Stream execution events for client builder UI

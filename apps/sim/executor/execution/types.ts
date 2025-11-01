@@ -7,7 +7,7 @@ export interface ContextExtensions {
   edges?: Array<{ source: string; target: string }>
   isDeployedContext?: boolean
   isChildExecution?: boolean
-  onStream?: (streamingExecution: unknown) => Promise<string>
+  onStream?: (streamingExecution: unknown) => Promise<void>
   onBlockStart?: (
     blockId: string,
     blockName: string,

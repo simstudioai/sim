@@ -14,6 +14,7 @@ import {
   loadDeployedWorkflowState,
   loadWorkflowFromNormalizedTables,
 } from '@/lib/workflows/db-helpers'
+import { TriggerUtils } from '@/lib/workflows/triggers'
 import { updateWorkflowRunCounts } from '@/lib/workflows/utils'
 import { filterEdgesFromTriggerBlocks } from '@/app/workspace/[workspaceId]/w/[workflowId]/lib/workflow-execution-utils'
 import { Executor } from '@/executor' // Now exports DAGExecutor
@@ -261,6 +262,36 @@ export async function executeWorkflowCore(
     // Filter out edges between trigger blocks - triggers are independent entry points
     const filteredEdges = filterEdgesFromTriggerBlocks(mergedStates, edges)
 
+    // Identify the trigger block if not explicitly provided
+    let triggerBlockId = options.triggerBlockId
+    if (!triggerBlockId) {
+      // Map triggerType to the appropriate execution kind for TriggerUtils
+      const executionKind =
+        triggerType === 'api' || triggerType === 'chat'
+          ? (triggerType as 'api' | 'chat')
+          : 'manual'
+
+      const startBlock = TriggerUtils.findStartBlock(mergedStates, executionKind, false)
+
+      if (!startBlock) {
+        const errorMsg =
+          executionKind === 'api'
+            ? 'No API trigger block found. Add an API Trigger block to this workflow.'
+            : executionKind === 'chat'
+              ? 'No chat trigger block found. Add a Chat Trigger block to this workflow.'
+              : 'No trigger block found for this workflow.'
+        logger.error(`[${requestId}] ${errorMsg}`)
+        throw new Error(errorMsg)
+      }
+
+      triggerBlockId = startBlock.blockId
+      logger.info(`[${requestId}] Identified trigger block for ${executionKind} execution:`, {
+        blockId: triggerBlockId,
+        blockType: startBlock.block.type,
+        path: startBlock.path,
+      })
+    }
+
     // Serialize workflow
     const serializedWorkflow = new Serializer().serializeWorkflow(
       mergedStates,
@@ -310,10 +341,7 @@ export async function executeWorkflowCore(
       options.onExecutorCreated(executorInstance)
     }
 
-    const result = (await executorInstance.execute(
-      workflowId,
-      options.triggerBlockId
-    )) as ExecutionResult
+    const result = (await executorInstance.execute(workflowId, triggerBlockId)) as ExecutionResult
 
     // Build trace spans for logging
     const { traceSpans, totalDuration } = buildTraceSpans(result)
