@@ -429,6 +429,12 @@ export function useWorkflowExecution() {
 
             // Handle non-streaming blocks (like Function blocks)
             const onBlockComplete = async (blockId: string, output: any) => {
+              // Skip if this block already had streaming content (avoid duplicates)
+              if (streamedContent.has(blockId)) {
+                logger.debug('[handleRunWorkflow] Skipping onBlockComplete for streaming block', { blockId })
+                return
+              }
+
               // Get selected outputs from chat store
               const chatStore = await import('@/stores/panel/chat/store').then(
                 (mod) => mod.useChatStore

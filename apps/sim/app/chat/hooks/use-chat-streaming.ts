@@ -76,6 +76,7 @@ export function useChatStreaming() {
     userHasScrolled?: boolean,
     streamingOptions?: StreamingOptions
   ) => {
+    logger.info('[useChatStreaming] handleStreamedResponse called')
     // Set streaming state
     setIsStreamingResponse(true)
     abortControllerRef.current = new AbortController()
@@ -195,6 +196,13 @@ export function useChatStreaming() {
                 }
 
                 accumulatedText += contentChunk
+                logger.debug('[useChatStreaming] Received chunk', { 
+                  blockId, 
+                  chunkLength: contentChunk.length,
+                  totalLength: accumulatedText.length,
+                  messageId,
+                  chunk: contentChunk.substring(0, 20)
+                })
                 setMessages((prev) =>
                   prev.map((msg) =>
                     msg.id === messageId ? { ...msg, content: accumulatedText } : msg

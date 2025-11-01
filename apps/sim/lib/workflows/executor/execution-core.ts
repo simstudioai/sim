@@ -142,14 +142,14 @@ export async function executeWorkflowCore(
   try {
     const startTime = new Date()
 
-    // Load workflow state based on trigger type
     let blocks
     let edges: Edge[]
     let loops
     let parallels
 
-    if (triggerType === 'manual') {
-      // Load draft state from normalized tables
+    const isClientExecution = !workflow?.isDeployed
+    
+    if (isClientExecution) {
       const draftData = await loadWorkflowFromNormalizedTables(workflowId)
 
       if (!draftData) {
@@ -163,7 +163,6 @@ export async function executeWorkflowCore(
 
       logger.info(`[${requestId}] Using draft workflow state from normalized tables`)
     } else {
-      // Use deployed state for API/webhook/schedule executions
       const deployedData = await loadDeployedWorkflowState(workflowId)
       blocks = deployedData.blocks
       edges = deployedData.edges

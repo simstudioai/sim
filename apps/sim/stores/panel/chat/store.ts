@@ -1,7 +1,10 @@
 import { v4 as uuidv4 } from 'uuid'
 import { create } from 'zustand'
 import { devtools, persist } from 'zustand/middleware'
+import { createLogger } from '@/lib/logs/console/logger'
 import type { ChatMessage, ChatStore } from '@/stores/panel/chat/types'
+
+const logger = createLogger('ChatStore')
 
 // MAX across all workflows
 const MAX_MESSAGES = 50
@@ -177,17 +180,33 @@ export const useChatStore = create<ChatStore>()(
         },
 
         appendMessageContent: (messageId, content) => {
+          logger.debug('[ChatStore] appendMessageContent called', { 
+            messageId, 
+            contentLength: content.length,
+            content: content.substring(0, 30) 
+          })
           set((state) => {
+            const message = state.messages.find((m) => m.id === messageId)
+            if (!message) {
+              logger.warn('[ChatStore] Message not found for appending', { messageId })
+            }
+            
             const newMessages = state.messages.map((message) => {
               if (message.id === messageId) {
+                const newContent = typeof message.content === 'string'
+                  ? message.content + content
+                  : message.content
+                    ? String(message.content) + content
+                    : content
+                logger.debug('[ChatStore] Updated message content', {
+                  messageId,
+                  oldLength: typeof message.content === 'string' ? message.content.length : 0,
+                  newLength: newContent.length,
+                  addedLength: content.length
+                })
                 return {
                   ...message,
-                  content:
-                    typeof message.content === 'string'
-                      ? message.content + content
-                      : message.content
-                        ? String(message.content) + content
-                        : content,
+                  content: newContent,
                 }
               }
               return message
