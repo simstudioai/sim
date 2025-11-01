@@ -212,7 +212,7 @@ export async function loadWorkflowFromNormalizedTables(
         const parallel: Parallel = {
           id: subflow.id,
           nodes: Array.isArray((config as Parallel).nodes) ? (config as Parallel).nodes : [],
-          count: typeof (config as Parallel).count === 'number' ? (config as Parallel).count : 2,
+          count: typeof (config as Parallel).count === 'number' ? (config as Parallel).count : 5,
           distribution: (config as Parallel).distribution ?? '',
           parallelType:
             (config as Parallel).parallelType === 'count' ||

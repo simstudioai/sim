@@ -480,12 +480,11 @@ export function TraceSpanItem({
                 )
               })()}
 
-              {/* Workflow-level overlay of child spans (no duplication of agent's model/streaming) */}
               {(() => {
-                if (String(span.type || '').toLowerCase() !== 'workflow') return null
+                const spanType = String(span.type || '').toLowerCase()
+                if (spanType !== 'workflow' && spanType !== 'agent') return null
                 const children = (span.children || []) as TraceSpan[]
                 if (!children.length) return null
-                // Build overlay segments (exclude agent-internal pieces like model/streaming)
                 const overlay = children
                   .filter(
                     (c) => c.type !== 'model' && c.name?.toLowerCase() !== 'streaming response'

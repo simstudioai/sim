@@ -88,7 +88,47 @@ export class VariableResolver {
       return {}
     }
     const resolved: Record<string, any> = {}
+
+    const isConditionBlock = block?.metadata?.id === BlockType.CONDITION
+    if (isConditionBlock && typeof params.conditions === 'string') {
+      try {
+        const parsed = JSON.parse(params.conditions)
+        if (Array.isArray(parsed)) {
+          resolved.conditions = parsed.map((cond: any) => ({
+            ...cond,
+            value:
+              typeof cond.value === 'string'
+                ? this.resolveTemplateWithoutConditionFormatting(ctx, currentNodeId, cond.value)
+                : cond.value,
+          }))
+        } else {
+          resolved.conditions = this.resolveValue(
+            ctx,
+            currentNodeId,
+            params.conditions,
+            undefined,
+            block
+          )
+        }
+      } catch (parseError) {
+        logger.warn('Failed to parse conditions JSON, falling back to normal resolution', {
+          error: parseError,
+          conditions: params.conditions,
+        })
+        resolved.conditions = this.resolveValue(
+          ctx,
+          currentNodeId,
+          params.conditions,
+          undefined,
+          block
+        )
+      }
+    }
+
     for (const [key, value] of Object.entries(params)) {
+      if (isConditionBlock && key === 'conditions') {
+        continue
+      }
       resolved[key] = this.resolveValue(ctx, currentNodeId, value, undefined, block)
     }
     return resolved
@@ -175,6 +215,73 @@ export class VariableResolver {
           template.includes('`')
 
         return this.blockResolver.formatValueForBlock(resolved, blockType, isInTemplateLiteral)
+      } catch (error) {
+        replacementError = error instanceof Error ? error : new Error(String(error))
+        return match
+      }
+    })
+
+    if (replacementError !== null) {
+      throw replacementError
+    }
+
+    const envRegex = new RegExp(`${REFERENCE.ENV_VAR_START}([^}]+)${REFERENCE.ENV_VAR_END}`, 'g')
+    result = result.replace(envRegex, (match) => {
+      const resolved = this.resolveReference(match, resolutionContext)
+      return typeof resolved === 'string' ? resolved : match
+    })
+    return result
+  }
+
+  /**
+   * Resolves template string but without condition-specific formatting.
+   * Used when resolving condition values that are already parsed from JSON.
+   */
+  private resolveTemplateWithoutConditionFormatting(
+    ctx: ExecutionContext,
+    currentNodeId: string,
+    template: string,
+    loopScope?: LoopScope
+  ): string {
+    let result = template
+    const resolutionContext: ResolutionContext = {
+      executionContext: ctx,
+      executionState: this.state,
+      currentNodeId,
+      loopScope,
+    }
+    const referenceRegex = new RegExp(
+      `${REFERENCE.START}([^${REFERENCE.END}]+)${REFERENCE.END}`,
+      'g'
+    )
+
+    let replacementError: Error | null = null
+
+    result = result.replace(referenceRegex, (match) => {
+      if (replacementError) return match
+
+      if (!isLikelyReferenceSegment(match)) {
+        return match
+      }
+
+      try {
+        const resolved = this.resolveReference(match, resolutionContext)
+        if (resolved === undefined) {
+          return match
+        }
+
+        // Format value for JavaScript evaluation
+        // Strings need to be quoted, objects need JSON.stringify
+        if (typeof resolved === 'string') {
+          // Escape backslashes first, then single quotes, then wrap in single quotes
+          const escaped = resolved.replace(/\\/g, '\\\\').replace(/'/g, "\\'")
+          return `'${escaped}'`
+        }
+        if (typeof resolved === 'object' && resolved !== null) {
+          return JSON.stringify(resolved)
+        }
+        // For numbers, booleans, null, undefined - use as-is
+        return String(resolved)
       } catch (error) {
         replacementError = error instanceof Error ? error : new Error(String(error))
         return match

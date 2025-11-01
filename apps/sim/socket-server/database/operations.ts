@@ -25,6 +25,7 @@ const socketDb = drizzle(
 const db = socketDb
 
 const DEFAULT_LOOP_ITERATIONS = 5
+const DEFAULT_PARALLEL_COUNT = 5
 
 /**
  * Shared function to handle auto-connect edge insertion
@@ -287,6 +288,8 @@ async function handleBlockOperationTx(
                   id: payload.id,
                   nodes: [], // Empty initially, will be populated when child blocks are added
                   distribution: payload.data?.collection || '',
+                  count: payload.data?.count || DEFAULT_PARALLEL_COUNT,
+                  parallelType: payload.data?.parallelType || 'count',
                 }
 
           logger.debug(`Auto-creating ${payload.type} subflow ${payload.id}:`, subflowConfig)

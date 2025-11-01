@@ -751,7 +751,12 @@ function ensureNestedWorkflowsProcessed(span: TraceSpan): TraceSpan {
 
   const mergedChildren = mergeTraceSpanChildren(normalizedChildren, outputChildSpans)
 
-  if (processedSpan.output && 'childTraceSpans' in processedSpan.output) {
+  if (
+    processedSpan.output &&
+    typeof processedSpan.output === 'object' &&
+    processedSpan.output !== null &&
+    'childTraceSpans' in processedSpan.output
+  ) {
     const { childTraceSpans, ...cleanOutput } = processedSpan.output as {
       childTraceSpans?: TraceSpan[]
     } & Record<string, unknown>
