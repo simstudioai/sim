@@ -243,8 +243,8 @@ aside#nd-sidebar {
 :root:not(.dark) #nd-sidebar a.text-purple-600,
 :root:not(.dark) #nd-sidebar a[class*="bg-purple"],
 :root:not(.dark) #nd-sidebar a[class*="text-purple"] {
-  background-color: rgba(0, 0, 0, 0.1) !important;
-  color: rgba(0, 0, 0, 1) !important;
+  background-color: rgba(0, 0, 0, 0.07) !important;
+  color: rgba(0, 0, 0, 0.9) !important;
 }
 
 /* Dark mode hover state */
@@ -256,7 +256,7 @@ aside#nd-sidebar {
 /* Light mode hover state */
 :root:not(.dark) #nd-sidebar a:hover:not([data-active="true"]),
 :root:not(.dark) #nd-sidebar button:hover:not([data-active="true"]) {
-  background-color: rgba(0, 0, 0, 0.06) !important;
+  background-color: rgba(0, 0, 0, 0.03) !important;
 }
 
 /* Dark mode - ensure active/selected items don't change on hover */
@@ -273,8 +273,8 @@ aside#nd-sidebar {
 :root:not(.dark) #nd-sidebar a[class*="bg-purple"]:hover,
 :root:not(.dark) #nd-sidebar a[data-active="true"]:hover,
 :root:not(.dark) #nd-sidebar button[data-active="true"]:hover {
-  background-color: rgba(0, 0, 0, 0.1) !important;
-  color: rgba(0, 0, 0, 1) !important;
+  background-color: rgba(0, 0, 0, 0.07) !important;
+  color: rgba(0, 0, 0, 0.9) !important;
 }
 
 /* Hide search, platform, and collapse button from sidebar completely */
