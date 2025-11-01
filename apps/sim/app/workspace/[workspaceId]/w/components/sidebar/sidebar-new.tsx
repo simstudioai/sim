@@ -3,7 +3,7 @@
 import { useCallback, useRef, useState } from 'react'
 import { ArrowDown, Plus, Search } from 'lucide-react'
 import { useParams } from 'next/navigation'
-import { Badge, Button, ChevronDown, FolderPlus, Tooltip } from '@/components/emcn'
+import { Badge, Button, ChevronDown, FolderPlus, PanelLeft, Tooltip } from '@/components/emcn'
 import { useSession } from '@/lib/auth-client'
 import { useFolderStore } from '@/stores/folders/store'
 import { WorkflowList } from './components-new'
@@ -126,14 +126,14 @@ export function SidebarNew() {
                 <ChevronDown className='h-[8px] w-[12px]' />
               </Button>
               {/* TODO: Add panel toggle */}
-              {/* <Button
+              <Button
                 variant='ghost-secondary'
                 type='button'
                 aria-label='Toggle panel'
                 className='group p-0'
               >
                 <PanelLeft className='h-[17.5px] w-[17.5px]' />
-              </Button> */}
+              </Button>
             </div>
           </div>
 

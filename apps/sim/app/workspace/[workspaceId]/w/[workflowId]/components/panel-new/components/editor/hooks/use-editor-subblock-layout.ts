@@ -47,20 +47,25 @@ export function useEditorSubblockLayout(
         return false
       }
 
-      // Special handling for trigger mode
+      // Special handling for trigger-config type (legacy trigger configuration UI)
       if (block.type === ('trigger-config' as SubBlockType)) {
         const isPureTriggerBlock = config?.triggers?.enabled && config.category === 'triggers'
         return displayTriggerMode || isPureTriggerBlock
-      }
-
-      if (displayTriggerMode && block.type !== ('trigger-config' as SubBlockType)) {
-        return false
       }
 
       // Filter by mode if specified
       if (block.mode) {
         if (block.mode === 'basic' && displayAdvancedMode) return false
         if (block.mode === 'advanced' && !displayAdvancedMode) return false
+        if (block.mode === 'trigger') {
+          // Show trigger mode blocks only when in trigger mode
+          return displayTriggerMode
+        }
+      }
+
+      // When in trigger mode, hide blocks that don't have mode: 'trigger'
+      if (displayTriggerMode) {
+        return false
       }
 
       // If there's no condition, the block should be shown

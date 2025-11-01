@@ -1,4 +1,16 @@
 export {
+  ConfigField,
+  ConfigSection,
+  CopyableField,
+  DeleteConfirmDialog,
+  InstructionsSection,
+  TestResultDisplay,
+  UnsavedChangesDialog,
+  WebhookConfigField,
+  WebhookDialogFooter,
+  WebhookUrlField,
+} from './components'
+export {
   AirtableConfig,
   GenericConfig,
   GithubConfig,
@@ -10,16 +22,4 @@ export {
   TelegramConfig,
   WhatsAppConfig,
 } from './providers'
-export {
-  ConfigField,
-  ConfigSection,
-  CopyableField,
-  DeleteConfirmDialog,
-  InstructionsSection,
-  TestResultDisplay,
-  UnsavedChangesDialog,
-  WebhookConfigField,
-  WebhookDialogFooter,
-  WebhookUrlField,
-} from './ui'
 export { WebhookModal } from './webhook-modal'

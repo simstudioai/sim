@@ -14,7 +14,7 @@ import { useEnvironmentStore } from '@/stores/settings/environment/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { mergeSubblockState } from '@/stores/workflows/utils'
 import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
-import { filterEdgesFromTriggerBlocks } from '../lib/workflow-execution-utils'
+import { filterEdgesFromTriggerBlocks } from '../utils/workflow-execution-utils'
 import { useCurrentWorkflow } from './use-current-workflow'
 
 const logger = createLogger('useWorkflowExecution')

@@ -75,19 +75,22 @@ export const WorkflowEdge = ({
     }
   }
 
+  const dataSourceHandle = (data as { sourceHandle?: string } | undefined)?.sourceHandle
+  const isErrorEdge = (sourceHandle ?? dataSourceHandle) === 'error'
+
   const getEdgeColor = () => {
-    if (edgeDiffStatus === 'new') return '#22c55e' // Green for new edges
     if (edgeDiffStatus === 'deleted') return '#ef4444' // Red for deleted edges
-    if (isSelected) return '#475569'
-    return '#94a3b8'
+    if (isErrorEdge) return '#EF4444' // Red for error paths (matches error handle)
+    if (edgeDiffStatus === 'new') return '#22c55e' // Green for new edges
+    return '#434343' // Matches workflow-block handle color
   }
 
   const edgeStyle = {
+    ...(style ?? {}),
     strokeWidth: edgeDiffStatus ? 3 : isSelected ? 2.5 : 2,
     stroke: getEdgeColor(),
-    strokeDasharray: edgeDiffStatus === 'deleted' ? '10,5' : '5,5', // Longer dashes for deleted
-    opacity: edgeDiffStatus === 'deleted' ? 0.7 : 1,
-    ...style,
+    strokeDasharray: edgeDiffStatus === 'deleted' ? '10,5' : undefined,
+    opacity: edgeDiffStatus === 'deleted' ? 0.7 : isSelected ? 0.5 : 1,
   }
 
   return (
@@ -114,7 +117,7 @@ export const WorkflowEdge = ({
       {isSelected && (
         <EdgeLabelRenderer>
           <div
-            className='nodrag nopan flex h-6 w-6 cursor-pointer items-center justify-center rounded-full bg-[#FAFBFC] shadow-sm'
+            className='nodrag nopan group flex h-[22px] w-[22px] cursor-pointer items-center justify-center transition-colors'
             style={{
               transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
               pointerEvents: 'all',
@@ -130,7 +133,7 @@ export const WorkflowEdge = ({
               }
             }}
           >
-            <X className='h-5 w-5 text-red-500 hover:text-red-600' />
+            <X className='h-4 w-4 text-[#EF4444] transition-colors group-hover:text-[#EF4444]/80 dark:text-[#EF4444] dark:group-hover:text-[#EF4444]/80' />
           </div>
         </EdgeLabelRenderer>
       )}

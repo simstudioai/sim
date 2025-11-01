@@ -18,25 +18,59 @@ import { useTagSelection } from '@/hooks/use-tag-selection'
 
 const logger = createLogger('LongInput')
 
+/**
+ * Default number of rows for the textarea
+ */
+const DEFAULT_ROWS = 5
+
+/**
+ * Height of each row in pixels
+ */
+const ROW_HEIGHT_PX = 24
+
+/**
+ * Minimum height constraint for the textarea in pixels
+ */
+const MIN_HEIGHT_PX = 80
+
+/**
+ * Props for the LongInput component
+ */
 interface LongInputProps {
+  /** Placeholder text to display when empty */
   placeholder?: string
+  /** Unique identifier for the block */
   blockId: string
+  /** Unique identifier for the sub-block */
   subBlockId: string
+  /** Whether a connection is being dragged */
   isConnecting: boolean
+  /** Configuration object for the sub-block */
   config: SubBlockConfig
+  /** Number of rows to display */
   rows?: number
+  /** Whether component is in preview mode */
   isPreview?: boolean
+  /** Value to display in preview mode */
   previewValue?: string | null
+  /** Controlled value from parent */
   value?: string
+  /** Callback when value changes */
   onChange?: (value: string) => void
+  /** Whether the input is disabled */
   disabled?: boolean
 }
 
-// Constants
-const DEFAULT_ROWS = 5
-const ROW_HEIGHT_PX = 24
-const MIN_HEIGHT_PX = 80
-
+/**
+ * Multi-line text input component with AI generation support and variable reference handling
+ *
+ * @remarks
+ * - Supports AI-powered content generation via Wand functionality
+ * - Handles drag-and-drop for connections and variable references
+ * - Provides environment variable and tag autocomplete
+ * - Resizable with custom drag handle
+ * - Integrates with ReactFlow for zoom control
+ */
 export function LongInput({
   placeholder,
   blockId,

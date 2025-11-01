@@ -63,11 +63,6 @@ const edgeTypes: EdgeTypes = {
 
 // Memoized ReactFlow props to prevent unnecessary re-renders
 const defaultEdgeOptions = { type: 'custom' }
-const connectionLineStyle = {
-  stroke: '#94a3b8',
-  strokeWidth: 2,
-  strokeDasharray: '5,5',
-}
 const snapGrid: [number, number] = [20, 20]
 
 interface SelectedEdgeInfo {
@@ -106,6 +101,9 @@ const WorkflowContent = React.memo(() => {
     triggerName: '',
     type: TriggerWarningType.DUPLICATE_TRIGGER,
   })
+
+  // Track whether the active connection drag started from an error handle
+  const [isErrorConnectionDrag, setIsErrorConnectionDrag] = useState(false)
 
   // Hooks
   const params = useParams()
@@ -270,6 +268,17 @@ const WorkflowContent = React.memo(() => {
   // Execution and debug mode state
   const { activeBlockIds, pendingBlocks, isDebugging } = useExecutionStore()
   const [dragStartParentId, setDragStartParentId] = useState<string | null>(null)
+
+  /**
+   * Dynamic connection line style that changes color based on the source handle
+   * Error handles render red connection lines to match error edges
+   */
+  const connectionLineStyle = useMemo(() => {
+    return {
+      stroke: isErrorConnectionDrag ? '#EF4444' : '#434343',
+      strokeWidth: 2,
+    }
+  }, [isErrorConnectionDrag])
 
   // Helper function to validate workflow for nested subflows
   const validateNestedSubflows = useCallback(() => {
@@ -1352,6 +1361,22 @@ const WorkflowContent = React.memo(() => {
     [removeEdge]
   )
 
+  /**
+   * Captures the source handle when a connection drag starts
+   */
+  const onConnectStart = useCallback((_event: any, params: any) => {
+    const handleId: string | undefined = params?.handleId
+    // Treat explicit error handle (id === 'error') as error connection
+    setIsErrorConnectionDrag(handleId === 'error')
+  }, [])
+
+  /**
+   * Resets the source handle when connection drag ends
+   */
+  const onConnectEnd = useCallback(() => {
+    setIsErrorConnectionDrag(false)
+  }, [])
+
   // Handle connections with improved parent tracking
   const onConnect = useCallback(
     (connection: any) => {
@@ -1840,10 +1865,13 @@ const WorkflowContent = React.memo(() => {
     return {
       ...edge,
       data: {
+        // Preserve original edge data
+        ...edge.data,
         // Send only necessary data to the edge component
         isSelected,
         isInsideLoop,
         parentLoopId,
+        sourceHandle: edge.sourceHandle,
         onDelete: (edgeId: string) => {
           // Log deletion for debugging
 
@@ -1923,6 +1951,8 @@ const WorkflowContent = React.memo(() => {
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
           onConnect={effectivePermissions.canEdit ? onConnect : undefined}
+          onConnectStart={effectivePermissions.canEdit ? onConnectStart : undefined}
+          onConnectEnd={effectivePermissions.canEdit ? onConnectEnd : undefined}
           nodeTypes={nodeTypes}
           edgeTypes={edgeTypes}
           onDrop={effectivePermissions.canEdit ? onDrop : undefined}

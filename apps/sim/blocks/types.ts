@@ -144,6 +144,7 @@ export interface SubBlockConfig {
   showCopyButton?: boolean
   connectionDroppable?: boolean
   hidden?: boolean
+  requiresFeature?: string // Environment variable name that must be truthy for this subblock to be visible
   description?: string
   value?: (params: Record<string, any>) => string
   grouped?: boolean

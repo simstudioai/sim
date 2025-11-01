@@ -1,4 +1,4 @@
-import { useCallback } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import type { WorkflowBlockProps } from '../types'
 
@@ -12,12 +12,22 @@ export interface UseBlockPropertiesReturn {
   blockHeight: number
   /** The measured width of the block in pixels */
   blockWidth: number
-  /** Whether the block is in trigger mode */
+  /** Whether the block is in advanced mode for display */
+  displayAdvancedMode: boolean
+  /** Whether the block is in trigger mode for display */
   displayTriggerMode: boolean
+  /** Local state for advanced mode in diff mode */
+  diffAdvancedMode: boolean
+  /** Local state for trigger mode in diff mode */
+  diffTriggerMode: boolean
+  /** Setter for diff advanced mode */
+  setDiffAdvancedMode: React.Dispatch<React.SetStateAction<boolean>>
+  /** Setter for diff trigger mode */
+  setDiffTriggerMode: React.Dispatch<React.SetStateAction<boolean>>
 }
 
 /**
- * Custom hook for managing block properties (trigger mode, handles, dimensions)
+ * Custom hook for managing block properties (trigger mode, advanced mode, handles, dimensions)
  *
  * @param blockId - The ID of the block
  * @param isDiffMode - Whether the workflow is in diff mode
@@ -32,7 +42,7 @@ export function useBlockProperties(
   isPreview: boolean,
   blockState: WorkflowBlockProps['blockState'],
   currentWorkflowBlocks: Record<string, any>
-) {
+): UseBlockPropertiesReturn {
   // Get block properties from workflow store
   const {
     storeHorizontalHandles,
@@ -70,14 +80,38 @@ export function useBlockProperties(
     ? (currentWorkflowBlocks[blockId]?.layout?.measuredWidth ?? 0)
     : (storeBlockLayout?.measuredWidth ?? 0)
 
-  // Determine trigger mode
+  // Get advanced mode from appropriate source
+  const blockAdvancedMode = isDiffMode
+    ? (currentWorkflowBlocks[blockId]?.advancedMode ?? false)
+    : storeBlockAdvancedMode
+
+  // Get trigger mode from appropriate source
   const blockTriggerMode = isDiffMode
     ? (currentWorkflowBlocks[blockId]?.triggerMode ?? false)
     : storeBlockTriggerMode
 
-  // Display states
+  // Local UI state for diff mode controls
+  const [diffAdvancedMode, setDiffAdvancedMode] = useState<boolean>(blockAdvancedMode)
+  const [diffTriggerMode, setDiffTriggerMode] = useState<boolean>(blockTriggerMode)
+
+  // Sync local diff state when entering diff mode or blockId changes
+  useEffect(() => {
+    if (isDiffMode) {
+      setDiffAdvancedMode(blockAdvancedMode)
+      setDiffTriggerMode(blockTriggerMode)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isDiffMode, blockId])
+
+  // Compute display states
+  const displayAdvancedMode = isDiffMode
+    ? diffAdvancedMode
+    : isPreview
+      ? (blockState?.advancedMode ?? false)
+      : blockAdvancedMode
+
   const displayTriggerMode = isDiffMode
-    ? blockTriggerMode
+    ? diffTriggerMode
     : isPreview
       ? (blockState?.triggerMode ?? false)
       : blockTriggerMode
@@ -86,6 +120,11 @@ export function useBlockProperties(
     horizontalHandles,
     blockHeight,
     blockWidth,
+    displayAdvancedMode,
     displayTriggerMode,
+    diffAdvancedMode,
+    diffTriggerMode,
+    setDiffAdvancedMode,
+    setDiffTriggerMode,
   }
 }

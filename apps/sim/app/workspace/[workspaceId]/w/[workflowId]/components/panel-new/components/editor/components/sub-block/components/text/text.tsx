@@ -1,10 +1,25 @@
+/**
+ * Props for the Text component
+ */
 interface TextProps {
+  /** Unique identifier for the block */
   blockId: string
+  /** Unique identifier for the sub-block */
   subBlockId: string
+  /** Text or HTML content to display */
   content: string
+  /** Additional CSS classes to apply */
   className?: string
 }
 
+/**
+ * Text display component with HTML rendering support
+ *
+ * @remarks
+ * - Automatically detects and renders HTML content safely
+ * - Applies prose styling for HTML content (links, code, lists, etc.)
+ * - Falls back to plain text rendering for non-HTML content
+ */
 export function Text({ blockId, subBlockId, content, className }: TextProps) {
   const containsHtml = /<[^>]+>/.test(content)
 

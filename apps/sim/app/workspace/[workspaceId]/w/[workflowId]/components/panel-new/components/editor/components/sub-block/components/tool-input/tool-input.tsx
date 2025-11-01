@@ -53,28 +53,58 @@ import {
 
 const logger = createLogger('ToolInput')
 
+/**
+ * Props for the ToolInput component
+ */
 interface ToolInputProps {
+  /** Unique identifier for the block */
   blockId: string
+  /** Unique identifier for the sub-block */
   subBlockId: string
+  /** Whether a connection is being dragged */
   isConnecting: boolean
+  /** Whether component is in preview mode */
   isPreview?: boolean
+  /** Value to display in preview mode */
   previewValue?: any
+  /** Whether the input is disabled */
   disabled?: boolean
+  /** Allow expanding tools in preview mode */
   allowExpandInPreview?: boolean
 }
 
+/**
+ * Represents a tool selected and configured in the workflow
+ */
 interface StoredTool {
+  /** Block type identifier */
   type: string
+  /** Display title for the tool */
   title: string
-  toolId: string // Direct tool ID instead of relying on block mapping
+  /** Direct tool ID for execution */
+  toolId: string
+  /** Parameter values configured by the user */
   params: Record<string, string>
+  /** Whether the tool details are expanded in UI */
   isExpanded?: boolean
-  schema?: any // For custom tools
-  code?: string // For custom tools implementation
-  operation?: string // For tools with multiple operations
+  /** Tool schema for custom tools */
+  schema?: any
+  /** Implementation code for custom tools */
+  code?: string
+  /** Selected operation for multi-operation tools */
+  operation?: string
+  /** Tool usage control mode for LLM */
   usageControl?: 'auto' | 'force' | 'none'
 }
 
+/**
+ * Generic sync wrapper that synchronizes store values with local component state
+ *
+ * @remarks
+ * Used to sync tool parameter values between the workflow store and local controlled inputs
+ *
+ * @typeParam T - The type of the store value
+ */
 function GenericSyncWrapper<T = unknown>({
   blockId,
   paramId,
@@ -414,6 +444,17 @@ function ChannelSelectorSyncWrapper({
   )
 }
 
+/**
+ * Tool input component for selecting and configuring LLM tools in workflows
+ *
+ * @remarks
+ * - Supports built-in tools, custom tools, and MCP server tools
+ * - Handles tool parameter configuration with dynamic UI components
+ * - Supports multi-operation tools with operation selection
+ * - Provides OAuth credential management for tools requiring authentication
+ * - Allows drag-and-drop reordering of selected tools
+ * - Supports tool usage control (auto/force/none) for compatible LLM providers
+ */
 export function ToolInput({
   blockId,
   subBlockId,
@@ -481,23 +522,34 @@ export function ToolInput({
       ? (value as unknown as StoredTool[])
       : []
 
-  // Check if a tool is already selected (allowing multiple instances for multi-operation tools)
+  /**
+   * Checks if a tool is already selected in the current workflow
+   * @param toolId - The tool identifier to check
+   * @param blockType - The block type for the tool
+   * @returns True if tool is already selected (for single-operation tools only)
+   */
   const isToolAlreadySelected = (toolId: string, blockType: string) => {
-    // For tools with multiple operations, allow multiple instances
     if (hasMultipleOperations(blockType)) {
       return false
     }
-    // For single-operation tools, prevent duplicates
     return selectedTools.some((tool) => tool.toolId === toolId)
   }
 
-  // Check if a block has multiple operations
+  /**
+   * Checks if a block supports multiple operations
+   * @param blockType - The block type to check
+   * @returns True if the block has multiple tool operations
+   */
   const hasMultipleOperations = (blockType: string): boolean => {
     const block = getAllBlocks().find((block) => block.type === blockType)
     return (block?.tools?.access?.length || 0) > 1
   }
 
-  // Get operation options for a block
+  /**
+   * Gets the available operation options for a multi-operation tool
+   * @param blockType - The block type to get operations for
+   * @returns Array of operation options with label and id
+   */
   const getOperationOptions = (blockType: string): { label: string; id: string }[] => {
     const block = getAllBlocks().find((block) => block.type === blockType)
     if (!block || !block.tools?.access) return []
@@ -530,7 +582,12 @@ export function ToolInput({
     })
   }
 
-  // Get the correct tool ID based on operation
+  /**
+   * Gets the correct tool ID for a given operation
+   * @param blockType - The block type
+   * @param operation - The selected operation (for multi-operation tools)
+   * @returns The tool ID to use for execution, or undefined if not found
+   */
   const getToolIdForOperation = (blockType: string, operation?: string): string | undefined => {
     const block = getAllBlocks().find((block) => block.type === blockType)
     if (!block || !block.tools?.access) return undefined
@@ -558,7 +615,13 @@ export function ToolInput({
     return block.tools.access[0]
   }
 
-  // Initialize tool parameters - no autofill, just return empty params
+  /**
+   * Initializes tool parameters with empty values
+   * @param toolId - The tool identifier
+   * @param params - Array of parameter configurations
+   * @param instanceId - Optional instance identifier
+   * @returns Empty parameter object
+   */
   const initializeToolParams = (
     toolId: string,
     params: ToolParameterConfig[],
@@ -567,234 +630,278 @@ export function ToolInput({
     return {}
   }
 
-  const handleSelectTool = (toolBlock: (typeof toolBlocks)[0]) => {
-    if (isPreview || disabled) return
+  const handleSelectTool = useCallback(
+    (toolBlock: (typeof toolBlocks)[0]) => {
+      if (isPreview || disabled) return
 
-    const hasOperations = hasMultipleOperations(toolBlock.type)
-    const operationOptions = hasOperations ? getOperationOptions(toolBlock.type) : []
-    const defaultOperation = operationOptions.length > 0 ? operationOptions[0].id : undefined
+      const hasOperations = hasMultipleOperations(toolBlock.type)
+      const operationOptions = hasOperations ? getOperationOptions(toolBlock.type) : []
+      const defaultOperation = operationOptions.length > 0 ? operationOptions[0].id : undefined
 
-    const toolId = getToolIdForOperation(toolBlock.type, defaultOperation)
-    if (!toolId) return
+      const toolId = getToolIdForOperation(toolBlock.type, defaultOperation)
+      if (!toolId) return
 
-    // Check if tool is already selected
-    if (isToolAlreadySelected(toolId, toolBlock.type)) return
+      // Check if tool is already selected
+      if (isToolAlreadySelected(toolId, toolBlock.type)) return
 
-    // Get tool parameters using the new utility with block type for UI components
-    const toolParams = getToolParametersConfig(toolId, toolBlock.type)
-    if (!toolParams) return
+      // Get tool parameters using the new utility with block type for UI components
+      const toolParams = getToolParametersConfig(toolId, toolBlock.type)
+      if (!toolParams) return
 
-    // Initialize parameters with auto-fill and default values
-    const initialParams = initializeToolParams(toolId, toolParams.userInputParameters, blockId)
+      // Initialize parameters with auto-fill and default values
+      const initialParams = initializeToolParams(toolId, toolParams.userInputParameters, blockId)
 
-    // Add default values from UI component configurations
-    toolParams.userInputParameters.forEach((param) => {
-      if (param.uiComponent?.value && !initialParams[param.id]) {
-        const defaultValue =
-          typeof param.uiComponent.value === 'function'
-            ? param.uiComponent.value()
-            : param.uiComponent.value
-        initialParams[param.id] = defaultValue
+      // Add default values from UI component configurations
+      toolParams.userInputParameters.forEach((param) => {
+        if (param.uiComponent?.value && !initialParams[param.id]) {
+          const defaultValue =
+            typeof param.uiComponent.value === 'function'
+              ? param.uiComponent.value()
+              : param.uiComponent.value
+          initialParams[param.id] = defaultValue
+        }
+      })
+
+      const newTool: StoredTool = {
+        type: toolBlock.type,
+        title: toolBlock.name,
+        toolId: toolId,
+        params: initialParams,
+        isExpanded: true,
+        operation: defaultOperation,
+        usageControl: 'auto',
       }
-    })
 
-    const newTool: StoredTool = {
-      type: toolBlock.type,
-      title: toolBlock.name,
-      toolId: toolId,
-      params: initialParams,
-      isExpanded: true,
-      operation: defaultOperation,
-      usageControl: 'auto',
-    }
+      // Add tool to selection
+      setStoreValue([...selectedTools.map((tool) => ({ ...tool, isExpanded: false })), newTool])
 
-    // Add tool to selection
-    setStoreValue([...selectedTools.map((tool) => ({ ...tool, isExpanded: false })), newTool])
+      setOpen(false)
+    },
+    [
+      isPreview,
+      disabled,
+      hasMultipleOperations,
+      getOperationOptions,
+      getToolIdForOperation,
+      isToolAlreadySelected,
+      initializeToolParams,
+      blockId,
+      selectedTools,
+      setStoreValue,
+    ]
+  )
 
-    setOpen(false)
-  }
+  const handleAddCustomTool = useCallback(
+    (customTool: CustomTool) => {
+      if (isPreview || disabled) return
 
-  const handleAddCustomTool = (customTool: CustomTool) => {
-    if (isPreview || disabled) return
+      const customToolId = `custom-${customTool.schema.function.name}`
 
-    const customToolId = `custom-${customTool.schema.function.name}`
+      const newTool: StoredTool = {
+        type: 'custom-tool',
+        title: customTool.title,
+        toolId: customToolId,
+        params: {},
+        isExpanded: true,
+        schema: customTool.schema,
+        code: customTool.code || '',
+        usageControl: 'auto',
+      }
 
-    const newTool: StoredTool = {
-      type: 'custom-tool',
-      title: customTool.title,
-      toolId: customToolId,
-      params: {},
-      isExpanded: true,
-      schema: customTool.schema,
-      code: customTool.code || '',
-      usageControl: 'auto',
-    }
+      // Add tool to selection
+      setStoreValue([...selectedTools.map((tool) => ({ ...tool, isExpanded: false })), newTool])
+    },
+    [isPreview, disabled, selectedTools, setStoreValue]
+  )
 
-    // Add tool to selection
-    setStoreValue([...selectedTools.map((tool) => ({ ...tool, isExpanded: false })), newTool])
-  }
+  const handleEditCustomTool = useCallback(
+    (toolIndex: number) => {
+      const tool = selectedTools[toolIndex]
+      if (tool.type !== 'custom-tool' || !tool.schema) return
 
-  const handleEditCustomTool = (toolIndex: number) => {
-    const tool = selectedTools[toolIndex]
-    if (tool.type !== 'custom-tool' || !tool.schema) return
+      setEditingToolIndex(toolIndex)
+      setCustomToolModalOpen(true)
+    },
+    [selectedTools]
+  )
 
-    setEditingToolIndex(toolIndex)
-    setCustomToolModalOpen(true)
-  }
+  const handleSaveCustomTool = useCallback(
+    (customTool: CustomTool) => {
+      if (isPreview || disabled) return
 
-  const handleSaveCustomTool = (customTool: CustomTool) => {
-    if (isPreview || disabled) return
+      if (editingToolIndex !== null) {
+        // Update existing tool
+        setStoreValue(
+          selectedTools.map((tool, index) =>
+            index === editingToolIndex
+              ? {
+                  ...tool,
+                  title: customTool.title,
+                  schema: customTool.schema,
+                  code: customTool.code || '',
+                }
+              : tool
+          )
+        )
+        setEditingToolIndex(null)
+      } else {
+        // Add new tool
+        handleAddCustomTool(customTool)
+      }
+    },
+    [isPreview, disabled, editingToolIndex, selectedTools, setStoreValue, handleAddCustomTool]
+  )
 
-    if (editingToolIndex !== null) {
-      // Update existing tool
+  const handleRemoveTool = useCallback(
+    (toolIndex: number) => {
+      if (isPreview || disabled) return
+      setStoreValue(selectedTools.filter((_, index) => index !== toolIndex))
+    },
+    [isPreview, disabled, selectedTools, setStoreValue]
+  )
+
+  const handleDeleteTool = useCallback(
+    (toolId: string) => {
+      // Find any instances of this tool in the current workflow and remove them
+      const updatedTools = selectedTools.filter((tool) => {
+        // For custom tools, check if it matches the deleted tool
+        if (
+          tool.type === 'custom-tool' &&
+          tool.schema?.function?.name &&
+          customTools.some(
+            (customTool) =>
+              customTool.id === toolId &&
+              customTool.schema.function.name === tool.schema.function.name
+          )
+        ) {
+          return false
+        }
+        return true
+      })
+
+      // Update the workflow value if any tools were removed
+      if (updatedTools.length !== selectedTools.length) {
+        setStoreValue(updatedTools)
+      }
+    },
+    [selectedTools, customTools, setStoreValue]
+  )
+
+  const handleParamChange = useCallback(
+    (toolIndex: number, paramId: string, paramValue: string) => {
+      if (isPreview || disabled) return
+
+      // Update the value in the workflow
       setStoreValue(
         selectedTools.map((tool, index) =>
-          index === editingToolIndex
+          index === toolIndex
             ? {
                 ...tool,
-                title: customTool.title,
-                schema: customTool.schema,
-                code: customTool.code || '',
+                params: {
+                  ...tool.params,
+                  [paramId]: paramValue,
+                },
               }
             : tool
         )
       )
-      setEditingToolIndex(null)
-    } else {
-      // Add new tool
-      handleAddCustomTool(customTool)
-    }
-  }
+    },
+    [isPreview, disabled, selectedTools, setStoreValue]
+  )
 
-  const handleRemoveTool = (toolIndex: number) => {
-    if (isPreview || disabled) return
-    setStoreValue(selectedTools.filter((_, index) => index !== toolIndex))
-  }
+  const handleOperationChange = useCallback(
+    (toolIndex: number, operation: string) => {
+      if (isPreview || disabled) {
+        logger.info('❌ Early return: preview or disabled')
+        return
+      }
 
-  const handleDeleteTool = (toolId: string) => {
-    // Find any instances of this tool in the current workflow and remove them
-    const updatedTools = selectedTools.filter((tool) => {
-      // For custom tools, check if it matches the deleted tool
-      if (
-        tool.type === 'custom-tool' &&
-        tool.schema?.function?.name &&
-        customTools.some(
-          (customTool) =>
-            customTool.id === toolId &&
-            customTool.schema.function.name === tool.schema.function.name
+      const tool = selectedTools[toolIndex]
+
+      const newToolId = getToolIdForOperation(tool.type, operation)
+
+      if (!newToolId) {
+        logger.info('❌ Early return: no newToolId')
+        return
+      }
+
+      // Get parameters for the new tool
+      const toolParams = getToolParametersConfig(newToolId, tool.type)
+
+      if (!toolParams) {
+        logger.info('❌ Early return: no toolParams')
+        return
+      }
+
+      // Initialize parameters for the new operation
+      const initialParams = initializeToolParams(newToolId, toolParams.userInputParameters, blockId)
+
+      // Preserve ALL existing parameters that also exist in the new tool configuration
+      // This mimics how regular blocks work - each field maintains its state independently
+      const oldToolParams = getToolParametersConfig(tool.toolId, tool.type)
+      const oldParamIds = new Set(oldToolParams?.userInputParameters.map((p) => p.id) || [])
+      const newParamIds = new Set(toolParams.userInputParameters.map((p) => p.id))
+
+      // Preserve any parameter that exists in both configurations and has a value
+      const preservedParams: Record<string, string> = {}
+      Object.entries(tool.params).forEach(([paramId, value]) => {
+        if (newParamIds.has(paramId) && value) {
+          preservedParams[paramId] = value
+        }
+      })
+
+      // Clear fields when operation changes for Jira (special case)
+      if (tool.type === 'jira') {
+        const subBlockStore = useSubBlockStore.getState()
+        // Clear all fields that might be shared between operations
+        subBlockStore.setValue(blockId, 'summary', '')
+        subBlockStore.setValue(blockId, 'description', '')
+        subBlockStore.setValue(blockId, 'issueKey', '')
+        subBlockStore.setValue(blockId, 'projectId', '')
+        subBlockStore.setValue(blockId, 'parentIssue', '')
+      }
+
+      setStoreValue(
+        selectedTools.map((tool, index) =>
+          index === toolIndex
+            ? {
+                ...tool,
+                toolId: newToolId,
+                operation,
+                params: { ...initialParams, ...preservedParams }, // Preserve all compatible existing values
+              }
+            : tool
         )
-      ) {
-        return false
-      }
-      return true
-    })
-
-    // Update the workflow value if any tools were removed
-    if (updatedTools.length !== selectedTools.length) {
-      setStoreValue(updatedTools)
-    }
-  }
-
-  const handleParamChange = (toolIndex: number, paramId: string, paramValue: string) => {
-    if (isPreview || disabled) return
-
-    const tool = selectedTools[toolIndex]
-
-    // Update the value in the workflow
-    setStoreValue(
-      selectedTools.map((tool, index) =>
-        index === toolIndex
-          ? {
-              ...tool,
-              params: {
-                ...tool.params,
-                [paramId]: paramValue,
-              },
-            }
-          : tool
       )
-    )
-  }
+    },
+    [
+      isPreview,
+      disabled,
+      selectedTools,
+      getToolIdForOperation,
+      initializeToolParams,
+      blockId,
+      setStoreValue,
+    ]
+  )
 
-  const handleOperationChange = (toolIndex: number, operation: string) => {
-    if (isPreview || disabled) {
-      logger.info('❌ Early return: preview or disabled')
-      return
-    }
+  const handleUsageControlChange = useCallback(
+    (toolIndex: number, usageControl: string) => {
+      if (isPreview || disabled) return
 
-    const tool = selectedTools[toolIndex]
-
-    const newToolId = getToolIdForOperation(tool.type, operation)
-
-    if (!newToolId) {
-      logger.info('❌ Early return: no newToolId')
-      return
-    }
-
-    // Get parameters for the new tool
-    const toolParams = getToolParametersConfig(newToolId, tool.type)
-
-    if (!toolParams) {
-      logger.info('❌ Early return: no toolParams')
-      return
-    }
-
-    // Initialize parameters for the new operation
-    const initialParams = initializeToolParams(newToolId, toolParams.userInputParameters, blockId)
-
-    // Preserve ALL existing parameters that also exist in the new tool configuration
-    // This mimics how regular blocks work - each field maintains its state independently
-    const oldToolParams = getToolParametersConfig(tool.toolId, tool.type)
-    const oldParamIds = new Set(oldToolParams?.userInputParameters.map((p) => p.id) || [])
-    const newParamIds = new Set(toolParams.userInputParameters.map((p) => p.id))
-
-    // Preserve any parameter that exists in both configurations and has a value
-    const preservedParams: Record<string, string> = {}
-    Object.entries(tool.params).forEach(([paramId, value]) => {
-      if (newParamIds.has(paramId) && value) {
-        preservedParams[paramId] = value
-      }
-    })
-
-    // Clear fields when operation changes for Jira (special case)
-    if (tool.type === 'jira') {
-      const subBlockStore = useSubBlockStore.getState()
-      // Clear all fields that might be shared between operations
-      subBlockStore.setValue(blockId, 'summary', '')
-      subBlockStore.setValue(blockId, 'description', '')
-      subBlockStore.setValue(blockId, 'issueKey', '')
-      subBlockStore.setValue(blockId, 'projectId', '')
-      subBlockStore.setValue(blockId, 'parentIssue', '')
-    }
-
-    setStoreValue(
-      selectedTools.map((tool, index) =>
-        index === toolIndex
-          ? {
-              ...tool,
-              toolId: newToolId,
-              operation,
-              params: { ...initialParams, ...preservedParams }, // Preserve all compatible existing values
-            }
-          : tool
+      setStoreValue(
+        selectedTools.map((tool, index) =>
+          index === toolIndex
+            ? {
+                ...tool,
+                usageControl: usageControl as 'auto' | 'force' | 'none',
+              }
+            : tool
+        )
       )
-    )
-  }
-
-  const handleUsageControlChange = (toolIndex: number, usageControl: string) => {
-    if (isPreview || disabled) return
-
-    setStoreValue(
-      selectedTools.map((tool, index) =>
-        index === toolIndex
-          ? {
-              ...tool,
-              usageControl: usageControl as 'auto' | 'force' | 'none',
-            }
-          : tool
-      )
-    )
-  }
+    },
+    [isPreview, disabled, selectedTools, setStoreValue]
+  )
 
   // Local expansion overrides for preview/diff mode
   const [previewExpanded, setPreviewExpanded] = useState<Record<number, boolean>>({})
@@ -888,7 +995,12 @@ export function ToolInput({
     return toolParams?.toolConfig?.oauth
   }
 
-  // Evaluate parameter conditions to determine if parameter should be shown
+  /**
+   * Evaluates parameter conditions to determine if a parameter should be visible
+   * @param param - The parameter configuration with optional condition
+   * @param tool - The current tool instance with its values
+   * @returns True if the parameter should be shown based on its condition
+   */
   const evaluateParameterCondition = (param: any, tool: StoredTool): boolean => {
     if (!('uiComponent' in param) || !param.uiComponent?.condition) return true
 
@@ -932,7 +1044,15 @@ export function ToolInput({
     return result
   }
 
-  // Render the appropriate UI component based on parameter configuration
+  /**
+   * Renders the appropriate UI component for a tool parameter
+   * @param param - The parameter configuration
+   * @param value - The current parameter value
+   * @param onChange - Callback to handle value changes
+   * @param toolIndex - Index of the tool in the selected tools array
+   * @param currentToolParams - Current values of all tool parameters
+   * @returns JSX element for the parameter input
+   */
   const renderParameterInput = (
     param: ToolParameterConfig,
     value: string,
