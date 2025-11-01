@@ -27,6 +27,59 @@ interface WebhookManagementState {
 }
 
 /**
+ * Resolves the effective triggerId from various sources in order of priority
+ */
+function resolveEffectiveTriggerId(
+  blockId: string,
+  triggerId: string | undefined,
+  webhook?: { providerConfig?: { triggerId?: string } }
+): string | undefined {
+  if (triggerId && isTriggerValid(triggerId)) {
+    return triggerId
+  }
+
+  const selectedTriggerId = useSubBlockStore.getState().getValue(blockId, 'selectedTriggerId')
+  if (typeof selectedTriggerId === 'string' && isTriggerValid(selectedTriggerId)) {
+    return selectedTriggerId
+  }
+
+  const storedTriggerId = useSubBlockStore.getState().getValue(blockId, 'triggerId')
+  if (typeof storedTriggerId === 'string' && isTriggerValid(storedTriggerId)) {
+    return storedTriggerId
+  }
+
+  if (webhook?.providerConfig?.triggerId && typeof webhook.providerConfig.triggerId === 'string') {
+    return webhook.providerConfig.triggerId
+  }
+
+  const workflowState = useWorkflowStore.getState()
+  const block = workflowState.blocks?.[blockId]
+  if (block) {
+    const blockConfig = getBlock(block.type)
+    if (blockConfig) {
+      if (blockConfig.category === 'triggers') {
+        return block.type
+      }
+      if (block.triggerMode && blockConfig.triggers?.enabled) {
+        const selectedTriggerIdValue = block.subBlocks?.selectedTriggerId?.value
+        const triggerIdValue = block.subBlocks?.triggerId?.value
+        return (
+          (typeof selectedTriggerIdValue === 'string' && isTriggerValid(selectedTriggerIdValue)
+            ? selectedTriggerIdValue
+            : undefined) ||
+          (typeof triggerIdValue === 'string' && isTriggerValid(triggerIdValue)
+            ? triggerIdValue
+            : undefined) ||
+          blockConfig.triggers?.available?.[0]
+        )
+      }
+    }
+  }
+
+  return undefined
+}
+
+/**
  * Hook to manage webhook lifecycle for trigger blocks
  * Handles:
  * - Pre-generating webhook URLs based on blockId (without creating webhook)
@@ -82,37 +135,17 @@ export function useWebhookManagement({
     const alreadyChecked = store.checkedWebhooks.has(blockId)
     const currentWebhookId = store.getValue(blockId, 'webhookId')
 
-    if (currentlyLoading) {
+    if (currentlyLoading || (alreadyChecked && currentWebhookId)) {
       return
     }
-
-    if (alreadyChecked && currentWebhookId) {
-      return
-    }
-
-    if (alreadyChecked && !currentWebhookId) {
-      useSubBlockStore.setState((state) => {
-        const newSet = new Set(state.checkedWebhooks)
-        newSet.delete(blockId)
-        return { checkedWebhooks: newSet }
-      })
-    }
-
-    let isMounted = true
 
     const loadWebhookOrGenerateUrl = async () => {
-      const currentStore = useSubBlockStore.getState()
-      if (currentStore.loadingWebhooks.has(blockId)) {
-        return
-      }
-
       useSubBlockStore.setState((state) => ({
         loadingWebhooks: new Set([...state.loadingWebhooks, blockId]),
       }))
 
       try {
         const response = await fetch(`/api/webhooks?workflowId=${workflowId}&blockId=${blockId}`)
-        const stillMounted = isMounted
 
         if (response.ok) {
           const data = await response.json()
@@ -125,73 +158,25 @@ export function useWebhookManagement({
               blockId,
               webhookId: webhook.id,
               hasProviderConfig: !!webhook.providerConfig,
-              wasMounted: stillMounted,
             })
 
             if (webhook.path) {
-              const currentPath = useSubBlockStore.getState().getValue(blockId, 'triggerPath')
-              if (webhook.path !== currentPath) {
-                useSubBlockStore.getState().setValue(blockId, 'triggerPath', webhook.path)
-              }
+              useSubBlockStore.getState().setValue(blockId, 'triggerPath', webhook.path)
             }
 
             if (webhook.providerConfig) {
-              let effectiveTriggerId: string | undefined = triggerId
-              if (!effectiveTriggerId) {
-                const storedTriggerId = useSubBlockStore.getState().getValue(blockId, 'triggerId')
-                effectiveTriggerId =
-                  (typeof storedTriggerId === 'string' ? storedTriggerId : undefined) || undefined
-              }
-              if (!effectiveTriggerId && webhook.providerConfig.triggerId) {
-                effectiveTriggerId =
-                  typeof webhook.providerConfig.triggerId === 'string'
-                    ? webhook.providerConfig.triggerId
-                    : undefined
-              }
-              if (!effectiveTriggerId) {
-                const workflowState = useWorkflowStore.getState()
-                const block = workflowState.blocks?.[blockId]
-                if (block) {
-                  const blockConfig = getBlock(block.type)
-                  if (blockConfig) {
-                    if (blockConfig.category === 'triggers') {
-                      effectiveTriggerId = block.type
-                    } else if (block.triggerMode && blockConfig.triggers?.enabled) {
-                      const selectedTriggerIdValue = block.subBlocks?.selectedTriggerId?.value
-                      const triggerIdValue = block.subBlocks?.triggerId?.value
-                      effectiveTriggerId =
-                        (typeof selectedTriggerIdValue === 'string' &&
-                        isTriggerValid(selectedTriggerIdValue)
-                          ? selectedTriggerIdValue
-                          : undefined) ||
-                        (typeof triggerIdValue === 'string' && isTriggerValid(triggerIdValue)
-                          ? triggerIdValue
-                          : undefined) ||
-                        blockConfig.triggers?.available?.[0]
-                    }
-                  }
-                }
-              }
+              const effectiveTriggerId = resolveEffectiveTriggerId(blockId, triggerId, webhook)
 
-              const currentConfig = useSubBlockStore.getState().getValue(blockId, 'triggerConfig')
-              if (JSON.stringify(webhook.providerConfig) !== JSON.stringify(currentConfig)) {
-                useSubBlockStore
-                  .getState()
-                  .setValue(blockId, 'triggerConfig', webhook.providerConfig)
+              useSubBlockStore.getState().setValue(blockId, 'triggerConfig', webhook.providerConfig)
 
-                if (effectiveTriggerId) {
-                  populateTriggerFieldsFromConfig(
-                    blockId,
-                    webhook.providerConfig,
-                    effectiveTriggerId
-                  )
-                } else {
-                  logger.warn('Cannot migrate - triggerId not available', {
-                    blockId,
-                    propTriggerId: triggerId,
-                    providerConfigTriggerId: webhook.providerConfig.triggerId,
-                  })
-                }
+              if (effectiveTriggerId) {
+                populateTriggerFieldsFromConfig(blockId, webhook.providerConfig, effectiveTriggerId)
+              } else {
+                logger.warn('Cannot migrate - triggerId not available', {
+                  blockId,
+                  propTriggerId: triggerId,
+                  providerConfigTriggerId: webhook.providerConfig.triggerId,
+                })
               }
             }
           } else {
@@ -221,10 +206,6 @@ export function useWebhookManagement({
     }
 
     loadWebhookOrGenerateUrl()
-
-    return () => {
-      isMounted = false
-    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isPreview, triggerId, workflowId, blockId])
 
@@ -233,20 +214,7 @@ export function useWebhookManagement({
       return false
     }
 
-    let effectiveTriggerId: string | undefined = triggerId
-    if (!effectiveTriggerId) {
-      const selectedTriggerId = useSubBlockStore.getState().getValue(blockId, 'selectedTriggerId')
-      if (typeof selectedTriggerId === 'string' && isTriggerValid(selectedTriggerId)) {
-        effectiveTriggerId = selectedTriggerId
-      }
-    }
-    if (!effectiveTriggerId) {
-      const storedTriggerId = useSubBlockStore.getState().getValue(blockId, 'triggerId')
-      effectiveTriggerId =
-        typeof storedTriggerId === 'string' && isTriggerValid(storedTriggerId)
-          ? storedTriggerId
-          : triggerId
-    }
+    const effectiveTriggerId = resolveEffectiveTriggerId(blockId, triggerId)
 
     try {
       setIsSaving(true)

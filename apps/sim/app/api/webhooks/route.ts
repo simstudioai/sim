@@ -421,7 +421,8 @@ export async function POST(request: NextRequest) {
         const success = await configureGmailPolling(savedWebhook, requestId)
 
         if (!success) {
-          logger.error(`[${requestId}] Failed to configure Gmail polling`)
+          logger.error(`[${requestId}] Failed to configure Gmail polling, rolling back webhook`)
+          await db.delete(webhook).where(eq(webhook.id, savedWebhook.id))
           return NextResponse.json(
             {
               error: 'Failed to configure Gmail polling',
@@ -433,7 +434,11 @@ export async function POST(request: NextRequest) {
 
         logger.info(`[${requestId}] Successfully configured Gmail polling`)
       } catch (err) {
-        logger.error(`[${requestId}] Error setting up Gmail webhook configuration`, err)
+        logger.error(
+          `[${requestId}] Error setting up Gmail webhook configuration, rolling back webhook`,
+          err
+        )
+        await db.delete(webhook).where(eq(webhook.id, savedWebhook.id))
         return NextResponse.json(
           {
             error: 'Failed to configure Gmail webhook',
@@ -455,7 +460,8 @@ export async function POST(request: NextRequest) {
         const success = await configureOutlookPolling(savedWebhook, requestId)
 
         if (!success) {
-          logger.error(`[${requestId}] Failed to configure Outlook polling`)
+          logger.error(`[${requestId}] Failed to configure Outlook polling, rolling back webhook`)
+          await db.delete(webhook).where(eq(webhook.id, savedWebhook.id))
           return NextResponse.json(
             {
               error: 'Failed to configure Outlook polling',
@@ -467,7 +473,11 @@ export async function POST(request: NextRequest) {
 
         logger.info(`[${requestId}] Successfully configured Outlook polling`)
       } catch (err) {
-        logger.error(`[${requestId}] Error setting up Outlook webhook configuration`, err)
+        logger.error(
+          `[${requestId}] Error setting up Outlook webhook configuration, rolling back webhook`,
+          err
+        )
+        await db.delete(webhook).where(eq(webhook.id, savedWebhook.id))
         return NextResponse.json(
           {
             error: 'Failed to configure Outlook webhook',
