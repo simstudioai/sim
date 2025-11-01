@@ -1,6 +1,7 @@
 import { gmailDraftTool } from '@/tools/gmail/draft'
+import { gmailMoveTool } from '@/tools/gmail/move'
 import { gmailReadTool } from '@/tools/gmail/read'
 import { gmailSearchTool } from '@/tools/gmail/search'
 import { gmailSendTool } from '@/tools/gmail/send'
 
-export { gmailSendTool, gmailReadTool, gmailSearchTool, gmailDraftTool }
+export { gmailSendTool, gmailReadTool, gmailSearchTool, gmailDraftTool, gmailMoveTool }

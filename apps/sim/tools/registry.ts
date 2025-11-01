@@ -32,7 +32,13 @@ import {
   githubPrTool,
   githubRepoInfoTool,
 } from '@/tools/github'
-import { gmailDraftTool, gmailReadTool, gmailSearchTool, gmailSendTool } from '@/tools/gmail'
+import {
+  gmailDraftTool,
+  gmailMoveTool,
+  gmailReadTool,
+  gmailSearchTool,
+  gmailSendTool,
+} from '@/tools/gmail'
 import { searchTool as googleSearchTool } from '@/tools/google'
 import {
   googleCalendarCreateTool,
@@ -136,6 +142,7 @@ import { imageTool, embeddingsTool as openAIEmbeddings } from '@/tools/openai'
 import {
   outlookDraftTool,
   outlookForwardTool,
+  outlookMoveTool,
   outlookReadTool,
   outlookSendTool,
 } from '@/tools/outlook'
@@ -312,6 +319,7 @@ export const tools: Record<string, ToolConfig> = {
   gmail_read: gmailReadTool,
   gmail_search: gmailSearchTool,
   gmail_draft: gmailDraftTool,
+  gmail_move: gmailMoveTool,
   whatsapp_send_message: whatsappSendMessageTool,
   x_write: xWriteTool,
   x_read: xReadTool,
@@ -421,6 +429,7 @@ export const tools: Record<string, ToolConfig> = {
   outlook_send: outlookSendTool,
   outlook_draft: outlookDraftTool,
   outlook_forward: outlookForwardTool,
+  outlook_move: outlookMoveTool,
   linear_read_issues: linearReadIssuesTool,
   linear_create_issue: linearCreateIssueTool,
   onedrive_create_folder: onedriveCreateFolderTool,

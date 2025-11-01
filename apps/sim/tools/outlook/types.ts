@@ -163,4 +163,20 @@ export interface OutlookForwardResponse extends ToolResponse {
   }
 }
 
-export type OutlookExtendedResponse = OutlookResponse | OutlookForwardResponse
+export interface OutlookMoveParams {
+  accessToken: string
+  messageId: string
+  destinationId: string
+}
+
+export interface OutlookMoveResponse extends ToolResponse {
+  output: {
+    message: string
+    results: {
+      messageId: string
+      newFolderId: string
+    }
+  }
+}
+
+export type OutlookExtendedResponse = OutlookResponse | OutlookForwardResponse | OutlookMoveResponse

@@ -7,10 +7,10 @@ import { getTrigger } from '@/triggers'
 export const GmailBlock: BlockConfig<GmailToolResponse> = {
   type: 'gmail',
   name: 'Gmail',
-  description: 'Send Gmail or trigger workflows from Gmail events',
+  description: 'Send, read, search, and move Gmail messages or trigger workflows from Gmail events',
   authMode: AuthMode.OAuth,
   longDescription:
-    'Integrate Gmail into the workflow. Can send, read, and search emails. Can be used in trigger mode to trigger a workflow when a new email is received.',
+    'Integrate Gmail into the workflow. Can send, read, search, and move emails. Can be used in trigger mode to trigger a workflow when a new email is received.',
   docsLink: 'https://docs.sim.ai/tools/gmail',
   category: 'tools',
   bgColor: '#E0E0E0',
@@ -28,6 +28,7 @@ export const GmailBlock: BlockConfig<GmailToolResponse> = {
         { label: 'Read Email', id: 'read_gmail' },
         { label: 'Draft Email', id: 'draft_gmail' },
         { label: 'Search Email', id: 'search_gmail' },
+        { label: 'Move Email', id: 'move_gmail' },
       ],
       value: () => 'send_gmail',
     },
@@ -219,10 +220,82 @@ export const GmailBlock: BlockConfig<GmailToolResponse> = {
       placeholder: 'Maximum number of results (default: 10)',
       condition: { field: 'operation', value: ['search_gmail', 'read_gmail'] },
     },
+    // Move Email Fields
+    {
+      id: 'moveMessageId',
+      title: 'Message ID',
+      type: 'short-input',
+      layout: 'full',
+      placeholder: 'ID of the email to move',
+      condition: { field: 'operation', value: 'move_gmail' },
+      required: true,
+    },
+    // Destination label selector (basic mode)
+    {
+      id: 'destinationLabel',
+      title: 'Move To Label',
+      type: 'folder-selector',
+      layout: 'full',
+      canonicalParamId: 'addLabelIds',
+      provider: 'google-email',
+      serviceId: 'gmail',
+      requiredScopes: [
+        'https://www.googleapis.com/auth/gmail.readonly',
+        'https://www.googleapis.com/auth/gmail.labels',
+      ],
+      placeholder: 'Select destination label',
+      dependsOn: ['credential'],
+      mode: 'basic',
+      condition: { field: 'operation', value: 'move_gmail' },
+      required: true,
+    },
+    // Manual destination label input (advanced mode)
+    {
+      id: 'manualDestinationLabel',
+      title: 'Move To Label',
+      type: 'short-input',
+      layout: 'full',
+      canonicalParamId: 'addLabelIds',
+      placeholder: 'Enter label ID (e.g., INBOX, Label_123)',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'move_gmail' },
+      required: true,
+    },
+    // Source label selector (basic mode)
+    {
+      id: 'sourceLabel',
+      title: 'Remove From Label (Optional)',
+      type: 'folder-selector',
+      layout: 'full',
+      canonicalParamId: 'removeLabelIds',
+      provider: 'google-email',
+      serviceId: 'gmail',
+      requiredScopes: [
+        'https://www.googleapis.com/auth/gmail.readonly',
+        'https://www.googleapis.com/auth/gmail.labels',
+      ],
+      placeholder: 'Select label to remove',
+      dependsOn: ['credential'],
+      mode: 'basic',
+      condition: { field: 'operation', value: 'move_gmail' },
+      required: false,
+    },
+    // Manual source label input (advanced mode)
+    {
+      id: 'manualSourceLabel',
+      title: 'Remove From Label (Optional)',
+      type: 'short-input',
+      layout: 'full',
+      canonicalParamId: 'removeLabelIds',
+      placeholder: 'Enter label ID to remove (e.g., INBOX)',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'move_gmail' },
+      required: false,
+    },
     ...getTrigger('gmail_poller').subBlocks,
   ],
   tools: {
-    access: ['gmail_send', 'gmail_draft', 'gmail_read', 'gmail_search'],
+    access: ['gmail_send', 'gmail_draft', 'gmail_read', 'gmail_search', 'gmail_move'],
     config: {
       tool: (params) => {
         switch (params.operation) {
@@ -234,18 +307,37 @@ export const GmailBlock: BlockConfig<GmailToolResponse> = {
             return 'gmail_search'
           case 'read_gmail':
             return 'gmail_read'
+          case 'move_gmail':
+            return 'gmail_move'
           default:
             throw new Error(`Invalid Gmail operation: ${params.operation}`)
         }
       },
       params: (params) => {
-        const { credential, folder, manualFolder, ...rest } = params
+        const {
+          credential,
+          folder,
+          manualFolder,
+          destinationLabel,
+          manualDestinationLabel,
+          sourceLabel,
+          manualSourceLabel,
+          moveMessageId,
+          ...rest
+        } = params
 
         // Handle both selector and manual folder input
         const effectiveFolder = (folder || manualFolder || '').trim()
 
         if (rest.operation === 'read_gmail') {
           rest.folder = effectiveFolder || 'INBOX'
+        }
+
+        // Handle move operation
+        if (rest.operation === 'move_gmail') {
+          rest.messageId = moveMessageId
+          rest.addLabelIds = (destinationLabel || manualDestinationLabel || '').trim()
+          rest.removeLabelIds = (sourceLabel || manualSourceLabel || '').trim()
         }
 
         return {
@@ -279,6 +371,14 @@ export const GmailBlock: BlockConfig<GmailToolResponse> = {
     // Search operation inputs
     query: { type: 'string', description: 'Search query' },
     maxResults: { type: 'number', description: 'Maximum results' },
+    // Move operation inputs
+    moveMessageId: { type: 'string', description: 'Message ID to move' },
+    destinationLabel: { type: 'string', description: 'Destination label ID' },
+    manualDestinationLabel: { type: 'string', description: 'Manual destination label ID' },
+    sourceLabel: { type: 'string', description: 'Source label ID to remove' },
+    manualSourceLabel: { type: 'string', description: 'Manual source label ID' },
+    addLabelIds: { type: 'string', description: 'Label IDs to add' },
+    removeLabelIds: { type: 'string', description: 'Label IDs to remove' },
   },
   outputs: {
     // Tool outputs

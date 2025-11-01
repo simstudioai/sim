@@ -1,6 +1,6 @@
 ---
 title: Outlook
-description: Access Outlook
+description: Send, read, draft, forward, and move Outlook email messages
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -140,7 +140,7 @@ In Sim, the Microsoft Outlook integration enables your agents to interact direct
 
 ## Usage Instructions
 
-Integrate Outlook into the workflow. Can read, draft, and send email messages. Can be used in trigger mode to trigger a workflow when a new email is received.
+Integrate Outlook into the workflow. Can read, draft, send, forward, and move email messages. Can be used in trigger mode to trigger a workflow when a new email is received.
 
 
 
@@ -236,6 +236,26 @@ Forward an existing Outlook message to specified recipients
 | --------- | ---- | ----------- |
 | `message` | string | Success or error message |
 | `results` | object | Delivery result details |
+
+### `outlook_move`
+
+Move emails between Outlook folders
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `messageId` | string | Yes | ID of the message to move |
+| `destinationId` | string | Yes | ID of the destination folder |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Email move success status |
+| `message` | string | Success or error message |
+| `messageId` | string | ID of the moved message |
+| `newFolderId` | string | ID of the destination folder |
 
 
 

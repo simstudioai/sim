@@ -33,8 +33,19 @@ export interface GmailSearchParams extends BaseGmailParams {
   maxResults?: number
 }
 
+// Move operation parameters
+export interface GmailMoveParams extends BaseGmailParams {
+  messageId: string
+  addLabelIds: string
+  removeLabelIds?: string
+}
+
 // Union type for all Gmail tool parameters
-export type GmailToolParams = GmailSendParams | GmailReadParams | GmailSearchParams
+export type GmailToolParams =
+  | GmailSendParams
+  | GmailReadParams
+  | GmailSearchParams
+  | GmailMoveParams
 
 // Response metadata
 interface BaseGmailMetadata {

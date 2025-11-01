@@ -7,10 +7,10 @@ import { getTrigger } from '@/triggers'
 export const OutlookBlock: BlockConfig<OutlookResponse> = {
   type: 'outlook',
   name: 'Outlook',
-  description: 'Access Outlook',
+  description: 'Send, read, draft, forward, and move Outlook email messages',
   authMode: AuthMode.OAuth,
   longDescription:
-    'Integrate Outlook into the workflow. Can read, draft, and send email messages. Can be used in trigger mode to trigger a workflow when a new email is received.',
+    'Integrate Outlook into the workflow. Can read, draft, send, forward, and move email messages. Can be used in trigger mode to trigger a workflow when a new email is received.',
   docsLink: 'https://docs.sim.ai/tools/outlook',
   category: 'tools',
   triggerAllowed: true,
@@ -27,6 +27,7 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
         { label: 'Draft Email', id: 'draft_outlook' },
         { label: 'Read Email', id: 'read_outlook' },
         { label: 'Forward Email', id: 'forward_outlook' },
+        { label: 'Move Email', id: 'move_outlook' },
       ],
       value: () => 'send_outlook',
     },
@@ -206,10 +207,48 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
       layout: 'full',
       condition: { field: 'operation', value: 'read_outlook' },
     },
+    // Move Email Fields
+    {
+      id: 'moveMessageId',
+      title: 'Message ID',
+      type: 'short-input',
+      layout: 'full',
+      placeholder: 'ID of the email to move',
+      condition: { field: 'operation', value: 'move_outlook' },
+      required: true,
+    },
+    // Destination folder selector (basic mode)
+    {
+      id: 'destinationFolder',
+      title: 'Move To Folder',
+      type: 'folder-selector',
+      layout: 'full',
+      canonicalParamId: 'destinationId',
+      provider: 'outlook',
+      serviceId: 'outlook',
+      requiredScopes: ['Mail.ReadWrite', 'Mail.ReadBasic', 'Mail.Read'],
+      placeholder: 'Select destination folder',
+      dependsOn: ['credential'],
+      mode: 'basic',
+      condition: { field: 'operation', value: 'move_outlook' },
+      required: true,
+    },
+    // Manual destination folder input (advanced mode)
+    {
+      id: 'manualDestinationFolder',
+      title: 'Move To Folder',
+      type: 'short-input',
+      layout: 'full',
+      canonicalParamId: 'destinationId',
+      placeholder: 'Enter folder ID',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'move_outlook' },
+      required: true,
+    },
     ...getTrigger('outlook_poller').subBlocks,
   ],
   tools: {
-    access: ['outlook_send', 'outlook_draft', 'outlook_read', 'outlook_forward'],
+    access: ['outlook_send', 'outlook_draft', 'outlook_read', 'outlook_forward', 'outlook_move'],
     config: {
       tool: (params) => {
         switch (params.operation) {
@@ -221,18 +260,34 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
             return 'outlook_draft'
           case 'forward_outlook':
             return 'outlook_forward'
+          case 'move_outlook':
+            return 'outlook_move'
           default:
             throw new Error(`Invalid Outlook operation: ${params.operation}`)
         }
       },
       params: (params) => {
-        const { credential, folder, manualFolder, ...rest } = params
+        const {
+          credential,
+          folder,
+          manualFolder,
+          destinationFolder,
+          manualDestinationFolder,
+          moveMessageId,
+          ...rest
+        } = params
 
         // Handle both selector and manual folder input
         const effectiveFolder = (folder || manualFolder || '').trim()
 
         if (rest.operation === 'read_outlook') {
           rest.folder = effectiveFolder || 'INBOX'
+        }
+
+        // Handle move operation
+        if (rest.operation === 'move_outlook') {
+          rest.messageId = moveMessageId
+          rest.destinationId = (destinationFolder || manualDestinationFolder || '').trim()
         }
 
         return {
@@ -259,6 +314,11 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
     manualFolder: { type: 'string', description: 'Manual folder name' },
     maxResults: { type: 'number', description: 'Maximum emails' },
     includeAttachments: { type: 'boolean', description: 'Include email attachments' },
+    // Move operation inputs
+    moveMessageId: { type: 'string', description: 'Message ID to move' },
+    destinationFolder: { type: 'string', description: 'Destination folder ID' },
+    manualDestinationFolder: { type: 'string', description: 'Manual destination folder ID' },
+    destinationId: { type: 'string', description: 'Destination folder ID for move' },
   },
   outputs: {
     // Common outputs

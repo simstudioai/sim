@@ -1,6 +1,6 @@
 ---
 title: Gmail
-description: Send Gmail or trigger workflows from Gmail events
+description: Send, read, search, and move Gmail messages or trigger workflows from Gmail events
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -51,7 +51,7 @@ In Sim, the Gmail integration enables your agents to send, read, and search emai
 
 ## Usage Instructions
 
-Integrate Gmail into the workflow. Can send, read, and search emails. Can be used in trigger mode to trigger a workflow when a new email is received.
+Integrate Gmail into the workflow. Can send, read, search, and move emails. Can be used in trigger mode to trigger a workflow when a new email is received.
 
 
 
@@ -144,6 +144,25 @@ Search emails in Gmail
 | --------- | ---- | ----------- |
 | `content` | string | Search results summary |
 | `metadata` | object | Search metadata |
+
+### `gmail_move`
+
+Move emails between Gmail labels/folders
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `messageId` | string | Yes | ID of the message to move |
+| `addLabelIds` | string | Yes | Comma-separated label IDs to add \(e.g., INBOX, Label_123\) |
+| `removeLabelIds` | string | No | Comma-separated label IDs to remove \(e.g., INBOX, SPAM\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | string | Success message |
+| `metadata` | object | Email metadata |
 
 
 

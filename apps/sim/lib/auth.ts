@@ -1177,6 +1177,7 @@ export const auth = betterAuth({
             'chat:write.public',
             'users:read',
             'files:write',
+            'files:read',
             'canvases:write',
           ],
           responseType: 'code',
