@@ -156,4 +156,91 @@ export class BlockResolver implements Resolver {
 
     return value
   }
+
+  formatValueForBlock(value: any, blockType: string | undefined, isInTemplateLiteral: boolean = false): string {
+    if (blockType === 'condition') {
+      return this.stringifyForCondition(value)
+    }
+
+    if (blockType === 'function') {
+      return this.formatValueForCodeContext(value, isInTemplateLiteral)
+    }
+
+    if (blockType === 'response') {
+      if (typeof value === 'string') {
+        return JSON.stringify(value)
+      }
+      return value
+    }
+
+    if (typeof value === 'object' && value !== null) {
+      return JSON.stringify(value)
+    }
+
+    return String(value)
+  }
+
+  private stringifyForCondition(value: any): string {
+    if (typeof value === 'string') {
+      const sanitized = value
+        .replace(/\\/g, '\\\\')
+        .replace(/"/g, '\\"')
+        .replace(/\n/g, '\\n')
+        .replace(/\r/g, '\\r')
+      return `"${sanitized}"`
+    }
+    if (value === null) {
+      return 'null'
+    }
+    if (value === undefined) {
+      return 'undefined'
+    }
+    if (typeof value === 'object') {
+      return JSON.stringify(value)
+    }
+    return String(value)
+  }
+
+  private formatValueForCodeContext(value: any, isInTemplateLiteral: boolean): string {
+    if (isInTemplateLiteral) {
+      if (typeof value === 'string') {
+        return value
+      }
+      if (typeof value === 'object' && value !== null) {
+        return JSON.stringify(value)
+      }
+      return String(value)
+    }
+
+    if (typeof value === 'string') {
+      return JSON.stringify(value)
+    }
+    if (typeof value === 'object' && value !== null) {
+      return JSON.stringify(value)
+    }
+    if (value === undefined) {
+      return 'undefined'
+    }
+    if (value === null) {
+      return 'null'
+    }
+    return String(value)
+  }
+
+  tryParseJSON(value: any): any {
+    if (typeof value !== 'string') {
+      return value
+    }
+
+    const trimmed = value.trim()
+    if (trimmed.length > 0 && (trimmed.startsWith('{') || trimmed.startsWith('['))) {
+      try {
+        return JSON.parse(trimmed)
+      } catch {
+        return value
+      }
+    }
+
+    return value
+  }
 }

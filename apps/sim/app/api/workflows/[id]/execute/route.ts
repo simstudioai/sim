@@ -9,6 +9,7 @@ import { generateRequestId, SSE_HEADERS } from '@/lib/utils'
 import { executeWorkflowCore } from '@/lib/workflows/executor/execution-core'
 import { type ExecutionEvent, encodeSSEEvent } from '@/lib/workflows/executor/execution-events'
 import type { StreamingExecution } from '@/executor/types'
+import { ExecutionSnapshot, type ExecutionMetadata } from '@/executor/execution/snapshot'
 import type { SubflowType } from '@/stores/workflows/workflow/types'
 import { validateWorkflowAccess } from '../../middleware'
 
@@ -53,22 +54,37 @@ export async function executeWorkflow(
   const loggingSession = new LoggingSession(workflowId, executionId, triggerType, requestId)
 
   try {
-    const result = await executeWorkflowCore({
+    const metadata: ExecutionMetadata = {
       requestId,
+      executionId,
       workflowId,
+      workspaceId: workflow.workspaceId,
       userId: actorUserId,
+      triggerType,
+      useDraftState: false,
+      startTime: new Date().toISOString(),
+    }
+
+    const snapshot = new ExecutionSnapshot(
+      metadata,
       workflow,
       input,
-      triggerType,
+      {},
+      workflow.variables || {},
+      streamConfig?.selectedOutputs || []
+    )
+
+    const result = await executeWorkflowCore({
+      snapshot,
+      callbacks: {
+        onStream: streamConfig?.onStream,
+        onBlockComplete: streamConfig?.onBlockComplete
+          ? async (blockId: string, _blockName: string, _blockType: string, output: any) => {
+              await streamConfig.onBlockComplete!(blockId, output)
+            }
+          : undefined,
+      },
       loggingSession,
-      executionId,
-      selectedOutputs: streamConfig?.selectedOutputs,
-      onStream: streamConfig?.onStream,
-      onBlockComplete: streamConfig?.onBlockComplete
-        ? async (blockId: string, _blockName: string, _blockType: string, output: any) => {
-            await streamConfig.onBlockComplete!(blockId, output)
-          }
-        : undefined,
     })
 
     if (streamConfig?.skipLoggingComplete) {
@@ -197,17 +213,30 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     if (!enableSSE) {
       logger.info(`[${requestId}] Using non-SSE execution (direct JSON response)`)
       try {
-        const result = await executeWorkflowCore({
+        const metadata: ExecutionMetadata = {
           requestId,
+          executionId,
           workflowId,
+          workspaceId: workflow.workspaceId,
           userId,
+          triggerType,
+          useDraftState: shouldUseDraftState,
+          startTime: new Date().toISOString(),
+        }
+
+        const snapshot = new ExecutionSnapshot(
+          metadata,
           workflow,
           input,
-          triggerType,
+          {},
+          workflow.variables || {},
+          selectedOutputs
+        )
+
+        const result = await executeWorkflowCore({
+          snapshot,
+          callbacks: {},
           loggingSession,
-          executionId,
-          selectedOutputs,
-          useDraftState: shouldUseDraftState,
         })
 
         // Filter out logs and internal metadata for API responses
@@ -420,24 +449,37 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
             }
           }
 
-          // Execute using core function with SSE callbacks
-          const result = await executeWorkflowCore({
+          const metadata: ExecutionMetadata = {
             requestId,
+            executionId,
             workflowId,
+            workspaceId: workflow.workspaceId,
             userId,
+            triggerType,
+            useDraftState: shouldUseDraftState,
+            startTime: new Date().toISOString(),
+          }
+
+          const snapshot = new ExecutionSnapshot(
+            metadata,
             workflow,
             input,
-            triggerType,
-            loggingSession,
-            executionId,
-            selectedOutputs,
-            useDraftState: shouldUseDraftState,
-            onBlockStart,
-            onBlockComplete,
-            onStream,
-            onExecutorCreated: (executor) => {
-              executorInstance = executor
+            {},
+            workflow.variables || {},
+            selectedOutputs
+          )
+
+          const result = await executeWorkflowCore({
+            snapshot,
+            callbacks: {
+              onBlockStart,
+              onBlockComplete,
+              onStream,
+              onExecutorCreated: (executor) => {
+                executorInstance = executor
+              },
             },
+            loggingSession,
           })
 
           // Check if execution was cancelled

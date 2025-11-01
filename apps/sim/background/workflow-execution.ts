@@ -7,6 +7,7 @@ import { createLogger } from '@/lib/logs/console/logger'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { getWorkflowById } from '@/lib/workflows/utils'
 import { executeWorkflowCore } from '@/lib/workflows/executor/execution-core'
+import { ExecutionSnapshot, type ExecutionMetadata } from '@/executor/execution/snapshot'
 
 const logger = createLogger('TriggerWorkflowExecution')
 
@@ -48,23 +49,30 @@ export async function executeWorkflowJob(payload: WorkflowExecutionPayload) {
       .limit(1)
     const workspaceId = wfRows[0]?.workspaceId || undefined
 
-    // Set workspace on workflow object for executeWorkflow function
-    const workflowWithWorkspace = {
-      ...workflow,
+    const metadata: ExecutionMetadata = {
+      requestId,
+      executionId,
+      workflowId,
       workspaceId,
+      userId: payload.userId,
+      triggerType: payload.triggerType || 'api',
+      useDraftState: false,
+      startTime: new Date().toISOString(),
     }
 
-    // Use executeWorkflowCore directly for background jobs
+    const snapshot = new ExecutionSnapshot(
+      metadata,
+      workflow,
+      payload.input,
+      {},
+      workflow.variables || {},
+      []
+    )
+
     const result = await executeWorkflowCore({
-      requestId,
-      workflowId,
-      userId: payload.userId,
-      workflow: workflowWithWorkspace,
-      input: payload.input,
-      triggerType: payload.triggerType || 'api',
+      snapshot,
+      callbacks: {},
       loggingSession,
-      executionId,
-      selectedOutputs: undefined,
     })
 
     logger.info(`[${requestId}] Workflow execution completed: ${workflowId}`, {

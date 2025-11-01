@@ -61,18 +61,20 @@ function isLikelyReferenceSegment(segment: string): boolean {
 
 export class VariableResolver {
   private resolvers: Resolver[]
+  private blockResolver: BlockResolver
 
   constructor(
     private workflow: SerializedWorkflow,
     private workflowVariables: Record<string, any>,
     private state: ExecutionState
   ) {
+    this.blockResolver = new BlockResolver(workflow)
     this.resolvers = [
       new LoopResolver(workflow),
       new ParallelResolver(workflow),
       new WorkflowResolver(workflowVariables),
       new EnvResolver(),
-      new BlockResolver(workflow),
+      this.blockResolver,
     ]
   }
 
@@ -150,13 +152,11 @@ export class VariableResolver {
       'g'
     )
     
-    // Track errors during replacement since throwing inside replace() doesn't propagate
     let replacementError: Error | null = null
     
     result = result.replace(referenceRegex, (match) => {
-      if (replacementError) return match // Skip further replacements if error occurred
+      if (replacementError) return match
       
-      // Filter out false positives like comparison operators (< 5, i < length, etc)
       if (!isLikelyReferenceSegment(match)) {
         return match
       }
@@ -166,24 +166,21 @@ export class VariableResolver {
         if (resolved === undefined) {
           return match
         }
-        const isFunctionBlock = block?.metadata?.id === BlockType.FUNCTION
-        if (typeof resolved === 'string') {
-          if (isFunctionBlock) {
-            return JSON.stringify(resolved)
-          }
-          return resolved
-        }
-        if (typeof resolved === 'number' || typeof resolved === 'boolean') {
-          return String(resolved)
-        }
-        return JSON.stringify(resolved)
+        
+        const blockType = block?.metadata?.id
+        const isInTemplateLiteral = 
+          blockType === BlockType.FUNCTION &&
+          template.includes('${') &&
+          template.includes('}') &&
+          template.includes('`')
+        
+        return this.blockResolver.formatValueForBlock(resolved, blockType, isInTemplateLiteral)
       } catch (error) {
         replacementError = error instanceof Error ? error : new Error(String(error))
         return match
       }
     })
     
-    // Re-throw any error that occurred during replacement
     if (replacementError !== null) {
       throw replacementError
     }

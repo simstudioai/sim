@@ -17,8 +17,9 @@ import {
 import { TriggerUtils } from '@/lib/workflows/triggers'
 import { updateWorkflowRunCounts } from '@/lib/workflows/utils'
 import { filterEdgesFromTriggerBlocks } from '@/app/workspace/[workspaceId]/w/[workflowId]/lib/workflow-execution-utils'
-import { Executor } from '@/executor' // Now exports DAGExecutor
+import { Executor } from '@/executor'
 import type { ExecutionResult } from '@/executor/types'
+import { ExecutionSnapshot, type ExecutionCallbacks, type ExecutionMetadata } from '@/executor/execution/snapshot'
 import { Serializer } from '@/serializer'
 import { mergeSubblockState } from '@/stores/workflows/server-utils'
 
@@ -27,32 +28,12 @@ const logger = createLogger('ExecutionCore')
 const EnvVarsSchema = z.record(z.string())
 
 export interface ExecuteWorkflowCoreOptions {
-  requestId: string
-  workflowId: string
-  userId: string
-  workflow: any
-  input: any
-  triggerType: string
+  snapshot: ExecutionSnapshot
+  callbacks: ExecutionCallbacks
   loggingSession: LoggingSession
-  executionId: string
-  selectedOutputs?: string[]
-  workspaceId?: string
-  triggerBlockId?: string
-  useDraftState?: boolean
-  onBlockStart?: (blockId: string, blockName: string, blockType: string) => Promise<void>
-  onBlockComplete?: (
-    blockId: string,
-    blockName: string,
-    blockType: string,
-    output: any
-  ) => Promise<void>
-  onStream?: (streamingExec: any) => Promise<void>
-  onExecutorCreated?: (executor: any) => void
 }
 
-/**
- * Convert variable value to its native type
- */
+
 function parseVariableValueByType(value: any, type: string): any {
   if (value === null || value === undefined) {
     switch (type) {
@@ -114,28 +95,16 @@ function parseVariableValueByType(value: any, type: string): any {
   return typeof value === 'string' ? value : String(value)
 }
 
-/**
- * Core execution function - used by HTTP endpoint, background jobs, webhooks, schedules
- * This is the ONLY place where Executor is instantiated and executed
- */
+
 export async function executeWorkflowCore(
   options: ExecuteWorkflowCoreOptions
 ): Promise<ExecutionResult> {
-  const {
-    requestId,
-    workflowId,
-    userId,
-    workflow,
-    input,
-    triggerType,
-    loggingSession,
-    executionId,
-    selectedOutputs,
-    workspaceId: providedWorkspaceId,
-    onBlockStart,
-    onBlockComplete,
-    onStream,
-  } = options
+  const { snapshot, callbacks, loggingSession } = options
+  const { metadata, workflow, input, environmentVariables, workflowVariables, selectedOutputs } = snapshot
+  const { requestId, workflowId, userId, triggerType, executionId, triggerBlockId, useDraftState } = metadata
+  const { onBlockStart, onBlockComplete, onStream, onExecutorCreated } = callbacks
+  
+  const providedWorkspaceId = metadata.workspaceId
 
   let processedInput = input || {}
 
@@ -147,7 +116,7 @@ export async function executeWorkflowCore(
     let loops
     let parallels
 
-    if (options.useDraftState) {
+    if (useDraftState) {
       const draftData = await loadWorkflowFromNormalizedTables(workflowId)
 
       if (!draftData) {
@@ -176,13 +145,13 @@ export async function executeWorkflowCore(
     // Get and decrypt environment variables
     const { personalEncrypted, workspaceEncrypted } = await getPersonalAndWorkspaceEnv(
       userId,
-      providedWorkspaceId || workflow.workspaceId || undefined
+      providedWorkspaceId
     )
     const variables = EnvVarsSchema.parse({ ...personalEncrypted, ...workspaceEncrypted })
 
     await loggingSession.safeStart({
       userId,
-      workspaceId: providedWorkspaceId || workflow.workspaceId,
+      workspaceId: providedWorkspaceId,
       variables,
     })
 
@@ -254,15 +223,10 @@ export async function executeWorkflowCore(
       {} as Record<string, Record<string, any>>
     )
 
-    const workflowVariables = (workflow.variables as Record<string, any>) || {}
-
-    // Filter out edges between trigger blocks - triggers are independent entry points
     const filteredEdges = filterEdgesFromTriggerBlocks(mergedStates, edges)
 
-    // Identify the trigger block if not explicitly provided
-    let triggerBlockId = options.triggerBlockId
+    let resolvedTriggerBlockId = triggerBlockId
     if (!triggerBlockId) {
-      // Map triggerType to the appropriate execution kind for TriggerUtils
       const executionKind =
         triggerType === 'api' || triggerType === 'chat'
           ? (triggerType as 'api' | 'chat')
@@ -281,9 +245,9 @@ export async function executeWorkflowCore(
         throw new Error(errorMsg)
       }
 
-      triggerBlockId = startBlock.blockId
+      resolvedTriggerBlockId = startBlock.blockId
       logger.info(`[${requestId}] Identified trigger block for ${executionKind} execution:`, {
-        blockId: triggerBlockId,
+        blockId: resolvedTriggerBlockId,
         blockType: startBlock.block.type,
         path: startBlock.path,
       })
@@ -305,10 +269,10 @@ export async function executeWorkflowCore(
       stream: !!onStream,
       selectedOutputs,
       executionId,
-      workspaceId: providedWorkspaceId || workflow.workspaceId,
+      workspaceId: providedWorkspaceId,
       isDeployedContext: triggerType !== 'manual',
       onBlockStart,
-      onBlockComplete, // Pass through directly - executor calls with 4 params
+      onBlockComplete,
       onStream,
     }
 
@@ -333,12 +297,11 @@ export async function executeWorkflowCore(
       }
     }
 
-    // Store executor in options for potential cancellation
-    if (options.onExecutorCreated) {
-      options.onExecutorCreated(executorInstance)
+    if (onExecutorCreated) {
+      onExecutorCreated(executorInstance)
     }
 
-    const result = (await executorInstance.execute(workflowId, triggerBlockId)) as ExecutionResult
+    const result = (await executorInstance.execute(workflowId, resolvedTriggerBlockId)) as ExecutionResult
 
     // Build trace spans for logging
     const { traceSpans, totalDuration } = buildTraceSpans(result)

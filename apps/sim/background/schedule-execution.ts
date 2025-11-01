@@ -18,6 +18,7 @@ import { decryptSecret } from '@/lib/utils'
 import { blockExistsInDeployment, loadDeployedWorkflowState } from '@/lib/workflows/db-helpers'
 import { executeWorkflowCore } from '@/lib/workflows/executor/execution-core'
 import { getWorkspaceBilledAccountUserId } from '@/lib/workspaces/utils'
+import { ExecutionSnapshot, type ExecutionMetadata } from '@/executor/execution/snapshot'
 import { Serializer } from '@/serializer'
 import { RateLimiter } from '@/services/queue'
 import { mergeSubblockState } from '@/stores/workflows/server-utils'
@@ -334,18 +335,31 @@ export async function executeScheduleJob(payload: ScheduleExecutionPayload) {
             variables: variables || {},
           })
 
-          // Use core execution function
-          const executionResult = await executeWorkflowCore({
+          const metadata: ExecutionMetadata = {
             requestId,
-            workflowId: payload.workflowId,
-            userId: actorUserId,
-            workflow: { ...workflowRecord, workspaceId: workflowRecord.workspaceId },
-            input,
-            triggerType: 'schedule',
-            loggingSession,
             executionId,
+            workflowId: payload.workflowId,
             workspaceId: workflowRecord.workspaceId || '',
+            userId: actorUserId,
+            triggerType: 'schedule',
             triggerBlockId: payload.blockId || undefined,
+            useDraftState: false,
+            startTime: new Date().toISOString(),
+          }
+
+          const snapshot = new ExecutionSnapshot(
+            metadata,
+            workflowRecord,
+            input,
+            {},
+            workflowRecord.variables || {},
+            []
+          )
+
+          const executionResult = await executeWorkflowCore({
+            snapshot,
+            callbacks: {},
+            loggingSession,
           })
 
           logger.info(`[${requestId}] Workflow execution completed: ${payload.workflowId}`, {

@@ -20,6 +20,7 @@ import {
 import { executeWorkflowCore } from '@/lib/workflows/executor/execution-core'
 import { getWorkflowById } from '@/lib/workflows/utils'
 import type { ExecutionResult } from '@/executor/types'
+import { ExecutionSnapshot, type ExecutionMetadata } from '@/executor/execution/snapshot'
 import { Serializer } from '@/serializer'
 import { mergeSubblockState } from '@/stores/workflows/server-utils'
 import { getTrigger, isTriggerValid } from '@/triggers'
@@ -263,18 +264,31 @@ async function executeWebhookJobInternal(
           throw new Error(`Workflow ${payload.workflowId} not found`)
         }
 
-        // Use core execution function
-        const executionResult = await executeWorkflowCore({
+        const metadata: ExecutionMetadata = {
           requestId,
-          workflowId: payload.workflowId,
-          userId: payload.userId,
-          workflow: { ...workflow, workspaceId },
-          input: airtableInput,
-          triggerType: 'webhook',
-          loggingSession,
           executionId,
+          workflowId: payload.workflowId,
           workspaceId,
+          userId: payload.userId,
+          triggerType: 'webhook',
           triggerBlockId: payload.blockId,
+          useDraftState: false,
+          startTime: new Date().toISOString(),
+        }
+
+        const snapshot = new ExecutionSnapshot(
+          metadata,
+          workflow,
+          airtableInput,
+          {},
+          workflow.variables || {},
+          []
+        )
+
+        const executionResult = await executeWorkflowCore({
+          snapshot,
+          callbacks: {},
+          loggingSession,
         })
 
         logger.info(`[${requestId}] Airtable webhook execution completed`, {
@@ -436,18 +450,31 @@ async function executeWebhookJobInternal(
       throw new Error(`Workflow ${payload.workflowId} not found`)
     }
 
-    // Use core execution function
-    const executionResult = await executeWorkflowCore({
+    const metadata: ExecutionMetadata = {
       requestId,
-      workflowId: payload.workflowId,
-      userId: payload.userId,
-      workflow: { ...workflow, workspaceId },
-      input: input || {},
-      triggerType: 'webhook',
-      loggingSession,
       executionId,
+      workflowId: payload.workflowId,
       workspaceId,
+      userId: payload.userId,
+      triggerType: 'webhook',
       triggerBlockId: payload.blockId,
+      useDraftState: false,
+      startTime: new Date().toISOString(),
+    }
+
+    const snapshot = new ExecutionSnapshot(
+      metadata,
+      workflow,
+      input || {},
+      {},
+      workflow.variables || {},
+      []
+    )
+
+    const executionResult = await executeWorkflowCore({
+      snapshot,
+      callbacks: {},
+      loggingSession,
     })
 
     logger.info(`[${requestId}] Webhook execution completed`, {
