@@ -26,6 +26,7 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
         { label: 'Send Message', id: 'send' },
         { label: 'Create Canvas', id: 'canvas' },
         { label: 'Read Messages', id: 'read' },
+        { label: 'Download File', id: 'download' },
       ],
       value: () => 'send',
     },
@@ -183,10 +184,35 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
         value: 'read',
       },
     },
+    // Download File specific fields
+    {
+      id: 'fileId',
+      title: 'File ID',
+      type: 'short-input',
+      layout: 'full',
+      placeholder: 'Enter Slack file ID (e.g., F1234567890)',
+      condition: {
+        field: 'operation',
+        value: 'download',
+      },
+      required: true,
+    },
+    {
+      id: 'downloadFileName',
+      title: 'File Name Override',
+      type: 'short-input',
+      layout: 'full',
+      canonicalParamId: 'fileName',
+      placeholder: 'Optional: Override the filename',
+      condition: {
+        field: 'operation',
+        value: 'download',
+      },
+    },
     ...getTrigger('slack_webhook').subBlocks,
   ],
   tools: {
-    access: ['slack_message', 'slack_canvas', 'slack_message_reader'],
+    access: ['slack_message', 'slack_canvas', 'slack_message_reader', 'slack_download'],
     config: {
       tool: (params) => {
         switch (params.operation) {
@@ -196,6 +222,8 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
             return 'slack_canvas'
           case 'read':
             return 'slack_message_reader'
+          case 'download':
+            return 'slack_download'
           default:
             throw new Error(`Invalid Slack operation: ${params.operation}`)
         }
@@ -276,6 +304,19 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
               baseParams.oldest = oldest
             }
             break
+
+          case 'download': {
+            const fileId = (rest as any).fileId
+            const downloadFileName = (rest as any).downloadFileName
+            if (!fileId) {
+              throw new Error('File ID is required for download operation')
+            }
+            baseParams.fileId = fileId
+            if (downloadFileName) {
+              baseParams.fileName = downloadFileName
+            }
+            break
+          }
         }
 
         return baseParams
@@ -296,6 +337,8 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
     content: { type: 'string', description: 'Canvas content' },
     limit: { type: 'string', description: 'Message limit' },
     oldest: { type: 'string', description: 'Oldest timestamp' },
+    fileId: { type: 'string', description: 'File ID to download' },
+    downloadFileName: { type: 'string', description: 'File name override for download' },
   },
   outputs: {
     // slack_message outputs
@@ -310,6 +353,12 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
     messages: {
       type: 'json',
       description: 'Array of message objects',
+    },
+
+    // slack_download outputs
+    file: {
+      type: 'json',
+      description: 'Downloaded file stored in execution files',
     },
 
     // Trigger outputs (when used as webhook trigger)

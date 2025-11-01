@@ -135,6 +135,25 @@ Read the latest messages from Slack channels. Retrieve conversation history with
 | --------- | ---- | ----------- |
 | `messages` | array | Array of message objects from the channel |
 
+### `slack_download`
+
+Download a file from Slack
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `authMethod` | string | No | Authentication method: oauth or bot_token |
+| `botToken` | string | No | Bot token for Custom Bot |
+| `fileId` | string | Yes | The ID of the file to download |
+| `fileName` | string | No | Optional filename override |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `file` | file | Downloaded file stored in execution files |
+
 
 
 ## Notes

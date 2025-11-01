@@ -55,6 +55,17 @@ export interface OneDriveUploadResponse extends ToolResponse {
   }
 }
 
+export interface OneDriveDownloadResponse extends ToolResponse {
+  output: {
+    file: {
+      name: string
+      mimeType: string
+      data: Buffer
+      size: number
+    }
+  }
+}
+
 export interface OneDriveToolParams {
   accessToken: string
   folderSelector?: string
@@ -73,4 +84,7 @@ export interface OneDriveToolParams {
   values?: (string | number | boolean | null)[][]
 }
 
-export type OneDriveResponse = OneDriveUploadResponse | OneDriveListResponse
+export type OneDriveResponse =
+  | OneDriveUploadResponse
+  | OneDriveDownloadResponse
+  | OneDriveListResponse

@@ -27,6 +27,11 @@ export interface SlackMessageReaderParams extends SlackBaseParams {
   latest?: string
 }
 
+export interface SlackDownloadParams extends SlackBaseParams {
+  fileId: string
+  fileName?: string
+}
+
 export interface SlackMessageResponse extends ToolResponse {
   output: {
     ts: string
@@ -54,4 +59,19 @@ export interface SlackMessageReaderResponse extends ToolResponse {
   }
 }
 
-export type SlackResponse = SlackCanvasResponse | SlackMessageReaderResponse | SlackMessageResponse
+export interface SlackDownloadResponse extends ToolResponse {
+  output: {
+    file: {
+      name: string
+      mimeType: string
+      data: Buffer
+      size: number
+    }
+  }
+}
+
+export type SlackResponse =
+  | SlackCanvasResponse
+  | SlackMessageReaderResponse
+  | SlackMessageResponse
+  | SlackDownloadResponse

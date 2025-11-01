@@ -118,6 +118,24 @@ Create a new folder in Google Drive
 | --------- | ---- | ----------- |
 | `file` | json | Created folder metadata including ID, name, and parent information |
 
+### `google_drive_download`
+
+Download a file from Google Drive (exports Google Workspace files automatically)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `fileId` | string | Yes | The ID of the file to download |
+| `mimeType` | string | No | The MIME type to export Google Workspace files to \(optional\) |
+| `fileName` | string | No | Optional filename override |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `file` | file | Downloaded file stored in execution files |
+
 ### `google_drive_list`
 
 List files and folders in Google Drive

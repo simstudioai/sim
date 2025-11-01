@@ -44,6 +44,7 @@ import {
 import { googleDocsCreateTool, googleDocsReadTool, googleDocsWriteTool } from '@/tools/google_docs'
 import {
   googleDriveCreateFolderTool,
+  googleDriveDownloadTool,
   googleDriveGetContentTool,
   googleDriveListTool,
   googleDriveUploadTool,
@@ -125,7 +126,12 @@ import {
   notionSearchTool,
   notionWriteTool,
 } from '@/tools/notion'
-import { onedriveCreateFolderTool, onedriveListTool, onedriveUploadTool } from '@/tools/onedrive'
+import {
+  onedriveCreateFolderTool,
+  onedriveDownloadTool,
+  onedriveListTool,
+  onedriveUploadTool,
+} from '@/tools/onedrive'
 import { imageTool, embeddingsTool as openAIEmbeddings } from '@/tools/openai'
 import {
   outlookDraftTool,
@@ -170,7 +176,12 @@ import {
   sharepointUpdateListItemTool,
   sharepointUploadFileTool,
 } from '@/tools/sharepoint'
-import { slackCanvasTool, slackMessageReaderTool, slackMessageTool } from '@/tools/slack'
+import {
+  slackCanvasTool,
+  slackDownloadTool,
+  slackMessageReaderTool,
+  slackMessageTool,
+} from '@/tools/slack'
 import { smsSendTool } from '@/tools/sms'
 import { stagehandAgentTool, stagehandExtractTool } from '@/tools/stagehand'
 import {
@@ -269,6 +280,7 @@ export const tools: Record<string, ToolConfig> = {
   slack_message: slackMessageTool,
   slack_message_reader: slackMessageReaderTool,
   slack_canvas: slackCanvasTool,
+  slack_download: slackDownloadTool,
   github_repo_info: githubRepoInfoTool,
   github_latest_commit: githubLatestCommitTool,
   serper_search: serperSearch,
@@ -339,6 +351,7 @@ export const tools: Record<string, ToolConfig> = {
   google_drive_get_content: googleDriveGetContentTool,
   google_drive_list: googleDriveListTool,
   google_drive_upload: googleDriveUploadTool,
+  google_drive_download: googleDriveDownloadTool,
   google_drive_create_folder: googleDriveCreateFolderTool,
   google_docs_read: googleDocsReadTool,
   google_docs_write: googleDocsWriteTool,
@@ -411,6 +424,7 @@ export const tools: Record<string, ToolConfig> = {
   linear_read_issues: linearReadIssuesTool,
   linear_create_issue: linearCreateIssueTool,
   onedrive_create_folder: onedriveCreateFolderTool,
+  onedrive_download: onedriveDownloadTool,
   onedrive_list: onedriveListTool,
   onedrive_upload: onedriveUploadTool,
   microsoft_excel_read: microsoftExcelReadTool,
