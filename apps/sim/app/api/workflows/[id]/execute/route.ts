@@ -8,8 +8,8 @@ import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { generateRequestId, SSE_HEADERS } from '@/lib/utils'
 import { executeWorkflowCore } from '@/lib/workflows/executor/execution-core'
 import { type ExecutionEvent, encodeSSEEvent } from '@/lib/workflows/executor/execution-events'
+import { type ExecutionMetadata, ExecutionSnapshot } from '@/executor/execution/snapshot'
 import type { StreamingExecution } from '@/executor/types'
-import { ExecutionSnapshot, type ExecutionMetadata } from '@/executor/execution/snapshot'
 import type { SubflowType } from '@/stores/workflows/workflow/types'
 import { validateWorkflowAccess } from '../../middleware'
 
@@ -159,11 +159,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     const defaultTriggerType = auth.authType === 'api_key' ? 'api' : 'manual'
 
-    const { selectedOutputs = [], triggerType = defaultTriggerType, stream: streamParam, useDraftState } = body
+    const {
+      selectedOutputs = [],
+      triggerType = defaultTriggerType,
+      stream: streamParam,
+      useDraftState,
+    } = body
 
     const input = auth.authType === 'api_key' ? body : body.input
-    
-    const shouldUseDraftState = useDraftState ?? (auth.authType === 'session')
+
+    const shouldUseDraftState = useDraftState ?? auth.authType === 'session'
 
     const streamHeader = req.headers.get('X-Stream-Response') === 'true'
     const enableSSE = streamHeader || streamParam === true

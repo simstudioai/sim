@@ -5,9 +5,9 @@ import { eq } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 import { createLogger } from '@/lib/logs/console/logger'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
-import { getWorkflowById } from '@/lib/workflows/utils'
 import { executeWorkflowCore } from '@/lib/workflows/executor/execution-core'
-import { ExecutionSnapshot, type ExecutionMetadata } from '@/executor/execution/snapshot'
+import { getWorkflowById } from '@/lib/workflows/utils'
+import { type ExecutionMetadata, ExecutionSnapshot } from '@/executor/execution/snapshot'
 
 const logger = createLogger('TriggerWorkflowExecution')
 

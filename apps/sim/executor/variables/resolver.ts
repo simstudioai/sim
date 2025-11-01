@@ -151,40 +151,40 @@ export class VariableResolver {
       `${REFERENCE.START}([^${REFERENCE.END}]+)${REFERENCE.END}`,
       'g'
     )
-    
+
     let replacementError: Error | null = null
-    
+
     result = result.replace(referenceRegex, (match) => {
       if (replacementError) return match
-      
+
       if (!isLikelyReferenceSegment(match)) {
         return match
       }
-      
+
       try {
         const resolved = this.resolveReference(match, resolutionContext)
         if (resolved === undefined) {
           return match
         }
-        
+
         const blockType = block?.metadata?.id
-        const isInTemplateLiteral = 
+        const isInTemplateLiteral =
           blockType === BlockType.FUNCTION &&
           template.includes('${') &&
           template.includes('}') &&
           template.includes('`')
-        
+
         return this.blockResolver.formatValueForBlock(resolved, blockType, isInTemplateLiteral)
       } catch (error) {
         replacementError = error instanceof Error ? error : new Error(String(error))
         return match
       }
     })
-    
+
     if (replacementError !== null) {
       throw replacementError
     }
-    
+
     const envRegex = new RegExp(`${REFERENCE.ENV_VAR_START}([^}]+)${REFERENCE.ENV_VAR_END}`, 'g')
     result = result.replace(envRegex, (match) => {
       const resolved = this.resolveReference(match, resolutionContext)

@@ -48,13 +48,14 @@ export class BlockExecutor {
     try {
       resolvedInputs = this.resolver.resolveInputs(ctx, node.id, block.config.params, block)
       const output = await handler.execute(ctx, block, resolvedInputs)
-      
-      const isStreamingExecution = output && typeof output === 'object' && 'stream' in output && 'execution' in output
-      
+
+      const isStreamingExecution =
+        output && typeof output === 'object' && 'stream' in output && 'execution' in output
+
       let normalizedOutput: NormalizedBlockOutput
       if (isStreamingExecution) {
         const streamingExec = output as { stream: ReadableStream; execution: any }
-        
+
         if (ctx.onStream) {
           try {
             await ctx.onStream(streamingExec)
@@ -62,12 +63,14 @@ export class BlockExecutor {
             logger.error('Error in onStream callback', { blockId: node.id, error })
           }
         }
-        
-        normalizedOutput = this.normalizeOutput(streamingExec.execution.output || streamingExec.execution)
+
+        normalizedOutput = this.normalizeOutput(
+          streamingExec.execution.output || streamingExec.execution
+        )
       } else {
         normalizedOutput = this.normalizeOutput(output)
       }
-      
+
       const duration = Date.now() - startTime
 
       if (blockLog) {

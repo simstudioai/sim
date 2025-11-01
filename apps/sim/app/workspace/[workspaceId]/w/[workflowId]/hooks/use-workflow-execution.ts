@@ -431,7 +431,9 @@ export function useWorkflowExecution() {
             const onBlockComplete = async (blockId: string, output: any) => {
               // Skip if this block already had streaming content (avoid duplicates)
               if (streamedContent.has(blockId)) {
-                logger.debug('[handleRunWorkflow] Skipping onBlockComplete for streaming block', { blockId })
+                logger.debug('[handleRunWorkflow] Skipping onBlockComplete for streaming block', {
+                  blockId,
+                })
                 return
               }
 

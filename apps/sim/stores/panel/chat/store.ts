@@ -180,29 +180,30 @@ export const useChatStore = create<ChatStore>()(
         },
 
         appendMessageContent: (messageId, content) => {
-          logger.debug('[ChatStore] appendMessageContent called', { 
-            messageId, 
+          logger.debug('[ChatStore] appendMessageContent called', {
+            messageId,
             contentLength: content.length,
-            content: content.substring(0, 30) 
+            content: content.substring(0, 30),
           })
           set((state) => {
             const message = state.messages.find((m) => m.id === messageId)
             if (!message) {
               logger.warn('[ChatStore] Message not found for appending', { messageId })
             }
-            
+
             const newMessages = state.messages.map((message) => {
               if (message.id === messageId) {
-                const newContent = typeof message.content === 'string'
-                  ? message.content + content
-                  : message.content
-                    ? String(message.content) + content
-                    : content
+                const newContent =
+                  typeof message.content === 'string'
+                    ? message.content + content
+                    : message.content
+                      ? String(message.content) + content
+                      : content
                 logger.debug('[ChatStore] Updated message content', {
                   messageId,
                   oldLength: typeof message.content === 'string' ? message.content.length : 0,
                   newLength: newContent.length,
-                  addedLength: content.length
+                  addedLength: content.length,
                 })
                 return {
                   ...message,

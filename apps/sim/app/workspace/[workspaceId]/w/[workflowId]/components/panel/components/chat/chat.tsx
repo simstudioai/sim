@@ -331,7 +331,9 @@ export function Chat({ chatMessage, setChatMessage }: ChatProps) {
       // Execute the workflow to generate a response
       logger.info('[ChatPanel] Executing workflow with input', { workflowInput, activeWorkflowId })
       result = await handleRunWorkflow(workflowInput)
-      logger.info('[ChatPanel] Workflow execution completed', { hasStream: result && 'stream' in result })
+      logger.info('[ChatPanel] Workflow execution completed', {
+        hasStream: result && 'stream' in result,
+      })
     } catch (error) {
       logger.error('Error in handleSendMessage:', error)
       setIsUploadingFiles(false)
@@ -403,11 +405,11 @@ export function Chat({ chatMessage, setChatMessage }: ChatProps) {
                 } else if (blockId && contentChunk) {
                   // Accumulate all content into the single message
                   accumulatedContent += contentChunk
-                  logger.debug('[ChatPanel] Appending chunk', { 
-                    blockId, 
+                  logger.debug('[ChatPanel] Appending chunk', {
+                    blockId,
                     chunkLength: contentChunk.length,
                     responseMessageId,
-                    chunk: contentChunk.substring(0, 20)
+                    chunk: contentChunk.substring(0, 20),
                   })
                   appendMessageContent(responseMessageId, contentChunk)
                 }

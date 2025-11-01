@@ -196,12 +196,12 @@ export function useChatStreaming() {
                 }
 
                 accumulatedText += contentChunk
-                logger.debug('[useChatStreaming] Received chunk', { 
-                  blockId, 
+                logger.debug('[useChatStreaming] Received chunk', {
+                  blockId,
                   chunkLength: contentChunk.length,
                   totalLength: accumulatedText.length,
                   messageId,
-                  chunk: contentChunk.substring(0, 20)
+                  chunk: contentChunk.substring(0, 20),
                 })
                 setMessages((prev) =>
                   prev.map((msg) =>

@@ -18,8 +18,8 @@ import { TriggerUtils } from '@/lib/workflows/triggers'
 import { updateWorkflowRunCounts } from '@/lib/workflows/utils'
 import { filterEdgesFromTriggerBlocks } from '@/app/workspace/[workspaceId]/w/[workflowId]/lib/workflow-execution-utils'
 import { Executor } from '@/executor'
+import type { ExecutionCallbacks, ExecutionSnapshot } from '@/executor/execution/snapshot'
 import type { ExecutionResult } from '@/executor/types'
-import { ExecutionSnapshot, type ExecutionCallbacks, type ExecutionMetadata } from '@/executor/execution/snapshot'
 import { Serializer } from '@/serializer'
 import { mergeSubblockState } from '@/stores/workflows/server-utils'
 
@@ -32,7 +32,6 @@ export interface ExecuteWorkflowCoreOptions {
   callbacks: ExecutionCallbacks
   loggingSession: LoggingSession
 }
-
 
 function parseVariableValueByType(value: any, type: string): any {
   if (value === null || value === undefined) {
@@ -95,15 +94,16 @@ function parseVariableValueByType(value: any, type: string): any {
   return typeof value === 'string' ? value : String(value)
 }
 
-
 export async function executeWorkflowCore(
   options: ExecuteWorkflowCoreOptions
 ): Promise<ExecutionResult> {
   const { snapshot, callbacks, loggingSession } = options
-  const { metadata, workflow, input, environmentVariables, workflowVariables, selectedOutputs } = snapshot
-  const { requestId, workflowId, userId, triggerType, executionId, triggerBlockId, useDraftState } = metadata
+  const { metadata, workflow, input, environmentVariables, workflowVariables, selectedOutputs } =
+    snapshot
+  const { requestId, workflowId, userId, triggerType, executionId, triggerBlockId, useDraftState } =
+    metadata
   const { onBlockStart, onBlockComplete, onStream, onExecutorCreated } = callbacks
-  
+
   const providedWorkspaceId = metadata.workspaceId
 
   let processedInput = input || {}
@@ -128,7 +128,9 @@ export async function executeWorkflowCore(
       loops = draftData.loops
       parallels = draftData.parallels
 
-      logger.info(`[${requestId}] Using draft workflow state from normalized tables (client execution)`)
+      logger.info(
+        `[${requestId}] Using draft workflow state from normalized tables (client execution)`
+      )
     } else {
       const deployedData = await loadDeployedWorkflowState(workflowId)
       blocks = deployedData.blocks
@@ -228,9 +230,7 @@ export async function executeWorkflowCore(
     let resolvedTriggerBlockId = triggerBlockId
     if (!triggerBlockId) {
       const executionKind =
-        triggerType === 'api' || triggerType === 'chat'
-          ? (triggerType as 'api' | 'chat')
-          : 'manual'
+        triggerType === 'api' || triggerType === 'chat' ? (triggerType as 'api' | 'chat') : 'manual'
 
       const startBlock = TriggerUtils.findStartBlock(mergedStates, executionKind, false)
 
@@ -301,7 +301,10 @@ export async function executeWorkflowCore(
       onExecutorCreated(executorInstance)
     }
 
-    const result = (await executorInstance.execute(workflowId, resolvedTriggerBlockId)) as ExecutionResult
+    const result = (await executorInstance.execute(
+      workflowId,
+      resolvedTriggerBlockId
+    )) as ExecutionResult
 
     // Build trace spans for logging
     const { traceSpans, totalDuration } = buildTraceSpans(result)

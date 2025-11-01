@@ -1,6 +1,5 @@
-import type { BlockLog, BlockState, ExecutionMetadata as BaseExecutionMetadata } from '@/executor/types'
-import type { SerializedWorkflow } from '@/serializer/types'
 import type { Edge } from 'reactflow'
+import type { BlockLog, BlockState } from '@/executor/types'
 
 export interface ExecutionMetadata {
   requestId: string
@@ -83,7 +82,7 @@ export class ExecutionSnapshot {
 }
 
 // TODO: Implement pause/resume functionality
-// 
+//
 // Future implementation should include:
 // 1. executor.pause() - Captures current state mid-execution
 //    - Serialize ExecutionContext (blockStates, decisions, loops, etc) to state property
@@ -97,4 +96,3 @@ export class ExecutionSnapshot {
 //    - POST /api/executions/[id]/resume
 // 4. Database schema:
 //    - execution_snapshots table with snapshot JSON column
-

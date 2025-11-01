@@ -110,12 +110,12 @@ export interface ExecutionContext {
   // Whether this execution is running against deployed state (API/webhook/schedule/chat)
   // Manual executions in the builder should leave this undefined/false
   isDeployedContext?: boolean
-  
+
   // CONSOLIDATED STATE - Single source of truth for execution state
   // Uses shared references with ExecutionState class
   blockStates: Map<string, BlockState>
   executedBlocks: Set<string> // Set of block IDs that have been executed
-  
+
   blockLogs: BlockLog[] // Chronological log of block executions
   metadata: ExecutionMetadata // Timing metadata for the execution
   environmentVariables: Record<string, string> // Environment variables available during execution

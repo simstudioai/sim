@@ -161,7 +161,9 @@ export class ExecutionEngine {
           await this.handleNodeCompletion(nodeId, result.output, result.isFinalOutput)
         })
       } else {
-        logger.debug('Node was already executed, skipping edge processing to avoid loops', { nodeId })
+        logger.debug('Node was already executed, skipping edge processing to avoid loops', {
+          nodeId,
+        })
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error)

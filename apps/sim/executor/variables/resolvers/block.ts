@@ -66,14 +66,14 @@ export class BlockResolver implements Resolver {
     }
 
     const result = this.navigatePath(output, pathParts)
-    
+
     if (result === undefined) {
       const availableKeys = output && typeof output === 'object' ? Object.keys(output) : []
       throw new Error(
         `No value found at path "${pathParts.join('.')}" in block "${blockName}". Available fields: ${availableKeys.join(', ')}`
       )
     }
-    
+
     logger.debug('Navigated path result', {
       blockName,
       pathParts,
@@ -109,7 +109,7 @@ export class BlockResolver implements Resolver {
       if (current === null || current === undefined) {
         return undefined
       }
-      
+
       const arrayMatch = part.match(/^([^[]+)\[(\d+)\](.*)$/)
       if (arrayMatch) {
         current = this.resolvePartWithIndices(current, part, '', 'block')
@@ -123,7 +123,12 @@ export class BlockResolver implements Resolver {
     return current
   }
 
-  private resolvePartWithIndices(base: any, part: string, fullPath: string, sourceName: string): any {
+  private resolvePartWithIndices(
+    base: any,
+    part: string,
+    fullPath: string,
+    sourceName: string
+  ): any {
     let value = base
 
     const propMatch = part.match(/^([^[]+)/)
@@ -148,7 +153,9 @@ export class BlockResolver implements Resolver {
         throw new Error(`Invalid path "${part}" in "${fullPath}" for block "${sourceName}".`)
       }
       if (idx < 0 || idx >= value.length) {
-        throw new Error(`Array index ${idx} out of bounds (length: ${value.length}) in path "${part}"`)
+        throw new Error(
+          `Array index ${idx} out of bounds (length: ${value.length}) in path "${part}"`
+        )
       }
       value = value[idx]
       rest = rest.slice(m[0].length)
@@ -157,7 +164,11 @@ export class BlockResolver implements Resolver {
     return value
   }
 
-  formatValueForBlock(value: any, blockType: string | undefined, isInTemplateLiteral: boolean = false): string {
+  formatValueForBlock(
+    value: any,
+    blockType: string | undefined,
+    isInTemplateLiteral = false
+  ): string {
     if (blockType === 'condition') {
       return this.stringifyForCondition(value)
     }
