@@ -46,9 +46,7 @@ export class BlockExecutor {
     let resolvedInputs: Record<string, any> = {}
 
     try {
-      logger.debug('About to resolve inputs', { nodeId: node.id, params: block.config.params })
       resolvedInputs = this.resolver.resolveInputs(ctx, node.id, block.config.params, block)
-      logger.debug('Inputs resolved successfully', { nodeId: node.id, resolvedInputs })
       const output = await handler.execute(ctx, block, resolvedInputs)
       const normalizedOutput = this.normalizeOutput(output)
       const duration = Date.now() - startTime

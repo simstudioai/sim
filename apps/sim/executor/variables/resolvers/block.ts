@@ -69,14 +69,9 @@ export class BlockResolver implements Resolver {
     
     if (result === undefined) {
       const availableKeys = output && typeof output === 'object' ? Object.keys(output) : []
-      const errorMsg = `No value found at path "${pathParts.join('.')}" in block "${blockName}". Available fields: ${availableKeys.join(', ')}`
-      logger.error('Path navigation returned undefined, throwing error', {
-        blockName,
-        pathParts,
-        availableKeys,
-        errorMsg,
-      })
-      throw new Error(errorMsg)
+      throw new Error(
+        `No value found at path "${pathParts.join('.')}" in block "${blockName}". Available fields: ${availableKeys.join(', ')}`
+      )
     }
     
     logger.debug('Navigated path result', {

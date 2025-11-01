@@ -185,10 +185,6 @@ export class VariableResolver {
     
     // Re-throw any error that occurred during replacement
     if (replacementError !== null) {
-      logger.error('Re-throwing error that occurred during reference resolution', {
-        error: (replacementError as Error).message,
-        template,
-      })
       throw replacementError
     }
     
