@@ -122,39 +122,35 @@ export function TriggerSave({
       .map((sb) => sb.id)
   }, [triggerDef])
 
-  const otherRequiredValues = useMemo(() => {
-    if (!triggerDef) return {}
-    const values: Record<string, any> = {}
-    requiredSubBlockIds
-      .filter((id) => id !== 'triggerCredentials')
-      .forEach((subBlockId) => {
-        const value = useSubBlockStore.getState().getValue(blockId, subBlockId)
-        if (value !== null && value !== undefined && value !== '') {
-          values[subBlockId] = value
-        }
-      })
-    return values
-  }, [blockId, triggerDef, requiredSubBlockIds])
-
-  const requiredSubBlockValues = useMemo(() => {
-    return {
-      triggerCredentials,
-      ...otherRequiredValues,
-    }
-  }, [triggerCredentials, otherRequiredValues])
+  const subscribedSubBlockValues = useSubBlockStore(
+    useCallback(
+      (state) => {
+        if (!triggerDef) return {}
+        const values: Record<string, any> = {}
+        requiredSubBlockIds.forEach((subBlockId) => {
+          const value = state.getValue(blockId, subBlockId)
+          if (value !== null && value !== undefined && value !== '') {
+            values[subBlockId] = value
+          }
+        })
+        return values
+      },
+      [blockId, triggerDef, requiredSubBlockIds]
+    )
+  )
 
   const previousValuesRef = useRef<Record<string, any>>({})
   const validationTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   useEffect(() => {
     if (saveStatus !== 'error' || !triggerDef) {
-      previousValuesRef.current = requiredSubBlockValues
+      previousValuesRef.current = subscribedSubBlockValues
       return
     }
 
-    const hasChanges = Object.keys(requiredSubBlockValues).some(
+    const hasChanges = Object.keys(subscribedSubBlockValues).some(
       (key) =>
-        previousValuesRef.current[key] !== (requiredSubBlockValues as Record<string, any>)[key]
+        previousValuesRef.current[key] !== (subscribedSubBlockValues as Record<string, any>)[key]
     )
 
     if (!hasChanges) {
@@ -172,9 +168,7 @@ export function TriggerSave({
         useSubBlockStore.getState().setValue(blockId, 'triggerConfig', aggregatedConfig)
       }
 
-      const configToValidate =
-        aggregatedConfig ?? useSubBlockStore.getState().getValue(blockId, 'triggerConfig')
-      const validation = validateRequiredFields(configToValidate)
+      const validation = validateRequiredFields(aggregatedConfig)
 
       if (validation.valid) {
         setErrorMessage(null)
@@ -192,7 +186,7 @@ export function TriggerSave({
         })
       }
 
-      previousValuesRef.current = requiredSubBlockValues
+      previousValuesRef.current = subscribedSubBlockValues
     }, 300)
 
     return () => {
@@ -204,7 +198,7 @@ export function TriggerSave({
     blockId,
     effectiveTriggerId,
     triggerDef,
-    requiredSubBlockValues,
+    subscribedSubBlockValues,
     saveStatus,
     validateRequiredFields,
   ])
@@ -227,8 +221,7 @@ export function TriggerSave({
         })
       }
 
-      const configToValidate = aggregatedConfig ?? triggerConfig
-      const validation = validateRequiredFields(configToValidate)
+      const validation = validateRequiredFields(aggregatedConfig)
       if (!validation.valid) {
         setErrorMessage(`Missing required fields: ${validation.missingFields.join(', ')}`)
         setSaveStatus('error')
