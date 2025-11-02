@@ -72,6 +72,13 @@ export interface SlackMessageReaderResponse extends ToolResponse {
       user: string
       type: string
       subtype?: string
+      files?: Array<{
+        id: string
+        name: string
+        mimetype: string
+        size: number
+        url_private?: string
+      }>
     }>
   }
 }
