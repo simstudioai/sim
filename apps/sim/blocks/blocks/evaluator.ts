@@ -252,7 +252,6 @@ export const EvaluatorBlock: BlockConfig<EvaluatorResponse> = {
       layout: 'half',
       min: 0,
       max: 2,
-      value: () => '0.1',
       hidden: true,
     },
     {
