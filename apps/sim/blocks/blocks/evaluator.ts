@@ -174,7 +174,7 @@ export const EvaluatorBlock: BlockConfig<EvaluatorResponse> = {
     {
       id: 'content',
       title: 'Content',
-      type: 'short-input',
+      type: 'long-input',
       layout: 'full',
       placeholder: 'Enter the content to evaluate',
       required: true,

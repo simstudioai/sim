@@ -363,6 +363,12 @@ export function VariablesInput({
                             dragHighlight[assignment.id] && 'ring-2 ring-blue-500 ring-offset-2',
                             isConnecting && 'ring-2 ring-blue-500 ring-offset-2'
                           )}
+                          style={{
+                            fontFamily: 'inherit',
+                            lineHeight: 'inherit',
+                            wordBreak: 'break-word',
+                            whiteSpace: 'pre-wrap',
+                          }}
                           onDrop={(e) => handleDrop(e, assignment.id)}
                           onDragOver={(e) => handleDragOver(e, assignment.id)}
                           onDragLeave={(e) => handleDragLeave(e, assignment.id)}
@@ -371,7 +377,11 @@ export function VariablesInput({
                           ref={(el) => {
                             if (el) overlayRefs.current[assignment.id] = el
                           }}
-                          className='pointer-events-none absolute inset-0 flex items-start overflow-auto bg-transparent px-3 py-2 text-sm'
+                          className='pointer-events-none absolute inset-0 flex items-start overflow-auto bg-transparent px-3 py-2 font-mono text-sm'
+                          style={{
+                            fontFamily: 'inherit',
+                            lineHeight: 'inherit',
+                          }}
                         >
                           <div className='w-full whitespace-pre-wrap break-words'>
                             {formatDisplayText(assignment.value || '', {
