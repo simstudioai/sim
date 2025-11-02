@@ -174,27 +174,45 @@ export async function loadWorkflowFromNormalizedTables(
       const config = (subflow.config ?? {}) as Partial<Loop & Parallel>
 
       if (subflow.type === SUBFLOW_TYPES.LOOP) {
+        const loopType =
+          (config as Loop).loopType === 'for' ||
+          (config as Loop).loopType === 'forEach' ||
+          (config as Loop).loopType === 'while' ||
+          (config as Loop).loopType === 'doWhile'
+            ? (config as Loop).loopType
+            : 'for'
+
         const loop: Loop = {
           id: subflow.id,
           nodes: Array.isArray((config as Loop).nodes) ? (config as Loop).nodes : [],
           iterations:
             typeof (config as Loop).iterations === 'number' ? (config as Loop).iterations : 1,
-          loopType:
-            (config as Loop).loopType === 'for' ||
-            (config as Loop).loopType === 'forEach' ||
-            (config as Loop).loopType === 'while' ||
-            (config as Loop).loopType === 'doWhile'
-              ? (config as Loop).loopType
-              : 'for',
+          loopType,
           forEachItems: (config as Loop).forEachItems ?? '',
-          whileCondition: (config as Loop).whileCondition ?? undefined,
+          whileCondition: (config as Loop).whileCondition ?? '',
+          doWhileCondition: (config as Loop).doWhileCondition ?? '',
         }
         loops[subflow.id] = loop
+
+        // Sync block.data with loop config to ensure all fields are present
+        // This allows switching between loop types without losing data
+        if (sanitizedBlocks[subflow.id]) {
+          const block = sanitizedBlocks[subflow.id]
+          sanitizedBlocks[subflow.id] = {
+            ...block,
+            data: {
+              ...block.data,
+              collection: loop.forEachItems ?? block.data?.collection ?? '',
+              whileCondition: loop.whileCondition ?? block.data?.whileCondition ?? '',
+              doWhileCondition: loop.doWhileCondition ?? block.data?.doWhileCondition ?? '',
+            },
+          }
+        }
       } else if (subflow.type === SUBFLOW_TYPES.PARALLEL) {
         const parallel: Parallel = {
           id: subflow.id,
           nodes: Array.isArray((config as Parallel).nodes) ? (config as Parallel).nodes : [],
-          count: typeof (config as Parallel).count === 'number' ? (config as Parallel).count : 2,
+          count: typeof (config as Parallel).count === 'number' ? (config as Parallel).count : 5,
           distribution: (config as Parallel).distribution ?? '',
           parallelType:
             (config as Parallel).parallelType === 'count' ||

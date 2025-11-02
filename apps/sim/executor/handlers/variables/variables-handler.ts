@@ -18,9 +18,9 @@ export class VariablesBlockHandler implements BlockHandler {
   }
 
   async execute(
+    ctx: ExecutionContext,
     block: SerializedBlock,
-    inputs: Record<string, any>,
-    context: ExecutionContext
+    inputs: Record<string, any>
   ): Promise<BlockOutput> {
     logger.info(`Executing variables block: ${block.id}`, {
       blockName: block.metadata?.name,
@@ -29,22 +29,22 @@ export class VariablesBlockHandler implements BlockHandler {
     })
 
     try {
-      if (!context.workflowVariables) {
-        context.workflowVariables = {}
+      if (!ctx.workflowVariables) {
+        ctx.workflowVariables = {}
       }
 
       const assignments = this.parseAssignments(inputs.variables)
 
       for (const assignment of assignments) {
         const existingEntry = assignment.variableId
-          ? [assignment.variableId, context.workflowVariables[assignment.variableId]]
-          : Object.entries(context.workflowVariables).find(
+          ? [assignment.variableId, ctx.workflowVariables[assignment.variableId]]
+          : Object.entries(ctx.workflowVariables).find(
               ([_, v]) => v.name === assignment.variableName
             )
 
         if (existingEntry?.[1]) {
           const [id, variable] = existingEntry
-          context.workflowVariables[id] = {
+          ctx.workflowVariables[id] = {
             ...variable,
             value: assignment.value,
           }
@@ -55,8 +55,8 @@ export class VariablesBlockHandler implements BlockHandler {
 
       logger.info('Variables updated', {
         updatedVariables: assignments.map((a) => a.variableName),
-        allVariables: Object.values(context.workflowVariables).map((v: any) => v.name),
-        updatedValues: Object.entries(context.workflowVariables).map(([id, v]: [string, any]) => ({
+        allVariables: Object.values(ctx.workflowVariables).map((v: any) => v.name),
+        updatedValues: Object.entries(ctx.workflowVariables).map(([id, v]: [string, any]) => ({
           id,
           name: v.name,
           value: v.value,

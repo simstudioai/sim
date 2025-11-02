@@ -21,29 +21,23 @@ export class TriggerBlockHandler implements BlockHandler {
   }
 
   async execute(
+    ctx: ExecutionContext,
     block: SerializedBlock,
-    inputs: Record<string, any>,
-    context: ExecutionContext
+    inputs: Record<string, any>
   ): Promise<any> {
     logger.info(`Executing trigger block: ${block.id} (Type: ${block.metadata?.id})`)
 
-    // If this trigger block was initialized with a precomputed output in the execution context
-    // (e.g., webhook payload injected at init), return it as-is to preserve the raw shape.
-    const existingState = context.blockStates.get(block.id)
+    const existingState = ctx.blockStates.get(block.id)
     if (existingState?.output && Object.keys(existingState.output).length > 0) {
       const existingOutput = existingState.output as any
       const existingProvider = existingOutput?.webhook?.data?.provider
 
-      // Provider-specific output shaping should be handled upstream per trigger's webhook formatter
-
       return existingOutput
     }
 
-    // For trigger blocks, return the starter block's output which contains the workflow input
-    // This ensures webhook data like message, sender, chat, etc. are accessible
-    const starterBlock = context.workflow?.blocks?.find((b) => b.metadata?.id === 'starter')
+    const starterBlock = ctx.workflow?.blocks?.find((b) => b.metadata?.id === 'starter')
     if (starterBlock) {
-      const starterState = context.blockStates.get(starterBlock.id)
+      const starterState = ctx.blockStates.get(starterBlock.id)
       if (starterState?.output && Object.keys(starterState.output).length > 0) {
         const starterOutput = starterState.output
 
@@ -59,7 +53,6 @@ export class TriggerBlockHandler implements BlockHandler {
             blockType: block.metadata?.id,
           })
 
-          // Provider-specific early return for GitHub: expose raw payload at root
           if (provider === 'github') {
             const payloadSource = webhookData.payload || {}
             return {
@@ -70,98 +63,72 @@ export class TriggerBlockHandler implements BlockHandler {
 
           if (provider === 'microsoftteams') {
             const providerData = (starterOutput as any)[provider] || webhookData[provider] || {}
-            // Expose the raw Teams message payload at the root for easy indexing
             const payloadSource = providerData?.message?.raw || webhookData.payload || {}
             return {
               ...payloadSource,
-              // Keep nested copy for backwards compatibility with existing workflows
               [provider]: providerData,
               webhook: starterOutput.webhook,
             }
           }
 
-          // Provider-specific early return for Airtable: preserve raw shape entirely
           if (provider === 'airtable') {
             return starterOutput
           }
 
-          // Extract the flattened properties that should be at root level (non-GitHub/Airtable)
           const result: any = {
-            // Always keep the input at root level
             input: starterOutput.input,
           }
 
-          // FIRST: Copy all existing top-level properties (like 'event', 'message', etc.)
-          // This ensures that properties already flattened in webhook utils are preserved
           for (const [key, value] of Object.entries(starterOutput)) {
             if (key !== 'webhook' && key !== provider) {
               result[key] = value
             }
           }
 
-          // SECOND: Generic extraction logic based on common webhook patterns
-          // Pattern 1: Provider-specific nested object (telegram, microsoftteams, etc.)
           if (provider && starterOutput[provider]) {
-            // Copy all properties from provider object to root level for direct access
             const providerData = starterOutput[provider]
 
             for (const [key, value] of Object.entries(providerData)) {
-              // For other providers, keep existing logic (only copy objects)
               if (typeof value === 'object' && value !== null) {
-                // Don't overwrite existing top-level properties
                 if (!result[key]) {
                   result[key] = value
                 }
               }
             }
 
-            // Keep nested structure for backwards compatibility
             result[provider] = providerData
-          }
-
-          // Pattern 2: Provider data directly in webhook.data (based on actual structure)
-          else if (provider && webhookData[provider]) {
+          } else if (provider && webhookData[provider]) {
             const providerData = webhookData[provider]
 
-            // Extract all provider properties to root level
             for (const [key, value] of Object.entries(providerData)) {
               if (typeof value === 'object' && value !== null) {
-                // Don't overwrite existing top-level properties
                 if (!result[key]) {
                   result[key] = value
                 }
               }
             }
 
-            // Keep nested structure for backwards compatibility
             result[provider] = providerData
-          }
-
-          // Pattern 3: Email providers with data in webhook.data.payload.email (Gmail, Outlook)
-          else if (
+          } else if (
             provider &&
             (provider === 'gmail' || provider === 'outlook') &&
             webhookData.payload?.email
           ) {
             const emailData = webhookData.payload.email
 
-            // Flatten email fields to root level for direct access
             for (const [key, value] of Object.entries(emailData)) {
               if (!result[key]) {
                 result[key] = value
               }
             }
 
-            // Keep the email object for backwards compatibility
             result.email = emailData
 
-            // Also keep timestamp if present in payload
             if (webhookData.payload.timestamp) {
               result.timestamp = webhookData.payload.timestamp
             }
           }
 
-          // Always keep webhook metadata
           if (starterOutput.webhook) result.webhook = starterOutput.webhook
 
           return result
@@ -174,7 +141,6 @@ export class TriggerBlockHandler implements BlockHandler {
       }
     }
 
-    // Fallback to resolved inputs if no starter block output
     if (inputs && Object.keys(inputs).length > 0) {
       logger.debug(`Returning trigger inputs for block ${block.id}`, {
         inputKeys: Object.keys(inputs),
@@ -182,7 +148,6 @@ export class TriggerBlockHandler implements BlockHandler {
       return inputs
     }
 
-    // Fallback - return empty object for trigger blocks with no inputs
     logger.debug(`No inputs provided for trigger block ${block.id}, returning empty object`)
     return {}
   }

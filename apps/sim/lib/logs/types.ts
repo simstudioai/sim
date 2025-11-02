@@ -176,6 +176,9 @@ export interface TraceSpan {
     total?: number
   }
   providerTiming?: ProviderTiming
+  loopId?: string
+  parallelId?: string
+  iterationIndex?: number
 }
 
 export interface WorkflowExecutionSummary {

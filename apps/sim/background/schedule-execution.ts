@@ -8,7 +8,6 @@ import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { getPersonalAndWorkspaceEnv } from '@/lib/environment/utils'
 import { createLogger } from '@/lib/logs/console/logger'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
-import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import {
   type BlockState,
   calculateNextRunTime as calculateNextTime,
@@ -17,9 +16,9 @@ import {
 } from '@/lib/schedules/utils'
 import { decryptSecret } from '@/lib/utils'
 import { blockExistsInDeployment, loadDeployedWorkflowState } from '@/lib/workflows/db-helpers'
-import { updateWorkflowRunCounts } from '@/lib/workflows/utils'
+import { executeWorkflowCore } from '@/lib/workflows/executor/execution-core'
 import { getWorkspaceBilledAccountUserId } from '@/lib/workspaces/utils'
-import { Executor } from '@/executor'
+import { type ExecutionMetadata, ExecutionSnapshot } from '@/executor/execution/snapshot'
 import { Serializer } from '@/serializer'
 import { RateLimiter } from '@/services/queue'
 import { mergeSubblockState } from '@/stores/workflows/server-utils'
@@ -336,42 +335,36 @@ export async function executeScheduleJob(payload: ScheduleExecutionPayload) {
             variables: variables || {},
           })
 
-          const executor = new Executor({
-            workflow: serializedWorkflow,
-            currentBlockStates: processedBlockStates,
-            envVarValues: decryptedEnvVars,
-            workflowInput: input,
-            workflowVariables,
-            contextExtensions: {
-              executionId,
-              workspaceId: workflowRecord.workspaceId || '',
-              isDeployedContext: true,
-            },
+          const metadata: ExecutionMetadata = {
+            requestId,
+            executionId,
+            workflowId: payload.workflowId,
+            workspaceId: workflowRecord.workspaceId || '',
+            userId: actorUserId,
+            triggerType: 'schedule',
+            triggerBlockId: payload.blockId || undefined,
+            useDraftState: false,
+            startTime: new Date().toISOString(),
+          }
+
+          const snapshot = new ExecutionSnapshot(
+            metadata,
+            workflowRecord,
+            input,
+            {},
+            workflowRecord.variables || {},
+            []
+          )
+
+          const executionResult = await executeWorkflowCore({
+            snapshot,
+            callbacks: {},
+            loggingSession,
           })
-
-          loggingSession.setupExecutor(executor)
-
-          const result = await executor.execute(payload.workflowId, payload.blockId || undefined)
-
-          const executionResult =
-            'stream' in result && 'execution' in result ? result.execution : result
 
           logger.info(`[${requestId}] Workflow execution completed: ${payload.workflowId}`, {
             success: executionResult.success,
             executionTime: executionResult.metadata?.duration,
-          })
-
-          if (executionResult.success) {
-            await updateWorkflowRunCounts(payload.workflowId)
-          }
-
-          const { traceSpans, totalDuration } = buildTraceSpans(executionResult)
-
-          await loggingSession.safeComplete({
-            endedAt: new Date().toISOString(),
-            totalDurationMs: totalDuration || 0,
-            finalOutput: executionResult.output || {},
-            traceSpans: (traceSpans || []) as any,
           })
 
           return { success: executionResult.success, blocks, executionResult }

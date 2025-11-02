@@ -13,7 +13,7 @@ interface InputFormatField {
 }
 
 interface InputTriggerBlock {
-  type: 'input_trigger'
+  type: 'input_trigger' | 'start_trigger'
   subBlocks?: {
     inputFormat?: { value?: InputFormatField[] }
   }
@@ -32,8 +32,9 @@ interface StarterBlockLegacy {
 }
 
 function isInputTriggerBlock(value: unknown): value is InputTriggerBlock {
+  const type = (value as { type?: unknown }).type
   return (
-    !!value && typeof value === 'object' && (value as { type?: unknown }).type === 'input_trigger'
+    !!value && typeof value === 'object' && (type === 'input_trigger' || type === 'start_trigger')
   )
 }
 

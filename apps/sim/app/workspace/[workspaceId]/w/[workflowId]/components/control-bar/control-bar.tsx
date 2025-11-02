@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   Bug,
   ChevronLeft,
@@ -47,6 +47,7 @@ import {
   getKeyboardShortcutText,
   useKeyboardShortcuts,
 } from '@/app/workspace/[workspaceId]/w/hooks/use-keyboard-shortcuts'
+import { useDebounce } from '@/hooks/use-debounce'
 import { useFolderStore } from '@/stores/folders/store'
 import { useOperationQueueStore } from '@/stores/operation-queue/store'
 import { usePanelStore } from '@/stores/panel/store'
@@ -265,6 +266,39 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
     activeWorkflowId ? state.workflowValues[activeWorkflowId] : null
   )
 
+  const [blockStructureVersion, setBlockStructureVersion] = useState(0)
+  const [edgeStructureVersion, setEdgeStructureVersion] = useState(0)
+  const [subBlockStructureVersion, setSubBlockStructureVersion] = useState(0)
+
+  useEffect(() => {
+    setBlockStructureVersion((version) => version + 1)
+  }, [currentBlocks])
+
+  useEffect(() => {
+    setEdgeStructureVersion((version) => version + 1)
+  }, [currentEdges])
+
+  useEffect(() => {
+    setSubBlockStructureVersion((version) => version + 1)
+  }, [subBlockValues])
+
+  useEffect(() => {
+    setBlockStructureVersion(0)
+    setEdgeStructureVersion(0)
+    setSubBlockStructureVersion(0)
+  }, [activeWorkflowId])
+
+  const statusCheckTrigger = useMemo(() => {
+    return JSON.stringify({
+      lastSaved: lastSaved ?? 0,
+      blockVersion: blockStructureVersion,
+      edgeVersion: edgeStructureVersion,
+      subBlockVersion: subBlockStructureVersion,
+    })
+  }, [lastSaved, blockStructureVersion, edgeStructureVersion, subBlockStructureVersion])
+
+  const debouncedStatusCheckTrigger = useDebounce(statusCheckTrigger, 500)
+
   useEffect(() => {
     // Avoid off-by-one false positives: wait until operation queue is idle
     const { operations, isProcessing } = useOperationQueueStore.getState()
@@ -299,16 +333,7 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
     }
 
     checkForChanges()
-  }, [
-    activeWorkflowId,
-    deployedState,
-    currentBlocks,
-    currentEdges,
-    subBlockValues,
-    isLoadingDeployedState,
-    useOperationQueueStore.getState().isProcessing,
-    useOperationQueueStore.getState().operations.length,
-  ])
+  }, [activeWorkflowId, deployedState, debouncedStatusCheckTrigger, isLoadingDeployedState])
 
   useEffect(() => {
     if (session?.user?.id && !isRegistryLoading) {

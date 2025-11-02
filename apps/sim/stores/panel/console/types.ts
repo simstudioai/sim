@@ -1,4 +1,5 @@
 import type { NormalizedBlockOutput } from '@/executor/types'
+import type { SubflowType } from '@/stores/workflows/workflow/types'
 
 export interface ConsoleEntry {
   id: string
@@ -19,14 +20,14 @@ export interface ConsoleEntry {
   // Iteration context for loops and parallels
   iterationCurrent?: number
   iterationTotal?: number
-  iterationType?: 'loop' | 'parallel'
+  iterationType?: SubflowType
 }
 
 export interface ConsoleUpdate {
   content?: string
   input?: any
   output?: Partial<NormalizedBlockOutput>
-  replaceOutput?: NormalizedBlockOutput // New field for complete replacement
+  replaceOutput?: NormalizedBlockOutput
   error?: string
   warning?: string
   success?: boolean

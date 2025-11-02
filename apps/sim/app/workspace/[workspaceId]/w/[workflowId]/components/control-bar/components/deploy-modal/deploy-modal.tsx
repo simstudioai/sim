@@ -17,6 +17,7 @@ import { getEnv } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
 import type { WorkflowDeploymentVersionResponse } from '@/lib/workflows/db-helpers'
+import { resolveStartCandidates, StartBlockPath } from '@/lib/workflows/triggers'
 import { DeploymentInfo } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/control-bar/components/deploy-modal/components'
 import { ChatDeploy } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/control-bar/components/deploy-modal/components/chat-deploy/chat-deploy'
 import { DeployedWorkflowModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/control-bar/components/deployment-controls/components/deployed-workflow-modal'
@@ -114,13 +115,17 @@ export function DeployModal({
     let inputFormatExample = ''
     try {
       const blocks = Object.values(useWorkflowStore.getState().blocks)
+      const candidates = resolveStartCandidates(useWorkflowStore.getState().blocks, {
+        execution: 'api',
+      })
 
-      // Check for API trigger block first (takes precedence)
-      const apiTriggerBlock = blocks.find((block) => block.type === 'api_trigger')
-      // Fall back to legacy starter block
-      const starterBlock = blocks.find((block) => block.type === 'starter')
+      const targetCandidate =
+        candidates.find((candidate) => candidate.path === StartBlockPath.UNIFIED) ||
+        candidates.find((candidate) => candidate.path === StartBlockPath.SPLIT_API) ||
+        candidates.find((candidate) => candidate.path === StartBlockPath.SPLIT_INPUT) ||
+        candidates.find((candidate) => candidate.path === StartBlockPath.LEGACY_STARTER)
 
-      const targetBlock = apiTriggerBlock || starterBlock
+      const targetBlock = targetCandidate?.block
 
       if (targetBlock) {
         const inputFormat = useSubBlockStore.getState().getValue(targetBlock.id, 'inputFormat')

@@ -110,6 +110,9 @@ export function buildTraceSpans(result: ExecutionResult): {
       blockId: log.blockId,
       input: log.input || {},
       output: output,
+      ...(log.loopId && { loopId: log.loopId }),
+      ...(log.parallelId && { parallelId: log.parallelId }),
+      ...(log.iterationIndex !== undefined && { iterationIndex: log.iterationIndex }),
     }
 
     if (log.output?.providerTiming) {
@@ -483,6 +486,12 @@ function groupIterationBlocks(spans: TraceSpan[]): TraceSpan[] {
       }
     >()
 
+    // Track sequential numbers for loops and parallels
+    const loopNumbers = new Map<string, number>()
+    const parallelNumbers = new Map<string, number>()
+    let loopCounter = 1
+    let parallelCounter = 1
+
     iterationSpans.forEach((span) => {
       const iterationMatch = span.name.match(/^(.+) \(iteration (\d+)\)$/)
       if (iterationMatch) {
@@ -490,27 +499,81 @@ function groupIterationBlocks(spans: TraceSpan[]): TraceSpan[] {
         let containerId = 'unknown'
         let containerName = 'Unknown'
 
-        if (span.blockId?.includes('_parallel_')) {
-          const parallelMatch = span.blockId.match(/_parallel_([^_]+)_iteration_/)
-          if (parallelMatch) {
-            containerType = 'parallel'
-            containerId = parallelMatch[1]
+        // Use the loopId/parallelId from the span metadata (set during execution)
+        if (span.parallelId) {
+          containerType = 'parallel'
+          containerId = span.parallelId
 
-            const parallelBlock = normalSpans.find(
-              (s) => s.blockId === containerId && s.type === 'parallel'
-            )
-            containerName = parallelBlock?.name || `Parallel ${containerId}`
+          const parallelBlock = normalSpans.find(
+            (s) => s.blockId === containerId && s.type === 'parallel'
+          )
+
+          // Use custom name if available, otherwise assign sequential number
+          if (parallelBlock?.name) {
+            containerName = parallelBlock.name
+          } else {
+            if (!parallelNumbers.has(containerId)) {
+              parallelNumbers.set(containerId, parallelCounter++)
+            }
+            containerName = `Parallel ${parallelNumbers.get(containerId)}`
+          }
+        } else if (span.loopId) {
+          containerType = 'loop'
+          containerId = span.loopId
+
+          const loopBlock = normalSpans.find((s) => s.blockId === containerId && s.type === 'loop')
+
+          // Use custom name if available, otherwise assign sequential number
+          if (loopBlock?.name) {
+            containerName = loopBlock.name
+          } else {
+            if (!loopNumbers.has(containerId)) {
+              loopNumbers.set(containerId, loopCounter++)
+            }
+            containerName = `Loop ${loopNumbers.get(containerId)}`
           }
         } else {
-          containerType = 'loop'
+          // Fallback to old logic if metadata is missing
+          if (span.blockId?.includes('_parallel_')) {
+            const parallelMatch = span.blockId.match(/_parallel_([^_]+)_iteration_/)
+            if (parallelMatch) {
+              containerType = 'parallel'
+              containerId = parallelMatch[1]
 
-          const loopBlock = normalSpans.find((s) => s.type === 'loop')
-          if (loopBlock) {
-            containerId = loopBlock.blockId || 'loop-1'
-            containerName = loopBlock.name || `Loop ${loopBlock.blockId || '1'}`
+              const parallelBlock = normalSpans.find(
+                (s) => s.blockId === containerId && s.type === 'parallel'
+              )
+
+              // Use custom name if available, otherwise assign sequential number
+              if (parallelBlock?.name) {
+                containerName = parallelBlock.name
+              } else {
+                if (!parallelNumbers.has(containerId)) {
+                  parallelNumbers.set(containerId, parallelCounter++)
+                }
+                containerName = `Parallel ${parallelNumbers.get(containerId)}`
+              }
+            }
           } else {
-            containerId = 'loop-1'
-            containerName = 'Loop 1'
+            containerType = 'loop'
+            // Find the first loop as fallback
+            const loopBlock = normalSpans.find((s) => s.type === 'loop')
+            if (loopBlock?.blockId) {
+              containerId = loopBlock.blockId
+
+              // Use custom name if available, otherwise assign sequential number
+              if (loopBlock.name) {
+                containerName = loopBlock.name
+              } else {
+                if (!loopNumbers.has(containerId)) {
+                  loopNumbers.set(containerId, loopCounter++)
+                }
+                containerName = `Loop ${loopNumbers.get(containerId)}`
+              }
+            } else {
+              containerId = 'loop-1'
+              containerName = 'Loop 1'
+            }
           }
         }
 
@@ -688,7 +751,12 @@ function ensureNestedWorkflowsProcessed(span: TraceSpan): TraceSpan {
 
   const mergedChildren = mergeTraceSpanChildren(normalizedChildren, outputChildSpans)
 
-  if (processedSpan.output && 'childTraceSpans' in processedSpan.output) {
+  if (
+    processedSpan.output &&
+    typeof processedSpan.output === 'object' &&
+    processedSpan.output !== null &&
+    'childTraceSpans' in processedSpan.output
+  ) {
     const { childTraceSpans, ...cleanOutput } = processedSpan.output as {
       childTraceSpans?: TraceSpan[]
     } & Record<string, unknown>

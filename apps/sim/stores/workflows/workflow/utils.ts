@@ -25,27 +25,29 @@ export function convertLoopBlockToLoop(
     loopType,
   }
 
-  // Set the appropriate field based on loop type
-  if (loopType === 'while' || loopType === 'doWhile') {
-    // For while and doWhile loops, use whileCondition
-    loop.whileCondition = loopBlock.data?.whileCondition || ''
-  } else {
-    // For for/forEach loops, read from collection (block data) and map to forEachItems (loops store)
-    // Parse collection if it's a string representation of an array/object
-    let forEachItems: any = loopBlock.data?.collection || ''
-    if (typeof forEachItems === 'string' && forEachItems.trim()) {
-      const trimmed = forEachItems.trim()
-      // Try to parse if it looks like JSON
-      if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
-        try {
-          forEachItems = JSON.parse(trimmed)
-        } catch {
-          // Keep as string if parsing fails - will be evaluated at runtime
-        }
+  // Load ALL fields regardless of current loop type
+  // This allows switching between loop types without losing data
+
+  // For for/forEach loops, read from collection (block data) and map to forEachItems (loops store)
+  let forEachItems: any = loopBlock.data?.collection || ''
+  if (typeof forEachItems === 'string' && forEachItems.trim()) {
+    const trimmed = forEachItems.trim()
+    // Try to parse if it looks like JSON
+    if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
+      try {
+        forEachItems = JSON.parse(trimmed)
+      } catch {
+        // Keep as string if parsing fails - will be evaluated at runtime
       }
     }
-    loop.forEachItems = forEachItems
   }
+  loop.forEachItems = forEachItems
+
+  // For while loops, use whileCondition
+  loop.whileCondition = loopBlock.data?.whileCondition || ''
+
+  // For do-while loops, use doWhileCondition
+  loop.doWhileCondition = loopBlock.data?.doWhileCondition || ''
 
   return loop
 }

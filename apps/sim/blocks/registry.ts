@@ -65,6 +65,7 @@ import { SharepointBlock } from '@/blocks/blocks/sharepoint'
 import { SlackBlock } from '@/blocks/blocks/slack'
 import { StagehandBlock } from '@/blocks/blocks/stagehand'
 import { StagehandAgentBlock } from '@/blocks/blocks/stagehand_agent'
+import { StartTriggerBlock } from '@/blocks/blocks/start_trigger'
 import { StarterBlock } from '@/blocks/blocks/starter'
 import { SupabaseBlock } from '@/blocks/blocks/supabase'
 import { TavilyBlock } from '@/blocks/blocks/tavily'
@@ -156,6 +157,7 @@ export const registry: Record<string, BlockConfig> = {
   stagehand_agent: StagehandAgentBlock,
   slack: SlackBlock,
   starter: StarterBlock,
+  start_trigger: StartTriggerBlock,
   input_trigger: InputTriggerBlock,
   chat_trigger: ChatTriggerBlock,
   manual_trigger: ManualTriggerBlock,

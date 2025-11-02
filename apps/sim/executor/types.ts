@@ -73,6 +73,9 @@ export interface BlockLog {
   output?: any // Output data from successful execution
   input?: any // Input data for the block execution
   error?: string // Error message if execution failed
+  loopId?: string // Loop ID if this block is part of a loop
+  parallelId?: string // Parallel ID if this block is part of a parallel
+  iterationIndex?: number // Iteration number for loop/parallel blocks
 }
 
 /**
@@ -107,7 +110,12 @@ export interface ExecutionContext {
   // Whether this execution is running against deployed state (API/webhook/schedule/chat)
   // Manual executions in the builder should leave this undefined/false
   isDeployedContext?: boolean
+
+  // CONSOLIDATED STATE - Single source of truth for execution state
+  // Uses shared references with ExecutionState class
   blockStates: Map<string, BlockState>
+  executedBlocks: Set<string> // Set of block IDs that have been executed
+
   blockLogs: BlockLog[] // Chronological log of block executions
   metadata: ExecutionMetadata // Timing metadata for the execution
   environmentVariables: Record<string, string> // Environment variables available during execution
@@ -162,8 +170,6 @@ export interface ExecutionContext {
   // Current virtual block being executed (for parallel iterations)
   currentVirtualBlockId?: string
 
-  // Execution tracking
-  executedBlocks: Set<string> // Set of block IDs that have been executed
   activeExecutionPath: Set<string> // Set of block IDs in the current execution path
 
   workflow?: SerializedWorkflow // Reference to the workflow being executed
@@ -174,8 +180,14 @@ export interface ExecutionContext {
   edges?: Array<{ source: string; target: string }> // Workflow edge connections
 
   // New context extensions
-  onStream?: (streamingExecution: StreamingExecution) => Promise<string>
-  onBlockComplete?: (blockId: string, output: any) => Promise<void>
+  onStream?: (streamingExecution: StreamingExecution) => Promise<void>
+  onBlockStart?: (blockId: string, blockName: string, blockType: string) => Promise<void>
+  onBlockComplete?: (
+    blockId: string,
+    blockName: string,
+    blockType: string,
+    output: any
+  ) => Promise<void>
 }
 
 /**
@@ -235,18 +247,10 @@ export interface BlockHandler {
    */
   canHandle(block: SerializedBlock): boolean
 
-  /**
-   * Executes the block with the given inputs and context.
-   *
-   * @param block - Block to execute
-   * @param inputs - Resolved input parameters
-   * @param context - Current execution context
-   * @returns Block execution output or StreamingExecution for streaming
-   */
   execute(
+    ctx: ExecutionContext,
     block: SerializedBlock,
-    inputs: Record<string, any>,
-    context: ExecutionContext
+    inputs: Record<string, any>
   ): Promise<BlockOutput | StreamingExecution>
 }
 

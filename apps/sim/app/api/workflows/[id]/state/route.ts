@@ -27,6 +27,7 @@ const BlockDataSchema = z.object({
   count: z.number().optional(),
   loopType: z.enum(['for', 'forEach', 'while', 'doWhile']).optional(),
   whileCondition: z.string().optional(),
+  doWhileCondition: z.string().optional(),
   parallelType: z.enum(['collection', 'count']).optional(),
   type: z.string().optional(),
 })
@@ -82,6 +83,7 @@ const LoopSchema = z.object({
   loopType: z.enum(['for', 'forEach', 'while', 'doWhile']),
   forEachItems: z.union([z.array(z.any()), z.record(z.any()), z.string()]).optional(),
   whileCondition: z.string().optional(),
+  doWhileCondition: z.string().optional(),
 })
 
 const ParallelSchema = z.object({

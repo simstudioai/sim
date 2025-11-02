@@ -47,9 +47,9 @@ export class WaitBlockHandler implements BlockHandler {
   }
 
   async execute(
+    ctx: ExecutionContext,
     block: SerializedBlock,
-    inputs: Record<string, any>,
-    context: ExecutionContext
+    inputs: Record<string, any>
   ): Promise<any> {
     logger.info(`Executing Wait block: ${block.id}`, { inputs })
 
@@ -80,8 +80,7 @@ export class WaitBlockHandler implements BlockHandler {
     // Actually sleep for the specified duration
     // The executor updates context.isCancelled when cancel() is called
     const checkCancelled = () => {
-      // Check if execution was marked as cancelled in the context
-      return (context as any).isCancelled === true
+      return (ctx as any).isCancelled === true
     }
 
     const completed = await sleep(waitMs, checkCancelled)

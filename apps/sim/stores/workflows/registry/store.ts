@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import { createLogger } from '@/lib/logs/console/logger'
 import { generateCreativeWorkflowName } from '@/lib/naming'
+import { buildDefaultWorkflowArtifacts } from '@/lib/workflows/defaults'
 import { API_ENDPOINTS } from '@/stores/constants'
 import { useVariablesStore } from '@/stores/panel/variables/store'
 import type {
@@ -439,7 +440,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
             deploymentStatuses: {},
           }
         } else {
-          // If no state in DB, use empty state - server should have created start block
+          // If no state in DB, use empty state (Start block was created during workflow creation)
           workflowState = {
             blocks: {},
             edges: [],
@@ -451,9 +452,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
             lastSaved: Date.now(),
           }
 
-          logger.warn(
-            `Workflow ${id} has no state in DB - this should not happen with server-side start block creation`
-          )
+          logger.info(`Workflow ${id} has no state yet - will load from DB or show empty canvas`)
         }
 
         if (workflowData?.isDeployed || workflowData?.deployedAt) {
@@ -548,15 +547,33 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
           }))
 
           // Initialize subblock values to ensure they're available for sync
-          const subblockValues: Record<string, Record<string, any>> = {}
+          const { workflowState, subBlockValues } = buildDefaultWorkflowArtifacts()
 
-          // Update the subblock store with the initial values
           useSubBlockStore.setState((state) => ({
             workflowValues: {
               ...state.workflowValues,
-              [serverWorkflowId]: subblockValues,
+              [serverWorkflowId]: subBlockValues,
             },
           }))
+
+          try {
+            logger.info(`Persisting default Start block for new workflow ${serverWorkflowId}`)
+            const response = await fetch(`/api/workflows/${serverWorkflowId}/state`, {
+              method: 'PUT',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify(workflowState),
+            })
+
+            if (!response.ok) {
+              logger.error('Failed to persist default Start block:', await response.text())
+            } else {
+              logger.info('Successfully persisted default Start block')
+            }
+          } catch (error) {
+            logger.error('Error persisting default Start block:', error)
+          }
 
           // Don't set as active workflow here - let the navigation/URL change handle that
           // This prevents race conditions and flickering
@@ -652,106 +669,12 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
             parallels: currentWorkflowState.parallels || {},
           }
         } else {
-          // Source is not active workflow, create with starter block for now
-          // In a future enhancement, we could fetch from DB
-          const starterId = crypto.randomUUID()
-          const starterBlock = {
-            id: starterId,
-            type: 'starter' as const,
-            name: 'Start',
-            position: { x: 100, y: 100 },
-            subBlocks: {
-              startWorkflow: {
-                id: 'startWorkflow',
-                type: 'dropdown' as const,
-                value: 'manual',
-              },
-              webhookPath: {
-                id: 'webhookPath',
-                type: 'short-input' as const,
-                value: '',
-              },
-              webhookSecret: {
-                id: 'webhookSecret',
-                type: 'short-input' as const,
-                value: '',
-              },
-              scheduleType: {
-                id: 'scheduleType',
-                type: 'dropdown' as const,
-                value: 'daily',
-              },
-              minutesInterval: {
-                id: 'minutesInterval',
-                type: 'short-input' as const,
-                value: '',
-              },
-              minutesStartingAt: {
-                id: 'minutesStartingAt',
-                type: 'short-input' as const,
-                value: '',
-              },
-              hourlyMinute: {
-                id: 'hourlyMinute',
-                type: 'short-input' as const,
-                value: '',
-              },
-              dailyTime: {
-                id: 'dailyTime',
-                type: 'short-input' as const,
-                value: '',
-              },
-              weeklyDay: {
-                id: 'weeklyDay',
-                type: 'dropdown' as const,
-                value: 'MON',
-              },
-              weeklyDayTime: {
-                id: 'weeklyDayTime',
-                type: 'short-input' as const,
-                value: '',
-              },
-              monthlyDay: {
-                id: 'monthlyDay',
-                type: 'short-input' as const,
-                value: '',
-              },
-              monthlyTime: {
-                id: 'monthlyTime',
-                type: 'short-input' as const,
-                value: '',
-              },
-              cronExpression: {
-                id: 'cronExpression',
-                type: 'short-input' as const,
-                value: '',
-              },
-              timezone: {
-                id: 'timezone',
-                type: 'dropdown' as const,
-                value: 'UTC',
-              },
-            },
-            outputs: {
-              response: {
-                type: {
-                  input: 'any',
-                },
-              },
-            },
-            enabled: true,
-            horizontalHandles: true,
-            isWide: false,
-            advancedMode: false,
-            triggerMode: false,
-            height: 0,
-          }
-
+          const { workflowState } = buildDefaultWorkflowArtifacts()
           sourceState = {
-            blocks: { [starterId]: starterBlock },
-            edges: [],
-            loops: {},
-            parallels: {},
+            blocks: workflowState.blocks,
+            edges: workflowState.edges,
+            loops: workflowState.loops,
+            parallels: workflowState.parallels,
           }
         }
 
@@ -988,7 +911,6 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
         resetWorkflowStores()
 
         set({
-          workflows: {},
           activeWorkflowId: null,
           isLoading: true,
           error: null,

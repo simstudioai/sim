@@ -25,6 +25,7 @@ const socketDb = drizzle(
 const db = socketDb
 
 const DEFAULT_LOOP_ITERATIONS = 5
+const DEFAULT_PARALLEL_COUNT = 5
 
 /**
  * Shared function to handle auto-connect edge insertion
@@ -277,14 +278,18 @@ async function handleBlockOperationTx(
                   iterations: payload.data?.count || DEFAULT_LOOP_ITERATIONS,
                   loopType: payload.data?.loopType || 'for',
                   // Set the appropriate field based on loop type
-                  ...(payload.data?.loopType === 'while' || payload.data?.loopType === 'doWhile'
+                  ...(payload.data?.loopType === 'while'
                     ? { whileCondition: payload.data?.whileCondition || '' }
-                    : { forEachItems: payload.data?.collection || '' }),
+                    : payload.data?.loopType === 'doWhile'
+                      ? { doWhileCondition: payload.data?.doWhileCondition || '' }
+                      : { forEachItems: payload.data?.collection || '' }),
                 }
               : {
                   id: payload.id,
                   nodes: [], // Empty initially, will be populated when child blocks are added
                   distribution: payload.data?.collection || '',
+                  count: payload.data?.count || DEFAULT_PARALLEL_COUNT,
+                  parallelType: payload.data?.parallelType || 'count',
                 }
 
           logger.debug(`Auto-creating ${payload.type} subflow ${payload.id}:`, subflowConfig)
@@ -750,9 +755,11 @@ async function handleBlockOperationTx(
                   iterations: payload.data?.count || DEFAULT_LOOP_ITERATIONS,
                   loopType: payload.data?.loopType || 'for',
                   // Set the appropriate field based on loop type
-                  ...(payload.data?.loopType === 'while' || payload.data?.loopType === 'doWhile'
+                  ...(payload.data?.loopType === 'while'
                     ? { whileCondition: payload.data?.whileCondition || '' }
-                    : { forEachItems: payload.data?.collection || '' }),
+                    : payload.data?.loopType === 'doWhile'
+                      ? { doWhileCondition: payload.data?.doWhileCondition || '' }
+                      : { forEachItems: payload.data?.collection || '' }),
                 }
               : {
                   id: payload.id,
@@ -877,23 +884,34 @@ async function handleSubflowOperationTx(
       logger.debug(`Successfully updated subflow ${payload.id} in database`)
 
       // Also update the corresponding block's data to keep UI in sync
-      if (payload.type === 'loop' && payload.config.iterations !== undefined) {
-        // Update the loop block's data.count property
-        const blockData: any = {
-          count: payload.config.iterations,
-          loopType: payload.config.loopType,
-          width: 500,
-          height: 300,
-          type: 'subflowNode',
-        }
+      if (payload.type === 'loop') {
+        const existingBlock = await tx
+          .select({ data: workflowBlocks.data })
+          .from(workflowBlocks)
+          .where(and(eq(workflowBlocks.id, payload.id), eq(workflowBlocks.workflowId, workflowId)))
+          .limit(1)
 
-        // Add the appropriate field based on loop type
-        if (payload.config.loopType === 'while' || payload.config.loopType === 'doWhile') {
-          // For while and doWhile loops, use whileCondition
-          blockData.whileCondition = payload.config.whileCondition || ''
-        } else {
-          // For for/forEach loops, use collection (block data) which maps to forEachItems (loops store)
-          blockData.collection = payload.config.forEachItems || ''
+        const existingData = (existingBlock[0]?.data as any) || {}
+
+        const blockData: any = {
+          ...existingData,
+          count: payload.config.iterations ?? existingData.count ?? DEFAULT_LOOP_ITERATIONS,
+          loopType: payload.config.loopType ?? existingData.loopType ?? 'for',
+          type: 'subflowNode',
+          width: existingData.width ?? 500,
+          height: existingData.height ?? 300,
+          collection:
+            payload.config.forEachItems !== undefined
+              ? payload.config.forEachItems
+              : (existingData.collection ?? ''),
+          whileCondition:
+            payload.config.whileCondition !== undefined
+              ? payload.config.whileCondition
+              : (existingData.whileCondition ?? ''),
+          doWhileCondition:
+            payload.config.doWhileCondition !== undefined
+              ? payload.config.doWhileCondition
+              : (existingData.doWhileCondition ?? ''),
         }
 
         await tx

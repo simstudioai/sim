@@ -121,7 +121,7 @@ describe('TriggerBlockHandler', () => {
         timestamp: '2023-01-01T12:00:00Z',
       }
 
-      const result = await handler.execute(triggerBlock, triggerInputs, mockContext)
+      const result = await handler.execute(mockContext, triggerBlock, triggerInputs)
 
       expect(result).toEqual(triggerInputs)
     })
@@ -137,7 +137,7 @@ describe('TriggerBlockHandler', () => {
         enabled: true,
       }
 
-      const result = await handler.execute(triggerBlock, {}, mockContext)
+      const result = await handler.execute(mockContext, triggerBlock, {})
 
       expect(result).toEqual({})
     })
@@ -154,22 +154,15 @@ describe('TriggerBlockHandler', () => {
       }
 
       const webhookInputs = {
-        payload: {
-          event: 'user.created',
+        webhook: {
           data: {
-            user: {
-              id: 'user123',
-              email: 'user@example.com',
-            },
+            provider: 'github',
+            payload: { event: 'push', repo: 'test-repo' },
           },
         },
-        headers: {
-          'content-type': 'application/json',
-        },
-        method: 'POST',
       }
 
-      const result = await handler.execute(webhookBlock, webhookInputs, mockContext)
+      const result = await handler.execute(mockContext, webhookBlock, webhookInputs)
 
       expect(result).toEqual(webhookInputs)
     })
@@ -195,7 +188,7 @@ describe('TriggerBlockHandler', () => {
         timestamp: '2023-01-01T14:30:00Z',
       }
 
-      const result = await handler.execute(outlookBlock, outlookInputs, mockContext)
+      const result = await handler.execute(mockContext, outlookBlock, outlookInputs)
 
       expect(result).toEqual(outlookInputs)
     })
@@ -211,7 +204,7 @@ describe('TriggerBlockHandler', () => {
         enabled: true,
       }
 
-      const result = await handler.execute(scheduleBlock, {}, mockContext)
+      const result = await handler.execute(mockContext, scheduleBlock, {})
 
       // Schedule triggers typically don't have input data, just trigger the workflow
       expect(result).toEqual({})
@@ -248,7 +241,7 @@ describe('TriggerBlockHandler', () => {
         timestamp: '2023-01-01T15:45:00Z',
       }
 
-      const result = await handler.execute(triggerBlock, complexInputs, mockContext)
+      const result = await handler.execute(mockContext, triggerBlock, complexInputs)
 
       expect(result).toEqual(complexInputs)
     })

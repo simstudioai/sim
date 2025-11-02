@@ -3,12 +3,10 @@ import { v4 as uuidv4 } from 'uuid'
 import { createLogger } from '@/lib/logs/console/logger'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import { processStreamingBlockLogs } from '@/lib/tokenization'
-import { TriggerUtils } from '@/lib/workflows/triggers'
-import type { BlockOutput } from '@/blocks/types'
-import { Executor } from '@/executor'
+import { resolveStartCandidates, StartBlockPath, TriggerUtils } from '@/lib/workflows/triggers'
 import type { BlockLog, ExecutionResult, StreamingExecution } from '@/executor/types'
+import { useExecutionStream } from '@/hooks/use-execution-stream'
 import { Serializer, WorkflowValidationError } from '@/serializer'
-import type { SerializedWorkflow } from '@/serializer/types'
 import { useExecutionStore } from '@/stores/execution/store'
 import { useConsoleStore } from '@/stores/panel/console/store'
 import { useVariablesStore } from '@/stores/panel/variables/store'
@@ -20,24 +18,6 @@ import { filterEdgesFromTriggerBlocks } from '../lib/workflow-execution-utils'
 import { useCurrentWorkflow } from './use-current-workflow'
 
 const logger = createLogger('useWorkflowExecution')
-
-// Interface for executor options
-interface ExecutorOptions {
-  workflow: SerializedWorkflow
-  currentBlockStates?: Record<string, BlockOutput>
-  envVarValues?: Record<string, string>
-  workflowInput?: any
-  workflowVariables?: Record<string, any>
-  contextExtensions?: {
-    stream?: boolean
-    selectedOutputs?: string[]
-    edges?: Array<{ source: string; target: string }>
-    onStream?: (streamingExecution: StreamingExecution) => Promise<void>
-    onBlockComplete?: (blockId: string, output: any) => Promise<void>
-    executionId?: string
-    workspaceId?: string
-  }
-}
 
 // Debug state validation result
 interface DebugValidationResult {
@@ -98,7 +78,7 @@ function extractExecutionResult(error: unknown): ExecutionResult | null {
 export function useWorkflowExecution() {
   const currentWorkflow = useCurrentWorkflow()
   const { activeWorkflowId, workflows } = useWorkflowRegistry()
-  const { toggleConsole } = useConsoleStore()
+  const { toggleConsole, addConsole } = useConsoleStore()
   const { getAllVariables, loadWorkspaceEnvironment } = useEnvironmentStore()
   const { getVariablesByWorkflowId, variables } = useVariablesStore()
   const {
@@ -115,6 +95,7 @@ export function useWorkflowExecution() {
     setActiveBlocks,
   } = useExecutionStore()
   const [executionResult, setExecutionResult] = useState<ExecutionResult | null>(null)
+  const executionStream = useExecutionStream()
 
   /**
    * Validates debug state before performing debug operations
@@ -448,6 +429,14 @@ export function useWorkflowExecution() {
 
             // Handle non-streaming blocks (like Function blocks)
             const onBlockComplete = async (blockId: string, output: any) => {
+              // Skip if this block already had streaming content (avoid duplicates)
+              if (streamedContent.has(blockId)) {
+                logger.debug('[handleRunWorkflow] Skipping onBlockComplete for streaming block', {
+                  blockId,
+                })
+                return
+              }
+
               // Get selected outputs from chat store
               const chatStore = await import('@/stores/panel/chat/store').then(
                 (mod) => mod.useChatStore
@@ -563,9 +552,7 @@ export function useWorkflowExecution() {
 
                 const { encodeSSE } = await import('@/lib/utils')
                 controller.enqueue(encodeSSE({ event: 'final', data: result }))
-                persistLogs(executionId, result).catch((err) =>
-                  logger.error('Error persisting logs:', err)
-                )
+                // Note: Logs are already persisted server-side via execution-core.ts
               }
             } catch (error: any) {
               // Create a proper error result for logging
@@ -584,11 +571,6 @@ export function useWorkflowExecution() {
               // Send the error as final event so downstream handlers can treat it uniformly
               const { encodeSSE } = await import('@/lib/utils')
               controller.enqueue(encodeSSE({ event: 'final', data: errorResult }))
-
-              // Persist the error to logs so it shows up in the logs page
-              persistLogs(executionId, errorResult).catch((err) =>
-                logger.error('Error persisting error logs:', err)
-              )
 
               // Do not error the controller to allow consumers to process the final event
             } finally {
@@ -630,17 +612,11 @@ export function useWorkflowExecution() {
             }
             ;(result.metadata as any).source = 'chat'
           }
-
-          persistLogs(executionId, result).catch((err) => {
-            logger.error('Error persisting logs:', { error: err })
-          })
         }
         return result
       } catch (error: any) {
         const errorResult = handleExecutionError(error, { executionId })
-        persistLogs(executionId, errorResult).catch((err) => {
-          logger.error('Error persisting logs:', { error: err })
-        })
+        // Note: Error logs are already persisted server-side via execution-core.ts
         return errorResult
       }
     },
@@ -825,125 +801,76 @@ export function useWorkflowExecution() {
 
       startBlockId = startBlock.blockId
     } else {
-      // For manual editor runs: look for Manual trigger OR API trigger
-      const entries = Object.entries(filteredStates)
+      const candidates = resolveStartCandidates(filteredStates, {
+        execution: 'manual',
+      })
 
-      // Find manual triggers and API triggers
-      const manualTriggers = TriggerUtils.findTriggersByType(filteredStates, 'manual')
-      const apiTriggers = TriggerUtils.findTriggersByType(filteredStates, 'api')
-
-      logger.info('Manual run trigger check:', {
-        manualTriggersCount: manualTriggers.length,
-        apiTriggersCount: apiTriggers.length,
-        manualTriggers: manualTriggers.map((t) => ({
-          type: t.type,
-          name: t.name,
-          isLegacy: t.type === 'starter',
-        })),
-        apiTriggers: apiTriggers.map((t) => ({
-          type: t.type,
-          name: t.name,
-          isLegacy: t.type === 'starter',
+      logger.info('Manual run start candidates:', {
+        count: candidates.length,
+        paths: candidates.map((candidate) => ({
+          path: candidate.path,
+          type: candidate.block.type,
+          name: candidate.block.name,
         })),
       })
 
-      let selectedTrigger: any = null
-      let selectedBlockId: string | null = null
-
-      // Check for API triggers first (they take precedence over manual triggers)
-      if (apiTriggers.length === 1) {
-        selectedTrigger = apiTriggers[0]
-        const blockEntry = entries.find(([, block]) => block === selectedTrigger)
-        if (blockEntry) {
-          selectedBlockId = blockEntry[0]
-
-          // Extract test values from the API trigger's inputFormat
-          if (selectedTrigger.type === 'api_trigger' || selectedTrigger.type === 'starter') {
-            const inputFormatValue = selectedTrigger.subBlocks?.inputFormat?.value
-            const testInput = extractTestValuesFromInputFormat(inputFormatValue)
-
-            // Use the test input as workflow input
-            if (Object.keys(testInput).length > 0) {
-              finalWorkflowInput = testInput
-              logger.info('Using API trigger test values for manual run:', testInput)
-            }
-          }
-        }
-      } else if (apiTriggers.length > 1) {
+      const apiCandidates = candidates.filter(
+        (candidate) => candidate.path === StartBlockPath.SPLIT_API
+      )
+      if (apiCandidates.length > 1) {
         const error = new Error('Multiple API Trigger blocks found. Keep only one.')
         logger.error('Multiple API triggers found')
         setIsExecuting(false)
         throw error
-      } else if (manualTriggers.length >= 1) {
-        // No API trigger, check for manual triggers
-        // Prefer manual_trigger over input_trigger for simple runs
-        const manualTrigger = manualTriggers.find((t) => t.type === 'manual_trigger')
-        const inputTrigger = manualTriggers.find((t) => t.type === 'input_trigger')
+      }
 
-        selectedTrigger = manualTrigger || inputTrigger || manualTriggers[0]
-        const blockEntry = entries.find(([, block]) => block === selectedTrigger)
-        if (blockEntry) {
-          selectedBlockId = blockEntry[0]
+      const selectedCandidate = apiCandidates[0] ?? candidates[0]
 
-          // Extract test values from input trigger's inputFormat if it's an input_trigger
-          if (selectedTrigger.type === 'input_trigger') {
-            const inputFormatValue = selectedTrigger.subBlocks?.inputFormat?.value
-            const testInput = extractTestValuesFromInputFormat(inputFormatValue)
+      if (!selectedCandidate) {
+        const error = new Error('Manual run requires a Manual, Input Form, or API Trigger block')
+        logger.error('No manual/input or API triggers found for manual run')
+        setIsExecuting(false)
+        throw error
+      }
 
-            // Use the test input as workflow input
-            if (Object.keys(testInput).length > 0) {
-              finalWorkflowInput = testInput
-              logger.info('Using Input trigger test values for manual run:', testInput)
-            }
-          }
-        }
-      } else {
-        // Fallback: Check for legacy starter block
-        const starterBlock = Object.values(filteredStates).find((block) => block.type === 'starter')
-        if (starterBlock) {
-          // Found a legacy starter block, use it as a manual trigger
-          const blockEntry = Object.entries(filteredStates).find(
-            ([, block]) => block === starterBlock
-          )
-          if (blockEntry) {
-            selectedBlockId = blockEntry[0]
-            selectedTrigger = starterBlock
-            logger.info('Using legacy starter block for manual run')
-          }
-        }
+      startBlockId = selectedCandidate.blockId
+      const selectedTrigger = selectedCandidate.block
 
-        if (!selectedBlockId || !selectedTrigger) {
-          const error = new Error('Manual run requires a Manual, Input Form, or API Trigger block')
-          logger.error('No manual/input or API triggers found for manual run')
+      if (selectedCandidate.path !== StartBlockPath.LEGACY_STARTER) {
+        const outgoingConnections = workflowEdges.filter((edge) => edge.source === startBlockId)
+        if (outgoingConnections.length === 0) {
+          const triggerName = selectedTrigger.name || selectedTrigger.type
+          const error = new Error(`${triggerName} must be connected to other blocks to execute`)
+          logger.error('Trigger has no outgoing connections', { triggerName, startBlockId })
           setIsExecuting(false)
           throw error
         }
       }
 
-      if (selectedBlockId && selectedTrigger) {
-        startBlockId = selectedBlockId
+      if (
+        selectedCandidate.path === StartBlockPath.SPLIT_API ||
+        selectedCandidate.path === StartBlockPath.SPLIT_INPUT ||
+        selectedCandidate.path === StartBlockPath.UNIFIED
+      ) {
+        const inputFormatValue = selectedTrigger.subBlocks?.inputFormat?.value
+        const testInput = extractTestValuesFromInputFormat(inputFormatValue)
 
-        // Check if the trigger has any outgoing connections (except for legacy starter blocks)
-        // Legacy starter blocks have their own validation in the executor
-        if (selectedTrigger.type !== 'starter') {
-          const outgoingConnections = workflowEdges.filter((edge) => edge.source === startBlockId)
-          if (outgoingConnections.length === 0) {
-            const triggerName = selectedTrigger.name || selectedTrigger.type
-            const error = new Error(`${triggerName} must be connected to other blocks to execute`)
-            logger.error('Trigger has no outgoing connections', { triggerName, startBlockId })
-            setIsExecuting(false)
-            throw error
-          }
+        if (Object.keys(testInput).length > 0) {
+          finalWorkflowInput = testInput
+          logger.info('Using trigger test values for manual run:', {
+            startBlockId,
+            testFields: Object.keys(testInput),
+            path: selectedCandidate.path,
+          })
         }
-
-        logger.info('Trigger found for manual run:', {
-          startBlockId,
-          triggerType: selectedTrigger.type,
-          triggerName: selectedTrigger.name,
-          isLegacyStarter: selectedTrigger.type === 'starter',
-          usingTestValues: selectedTrigger.type === 'api_trigger',
-        })
       }
+
+      logger.info('Trigger found for manual run:', {
+        startBlockId,
+        triggerType: selectedTrigger.type,
+        triggerName: selectedTrigger.name,
+        startPath: selectedCandidate.path,
+      })
     }
 
     // If we don't have a valid startBlockId at this point, throw an error
@@ -961,33 +888,182 @@ export function useWorkflowExecution() {
       hasWorkflowInput: !!workflowInput,
     })
 
-    // Create executor options with the final workflow input
-    const executorOptions: ExecutorOptions = {
-      workflow,
-      currentBlockStates,
-      envVarValues,
-      workflowInput: finalWorkflowInput,
-      workflowVariables,
-      contextExtensions: {
-        stream: isExecutingFromChat,
-        selectedOutputs,
-        edges: workflow.connections.map((conn) => ({
-          source: conn.source,
-          target: conn.target,
-        })),
-        onStream,
-        onBlockComplete,
-        executionId,
-        workspaceId,
-      },
+    // SERVER-SIDE EXECUTION (always)
+    if (activeWorkflowId) {
+      logger.info('Using server-side executor')
+
+      let executionResult: ExecutionResult = {
+        success: false,
+        output: {},
+        logs: [],
+      }
+
+      const activeBlocksSet = new Set<string>()
+      const streamedContent = new Map<string, string>()
+
+      try {
+        await executionStream.execute({
+          workflowId: activeWorkflowId,
+          input: finalWorkflowInput,
+          selectedOutputs,
+          triggerType: overrideTriggerType || 'manual',
+          useDraftState: true,
+          callbacks: {
+            onExecutionStarted: (data) => {
+              logger.info('Server execution started:', data)
+            },
+
+            onBlockStarted: (data) => {
+              activeBlocksSet.add(data.blockId)
+              // Create a new Set to trigger React re-render
+              setActiveBlocks(new Set(activeBlocksSet))
+            },
+
+            onBlockCompleted: (data) => {
+              logger.info('onBlockCompleted received:', { data })
+
+              activeBlocksSet.delete(data.blockId)
+              // Create a new Set to trigger React re-render
+              setActiveBlocks(new Set(activeBlocksSet))
+
+              // Add to console
+              addConsole({
+                input: data.input || {},
+                output: data.output,
+                success: true,
+                durationMs: data.durationMs,
+                startedAt: new Date(Date.now() - data.durationMs).toISOString(),
+                endedAt: new Date().toISOString(),
+                workflowId: activeWorkflowId,
+                blockId: data.blockId,
+                executionId: executionId || uuidv4(),
+                blockName: data.blockName || 'Unknown Block',
+                blockType: data.blockType || 'unknown',
+                // Pass through iteration context for console pills
+                iterationCurrent: data.iterationCurrent,
+                iterationTotal: data.iterationTotal,
+                iterationType: data.iterationType,
+              })
+
+              // Call onBlockComplete callback if provided
+              if (onBlockComplete) {
+                onBlockComplete(data.blockId, data.output).catch((error) => {
+                  logger.error('Error in onBlockComplete callback:', error)
+                })
+              }
+            },
+
+            onBlockError: (data) => {
+              activeBlocksSet.delete(data.blockId)
+              // Create a new Set to trigger React re-render
+              setActiveBlocks(new Set(activeBlocksSet))
+
+              // Add error to console
+              addConsole({
+                input: data.input || {},
+                output: {},
+                success: false,
+                error: data.error,
+                durationMs: data.durationMs,
+                startedAt: new Date(Date.now() - data.durationMs).toISOString(),
+                endedAt: new Date().toISOString(),
+                workflowId: activeWorkflowId,
+                blockId: data.blockId,
+                executionId: executionId || uuidv4(),
+                blockName: data.blockName,
+                blockType: data.blockType,
+                // Pass through iteration context for console pills
+                iterationCurrent: data.iterationCurrent,
+                iterationTotal: data.iterationTotal,
+                iterationType: data.iterationType,
+              })
+            },
+
+            onStreamChunk: (data) => {
+              const existing = streamedContent.get(data.blockId) || ''
+              streamedContent.set(data.blockId, existing + data.chunk)
+
+              // Call onStream callback if provided (create a fake StreamingExecution)
+              if (onStream && isExecutingFromChat) {
+                const stream = new ReadableStream({
+                  start(controller) {
+                    controller.enqueue(new TextEncoder().encode(data.chunk))
+                    controller.close()
+                  },
+                })
+
+                const streamingExec: StreamingExecution = {
+                  stream,
+                  execution: {
+                    success: true,
+                    output: { content: existing + data.chunk },
+                    blockId: data.blockId,
+                  } as any,
+                }
+
+                onStream(streamingExec).catch((error) => {
+                  logger.error('Error in onStream callback:', error)
+                })
+              }
+            },
+
+            onStreamDone: (data) => {
+              logger.info('Stream done for block:', data.blockId)
+            },
+
+            onExecutionCompleted: (data) => {
+              executionResult = {
+                success: data.success,
+                output: data.output,
+                metadata: {
+                  duration: data.duration,
+                  startTime: data.startTime,
+                  endTime: data.endTime,
+                },
+                logs: [],
+              }
+            },
+
+            onExecutionError: (data) => {
+              executionResult = {
+                success: false,
+                output: {},
+                error: data.error,
+                metadata: {
+                  duration: data.duration,
+                },
+                logs: [],
+              }
+            },
+          },
+        })
+
+        return executionResult
+      } catch (error: any) {
+        // Don't log abort errors - they're intentional user actions
+        if (error.name === 'AbortError' || error.message?.includes('aborted')) {
+          logger.info('Execution aborted by user')
+
+          // Reset execution state
+          setIsExecuting(false)
+          setActiveBlocks(new Set())
+
+          // Return gracefully without error
+          return {
+            success: false,
+            output: {},
+            metadata: { duration: 0 },
+            logs: [],
+          }
+        }
+
+        logger.error('Server-side execution failed:', error)
+        throw error
+      }
     }
 
-    // Create executor and store in global state
-    const newExecutor = new Executor(executorOptions)
-    setExecutor(newExecutor)
-
-    // Execute workflow with the determined start block
-    return newExecutor.execute(activeWorkflowId || '', startBlockId)
+    // Fallback: should never reach here
+    throw new Error('Server-side execution is required')
   }
 
   const handleExecutionError = (error: unknown, options?: { executionId?: string }) => {
@@ -1216,10 +1292,8 @@ export function useWorkflowExecution() {
   const handleCancelExecution = useCallback(() => {
     logger.info('Workflow execution cancellation requested')
 
-    // Cancel the executor if it exists
-    if (executor) {
-      executor.cancel()
-    }
+    // Cancel the execution stream (server-side)
+    executionStream.cancel()
 
     // Reset execution state
     setIsExecuting(false)
@@ -1230,7 +1304,14 @@ export function useWorkflowExecution() {
     if (isDebugging) {
       resetDebugState()
     }
-  }, [executor, isDebugging, resetDebugState, setIsExecuting, setIsDebugging, setActiveBlocks])
+  }, [
+    executionStream,
+    isDebugging,
+    resetDebugState,
+    setIsExecuting,
+    setIsDebugging,
+    setActiveBlocks,
+  ])
 
   return {
     isExecuting,
