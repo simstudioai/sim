@@ -494,7 +494,7 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
     // slack_message_reader outputs
     messages: {
       type: 'json',
-      description: 'Array of message objects',
+      description: 'Array of message objects with text, user, timestamp, and file attachments',
     },
 
     // slack_download outputs
