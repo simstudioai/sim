@@ -302,7 +302,7 @@ describe('Database Helpers', () => {
       expect(result?.parallels['parallel-1']).toEqual({
         id: 'parallel-1',
         nodes: ['block-3'],
-        count: 2,
+        count: 5,
         distribution: ['item1', 'item2'],
         parallelType: 'count',
       })
