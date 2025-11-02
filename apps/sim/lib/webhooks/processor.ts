@@ -34,9 +34,19 @@ function getExternalUrl(request: NextRequest): string {
 
   if (host) {
     const url = new URL(request.url)
-    return `${proto}://${host}${url.pathname}${url.search}`
+    const reconstructed = `${proto}://${host}${url.pathname}${url.search}`
+    logger.debug('Reconstructing external URL', {
+      proto,
+      host,
+      pathname: url.pathname,
+      search: url.search,
+      originalUrl: request.url,
+      reconstructed,
+    })
+    return reconstructed
   }
 
+  logger.debug('Using original request URL', { url: request.url })
   return request.url
 }
 
@@ -82,13 +92,15 @@ export async function parseWebhookBody(
       const formData = new URLSearchParams(rawBody)
       const payloadString = formData.get('payload')
 
-      if (!payloadString) {
-        logger.warn(`[${requestId}] No payload field found in form-encoded data`)
-        return new NextResponse('Missing payload field', { status: 400 })
+      if (payloadString) {
+        // GitHub-style: form-encoded with JSON in 'payload' field
+        body = JSON.parse(payloadString)
+        logger.debug(`[${requestId}] Parsed form-encoded GitHub webhook payload`)
+      } else {
+        // Twilio/other providers: form fields directly (CallSid, From, To, etc.)
+        body = Object.fromEntries(formData.entries())
+        logger.debug(`[${requestId}] Parsed form-encoded webhook data (direct fields)`)
       }
-
-      body = JSON.parse(payloadString)
-      logger.debug(`[${requestId}] Parsed form-encoded GitHub webhook payload`)
     } else {
       body = JSON.parse(rawBody)
       logger.debug(`[${requestId}] Parsed JSON webhook payload`)
@@ -178,15 +190,66 @@ export async function findWebhookAndWorkflow(
   return null
 }
 
+/**
+ * Resolve {{VARIABLE}} references in a string value
+ */
+function resolveEnvVars(value: string, envVars: Record<string, string>): string {
+  const envMatches = value.match(/\{\{([^}]+)\}\}/g)
+  if (!envMatches) return value
+
+  let resolvedValue = value
+  for (const match of envMatches) {
+    const envKey = match.slice(2, -2).trim()
+    const envValue = envVars[envKey]
+    if (envValue !== undefined) {
+      resolvedValue = resolvedValue.replace(match, envValue)
+    }
+  }
+  return resolvedValue
+}
+
+/**
+ * Resolve environment variables in providerConfig
+ */
+function resolveProviderConfigEnvVars(
+  config: Record<string, any>,
+  envVars: Record<string, string>
+): Record<string, any> {
+  const resolved: Record<string, any> = {}
+  for (const [key, value] of Object.entries(config)) {
+    if (typeof value === 'string') {
+      resolved[key] = resolveEnvVars(value, envVars)
+    } else {
+      resolved[key] = value
+    }
+  }
+  return resolved
+}
+
 export async function verifyProviderAuth(
   foundWebhook: any,
+  foundWorkflow: any,
   request: NextRequest,
   rawBody: string,
   requestId: string
 ): Promise<NextResponse | null> {
-  if (foundWebhook.provider === 'microsoftteams') {
-    const providerConfig = (foundWebhook.providerConfig as Record<string, any>) || {}
+  // Fetch and decrypt environment variables
+  let decryptedEnvVars: Record<string, string> = {}
+  try {
+    const { getEffectiveDecryptedEnv } = await import('@/lib/environment/utils')
+    decryptedEnvVars = await getEffectiveDecryptedEnv(
+      foundWorkflow.userId,
+      foundWorkflow.workspaceId
+    )
+  } catch (error) {
+    logger.error(`[${requestId}] Failed to fetch environment variables`, { error })
+  }
 
+  // Resolve any {{VARIABLE}} references in providerConfig
+  const rawProviderConfig = (foundWebhook.providerConfig as Record<string, any>) || {}
+  const providerConfig = resolveProviderConfigEnvVars(rawProviderConfig, decryptedEnvVars)
+
+  if (foundWebhook.provider === 'microsoftteams') {
     if (providerConfig.hmacSecret) {
       const authHeader = request.headers.get('authorization')
 
@@ -218,9 +281,38 @@ export async function verifyProviderAuth(
     return providerVerification
   }
 
+  // Slack webhook signature verification
+  if (foundWebhook.provider === 'slack') {
+    const signingSecret = providerConfig.signingSecret as string | undefined
+
+    if (signingSecret) {
+      const signature = request.headers.get('x-slack-signature')
+      const timestamp = request.headers.get('x-slack-request-timestamp')
+
+      if (!signature || !timestamp) {
+        logger.warn(`[${requestId}] Slack webhook missing signature or timestamp headers`)
+        return new NextResponse('Unauthorized - Missing Slack signature', { status: 401 })
+      }
+
+      const { validateSlackSignature } = await import('@/lib/webhooks/utils')
+      const isValidSignature = await validateSlackSignature(
+        signingSecret,
+        signature,
+        timestamp,
+        rawBody
+      )
+
+      if (!isValidSignature) {
+        logger.warn(`[${requestId}] Slack signature verification failed`)
+        return new NextResponse('Unauthorized - Invalid Slack signature', { status: 401 })
+      }
+
+      logger.debug(`[${requestId}] Slack signature verified successfully`)
+    }
+  }
+
   // Handle Google Forms shared-secret authentication (Apps Script forwarder)
   if (foundWebhook.provider === 'google_forms') {
-    const providerConfig = (foundWebhook.providerConfig as Record<string, any>) || {}
     const expectedToken = providerConfig.token as string | undefined
     const secretHeaderName = providerConfig.secretHeaderName as string | undefined
 
@@ -251,7 +343,6 @@ export async function verifyProviderAuth(
 
   // Twilio Voice webhook signature verification
   if (foundWebhook.provider === 'twilio_voice') {
-    const providerConfig = (foundWebhook.providerConfig as Record<string, any>) || {}
     const authToken = providerConfig.authToken as string | undefined
 
     if (authToken) {
@@ -280,12 +371,26 @@ export async function verifyProviderAuth(
 
       const fullUrl = getExternalUrl(request)
 
+      logger.debug(`[${requestId}] Twilio signature validation details`, {
+        url: fullUrl,
+        signature: `${signature.substring(0, 10)}...`,
+        paramKeys: Object.keys(params).sort(),
+        hasAuthToken: !!authToken,
+        authTokenPrefix: `${authToken.substring(0, 4)}...`,
+        authTokenLength: authToken.length,
+      })
+
       const { validateTwilioSignature } = await import('@/lib/webhooks/utils')
 
       const isValidSignature = await validateTwilioSignature(authToken, signature, fullUrl, params)
 
       if (!isValidSignature) {
-        logger.warn(`[${requestId}] Twilio Voice signature verification failed`)
+        logger.warn(`[${requestId}] Twilio Voice signature verification failed`, {
+          url: fullUrl,
+          signatureLength: signature.length,
+          paramsCount: Object.keys(params).length,
+          authTokenLength: authToken.length,
+        })
         return new NextResponse('Unauthorized - Invalid Twilio signature', { status: 401 })
       }
 
@@ -294,8 +399,6 @@ export async function verifyProviderAuth(
   }
 
   if (foundWebhook.provider === 'generic') {
-    const providerConfig = (foundWebhook.providerConfig as Record<string, any>) || {}
-
     if (providerConfig.requireAuth) {
       const configToken = providerConfig.token
       const secretHeaderName = providerConfig.secretHeaderName

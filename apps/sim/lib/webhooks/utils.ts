@@ -533,6 +533,11 @@ export async function validateTwilioSignature(
 ): Promise<boolean> {
   try {
     if (!authToken || !signature || !url) {
+      logger.warn('Twilio signature validation missing required fields', {
+        hasAuthToken: !!authToken,
+        hasSignature: !!signature,
+        hasUrl: !!url,
+      })
       return false
     }
 
@@ -541,6 +546,12 @@ export async function validateTwilioSignature(
     for (const key of sortedKeys) {
       data += key + params[key]
     }
+
+    logger.debug('Twilio signature validation string built', {
+      url,
+      sortedKeys,
+      dataLength: data.length,
+    })
 
     const encoder = new TextEncoder()
     const key = await crypto.subtle.importKey(
@@ -555,6 +566,14 @@ export async function validateTwilioSignature(
 
     const signatureArray = Array.from(new Uint8Array(signatureBytes))
     const signatureBase64 = btoa(String.fromCharCode(...signatureArray))
+
+    logger.debug('Twilio signature comparison', {
+      computedSignature: `${signatureBase64.substring(0, 10)}...`,
+      providedSignature: `${signature.substring(0, 10)}...`,
+      computedLength: signatureBase64.length,
+      providedLength: signature.length,
+      match: signatureBase64 === signature,
+    })
 
     if (signatureBase64.length !== signature.length) {
       return false
