@@ -21,8 +21,11 @@ export class EvaluatorBlockHandler implements BlockHandler {
     inputs: Record<string, any>,
     context: ExecutionContext
   ): Promise<BlockOutput> {
-    const model = inputs.model || 'gpt-4o'
-    const providerId = getProviderFromModel(model)
+    const evaluatorConfig = {
+      model: inputs.model || 'gpt-4o',
+      apiKey: inputs.apiKey,
+    }
+    const providerId = getProviderFromModel(evaluatorConfig.model)
 
     // Process the content to ensure it's in a suitable format
     let processedContent = ''
@@ -109,7 +112,7 @@ export class EvaluatorBlockHandler implements BlockHandler {
       // Make sure we force JSON output in the request
       const providerRequest = {
         provider: providerId,
-        model: model,
+        model: evaluatorConfig.model,
         systemPrompt: systemPromptObj.systemPrompt,
         responseFormat: systemPromptObj.responseFormat,
         context: JSON.stringify([
@@ -119,8 +122,8 @@ export class EvaluatorBlockHandler implements BlockHandler {
               'Please evaluate the content provided in the system prompt. Return ONLY a valid JSON with metric scores.',
           },
         ]),
-        temperature: inputs.temperature || 0,
-        apiKey: inputs.apiKey,
+        temperature: 0.1,
+        apiKey: evaluatorConfig.apiKey,
         workflowId: context.workflowId,
       }
 

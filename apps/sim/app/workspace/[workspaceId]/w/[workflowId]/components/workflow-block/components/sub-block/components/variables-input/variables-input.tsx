@@ -339,33 +339,58 @@ export function VariablesInput({
                   <div className='space-y-1.5'>
                     <Label className='text-xs'>Value</Label>
                     {assignment.type === 'object' || assignment.type === 'array' ? (
-                      <Textarea
-                        ref={(el) => {
-                          if (el) valueInputRefs.current[assignment.id] = el
-                        }}
-                        value={assignment.value || ''}
-                        onChange={(e) =>
-                          handleValueInputChange(
-                            assignment.id,
-                            e.target.value,
-                            e.target.selectionStart ?? undefined
-                          )
-                        }
-                        placeholder={
-                          assignment.type === 'object'
-                            ? '{\n  "key": "value"\n}'
-                            : '[\n  1, 2, 3\n]'
-                        }
-                        disabled={isPreview || disabled}
-                        className={cn(
-                          'min-h-[120px] border border-input bg-white font-mono text-sm placeholder:text-muted-foreground/50 dark:border-input/60 dark:bg-background',
-                          dragHighlight[assignment.id] && 'ring-2 ring-blue-500 ring-offset-2',
-                          isConnecting && 'ring-2 ring-blue-500 ring-offset-2'
-                        )}
-                        onDrop={(e) => handleDrop(e, assignment.id)}
-                        onDragOver={(e) => handleDragOver(e, assignment.id)}
-                        onDragLeave={(e) => handleDragLeave(e, assignment.id)}
-                      />
+                      <div className='relative'>
+                        <Textarea
+                          ref={(el) => {
+                            if (el) valueInputRefs.current[assignment.id] = el
+                          }}
+                          value={assignment.value || ''}
+                          onChange={(e) =>
+                            handleValueInputChange(
+                              assignment.id,
+                              e.target.value,
+                              e.target.selectionStart ?? undefined
+                            )
+                          }
+                          placeholder={
+                            assignment.type === 'object'
+                              ? '{\n  "key": "value"\n}'
+                              : '[\n  1, 2, 3\n]'
+                          }
+                          disabled={isPreview || disabled}
+                          className={cn(
+                            'min-h-[120px] border border-input bg-white font-mono text-sm text-transparent caret-foreground placeholder:text-muted-foreground/50 dark:border-input/60 dark:bg-background',
+                            dragHighlight[assignment.id] && 'ring-2 ring-blue-500 ring-offset-2',
+                            isConnecting && 'ring-2 ring-blue-500 ring-offset-2'
+                          )}
+                          style={{
+                            fontFamily: 'inherit',
+                            lineHeight: 'inherit',
+                            wordBreak: 'break-word',
+                            whiteSpace: 'pre-wrap',
+                          }}
+                          onDrop={(e) => handleDrop(e, assignment.id)}
+                          onDragOver={(e) => handleDragOver(e, assignment.id)}
+                          onDragLeave={(e) => handleDragLeave(e, assignment.id)}
+                        />
+                        <div
+                          ref={(el) => {
+                            if (el) overlayRefs.current[assignment.id] = el
+                          }}
+                          className='pointer-events-none absolute inset-0 flex items-start overflow-auto bg-transparent px-3 py-2 font-mono text-sm'
+                          style={{
+                            fontFamily: 'inherit',
+                            lineHeight: 'inherit',
+                          }}
+                        >
+                          <div className='w-full whitespace-pre-wrap break-words'>
+                            {formatDisplayText(assignment.value || '', {
+                              accessiblePrefixes,
+                              highlightAll: !accessiblePrefixes,
+                            })}
+                          </div>
+                        </div>
+                      </div>
                     ) : (
                       <div className='relative'>
                         <Input

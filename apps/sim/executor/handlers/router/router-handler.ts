@@ -34,7 +34,6 @@ export class RouterBlockHandler implements BlockHandler {
       prompt: inputs.prompt,
       model: inputs.model || 'gpt-4o',
       apiKey: inputs.apiKey,
-      temperature: inputs.temperature || 0,
     }
 
     const providerId = getProviderFromModel(routerConfig.model)
