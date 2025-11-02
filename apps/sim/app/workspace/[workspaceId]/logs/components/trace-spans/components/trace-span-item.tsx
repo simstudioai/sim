@@ -95,7 +95,7 @@ export function TraceSpanItem({
     if (type === 'evaluator') return <ChartBarIcon className='h-3 w-3 text-[#2FA1FF]' />
     if (type === 'condition') return <ConditionalIcon className='h-3 w-3 text-[#FF972F]' />
     if (type === 'router') return <ConnectIcon className='h-3 w-3 text-[#2FA1FF]' />
-    if (type === 'model') return <Cpu className='h-3 w-3 text-[#10a37f]' />
+    if (type === 'model') return <Cpu className='h-3 w-3 text-[var(--brand-primary-hover-hex)]' />
     if (type === 'function') return <CodeIcon className='h-3 w-3 text-[#FF402F]' />
     if (type === 'tool') {
       const toolId = String(span.name || '')
@@ -130,7 +130,7 @@ export function TraceSpanItem({
       case 'provider':
         return '#818cf8'
       case 'model':
-        return '#10a37f'
+        return 'var(--brand-primary-hover-hex)' // Same purple as agent
       case 'function':
         return '#FF402F'
       case 'tool':
