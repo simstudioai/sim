@@ -30,7 +30,6 @@ export class RouterBlockHandler implements BlockHandler {
       prompt: inputs.prompt,
       model: inputs.model || ROUTER.DEFAULT_MODEL,
       apiKey: inputs.apiKey,
-      temperature: inputs.temperature || ROUTER.DEFAULT_TEMPERATURE,
     }
 
     const providerId = getProviderFromModel(routerConfig.model)

@@ -15,6 +15,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
+import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { useTriggerConfigAggregation } from '@/hooks/use-trigger-config-aggregation'
 import { useWebhookManagement } from '@/hooks/use-webhook-management'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
@@ -59,6 +60,8 @@ export function TriggerSave({
     }
     return triggerId
   }, [blockId, triggerId])
+
+  const { collaborativeSetSubblockValue } = useCollaborativeWorkflow()
 
   const { webhookId, saveConfig, deleteConfig, isLoading } = useWebhookManagement({
     blockId,
@@ -119,39 +122,35 @@ export function TriggerSave({
       .map((sb) => sb.id)
   }, [triggerDef])
 
-  const otherRequiredValues = useMemo(() => {
-    if (!triggerDef) return {}
-    const values: Record<string, any> = {}
-    requiredSubBlockIds
-      .filter((id) => id !== 'triggerCredentials')
-      .forEach((subBlockId) => {
-        const value = useSubBlockStore.getState().getValue(blockId, subBlockId)
-        if (value !== null && value !== undefined && value !== '') {
-          values[subBlockId] = value
-        }
-      })
-    return values
-  }, [blockId, triggerDef, requiredSubBlockIds])
-
-  const requiredSubBlockValues = useMemo(() => {
-    return {
-      triggerCredentials,
-      ...otherRequiredValues,
-    }
-  }, [triggerCredentials, otherRequiredValues])
+  const subscribedSubBlockValues = useSubBlockStore(
+    useCallback(
+      (state) => {
+        if (!triggerDef) return {}
+        const values: Record<string, any> = {}
+        requiredSubBlockIds.forEach((subBlockId) => {
+          const value = state.getValue(blockId, subBlockId)
+          if (value !== null && value !== undefined && value !== '') {
+            values[subBlockId] = value
+          }
+        })
+        return values
+      },
+      [blockId, triggerDef, requiredSubBlockIds]
+    )
+  )
 
   const previousValuesRef = useRef<Record<string, any>>({})
   const validationTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   useEffect(() => {
     if (saveStatus !== 'error' || !triggerDef) {
-      previousValuesRef.current = requiredSubBlockValues
+      previousValuesRef.current = subscribedSubBlockValues
       return
     }
 
-    const hasChanges = Object.keys(requiredSubBlockValues).some(
+    const hasChanges = Object.keys(subscribedSubBlockValues).some(
       (key) =>
-        previousValuesRef.current[key] !== (requiredSubBlockValues as Record<string, any>)[key]
+        previousValuesRef.current[key] !== (subscribedSubBlockValues as Record<string, any>)[key]
     )
 
     if (!hasChanges) {
@@ -169,9 +168,7 @@ export function TriggerSave({
         useSubBlockStore.getState().setValue(blockId, 'triggerConfig', aggregatedConfig)
       }
 
-      const configToValidate =
-        aggregatedConfig ?? useSubBlockStore.getState().getValue(blockId, 'triggerConfig')
-      const validation = validateRequiredFields(configToValidate)
+      const validation = validateRequiredFields(aggregatedConfig)
 
       if (validation.valid) {
         setErrorMessage(null)
@@ -181,21 +178,15 @@ export function TriggerSave({
           triggerId: effectiveTriggerId,
         })
       } else {
-        const newErrorMessage = `Missing required fields: ${validation.missingFields.join(', ')}`
-        setErrorMessage((prev) => {
-          if (prev !== newErrorMessage) {
-            logger.debug('Error message updated', {
-              blockId,
-              triggerId: effectiveTriggerId,
-              missingFields: validation.missingFields,
-            })
-            return newErrorMessage
-          }
-          return prev
+        setErrorMessage(`Missing required fields: ${validation.missingFields.join(', ')}`)
+        logger.debug('Error message updated', {
+          blockId,
+          triggerId: effectiveTriggerId,
+          missingFields: validation.missingFields,
         })
       }
 
-      previousValuesRef.current = requiredSubBlockValues
+      previousValuesRef.current = subscribedSubBlockValues
     }, 300)
 
     return () => {
@@ -207,7 +198,7 @@ export function TriggerSave({
     blockId,
     effectiveTriggerId,
     triggerDef,
-    requiredSubBlockValues,
+    subscribedSubBlockValues,
     saveStatus,
     validateRequiredFields,
   ])
@@ -230,8 +221,7 @@ export function TriggerSave({
         })
       }
 
-      const configToValidate = aggregatedConfig ?? triggerConfig
-      const validation = validateRequiredFields(configToValidate)
+      const validation = validateRequiredFields(aggregatedConfig)
       if (!validation.valid) {
         setErrorMessage(`Missing required fields: ${validation.missingFields.join(', ')}`)
         setSaveStatus('error')
@@ -239,25 +229,32 @@ export function TriggerSave({
       }
 
       const success = await saveConfig()
-
-      if (success) {
-        setSaveStatus('saved')
-        setErrorMessage(null)
-
-        setTimeout(() => {
-          setSaveStatus('idle')
-        }, 2000)
-
-        logger.info('Trigger configuration saved successfully', {
-          blockId,
-          triggerId: effectiveTriggerId,
-          hasWebhookId: !!webhookId,
-        })
-      } else {
-        setSaveStatus('error')
-        setErrorMessage('Failed to save trigger configuration. Please try again.')
-        logger.error('Failed to save trigger configuration')
+      if (!success) {
+        throw new Error('Save config returned false')
       }
+
+      setSaveStatus('saved')
+      setErrorMessage(null)
+
+      const savedWebhookId = useSubBlockStore.getState().getValue(blockId, 'webhookId')
+      const savedTriggerPath = useSubBlockStore.getState().getValue(blockId, 'triggerPath')
+      const savedTriggerId = useSubBlockStore.getState().getValue(blockId, 'triggerId')
+      const savedTriggerConfig = useSubBlockStore.getState().getValue(blockId, 'triggerConfig')
+
+      collaborativeSetSubblockValue(blockId, 'webhookId', savedWebhookId)
+      collaborativeSetSubblockValue(blockId, 'triggerPath', savedTriggerPath)
+      collaborativeSetSubblockValue(blockId, 'triggerId', savedTriggerId)
+      collaborativeSetSubblockValue(blockId, 'triggerConfig', savedTriggerConfig)
+
+      setTimeout(() => {
+        setSaveStatus('idle')
+      }, 2000)
+
+      logger.info('Trigger configuration saved successfully', {
+        blockId,
+        triggerId: effectiveTriggerId,
+        hasWebhookId: !!webhookId,
+      })
     } catch (error: any) {
       setSaveStatus('error')
       setErrorMessage(error.message || 'An error occurred while saving.')
@@ -316,6 +313,10 @@ export function TriggerSave({
         setErrorMessage(null)
         setTestUrl(null)
         setTestUrlExpiresAt(null)
+
+        collaborativeSetSubblockValue(blockId, 'triggerPath', '')
+        collaborativeSetSubblockValue(blockId, 'webhookId', null)
+        collaborativeSetSubblockValue(blockId, 'triggerConfig', null)
 
         logger.info('Trigger configuration deleted successfully', {
           blockId,

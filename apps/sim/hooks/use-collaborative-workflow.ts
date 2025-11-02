@@ -19,6 +19,8 @@ import type { BlockState, Position } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('CollaborativeWorkflow')
 
+const WEBHOOK_SUBBLOCK_FIELDS = ['webhookId', 'triggerPath']
+
 export function useCollaborativeWorkflow() {
   const undoRedo = useUndoRedo()
   const isUndoRedoInProgress = useRef(false)
@@ -175,6 +177,9 @@ export function useCollaborativeWorkflow() {
               // Apply subblock values if present in payload
               if (payload.subBlocks && typeof payload.subBlocks === 'object') {
                 Object.entries(payload.subBlocks).forEach(([subblockId, subblock]) => {
+                  if (WEBHOOK_SUBBLOCK_FIELDS.includes(subblockId)) {
+                    return
+                  }
                   const value = (subblock as any)?.value
                   if (value !== undefined && value !== null) {
                     subBlockStore.setValue(payload.id, subblockId, value)
@@ -294,6 +299,9 @@ export function useCollaborativeWorkflow() {
               // Apply subblock values from duplicate payload so collaborators see content immediately
               if (payload.subBlocks && typeof payload.subBlocks === 'object') {
                 Object.entries(payload.subBlocks).forEach(([subblockId, subblock]) => {
+                  if (WEBHOOK_SUBBLOCK_FIELDS.includes(subblockId)) {
+                    return
+                  }
                   const value = (subblock as any)?.value
                   if (value !== undefined) {
                     subBlockStore.setValue(payload.id, subblockId, value)
@@ -1166,13 +1174,23 @@ export function useCollaborativeWorkflow() {
 
       const newName = getUniqueBlockName(sourceBlock.name, workflowStore.blocks)
 
-      // Get subblock values from the store
-      const subBlockValues = subBlockStore.workflowValues[activeWorkflowId || '']?.[sourceId] || {}
+      // Get subblock values from the store, excluding webhook-specific fields
+      const allSubBlockValues =
+        subBlockStore.workflowValues[activeWorkflowId || '']?.[sourceId] || {}
+      const subBlockValues = Object.fromEntries(
+        Object.entries(allSubBlockValues).filter(([key]) => !WEBHOOK_SUBBLOCK_FIELDS.includes(key))
+      )
 
       // Merge subblock structure with actual values
       const mergedSubBlocks = sourceBlock.subBlocks
         ? JSON.parse(JSON.stringify(sourceBlock.subBlocks))
         : {}
+
+      WEBHOOK_SUBBLOCK_FIELDS.forEach((field) => {
+        if (field in mergedSubBlocks) {
+          delete mergedSubBlocks[field]
+        }
+      })
       Object.entries(subBlockValues).forEach(([subblockId, value]) => {
         if (mergedSubBlocks[subblockId]) {
           mergedSubBlocks[subblockId].value = value

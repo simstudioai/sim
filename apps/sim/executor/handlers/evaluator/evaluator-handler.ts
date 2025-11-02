@@ -22,8 +22,13 @@ export class EvaluatorBlockHandler implements BlockHandler {
     block: SerializedBlock,
     inputs: Record<string, any>
   ): Promise<BlockOutput> {
-    const model = inputs.model || EVALUATOR.DEFAULT_MODEL
-    const providerId = getProviderFromModel(model)
+
+
+    const evaluatorConfig = {
+      model: inputs.model || EVALUATOR.DEFAULT_MODEL,
+      apiKey: inputs.apiKey,
+    }
+    const providerId = getProviderFromModel(evaluatorConfig.model)
 
     const processedContent = this.processContent(inputs.content)
 
@@ -85,7 +90,7 @@ export class EvaluatorBlockHandler implements BlockHandler {
 
       const providerRequest = {
         provider: providerId,
-        model: model,
+        model: evaluatorConfig.model,
         systemPrompt: systemPromptObj.systemPrompt,
         responseFormat: systemPromptObj.responseFormat,
         context: stringifyJSON([
@@ -95,9 +100,11 @@ export class EvaluatorBlockHandler implements BlockHandler {
               'Please evaluate the content provided in the system prompt. Return ONLY a valid JSON with metric scores.',
           },
         ]),
-        temperature: inputs.temperature || EVALUATOR.DEFAULT_TEMPERATURE,
-        apiKey: inputs.apiKey,
+
+        temperature: EVALUATOR.DEFAULT_TEMPERATURE,
+        apiKey: evaluatorConfig.apiKey,
         workflowId: ctx.workflowId,
+ 
       }
 
       const response = await fetch(url.toString(), {
