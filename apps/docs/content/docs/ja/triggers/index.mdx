@@ -7,26 +7,17 @@ import { Card, Cards } from 'fumadocs-ui/components/card'
 
 ## 主要なトリガー
 
-ワークフローごとに1つのトリガーを選択して、開始方法を定義します：
+エディタから始まるすべてのもの、APIへのデプロイ、またはチャットへのデプロイエクスペリエンスにはStartブロックを使用してください。イベント駆動型ワークフローには他のトリガーも引き続き利用可能です：
 
 <Cards>
-  <Card title="API" href="/triggers/api">
-    JSONボディをワークフロー入力にマッピングするHTTPエンドポイント
-  </Card>
-  <Card title="チャット" href="/triggers/chat">
-    ストリーミングレスポンスを備えたデプロイ済みチャットインターフェース
-  </Card>
-  <Card title="入力フォーム" href="/triggers/input-form">
-    エディタ実行と子ワークフローで使用される型付き手動入力
-  </Card>
-  <Card title="手動" href="/triggers/manual">
-    追加データなしのオンデマンド実行
-  </Card>
-  <Card title="スケジュール" href="/triggers/schedule">
-    Cronまたは間隔ベースの実行
+  <Card title="Start" href="/triggers/start">
+    エディタ実行、APIデプロイメント、チャットデプロイメントをサポートする統合エントリーポイント
   </Card>
   <Card title="Webhook" href="/triggers/webhook">
     外部のWebhookペイロードを受信
+  </Card>
+  <Card title="Schedule" href="/triggers/schedule">
+    Cronまたは間隔ベースの実行
   </Card>
 </Cards>
 
@@ -34,19 +25,16 @@ import { Card, Cards } from 'fumadocs-ui/components/card'
 
 | トリガー | 開始条件 |
 |---------|-----------------|
-| **API** | 認証されたHTTP POST |
-| **チャット** | チャットデプロイメントメッセージ |
-| **入力フォーム** | エディタまたは親ワークフローでの手動送信時 |
-| **手動** | エディタの実行ボタン |
-| **スケジュール** | スケジュールモーダルで管理されるタイマー |
-| **Webhook** | 受信HTTPリクエスト時 |
+| **Start** | エディタ実行、APIへのデプロイリクエスト、またはチャットメッセージ |
+| **Schedule** | スケジュールモーダルで管理されるタイマー |
+| **Webhook** | インバウンドHTTPリクエスト時 |
+
+> Startブロックは常に `input`、`conversationId`、および `files` フィールドを公開します。追加の構造化データには、入力フォーマットにカスタムフィールドを追加してください。
 
 ## トリガーの使用方法
 
-1. トリガーブロックを開始スロットにドロップします。
-2. 必要なスキーマや認証を設定します。
+1. Startブロックを開始スロットに配置します（またはWebhook/Scheduleなどの代替トリガーを使用）。
+2. 必要なスキーマまたは認証を設定します。
 3. ブロックをワークフローの残りの部分に接続します。
 
 > デプロイメントはすべてのトリガーを動作させます。ワークフローを更新し、再デプロイすると、すべてのトリガーエントリーポイントが新しいスナップショットを取得します。詳細は[実行 → デプロイメントスナップショット](/execution)をご覧ください。
-
-既存のフロー用にレガシースタータブロックは残っていますが、新しいビルドには表示されなくなりました。

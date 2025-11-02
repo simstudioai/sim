@@ -7,26 +7,17 @@ import { Card, Cards } from 'fumadocs-ui/components/card'
 
 ## 核心触发器
 
-为每个工作流选择一个触发器以定义其启动方式：
+使用 Start 块处理所有从编辑器、部署到 API 或部署到聊天的体验中发起的操作。其他触发器仍可用于事件驱动的工作流：
 
 <Cards>
-  <Card title="API" href="/triggers/api">
-    将 JSON 数据映射到工作流输入的 HTTP 端点
+  <Card title="Start" href="/triggers/start">
+    支持编辑器运行、API 部署和聊天部署的统一入口点
   </Card>
-  <Card title="Chat" href="/triggers/chat">
-    部署的聊天界面，支持流式响应
-  </Card>
-  <Card title="Input Form" href="/triggers/input-form">
-    在编辑器运行和子工作流中使用的手动输入
-  </Card>
-  <Card title="Manual" href="/triggers/manual">
-    无需额外数据的按需运行
+  <Card title="Webhook" href="/triggers/webhook">
+    接收外部 webhook 负载
   </Card>
   <Card title="Schedule" href="/triggers/schedule">
     基于 Cron 或间隔的执行
-  </Card>
-  <Card title="Webhook" href="/triggers/webhook">
-    接收外部 Webhook 负载
   </Card>
 </Cards>
 
@@ -34,19 +25,16 @@ import { Card, Cards } from 'fumadocs-ui/components/card'
 
 | 触发器 | 启动条件 |
 |---------|-----------------|
-| **API** | 经过身份验证的 HTTP POST |
-| **Chat** | 聊天部署消息 |
-| **Input Form** | 在编辑器或父工作流中手动提交 |
-| **Manual** | 编辑器中的运行按钮 |
+| **Start** | 编辑器运行、部署到 API 请求或聊天消息 |
 | **Schedule** | 在计划模式中管理的计时器 |
-| **Webhook** | 入站 HTTP 请求 |
+| **Webhook** | 收到入站 HTTP 请求时 |
+
+> Start 块始终会暴露 `input`、`conversationId` 和 `files` 字段。可以向输入格式添加自定义字段以获取额外的结构化数据。
 
 ## 使用触发器
 
-1. 将触发器模块放入启动槽中。
+1. 将 Start 块放入起始槽（或其他触发器如 Webhook/Schedule）。
 2. 配置任何所需的模式或认证。
-3. 将模块连接到工作流的其余部分。
+3. 将该块连接到工作流的其余部分。
 
-> 部署为每个触发器提供支持。更新工作流，重新部署，所有触发器入口点将获取新的快照。了解更多信息，请参阅[执行 → 部署快照](/execution)。
-
-旧版启动模块仍适用于现有流程，但不再出现在新构建中。
+> 部署为每个触发器提供支持。更新工作流，重新部署，所有触发器入口点都会获取新的快照。在[执行 → 部署快照](/execution)中了解更多信息。

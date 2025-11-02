@@ -7,46 +7,34 @@ import { Card, Cards } from 'fumadocs-ui/components/card'
 
 ## Kern-Auslöser
 
-Wähle einen Auslöser pro Workflow, um zu definieren, wie er startet:
+Verwende den Start-Block für alles, was vom Editor, von Deploy-to-API oder von Deploy-to-Chat-Erfahrungen ausgeht. Andere Trigger bleiben für ereignisgesteuerte Workflows verfügbar:
 
 <Cards>
-  <Card title="API" href="/triggers/api">
-    HTTP-Endpunkt, der JSON-Bodies in Workflow-Eingaben umwandelt
-  </Card>
-  <Card title="Chat" href="/triggers/chat">
-    Bereitgestellte Chat-Oberfläche mit Streaming-Antworten
-  </Card>
-  <Card title="Eingabeformular" href="/triggers/input-form">
-    Typisierte manuelle Eingabe für Editor-Ausführungen und Unterworkflows
-  </Card>
-  <Card title="Manuell" href="/triggers/manual">
-    Bedarfsgesteuerte Ausführungen ohne zusätzliche Daten
-  </Card>
-  <Card title="Zeitplan" href="/triggers/schedule">
-    Cron- oder intervallbasierte Ausführung
+  <Card title="Start" href="/triggers/start">
+    Einheitlicher Einstiegspunkt, der Editor-Ausführungen, API-Bereitstellungen und Chat-Bereitstellungen unterstützt
   </Card>
   <Card title="Webhook" href="/triggers/webhook">
     Externe Webhook-Payloads empfangen
+  </Card>
+  <Card title="Schedule" href="/triggers/schedule">
+    Cron- oder intervallbasierte Ausführung
   </Card>
 </Cards>
 
 ## Schneller Vergleich
 
-| Auslöser | Startbedingung |
+| Trigger | Startbedingung |
 |---------|-----------------|
-| **API** | Authentifizierter HTTP POST |
-| **Chat** | Chat-Deployment-Nachricht |
-| **Eingabeformular** | Bei manueller Übermittlung im Editor oder übergeordneten Workflow |
-| **Manuell** | Ausführen-Schaltfläche im Editor |
-| **Zeitplan** | Timer, der im Zeitplan-Modal verwaltet wird |
-| **Webhook** | Bei eingehendem HTTP-Request |
+| **Start** | Editor-Ausführungen, Deploy-to-API-Anfragen oder Chat-Nachrichten |
+| **Schedule** | Timer, der im Zeitplan-Modal verwaltet wird |
+| **Webhook** | Bei eingehender HTTP-Anfrage |
 
-## Verwendung von Auslösern
+> Der Start-Block stellt immer `input`, `conversationId` und `files`Felder bereit. Füge benutzerdefinierte Felder zum Eingabeformat für zusätzliche strukturierte Daten hinzu.
 
-1. Platziere den Auslöser-Block im Startslot.
-2. Konfiguriere alle erforderlichen Schemas oder Authentifizierungen.
+## Verwendung von Triggern
+
+1. Platziere den Start-Block im Startslot (oder einen alternativen Trigger wie Webhook/Schedule).
+2. Konfiguriere alle erforderlichen Schema- oder Authentifizierungseinstellungen.
 3. Verbinde den Block mit dem Rest des Workflows.
 
-> Deployments unterstützen jeden Auslöser. Aktualisiere den Workflow, stelle ihn neu bereit, und alle Auslöser-Einstiegspunkte übernehmen den neuen Snapshot. Erfahre mehr unter [Ausführung → Deployment-Snapshots](/execution).
-
-Legacy-Starter-Blöcke bleiben für bestehende Flows erhalten, erscheinen aber nicht mehr in neuen Builds.
+> Bereitstellungen unterstützen jeden Trigger. Aktualisiere den Workflow, stelle ihn erneut bereit, und alle Trigger-Einstiegspunkte übernehmen den neuen Snapshot. Erfahre mehr unter [Ausführung → Bereitstellungs-Snapshots](/execution).
