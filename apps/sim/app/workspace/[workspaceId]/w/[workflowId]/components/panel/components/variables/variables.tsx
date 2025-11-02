@@ -113,6 +113,14 @@ export function Variables() {
 
     const trimmedName = localName.trim()
 
+    if (!trimmedName) {
+      setNameErrors((prev) => ({
+        ...prev,
+        [variableId]: 'Variable name cannot be empty',
+      }))
+      return
+    }
+
     if (isDuplicateName(variableId, trimmedName)) {
       setNameErrors((prev) => ({
         ...prev,
@@ -228,13 +236,12 @@ export function Variables() {
         if (!variableIds.has(id)) {
           delete updated[id]
           changed = true
-        }
-      })
-
-      workflowVariables.forEach((variable) => {
-        if (updated[variable.id] === variable.name) {
-          delete updated[variable.id]
-          changed = true
+        } else {
+          const variable = workflowVariables.find((v) => v.id === id)
+          if (variable && updated[id] === variable.name) {
+            delete updated[id]
+            changed = true
+          }
         }
       })
 
