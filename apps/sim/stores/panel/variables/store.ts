@@ -167,7 +167,10 @@ export const useVariablesStore = create<VariablesStore>()(
           const oldVariableName = oldVariable.name
           const newName = update.name.trim()
 
-          if (newName !== oldVariableName && newName !== '') {
+          if (!newName) {
+            update = { ...update }
+            update.name = undefined
+          } else if (newName !== oldVariableName) {
             const subBlockStore = useSubBlockStore.getState()
             const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
 
