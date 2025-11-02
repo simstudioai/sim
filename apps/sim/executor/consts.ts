@@ -213,7 +213,7 @@ export const ROUTER = {
 
 export const EVALUATOR = {
   DEFAULT_MODEL: 'gpt-4o',
-  DEFAULT_TEMPERATURE: 0,
+  DEFAULT_TEMPERATURE: 0.1,
   RESPONSE_SCHEMA_NAME: 'evaluation_response',
   JSON_INDENT: 2,
 } as const

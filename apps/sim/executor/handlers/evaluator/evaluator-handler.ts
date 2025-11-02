@@ -22,8 +22,6 @@ export class EvaluatorBlockHandler implements BlockHandler {
     block: SerializedBlock,
     inputs: Record<string, any>
   ): Promise<BlockOutput> {
-
-
     const evaluatorConfig = {
       model: inputs.model || EVALUATOR.DEFAULT_MODEL,
       apiKey: inputs.apiKey,
@@ -104,7 +102,6 @@ export class EvaluatorBlockHandler implements BlockHandler {
         temperature: EVALUATOR.DEFAULT_TEMPERATURE,
         apiKey: evaluatorConfig.apiKey,
         workflowId: ctx.workflowId,
- 
       }
 
       const response = await fetch(url.toString(), {
