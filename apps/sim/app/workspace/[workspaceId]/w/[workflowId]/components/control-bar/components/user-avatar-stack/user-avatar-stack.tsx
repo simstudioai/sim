@@ -2,10 +2,8 @@
 
 import { useMemo } from 'react'
 import { cn } from '@/lib/utils'
-import { ConnectionStatus } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/control-bar/components/user-avatar-stack/components/connection-status/connection-status'
 import { UserAvatar } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/control-bar/components/user-avatar-stack/components/user-avatar/user-avatar'
 import { usePresence } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-presence'
-import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 
 interface User {
   connectionId: string | number
@@ -29,12 +27,10 @@ export function UserAvatarStack({
   className = '',
 }: UserAvatarStackProps) {
   // Use presence data if no users are provided via props
-  const { users: presenceUsers, isConnected } = usePresence()
+  const { users: presenceUsers } = usePresence()
   const users = propUsers || presenceUsers
 
   // Get operation error state from collaborative workflow
-  const { hasOperationError } = useCollaborativeWorkflow()
-
   // Memoize the processed users to avoid unnecessary re-renders
   const { visibleUsers, overflowCount } = useMemo(() => {
     if (users.length === 0) {
@@ -60,7 +56,7 @@ export function UserAvatarStack({
   const shouldShowAvatars = visibleUsers.length > 0
 
   return (
-    <div className={`flex flex-col items-start gap-2 ${className}`}>
+    <div className={`flex flex-col items-start ${className}`}>
       {shouldShowAvatars && (
         <div className={cn('flex items-center px-2 py-1', spacingClass)}>
           {visibleUsers.map((user, index) => (
@@ -105,8 +101,6 @@ export function UserAvatarStack({
           )}
         </div>
       )}
-
-      <ConnectionStatus isConnected={isConnected} hasOperationError={hasOperationError} />
     </div>
   )
 }
