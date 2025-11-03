@@ -44,7 +44,7 @@ function buildFolderPath(
   let currentId: string | null = folderId
 
   while (currentId && foldersMap.has(currentId)) {
-    const folder = foldersMap.get(currentId)!
+    const folder: FolderExportData = foldersMap.get(currentId)!
     path.unshift(sanitizePathSegment(folder.name))
     currentId = folder.parentId
   }
