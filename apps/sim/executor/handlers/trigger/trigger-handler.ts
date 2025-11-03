@@ -1,20 +1,18 @@
 import { createLogger } from '@/lib/logs/console/logger'
+import { BlockType } from '@/executor/consts'
 import type { BlockHandler, ExecutionContext } from '@/executor/types'
 import type { SerializedBlock } from '@/serializer/types'
 
 const logger = createLogger('TriggerBlockHandler')
 
-/**
- * Handler for trigger blocks (Gmail, Webhook, Schedule, etc.)
- * These blocks don't execute tools - they provide input data to workflows
- */
 export class TriggerBlockHandler implements BlockHandler {
   canHandle(block: SerializedBlock): boolean {
-    // Handle blocks that are triggers - either by category or by having triggerMode enabled
+    if (block.metadata?.id === BlockType.STARTER) {
+      return true
+    }
+
     const isTriggerCategory = block.metadata?.category === 'triggers'
 
-    // For blocks that can be both tools and triggers (like Gmail/Outlook), check if triggerMode is enabled
-    // This would come from the serialized block config/params
     const hasTriggerMode = block.config?.params?.triggerMode === true
 
     return isTriggerCategory || hasTriggerMode
@@ -26,6 +24,10 @@ export class TriggerBlockHandler implements BlockHandler {
     inputs: Record<string, any>
   ): Promise<any> {
     logger.info(`Executing trigger block: ${block.id} (Type: ${block.metadata?.id})`)
+
+    if (block.metadata?.id === BlockType.STARTER) {
+      return this.executeStarterBlock(ctx, block, inputs)
+    }
 
     const existingState = ctx.blockStates.get(block.id)
     if (existingState?.output && Object.keys(existingState.output).length > 0) {
@@ -150,5 +152,32 @@ export class TriggerBlockHandler implements BlockHandler {
 
     logger.debug(`No inputs provided for trigger block ${block.id}, returning empty object`)
     return {}
+  }
+
+  private executeStarterBlock(
+    ctx: ExecutionContext,
+    block: SerializedBlock,
+    inputs: Record<string, any>
+  ): any {
+    logger.info(`Executing starter block: ${block.id}`, {
+      blockName: block.metadata?.name,
+    })
+
+    const existingState = ctx.blockStates.get(block.id)
+    if (existingState?.output && Object.keys(existingState.output).length > 0) {
+      logger.debug('Returning pre-initialized starter block output', {
+        blockId: block.id,
+        outputKeys: Object.keys(existingState.output),
+      })
+      return existingState.output
+    }
+
+    logger.warn('Starter block output not found in context, returning empty output', {
+      blockId: block.id,
+    })
+
+    return {
+      input: inputs.input || '',
+    }
   }
 }
