@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { LogOut, Pencil, Plus, Send, Trash2 } from 'lucide-react'
+import { Download, LogOut, Pencil, Plus, Send, Trash2 } from 'lucide-react'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -84,6 +84,7 @@ export function WorkspaceSelector({
   } | null>(null)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [workspaceToDelete, setWorkspaceToDelete] = useState<Workspace | null>(null)
+  const [isExporting, setIsExporting] = useState(false)
 
   // Refs
   const scrollAreaRef = useRef<HTMLDivElement>(null)
@@ -300,6 +301,109 @@ export function WorkspaceSelector({
     [onLeaveWorkspace]
   )
 
+  /**
+   * Handle export workspace
+   */
+  const handleExportWorkspace = useCallback(async () => {
+    if (!activeWorkspace || isExporting) return
+
+    setIsExporting(true)
+    try {
+      const { exportWorkspaceToZip } = await import('@/lib/workflows/import-export')
+      const { useFolderStore } = await import('@/stores/folders/store')
+
+      const workflowsUrl = new URL('/api/workflows', window.location.origin)
+      workflowsUrl.searchParams.append('workspaceId', activeWorkspace.id)
+
+      const workflowsResponse = await fetch(workflowsUrl.toString())
+      if (!workflowsResponse.ok) {
+        throw new Error('Failed to fetch workflows')
+      }
+
+      const { data: workflows } = await workflowsResponse.json()
+
+      if (!workflows || workflows.length === 0) {
+        logger.warn('No workflows found to export')
+        return
+      }
+
+      const foldersUrl = new URL('/api/folders', window.location.origin)
+      foldersUrl.searchParams.append('workspaceId', activeWorkspace.id)
+
+      const foldersResponse = await fetch(foldersUrl.toString())
+      const foldersData = foldersResponse.ok ? await foldersResponse.json() : { folders: [] }
+
+      const workflowsToExport: Array<{
+        workflow: {
+          id: string
+          name: string
+          description?: string
+          folderId?: string | null
+        }
+        state: any
+      }> = []
+
+      for (const workflow of workflows) {
+        try {
+          const workflowResponse = await fetch(`/api/workflows/${workflow.id}`)
+          if (!workflowResponse.ok) {
+            logger.warn(`Failed to fetch workflow ${workflow.id}`)
+            continue
+          }
+
+          const { data: workflowData } = await workflowResponse.json()
+          if (!workflowData?.state) {
+            logger.warn(`Workflow ${workflow.id} has no state`)
+            continue
+          }
+
+          workflowsToExport.push({
+            workflow: {
+              id: workflow.id,
+              name: workflow.name,
+              description: workflow.description,
+              folderId: workflow.folderId,
+            },
+            state: workflowData.state,
+          })
+        } catch (error) {
+          logger.error(`Failed to export workflow ${workflow.id}:`, error)
+        }
+      }
+
+      const foldersToExport: Array<{
+        id: string
+        name: string
+        parentId: string | null
+      }> = (foldersData.folders || []).map((folder: any) => ({
+        id: folder.id,
+        name: folder.name,
+        parentId: folder.parentId,
+      }))
+
+      const zipBlob = await exportWorkspaceToZip(
+        activeWorkspace.name,
+        workflowsToExport,
+        foldersToExport
+      )
+
+      const blobUrl = URL.createObjectURL(zipBlob)
+      const a = document.createElement('a')
+      a.href = blobUrl
+      a.download = `${activeWorkspace.name.replace(/[^a-z0-9]/gi, '-')}-workspace-export.zip`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(blobUrl)
+
+      logger.info(`Exported ${workflowsToExport.length} workflows from workspace`)
+    } catch (error) {
+      logger.error('Failed to export workspace:', error)
+    } finally {
+      setIsExporting(false)
+    }
+  }, [activeWorkspace, isExporting])
+
   // Render workspace list
   const renderWorkspaceList = () => {
     if (isWorkspacesLoading) {
@@ -379,6 +483,26 @@ export function WorkspaceSelector({
                 className='flex h-full flex-shrink-0 items-center justify-center gap-1'
                 onClick={(e) => e.stopPropagation()}
               >
+                {/* Export button - show on hover for admin users */}
+                {!isEditing &&
+                  isHovered &&
+                  workspace.permissions === 'admin' &&
+                  activeWorkspace?.id === workspace.id && (
+                    <Button
+                      variant='ghost'
+                      size='icon'
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleExportWorkspace()
+                      }}
+                      disabled={isExporting}
+                      className='h-4 w-4 p-0 text-muted-foreground transition-colors hover:bg-transparent hover:text-foreground'
+                      title='Export workspace'
+                    >
+                      <Download className='!h-3.5 !w-3.5' />
+                    </Button>
+                  )}
+
                 {/* Edit button - show on hover for admin users */}
                 {!isEditing && isHovered && workspace.permissions === 'admin' && (
                   <Button

@@ -49,6 +49,11 @@ export interface ExportWorkflowState {
     edges: Edge[]
     loops: Record<string, Loop>
     parallels: Record<string, Parallel>
+    metadata?: {
+      name?: string
+      description?: string
+      exportedAt?: string
+    }
   }
 }
 
@@ -369,35 +374,31 @@ export function sanitizeForCopilot(state: WorkflowState): CopilotWorkflowState {
  * Users need positions to restore the visual layout when importing
  */
 export function sanitizeForExport(state: WorkflowState): ExportWorkflowState {
-  // Deep clone to avoid mutating original state
   const clonedState = JSON.parse(
     JSON.stringify({
       blocks: state.blocks,
       edges: state.edges,
       loops: state.loops || {},
       parallels: state.parallels || {},
+      metadata: state.metadata,
     })
   )
 
-  // Remove sensitive data from subblocks
   Object.values(clonedState.blocks).forEach((block: any) => {
     if (block.subBlocks) {
       Object.entries(block.subBlocks).forEach(([key, subBlock]: [string, any]) => {
-        // Clear OAuth credentials and API keys based on field name only
         if (
           /credential|oauth|api[_-]?key|token|secret|auth|password|bearer/i.test(key) ||
           subBlock.type === 'oauth-input'
         ) {
           subBlock.value = ''
         }
-        // Remove knowledge base tag filters and document tags (workspace-specific data)
         if (key === 'tagFilters' || key === 'documentTags') {
           subBlock.value = ''
         }
       })
     }
 
-    // Also clear from data field if present
     if (block.data) {
       Object.entries(block.data).forEach(([key, value]: [string, any]) => {
         if (/credential|oauth|api[_-]?key|token|secret|auth|password|bearer/i.test(key)) {

@@ -153,7 +153,11 @@ export interface WorkflowState {
   loops: Record<string, Loop>
   parallels: Record<string, Parallel>
   lastUpdate?: number
-  // Legacy deployment fields (keeping for compatibility)
+  metadata?: {
+    name?: string
+    description?: string
+    exportedAt?: string
+  }
   isDeployed?: boolean
   deployedAt?: Date
   // New field for per-workflow deployment status
