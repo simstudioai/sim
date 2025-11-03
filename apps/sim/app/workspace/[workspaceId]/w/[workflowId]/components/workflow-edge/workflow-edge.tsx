@@ -81,7 +81,7 @@ export const WorkflowEdge = ({
   const getEdgeColor = () => {
     if (edgeDiffStatus === 'deleted') return '#ef4444' // Red for deleted edges
     if (isErrorEdge) return '#EF4444' // Red for error paths (matches error handle)
-    if (edgeDiffStatus === 'new') return '#22c55e' // Green for new edges
+    if (edgeDiffStatus === 'new') return '#22C55E' // Green for new edges
     return '#434343' // Matches workflow-block handle color
   }
 

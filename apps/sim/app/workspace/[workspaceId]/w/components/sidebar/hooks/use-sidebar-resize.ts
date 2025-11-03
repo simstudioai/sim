@@ -5,11 +5,12 @@ import { useSidebarStore } from '@/stores/sidebar/store'
  * Constants for sidebar sizing
  */
 const MIN_WIDTH = 232
-const MAX_WIDTH = 400
+const MAX_WIDTH_PERCENTAGE = 0.3 // 30% of viewport width
 
 /**
  * Custom hook to handle sidebar resize functionality.
  * Manages mouse events for resizing and enforces min/max width constraints.
+ * Maximum width is capped at 30% of the viewport width for optimal layout.
  *
  * @returns Resize state and handlers
  */
@@ -33,7 +34,9 @@ export function useSidebarResize() {
 
     const handleMouseMove = (e: MouseEvent) => {
       const newWidth = e.clientX
-      if (newWidth >= MIN_WIDTH && newWidth <= MAX_WIDTH) {
+      const maxWidth = window.innerWidth * MAX_WIDTH_PERCENTAGE
+
+      if (newWidth >= MIN_WIDTH && newWidth <= maxWidth) {
         setSidebarWidth(newWidth)
       }
     }

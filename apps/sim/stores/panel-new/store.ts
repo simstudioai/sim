@@ -4,9 +4,9 @@ import type { PanelState, PanelTab } from './types'
 
 /**
  * Panel width constraints
+ * Note: Maximum width is enforced dynamically at 40% of viewport width in the resize hook
  */
 const MIN_PANEL_WIDTH = 244
-const MAX_PANEL_WIDTH = 400
 
 /**
  * Default panel tab
@@ -18,7 +18,8 @@ export const usePanelStore = create<PanelState>()(
     (set) => ({
       panelWidth: MIN_PANEL_WIDTH,
       setPanelWidth: (width) => {
-        const clampedWidth = Math.max(MIN_PANEL_WIDTH, Math.min(MAX_PANEL_WIDTH, width))
+        // Only enforce minimum - maximum is enforced dynamically by the resize hook
+        const clampedWidth = Math.max(MIN_PANEL_WIDTH, width)
         set({ panelWidth: clampedWidth })
         // Update CSS variable for immediate visual feedback
         if (typeof window !== 'undefined') {

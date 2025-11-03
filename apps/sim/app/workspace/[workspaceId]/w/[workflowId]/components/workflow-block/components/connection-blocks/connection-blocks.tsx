@@ -12,6 +12,29 @@ interface ConnectionBlocksProps {
 }
 
 /**
+ * Retrieves the icon component for a given connection block
+ * @param connection - The connected block to get the icon for
+ * @returns The icon component or null if not found
+ */
+function getConnectionIcon(connection: ConnectedBlock) {
+  const blockConfig = getBlock(connection.type)
+
+  if (blockConfig?.icon) {
+    return blockConfig.icon
+  }
+
+  if (connection.type === 'loop') {
+    return RepeatIcon
+  }
+
+  if (connection.type === 'parallel') {
+    return SplitIcon
+  }
+
+  return null
+}
+
+/**
  * Displays incoming connections as compact floating text above the workflow block
  */
 export function ConnectionBlocks({
@@ -24,57 +47,37 @@ export function ConnectionBlocks({
   if (!hasIncomingConnections) return null
 
   const connectionCount = incomingConnections.length
+  const maxVisibleIcons = 4
+  const visibleConnections = incomingConnections.slice(0, maxVisibleIcons)
+  const remainingCount = connectionCount - maxVisibleIcons
 
-  // For vertical handles, show simplified view on the left
+  const connectionText = `${connectionCount} ${connectionCount === 1 ? 'connection' : 'connections'}`
+
+  const connectionIcons = (
+    <>
+      {visibleConnections.map((connection: ConnectedBlock) => {
+        const Icon = getConnectionIcon(connection)
+        if (!Icon) return null
+        return <Icon key={connection.id} className='h-[14px] w-[14px] text-[#AEAEAE]' />
+      })}
+      {remainingCount > 0 && <span className='text-[#AEAEAE] text-[14px]'>+{remainingCount}</span>}
+    </>
+  )
+
   if (!horizontalHandles) {
     return (
-      <div className='-translate-x-full -translate-y-1/2 absolute top-1/2 left-0 pr-[8px] opacity-0 transition-opacity group-hover:opacity-100'>
-        <span className='text-[#AEAEAE] text-[14px]'>
-          {connectionCount} {connectionCount === 1 ? 'connection' : 'connections'}
-        </span>
+      <div className='-translate-x-full -translate-y-1/2 pointer-events-none absolute top-1/2 left-0 flex flex-col items-end gap-[8px] pr-[8px] opacity-0 transition-opacity group-hover:opacity-100'>
+        <span className='text-[#AEAEAE] text-[14px] leading-[14px]'>{connectionText}</span>
+        <div className='flex items-center justify-end gap-[4px]'>{connectionIcons}</div>
       </div>
     )
   }
 
-  // For horizontal handles, show full view with icons
-  const maxVisibleIcons = 5
-  const visibleConnections = incomingConnections.slice(0, maxVisibleIcons)
-  const remainingCount = connectionCount - maxVisibleIcons
-
   return (
-    <div className='absolute bottom-full left-0 ml-[8px] flex items-center gap-[8px] pb-[8px] opacity-0 transition-opacity group-hover:opacity-100'>
-      {/* Connection Count Text */}
-      <span className='text-[#AEAEAE] text-[14px]'>
-        {connectionCount} {connectionCount === 1 ? 'connection' : 'connections'}
-      </span>
-
-      {/* Vertical Bar */}
+    <div className='pointer-events-none absolute bottom-full left-0 ml-[8px] flex items-center gap-[8px] pb-[8px] opacity-0 transition-opacity group-hover:opacity-100'>
+      <span className='text-[#AEAEAE] text-[14px]'>{connectionText}</span>
       <div className='h-[14px] w-[1px] bg-[#AEAEAE]' />
-
-      {/* Connection Icons */}
-      <div className='flex items-center gap-[4px]'>
-        {visibleConnections.map((connection: ConnectedBlock) => {
-          const blockConfig = getBlock(connection.type)
-
-          let Icon = blockConfig?.icon
-
-          // Handle special blocks
-          if (!blockConfig) {
-            if (connection.type === 'loop') {
-              Icon = RepeatIcon as typeof Icon
-            } else if (connection.type === 'parallel') {
-              Icon = SplitIcon as typeof Icon
-            }
-          }
-
-          if (!Icon) return null
-
-          return <Icon key={connection.id} className='h-[14px] w-[14px] text-[#AEAEAE]' />
-        })}
-        {remainingCount > 0 && (
-          <span className='text-[#AEAEAE] text-[14px]'>+{remainingCount}</span>
-        )}
-      </div>
+      <div className='flex items-center gap-[4px]'>{connectionIcons}</div>
     </div>
   )
 }

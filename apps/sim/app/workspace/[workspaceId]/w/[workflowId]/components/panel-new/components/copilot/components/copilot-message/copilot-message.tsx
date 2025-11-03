@@ -1,7 +1,7 @@
 'use client'
 
 import { type FC, memo, useMemo, useState } from 'react'
-import { Check, Copy, CornerDownLeft, RotateCcw, Square, ThumbsDown, ThumbsUp } from 'lucide-react'
+import { Check, Copy, RotateCcw, Square, ThumbsDown, ThumbsUp } from 'lucide-react'
 import { Button } from '@/components/emcn'
 import { createLogger } from '@/lib/logs/console/logger'
 import { InlineToolCall } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/copilot/components'
@@ -263,29 +263,33 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
 
               {/* Inline Checkpoint Discard Confirmation - shown below input in edit mode */}
               {showCheckpointDiscardModal && (
-                <div className='mt-2 rounded-lg border border-gray-200 bg-gray-50 p-2.5 dark:border-gray-700 dark:bg-gray-900'>
-                  <p className='mb-2 text-foreground text-sm'>Continue from a previous message?</p>
-                  <div className='flex gap-1.5'>
-                    <button
+                <div className='mt-[8px] rounded-[4px] border border-[#3D3D3D] bg-[#282828] p-[10px] dark:border-[#3D3D3D] dark:bg-[#353535]'>
+                  <p className='mb-[8px] text-[#E6E6E6] text-sm'>
+                    Continue from a previous message?
+                  </p>
+                  <div className='flex gap-[6px]'>
+                    <Button
                       onClick={handleCancelCheckpointDiscard}
-                      className='flex flex-1 items-center justify-center gap-1.5 rounded-md border border-gray-300 bg-muted px-2 py-1 text-foreground text-xs transition-colors hover:bg-muted/80 dark:border-gray-600 dark:bg-background dark:hover:bg-muted'
+                      variant='default'
+                      className='flex flex-1 items-center justify-center gap-[6px] px-[8px] py-[4px] text-xs'
                     >
                       <span>Cancel</span>
-                      <span className='text-[10px] text-muted-foreground'>(Esc)</span>
-                    </button>
-                    <button
+                      <span className='text-[#787878] text-[10px]'>(Esc)</span>
+                    </Button>
+                    <Button
                       onClick={handleContinueWithoutRevert}
-                      className='flex-1 rounded-md border border-border bg-background px-2 py-1 text-xs transition-colors hover:bg-muted dark:bg-muted dark:hover:bg-muted/80'
+                      variant='outline'
+                      className='flex-1 px-[8px] py-[4px] text-xs'
                     >
                       Continue
-                    </button>
-                    <button
+                    </Button>
+                    <Button
                       onClick={handleContinueAndRevert}
-                      className='flex flex-1 items-center justify-center gap-1.5 rounded-md bg-[var(--brand-primary-hover-hex)] px-2 py-1 text-white text-xs transition-colors hover:bg-[var(--brand-primary-hex)]'
+                      variant='outline'
+                      className='flex-1 px-[8px] py-[4px] text-xs'
                     >
-                      <span>Continue and revert</span>
-                      <CornerDownLeft className='h-3 w-3' />
-                    </button>
+                      Revert
+                    </Button>
                   </div>
                 </div>
               )}
@@ -373,18 +377,19 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
                 )}
 
                 {/* Revert button on hover (only when has checkpoints and not generating) */}
-                {!isSendingMessage && hasCheckpoints && (
-                  <div className='pointer-events-auto absolute top-2 right-2 opacity-0 transition-opacity group-hover:opacity-100'>
-                    <button
+                {!isSendingMessage && hasCheckpoints && isHoveringMessage && (
+                  <div className='pointer-events-auto absolute right-[6px] bottom-[6px]'>
+                    <Button
                       onClick={(e) => {
                         e.stopPropagation()
                         handleRevertToCheckpoint()
                       }}
-                      className='flex h-6 w-6 items-center justify-center rounded-full bg-muted text-muted-foreground transition-all duration-200 hover:bg-muted-foreground/20'
+                      variant='ghost'
+                      className='h-[22px] w-[22px] rounded-full p-0'
                       title='Revert to checkpoint'
                     >
-                      <RotateCcw className='h-3 w-3' />
-                    </button>
+                      <RotateCcw className='h-3.5 w-3.5' />
+                    </Button>
                   </div>
                 )}
               </div>
@@ -393,29 +398,28 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
 
           {/* Inline Restore Checkpoint Confirmation */}
           {showRestoreConfirmation && (
-            <div className='mt-2 rounded-lg border border-gray-200 bg-gray-50 p-2.5 dark:border-gray-700 dark:bg-gray-900'>
-              <p className='mb-2 text-foreground text-sm'>
+            <div className='mt-[8px] rounded-[4px] border border-[#3D3D3D] bg-[#282828] p-[10px] dark:border-[#3D3D3D] dark:bg-[#353535]'>
+              <p className='mb-[8px] text-[#E6E6E6] text-sm'>
                 Revert to checkpoint? This will restore your workflow to the state saved at this
                 checkpoint.{' '}
-                <span className='font-medium text-red-600 dark:text-red-400'>
-                  This action cannot be undone.
-                </span>
+                <span className='font-medium text-[#EF4444]'>This action cannot be undone.</span>
               </p>
-              <div className='flex gap-1.5'>
-                <button
+              <div className='flex gap-[6px]'>
+                <Button
                   onClick={handleCancelRevert}
-                  className='flex flex-1 items-center justify-center gap-1.5 rounded-md border border-gray-300 bg-muted px-2 py-1 text-foreground text-xs transition-colors hover:bg-muted/80 dark:border-gray-600'
+                  variant='default'
+                  className='flex flex-1 items-center justify-center gap-[6px] px-[8px] py-[4px] text-xs'
                 >
                   <span>Cancel</span>
-                  <span className='text-[10px] text-muted-foreground'>(Esc)</span>
-                </button>
-                <button
+                  <span className='text-[#787878] text-[10px]'>(Esc)</span>
+                </Button>
+                <Button
                   onClick={handleConfirmRevert}
-                  className='flex flex-1 items-center justify-center gap-1.5 rounded-md bg-red-500 px-2 py-1 text-white text-xs transition-colors hover:bg-red-600'
+                  variant='outline'
+                  className='flex-1 px-[8px] py-[4px] text-xs'
                 >
-                  <span>Revert</span>
-                  <CornerDownLeft className='h-3 w-3' />
-                </button>
+                  Revert
+                </Button>
               </div>
             </div>
           )}

@@ -276,7 +276,7 @@ export function ConnectionBlocks({ connections, currentBlockId }: ConnectionBloc
   return (
     <div className='rounded-[4px] px-[8px] pt-[1.5px] pb-[4px]'>
       <Label className='pb-[8px] pl-[2px]'>Connection blocks</Label>
-      <div className='-mr-[8px] max-h-[240px] space-y-[4px] overflow-y-auto pr-[8px]'>
+      <div className='-mr-[8px] max-h-[120px] space-y-[4px] overflow-y-auto pr-[8px]'>
         {connections.map((connection) => {
           const blockConfig = getBlock(connection.type)
           const isExpanded = expandedConnections.has(connection.id)

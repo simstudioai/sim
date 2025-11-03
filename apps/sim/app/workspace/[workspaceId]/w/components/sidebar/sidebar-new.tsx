@@ -1,9 +1,9 @@
 'use client'
 
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { ArrowDown, Plus, Search } from 'lucide-react'
 import { useParams } from 'next/navigation'
-import { Badge, Button, ChevronDown, FolderPlus, PanelLeft, Tooltip } from '@/components/emcn'
+import { Button, ChevronDown, FolderPlus, PanelLeft, Tooltip } from '@/components/emcn'
 import { useSession } from '@/lib/auth-client'
 import { useFolderStore } from '@/stores/folders/store'
 import { WorkflowList } from './components-new'
@@ -52,18 +52,104 @@ export function SidebarNew() {
   const { handleMouseDown } = useSidebarResize()
 
   // Workflow operations hook
-  const { regularWorkflows, workflowsLoading, isCreatingWorkflow, handleCreateWorkflow } =
-    useWorkflowOperations({
-      workspaceId,
-      isWorkspaceValid,
-      onWorkspaceInvalid: fetchWorkspaces,
-    })
+  const {
+    regularWorkflows,
+    workflowsLoading,
+    isCreatingWorkflow,
+    handleCreateWorkflow: createWorkflow,
+  } = useWorkflowOperations({
+    workspaceId,
+    isWorkspaceValid,
+    onWorkspaceInvalid: fetchWorkspaces,
+  })
 
   // Folder operations hook
-  const { isCreatingFolder, handleCreateFolder } = useFolderOperations({ workspaceId })
+  const { isCreatingFolder, handleCreateFolder: createFolder } = useFolderOperations({
+    workspaceId,
+  })
 
   // Combined loading state
   const isLoading = workflowsLoading || sessionLoading
+
+  // Ref to track active timeout IDs for cleanup
+  const scrollTimeoutRef = useRef<number | null>(null)
+
+  /**
+   * Scrolls an element into view if it's not already visible in the scroll container.
+   * Uses a retry mechanism with cleanup to wait for the element to be rendered in the DOM.
+   *
+   * @param elementId - The ID of the element to scroll to
+   * @param maxRetries - Maximum number of retry attempts (default: 10)
+   */
+  const scrollToElement = useCallback(
+    (elementId: string, maxRetries = 10) => {
+      // Clear any existing timeout
+      if (scrollTimeoutRef.current !== null) {
+        clearTimeout(scrollTimeoutRef.current)
+        scrollTimeoutRef.current = null
+      }
+
+      let attempts = 0
+
+      const tryScroll = () => {
+        attempts++
+        const element = document.querySelector(`[data-item-id="${elementId}"]`)
+        const container = scrollContainerRef.current
+
+        if (element && container) {
+          const elementRect = element.getBoundingClientRect()
+          const containerRect = container.getBoundingClientRect()
+
+          // Check if element is not fully visible in the container
+          const isAboveView = elementRect.top < containerRect.top
+          const isBelowView = elementRect.bottom > containerRect.bottom
+
+          if (isAboveView || isBelowView) {
+            element.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+          }
+          scrollTimeoutRef.current = null
+        } else if (attempts < maxRetries) {
+          // Element not in DOM yet, retry after a short delay
+          scrollTimeoutRef.current = window.setTimeout(tryScroll, 50)
+        } else {
+          scrollTimeoutRef.current = null
+        }
+      }
+
+      // Start the scroll attempt after a small delay to ensure rendering
+      scrollTimeoutRef.current = window.setTimeout(tryScroll, 50)
+    },
+    [scrollContainerRef]
+  )
+
+  // Cleanup timeouts on unmount
+  useEffect(() => {
+    return () => {
+      if (scrollTimeoutRef.current !== null) {
+        clearTimeout(scrollTimeoutRef.current)
+      }
+    }
+  }, [])
+
+  /**
+   * Handle create workflow - creates workflow and scrolls to it
+   */
+  const handleCreateWorkflow = useCallback(async () => {
+    const workflowId = await createWorkflow()
+    if (workflowId) {
+      scrollToElement(workflowId)
+    }
+  }, [createWorkflow, scrollToElement])
+
+  /**
+   * Handle create folder - creates folder and scrolls to it
+   */
+  const handleCreateFolder = useCallback(async () => {
+    const folderId = await createFolder()
+    if (folderId) {
+      scrollToElement(folderId)
+    }
+  }, [createFolder, scrollToElement])
 
   /**
    * Handle import workflow button click - triggers file input
@@ -112,7 +198,7 @@ export function SidebarNew() {
                 {activeWorkspace?.name || 'Loading...'}
               </h2>
               {/* TODO: Solo/Team based on workspace members */}
-              <Badge className='flex-shrink-0 translate-y-[1px] whitespace-nowrap'>Solo</Badge>
+              {/* <Badge className='flex-shrink-0 translate-y-[1px] whitespace-nowrap'>Solo</Badge> */}
             </div>
             {/* Collapse/Expand */}
             <div className='flex items-center gap-[14px]'>

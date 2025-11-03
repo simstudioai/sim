@@ -13,10 +13,10 @@ interface SidebarState {
 
 /**
  * Sidebar width constraints
+ * Note: Maximum width is enforced dynamically at 30% of viewport width in the resize hook
  */
 const DEFAULT_SIDEBAR_WIDTH = 232
 const MIN_SIDEBAR_WIDTH = 232
-const MAX_SIDEBAR_WIDTH = 400
 
 export const useSidebarStore = create<SidebarState>()(
   persist(
@@ -25,7 +25,8 @@ export const useSidebarStore = create<SidebarState>()(
       sidebarWidth: DEFAULT_SIDEBAR_WIDTH,
       setWorkspaceDropdownOpen: (isOpen) => set({ workspaceDropdownOpen: isOpen }),
       setSidebarWidth: (width) => {
-        const clampedWidth = Math.max(MIN_SIDEBAR_WIDTH, Math.min(MAX_SIDEBAR_WIDTH, width))
+        // Only enforce minimum - maximum is enforced dynamically by the resize hook
+        const clampedWidth = Math.max(MIN_SIDEBAR_WIDTH, width)
         set({ sidebarWidth: clampedWidth })
         // Update CSS variable for immediate visual feedback
         if (typeof window !== 'undefined') {

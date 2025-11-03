@@ -23,19 +23,21 @@ export function useFolderOperations({ workspaceId }: UseFolderOperationsProps) {
   /**
    * Create folder handler - creates folder with auto-generated name
    */
-  const handleCreateFolder = useCallback(async () => {
+  const handleCreateFolder = useCallback(async (): Promise<string | null> => {
     if (isCreatingFolder || !workspaceId) {
       logger.info('Folder creation already in progress or no workspaceId available')
-      return
+      return null
     }
 
     try {
       setIsCreatingFolder(true)
       const folderName = await generateFolderName(workspaceId)
-      await createFolder({ name: folderName, workspaceId })
+      const folder = await createFolder({ name: folderName, workspaceId })
       logger.info(`Created folder: ${folderName}`)
+      return folder.id
     } catch (error) {
       logger.error('Failed to create folder:', { error })
+      return null
     } finally {
       setIsCreatingFolder(false)
     }

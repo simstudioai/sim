@@ -1,18 +1,29 @@
 import { memo, useCallback } from 'react'
-import { ArrowLeftRight, ArrowUpDown, Circle, CircleOff, Copy, LogOut, Trash2 } from 'lucide-react'
-import { Tooltip } from '@/components/emcn'
-import { Button } from '@/components/ui/button'
+import { ArrowLeftRight, ArrowUpDown, Circle, CircleOff, LogOut } from 'lucide-react'
+import { Button, Duplicate, Tooltip, Trash } from '@/components/emcn'
 import { cn } from '@/lib/utils'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
+/**
+ * Props for the ActionBar component
+ */
 interface ActionBarProps {
+  /** Unique identifier for the block */
   blockId: string
+  /** Type of the block */
   blockType: string
+  /** Whether the action bar is disabled */
   disabled?: boolean
 }
 
+/**
+ * ActionBar component displays action buttons for workflow blocks
+ * Provides controls for enabling/disabling, duplicating, removing, and toggling block handles
+ *
+ * @component
+ */
 export const ActionBar = memo(
   function ActionBar({ blockId, blockType, disabled = false }: ActionBarProps) {
     const {
@@ -22,7 +33,9 @@ export const ActionBar = memo(
       collaborativeToggleBlockHandles,
     } = useCollaborativeWorkflow()
 
-    // Optimized: Single store subscription for all block data
+    /**
+     * Optimized single store subscription for all block data
+     */
     const { isEnabled, horizontalHandles, parentId, parentType } = useWorkflowStore(
       useCallback(
         (state) => {
@@ -43,6 +56,12 @@ export const ActionBar = memo(
 
     const isStarterBlock = blockType === 'starter'
 
+    /**
+     * Get appropriate tooltip message based on disabled state
+     *
+     * @param defaultMessage - The default message to show when not disabled
+     * @returns The tooltip message
+     */
     const getTooltipMessage = (defaultMessage: string) => {
       if (disabled) {
         return userPermissions.isOfflineMode ? 'Connection lost - please refresh' : 'Read-only mode'
@@ -54,42 +73,28 @@ export const ActionBar = memo(
       <div
         className={cn(
           '-right-20 absolute top-0',
-          'flex flex-col items-center gap-2 p-2',
-          'rounded-md border border-gray-200 bg-background shadow-sm dark:border-gray-800',
-          'opacity-0 transition-opacity duration-200 group-hover:opacity-100'
+          'flex flex-col items-center',
+          'opacity-0 transition-opacity duration-200 group-hover:opacity-100',
+          'gap-[6px] rounded-[10px] bg-[#242424] p-[6px]'
         )}
       >
-        {/* <Tooltip.Root>
-            <Tooltip.Trigger asChild>
-          <Button
-            className={cn(
-              isEnabled
-                ? 'bg-[var(--brand-primary-hover-hex)] hover:bg-[var(--brand-primary-hover-hex)]/90'
-                : 'bg-gray-400 hover:bg-gray-400 cursor-not-allowed'
-            )}
-            size="sm"
-            disabled={!isEnabled}
-          >
-            <Play fill="currentColor" className="!h-3.5 !w-3.5" />
-          </Button>
-        </Tooltip.Trigger>
-        <Tooltip.Content side="right">Run Block</Tooltip.Content>
-      </Tooltip.Root> */}
-
         <Tooltip.Root>
           <Tooltip.Trigger asChild>
             <Button
               variant='ghost'
-              size='sm'
               onClick={() => {
                 if (!disabled) {
                   collaborativeToggleBlockEnabled(blockId)
                 }
               }}
-              className={cn('text-gray-500', disabled && 'cursor-not-allowed opacity-50')}
+              className='h-[30px] w-[30px] rounded-[8px] bg-[#363636] p-0 text-[#868686] hover:bg-[#33B4FF] hover:text-[#1B1B1B] dark:text-[#868686] dark:hover:bg-[#33B4FF] dark:hover:text-[#1B1B1B]'
               disabled={disabled}
             >
-              {isEnabled ? <Circle className='h-4 w-4' /> : <CircleOff className='h-4 w-4' />}
+              {isEnabled ? (
+                <Circle className='h-[14px] w-[14px]' />
+              ) : (
+                <CircleOff className='h-[14px] w-[14px]' />
+              )}
             </Button>
           </Tooltip.Trigger>
           <Tooltip.Content side='right'>
@@ -102,29 +107,26 @@ export const ActionBar = memo(
             <Tooltip.Trigger asChild>
               <Button
                 variant='ghost'
-                size='sm'
                 onClick={() => {
                   if (!disabled) {
                     collaborativeDuplicateBlock(blockId)
                   }
                 }}
-                className={cn('text-gray-500', disabled && 'cursor-not-allowed opacity-50')}
+                className='h-[30px] w-[30px] rounded-[8px] bg-[#363636] p-0 text-[#868686] hover:bg-[#33B4FF] hover:text-[#1B1B1B] dark:text-[#868686] dark:hover:bg-[#33B4FF] dark:hover:text-[#1B1B1B]'
                 disabled={disabled}
               >
-                <Copy className='h-4 w-4' />
+                <Duplicate className='h-[14px] w-[14px]' />
               </Button>
             </Tooltip.Trigger>
             <Tooltip.Content side='right'>{getTooltipMessage('Duplicate Block')}</Tooltip.Content>
           </Tooltip.Root>
         )}
 
-        {/* Remove from subflow - only show when inside loop/parallel */}
         {!isStarterBlock && parentId && (parentType === 'loop' || parentType === 'parallel') && (
           <Tooltip.Root>
             <Tooltip.Trigger asChild>
               <Button
                 variant='ghost'
-                size='sm'
                 onClick={() => {
                   if (!disabled && userPermissions.canEdit) {
                     window.dispatchEvent(
@@ -132,13 +134,10 @@ export const ActionBar = memo(
                     )
                   }
                 }}
-                className={cn(
-                  'text-gray-500',
-                  (disabled || !userPermissions.canEdit) && 'cursor-not-allowed opacity-50'
-                )}
+                className='h-[30px] w-[30px] rounded-[8px] bg-[#363636] p-0 text-[#868686] hover:bg-[#33B4FF] hover:text-[#1B1B1B] dark:text-[#868686] dark:hover:bg-[#33B4FF] dark:hover:text-[#1B1B1B]'
                 disabled={disabled || !userPermissions.canEdit}
               >
-                <LogOut className='h-4 w-4' />
+                <LogOut className='h-[14px] w-[14px]' />
               </Button>
             </Tooltip.Trigger>
             <Tooltip.Content side='right'>
@@ -151,19 +150,18 @@ export const ActionBar = memo(
           <Tooltip.Trigger asChild>
             <Button
               variant='ghost'
-              size='sm'
               onClick={() => {
                 if (!disabled) {
                   collaborativeToggleBlockHandles(blockId)
                 }
               }}
-              className={cn('text-gray-500', disabled && 'cursor-not-allowed opacity-50')}
+              className='h-[30px] w-[30px] rounded-[8px] bg-[#363636] p-0 text-[#868686] hover:bg-[#33B4FF] hover:text-[#1B1B1B] dark:text-[#868686] dark:hover:bg-[#33B4FF] dark:hover:text-[#1B1B1B]'
               disabled={disabled}
             >
               {horizontalHandles ? (
-                <ArrowLeftRight className='h-4 w-4' />
+                <ArrowLeftRight className='h-[14px] w-[14px]' />
               ) : (
-                <ArrowUpDown className='h-4 w-4' />
+                <ArrowUpDown className='h-[14px] w-[14px]' />
               )}
             </Button>
           </Tooltip.Trigger>
@@ -177,19 +175,15 @@ export const ActionBar = memo(
             <Tooltip.Trigger asChild>
               <Button
                 variant='ghost'
-                size='sm'
                 onClick={() => {
                   if (!disabled) {
                     collaborativeRemoveBlock(blockId)
                   }
                 }}
-                className={cn(
-                  'text-gray-500 hover:text-red-600',
-                  disabled && 'cursor-not-allowed opacity-50'
-                )}
+                className='h-[30px] w-[30px] rounded-[8px] bg-[#363636] p-0 text-[#868686] hover:bg-[#33B4FF] hover:text-[#1B1B1B] dark:text-[#868686] dark:hover:bg-[#33B4FF] dark:hover:text-[#1B1B1B]'
                 disabled={disabled}
               >
-                <Trash2 className='h-4 w-4' />
+                <Trash className='h-[14px] w-[14px]' />
               </Button>
             </Tooltip.Trigger>
             <Tooltip.Content side='right'>{getTooltipMessage('Delete Block')}</Tooltip.Content>
@@ -198,8 +192,15 @@ export const ActionBar = memo(
       </div>
     )
   },
+  /**
+   * Custom comparison function for memo optimization
+   * Only re-renders if props actually changed
+   *
+   * @param prevProps - Previous component props
+   * @param nextProps - Next component props
+   * @returns True if props are equal (should not re-render), false otherwise
+   */
   (prevProps, nextProps) => {
-    // Only re-render if props actually changed
     return (
       prevProps.blockId === nextProps.blockId &&
       prevProps.blockType === nextProps.blockType &&

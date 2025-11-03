@@ -79,6 +79,7 @@ export function WorkflowItem({ workflow, active, level, onWorkflowClick }: Workf
   return (
     <Link
       href={`/workspace/${workspaceId}/w/${workflow.id}`}
+      data-item-id={workflow.id}
       className={clsx(
         'group flex h-[25px] items-center gap-[8px] rounded-[8px] px-[5.5px] text-[14px]',
         active ? 'bg-[#2C2C2C] dark:bg-[#2C2C2C]' : 'hover:bg-[#2C2C2C] dark:hover:bg-[#2C2C2C]',

@@ -70,6 +70,7 @@ export function FolderItem({ folder, level, hoverHandlers }: FolderItemProps) {
     <div
       role='button'
       tabIndex={0}
+      data-item-id={folder.id}
       aria-expanded={isExpanded}
       aria-label={`${folder.name} folder, ${isExpanded ? 'expanded' : 'collapsed'}`}
       className={clsx(

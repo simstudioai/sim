@@ -46,10 +46,10 @@ export function useWorkflowOperations({
   /**
    * Create workflow handler - creates workflow and navigates to it
    */
-  const handleCreateWorkflow = useCallback(async () => {
+  const handleCreateWorkflow = useCallback(async (): Promise<string | null> => {
     if (isCreatingWorkflow) {
       logger.info('Workflow creation already in progress, ignoring request')
-      return
+      return null
     }
 
     try {
@@ -66,9 +66,12 @@ export function useWorkflowOperations({
       // Navigate to the newly created workflow
       if (workflowId) {
         router.push(`/workspace/${workspaceId}/w/${workflowId}`)
+        return workflowId
       }
+      return null
     } catch (error) {
       logger.error('Error creating workflow:', error)
+      return null
     } finally {
       setIsCreatingWorkflow(false)
     }

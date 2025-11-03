@@ -5,11 +5,12 @@ import { usePanelStore } from '@/stores/panel-new/store'
  * Constants for panel sizing
  */
 const MIN_WIDTH = 244
-const MAX_WIDTH = 400
+const MAX_WIDTH_PERCENTAGE = 0.4 // 40% of viewport width
 
 /**
  * Custom hook to handle panel resize functionality.
  * Manages mouse events for resizing and enforces min/max width constraints.
+ * Maximum width is capped at 40% of the viewport width for optimal layout.
  *
  * @returns Resize state and handlers
  */
@@ -34,7 +35,9 @@ export function usePanelResize() {
     const handleMouseMove = (e: MouseEvent) => {
       // Calculate width from the right edge of the viewport
       const newWidth = window.innerWidth - e.clientX
-      if (newWidth >= MIN_WIDTH && newWidth <= MAX_WIDTH) {
+      const maxWidth = window.innerWidth * MAX_WIDTH_PERCENTAGE
+
+      if (newWidth >= MIN_WIDTH && newWidth <= maxWidth) {
         setPanelWidth(newWidth)
       }
     }

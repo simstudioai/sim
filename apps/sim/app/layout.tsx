@@ -65,11 +65,15 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   if (stored) {
                     var parsed = JSON.parse(stored);
                     var state = parsed?.state;
-                    
-                    // Set sidebar width
                     var width = state?.sidebarWidth;
-                    if (width >= 232 && width <= 400) {
+                    var maxSidebarWidth = window.innerWidth * 0.3;
+                    
+                    // Cap stored width at 30% of viewport
+                    if (width >= 232 && width <= maxSidebarWidth) {
                       document.documentElement.style.setProperty('--sidebar-width', width + 'px');
+                    } else if (width > maxSidebarWidth) {
+                      // If stored width exceeds 30%, cap it
+                      document.documentElement.style.setProperty('--sidebar-width', maxSidebarWidth + 'px');
                     }
                   }
                 } catch (e) {
@@ -83,8 +87,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                     var panelParsed = JSON.parse(panelStored);
                     var panelState = panelParsed?.state;
                     var panelWidth = panelState?.panelWidth;
-                    if (panelWidth >= 236 && panelWidth <= 400) {
+                    var maxPanelWidth = window.innerWidth * 0.4;
+                    
+                    // Cap stored width at 40% of viewport
+                    if (panelWidth >= 244 && panelWidth <= maxPanelWidth) {
                       document.documentElement.style.setProperty('--panel-width', panelWidth + 'px');
+                    } else if (panelWidth > maxPanelWidth) {
+                      // If stored width exceeds 40%, cap it
+                      document.documentElement.style.setProperty('--panel-width', maxPanelWidth + 'px');
                     }
                     
                     // Set active tab to prevent flash on hydration

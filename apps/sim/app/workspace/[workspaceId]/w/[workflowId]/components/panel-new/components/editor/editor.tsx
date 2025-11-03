@@ -182,11 +182,11 @@ export function Editor() {
       >
         {!currentBlockId ? (
           <div className='flex h-full items-center justify-center text-muted-foreground text-sm'>
-            Select a block to configure
+            Select a block to edit
           </div>
         ) : subBlocks.length === 0 ? (
-          <div className='flex h-full items-center justify-center text-muted-foreground text-sm'>
-            No configuration available for this block
+          <div className='flex h-full items-center justify-center text-center text-muted-foreground text-sm'>
+            This block has no subblocks
           </div>
         ) : (
           <div className='flex flex-col'>

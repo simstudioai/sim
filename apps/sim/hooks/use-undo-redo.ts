@@ -400,8 +400,8 @@ export function useUndoRedo() {
           break
         }
 
-        const currentBlocks = useWorkflowStore.getState().blocks
-        const uniqueName = getUniqueBlockName(blockSnapshot.name, currentBlocks)
+        // Preserve the original name from the snapshot on undo
+        const restoredName = blockSnapshot.name
 
         // FIRST: Add the main block (parent subflow) with subBlocks in payload
         addToQueue({
@@ -411,7 +411,7 @@ export function useUndoRedo() {
             target: 'block',
             payload: {
               ...blockSnapshot,
-              name: uniqueName,
+              name: restoredName,
               subBlocks: blockSnapshot.subBlocks || {},
               autoConnectEdge: undefined,
               isUndo: true,
@@ -425,7 +425,7 @@ export function useUndoRedo() {
         workflowStore.addBlock(
           blockSnapshot.id,
           blockSnapshot.type,
-          uniqueName,
+          restoredName,
           blockSnapshot.position,
           blockSnapshot.data,
           blockSnapshot.data?.parentId,
@@ -467,14 +467,14 @@ export function useUndoRedo() {
         if (allBlockSnapshots) {
           Object.entries(allBlockSnapshots).forEach(([id, snap]: [string, any]) => {
             if (id !== blockSnapshot.id && !workflowStore.blocks[id]) {
-              const currentBlocksNested = useWorkflowStore.getState().blocks
-              const uniqueNestedName = getUniqueBlockName(snap.name, currentBlocksNested)
+              // Preserve original nested block name from snapshot on undo
+              const restoredNestedName = snap.name
 
               // Add nested block locally
               workflowStore.addBlock(
                 snap.id,
                 snap.type,
-                uniqueNestedName,
+                restoredNestedName,
                 snap.position,
                 snap.data,
                 snap.data?.parentId,
@@ -496,7 +496,7 @@ export function useUndoRedo() {
                   target: 'block',
                   payload: {
                     ...snap,
-                    name: uniqueNestedName,
+                    name: restoredNestedName,
                     subBlocks: snap.subBlocks || {},
                     autoConnectEdge: undefined,
                     isUndo: true,
@@ -789,8 +789,8 @@ export function useUndoRedo() {
           break
         }
 
-        const currentBlocks = useWorkflowStore.getState().blocks
-        const uniqueName = getUniqueBlockName(snap.name, currentBlocks)
+        // Preserve the original name from the snapshot on redo
+        const restoredName = snap.name
 
         // FIRST: Add the main block (parent subflow) with subBlocks included
         addToQueue({
@@ -800,7 +800,7 @@ export function useUndoRedo() {
             target: 'block',
             payload: {
               ...snap,
-              name: uniqueName,
+              name: restoredName,
               subBlocks: snap.subBlocks || {},
               isRedo: true,
               originalOpId: entry.id,
@@ -813,7 +813,7 @@ export function useUndoRedo() {
         workflowStore.addBlock(
           snap.id,
           snap.type,
-          uniqueName,
+          restoredName,
           snap.position,
           snap.data,
           snap.data?.parentId,
@@ -853,14 +853,14 @@ export function useUndoRedo() {
         if (allBlockSnapshots) {
           Object.entries(allBlockSnapshots).forEach(([id, snapNested]: [string, any]) => {
             if (id !== snap.id && !workflowStore.blocks[id]) {
-              const currentBlocksNested = useWorkflowStore.getState().blocks
-              const uniqueNestedName = getUniqueBlockName(snapNested.name, currentBlocksNested)
+              // Preserve original nested block name from snapshot on redo
+              const restoredNestedName = snapNested.name
 
               // Add nested block locally
               workflowStore.addBlock(
                 snapNested.id,
                 snapNested.type,
-                uniqueNestedName,
+                restoredNestedName,
                 snapNested.position,
                 snapNested.data,
                 snapNested.data?.parentId,
@@ -882,7 +882,7 @@ export function useUndoRedo() {
                   target: 'block',
                   payload: {
                     ...snapNested,
-                    name: uniqueNestedName,
+                    name: restoredNestedName,
                     subBlocks: snapNested.subBlocks || {},
                     autoConnectEdge: undefined,
                     isRedo: true,
