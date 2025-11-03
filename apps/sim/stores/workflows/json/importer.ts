@@ -8,6 +8,7 @@ const logger = createLogger('WorkflowJsonImporter')
  * Generate new IDs for all blocks and edges to avoid conflicts
  */
 function regenerateIds(workflowState: WorkflowState): WorkflowState {
+  const { metadata, variables } = workflowState
   const blockIdMap = new Map<string, string>()
   const newBlocks: WorkflowState['blocks'] = {}
 
@@ -99,6 +100,8 @@ function regenerateIds(workflowState: WorkflowState): WorkflowState {
     edges: newEdges,
     loops: newLoops,
     parallels: newParallels,
+    metadata,
+    variables,
   }
 }
 
@@ -206,11 +209,18 @@ export function parseWorkflowJson(
       edges: workflowData.edges || [],
       loops: workflowData.loops || {},
       parallels: workflowData.parallels || {},
+      metadata: workflowData.metadata,
+      variables: Array.isArray(workflowData.variables) ? workflowData.variables : undefined,
     }
 
     // Regenerate IDs if requested (default: true)
     if (regenerateIdsFlag) {
-      workflowState = regenerateIds(workflowState)
+      const regeneratedState = regenerateIds(workflowState)
+      workflowState = {
+        ...regeneratedState,
+        metadata: workflowState.metadata,
+        variables: workflowState.variables,
+      }
       logger.info('Regenerated IDs for imported workflow to avoid conflicts')
     }
 
