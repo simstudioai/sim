@@ -286,6 +286,7 @@ export function FileSelectorInput({
                 provider='microsoft'
                 requiredScopes={subBlock.requiredScopes || []}
                 serviceId={subBlock.serviceId}
+                mimeType={subBlock.mimeType}
                 label={subBlock.placeholder || 'Select OneDrive folder'}
                 disabled={finalDisabled}
                 showPreview={true}

@@ -1,7 +1,10 @@
 import { MicrosoftOneDriveIcon } from '@/components/icons'
+import { createLogger } from '@/lib/logs/console/logger'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
 import type { OneDriveResponse } from '@/tools/onedrive/types'
+
+const logger = createLogger('OneDriveBlock')
 
 export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
   type: 'onedrive',
@@ -277,6 +280,7 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
         'Files.ReadWrite',
         'offline_access',
       ],
+      mimeType: 'file', // Exclude folders, show only files
       placeholder: 'Select a file to download',
       mode: 'basic',
       dependsOn: ['credential'],
@@ -323,22 +327,7 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
         }
       },
       params: (params) => {
-        const {
-          credential,
-          folderSelector,
-          manualFolderId,
-          fileSelector,
-          manualFileId,
-          mimeType,
-          values,
-          ...rest
-        } = params
-
-        // Use folderSelector if provided, otherwise use manualFolderId
-        const effectiveFolderId = (folderSelector || manualFolderId || '').trim()
-
-        // Use fileSelector if provided, otherwise use manualFileId
-        const effectiveFileId = (fileSelector || manualFileId || '').trim()
+        const { credential, folderId, fileId, mimeType, values, ...rest } = params
 
         let parsedValues
         try {
@@ -351,8 +340,8 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
           credential,
           ...rest,
           values: parsedValues,
-          folderId: effectiveFolderId || undefined,
-          fileId: effectiveFileId || undefined,
+          folderId: folderId || undefined,
+          fileId: fileId || undefined,
           pageSize: rest.pageSize ? Number.parseInt(rest.pageSize as string, 10) : undefined,
           mimeType: mimeType,
         }
@@ -369,13 +358,9 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
     content: { type: 'string', description: 'Text content to upload' },
     mimeType: { type: 'string', description: 'MIME type of file to create' },
     values: { type: 'string', description: 'Cell values for new Excel as JSON' },
-    // Download operation inputs
-    fileSelector: { type: 'string', description: 'Selected file to download' },
-    manualFileId: { type: 'string', description: 'Manual file identifier' },
+    fileId: { type: 'string', description: 'File ID to download' },
     downloadFileName: { type: 'string', description: 'File name override for download' },
-    // List operation inputs
-    folderSelector: { type: 'string', description: 'Folder selector' },
-    manualFolderId: { type: 'string', description: 'Manual folder ID' },
+    folderId: { type: 'string', description: 'Folder ID' },
     query: { type: 'string', description: 'Search query' },
     pageSize: { type: 'number', description: 'Results per page' },
   },

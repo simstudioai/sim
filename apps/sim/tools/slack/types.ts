@@ -88,7 +88,7 @@ export interface SlackDownloadResponse extends ToolResponse {
     file: {
       name: string
       mimeType: string
-      data: Buffer
+      data: Buffer | string // Buffer for direct use, string for base64-encoded data
       size: number
     }
   }

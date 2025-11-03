@@ -1,4 +1,5 @@
 import { createLogger } from '@/lib/logs/console/logger'
+import { getBaseUrl } from '@/lib/urls/utils'
 import type { UserFile } from '@/executor/types'
 import type { ExecutionContext } from './execution-file-helpers'
 import {
@@ -57,19 +58,26 @@ export async function uploadExecutionFile(
       metadata, // Pass metadata for cloud storage and database tracking
     })
 
+    // Generate full URL for file access (useful for passing to external services)
+    const baseUrl = getBaseUrl()
+    const fullUrl = `${baseUrl}/api/files/serve/${fileInfo.key}`
+
     const userFile: UserFile = {
       id: fileId,
       name: fileName,
       size: fileBuffer.length,
       type: contentType,
-      url: `/api/files/serve/${fileInfo.key}`, // Always use internal serve path for consistency
+      url: fullUrl, // Full URL for external access and downstream workflow usage
       key: fileInfo.key,
       uploadedAt: new Date().toISOString(),
       expiresAt: getFileExpirationDate(),
       context: 'execution', // Preserve context in file object
     }
 
-    logger.info(`Successfully uploaded execution file: ${fileName} (${fileBuffer.length} bytes)`)
+    logger.info(`Successfully uploaded execution file: ${fileName} (${fileBuffer.length} bytes)`, {
+      url: fullUrl,
+      key: fileInfo.key,
+    })
     return userFile
   } catch (error) {
     logger.error(`Failed to upload execution file ${fileName}:`, error)

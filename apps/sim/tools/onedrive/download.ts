@@ -38,7 +38,9 @@ export const downloadTool: ToolConfig<OneDriveToolParams, OneDriveDownloadRespon
   },
 
   request: {
-    url: (params) => `https://graph.microsoft.com/v1.0/me/drive/items/${params.fileId}`,
+    url: (params) => {
+      return `https://graph.microsoft.com/v1.0/me/drive/items/${params.fileId}`
+    },
     method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,
@@ -53,21 +55,27 @@ export const downloadTool: ToolConfig<OneDriveToolParams, OneDriveDownloadRespon
           status: response.status,
           statusText: response.statusText,
           error: errorDetails,
+          requestedFileId: params?.fileId,
         })
         throw new Error(errorDetails.error?.message || 'Failed to get file metadata')
       }
 
       const metadata = await response.json()
+
+      // Check if this is actually a folder
+      if (metadata.folder && !metadata.file) {
+        logger.error('Attempted to download a folder instead of a file', {
+          itemId: metadata.id,
+          itemName: metadata.name,
+          isFolder: true,
+        })
+        throw new Error(`Cannot download folder "${metadata.name}". Please select a file instead.`)
+      }
+
       const fileId = metadata.id
       const fileName = metadata.name
       const mimeType = metadata.file?.mimeType || 'application/octet-stream'
       const authHeader = `Bearer ${params?.accessToken || ''}`
-
-      logger.info('Downloading file from OneDrive', {
-        fileId,
-        fileName,
-        mimeType,
-      })
 
       const downloadResponse = await fetch(
         `https://graph.microsoft.com/v1.0/me/drive/items/${fileId}/content`,
@@ -93,12 +101,9 @@ export const downloadTool: ToolConfig<OneDriveToolParams, OneDriveDownloadRespon
 
       const resolvedName = params?.fileName || fileName || 'download'
 
-      logger.info('File downloaded successfully', {
-        fileId,
-        name: resolvedName,
-        size: fileBuffer.length,
-        mimeType,
-      })
+      // Convert buffer to base64 string for proper JSON serialization
+      // This ensures the file data survives the proxy round-trip
+      const base64Data = fileBuffer.toString('base64')
 
       return {
         success: true,
@@ -106,7 +111,7 @@ export const downloadTool: ToolConfig<OneDriveToolParams, OneDriveDownloadRespon
           file: {
             name: resolvedName,
             mimeType,
-            data: fileBuffer,
+            data: base64Data,
             size: fileBuffer.length,
           },
         },

@@ -107,6 +107,7 @@ export interface ExecutionContext {
   workflowId: string // Unique identifier for this workflow execution
   workspaceId?: string // Workspace ID for file storage scoping
   executionId?: string // Unique execution ID for file storage scoping
+  userId?: string // User ID for file storage attribution
   // Whether this execution is running against deployed state (API/webhook/schedule/chat)
   // Manual executions in the builder should leave this undefined/false
   isDeployedContext?: boolean

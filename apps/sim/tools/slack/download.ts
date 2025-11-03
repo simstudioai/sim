@@ -121,13 +121,17 @@ export const slackDownloadTool: ToolConfig<SlackDownloadParams, SlackDownloadRes
         mimeType,
       })
 
+      // Convert buffer to base64 string for proper JSON serialization
+      // This ensures the file data survives the proxy round-trip
+      const base64Data = fileBuffer.toString('base64')
+
       return {
         success: true,
         output: {
           file: {
             name: resolvedName,
             mimeType,
-            data: fileBuffer,
+            data: base64Data,
             size: fileBuffer.length,
           },
         },

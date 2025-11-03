@@ -19,6 +19,17 @@ export interface MicrosoftGraphDriveItem {
     driveId: string
     path: string
   }
+  thumbnails?: Array<{
+    small?: { url: string }
+    medium?: { url: string }
+    large?: { url: string }
+  }>
+  createdBy?: {
+    user?: {
+      displayName?: string
+      email?: string
+    }
+  }
 }
 
 export interface OneDriveFile {
@@ -60,7 +71,7 @@ export interface OneDriveDownloadResponse extends ToolResponse {
     file: {
       name: string
       mimeType: string
-      data: Buffer
+      data: Buffer | string // Buffer for direct use, string for base64-encoded data
       size: number
     }
   }

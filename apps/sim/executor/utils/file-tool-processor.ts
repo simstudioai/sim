@@ -172,12 +172,10 @@ export class FileToolProcessor {
         },
         buffer,
         fileData.name,
-        fileData.mimeType
+        fileData.mimeType,
+        context.userId // Pass userId from execution context for database attribution
       )
 
-      logger.info(
-        `Successfully stored file '${fileData.name}' in execution filesystem with key: ${userFile.key}`
-      )
       return userFile
     } catch (error) {
       logger.error(`Error processing file data for '${fileData.name}':`, error)
