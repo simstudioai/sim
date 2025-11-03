@@ -217,7 +217,7 @@ export function CreateMenu({ onCreateWorkflow, isCreatingWorkflow = false }: Cre
 
               if (workflowData.variables && workflowData.variables.length > 0) {
                 const variablesPayload = workflowData.variables.map((v: any) => ({
-                  id: crypto.randomUUID(),
+                  id: typeof v.id === 'string' && v.id.trim() ? v.id : crypto.randomUUID(),
                   workflowId: newWorkflowId,
                   name: v.name,
                   type: v.type,
@@ -277,7 +277,7 @@ export function CreateMenu({ onCreateWorkflow, isCreatingWorkflow = false }: Cre
 
               if (workflowData.variables && workflowData.variables.length > 0) {
                 const variablesPayload = workflowData.variables.map((v: any) => ({
-                  id: crypto.randomUUID(),
+                  id: typeof v.id === 'string' && v.id.trim() ? v.id : crypto.randomUUID(),
                   workflowId: newWorkflowId,
                   name: v.name,
                   type: v.type,
