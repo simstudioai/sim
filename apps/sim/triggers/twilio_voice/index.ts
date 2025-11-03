@@ -1,1 +1,1 @@
-export { normalizeTwilioVoiceConfig, twilioVoiceWebhookTrigger } from './webhook'
+export { twilioVoiceWebhookTrigger } from './webhook'
