@@ -215,6 +215,24 @@ export function CreateMenu({ onCreateWorkflow, isCreatingWorkflow = false }: Cre
                 continue
               }
 
+              if (workflowData.variables && workflowData.variables.length > 0) {
+                const variablesPayload = workflowData.variables.map((v: any) => ({
+                  id: crypto.randomUUID(),
+                  workflowId: newWorkflowId,
+                  name: v.name,
+                  type: v.type,
+                  value: v.value,
+                }))
+
+                await fetch(`/api/workflows/${newWorkflowId}/variables`, {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                  },
+                  body: JSON.stringify({ variables: variablesPayload }),
+                })
+              }
+
               logger.info(`Imported workflow: ${workflowName}`)
             } catch (error) {
               logger.error(`Failed to import ${workflow.name}:`, error)
@@ -257,6 +275,24 @@ export function CreateMenu({ onCreateWorkflow, isCreatingWorkflow = false }: Cre
                 continue
               }
 
+              if (workflowData.variables && workflowData.variables.length > 0) {
+                const variablesPayload = workflowData.variables.map((v: any) => ({
+                  id: crypto.randomUUID(),
+                  workflowId: newWorkflowId,
+                  name: v.name,
+                  type: v.type,
+                  value: v.value,
+                }))
+
+                await fetch(`/api/workflows/${newWorkflowId}/variables`, {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                  },
+                  body: JSON.stringify({ variables: variablesPayload }),
+                })
+              }
+
               logger.info(`Imported workflow: ${workflowName}`)
             } catch (error) {
               logger.error(`Failed to import ${workflow.name}:`, error)
@@ -266,6 +302,9 @@ export function CreateMenu({ onCreateWorkflow, isCreatingWorkflow = false }: Cre
 
         const { loadWorkflows } = useWorkflowRegistry.getState()
         await loadWorkflows(workspaceId)
+
+        const { fetchFolders } = useFolderStore.getState()
+        await fetchFolders(workspaceId)
       } catch (error) {
         logger.error('Failed to import workflows:', error)
       } finally {

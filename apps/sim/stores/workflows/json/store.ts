@@ -39,6 +39,11 @@ export const useWorkflowJsonStore = create<WorkflowJsonStore>()(
           }
 
           const workflowMetadata = workflows[activeWorkflowId]
+          const { useVariablesStore } = require('@/stores/panel/variables/store')
+          const workflowVariables = useVariablesStore
+            .getState()
+            .getVariablesByWorkflowId(activeWorkflowId)
+
           const workflowState = {
             ...workflow.state,
             metadata: {
@@ -46,6 +51,12 @@ export const useWorkflowJsonStore = create<WorkflowJsonStore>()(
               description: workflowMetadata?.description,
               exportedAt: new Date().toISOString(),
             },
+            variables: workflowVariables.map((v: any) => ({
+              id: v.id,
+              name: v.name,
+              type: v.type,
+              value: v.value,
+            })),
           }
 
           const exportState: ExportWorkflowState = sanitizeForExport(workflowState)

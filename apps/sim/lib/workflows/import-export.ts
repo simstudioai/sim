@@ -13,6 +13,12 @@ export interface WorkflowExportData {
     folderId?: string | null
   }
   state: WorkflowState
+  variables?: Array<{
+    id: string
+    name: string
+    type: 'string' | 'number' | 'boolean' | 'object' | 'array' | 'plain'
+    value: any
+  }>
 }
 
 export interface FolderExportData {
@@ -79,6 +85,7 @@ export async function exportWorkspaceToZip(
           description: workflow.workflow.description,
           exportedAt: new Date().toISOString(),
         },
+        variables: workflow.variables,
       }
 
       const exportState = sanitizeForExport(workflowState)

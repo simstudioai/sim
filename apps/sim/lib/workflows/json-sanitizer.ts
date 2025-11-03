@@ -54,6 +54,12 @@ export interface ExportWorkflowState {
       description?: string
       exportedAt?: string
     }
+    variables?: Array<{
+      id: string
+      name: string
+      type: 'string' | 'number' | 'boolean' | 'object' | 'array' | 'plain'
+      value: any
+    }>
   }
 }
 
@@ -381,6 +387,7 @@ export function sanitizeForExport(state: WorkflowState): ExportWorkflowState {
       loops: state.loops || {},
       parallels: state.parallels || {},
       metadata: state.metadata,
+      variables: state.variables,
     })
   )
 

@@ -341,6 +341,12 @@ export function WorkspaceSelector({
           folderId?: string | null
         }
         state: any
+        variables?: Array<{
+          id: string
+          name: string
+          type: 'string' | 'number' | 'boolean' | 'object' | 'array' | 'plain'
+          value: any
+        }>
       }> = []
 
       for (const workflow of workflows) {
@@ -357,6 +363,18 @@ export function WorkspaceSelector({
             continue
           }
 
+          const variablesResponse = await fetch(`/api/workflows/${workflow.id}/variables`)
+          let workflowVariables: any[] = []
+          if (variablesResponse.ok) {
+            const variablesData = await variablesResponse.json()
+            workflowVariables = Object.values(variablesData?.data || {}).map((v: any) => ({
+              id: v.id,
+              name: v.name,
+              type: v.type,
+              value: v.value,
+            }))
+          }
+
           workflowsToExport.push({
             workflow: {
               id: workflow.id,
@@ -365,6 +383,7 @@ export function WorkspaceSelector({
               folderId: workflow.folderId,
             },
             state: workflowData.state,
+            variables: workflowVariables,
           })
         } catch (error) {
           logger.error(`Failed to export workflow ${workflow.id}:`, error)

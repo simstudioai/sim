@@ -158,12 +158,16 @@ export interface WorkflowState {
     description?: string
     exportedAt?: string
   }
+  variables?: Array<{
+    id: string
+    name: string
+    type: 'string' | 'number' | 'boolean' | 'object' | 'array' | 'plain'
+    value: any
+  }>
   isDeployed?: boolean
   deployedAt?: Date
-  // New field for per-workflow deployment status
   deploymentStatuses?: Record<string, DeploymentStatus>
   needsRedeployment?: boolean
-  // Drag state for undo/redo
   dragStartPosition?: DragStartPosition | null
 }
 
