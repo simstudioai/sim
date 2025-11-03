@@ -1,4 +1,5 @@
 import { createLogger } from '@/lib/logs/console/logger'
+import { convertSquareBracketsToTwiML } from '@/lib/twiml'
 import type { TwilioCallOutput, TwilioMakeCallParams } from '@/tools/twilio_voice/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -33,7 +34,8 @@ export const makeCallTool: ToolConfig<TwilioMakeCallParams, TwilioCallOutput> = 
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'TwiML instructions to execute (alternative to URL)',
+      description:
+        'TwiML instructions to execute (alternative to URL). Use square brackets instead of angle brackets, e.g., [Response][Say]Hello[/Say][/Response]',
     },
     statusCallback: {
       type: 'string',
@@ -135,7 +137,9 @@ export const makeCallTool: ToolConfig<TwilioMakeCallParams, TwilioCallOutput> = 
       if (params.url) {
         formData.append('Url', params.url)
       } else if (params.twiml) {
-        formData.append('Twiml', params.twiml)
+        // Convert square bracket syntax to proper TwiML XML
+        const convertedTwiml = convertSquareBracketsToTwiML(params.twiml) || params.twiml
+        formData.append('Twiml', convertedTwiml)
       }
 
       // Optional parameters

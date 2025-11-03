@@ -8,6 +8,7 @@ import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { env, isTruthy } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
+import { convertSquareBracketsToTwiML } from '@/lib/twiml'
 import {
   handleSlackChallenge,
   handleWhatsAppVerification,
@@ -233,7 +234,9 @@ export async function verifyProviderAuth(
   rawBody: string,
   requestId: string
 ): Promise<NextResponse | null> {
-  // Fetch and decrypt environment variables
+  // Fetch and decrypt environment variables for signature verification
+  // This is necessary because webhook signature verification must happen SYNCHRONOUSLY
+  // in the API route (before queueing), but env vars are stored as {{VARIABLE}} references
   let decryptedEnvVars: Record<string, string> = {}
   try {
     const { getEffectiveDecryptedEnv } = await import('@/lib/environment/utils')
@@ -344,6 +347,14 @@ export async function verifyProviderAuth(
   // Twilio Voice webhook signature verification
   if (foundWebhook.provider === 'twilio_voice') {
     const authToken = providerConfig.authToken as string | undefined
+
+    logger.info(`[${requestId}] Twilio Voice auth token check`, {
+      hasAuthToken: !!authToken,
+      authTokenLength: authToken?.length,
+      authTokenResolved: authToken && !authToken.startsWith('{{'), // Should be true if properly resolved
+      rawAuthToken: rawProviderConfig.authToken, // The original value from DB
+      providerConfigKeys: Object.keys(providerConfig),
+    })
 
     if (authToken) {
       const signature = request.headers.get('x-twilio-signature')
@@ -681,9 +692,10 @@ export async function queueWebhookExecution(
       const providerConfig = (foundWebhook.providerConfig as Record<string, any>) || {}
       const twimlResponse = (providerConfig.twimlResponse as string | undefined)?.trim()
 
-      // If user provided custom TwiML, return it (must be non-empty after trimming)
+      // If user provided custom TwiML, convert square brackets to angle brackets and return
       if (twimlResponse && twimlResponse.length > 0) {
-        return new NextResponse(twimlResponse, {
+        const convertedTwiml = convertSquareBracketsToTwiML(twimlResponse)
+        return new NextResponse(convertedTwiml, {
           status: 200,
           headers: {
             'Content-Type': 'text/xml; charset=utf-8',

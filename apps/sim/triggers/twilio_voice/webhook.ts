@@ -43,9 +43,9 @@ export const twilioVoiceWebhookTrigger: TriggerConfig = {
       id: 'twimlResponse',
       title: 'TwiML Response',
       type: 'long-input',
-      placeholder: '<Response><Say>Please hold.</Say></Response>',
+      placeholder: '[Response][Say]Please hold.[/Say][/Response]',
       description:
-        'TwiML XML to return immediately to Twilio. This controls what happens when the call comes in (e.g., play a message, record, gather input). Your workflow will execute in the background.',
+        'TwiML instructions to return immediately to Twilio. Use square brackets instead of angle brackets (e.g., [Response] instead of <Response>). This controls what happens when the call comes in (e.g., play a message, record, gather input). Your workflow will execute in the background.',
       required: false,
       mode: 'trigger',
     },
@@ -54,21 +54,18 @@ export const twilioVoiceWebhookTrigger: TriggerConfig = {
       title: 'Setup Instructions',
       type: 'text',
       defaultValue: [
-        'Enter a <strong>TwiML Response</strong> above - this tells Twilio what to do when a call comes in (e.g., play a message, record, gather input).',
-        'Example TwiML for recording with transcription: <code>&lt;Response&gt;&lt;Say&gt;Please leave a message.&lt;/Say&gt;&lt;Record transcribe="true" maxLength="120"/&gt;&lt;/Response&gt;</code>',
-        'Go to your <a href="https://console.twilio.com/us1/develop/phone-numbers/manage/incoming" target="_blank" rel="noopener noreferrer" class="text-muted-foreground underline transition-colors hover:text-muted-foreground/80">Twilio Console Phone Numbers</a> page.',
+        'Enter a TwiML Response above - this tells Twilio what to do when a call comes in (e.g., play a message, record, gather input). Note: Use square brackets [Tag] instead of angle brackets for TwiML tags',
+        'Example TwiML for recording with transcription: [Response][Say]Please leave a message.[/Say][Record transcribe="true" maxLength="120"/][/Response]',
+        'Go to your Twilio Console Phone Numbers page at https://console.twilio.com/us1/develop/phone-numbers/manage/incoming',
         'Select the phone number you want to use for incoming calls.',
         'Scroll down to the "Voice Configuration" section.',
-        'In the "A CALL COMES IN" field, select "Webhook" and paste the <strong>Webhook URL</strong> (from above).',
-        'Ensure the HTTP method is set to <strong>POST</strong>.',
+        'In the "A CALL COMES IN" field, select "Webhook" and paste the Webhook URL (from above).',
+        'Ensure the HTTP method is set to POST.',
         'Click "Save configuration".',
-        '<strong>How it works:</strong> When a call comes in, Twilio receives your TwiML response immediately and executes those instructions. Your workflow runs in the background with access to caller information, call status, and any recorded/transcribed data.',
+        'How it works: When a call comes in, Twilio receives your TwiML response immediately and executes those instructions. Your workflow runs in the background with access to caller information, call status, and any recorded/transcribed data.',
       ]
-        .map(
-          (instruction, index) =>
-            `<div class="mb-3"><strong>${index + 1}.</strong> ${instruction}</div>`
-        )
-        .join(''),
+        .map((instruction, index) => `${index + 1}. ${instruction}`)
+        .join('\n\n'),
       mode: 'trigger',
     },
     {

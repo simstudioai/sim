@@ -88,7 +88,9 @@ export const TwilioVoiceBlock: BlockConfig<ToolResponse> = {
       title: 'TwiML Instructions',
       type: 'long-input',
       layout: 'full',
-      placeholder: '<Response><Say>Hello from Twilio!</Say></Response>',
+      placeholder: '[Response][Say]Hello from Twilio![/Say][/Response]',
+      description:
+        'Use square brackets instead of angle brackets (e.g., [Response] instead of <Response>)',
       condition: {
         field: 'operation',
         value: 'make_call',
