@@ -388,8 +388,7 @@ export class Serializer {
       if (
         (params[id] === null || params[id] === undefined) &&
         subBlockConfig.value &&
-        shouldIncludeField(subBlockConfig, isAdvancedMode) &&
-        !subBlockConfig.readOnly
+        shouldIncludeField(subBlockConfig, isAdvancedMode)
       ) {
         // If the value is absent and there's a default value function, use it
         params[id] = subBlockConfig.value(params)
