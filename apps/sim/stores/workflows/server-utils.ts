@@ -44,10 +44,10 @@ export function mergeSubblockState(
       const blockValues = subBlockValues[id] || {}
 
       // Create a deep copy of the block's subBlocks to maintain structure
-      // Skip webhook-specific fields and only include user-provided values (not defaultValues)
+      // Exclude webhook-specific fields that should not be persisted
       const mergedSubBlocks = Object.entries(blockSubBlocks).reduce(
         (subAcc, [subBlockId, subBlock]) => {
-          // Skip webhook-specific fields
+          // Skip if subBlock is undefined or is a webhook-specific field
           if (!subBlock || WEBHOOK_SUBBLOCK_FIELDS.includes(subBlockId)) {
             return subAcc
           }
@@ -55,14 +55,10 @@ export function mergeSubblockState(
           // Get the stored value for this subblock
           const storedValue = blockValues[subBlockId]
 
-          // Only include subblock if there's a stored value (skip defaultValues)
-          if (storedValue === undefined || storedValue === null) {
-            return subAcc
-          }
-
+          // Create a new subblock object with the same structure but updated value
           subAcc[subBlockId] = {
             ...subBlock,
-            value: storedValue,
+            value: storedValue !== undefined && storedValue !== null ? storedValue : subBlock.value,
           }
 
           return subAcc
