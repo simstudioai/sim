@@ -146,7 +146,6 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// Simple in-memory rate limiting
 const saveAttempts = new Map<string, { count: number; resetAt: number }>()
 const RATE_LIMIT_WINDOW = 60000 // 1 minute
 const RATE_LIMIT_MAX = 10 // 10 saves per minute
@@ -304,6 +303,7 @@ export async function POST(req: NextRequest) {
 
       cronExpression = generateCronExpression(defaultScheduleType, scheduleValues)
 
+      // Always validate the generated cron expression
       if (cronExpression) {
         const validation = validateCronExpression(cronExpression, timezone)
         if (!validation.isValid) {
@@ -323,9 +323,10 @@ export async function POST(req: NextRequest) {
       logger.debug(
         `[${requestId}] Generated cron: ${cronExpression}, next run at: ${nextRunAt.toISOString()}`
       )
-    } catch (error) {
+    } catch (error: any) {
       logger.error(`[${requestId}] Error generating schedule: ${error}`)
-      return NextResponse.json({ error: 'Failed to generate schedule' }, { status: 400 })
+      const errorMessage = error?.message || 'Failed to generate schedule'
+      return NextResponse.json({ error: errorMessage }, { status: 400 })
     }
 
     const values = {
@@ -385,7 +386,7 @@ export async function POST(req: NextRequest) {
       nextRunAt,
       cronExpression,
     })
-  } catch (error) {
+  } catch (error: any) {
     logger.error(`[${requestId}] Error updating workflow schedule`, error)
 
     if (error instanceof z.ZodError) {
@@ -394,6 +395,8 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       )
     }
-    return NextResponse.json({ error: 'Failed to update workflow schedule' }, { status: 500 })
+
+    const errorMessage = error?.message || 'Failed to update workflow schedule'
+    return NextResponse.json({ error: errorMessage }, { status: 500 })
   }
 }
