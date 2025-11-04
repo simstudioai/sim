@@ -26,8 +26,8 @@ The Start block sits in the start slot when you create a workflow. Keep it there
 
 The Start block emits different data depending on the execution surface:
 
-- **Input Format fields** — Every field you add becomes available as `<start.fieldName>`. For example, a `customerId` field shows up as `<start.customerId>` in downstream blocks and templates.
-- **Chat-only fields** — When the workflow runs from the chat side panel or a deployed chat experience, Sim also provides `<start.input>` (latest user message), `<start.conversationId>` (active session id), and `<start.files>` (chat attachments).
+- **Input Format fields** — Every field you add becomes available as <code>&lt;start.fieldName&gt;</code>. For example, a `customerId` field shows up as <code>&lt;start.customerId&gt;</code> in downstream blocks and templates.
+- **Chat-only fields** — When the workflow runs from the chat side panel or a deployed chat experience, Sim also provides <code>&lt;start.input&gt;</code> (latest user message), <code>&lt;start.conversationId&gt;</code> (active session id), and <code>&lt;start.files&gt;</code> (chat attachments).
 
 Keep Input Format fields scoped to the names you expect to reference later—those values are the only structured fields shared across editor, API, and chat runs.
 
@@ -40,7 +40,7 @@ Use the Input Format sub-block to define the schema that applies across executio
 3. Provide default values when you want the manual run modal to populate test data automatically. These defaults are ignored for deployed executions.
 4. Reorder fields to control how they appear in the editor form.
 
-Reference structured values downstream with expressions such as `<start.customerId>` depending on the block you connect.
+Reference structured values downstream with expressions such as <code>&lt;start.customerId&gt;</code> depending on the block you connect.
 
 ## How it behaves per entry point
 
@@ -51,7 +51,9 @@ Reference structured values downstream with expressions such as `<start.customer
         When you click <strong>Run</strong> in the editor, the Start block renders the Input Format as a form. Default values make it easy to retest without retyping data. Submitting the form triggers the workflow immediately and the values become available on <code>&lt;start.fieldName&gt;</code> (for example <code>&lt;start.sampleField&gt;</code>).
       </p>
       <p>
-        File fields in the form upload directly into the corresponding `<start.fieldName>`; use those values to feed downstream tools or storage steps.
+        File fields in the form upload directly into the corresponding{' '}
+        <code>&lt;start.fieldName&gt;</code>; use those values to feed downstream
+        tools or storage steps.
       </p>
     </div>
   </Tab>
@@ -61,7 +63,9 @@ Reference structured values downstream with expressions such as `<start.customer
         Deploying to API turns the Input Format into a JSON contract for clients. Each field becomes part of the request body, and Sim coerces primitive types on ingestion. File fields expect objects that reference uploaded files; use the execution file upload endpoint before invoking the workflow.
       </p>
       <p>
-        API callers can include additional optional properties. They are preserved inside `<start.fieldName>` outputs so you can experiment without redeploying immediately.
+        API callers can include additional optional properties. They are preserved
+        inside <code>&lt;start.fieldName&gt;</code> outputs so you can experiment
+        without redeploying immediately.
       </p>
     </div>
   </Tab>
@@ -71,7 +75,7 @@ Reference structured values downstream with expressions such as `<start.customer
         In chat deployments the Start block binds to the active conversation. The latest message fills <code>&lt;start.input&gt;</code>, the session identifier is available at <code>&lt;start.conversationId&gt;</code>, and user attachments appear on <code>&lt;start.files&gt;</code>, alongside any Input Format fields scoped as <code>&lt;start.fieldName&gt;</code>.
       </p>
       <p>
-        If you launch chat with additional structured context (for example from an embed), it merges into the corresponding `<start.fieldName>` outputs, keeping downstream blocks consistent with API and manual runs.
+        If you launch chat with additional structured context (for example from an embed), it merges into the corresponding <code>&lt;start.fieldName&gt;</code> outputs, keeping downstream blocks consistent with API and manual runs.
       </p>
     </div>
   </Tab>
@@ -79,9 +83,9 @@ Reference structured values downstream with expressions such as `<start.customer
 
 ## Referencing Start data downstream
 
-- Connect `<start.fieldName>` directly into agents, tools, or functions that expect structured payloads.
-- Use templating syntax like `<start.sampleField>` or `<start.files[0].url>` (chat only) in prompt fields.
-- Keep `<start.conversationId>` handy when you need to group outputs, update conversation history, or call back into the chat API.
+- Connect <code>&lt;start.fieldName&gt;</code> directly into agents, tools, or functions that expect structured payloads.
+- Use templating syntax like <code>&lt;start.sampleField&gt;</code> or <code>&lt;start.files[0].url&gt;</code> (chat only) in prompt fields.
+- Keep <code>&lt;start.conversationId&gt;</code> handy when you need to group outputs, update conversation history, or call back into the chat API.
 
 ## Best practices
 
