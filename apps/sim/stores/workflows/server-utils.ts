@@ -44,25 +44,25 @@ export function mergeSubblockState(
       const blockValues = subBlockValues[id] || {}
 
       // Create a deep copy of the block's subBlocks to maintain structure
-      // Exclude webhook-specific fields that should not be persisted
+      // Skip webhook-specific fields and only include user-provided values (not defaultValues)
       const mergedSubBlocks = Object.entries(blockSubBlocks).reduce(
         (subAcc, [subBlockId, subBlock]) => {
-          // Skip if subBlock is undefined or is a webhook-specific field
-          if (
-            !subBlock ||
-            WEBHOOK_SUBBLOCK_FIELDS.includes(subBlockId) ||
-            subBlock.type === 'text'
-          ) {
+          // Skip webhook-specific fields
+          if (!subBlock || WEBHOOK_SUBBLOCK_FIELDS.includes(subBlockId)) {
             return subAcc
           }
 
           // Get the stored value for this subblock
           const storedValue = blockValues[subBlockId]
 
-          // Create a new subblock object with the same structure but updated value
+          // Only include subblock if there's a stored value (skip defaultValues)
+          if (storedValue === undefined || storedValue === null) {
+            return subAcc
+          }
+
           subAcc[subBlockId] = {
             ...subBlock,
-            value: storedValue !== undefined && storedValue !== null ? storedValue : subBlock.value,
+            value: storedValue,
           }
 
           return subAcc
@@ -79,14 +79,11 @@ export function mergeSubblockState(
       // Add any values that exist in the provided values but aren't in the block structure
       // This handles cases where block config has been updated but values still exist
       Object.entries(blockValues).forEach(([subBlockId, value]) => {
-        const originalSubBlock = blockSubBlocks[subBlockId]
-
         if (
           !mergedSubBlocks[subBlockId] &&
           value !== null &&
           value !== undefined &&
-          !WEBHOOK_SUBBLOCK_FIELDS.includes(subBlockId) &&
-          originalSubBlock?.type !== 'text'
+          !WEBHOOK_SUBBLOCK_FIELDS.includes(subBlockId)
         ) {
           // Create a minimal subblock structure
           mergedSubBlocks[subBlockId] = {
