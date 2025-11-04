@@ -146,6 +146,11 @@ export async function GET(req: NextRequest) {
   }
 }
 
+// Simple in-memory rate limiting
+const saveAttempts = new Map<string, { count: number; resetAt: number }>()
+const RATE_LIMIT_WINDOW = 60000 // 1 minute
+const RATE_LIMIT_MAX = 10 // 10 saves per minute
+
 /**
  * Create or update a schedule for a workflow
  */
@@ -157,6 +162,23 @@ export async function POST(req: NextRequest) {
     if (!session?.user?.id) {
       logger.warn(`[${requestId}] Unauthorized schedule update attempt`)
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const now = Date.now()
+    const userKey = session.user.id
+    const limit = saveAttempts.get(userKey)
+
+    if (limit && limit.resetAt > now) {
+      if (limit.count >= RATE_LIMIT_MAX) {
+        logger.warn(`[${requestId}] Rate limit exceeded for user: ${userKey}`)
+        return NextResponse.json(
+          { error: 'Too many save attempts. Please wait a moment and try again.' },
+          { status: 429 }
+        )
+      }
+      limit.count++
+    } else {
+      saveAttempts.set(userKey, { count: 1, resetAt: now + RATE_LIMIT_WINDOW })
     }
 
     const body = await req.json()
@@ -282,12 +304,15 @@ export async function POST(req: NextRequest) {
 
       cronExpression = generateCronExpression(defaultScheduleType, scheduleValues)
 
-      if (defaultScheduleType === 'custom' && cronExpression) {
+      if (cronExpression) {
         const validation = validateCronExpression(cronExpression, timezone)
         if (!validation.isValid) {
-          logger.error(`[${requestId}] Invalid cron expression: ${validation.error}`)
+          logger.error(`[${requestId}] Invalid cron expression: ${validation.error}`, {
+            scheduleType: defaultScheduleType,
+            cronExpression,
+          })
           return NextResponse.json(
-            { error: `Invalid cron expression: ${validation.error}` },
+            { error: `Invalid schedule configuration: ${validation.error}` },
             { status: 400 }
           )
         }
@@ -327,20 +352,21 @@ export async function POST(req: NextRequest) {
       failedCount: 0, // Reset failure count on reconfiguration
     }
 
-    await db
-      .insert(workflowSchedule)
-      .values(values)
-      .onConflictDoUpdate({
-        target: [workflowSchedule.workflowId, workflowSchedule.blockId],
-        set: setValues,
-      })
+    await db.transaction(async (tx) => {
+      await tx
+        .insert(workflowSchedule)
+        .values(values)
+        .onConflictDoUpdate({
+          target: [workflowSchedule.workflowId, workflowSchedule.blockId],
+          set: setValues,
+        })
+    })
 
     logger.info(`[${requestId}] Schedule updated for workflow ${workflowId}`, {
       nextRunAt: nextRunAt?.toISOString(),
       cronExpression,
     })
 
-    // Track schedule creation/update
     try {
       const { trackPlatformEvent } = await import('@/lib/telemetry/tracer')
       trackPlatformEvent('platform.schedule.created', {

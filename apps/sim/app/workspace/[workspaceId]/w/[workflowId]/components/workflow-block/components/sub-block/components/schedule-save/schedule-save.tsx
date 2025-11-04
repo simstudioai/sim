@@ -77,20 +77,32 @@ export function ScheduleSave({ blockId, isPreview = false, disabled = false }: S
     }
 
     switch (scheduleType) {
-      case 'minutes':
-        if (!scheduleMinutesInterval || Number(scheduleMinutesInterval) <= 0) {
-          missingFields.push('Minutes Interval')
+      case 'minutes': {
+        const minutesNum = Number(scheduleMinutesInterval)
+        if (
+          !scheduleMinutesInterval ||
+          Number.isNaN(minutesNum) ||
+          minutesNum < 1 ||
+          minutesNum > 1440
+        ) {
+          missingFields.push('Minutes Interval (must be 1-1440)')
         }
         break
-      case 'hourly':
+      }
+      case 'hourly': {
+        const hourlyNum = Number(scheduleHourlyMinute)
         if (
           scheduleHourlyMinute === null ||
           scheduleHourlyMinute === undefined ||
-          scheduleHourlyMinute === ''
+          scheduleHourlyMinute === '' ||
+          Number.isNaN(hourlyNum) ||
+          hourlyNum < 0 ||
+          hourlyNum > 59
         ) {
-          missingFields.push('Minute')
+          missingFields.push('Minute (must be 0-59)')
         }
         break
+      }
       case 'daily':
         if (!scheduleDailyTime) {
           missingFields.push('Time')
@@ -104,18 +116,16 @@ export function ScheduleSave({ blockId, isPreview = false, disabled = false }: S
           missingFields.push('Time')
         }
         break
-      case 'monthly':
-        if (
-          !scheduleMonthlyDay ||
-          Number(scheduleMonthlyDay) < 1 ||
-          Number(scheduleMonthlyDay) > 31
-        ) {
-          missingFields.push('Day of Month')
+      case 'monthly': {
+        const monthlyNum = Number(scheduleMonthlyDay)
+        if (!scheduleMonthlyDay || Number.isNaN(monthlyNum) || monthlyNum < 1 || monthlyNum > 31) {
+          missingFields.push('Day of Month (must be 1-31)')
         }
         if (!scheduleMonthlyTime) {
           missingFields.push('Time')
         }
         break
+      }
       case 'custom':
         if (!scheduleCronExpression) {
           missingFields.push('Cron Expression')
@@ -278,16 +288,21 @@ export function ScheduleSave({ blockId, isPreview = false, disabled = false }: S
       const scheduleIdValue = useSubBlockStore.getState().getValue(blockId, 'scheduleId')
       collaborativeSetSubblockValue(blockId, 'scheduleId', scheduleIdValue)
 
+      if (result.cronExpression) {
+        setSavedCronExpression(result.cronExpression)
+      }
+
       if (result.nextRunAt) {
         setNextRunAt(new Date(result.nextRunAt))
         setScheduleStatus('active')
       }
 
-      if (result.cronExpression) {
-        setSavedCronExpression(result.cronExpression)
-      }
-
+      const currentCron = result.cronExpression
       await fetchScheduleStatus()
+
+      if (currentCron) {
+        setSavedCronExpression(currentCron)
+      }
 
       setTimeout(() => {
         setSaveStatus('idle')
@@ -367,7 +382,7 @@ export function ScheduleSave({ blockId, isPreview = false, disabled = false }: S
       <div className='flex gap-2'>
         <Button
           onClick={handleSave}
-          disabled={disabled || isPreview || isSaving || saveStatus === 'saving'}
+          disabled={disabled || isPreview || isSaving || saveStatus === 'saving' || isLoadingStatus}
           className={cn(
             'h-9 flex-1 rounded-[8px] transition-all duration-200',
             saveStatus === 'saved' && 'bg-green-600 hover:bg-green-700',

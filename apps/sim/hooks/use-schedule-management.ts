@@ -112,7 +112,7 @@ export function useScheduleManagement({
   }, [isPreview, workflowId, blockId])
 
   const saveConfig = async (): Promise<SaveConfigResult> => {
-    if (isPreview) {
+    if (isPreview || isSaving) {
       return { success: false }
     }
 
