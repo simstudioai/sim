@@ -27,7 +27,6 @@ import {
   McpToolSelector,
   ProjectSelectorInput,
   ResponseFormat,
-  ScheduleConfig,
   ShortInput,
   SliderInput,
   Switch,
@@ -39,6 +38,7 @@ import {
   VariablesInput,
   WebhookConfig,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components'
+import { ScheduleSave } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/schedule-save/schedule-save'
 import type { SubBlockConfig } from '@/blocks/types'
 import { DocumentTagEntry } from './components/document-tag-entry/document-tag-entry'
 import { E2BSwitch } from './components/e2b-switch'
@@ -347,17 +347,6 @@ export const SubBlock = memo(
             />
           )
         }
-        case 'schedule-config':
-          return (
-            <ScheduleConfig
-              blockId={blockId}
-              subBlockId={config.id}
-              isConnecting={isConnecting}
-              isPreview={isPreview}
-              previewValue={previewValue}
-              disabled={isDisabled}
-            />
-          )
         case 'oauth-input':
           return (
             <CredentialSelector
@@ -545,6 +534,8 @@ export const SubBlock = memo(
               }
             />
           )
+        case 'schedule-save':
+          return <ScheduleSave blockId={blockId} isPreview={isPreview} disabled={disabled} />
         case 'trigger-save':
           return (
             <TriggerSave

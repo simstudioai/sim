@@ -340,7 +340,7 @@ export const WorkflowBlock = memo(
         setIsLoadingScheduleInfo(false) // Reset loading state when not a schedule block
       }
 
-      // Listen for schedule updates from the schedule-config component
+      // Listen for schedule updates from the schedule-save component
       const handleScheduleUpdate = (event: CustomEvent) => {
         // Check if the update is for this workflow and block
         if (event.detail?.workflowId === currentWorkflowId && event.detail?.blockId === id) {
@@ -487,7 +487,8 @@ export const WorkflowBlock = memo(
         }
 
         // Determine if this is a pure trigger block (category: 'triggers')
-        const isPureTriggerBlock = config?.triggers?.enabled && config.category === 'triggers'
+        // Pure trigger blocks should always show their trigger-mode subblocks
+        const isPureTriggerBlock = config.category === 'triggers'
 
         // When in trigger mode, filter out non-trigger subblocks
         if (effectiveTrigger) {
@@ -503,7 +504,8 @@ export const WorkflowBlock = memo(
           // Continue to condition check below - don't return here!
         } else {
           // When NOT in trigger mode, hide trigger-specific subblocks
-          if (block.mode === 'trigger') {
+          // EXCEPT for pure trigger blocks which should always show their trigger-mode subblocks
+          if (block.mode === 'trigger' && !isPureTriggerBlock) {
             return false
           }
         }
@@ -863,54 +865,6 @@ export const WorkflowBlock = memo(
                 <Badge variant='secondary' className='bg-gray-100 text-gray-500 hover:bg-gray-100'>
                   Disabled
                 </Badge>
-              )}
-              {/* Schedule indicator badge - displayed for starter blocks with active schedules */}
-              {shouldShowScheduleBadge && (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Badge
-                      variant='outline'
-                      className={cn(
-                        'flex cursor-pointer items-center gap-1 font-normal text-xs',
-                        scheduleInfo?.isDisabled
-                          ? 'border-amber-200 bg-amber-50 text-amber-600 hover:bg-amber-100 dark:bg-amber-900/20 dark:text-amber-400'
-                          : 'border-green-200 bg-green-50 text-green-600 hover:bg-green-100 dark:bg-green-900/20 dark:text-green-400'
-                      )}
-                      onClick={
-                        scheduleInfo?.id
-                          ? scheduleInfo.isDisabled
-                            ? () => reactivateSchedule(scheduleInfo.id!)
-                            : () => disableSchedule(scheduleInfo.id!)
-                          : undefined
-                      }
-                    >
-                      <div className='relative mr-0.5 flex items-center justify-center'>
-                        <div
-                          className={cn(
-                            'absolute h-3 w-3 rounded-full',
-                            scheduleInfo?.isDisabled ? 'bg-amber-500/20' : 'bg-green-500/20'
-                          )}
-                        />
-                        <div
-                          className={cn(
-                            'relative h-2 w-2 rounded-full',
-                            scheduleInfo?.isDisabled ? 'bg-amber-500' : 'bg-green-500'
-                          )}
-                        />
-                      </div>
-                      {scheduleInfo?.isDisabled ? 'Disabled' : 'Scheduled'}
-                    </Badge>
-                  </TooltipTrigger>
-                  <TooltipContent side='top' className='max-w-[300px] p-4'>
-                    {scheduleInfo?.isDisabled ? (
-                      <p className='text-sm'>
-                        This schedule is currently disabled. Click the badge to reactivate it.
-                      </p>
-                    ) : (
-                      <p className='text-sm'>Click the badge to disable this schedule.</p>
-                    )}
-                  </TooltipContent>
-                </Tooltip>
               )}
               {/* Webhook indicator badge - displayed for starter blocks with active webhooks */}
               {showWebhookIndicator && (
