@@ -109,7 +109,6 @@ export function useScheduleManagement({
     }
 
     loadSchedule()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isPreview, workflowId, blockId])
 
   const saveConfig = async (): Promise<SaveConfigResult> => {

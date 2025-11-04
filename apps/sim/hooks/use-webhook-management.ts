@@ -206,7 +206,6 @@ export function useWebhookManagement({
     }
 
     loadWebhookOrGenerateUrl()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isPreview, triggerId, workflowId, blockId])
 
   const saveConfig = async (): Promise<boolean> => {
