@@ -46,8 +46,8 @@ export class BlockResolver implements Resolver {
 
     const blockId = this.findBlockIdByName(blockName)
     if (!blockId) {
-      logger.error('Block not found by name', { blockName, reference })
-      throw new Error(`Block "${blockName}" not found`)
+      logger.debug('Block not found by name, skipping resolution', { blockName, reference })
+      return undefined
     }
 
     const output = this.getBlockOutput(blockId, context)
