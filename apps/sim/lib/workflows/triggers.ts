@@ -61,6 +61,11 @@ const START_CONFLICT_TYPES: TriggerType[] = [
 
 type BlockWithType = { type: string; subBlocks?: Record<string, unknown> | undefined }
 
+type BlockWithMetadata = BlockWithType & {
+  category?: string
+  triggers?: { enabled?: boolean }
+}
+
 export interface StartBlockCandidate<T extends BlockWithType> {
   blockId: string
   block: T
@@ -101,8 +106,9 @@ export function classifyStartBlockType(
 }
 
 export function classifyStartBlock<T extends BlockWithType>(block: T): StartBlockPath | null {
-  const category = (block as any)?.category as string | undefined
-  const triggerModeEnabled = Boolean((block as any)?.triggers?.enabled)
+  const blockWithMetadata = block as BlockWithMetadata
+  const category = blockWithMetadata.category
+  const triggerModeEnabled = Boolean(blockWithMetadata.triggers?.enabled)
   return classifyStartBlockType(block.type, { category, triggerModeEnabled })
 }
 
