@@ -117,7 +117,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     }
 
     const [workflowRecord] = await db
-      .select({ userId: workflow.userId })
+      .select({ userId: workflow.userId, workspaceId: workflow.workspaceId })
       .from(workflow)
       .where(eq(workflow.id, schedule.workflowId))
       .limit(1)
@@ -127,7 +127,18 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.json({ error: 'Workflow not found' }, { status: 404 })
     }
 
-    if (workflowRecord.userId !== session.user.id) {
+    let isAuthorized = workflowRecord.userId === session.user.id
+
+    if (!isAuthorized && workflowRecord.workspaceId) {
+      const userPermission = await getUserEntityPermissions(
+        session.user.id,
+        'workspace',
+        workflowRecord.workspaceId
+      )
+      isAuthorized = userPermission === 'write' || userPermission === 'admin'
+    }
+
+    if (!isAuthorized) {
       logger.warn(`[${requestId}] User not authorized to modify this schedule: ${scheduleId}`)
       return NextResponse.json({ error: 'Not authorized to modify this schedule' }, { status: 403 })
     }

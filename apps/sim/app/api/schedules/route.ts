@@ -121,7 +121,7 @@ export async function GET(req: NextRequest) {
       .limit(1)
 
     const headers = new Headers()
-    headers.set('Cache-Control', 'max-age=30')
+    headers.set('Cache-Control', 'no-store, max-age=0')
 
     if (schedule.length === 0) {
       return NextResponse.json({ schedule: null }, { headers })
@@ -301,9 +301,13 @@ export async function POST(req: NextRequest) {
         time: scheduleTime || 'not specified',
       })
 
-      cronExpression = generateCronExpression(defaultScheduleType, scheduleValues)
+      const sanitizedScheduleValues =
+        defaultScheduleType !== 'custom'
+          ? { ...scheduleValues, cronExpression: null }
+          : scheduleValues
 
-      // Always validate the generated cron expression
+      cronExpression = generateCronExpression(defaultScheduleType, sanitizedScheduleValues)
+
       if (cronExpression) {
         const validation = validateCronExpression(cronExpression, timezone)
         if (!validation.isValid) {
@@ -318,7 +322,7 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      nextRunAt = calculateNextRunTime(defaultScheduleType, scheduleValues)
+      nextRunAt = calculateNextRunTime(defaultScheduleType, sanitizedScheduleValues)
 
       logger.debug(
         `[${requestId}] Generated cron: ${cronExpression}, next run at: ${nextRunAt.toISOString()}`
