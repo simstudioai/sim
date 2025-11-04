@@ -26,8 +26,8 @@ Le bloc Démarrer se trouve dans l'emplacement de départ lorsque vous créez un
 
 Le bloc Démarrer émet différentes données selon la surface d'exécution :
 
-- **Champs de format d'entrée** — Chaque champ que vous ajoutez devient disponible comme <code>&lt;start.fieldName&gt;</code>. Par exemple, un champ `customerId` apparaît comme <code>&lt;start.customerId&gt;</code> dans les blocs et modèles en aval.
-- **Champs spécifiques au chat** — Lorsque le flux de travail s'exécute depuis le panneau latéral de chat ou une expérience de chat déployée, Sim fournit également <code>&lt;start.input&gt;</code> (dernier message de l'utilisateur), <code>&lt;start.conversationId&gt;</code> (ID de session active) et <code>&lt;start.files&gt;</code> (pièces jointes du chat).
+- **Champs de format d'entrée** — Chaque champ que vous ajoutez devient disponible sous la forme <code>&lt;start.fieldName&gt;</code>. Par exemple, un champ `customerId` apparaît comme <code>&lt;start.customerId&gt;</code> dans les blocs et modèles en aval.
+- **Champs exclusifs au chat** — Lorsque le flux de travail s'exécute depuis le panneau latéral de chat ou une expérience de chat déployée, Sim fournit également <code>&lt;start.input&gt;</code> (dernier message de l'utilisateur), <code>&lt;start.conversationId&gt;</code> (ID de session active), et <code>&lt;start.files&gt;</code> (pièces jointes du chat).
 
 Limitez les champs de format d'entrée aux noms que vous prévoyez de référencer ultérieurement — ces valeurs sont les seuls champs structurés partagés entre les exécutions de l'éditeur, de l'API et du chat.
 
@@ -44,40 +44,38 @@ Référencez les valeurs structurées en aval avec des expressions telles que <c
 
 ## Comment il se comporte selon le point d'entrée
 
-<Tabs items={['Exécution dans l\'éditeur', 'Déploiement vers API', 'Déploiement vers chat']}>
+<Tabs items={['Exécution dans l'éditeur', 'Déploiement vers API', 'Déploiement vers chat']}>
   <Tab>
     <div className="space-y-3">
       <p>
         Lorsque vous cliquez sur <strong>Exécuter</strong> dans l'éditeur, le bloc Start affiche le format d'entrée sous forme de formulaire. Les valeurs par défaut facilitent les tests répétés sans avoir à retaper les données. La soumission du formulaire déclenche immédiatement le flux de travail et les valeurs deviennent disponibles sur <code>&lt;start.fieldName&gt;</code> (par exemple <code>&lt;start.sampleField&gt;</code>).
       </p>
       <p>
-        Les champs de fichiers dans le formulaire sont directement téléchargés dans le{' '}
-        <code>&lt;start.fieldName&gt;</code> correspondant ; utilisez ces valeurs pour alimenter
-        les outils en aval ou les étapes de stockage.
+        Les champs de fichiers dans le formulaire sont directement chargés dans le{' '}
+        <code>&lt;start.fieldName&gt;</code> correspondant ; utilisez ces valeurs pour alimenter les
+        outils en aval ou les étapes de stockage.
       </p>
     </div>
   </Tab>
   <Tab>
     <div className="space-y-3">
       <p>
-        Le déploiement vers l'API transforme le format d'entrée en un contrat JSON pour les clients. Chaque champ devient une partie du corps de la requête, et Sim convertit les types primitifs lors de l'ingestion. Les champs de fichiers attendent des objets qui référencent des fichiers téléchargés ; utilisez le point de terminaison de téléchargement de fichiers d'exécution avant d'invoquer le flux de travail.
+        Le déploiement vers l'API transforme le format d'entrée en un contrat JSON pour les clients. Chaque champ devient une partie du corps de la requête, et Sim effectue une conversion des types primitifs lors de l'ingestion. Les champs de fichiers attendent des objets qui référencent des fichiers téléchargés ; utilisez le point de terminaison de téléchargement de fichiers d'exécution avant d'invoquer le flux de travail.
       </p>
       <p>
-        Les appelants de l'API peuvent inclure des propriétés optionnelles supplémentaires.
-        Elles sont préservées dans les sorties <code>&lt;start.fieldName&gt;</code> pour que
-        vous puissiez expérimenter sans avoir à redéployer immédiatement.
+        Les appelants de l'API peuvent inclure des propriétés optionnelles supplémentaires. Elles sont préservées
+        dans les sorties <code>&lt;start.fieldName&gt;</code> pour que vous puissiez expérimenter
+        sans avoir à redéployer immédiatement.
       </p>
     </div>
   </Tab>
   <Tab>
     <div className="space-y-3">
       <p>
-        Dans les déploiements de chat, le bloc Start se lie à la conversation active. Le dernier message remplit <code>&lt;start.input&gt;</code>, l'identifiant de session est disponible à <code>&lt;start.conversationId&gt;</code>, et les pièces jointes de l'utilisateur apparaissent sur <code>&lt;start.files&gt;</code>, ainsi que tous les champs du format d'entrée définis comme <code>&lt;start.fieldName&gt;</code>.
+        Dans les déploiements de chat, le bloc Start se lie à la conversation active. Le dernier message remplit <code>&lt;start.input&gt;</code>, l'identifiant de session est disponible à <code>&lt;start.conversationId&gt;</code>, et les pièces jointes de l'utilisateur apparaissent sur <code>&lt;start.files&gt;</code>, ainsi que tous les champs de format d'entrée définis comme <code>&lt;start.fieldName&gt;</code>.
       </p>
       <p>
-        Si vous lancez le chat avec un contexte structuré supplémentaire (par exemple à partir
-        d'une intégration), il fusionne dans les sorties <code>&lt;start.fieldName&gt;</code>
-        correspondantes, gardant les blocs en aval cohérents avec l'API et les exécutions manuelles.
+        Si vous lancez le chat avec un contexte structuré supplémentaire (par exemple à partir d'un intégration), il fusionne dans les sorties <code>&lt;start.fieldName&gt;</code> correspondantes, gardant les blocs en aval cohérents avec l'API et les exécutions manuelles.
       </p>
     </div>
   </Tab>

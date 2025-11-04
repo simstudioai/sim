@@ -26,8 +26,8 @@ Der Start-Block befindet sich in der Startposition, wenn du einen Workflow erste
 
 Der Start-Block gibt je nach Ausführungsumgebung unterschiedliche Daten aus:
 
-- **Eingabeformat-Felder** — Jedes Feld, das du hinzufügst, wird als <code>&lt;start.fieldName&gt;</code> verfügbar. Zum Beispiel erscheint ein `customerId`Feld als <code>&lt;start.customerId&gt;</code> in nachgelagerten Blöcken und Vorlagen.
-- **Nur-Chat-Felder** — Wenn der Workflow über das Chat-Seitenfeld oder ein bereitgestelltes Chat-Erlebnis ausgeführt wird, stellt Sim auch <code>&lt;start.input&gt;</code> (neueste Benutzernachricht), <code>&lt;start.conversationId&gt;</code> (aktive Sitzungs-ID) und <code>&lt;start.files&gt;</code> (Chat-Anhänge) bereit.
+- **Eingabeformat-Felder** — Jedes Feld, das Sie hinzufügen, wird als <code>&lt;start.feldName&gt;</code> verfügbar. Zum Beispiel erscheint ein `customerId` Feld als <code>&lt;start.customerId&gt;</code> in nachgelagerten Blöcken und Vorlagen.
+- **Nur-Chat-Felder** — Wenn der Workflow über das Chat-Seitenpanel oder eine bereitgestellte Chat-Erfahrung ausgeführt wird, stellt Sim auch <code>&lt;start.input&gt;</code> (neueste Benutzernachricht), <code>&lt;start.conversationId&gt;</code> (aktive Sitzungs-ID) und <code>&lt;start.files&gt;</code> (Chat-Anhänge) bereit.
 
 Halte die Eingabeformat-Felder auf die Namen beschränkt, auf die du später verweisen möchtest – diese Werte sind die einzigen strukturierten Felder, die über Editor-, API- und Chat-Ausführungen hinweg geteilt werden.
 
@@ -40,45 +40,42 @@ Verwende den Eingabeformat-Unterblock, um das Schema zu definieren, das für all
 3. Gib Standardwerte an, wenn du möchtest, dass das manuelle Ausführungsmodal automatisch Testdaten einfügt. Diese Standardwerte werden für bereitgestellte Ausführungen ignoriert.
 4. Ordne Felder neu an, um zu steuern, wie sie im Editor-Formular erscheinen.
 
-Referenzieren Sie strukturierte Werte nachgelagert mit Ausdrücken wie <code>&lt;start.customerId&gt;</code> abhängig vom Block, den Sie verbinden.
+Referenzieren Sie strukturierte Werte nachgelagert mit Ausdrücken wie <code>&lt;start.customerId&gt;</code>, abhängig vom Block, den Sie verbinden.
 
 ## Wie es sich je nach Einstiegspunkt verhält
 
-<Tabs items={['Editor-Ausführung', 'Bereitstellung als API', 'Bereitstellung für Chat']}>
+<Tabs items={['Editor-Ausführung', 'API-Bereitstellung', 'Chat-Bereitstellung']}>
   <Tab>
     <div className="space-y-3">
       <p>
-        Wenn Sie im Editor auf <strong>Ausführen</strong> klicken, rendert der Start-Block das Eingabeformat als Formular. Standardwerte erleichtern das erneute Testen ohne erneute Dateneingabe. Durch das Absenden des Formulars wird der Workflow sofort ausgelöst und die Werte werden unter <code>&lt;start.feldName&gt;</code> (zum Beispiel <code>&lt;start.sampleField&gt;</code>) verfügbar.
+        Wenn Sie im Editor auf <strong>Ausführen</strong> klicken, rendert der Start-Block das Eingabeformat als Formular. Standardwerte erleichtern das erneute Testen ohne erneute Dateneingabe. Das Absenden des Formulars löst den Workflow sofort aus, und die Werte werden unter <code>&lt;start.feldName&gt;</code> verfügbar (zum Beispiel <code>&lt;start.sampleField&gt;</code>).
       </p>
       <p>
-        Dateifelder im Formular werden direkt in die entsprechenden{' '}
-        <code>&lt;start.fieldName&gt;</code> hochgeladen; verwenden Sie diese Werte,
-        um nachgelagerte Tools oder Speicherschritte zu versorgen.
+        Dateifelder im Formular werden direkt in das entsprechende{' '}
+        <code>&lt;start.feldName&gt;</code> hochgeladen; verwenden Sie diese Werte, um nachgelagerte
+        Tools oder Speicherschritte zu versorgen.
       </p>
     </div>
   </Tab>
   <Tab>
     <div className="space-y-3">
       <p>
-        Die Bereitstellung als API verwandelt das Eingabeformat in einen JSON-Vertrag für Clients. Jedes Feld wird Teil des Anforderungskörpers, und Sim erzwingt primitive Typen bei der Aufnahme. Dateifelder erwarten Objekte, die auf hochgeladene Dateien verweisen; verwenden Sie den Ausführungs-Datei-Upload-Endpunkt, bevor Sie den Workflow aufrufen.
+        Die Bereitstellung für eine API verwandelt das Eingabeformat in einen JSON-Vertrag für Clients. Jedes Feld wird Teil des Anforderungskörpers, und Sim erzwingt primitive Typen bei der Aufnahme. Dateifelder erwarten Objekte, die auf hochgeladene Dateien verweisen; verwenden Sie den Ausführungs-Datei-Upload-Endpunkt, bevor Sie den Workflow aufrufen.
       </p>
       <p>
-        API-Aufrufer können zusätzliche optionale Eigenschaften einbeziehen. Diese
-        werden in den <code>&lt;start.fieldName&gt;</code>Ausgaben beibehalten, sodass
-        Sie experimentieren können, ohne sofort neu bereitzustellen.
+        API-Aufrufer können zusätzliche optionale Eigenschaften einbeziehen. Diese werden
+        innerhalb der <code>&lt;start.feldName&gt;</code> Ausgaben beibehalten, sodass Sie experimentieren
+        können, ohne sofort neu bereitzustellen.
       </p>
     </div>
   </Tab>
   <Tab>
     <div className="space-y-3">
       <p>
-        Bei Chat-Bereitstellungen bindet sich der Start-Block an die aktive Konversation. Die neueste Nachricht füllt <code>&lt;start.input&gt;</code>, die Sitzungskennung ist unter <code>&lt;start.conversationId&gt;</code> verfügbar, und Benutzeranhänge erscheinen unter <code>&lt;start.files&gt;</code>, zusammen mit allen Eingabeformatfeldern, die als <code>&lt;start.fieldName&gt;</code> definiert sind.
+        Bei Chat-Bereitstellungen bindet sich der Start-Block an die aktive Konversation. Die neueste Nachricht füllt <code>&lt;start.input&gt;</code>, die Sitzungskennung ist unter <code>&lt;start.conversationId&gt;</code> verfügbar, und Benutzeranhänge erscheinen unter <code>&lt;start.files&gt;</code>, zusammen mit allen Eingabeformat-Feldern, die als <code>&lt;start.feldName&gt;</code> definiert sind.
       </p>
       <p>
-        Wenn Sie den Chat mit zusätzlichem strukturiertem Kontext starten (zum
-        Beispiel aus einer Einbettung), wird dieser mit den entsprechenden{' '}
-        <code>&lt;start.fieldName&gt;</code>Ausgaben zusammengeführt, wodurch
-        nachgelagerte Blöcke konsistent mit API- und manuellen Ausführungen bleiben.
+        Wenn Sie den Chat mit zusätzlichem strukturiertem Kontext starten (zum Beispiel aus einer Einbettung), wird dieser mit den entsprechenden <code>&lt;start.feldName&gt;</code> Ausgaben zusammengeführt, wodurch nachgelagerte Blöcke konsistent mit API- und manuellen Ausführungen bleiben.
       </p>
     </div>
   </Tab>
@@ -87,8 +84,8 @@ Referenzieren Sie strukturierte Werte nachgelagert mit Ausdrücken wie <code>&lt
 ## Referenzierung von Start-Daten in nachgelagerten Komponenten
 
 - Verbinde <code>&lt;start.fieldName&gt;</code> direkt mit Agenten, Tools oder Funktionen, die strukturierte Daten erwarten.
-- Verwende Template-Syntax wie <code>&lt;start.sampleField&gt;</code> oder <code>&lt;start.files[0].url&gt;</code> (nur für Chat) in Prompt-Feldern.
-- Halte <code>&lt;start.conversationId&gt;</code> bereit, wenn du Ausgaben gruppieren, den Gesprächsverlauf aktualisieren oder die Chat-API erneut aufrufen musst.
+- Verwende Template-Syntax wie <code>&lt;start.sampleField&gt;</code> oder <code>&lt;start.files[0].url&gt;</code> (nur im Chat) in Prompt-Feldern.
+- Halte <code>&lt;start.conversationId&gt;</code> bereit, wenn du Ausgaben gruppieren, Konversationsverlauf aktualisieren oder die Chat-API erneut aufrufen musst.
 
 ## Best Practices
 
