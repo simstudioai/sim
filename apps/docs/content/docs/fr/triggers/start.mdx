@@ -26,8 +26,8 @@ Le bloc Démarrer se trouve dans l'emplacement de départ lorsque vous créez un
 
 Le bloc Démarrer émet différentes données selon la surface d'exécution :
 
-- **Champs de format d'entrée** — Chaque champ que vous ajoutez devient disponible comme `<start.fieldName>`. Par exemple, un champ `customerId` apparaît comme `<start.customerId>` dans les blocs et modèles en aval.
-- **Champs spécifiques au chat** — Lorsque le flux de travail s'exécute depuis le panneau latéral de chat ou une expérience de chat déployée, Sim fournit également `<start.input>` (dernier message de l'utilisateur), `<start.conversationId>` (ID de session active) et `<start.files>` (pièces jointes du chat).
+- **Champs de format d'entrée** — Chaque champ que vous ajoutez devient disponible comme <code>&lt;start.fieldName&gt;</code>. Par exemple, un champ `customerId` apparaît comme <code>&lt;start.customerId&gt;</code> dans les blocs et modèles en aval.
+- **Champs spécifiques au chat** — Lorsque le flux de travail s'exécute depuis le panneau latéral de chat ou une expérience de chat déployée, Sim fournit également <code>&lt;start.input&gt;</code> (dernier message de l'utilisateur), <code>&lt;start.conversationId&gt;</code> (ID de session active) et <code>&lt;start.files&gt;</code> (pièces jointes du chat).
 
 Limitez les champs de format d'entrée aux noms que vous prévoyez de référencer ultérieurement — ces valeurs sont les seuls champs structurés partagés entre les exécutions de l'éditeur, de l'API et du chat.
 
@@ -40,18 +40,20 @@ Utilisez le sous-bloc Format d'entrée pour définir le schéma qui s'applique �
 3. Fournissez des valeurs par défaut lorsque vous souhaitez que la fenêtre d'exécution manuelle remplisse automatiquement les données de test. Ces valeurs par défaut sont ignorées pour les exécutions déployées.
 4. Réorganisez les champs pour contrôler leur apparence dans le formulaire de l'éditeur.
 
-Référencez les valeurs structurées en aval avec des expressions telles que `<start.customerId>` selon le bloc que vous connectez.
+Référencez les valeurs structurées en aval avec des expressions telles que <code>&lt;start.customerId&gt;</code> selon le bloc que vous connectez.
 
 ## Comment il se comporte selon le point d'entrée
 
-<Tabs items={['Exécution dans l'éditeur', 'Déploiement vers API', 'Déploiement vers chat']}>
+<Tabs items={['Exécution dans l\'éditeur', 'Déploiement vers API', 'Déploiement vers chat']}>
   <Tab>
     <div className="space-y-3">
       <p>
         Lorsque vous cliquez sur <strong>Exécuter</strong> dans l'éditeur, le bloc Start affiche le format d'entrée sous forme de formulaire. Les valeurs par défaut facilitent les tests répétés sans avoir à retaper les données. La soumission du formulaire déclenche immédiatement le flux de travail et les valeurs deviennent disponibles sur <code>&lt;start.fieldName&gt;</code> (par exemple <code>&lt;start.sampleField&gt;</code>).
       </p>
       <p>
-        Les champs de fichiers dans le formulaire sont directement téléchargés dans le `<start.fieldName>` correspondant ; utilisez ces valeurs pour alimenter les outils en aval ou les étapes de stockage.
+        Les champs de fichiers dans le formulaire sont directement téléchargés dans le{' '}
+        <code>&lt;start.fieldName&gt;</code> correspondant ; utilisez ces valeurs pour alimenter
+        les outils en aval ou les étapes de stockage.
       </p>
     </div>
   </Tab>
@@ -61,7 +63,9 @@ Référencez les valeurs structurées en aval avec des expressions telles que `<
         Le déploiement vers l'API transforme le format d'entrée en un contrat JSON pour les clients. Chaque champ devient une partie du corps de la requête, et Sim convertit les types primitifs lors de l'ingestion. Les champs de fichiers attendent des objets qui référencent des fichiers téléchargés ; utilisez le point de terminaison de téléchargement de fichiers d'exécution avant d'invoquer le flux de travail.
       </p>
       <p>
-        Les appelants de l'API peuvent inclure des propriétés optionnelles supplémentaires. Elles sont préservées dans les sorties `<start.fieldName>` pour que vous puissiez expérimenter sans avoir à redéployer immédiatement.
+        Les appelants de l'API peuvent inclure des propriétés optionnelles supplémentaires.
+        Elles sont préservées dans les sorties <code>&lt;start.fieldName&gt;</code> pour que
+        vous puissiez expérimenter sans avoir à redéployer immédiatement.
       </p>
     </div>
   </Tab>
@@ -71,7 +75,9 @@ Référencez les valeurs structurées en aval avec des expressions telles que `<
         Dans les déploiements de chat, le bloc Start se lie à la conversation active. Le dernier message remplit <code>&lt;start.input&gt;</code>, l'identifiant de session est disponible à <code>&lt;start.conversationId&gt;</code>, et les pièces jointes de l'utilisateur apparaissent sur <code>&lt;start.files&gt;</code>, ainsi que tous les champs du format d'entrée définis comme <code>&lt;start.fieldName&gt;</code>.
       </p>
       <p>
-        Si vous lancez le chat avec un contexte structuré supplémentaire (par exemple à partir d'une intégration), il fusionne dans les sorties `<start.fieldName>` correspondantes, gardant les blocs en aval cohérents avec l'API et les exécutions manuelles.
+        Si vous lancez le chat avec un contexte structuré supplémentaire (par exemple à partir
+        d'une intégration), il fusionne dans les sorties <code>&lt;start.fieldName&gt;</code>
+        correspondantes, gardant les blocs en aval cohérents avec l'API et les exécutions manuelles.
       </p>
     </div>
   </Tab>
@@ -79,9 +85,9 @@ Référencez les valeurs structurées en aval avec des expressions telles que `<
 
 ## Référencement des données Start en aval
 
-- Connectez `<start.fieldName>` directement aux agents, outils ou fonctions qui attendent des charges utiles structurées.
-- Utilisez la syntaxe de modèle comme `<start.sampleField>` ou `<start.files[0].url>` (chat uniquement) dans les champs de prompt.
-- Gardez `<start.conversationId>` à portée de main lorsque vous devez regrouper des sorties, mettre à jour l'historique de conversation ou rappeler l'API de chat.
+- Connectez <code>&lt;start.fieldName&gt;</code> directement aux agents, outils ou fonctions qui attendent des charges utiles structurées.
+- Utilisez la syntaxe de modèle comme <code>&lt;start.sampleField&gt;</code> ou <code>&lt;start.files[0].url&gt;</code> (chat uniquement) dans les champs de prompt.
+- Gardez <code>&lt;start.conversationId&gt;</code> à portée de main lorsque vous devez regrouper des sorties, mettre à jour l'historique de conversation ou rappeler l'API de chat.
 
 ## Bonnes pratiques
 
