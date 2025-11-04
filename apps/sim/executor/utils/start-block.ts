@@ -372,12 +372,8 @@ function buildIntegrationTriggerOutput(
   if (isPlainObject(finalInput)) {
     Object.assign(base, finalInput as Record<string, unknown>)
     base.input = { ...(finalInput as Record<string, unknown>) }
-  } else if (!Object.hasOwn(base, 'input')) {
+  } else {
     base.input = finalInput
-  }
-
-  if (!Object.hasOwn(base, 'input')) {
-    base.input = getRawInputCandidate(workflowInput)
   }
 
   return mergeFilesIntoOutput(base, workflowInput)
