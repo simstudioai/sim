@@ -23,6 +23,7 @@ export enum StartBlockPath {
   SPLIT_API = 'legacy_api_trigger',
   SPLIT_CHAT = 'legacy_chat_trigger',
   SPLIT_MANUAL = 'legacy_manual_trigger',
+  EXTERNAL_TRIGGER = 'external_trigger',
 }
 
 type StartExecutionKind = 'chat' | 'manual' | 'api'
@@ -66,7 +67,15 @@ export interface StartBlockCandidate<T extends BlockWithType> {
   path: StartBlockPath
 }
 
-export function classifyStartBlockType(type: string): StartBlockPath | null {
+type ClassifyStartOptions = {
+  category?: string
+  triggerModeEnabled?: boolean
+}
+
+export function classifyStartBlockType(
+  type: string,
+  opts?: ClassifyStartOptions
+): StartBlockPath | null {
   switch (type) {
     case TRIGGER_TYPES.START:
       return StartBlockPath.UNIFIED
@@ -80,13 +89,21 @@ export function classifyStartBlockType(type: string): StartBlockPath | null {
       return StartBlockPath.SPLIT_CHAT
     case TRIGGER_TYPES.MANUAL:
       return StartBlockPath.SPLIT_MANUAL
+    case TRIGGER_TYPES.WEBHOOK:
+    case TRIGGER_TYPES.SCHEDULE:
+      return StartBlockPath.EXTERNAL_TRIGGER
     default:
+      if (opts?.category === 'triggers' || opts?.triggerModeEnabled) {
+        return StartBlockPath.EXTERNAL_TRIGGER
+      }
       return null
   }
 }
 
 export function classifyStartBlock<T extends BlockWithType>(block: T): StartBlockPath | null {
-  return classifyStartBlockType(block.type)
+  const category = (block as any)?.category as string | undefined
+  const triggerModeEnabled = Boolean((block as any)?.triggers?.enabled)
+  return classifyStartBlockType(block.type, { category, triggerModeEnabled })
 }
 
 export function isLegacyStartPath(path: StartBlockPath): boolean {

@@ -76,7 +76,13 @@ export function buildResolutionFromBlock(block: SerializedBlock): ExecutorStartR
     return null
   }
 
-  const path = classifyStartBlockType(type)
+  const category = block.metadata?.category
+  const triggerModeEnabled = block.config?.params?.triggerMode === true
+
+  const path = classifyStartBlockType(type, {
+    category,
+    triggerModeEnabled,
+  })
   if (!path) {
     return null
   }
@@ -342,17 +348,39 @@ function buildManualTriggerOutput(
   finalInput: unknown,
   workflowInput: unknown
 ): NormalizedBlockOutput {
-  const finalObject = isPlainObject(finalInput) ? finalInput : undefined
+  const finalObject = isPlainObject(finalInput)
+    ? (finalInput as Record<string, unknown>)
+    : undefined
 
-  const output: NormalizedBlockOutput = finalObject
-    ? { ...(finalObject as Record<string, unknown>) }
-    : { input: finalInput }
+  const output: NormalizedBlockOutput = finalObject ? { ...finalObject } : { input: finalInput }
 
   if (!Object.hasOwn(output, 'input')) {
     output.input = getRawInputCandidate(workflowInput)
   }
 
   return mergeFilesIntoOutput(output, workflowInput)
+}
+
+function buildIntegrationTriggerOutput(
+  finalInput: unknown,
+  workflowInput: unknown
+): NormalizedBlockOutput {
+  const base: NormalizedBlockOutput = isPlainObject(workflowInput)
+    ? ({ ...(workflowInput as Record<string, unknown>) } as NormalizedBlockOutput)
+    : {}
+
+  if (isPlainObject(finalInput)) {
+    Object.assign(base, finalInput as Record<string, unknown>)
+    base.input = { ...(finalInput as Record<string, unknown>) }
+  } else if (!Object.hasOwn(base, 'input')) {
+    base.input = finalInput
+  }
+
+  if (!Object.hasOwn(base, 'input')) {
+    base.input = getRawInputCandidate(workflowInput)
+  }
+
+  return mergeFilesIntoOutput(base, workflowInput)
 }
 
 function extractSubBlocks(block: SerializedBlock): Record<string, unknown> | undefined {
@@ -397,6 +425,9 @@ export function buildStartBlockOutput(options: StartBlockOutputOptions): Normali
 
     case StartBlockPath.SPLIT_MANUAL:
       return buildManualTriggerOutput(finalInput, workflowInput)
+
+    case StartBlockPath.EXTERNAL_TRIGGER:
+      return buildIntegrationTriggerOutput(finalInput, workflowInput)
 
     case StartBlockPath.LEGACY_STARTER:
       return buildLegacyStarterOutput(
