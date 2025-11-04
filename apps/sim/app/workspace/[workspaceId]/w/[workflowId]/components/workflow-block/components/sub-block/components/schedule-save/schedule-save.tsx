@@ -288,20 +288,16 @@ export function ScheduleSave({ blockId, isPreview = false, disabled = false }: S
       const scheduleIdValue = useSubBlockStore.getState().getValue(blockId, 'scheduleId')
       collaborativeSetSubblockValue(blockId, 'scheduleId', scheduleIdValue)
 
-      if (result.cronExpression) {
-        setSavedCronExpression(result.cronExpression)
-      }
-
       if (result.nextRunAt) {
         setNextRunAt(new Date(result.nextRunAt))
         setScheduleStatus('active')
       }
 
-      const currentCron = result.cronExpression
+      // Fetch additional status info, then apply cron from save result to prevent stale data
       await fetchScheduleStatus()
 
-      if (currentCron) {
-        setSavedCronExpression(currentCron)
+      if (result.cronExpression) {
+        setSavedCronExpression(result.cronExpression)
       }
 
       setTimeout(() => {
