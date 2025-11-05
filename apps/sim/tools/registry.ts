@@ -224,8 +224,11 @@ import { workflowExecutorTool } from '@/tools/workflow'
 import { xReadTool, xSearchTool, xUserTool, xWriteTool } from '@/tools/x'
 import {
   youtubeChannelInfoTool,
+  youtubeChannelPlaylistsTool,
+  youtubeChannelVideosTool,
   youtubeCommentsTool,
   youtubePlaylistItemsTool,
+  youtubeRelatedVideosTool,
   youtubeSearchTool,
   youtubeVideoDetailsTool,
 } from '@/tools/youtube'
@@ -289,6 +292,9 @@ export const tools: Record<string, ToolConfig> = {
   youtube_channel_info: youtubeChannelInfoTool,
   youtube_playlist_items: youtubePlaylistItemsTool,
   youtube_comments: youtubeCommentsTool,
+  youtube_channel_videos: youtubeChannelVideosTool,
+  youtube_channel_playlists: youtubeChannelPlaylistsTool,
+  youtube_related_videos: youtubeRelatedVideosTool,
   notion_read: notionReadTool,
   notion_read_database: notionReadDatabaseTool,
   notion_write: notionWriteTool,
