@@ -315,8 +315,23 @@ export class PauseResumeManager {
   }): Promise<ExecutionResult> {
     const { resumeExecutionId, pausedExecution, contextId, resumeInput, userId } = args
 
+    logger.info('Starting resume execution', {
+      resumeExecutionId,
+      parentExecutionId: pausedExecution.executionId,
+      contextId,
+      hasResumeInput: !!resumeInput,
+    })
+
     const serializedSnapshot = pausedExecution.executionSnapshot as SerializedSnapshot
     const baseSnapshot = ExecutionSnapshot.fromJSON(serializedSnapshot.snapshot)
+    
+    logger.info('Loaded snapshot from paused execution', {
+      workflowId: baseSnapshot.workflow?.version,
+      workflowBlockCount: baseSnapshot.workflow?.blocks?.length,
+      hasState: !!baseSnapshot.state,
+      snapshotMetadata: baseSnapshot.metadata,
+    })
+
     const pausePoints = pausedExecution.pausePoints as Record<string, any>
     const pausePoint = pausePoints?.[contextId]
     if (!pausePoint) {
@@ -324,6 +339,23 @@ export class PauseResumeManager {
     }
 
     const triggerBlockId: string = pausePoint.triggerBlockId
+    
+    logger.info('Resume trigger identified', {
+      triggerBlockId,
+      contextId,
+      pausePointKeys: Object.keys(pausePoints),
+    })
+
+    // Find the blocks downstream of the pause block
+    const pauseBlockId = contextId // The pause block's ID is the contextId
+    const downstreamBlocks = baseSnapshot.workflow.connections
+      .filter((conn: any) => conn.source === pauseBlockId)
+      .map((conn: any) => conn.target)
+    
+    logger.info('Found downstream blocks', {
+      pauseBlockId,
+      downstreamBlocks,
+    })
 
     const stateCopy = baseSnapshot.state
       ? {
@@ -332,41 +364,68 @@ export class PauseResumeManager {
         }
       : undefined
 
+    logger.info('Preparing resume state', {
+      hasStateCopy: !!stateCopy,
+      existingBlockStatesCount: stateCopy ? Object.keys(stateCopy.blockStates).length : 0,
+      executedBlocksCount: stateCopy?.executedBlocks?.length ?? 0,
+    })
+
     if (stateCopy) {
-      stateCopy.pendingQueue = [triggerBlockId]
-      const triggerState = stateCopy.blockStates[triggerBlockId] ?? {
+      // Set the pause block as completed with the resume input
+      const pauseBlockState = stateCopy.blockStates[pauseBlockId] ?? {
         output: {},
         executed: true,
         executionTime: 0,
       }
-      triggerState.output = {
-        ...triggerState.output,
-        input: resumeInput ?? {},
-        resumedFrom: pausedExecution.executionId,
+      pauseBlockState.output = {
+        response: {
+          data: resumeInput ?? {},
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        },
+        _resumed: true,
+        _resumedFrom: pausedExecution.executionId,
       }
-      triggerState.executed = true
-      triggerState.executionTime = 0
-      stateCopy.blockStates[triggerBlockId] = triggerState
+      pauseBlockState.executed = true
+      stateCopy.blockStates[pauseBlockId] = pauseBlockState
+      
+      // Queue the downstream blocks for execution
+      stateCopy.pendingQueue = downstreamBlocks.length > 0 ? downstreamBlocks : []
+      
+      logger.info('Updated pause block state for resume', {
+        pauseBlockId,
+        pendingQueue: stateCopy.pendingQueue,
+        pauseBlockOutput: pauseBlockState.output,
+      })
     }
 
     const metadata = {
       ...baseSnapshot.metadata,
       executionId: resumeExecutionId,
       requestId: resumeExecutionId.slice(0, 8),
-      triggerBlockId,
+      triggerBlockId: undefined, // No trigger needed for resume
       startTime: new Date().toISOString(),
       userId,
+      useDraftState: baseSnapshot.metadata.useDraftState,
+      resumeFromSnapshot: true,
     }
 
     const resumeSnapshot = new ExecutionSnapshot(
       metadata,
       baseSnapshot.workflow,
       resumeInput ?? {},
-      {},
+      baseSnapshot.environmentVariables || {},
       baseSnapshot.workflowVariables || {},
       baseSnapshot.selectedOutputs || [],
       stateCopy
     )
+
+    logger.info('Created resume snapshot', {
+      metadata,
+      hasWorkflow: !!baseSnapshot.workflow,
+      hasState: !!stateCopy,
+      pendingQueue: stateCopy?.pendingQueue,
+    })
 
     const triggerType = (metadata.triggerType as
       | 'api'
@@ -381,6 +440,13 @@ export class PauseResumeManager {
       triggerType,
       metadata.requestId
     )
+
+    logger.info('Invoking executeWorkflowCore for resume', {
+      resumeExecutionId,
+      triggerType,
+      useDraftState: metadata.useDraftState,
+      resumeFromSnapshot: metadata.resumeFromSnapshot,
+    })
 
     return await executeWorkflowCore({
       snapshot: resumeSnapshot,
@@ -407,7 +473,7 @@ export class PauseResumeManager {
       await tx
         .update(pausedExecutions)
         .set({
-          pausePoints: sql`jsonb_set(jsonb_set(pause_points, ARRAY[${contextId}, 'resumeStatus'], '"resumed"'::jsonb), ARRAY[${contextId}, 'resumedAt'], to_jsonb(${now.toISOString()}))`,
+          pausePoints: sql`jsonb_set(jsonb_set(pause_points, ARRAY[${contextId}, 'resumeStatus'], '"resumed"'::jsonb), ARRAY[${contextId}, 'resumedAt'], '"${sql.raw(now.toISOString())}"'::jsonb)`,
           resumedCount: sql`resumed_count + 1`,
           status: sql`CASE WHEN resumed_count + 1 >= total_pause_count THEN 'fully_resumed' ELSE 'partially_resumed' END`,
           updatedAt: now,

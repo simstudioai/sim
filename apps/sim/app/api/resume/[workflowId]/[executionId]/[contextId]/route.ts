@@ -13,10 +13,10 @@ export async function POST(
   {
     params,
   }: {
-    params: { workflowId: string; executionId: string; contextId: string }
+    params: Promise<{ workflowId: string; executionId: string; contextId: string }>
   }
 ) {
-  const { workflowId, executionId, contextId } = params
+  const { workflowId, executionId, contextId } = await params
 
   const access = await validateWorkflowAccess(request, workflowId, false)
   if (access.error) {
@@ -92,10 +92,10 @@ export async function GET(
   {
     params,
   }: {
-    params: { workflowId: string; executionId: string; contextId: string }
+    params: Promise<{ workflowId: string; executionId: string; contextId: string }>
   }
 ) {
-  const { workflowId, executionId, contextId } = params
+  const { workflowId, executionId, contextId } = await params
 
   const access = await validateWorkflowAccess(request, workflowId, false)
   if (access.error) {

@@ -1,5 +1,6 @@
 import { createLogger } from '@/lib/logs/console/logger'
 import { isMetadataOnlyBlockType, isTriggerBlockType } from '@/executor/consts'
+import { extractBaseBlockId } from '@/executor/utils/subflow-utils'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 
 const logger = createLogger('PathConstructor')
@@ -28,19 +29,24 @@ export class PathConstructor {
   ): string | undefined {
     if (triggerBlockId) {
       const block = workflow.blocks.find((b) => b.id === triggerBlockId)
-      if (!block) {
-        logger.error('Provided triggerBlockId not found in workflow', {
+      if (block) {
+        logger.debug('Using explicitly provided trigger block', {
           triggerBlockId,
-          availableBlocks: workflow.blocks.map((b) => ({ id: b.id, type: b.metadata?.id })),
+          blockType: block.metadata?.id,
         })
-        throw new Error(`Trigger block not found: ${triggerBlockId}`)
+        return triggerBlockId
       }
 
-      logger.debug('Using explicitly provided trigger block', {
+      const fallbackTriggerId = this.resolveResumeTriggerFallback(triggerBlockId, workflow)
+      if (fallbackTriggerId) {
+        return fallbackTriggerId
+      }
+
+      logger.error('Provided triggerBlockId not found in workflow', {
         triggerBlockId,
-        blockType: block.metadata?.id,
+        availableBlocks: workflow.blocks.map((b) => ({ id: b.id, type: b.metadata?.id })),
       })
-      return triggerBlockId
+      throw new Error(`Trigger block not found: ${triggerBlockId}`)
     }
 
     const explicitTrigger = this.findExplicitTrigger(workflow)
@@ -148,5 +154,32 @@ export class PathConstructor {
       reachableBlocks: Array.from(reachable),
     })
     return reachable
+  }
+
+  private resolveResumeTriggerFallback(
+    triggerBlockId: string,
+    workflow: SerializedWorkflow
+  ): string | undefined {
+    if (!triggerBlockId.endsWith('__trigger')) {
+      return undefined
+    }
+
+    const baseId = triggerBlockId.replace(/__trigger$/, '')
+    const normalizedBaseId = extractBaseBlockId(baseId)
+    const candidates = baseId === normalizedBaseId ? [baseId] : [baseId, normalizedBaseId]
+
+    for (const candidate of candidates) {
+      const block = workflow.blocks.find((b) => b.id === candidate)
+      if (block) {
+        logger.debug('Resolved resume trigger to base block', {
+          originalTriggerId: triggerBlockId,
+          resolvedBlockId: candidate,
+          blockType: block.metadata?.id,
+        })
+        return candidate
+      }
+    }
+
+    return undefined
   }
 }

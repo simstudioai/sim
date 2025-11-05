@@ -104,6 +104,7 @@ export class DAGExecutor {
       metadata: {
         startTime: new Date().toISOString(),
         duration: 0,
+        useDraftState: this.contextExtensions.isDeployedContext === true ? false : true,
       },
       environmentVariables: this.environmentVariables,
       workflowVariables: this.workflowVariables,
@@ -125,7 +126,27 @@ export class DAGExecutor {
       onBlockComplete: this.contextExtensions.onBlockComplete,
     }
 
-    this.initializeStarterBlock(context, triggerBlockId)
+    if (this.contextExtensions.resumeFromSnapshot) {
+      context.metadata.resumeFromSnapshot = true
+      logger.info('Resume from snapshot enabled', {
+        resumePendingQueue: this.contextExtensions.resumePendingQueue,
+        triggerBlockId,
+      })
+    }
+
+    if (this.contextExtensions.resumePendingQueue?.length) {
+      context.metadata.pendingBlocks = [...this.contextExtensions.resumePendingQueue]
+      logger.info('Set pending blocks from resume queue', {
+        pendingBlocks: context.metadata.pendingBlocks,
+        skipStarterBlockInit: true,
+      })
+    } else {
+      logger.debug('No resume pending queue, initializing starter block', {
+        triggerBlockId,
+      })
+      this.initializeStarterBlock(context, triggerBlockId)
+    }
+
     return context
   }
 

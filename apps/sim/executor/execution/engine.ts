@@ -20,13 +20,16 @@ export class ExecutionEngine {
   private queueLock = Promise.resolve()
   private finalOutput: NormalizedBlockOutput = {}
   private pausedBlocks: Map<string, PauseMetadata> = new Map()
+  private allowResumeTriggers: boolean
 
   constructor(
     private dag: DAG,
     private edgeManager: EdgeManager,
     private nodeOrchestrator: NodeExecutionOrchestrator,
     private context: ExecutionContext
-  ) {}
+  ) {
+    this.allowResumeTriggers = this.context.metadata.resumeFromSnapshot === true
+  }
 
   async run(triggerBlockId?: string): Promise<ExecutionResult> {
     const startTime = Date.now()
@@ -87,7 +90,7 @@ export class ExecutionEngine {
 
   private addToQueue(nodeId: string): void {
     const node = this.dag.nodes.get(nodeId)
-    if (node?.metadata?.isResumeTrigger) {
+    if (node?.metadata?.isResumeTrigger && !this.allowResumeTriggers) {
       logger.debug('Skipping enqueue for resume trigger node', { nodeId })
       return
     }
@@ -140,7 +143,34 @@ export class ExecutionEngine {
   }
 
   private initializeQueue(triggerBlockId?: string): void {
+    const pendingBlocks = this.context.metadata.pendingBlocks
+    if (pendingBlocks && pendingBlocks.length > 0) {
+      logger.info('Initializing queue from pending blocks (resume mode)', {
+        pendingBlocks,
+        allowResumeTriggers: this.allowResumeTriggers,
+        dagNodeCount: this.dag.nodes.size,
+      })
+      
+      for (const nodeId of pendingBlocks) {
+        logger.debug('Processing pending block', {
+          nodeId,
+          existsInDag: this.dag.nodes.has(nodeId),
+          nodeMetadata: this.dag.nodes.get(nodeId)?.metadata,
+        })
+        this.addToQueue(nodeId)
+      }
+      
+      logger.info('Pending blocks queued', {
+        queueLength: this.readyQueue.length,
+        queuedNodes: this.readyQueue,
+      })
+      
+      this.context.metadata.pendingBlocks = []
+      return
+    }
+
     if (triggerBlockId) {
+      logger.debug('Initializing queue with explicit trigger', { triggerBlockId })
       this.addToQueue(triggerBlockId)
       return
     }
@@ -151,6 +181,7 @@ export class ExecutionEngine {
         node.block.metadata?.id === BlockType.STARTER
     )
     if (startNode) {
+      logger.debug('Initializing queue with start node', { startNodeId: startNode.id })
       this.addToQueue(startNode.id)
     } else {
       logger.warn('No start node found in DAG')
@@ -173,7 +204,25 @@ export class ExecutionEngine {
   private async executeNodeAsync(nodeId: string): Promise<void> {
     try {
       const wasAlreadyExecuted = this.context.executedBlocks.has(nodeId)
+      const node = this.dag.nodes.get(nodeId)
+      
+      logger.debug('Executing node', {
+        nodeId,
+        blockType: node?.block.metadata?.id,
+        wasAlreadyExecuted,
+        isResumeTrigger: node?.metadata?.isResumeTrigger,
+        allowResumeTriggers: this.allowResumeTriggers,
+      })
+      
       const result = await this.nodeOrchestrator.executeNode(nodeId, this.context)
+      
+      logger.debug('Node execution completed', {
+        nodeId,
+        hasOutput: !!result.output,
+        isFinalOutput: result.isFinalOutput,
+        hasPauseMetadata: !!(result.output as any)?._pauseMetadata,
+      })
+      
       if (!wasAlreadyExecuted) {
         await this.withQueueLock(async () => {
           await this.handleNodeCompletion(nodeId, result.output, result.isFinalOutput)
@@ -201,6 +250,15 @@ export class ExecutionEngine {
       return
     }
 
+    logger.debug('Handling node completion', {
+      nodeId,
+      blockType: node.block.metadata?.id,
+      isResumeTrigger: node.metadata?.isResumeTrigger,
+      hasPauseMetadata: !!output._pauseMetadata,
+      isFinalOutput,
+      outgoingEdgesCount: node.outgoingEdges.size,
+    })
+
     if (output._pauseMetadata) {
       const pauseMetadata = output._pauseMetadata
       this.pausedBlocks.set(pauseMetadata.contextId, pauseMetadata)
@@ -223,6 +281,14 @@ export class ExecutionEngine {
     }
 
     const readyNodes = this.edgeManager.processOutgoingEdges(node, output, false)
+    
+    logger.info('Processing outgoing edges', {
+      nodeId,
+      outgoingEdgesCount: node.outgoingEdges.size,
+      readyNodesCount: readyNodes.length,
+      readyNodes,
+    })
+    
     this.addMultipleToQueue(readyNodes)
 
     logger.debug('Node completion handled', {

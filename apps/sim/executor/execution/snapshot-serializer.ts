@@ -1,6 +1,6 @@
 import { ExecutionSnapshot } from '@/executor/execution/snapshot'
 import type { SerializableExecutionState } from '@/executor/execution/snapshot'
-import type { ExecutionContext, SerializedSnapshot } from '@/executor/types'
+import type { ExecutionContext, ExecutionMetadata, SerializedSnapshot } from '@/executor/types'
 
 function mapFromEntries<T>(map?: Map<string, T>): Record<string, T> | undefined {
   if (!map) return undefined
@@ -16,6 +16,10 @@ export function serializePauseSnapshot(
   context: ExecutionContext,
   triggerBlockIds: string[]
 ): SerializedSnapshot {
+  const metadataFromContext = context.metadata as ExecutionMetadata | undefined
+  const useDraftState =
+    metadataFromContext?.useDraftState ?? (context.isDeployedContext === true ? false : true)
+
   const state: SerializableExecutionState = {
     blockStates: Object.fromEntries(context.blockStates),
     executedBlocks: Array.from(context.executedBlocks),
@@ -43,7 +47,7 @@ export function serializePauseSnapshot(
     userId: (context.metadata as any)?.userId ?? '',
     triggerType: (context.metadata as any)?.triggerType ?? 'manual',
     triggerBlockId: triggerBlockIds[0],
-    useDraftState: false,
+    useDraftState,
     startTime: context.metadata.startTime ?? new Date().toISOString(),
   }
 
@@ -51,7 +55,7 @@ export function serializePauseSnapshot(
     executionMetadata,
     context.workflow,
     {},
-    {},
+    context.environmentVariables || {},
     context.workflowVariables || {},
     context.selectedOutputs || [],
     state

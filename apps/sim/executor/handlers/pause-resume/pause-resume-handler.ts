@@ -8,6 +8,7 @@ import {
   generatePauseContextId,
   mapNodeMetadataToPauseScopes,
 } from '@/executor/pause-resume/utils.ts'
+import { getBaseUrl } from '@/lib/urls/utils'
 
 const logger = createLogger('PauseResumeBlockHandler')
 
@@ -60,16 +61,29 @@ export class PauseResumeBlockHandler implements BlockHandler {
 
       const executionId = ctx.executionId || ctx.metadata?.executionId
       const workflowId = ctx.workflowId
-      const resumeLinks =
-        executionId && workflowId
-          ? {
-              apiUrl: `/api/resume/${workflowId}/${executionId}/${contextId}`,
-              uiUrl: `/resume/${workflowId}/${executionId}/${contextId}`,
-              contextId,
-              executionId,
-              workflowId,
-            }
-          : undefined
+      
+      let resumeLinks: typeof pauseMetadata.resumeLinks | undefined
+      if (executionId && workflowId) {
+        try {
+          const baseUrl = getBaseUrl()
+          resumeLinks = {
+            apiUrl: `${baseUrl}/api/resume/${workflowId}/${executionId}/${contextId}`,
+            uiUrl: `${baseUrl}/resume/${workflowId}/${executionId}/${contextId}`,
+            contextId,
+            executionId,
+            workflowId,
+          }
+        } catch (error) {
+          logger.warn('Failed to get base URL, using relative paths', { error })
+          resumeLinks = {
+            apiUrl: `/api/resume/${workflowId}/${executionId}/${contextId}`,
+            uiUrl: `/resume/${workflowId}/${executionId}/${contextId}`,
+            contextId,
+            executionId,
+            workflowId,
+          }
+        }
+      }
 
       const pauseMetadata: PauseMetadata = {
         contextId,
@@ -86,7 +100,18 @@ export class PauseResumeBlockHandler implements BlockHandler {
         resumeLinks,
       }
 
-      const responseOutput: BlockOutput['response'] & { resume?: typeof resumeLinks } = {
+      const responseOutput: {
+        data: any
+        status: number
+        headers: Record<string, string>
+        resume?: {
+          apiUrl: string
+          uiUrl: string
+          contextId: string
+          executionId: string
+          workflowId: string
+        }
+      } = {
         data: responseData,
         status: statusCode,
         headers: responseHeaders,

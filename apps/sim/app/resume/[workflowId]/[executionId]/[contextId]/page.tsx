@@ -13,9 +13,10 @@ interface PageParams {
 export default async function ResumePage({
   params,
 }: {
-  params: PageParams
+  params: Promise<PageParams>
 }) {
-  const { workflowId, executionId, contextId } = params
+  const resolvedParams = await params
+  const { workflowId, executionId, contextId } = resolvedParams
 
   const detail = await PauseResumeManager.getPauseContextDetail({
     workflowId,
@@ -25,7 +26,7 @@ export default async function ResumePage({
 
   return (
     <ResumeClientPage
-      params={params}
+      params={resolvedParams}
       initialDetail={detail ? JSON.parse(JSON.stringify(detail)) : null}
     />
   )

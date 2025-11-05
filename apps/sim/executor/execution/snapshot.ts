@@ -11,6 +11,8 @@ export interface ExecutionMetadata {
   triggerBlockId?: string
   useDraftState: boolean
   startTime: string
+  pendingBlocks?: string[]
+  resumeFromSnapshot?: boolean
 }
 
 export interface ExecutionCallbacks {

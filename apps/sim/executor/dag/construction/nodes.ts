@@ -218,6 +218,10 @@ export class NodeConstructor {
       ...block,
       id: triggerId,
       enabled: true,
+      metadata: {
+        ...block.metadata,
+        id: BlockType.START_TRIGGER,
+      },
     }
 
     return {

@@ -168,18 +168,19 @@ export default function ResumeClientPage({ params, initialDetail }: ResumeClient
     }
   }, [workflowId, executionId, contextId])
 
-  useEffect(() => {
-    if (!detail) return
-    if (status === 'resumed' || status === 'failed') {
-      return
-    }
+  // Polling disabled - user can manually refresh
+  // useEffect(() => {
+  //   if (!detail) return
+  //   if (status === 'resumed' || status === 'failed') {
+  //     return
+  //   }
 
-    const interval = window.setInterval(() => {
-      refreshDetail()
-    }, POLL_INTERVAL_MS)
+  //   const interval = window.setInterval(() => {
+  //     refreshDetail()
+  //   }, POLL_INTERVAL_MS)
 
-    return () => window.clearInterval(interval)
-  }, [detail, status, refreshDetail])
+  //   return () => window.clearInterval(interval)
+  // }, [detail, status, refreshDetail])
 
   const handleResume = useCallback(async () => {
     setLoading(true)

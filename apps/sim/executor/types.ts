@@ -53,7 +53,7 @@ export interface PausePoint {
   triggerBlockId: string
   response: any
   registeredAt: string
-  resumeStatus: 'paused' | 'resumed' | 'failed'
+  resumeStatus: 'paused' | 'resumed' | 'failed' | 'queued' | 'resuming'
   snapshotReady: boolean
   parallelScope?: ParallelPauseScope
   loopScope?: LoopPauseScope
@@ -135,6 +135,9 @@ export interface BlockLog {
  * Timing metadata for workflow execution.
  */
 export interface ExecutionMetadata {
+  requestId?: string
+  workflowId?: string
+  workspaceId?: string
   startTime?: string // ISO timestamp when workflow execution started
   endTime?: string // ISO timestamp when workflow execution completed
   duration: number // Duration of workflow execution in milliseconds
@@ -150,6 +153,10 @@ export interface ExecutionMetadata {
   }
   userId?: string
   executionId?: string
+  triggerType?: string
+  triggerBlockId?: string
+  useDraftState?: boolean
+  resumeFromSnapshot?: boolean
 }
 
 /**

@@ -57,6 +57,14 @@ export class DAGBuilder {
       reachableBlocks
     )
 
+    logger.debug('Pause trigger mapping created', {
+      pauseTriggerMappingSize: pauseTriggerMapping.size,
+      pauseTriggerMappings: Array.from(pauseTriggerMapping.entries()).map(([pause, trigger]) => ({
+        pauseBlock: pause,
+        triggerBlock: trigger,
+      })),
+    })
+
     this.edgeConstructor.execute(
       workflow,
       dag,
@@ -70,6 +78,10 @@ export class DAGBuilder {
       totalNodes: dag.nodes.size,
       loopCount: dag.loopConfigs.size,
       parallelCount: dag.parallelConfigs.size,
+      allNodeIds: Array.from(dag.nodes.keys()),
+      triggerNodes: Array.from(dag.nodes.values())
+        .filter(n => n.metadata?.isResumeTrigger)
+        .map(n => ({ id: n.id, originalBlockId: n.metadata?.originalBlockId })),
     })
 
     return dag
