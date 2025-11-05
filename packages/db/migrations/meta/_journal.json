@@ -736,6 +736,13 @@
       "when": 1761860659858,
       "tag": "0105_glamorous_wrecking_crew",
       "breakpoints": true
+    },
+    {
+      "idx": 106,
+      "version": "7",
+      "when": 1762371130884,
+      "tag": "0106_bitter_captain_midlands",
+      "breakpoints": true
     }
   ]
 }
