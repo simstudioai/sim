@@ -115,6 +115,24 @@ Crear una nueva carpeta en Google Drive
 | --------- | ---- | ----------- |
 | `file` | json | Metadatos de la carpeta creada incluyendo ID, nombre e información de la carpeta principal |
 
+### `google_drive_download`
+
+Descargar un archivo de Google Drive (exporta automáticamente archivos de Google Workspace)
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `fileId` | string | Sí | El ID del archivo a descargar |
+| `mimeType` | string | No | El tipo MIME para exportar archivos de Google Workspace \(opcional\) |
+| `fileName` | string | No | Anulación opcional del nombre del archivo |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `file` | file | Archivo descargado almacenado en los archivos de ejecución |
+
 ### `google_drive_list`
 
 Listar archivos y carpetas en Google Drive
@@ -123,8 +141,8 @@ Listar archivos y carpetas en Google Drive
 
 | Parámetro | Tipo | Obligatorio | Descripción |
 | --------- | ---- | -------- | ----------- |
-| `folderSelector` | string | No | Seleccionar la carpeta de la que listar archivos |
-| `folderId` | string | No | El ID de la carpeta de la que listar archivos \(uso interno\) |
+| `folderSelector` | string | No | Seleccionar la carpeta desde la que listar archivos |
+| `folderId` | string | No | El ID de la carpeta desde la que listar archivos \(uso interno\) |
 | `query` | string | No | Una consulta para filtrar los archivos |
 | `pageSize` | number | No | El número de archivos a devolver |
 | `pageToken` | string | No | El token de página para usar en la paginación |

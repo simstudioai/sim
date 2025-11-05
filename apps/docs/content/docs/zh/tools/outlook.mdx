@@ -1,6 +1,6 @@
 ---
 title: Outlook
-description: 访问 Outlook
+description: 发送、读取、草拟、转发和移动 Outlook 邮件
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -134,12 +134,20 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 - **跨设备访问**：在桌面、网页和移动设备上使用 Outlook，并实现实时同步  
 - **维护隐私和安全性**：利用企业级加密和合规控制
 
-在 Sim 中，Microsoft Outlook 集成使您的代理可以以编程方式直接与电子邮件和日历数据交互。这支持强大的自动化场景，例如发送自定义电子邮件更新、解析传入消息以触发工作流、创建日历事件以及管理任务提醒。通过将 Sim 与 Microsoft Outlook 连接，您可以让智能代理自动化通信、简化日程安排，并在您的工作流生态系统中保持对组织通信的可见性。
+在 Sim 中，Microsoft Outlook 集成使您的代理能够以编程方式直接与电子邮件和日历数据交互，具备完整的电子邮件管理功能。这为整个电子邮件工作流程提供了强大的自动化场景。您的代理可以：
+
+- **发送和草拟**：撰写带有附件的专业电子邮件，并保存草稿以备后用
+- **读取和转发**：访问收件箱消息，并将重要通信转发给团队成员
+- **高效组织**：将电子邮件标记为已读或未读，在文件夹之间移动消息，并复制电子邮件以供参考
+- **清理收件箱**：删除不需要的消息并维护有序的文件夹结构
+- **触发工作流程**：实时响应新电子邮件，根据收到的消息启用响应式自动化
+
+通过将 Sim 与 Microsoft Outlook 连接，您可以启用智能代理来自动化通信、简化日程安排、保持对组织通信的可见性，并在您的工作流程生态系统中保持收件箱的有序。无论您是在管理客户通信、处理发票、协调团队更新，还是自动化跟进，Outlook 集成都提供企业级的电子邮件自动化功能。
 {/* MANUAL-CONTENT-END */}
 
 ## 使用说明
 
-将 Outlook 集成到工作流程中。可以读取、撰写和发送电子邮件。需要 OAuth 授权。可用于触发模式，当收到新电子邮件时触发工作流程。
+将 Outlook 集成到工作流程中。可以读取、草拟、发送、转发和移动电子邮件。可以在触发模式下使用，当收到新电子邮件时触发工作流程。
 
 ## 工具
 
@@ -158,7 +166,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 | `conversationId` | string | 否 | 用于线程化的会话 ID |
 | `cc` | string | 否 | 抄送收件人（以逗号分隔） |
 | `bcc` | string | 否 | 密送收件人（以逗号分隔） |
-| `attachments` | file[] | 否 | 要附加到邮件的文件 |
+| `attachments` | file[] | 否 | 要附加到电子邮件的文件 |
 
 #### 输出
 
@@ -204,16 +212,16 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 | 参数 | 类型 | 必需 | 描述 |
 | --------- | ---- | -------- | ----------- |
 | `folder` | string | 否 | 要读取邮件的文件夹 ID（默认：收件箱） |
-| `maxResults` | number | 否 | 要检索的最大邮件数量（默认：1，最大值：10） |
+| `maxResults` | number | 否 | 要检索的最大邮件数量（默认：1，最大：10） |
 | `includeAttachments` | boolean | 否 | 下载并包含邮件附件 |
 
 #### 输出
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `message` | string | 成功或状态消息 |
+| `message` | string | 成功或状态信息 |
 | `results` | array | 邮件消息对象的数组 |
-| `attachments` | file[] | 从所有邮件中提取的所有邮件附件 |
+| `attachments` | file[] | 从所有邮件中提取的所有附件 |
 
 ### `outlook_forward`
 
@@ -221,18 +229,116 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 #### 输入
 
-| 参数 | 类型 | 必需 | 描述 |
+| 参数 | 类型 | 是否必需 | 描述 |
 | --------- | ---- | -------- | ----------- |
 | `messageId` | string | 是 | 要转发的消息 ID |
-| `to` | string | 是 | 收件人电子邮件地址（多个地址用逗号分隔） |
-| `comment` | string | 否 | 可选的评论，随转发消息一起包含 |
+| `to` | string | 是 | 收件人电子邮件地址（逗号分隔） |
+| `comment` | string | 否 | 可选的评论，包含在转发的消息中 |
 
 #### 输出
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `message` | string | 成功或错误消息 |
+| `message` | string | 成功或错误信息 |
 | `results` | object | 投递结果详情 |
+
+### `outlook_move`
+
+在 Outlook 文件夹之间移动邮件
+
+#### 输入
+
+| 参数 | 类型 | 是否必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `messageId` | string | 是 | 要移动的消息 ID |
+| `destinationId` | string | 是 | 目标文件夹的 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 邮件移动成功状态 |
+| `message` | string | 成功或错误信息 |
+| `messageId` | string | 已移动消息的 ID |
+| `newFolderId` | string | 目标文件夹的 ID |
+
+### `outlook_mark_read`
+
+将 Outlook 邮件标记为已读
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `messageId` | string | 是 | 要标记为已读的邮件 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `message` | string | 成功或错误消息 |
+| `messageId` | string | 邮件 ID |
+| `isRead` | boolean | 邮件的已读状态 |
+
+### `outlook_mark_unread`
+
+将 Outlook 邮件标记为未读
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `messageId` | string | 是 | 要标记为未读的邮件 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `message` | string | 成功或错误消息 |
+| `messageId` | string | 邮件 ID |
+| `isRead` | boolean | 邮件的已读状态 |
+
+### `outlook_delete`
+
+删除 Outlook 邮件（移动到已删除邮件）
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `messageId` | string | 是 | 要删除的邮件 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `message` | string | 成功或错误消息 |
+| `messageId` | string | 已删除邮件的 ID |
+| `status` | string | 删除状态 |
+
+### `outlook_copy`
+
+将 Outlook 消息复制到另一个文件夹
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `messageId` | string | 是 | 要复制的消息 ID |
+| `destinationId` | string | 是 | 目标文件夹的 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 邮件复制成功状态 |
+| `message` | string | 成功或错误信息 |
+| `originalMessageId` | string | 原始消息的 ID |
+| `copiedMessageId` | string | 复制消息的 ID |
+| `destinationFolderId` | string | 目标文件夹的 ID |
 
 ## 注意事项
 

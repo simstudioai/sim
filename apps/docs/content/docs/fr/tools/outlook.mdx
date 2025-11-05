@@ -1,6 +1,7 @@
 ---
 title: Outlook
-description: Accéder à Outlook
+description: Envoyer, lire, rédiger, transférer et déplacer des messages
+  électroniques Outlook
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -134,18 +135,26 @@ Avec Microsoft Outlook, vous pouvez :
 - **Accéder depuis plusieurs appareils** : utiliser Outlook sur ordinateur, web et mobile avec synchronisation en temps réel  
 - **Maintenir la confidentialité et la sécurité** : exploiter le chiffrement et les contrôles de conformité de niveau entreprise
 
-Dans Sim, l'intégration de Microsoft Outlook permet à vos agents d'interagir directement avec les données d'e-mail et de calendrier de manière programmatique. Cela permet des scénarios d'automatisation puissants tels que l'envoi de mises à jour personnalisées par e-mail, l'analyse des messages entrants pour déclencher des flux de travail, la création d'événements de calendrier et la gestion des rappels de tâches. En connectant Sim à Microsoft Outlook, vous permettez aux agents intelligents d'automatiser les communications, de rationaliser la planification et de maintenir la visibilité sur la correspondance organisationnelle — le tout au sein de votre écosystème de flux de travail.
+Dans Sim, l'intégration Microsoft Outlook permet à vos agents d'interagir directement avec les données d'e-mail et de calendrier de manière programmatique avec des capacités complètes de gestion des e-mails. Cela permet des scénarios d'automatisation puissants dans l'ensemble de votre flux de travail de messagerie. Vos agents peuvent :
+
+- **Envoyer et rédiger** : Composer des e-mails professionnels avec pièces jointes et enregistrer des brouillons pour plus tard
+- **Lire et transférer** : Accéder aux messages de la boîte de réception et transférer des communications importantes aux membres de l'équipe
+- **Organiser efficacement** : Marquer les e-mails comme lus ou non lus, déplacer des messages entre dossiers et copier des e-mails pour référence
+- **Nettoyer la boîte de réception** : Supprimer les messages indésirables et maintenir des structures de dossiers organisées
+- **Déclencher des flux de travail** : Réagir aux nouveaux e-mails en temps réel, permettant une automatisation réactive basée sur les messages entrants
+
+En connectant Sim à Microsoft Outlook, vous permettez aux agents intelligents d'automatiser les communications, de rationaliser la planification, de maintenir la visibilité sur la correspondance organisationnelle et de garder les boîtes de réception organisées — le tout au sein de votre écosystème de flux de travail. Que vous gériez les communications clients, traitiez des factures, coordonniez des mises à jour d'équipe ou automatisiez des suivis, l'intégration Outlook fournit des capacités d'automatisation d'e-mail de niveau entreprise.
 {/* MANUAL-CONTENT-END */}
 
 ## Instructions d'utilisation
 
-Intégrez Outlook dans le flux de travail. Peut lire, rédiger et envoyer des messages électroniques. Nécessite OAuth. Peut être utilisé en mode déclencheur pour lancer un flux de travail lorsqu'un nouvel e-mail est reçu.
+Intégrez Outlook dans le flux de travail. Peut lire, rédiger, envoyer, transférer et déplacer des messages électroniques. Peut être utilisé en mode déclencheur pour lancer un flux de travail lorsqu'un nouvel e-mail est reçu.
 
 ## Outils
 
 ### `outlook_send`
 
-Envoyer des e-mails avec Outlook
+Envoyer des e-mails via Outlook
 
 #### Entrée
 
@@ -171,7 +180,7 @@ Envoyer des e-mails avec Outlook
 
 ### `outlook_draft`
 
-Rédiger des e-mails avec Outlook
+Créer des brouillons d'e-mails avec Outlook
 
 #### Entrée
 
@@ -189,21 +198,21 @@ Rédiger des e-mails avec Outlook
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
 | `success` | boolean | Statut de réussite de création du brouillon d'e-mail |
-| `messageId` | string | Identifiant unique pour l'e-mail en brouillon |
-| `status` | string | Statut du brouillon de l'e-mail |
-| `subject` | string | Objet de l'e-mail en brouillon |
+| `messageId` | string | Identifiant unique pour le brouillon d'e-mail |
+| `status` | string | Statut du brouillon d'e-mail |
+| `subject` | string | Objet du brouillon d'e-mail |
 | `timestamp` | string | Horodatage de création du brouillon |
 | `message` | string | Message de réussite ou d'erreur |
 
 ### `outlook_read`
 
-Lire des e-mails depuis Outlook
+Lire les e-mails depuis Outlook
 
 #### Entrée
 
 | Paramètre | Type | Obligatoire | Description |
 | --------- | ---- | ---------- | ----------- |
-| `folder` | string | Non | ID du dossier pour lire les e-mails \(par défaut : Boîte de réception\) |
+| `folder` | string | Non | ID du dossier à partir duquel lire les e-mails \(par défaut : Boîte de réception\) |
 | `maxResults` | number | Non | Nombre maximum d'e-mails à récupérer \(par défaut : 1, max : 10\) |
 | `includeAttachments` | boolean | Non | Télécharger et inclure les pièces jointes des e-mails |
 
@@ -211,18 +220,18 @@ Lire des e-mails depuis Outlook
 
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
-| `message` | string | Message de succès ou de statut |
-| `results` | array | Tableau d'objets de messages e-mail |
+| `message` | string | Message de réussite ou de statut |
+| `results` | array | Tableau d'objets de messages électroniques |
 | `attachments` | file[] | Toutes les pièces jointes des e-mails regroupées de tous les e-mails |
 
 ### `outlook_forward`
 
-Transférer un message Outlook existant aux destinataires spécifiés
+Transférer un message Outlook existant à des destinataires spécifiés
 
 #### Entrée
 
 | Paramètre | Type | Obligatoire | Description |
-| --------- | ---- | ----------- | ----------- |
+| --------- | ---- | -------- | ----------- |
 | `messageId` | string | Oui | L'ID du message à transférer |
 | `to` | string | Oui | Adresse(s) e-mail du destinataire, séparées par des virgules |
 | `comment` | string | Non | Commentaire optionnel à inclure avec le message transféré |
@@ -231,8 +240,106 @@ Transférer un message Outlook existant aux destinataires spécifiés
 
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
-| `message` | string | Message de succès ou d'erreur |
+| `message` | string | Message de réussite ou d'erreur |
 | `results` | object | Détails du résultat de livraison |
+
+### `outlook_move`
+
+Déplacer des e-mails entre dossiers Outlook
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `messageId` | string | Oui | ID du message à déplacer |
+| `destinationId` | string | Oui | ID du dossier de destination |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Statut de réussite du déplacement de l'e-mail |
+| `message` | string | Message de réussite ou d'erreur |
+| `messageId` | string | ID du message déplacé |
+| `newFolderId` | string | ID du dossier de destination |
+
+### `outlook_mark_read`
+
+Marquer un message Outlook comme lu
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `messageId` | string | Oui | ID du message à marquer comme lu |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Statut de réussite de l'opération |
+| `message` | string | Message de succès ou d'erreur |
+| `messageId` | string | ID du message |
+| `isRead` | boolean | Statut de lecture du message |
+
+### `outlook_mark_unread`
+
+Marquer un message Outlook comme non lu
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `messageId` | string | Oui | ID du message à marquer comme non lu |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Statut de réussite de l'opération |
+| `message` | string | Message de succès ou d'erreur |
+| `messageId` | string | ID du message |
+| `isRead` | boolean | Statut de lecture du message |
+
+### `outlook_delete`
+
+Supprimer un message Outlook (déplacer vers Éléments supprimés)
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `messageId` | string | Oui | ID du message à supprimer |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Statut de réussite de l'opération |
+| `message` | string | Message de succès ou d'erreur |
+| `messageId` | string | ID du message supprimé |
+| `status` | string | Statut de suppression |
+
+### `outlook_copy`
+
+Copier un message Outlook dans un autre dossier
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `messageId` | string | Oui | ID du message à copier |
+| `destinationId` | string | Oui | ID du dossier de destination |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Statut de réussite de la copie de l'e-mail |
+| `message` | string | Message de réussite ou d'erreur |
+| `originalMessageId` | string | ID du message original |
+| `copiedMessageId` | string | ID du message copié |
+| `destinationFolderId` | string | ID du dossier de destination |
 
 ## Notes
 

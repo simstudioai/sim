@@ -115,6 +115,24 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 | --------- | ---- | ----------- |
 | `file` | json | 创建的文件夹元数据，包括 ID、名称和父文件夹信息 |
 
+### `google_drive_download`
+
+从 Google Drive 下载文件（自动导出 Google Workspace 文件）
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `fileId` | string | 是 | 要下载的文件 ID |
+| `mimeType` | string | 否 | 导出 Google Workspace 文件的 MIME 类型（可选） |
+| `fileName` | string | 否 | 可选的文件名覆盖 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `file` | file | 下载的文件存储在执行文件中 |
+
 ### `google_drive_list`
 
 列出 Google Drive 中的文件和文件夹
@@ -125,7 +143,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 | --------- | ---- | -------- | ----------- |
 | `folderSelector` | string | 否 | 选择要列出文件的文件夹 |
 | `folderId` | string | 否 | 要列出文件的文件夹 ID（内部使用） |
-| `query` | string | 否 | 用于筛选文件的查询 |
+| `query` | string | 否 | 用于过滤文件的查询 |
 | `pageSize` | number | 否 | 要返回的文件数量 |
 | `pageToken` | string | 否 | 用于分页的页面令牌 |
 

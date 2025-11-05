@@ -95,6 +95,23 @@ Créer un nouveau dossier dans OneDrive
 | `success` | booléen | Indique si le dossier a été créé avec succès |
 | `file` | objet | L'objet du dossier créé avec métadonnées incluant id, nom, webViewLink et horodatages |
 
+### `onedrive_download`
+
+Télécharger un fichier depuis OneDrive
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `fileId` | string | Oui | L'ID du fichier à télécharger |
+| `fileName` | string | Non | Remplacement optionnel du nom de fichier |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `file` | file | Fichier téléchargé stocké dans les fichiers d'exécution |
+
 ### `onedrive_list`
 
 Lister les fichiers et dossiers dans OneDrive
@@ -102,21 +119,21 @@ Lister les fichiers et dossiers dans OneDrive
 #### Entrée
 
 | Paramètre | Type | Obligatoire | Description |
-| --------- | ---- | ----------- | ----------- |
-| `folderSelector` | chaîne | Non | Sélectionner le dossier à partir duquel lister les fichiers |
-| `manualFolderId` | chaîne | Non | L'ID du dossier saisi manuellement \(mode avancé\) |
-| `query` | chaîne | Non | Une requête pour filtrer les fichiers |
-| `pageSize` | nombre | Non | Le nombre de fichiers à renvoyer |
+| --------- | ---- | ---------- | ----------- |
+| `folderSelector` | string | Non | Sélectionner le dossier à partir duquel lister les fichiers |
+| `manualFolderId` | string | Non | L'ID de dossier saisi manuellement \(mode avancé\) |
+| `query` | string | Non | Une requête pour filtrer les fichiers |
+| `pageSize` | number | Non | Le nombre de fichiers à retourner |
 
 #### Sortie
 
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | booléen | Indique si les fichiers ont été listés avec succès |
-| `files` | tableau | Tableau d'objets de fichiers et dossiers avec métadonnées |
-| `nextPageToken` | chaîne | Jeton pour récupérer la page suivante de résultats \(facultatif\) |
+| `success` | boolean | Indique si les fichiers ont été listés avec succès |
+| `files` | array | Tableau d'objets de fichiers et dossiers avec métadonnées |
+| `nextPageToken` | string | Jeton pour récupérer la page suivante de résultats \(optionnel\) |
 
-## Remarques
+## Notes
 
 - Catégorie : `tools`
 - Type : `onedrive`

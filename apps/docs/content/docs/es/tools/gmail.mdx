@@ -1,6 +1,7 @@
 ---
 title: Gmail
-description: Envía Gmail o activa flujos de trabajo desde eventos de Gmail
+description: Envía, lee, busca y mueve mensajes de Gmail o activa flujos de
+  trabajo a partir de eventos de Gmail
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -45,12 +46,20 @@ Con Gmail, puedes:
 - **Acceder desde cualquier lugar**: Usa Gmail en diferentes dispositivos con contenido y configuraciones sincronizados
 - **Integrar con otros servicios**: Conéctate con Google Calendar, Drive y otras herramientas de productividad
 
-En Sim, la integración de Gmail permite a tus agentes enviar, leer y buscar correos electrónicos de forma programática. Esto permite potentes escenarios de automatización como enviar notificaciones, procesar mensajes entrantes, extraer información de correos electrónicos y gestionar flujos de comunicación. Tus agentes pueden redactar y enviar correos electrónicos personalizados, buscar mensajes específicos utilizando la sintaxis de consulta de Gmail y extraer contenido de correos electrónicos para usarlo en otras partes de tu flujo de trabajo. Próximamente, los agentes también podrán escuchar nuevos correos electrónicos en tiempo real, permitiendo flujos de trabajo receptivos que pueden activar acciones basadas en mensajes entrantes. Esta integración cierra la brecha entre tus flujos de trabajo de IA y las comunicaciones por correo electrónico, permitiendo una interacción perfecta con una de las plataformas de comunicación más utilizadas del mundo.
+En Sim, la integración con Gmail permite a tus agentes gestionar completamente los correos electrónicos de forma programática con amplias capacidades de automatización. Esto permite potentes escenarios de automatización como enviar notificaciones, procesar mensajes entrantes, extraer información de correos electrónicos y gestionar flujos de comunicación a gran escala. Tus agentes pueden:
+
+- **Redactar y enviar**: Crear correos electrónicos personalizados con archivos adjuntos y enviarlos a destinatarios
+- **Leer y buscar**: Encontrar mensajes específicos utilizando la sintaxis de búsqueda de Gmail y extraer contenido
+- **Organizar inteligentemente**: Marcar mensajes como leídos/no leídos, archivar o desarchivar correos y gestionar etiquetas
+- **Limpiar la bandeja de entrada**: Eliminar mensajes, mover correos entre etiquetas y mantener la bandeja de entrada vacía
+- **Activar flujos de trabajo**: Escuchar nuevos correos en tiempo real, permitiendo flujos de trabajo receptivos que reaccionan a los mensajes entrantes
+
+Esta integración cierra la brecha entre tus flujos de trabajo de IA y las comunicaciones por correo electrónico, permitiendo una interacción perfecta con una de las plataformas de comunicación más utilizadas del mundo. Ya sea que estés automatizando respuestas de atención al cliente, procesando recibos, gestionando suscripciones o coordinando comunicaciones de equipo, la integración con Gmail proporciona todas las herramientas que necesitas para una automatización completa del correo electrónico.
 {/* MANUAL-CONTENT-END */}
 
 ## Instrucciones de uso
 
-Integra Gmail en el flujo de trabajo. Puede enviar, leer y buscar correos electrónicos. Requiere OAuth. Se puede usar en modo de activación para iniciar un flujo de trabajo cuando se recibe un nuevo correo electrónico.
+Integra Gmail en el flujo de trabajo. Puede enviar, leer, buscar y mover correos electrónicos. Se puede usar en modo de activación para iniciar un flujo de trabajo cuando se recibe un nuevo correo electrónico.
 
 ## Herramientas
 
@@ -111,10 +120,10 @@ Leer correos electrónicos de Gmail
 | Parámetro | Tipo | Obligatorio | Descripción |
 | --------- | ---- | -------- | ----------- |
 | `messageId` | string | No | ID del mensaje a leer |
-| `folder` | string | No | Carpeta/etiqueta desde donde leer los correos |
+| `folder` | string | No | Carpeta/etiqueta de donde leer los correos electrónicos |
 | `unreadOnly` | boolean | No | Recuperar solo mensajes no leídos |
-| `maxResults` | number | No | Número máximo de mensajes a recuperar \(predeterminado: 1, máximo: 10\) |
-| `includeAttachments` | boolean | No | Descargar e incluir archivos adjuntos del correo |
+| `maxResults` | number | No | Número máximo de mensajes a recuperar (predeterminado: 1, máximo: 10) |
+| `includeAttachments` | boolean | No | Descargar e incluir archivos adjuntos del correo electrónico |
 
 #### Salida
 
@@ -141,6 +150,146 @@ Buscar correos electrónicos en Gmail
 | --------- | ---- | ----------- |
 | `content` | string | Resumen de resultados de búsqueda |
 | `metadata` | object | Metadatos de búsqueda |
+
+### `gmail_move`
+
+Mover correos electrónicos entre etiquetas/carpetas de Gmail
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `messageId` | string | Sí | ID del mensaje a mover |
+| `addLabelIds` | string | Sí | IDs de etiquetas separados por comas para añadir (ej., INBOX, Label_123) |
+| `removeLabelIds` | string | No | IDs de etiquetas separados por comas para eliminar (ej., INBOX, SPAM) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `content` | string | Mensaje de éxito |
+| `metadata` | object | Metadatos del correo electrónico |
+
+### `gmail_mark_read`
+
+Marcar un mensaje de Gmail como leído
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `messageId` | string | Sí | ID del mensaje a marcar como leído |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `content` | string | Mensaje de éxito |
+| `metadata` | object | Metadatos del correo electrónico |
+
+### `gmail_mark_unread`
+
+Marcar un mensaje de Gmail como no leído
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `messageId` | string | Sí | ID del mensaje para marcar como no leído |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `content` | string | Mensaje de éxito |
+| `metadata` | object | Metadatos del correo electrónico |
+
+### `gmail_archive`
+
+Archivar un mensaje de Gmail (quitar de la bandeja de entrada)
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `messageId` | string | Sí | ID del mensaje para archivar |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `content` | string | Mensaje de éxito |
+| `metadata` | object | Metadatos del correo electrónico |
+
+### `gmail_unarchive`
+
+Desarchivar un mensaje de Gmail (volver a la bandeja de entrada)
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `messageId` | string | Sí | ID del mensaje para desarchivar |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `content` | string | Mensaje de éxito |
+| `metadata` | object | Metadatos del correo electrónico |
+
+### `gmail_delete`
+
+Eliminar un mensaje de Gmail (mover a la papelera)
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `messageId` | string | Sí | ID del mensaje a eliminar |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `content` | string | Mensaje de éxito |
+| `metadata` | object | Metadatos del correo electrónico |
+
+### `gmail_add_label`
+
+Añadir etiqueta(s) a un mensaje de Gmail
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `messageId` | string | Sí | ID del mensaje al que añadir etiquetas |
+| `labelIds` | string | Sí | IDs de etiquetas separadas por comas para añadir \(p.ej., INBOX, Label_123\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `content` | string | Mensaje de éxito |
+| `metadata` | object | Metadatos del correo electrónico |
+
+### `gmail_remove_label`
+
+Eliminar etiqueta(s) de un mensaje de Gmail
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `messageId` | string | Sí | ID del mensaje del que eliminar etiquetas |
+| `labelIds` | string | Sí | IDs de etiquetas separadas por comas para eliminar \(p.ej., INBOX, Label_123\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `content` | string | Mensaje de éxito |
+| `metadata` | object | Metadatos del correo electrónico |
 
 ## Notas
 

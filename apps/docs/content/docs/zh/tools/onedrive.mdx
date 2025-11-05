@@ -95,16 +95,33 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 | `success` | boolean | 文件夹是否成功创建 |
 | `file` | object | 创建的文件夹对象，包含元数据，包括 id、name、webViewLink 和时间戳 |
 
+### `onedrive_download`
+
+从 OneDrive 下载文件
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `fileId` | string | 是 | 要下载的文件 ID |
+| `fileName` | string | 否 | 可选的文件名覆盖 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `file` | file | 下载的文件存储在执行文件中 |
+
 ### `onedrive_list`
 
 列出 OneDrive 中的文件和文件夹
 
 #### 输入
 
-| 参数 | 类型 | 是否必需 | 描述 |
+| 参数 | 类型 | 必需 | 描述 |
 | --------- | ---- | -------- | ----------- |
 | `folderSelector` | string | 否 | 选择要列出文件的文件夹 |
-| `manualFolderId` | string | 否 | 手动输入的文件夹 ID（高级模式） |
+| `manualFolderId` | string | 否 | 手动输入的文件夹 ID \(高级模式\) |
 | `query` | string | 否 | 用于筛选文件的查询 |
 | `pageSize` | number | 否 | 要返回的文件数量 |
 
@@ -112,11 +129,11 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 是否成功列出了文件 |
+| `success` | boolean | 文件是否成功列出 |
 | `files` | array | 包含元数据的文件和文件夹对象数组 |
-| `nextPageToken` | string | 用于获取下一页结果的令牌（可选） |
+| `nextPageToken` | string | 用于检索下一页结果的令牌 \(可选\) |
 
 ## 注意事项
 
-- 类别：`tools`
-- 类型：`onedrive`
+- 类别: `tools`
+- 类型: `onedrive`
