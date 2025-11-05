@@ -51,13 +51,20 @@ export class DAGBuilder {
 
     this.loopConstructor.execute(dag, reachableBlocks)
 
-    const { blocksInLoops, blocksInParallels } = this.nodeConstructor.execute(
+    const { blocksInLoops, blocksInParallels, pauseTriggerMapping } = this.nodeConstructor.execute(
       workflow,
       dag,
       reachableBlocks
     )
 
-    this.edgeConstructor.execute(workflow, dag, blocksInParallels, blocksInLoops, reachableBlocks)
+    this.edgeConstructor.execute(
+      workflow,
+      dag,
+      blocksInParallels,
+      blocksInLoops,
+      reachableBlocks,
+      pauseTriggerMapping
+    )
 
     logger.info('DAG built', {
       totalNodes: dag.nodes.size,

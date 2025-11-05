@@ -31,7 +31,8 @@ export class EdgeConstructor {
     dag: DAG,
     blocksInParallels: Set<string>,
     blocksInLoops: Set<string>,
-    reachableBlocks: Set<string>
+    reachableBlocks: Set<string>,
+    pauseTriggerMapping: Map<string, string>
   ): void {
     const loopBlockIds = new Set(dag.loopConfigs.keys())
     const parallelBlockIds = new Set(dag.parallelConfigs.keys())
@@ -44,10 +45,11 @@ export class EdgeConstructor {
       reachableBlocks,
       loopBlockIds,
       parallelBlockIds,
-      metadata
+      metadata,
+      pauseTriggerMapping
     )
     this.wireLoopSentinels(dag, reachableBlocks)
-    this.wireParallelBlocks(workflow, dag, loopBlockIds, parallelBlockIds)
+    this.wireParallelBlocks(workflow, dag, loopBlockIds, parallelBlockIds, pauseTriggerMapping)
   }
 
   private buildMetadataMaps(workflow: SerializedWorkflow): EdgeMetadata {
@@ -122,10 +124,12 @@ export class EdgeConstructor {
     reachableBlocks: Set<string>,
     loopBlockIds: Set<string>,
     parallelBlockIds: Set<string>,
-    metadata: EdgeMetadata
+    metadata: EdgeMetadata,
+    pauseTriggerMapping: Map<string, string>
   ): void {
     for (const connection of workflow.connections) {
       let { source, target } = connection
+      const originalSource = source
       let sourceHandle = this.generateSourceHandle(
         source,
         target,
@@ -185,7 +189,8 @@ export class EdgeConstructor {
             sourceParallelId!,
             dag,
             sourceHandle,
-            targetHandle
+            targetHandle,
+            pauseTriggerMapping
           )
         } else {
           logger.warn('Edge between different parallels - invalid workflow', { source, target })
@@ -196,7 +201,8 @@ export class EdgeConstructor {
           target,
         })
       } else {
-        this.addEdge(dag, source, target, sourceHandle, targetHandle)
+        const resolvedSource = pauseTriggerMapping.get(originalSource) ?? source
+        this.addEdge(dag, resolvedSource, target, sourceHandle, targetHandle)
       }
     }
   }
@@ -232,7 +238,8 @@ export class EdgeConstructor {
     workflow: SerializedWorkflow,
     dag: DAG,
     loopBlockIds: Set<string>,
-    parallelBlockIds: Set<string>
+    parallelBlockIds: Set<string>,
+    pauseTriggerMapping: Map<string, string>
   ): void {
     for (const [parallelId, parallelConfig] of dag.parallelConfigs) {
       const nodes = parallelConfig.nodes
@@ -283,7 +290,8 @@ export class EdgeConstructor {
             for (let i = 0; i < branchCount; i++) {
               const branchNodeId = buildBranchNodeId(terminalNodeId, i)
               if (dag.nodes.has(branchNodeId)) {
-                this.addEdge(dag, branchNodeId, target, sourceHandle, targetHandle)
+                const resolvedSourceId = pauseTriggerMapping.get(branchNodeId) ?? branchNodeId
+                this.addEdge(dag, resolvedSourceId, target, sourceHandle, targetHandle)
               }
             }
           }
@@ -340,7 +348,8 @@ export class EdgeConstructor {
     parallelId: string,
     dag: DAG,
     sourceHandle?: string,
-    targetHandle?: string
+    targetHandle?: string,
+    pauseTriggerMapping?: Map<string, string>
   ): void {
     const parallelConfig = dag.parallelConfigs.get(parallelId)
     if (!parallelConfig) {
@@ -351,7 +360,8 @@ export class EdgeConstructor {
     for (let i = 0; i < count; i++) {
       const sourceNodeId = buildBranchNodeId(source, i)
       const targetNodeId = buildBranchNodeId(target, i)
-      this.addEdge(dag, sourceNodeId, targetNodeId, sourceHandle, targetHandle)
+      const resolvedSourceId = pauseTriggerMapping?.get(sourceNodeId) ?? sourceNodeId
+      this.addEdge(dag, resolvedSourceId, targetNodeId, sourceHandle, targetHandle)
     }
   }
 

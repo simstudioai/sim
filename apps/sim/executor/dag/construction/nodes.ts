@@ -1,5 +1,5 @@
 import { createLogger } from '@/lib/logs/console/logger'
-import { isMetadataOnlyBlockType } from '@/executor/consts'
+import { BlockType, isMetadataOnlyBlockType } from '@/executor/consts'
 import {
   buildBranchNodeId,
   calculateBranchCount,
@@ -20,9 +20,14 @@ export class NodeConstructor {
     workflow: SerializedWorkflow,
     dag: DAG,
     reachableBlocks: Set<string>
-  ): { blocksInLoops: Set<string>; blocksInParallels: Set<string> } {
+  ): {
+    blocksInLoops: Set<string>
+    blocksInParallels: Set<string>
+    pauseTriggerMapping: Map<string, string>
+  } {
     const blocksInLoops = new Set<string>()
     const blocksInParallels = new Set<string>()
+    const pauseTriggerMapping = new Map<string, string>()
     this.categorizeBlocks(dag, reachableBlocks, blocksInLoops, blocksInParallels)
     for (const block of workflow.blocks) {
       if (!this.shouldProcessBlock(block, reachableBlocks)) {
@@ -30,12 +35,12 @@ export class NodeConstructor {
       }
       const parallelId = this.findParallelForBlock(block.id, dag)
       if (parallelId) {
-        this.createParallelBranchNodes(block, parallelId, dag)
+        this.createParallelBranchNodes(block, parallelId, dag, pauseTriggerMapping)
       } else {
-        this.createRegularOrLoopNode(block, blocksInLoops, dag)
+        this.createRegularOrLoopNode(block, blocksInLoops, dag, pauseTriggerMapping)
       }
     }
-    return { blocksInLoops, blocksInParallels }
+    return { blocksInLoops, blocksInParallels, pauseTriggerMapping }
   }
 
   private shouldProcessBlock(block: SerializedBlock, reachableBlocks: Set<string>): boolean {
@@ -94,7 +99,12 @@ export class NodeConstructor {
     }
   }
 
-  private createParallelBranchNodes(block: SerializedBlock, parallelId: string, dag: DAG): void {
+  private createParallelBranchNodes(
+    block: SerializedBlock,
+    parallelId: string,
+    dag: DAG,
+    pauseTriggerMapping: Map<string, string>
+  ): void {
     const expansion = this.calculateParallelExpansion(parallelId, dag)
     logger.debug('Creating parallel branches', {
       blockId: block.id,
@@ -104,6 +114,19 @@ export class NodeConstructor {
     for (let branchIndex = 0; branchIndex < expansion.branchCount; branchIndex++) {
       const branchNode = this.createParallelBranchNode(block, branchIndex, expansion)
       dag.nodes.set(branchNode.id, branchNode)
+
+      if (block.metadata?.id === BlockType.PAUSE_RESUME) {
+        const triggerId = `${branchNode.id}__trigger`
+        const triggerNode = this.createTriggerNode(block, triggerId, {
+          isParallelBranch: true,
+          parallelId: expansion.parallelId,
+          branchIndex,
+          branchTotal: expansion.branchCount,
+          loopId: branchNode.metadata.loopId,
+        })
+        dag.nodes.set(triggerId, triggerNode)
+        pauseTriggerMapping.set(branchNode.id, triggerId)
+      }
     }
   }
 
@@ -127,9 +150,13 @@ export class NodeConstructor {
     expansion: ParallelExpansion
   ): DAGNode {
     const branchNodeId = buildBranchNodeId(baseBlock.id, branchIndex)
+    const blockClone: SerializedBlock = {
+      ...baseBlock,
+      id: branchNodeId,
+    }
     return {
       id: branchNodeId,
-      block: { ...baseBlock },
+      block: blockClone,
       incomingEdges: new Set(),
       outgoingEdges: new Map(),
       metadata: {
@@ -138,6 +165,8 @@ export class NodeConstructor {
         branchIndex,
         branchTotal: expansion.branchCount,
         distributionItem: expansion.distributionItems[branchIndex],
+        isPauseResponse: baseBlock.metadata?.id === BlockType.PAUSE_RESUME,
+        originalBlockId: baseBlock.id,
       },
     }
   }
@@ -145,10 +174,12 @@ export class NodeConstructor {
   private createRegularOrLoopNode(
     block: SerializedBlock,
     blocksInLoops: Set<string>,
-    dag: DAG
+    dag: DAG,
+    pauseTriggerMapping: Map<string, string>
   ): void {
     const isLoopNode = blocksInLoops.has(block.id)
     const loopId = isLoopNode ? this.findLoopIdForBlock(block.id, dag) : undefined
+    const isPauseBlock = block.metadata?.id === BlockType.PAUSE_RESUME
     dag.nodes.set(block.id, {
       id: block.id,
       block,
@@ -157,8 +188,53 @@ export class NodeConstructor {
       metadata: {
         isLoopNode,
         loopId,
+        isPauseResponse: isPauseBlock,
+        originalBlockId: block.id,
       },
     })
+
+    if (isPauseBlock) {
+      const triggerId = `${block.id}__trigger`
+      const triggerNode = this.createTriggerNode(block, triggerId, {
+        loopId,
+      })
+      dag.nodes.set(triggerId, triggerNode)
+      pauseTriggerMapping.set(block.id, triggerId)
+    }
+  }
+
+  private createTriggerNode(
+    block: SerializedBlock,
+    triggerId: string,
+    options: {
+      loopId?: string
+      isParallelBranch?: boolean
+      parallelId?: string
+      branchIndex?: number
+      branchTotal?: number
+    }
+  ): DAGNode {
+    const triggerBlock: SerializedBlock = {
+      ...block,
+      id: triggerId,
+      enabled: true,
+    }
+
+    return {
+      id: triggerId,
+      block: triggerBlock,
+      incomingEdges: new Set(),
+      outgoingEdges: new Map(),
+      metadata: {
+        isResumeTrigger: true,
+        originalBlockId: block.id,
+        loopId: options.loopId,
+        isParallelBranch: options.isParallelBranch,
+        parallelId: options.parallelId,
+        branchIndex: options.branchIndex,
+        branchTotal: options.branchTotal,
+      },
+    }
   }
 
   private findLoopIdForBlock(blockId: string, dag: DAG): string | undefined {

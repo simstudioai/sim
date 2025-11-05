@@ -1,6 +1,13 @@
 import { createLogger } from '@/lib/logs/console/logger'
 import { BlockType } from '@/executor/consts'
-import type { ExecutionContext, ExecutionResult, NormalizedBlockOutput } from '@/executor/types'
+import type {
+  ExecutionContext,
+  ExecutionResult,
+  NormalizedBlockOutput,
+  PauseMetadata,
+  PausePoint,
+} from '@/executor/types'
+import { serializePauseSnapshot } from '@/executor/execution/snapshot-serializer'
 import type { DAG } from '../dag/builder'
 import type { NodeExecutionOrchestrator } from '../orchestrators/node'
 import type { EdgeManager } from './edge-manager'
@@ -12,6 +19,7 @@ export class ExecutionEngine {
   private executing = new Set<Promise<void>>()
   private queueLock = Promise.resolve()
   private finalOutput: NormalizedBlockOutput = {}
+  private pausedBlocks: Map<string, PauseMetadata> = new Map()
 
   constructor(
     private dag: DAG,
@@ -37,6 +45,10 @@ export class ExecutionEngine {
         finalOutputKeys: Object.keys(this.finalOutput),
       })
       await this.waitForAllExecutions()
+
+      if (this.pausedBlocks.size > 0) {
+        return this.buildPausedResult(startTime)
+      }
 
       const endTime = Date.now()
       this.context.metadata.endTime = new Date(endTime).toISOString()
@@ -74,6 +86,12 @@ export class ExecutionEngine {
   }
 
   private addToQueue(nodeId: string): void {
+    const node = this.dag.nodes.get(nodeId)
+    if (node?.metadata?.isResumeTrigger) {
+      logger.debug('Skipping enqueue for resume trigger node', { nodeId })
+      return
+    }
+
     if (!this.readyQueue.includes(nodeId)) {
       this.readyQueue.push(nodeId)
       logger.debug('Added to queue', { nodeId, queueLength: this.readyQueue.length })
@@ -183,6 +201,21 @@ export class ExecutionEngine {
       return
     }
 
+    if (output._pauseMetadata) {
+      const pauseMetadata = output._pauseMetadata
+      this.pausedBlocks.set(pauseMetadata.contextId, pauseMetadata)
+      this.context.metadata.status = 'paused'
+      this.context.metadata.pausePoints = Array.from(this.pausedBlocks.keys())
+
+      logger.debug('Registered pause metadata', {
+        nodeId,
+        contextId: pauseMetadata.contextId,
+        triggerBlockId: pauseMetadata.triggerBlockId,
+      })
+
+      return
+    }
+
     await this.nodeOrchestrator.handleNodeCompletion(nodeId, output, this.context)
 
     if (isFinalOutput) {
@@ -197,5 +230,50 @@ export class ExecutionEngine {
       readyNodesCount: readyNodes.length,
       queueSize: this.readyQueue.length,
     })
+  }
+
+  private buildPausedResult(startTime: number): ExecutionResult {
+    const endTime = Date.now()
+    this.context.metadata.endTime = new Date(endTime).toISOString()
+    this.context.metadata.duration = endTime - startTime
+    this.context.metadata.status = 'paused'
+
+    const triggerIds = Array.from(this.pausedBlocks.values()).map(
+      (pause) => pause.triggerBlockId
+    )
+    const snapshotSeed = serializePauseSnapshot(this.context, triggerIds)
+    const pausePoints: PausePoint[] = Array.from(this.pausedBlocks.values()).map((pause) => ({
+      contextId: pause.contextId,
+      triggerBlockId: pause.triggerBlockId,
+      response: pause.response,
+      registeredAt: pause.timestamp,
+      resumeStatus: 'paused',
+      snapshotReady: true,
+      parallelScope: pause.parallelScope,
+      loopScope: pause.loopScope,
+    }))
+
+    return {
+      success: true,
+      output: this.collectPauseResponses(),
+      logs: this.context.blockLogs,
+      metadata: this.context.metadata,
+      status: 'paused',
+      pausePoints,
+      snapshotSeed,
+    }
+  }
+
+  private collectPauseResponses(): NormalizedBlockOutput {
+    const responses = Array.from(this.pausedBlocks.values()).map((pause) => pause.response)
+
+    if (responses.length === 1) {
+      return responses[0]
+    }
+
+    return {
+      pausedBlocks: responses,
+      pauseCount: responses.length,
+    }
   }
 }

@@ -15,4 +15,7 @@ export interface NodeMetadata {
   loopId?: string
   isSentinel?: boolean
   sentinelType?: 'start' | 'end'
+  isPauseResponse?: boolean
+  isResumeTrigger?: boolean
+  originalBlockId?: string
 }
