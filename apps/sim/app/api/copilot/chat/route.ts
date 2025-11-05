@@ -87,6 +87,15 @@ const ChatMessageSchema = z.object({
       })
     )
     .optional(),
+  azureConfig: z
+    .object({
+      provider: z.string().optional(),
+      model: z.string().optional(),
+      endpoint: z.string().optional(),
+      apiVersion: z.string().optional(),
+      apiKey: z.string().optional(),
+    })
+    .optional(),
 })
 
 /**
@@ -285,6 +294,17 @@ export async function POST(req: NextRequest) {
     let providerConfig: CopilotProviderConfig | undefined
     const providerEnv = env.COPILOT_PROVIDER as any
 
+    let azureConfig: any = undefined
+    if (providerEnv === 'azure-openai' || model === 'azure-openai') {
+      azureConfig = {
+        provider: 'azure-openai',
+        model: modelToUse,
+        endpoint: env.AZURE_OPENAI_ENDPOINT,
+        apiVersion: 'preview',
+        apiKey: env.AZURE_OPENAI_API_KEY,
+      }
+    }
+
     if (providerEnv) {
       if (providerEnv === 'azure-openai') {
         providerConfig = {
@@ -324,6 +344,7 @@ export async function POST(req: NextRequest) {
       ...(agentContexts.length > 0 && { context: agentContexts }),
       ...(actualChatId ? { chatId: actualChatId } : {}),
       ...(processedFileContents.length > 0 && { fileAttachments: processedFileContents }),
+      ...(azureConfig ? { azureConfig } : {}),
     }
 
     try {
