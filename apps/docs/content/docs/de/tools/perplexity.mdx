@@ -1,6 +1,6 @@
 ---
 title: Perplexity
-description: Verwende Perplexity AI-Chatmodelle
+description: Nutze Perplexity AI für Chat und Suche
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -36,7 +36,7 @@ In Sim ermöglicht die Perplexity-Integration deinen Agenten, diese leistungssta
 
 ## Gebrauchsanweisung
 
-Integrieren Sie Perplexity in den Workflow. Kann Vervollständigungen mit Perplexity AI-Chatmodellen generieren. Erfordert API-Schlüssel.
+Integriere Perplexity in den Workflow. Kann Vervollständigungen mit Perplexity AI Chat-Modellen generieren oder Websuchen mit erweiterter Filterung durchführen.
 
 ## Tools
 
@@ -61,6 +61,31 @@ Generieren Sie Vervollständigungen mit Perplexity AI-Chatmodellen
 | --------- | ---- | ----------- |
 | `success` | boolean | Status des Operationserfolgs |
 | `output` | object | Ergebnisse der Chat-Vervollständigung |
+
+### `perplexity_search`
+
+Erhalte bewertete Suchergebnisse von Perplexity
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | Ja | Eine Suchanfrage oder ein Array von Anfragen \(maximal 5 für Multi-Anfrage-Suche\) |
+| `max_results` | number | Nein | Maximale Anzahl der zurückzugebenden Suchergebnisse \(1-20, Standard: 10\) |
+| `search_domain_filter` | array | Nein | Liste der Domains/URLs, auf die die Suchergebnisse beschränkt werden sollen \(max. 20\) |
+| `max_tokens_per_page` | number | Nein | Maximale Anzahl der von jeder Webseite abgerufenen Tokens \(Standard: 1024\) |
+| `country` | string | Nein | Ländercode zur Filterung der Suchergebnisse \(z.B. US, GB, DE\) |
+| `search_recency_filter` | string | Nein | Filtere Ergebnisse nach Aktualität: Stunde, Tag, Woche, Monat oder Jahr |
+| `search_after_date` | string | Nein | Nur Inhalte einbeziehen, die nach diesem Datum veröffentlicht wurden \(Format: MM/TT/JJJJ\) |
+| `search_before_date` | string | Nein | Nur Inhalte einbeziehen, die vor diesem Datum veröffentlicht wurden \(Format: MM/TT/JJJJ\) |
+| `apiKey` | string | Ja | Perplexity API-Schlüssel |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Status des Operationserfolgs |
+| `output` | object | Suchergebnisse |
 
 ## Hinweise
 
