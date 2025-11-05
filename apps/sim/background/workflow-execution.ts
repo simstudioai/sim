@@ -3,6 +3,7 @@ import { workflow as workflowTable } from '@sim/db/schema'
 import { task } from '@trigger.dev/sdk'
 import { eq } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
+import { checkServerSideUsageLimits } from '@/lib/billing'
 import { createLogger } from '@/lib/logs/console/logger'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { executeWorkflowCore } from '@/lib/workflows/executor/execution-core'
@@ -30,24 +31,52 @@ export async function executeWorkflowJob(payload: WorkflowExecutionPayload) {
     executionId,
   })
 
-  // Initialize logging session
   const triggerType = payload.triggerType || 'api'
   const loggingSession = new LoggingSession(workflowId, executionId, triggerType, requestId)
 
   try {
-    // Load workflow from database
-    const workflow = await getWorkflowById(workflowId)
-    if (!workflow) {
-      throw new Error(`Workflow ${workflowId} not found`)
-    }
-
-    // Get workspace ID for the workflow
     const wfRows = await db
       .select({ workspaceId: workflowTable.workspaceId })
       .from(workflowTable)
       .where(eq(workflowTable.id, workflowId))
       .limit(1)
     const workspaceId = wfRows[0]?.workspaceId || undefined
+
+    const usageCheck = await checkServerSideUsageLimits(payload.userId)
+    if (usageCheck.isExceeded) {
+      logger.warn(
+        `[${requestId}] User ${payload.userId} has exceeded usage limits. Skipping workflow execution.`,
+        {
+          currentUsage: usageCheck.currentUsage,
+          limit: usageCheck.limit,
+          workflowId,
+        }
+      )
+
+      await loggingSession.safeStart({
+        userId: payload.userId,
+        workspaceId: workspaceId || '',
+        variables: {},
+      })
+
+      await loggingSession.safeCompleteWithError({
+        error: {
+          message:
+            usageCheck.message || 'Usage limit exceeded. Please upgrade your plan to continue.',
+          stackTrace: undefined,
+        },
+        traceSpans: [],
+      })
+
+      throw new Error(
+        usageCheck.message || 'Usage limit exceeded. Please upgrade your plan to continue.'
+      )
+    }
+
+    const workflow = await getWorkflowById(workflowId)
+    if (!workflow) {
+      throw new Error(`Workflow ${workflowId} not found`)
+    }
 
     const metadata: ExecutionMetadata = {
       requestId,
@@ -98,7 +127,6 @@ export async function executeWorkflowJob(payload: WorkflowExecutionPayload) {
   }
 }
 
-// Trigger.dev task definition
 export const workflowExecutionTask = task({
   id: 'workflow-execution',
   run: executeWorkflowJob,

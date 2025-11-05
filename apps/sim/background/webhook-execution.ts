@@ -3,7 +3,6 @@ import { webhook, workflow as workflowTable } from '@sim/db/schema'
 import { task } from '@trigger.dev/sdk'
 import { eq } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
-import { checkServerSideUsageLimits } from '@/lib/billing'
 import { getPersonalAndWorkspaceEnv } from '@/lib/environment/utils'
 import { processExecutionFiles } from '@/lib/execution/files'
 import { IdempotencyService, webhookIdempotency } from '@/lib/idempotency'
@@ -133,22 +132,6 @@ async function executeWebhookJobInternal(
   const loggingSession = new LoggingSession(payload.workflowId, executionId, 'webhook', requestId)
 
   try {
-    const usageCheck = await checkServerSideUsageLimits(payload.userId)
-    if (usageCheck.isExceeded) {
-      logger.warn(
-        `[${requestId}] User ${payload.userId} has exceeded usage limits. Skipping webhook execution.`,
-        {
-          currentUsage: usageCheck.currentUsage,
-          limit: usageCheck.limit,
-          workflowId: payload.workflowId,
-        }
-      )
-      throw new Error(
-        usageCheck.message ||
-          'Usage limit exceeded. Please upgrade your plan to continue using webhooks.'
-      )
-    }
-
     // Load workflow state based on execution target
     const workflowData =
       payload.executionTarget === 'live'

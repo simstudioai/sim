@@ -287,7 +287,7 @@ export async function checkRateLimits(
 
     if (!actorUserId) {
       logger.warn(`[${requestId}] Webhook requires a workspace billing account to attribute usage`)
-      return NextResponse.json({ message: 'Workspace billing account required' }, { status: 200 })
+      return NextResponse.json({ error: 'Workspace billing account required' }, { status: 402 })
     }
 
     const userSubscription = await getHighestPrioritySubscription(actorUserId)
@@ -308,13 +308,19 @@ export async function checkRateLimits(
       })
 
       if (foundWebhook.provider === 'microsoftteams') {
-        return NextResponse.json({
-          type: 'message',
-          text: 'Rate limit exceeded. Please try again later.',
-        })
+        return NextResponse.json(
+          {
+            type: 'message',
+            text: 'Rate limit exceeded. Please try again later.',
+          },
+          { status: 429 }
+        )
       }
 
-      return NextResponse.json({ message: 'Rate limit exceeded' }, { status: 200 })
+      return NextResponse.json(
+        { error: 'Rate limit exceeded. Please try again later.' },
+        { status: 429 }
+      )
     }
 
     logger.debug(`[${requestId}] Rate limit check passed for webhook`, {
@@ -345,7 +351,7 @@ export async function checkUsageLimits(
 
     if (!actorUserId) {
       logger.warn(`[${requestId}] Webhook requires a workspace billing account to attribute usage`)
-      return NextResponse.json({ message: 'Workspace billing account required' }, { status: 200 })
+      return NextResponse.json({ error: 'Workspace billing account required' }, { status: 402 })
     }
 
     const usageCheck = await checkServerSideUsageLimits(actorUserId)
@@ -361,13 +367,19 @@ export async function checkUsageLimits(
       )
 
       if (foundWebhook.provider === 'microsoftteams') {
-        return NextResponse.json({
-          type: 'message',
-          text: 'Usage limit exceeded. Please upgrade your plan to continue.',
-        })
+        return NextResponse.json(
+          {
+            type: 'message',
+            text: 'Usage limit exceeded. Please upgrade your plan to continue.',
+          },
+          { status: 402 }
+        )
       }
 
-      return NextResponse.json({ message: 'Usage limit exceeded' }, { status: 200 })
+      return NextResponse.json(
+        { error: usageCheck.message || 'Usage limit exceeded' },
+        { status: 402 }
+      )
     }
 
     logger.debug(`[${requestId}] Usage limit check passed for webhook`, {
@@ -395,7 +407,7 @@ export async function queueWebhookExecution(
       logger.warn(
         `[${options.requestId}] Webhook requires a workspace billing account to attribute usage`
       )
-      return NextResponse.json({ message: 'Workspace billing account required' }, { status: 200 })
+      return NextResponse.json({ error: 'Workspace billing account required' }, { status: 402 })
     }
 
     const headers = Object.fromEntries(request.headers.entries())
@@ -475,12 +487,15 @@ export async function queueWebhookExecution(
     logger.error(`[${options.requestId}] Failed to queue webhook execution:`, error)
 
     if (foundWebhook.provider === 'microsoftteams') {
-      return NextResponse.json({
-        type: 'message',
-        text: 'Webhook processing failed',
-      })
+      return NextResponse.json(
+        {
+          type: 'message',
+          text: 'Webhook processing failed',
+        },
+        { status: 500 }
+      )
     }
 
-    return NextResponse.json({ message: 'Internal server error' }, { status: 200 })
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
