@@ -22,6 +22,7 @@ import type { ExecutionCallbacks, ExecutionSnapshot } from '@/executor/execution
 import type { ExecutionResult } from '@/executor/types'
 import { Serializer } from '@/serializer'
 import { mergeSubblockState } from '@/stores/workflows/server-utils'
+import { PauseResumeManager } from './pause-resume-manager'
 
 const logger = createLogger('ExecutionCore')
 
@@ -306,11 +307,26 @@ export async function executeWorkflowCore(
       resolvedTriggerBlockId
     )) as ExecutionResult
 
+    if (result.status === 'paused') {
+      if (!result.snapshotSeed) {
+        logger.error(`[${requestId}] Missing snapshot seed for paused execution`, {
+          executionId,
+        })
+      } else {
+        await PauseResumeManager.persistPauseResult({
+          workflowId,
+          executionId,
+          pausePoints: result.pausePoints || [],
+          snapshotSeed: result.snapshotSeed,
+        })
+      }
+    }
+
     // Build trace spans for logging
     const { traceSpans, totalDuration } = buildTraceSpans(result)
 
     // Update workflow run counts
-    if (result.success) {
+    if (result.success && result.status !== 'paused') {
       await updateWorkflowRunCounts(workflowId)
     }
 
