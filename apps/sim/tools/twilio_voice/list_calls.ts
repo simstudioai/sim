@@ -66,14 +66,12 @@ export const listCallsTool: ToolConfig<TwilioListCallsParams, TwilioListCallsOut
       if (!params.accountSid) {
         throw new Error('Twilio Account SID is required')
       }
-      // Validate Account SID format
       if (!params.accountSid.startsWith('AC')) {
         throw new Error(
           `Invalid Account SID format. Account SID must start with "AC" (you provided: ${params.accountSid.substring(0, 2)}...)`
         )
       }
 
-      // Build URL with query parameters
       const baseUrl = `https://api.twilio.com/2010-04-01/Accounts/${params.accountSid}/Calls.json`
       const queryParams = new URLSearchParams()
 
@@ -118,12 +116,9 @@ export const listCallsTool: ToolConfig<TwilioListCallsParams, TwilioListCallsOut
 
     const authToken = Buffer.from(`${params?.accountSid}:${params?.authToken}`).toString('base64')
 
-    // Transform calls array and fetch recording SIDs
     const calls = await Promise.all(
       (data.calls || []).map(async (call: any) => {
         let recordingSids: string[] = []
-
-        // Fetch recordings for this call if it has any
         if (call.subresource_uris?.recordings) {
           try {
             const recordingsUrl = `https://api.twilio.com${call.subresource_uris.recordings}`

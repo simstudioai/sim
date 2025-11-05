@@ -36,7 +36,6 @@ export const getRecordingTool: ToolConfig<TwilioGetRecordingParams, TwilioGetRec
       if (!params.accountSid || !params.recordingSid) {
         throw new Error('Twilio Account SID and Recording SID are required')
       }
-      // Validate Account SID format
       if (!params.accountSid.startsWith('AC')) {
         throw new Error(
           `Invalid Account SID format. Account SID must start with "AC" (you provided: ${params.accountSid.substring(0, 2)}...)`
@@ -72,11 +71,9 @@ export const getRecordingTool: ToolConfig<TwilioGetRecordingParams, TwilioGetRec
       }
     }
 
-    // Construct full media URL
     const baseUrl = 'https://api.twilio.com'
     const mediaUrl = data.uri ? `${baseUrl}${data.uri.replace('.json', '')}` : undefined
 
-    // Fetch transcriptions if they exist (created via TwiML <Record transcribe="true">)
     let transcriptionText: string | undefined
     let transcriptionStatus: string | undefined
     let transcriptionPrice: string | undefined
@@ -85,7 +82,6 @@ export const getRecordingTool: ToolConfig<TwilioGetRecordingParams, TwilioGetRec
     try {
       const authToken = Buffer.from(`${params?.accountSid}:${params?.authToken}`).toString('base64')
 
-      // Check if transcription exists (must have been created via TwiML during the call)
       const transcriptionUrl = `https://api.twilio.com/2010-04-01/Accounts/${params?.accountSid}/Transcriptions.json?RecordingSid=${data.sid}`
       logger.info('Checking for transcriptions:', transcriptionUrl)
 
@@ -98,7 +94,6 @@ export const getRecordingTool: ToolConfig<TwilioGetRecordingParams, TwilioGetRec
         const transcriptionData = await transcriptionResponse.json()
         logger.info('Transcription response:', JSON.stringify(transcriptionData))
 
-        // Extract transcription data if available
         if (transcriptionData.transcriptions && transcriptionData.transcriptions.length > 0) {
           const transcription = transcriptionData.transcriptions[0]
           transcriptionText = transcription.transcription_text
@@ -117,7 +112,6 @@ export const getRecordingTool: ToolConfig<TwilioGetRecordingParams, TwilioGetRec
       }
     } catch (error) {
       logger.warn('Failed to fetch transcription:', error)
-      // Don't fail the whole request if transcription fetch fails
     }
 
     return {

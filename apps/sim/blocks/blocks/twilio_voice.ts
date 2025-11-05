@@ -29,7 +29,6 @@ export const TwilioVoiceBlock: BlockConfig<ToolResponse> = {
       ],
       value: () => 'make_call',
     },
-    // Common credentials
     {
       id: 'accountSid',
       title: 'Twilio Account SID',
@@ -47,7 +46,6 @@ export const TwilioVoiceBlock: BlockConfig<ToolResponse> = {
       password: true,
       required: true,
     },
-    // Make Call fields
     {
       id: 'to',
       title: 'To Phone Number',
@@ -143,7 +141,6 @@ export const TwilioVoiceBlock: BlockConfig<ToolResponse> = {
         value: 'make_call',
       },
     },
-    // List Calls fields
     {
       id: 'listTo',
       title: 'Filter by To Number',
@@ -220,7 +217,6 @@ export const TwilioVoiceBlock: BlockConfig<ToolResponse> = {
         value: 'list_calls',
       },
     },
-    // Get Recording fields
     {
       id: 'recordingSid',
       title: 'Recording SID',
@@ -255,14 +251,11 @@ export const TwilioVoiceBlock: BlockConfig<ToolResponse> = {
 
         const baseParams = { ...rest }
 
-        // Convert timeout string to number for make_call
         if (operation === 'make_call' && timeout) {
           baseParams.timeout = Number.parseInt(timeout, 10)
         }
 
-        // Convert record to proper boolean for make_call
         if (operation === 'make_call' && record !== undefined && record !== null) {
-          // Handle various input types: boolean, string, number
           if (typeof record === 'string') {
             baseParams.record = record.toLowerCase() === 'true' || record === '1'
           } else if (typeof record === 'number') {
@@ -272,7 +265,6 @@ export const TwilioVoiceBlock: BlockConfig<ToolResponse> = {
           }
         }
 
-        // Map list_calls specific fields
         if (operation === 'list_calls') {
           if (listTo) baseParams.to = listTo
           if (listFrom) baseParams.from = listFrom
@@ -305,7 +297,6 @@ export const TwilioVoiceBlock: BlockConfig<ToolResponse> = {
     recordingSid: { type: 'string', description: 'Recording SID to retrieve' },
   },
   outputs: {
-    // Tool outputs (when using voice operations)
     success: { type: 'boolean', description: 'Operation success status' },
     callSid: { type: 'string', description: 'Call unique identifier' },
     status: { type: 'string', description: 'Call or recording status' },
@@ -331,7 +322,6 @@ export const TwilioVoiceBlock: BlockConfig<ToolResponse> = {
     page: { type: 'number', description: 'Current page number' },
     pageSize: { type: 'number', description: 'Number of calls per page' },
     error: { type: 'string', description: 'Error message if operation failed' },
-    // Trigger outputs (when used as webhook trigger for incoming calls)
     accountSid: { type: 'string', description: 'Twilio Account SID from webhook' },
     from: { type: 'string', description: "Caller's phone number (E.164 format)" },
     to: { type: 'string', description: 'Recipient phone number (your Twilio number)' },

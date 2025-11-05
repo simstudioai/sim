@@ -1,5 +1,5 @@
 import { createLogger } from '@/lib/logs/console/logger'
-import { convertSquareBracketsToTwiML } from '@/lib/twiml'
+import { convertSquareBracketsToTwiML } from '@/lib/webhooks/utils'
 import type { TwilioCallOutput, TwilioMakeCallParams } from '@/tools/twilio_voice/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -92,7 +92,6 @@ export const makeCallTool: ToolConfig<TwilioMakeCallParams, TwilioCallOutput> = 
       if (!params.accountSid) {
         throw new Error('Twilio Account SID is required')
       }
-      // Validate Account SID format
       if (!params.accountSid.startsWith('AC')) {
         throw new Error(
           `Invalid Account SID format. Account SID must start with "AC" (you provided: ${params.accountSid.substring(0, 2)}...)`
@@ -129,46 +128,43 @@ export const makeCallTool: ToolConfig<TwilioMakeCallParams, TwilioCallOutput> = 
         recordType: typeof params.record,
       })
 
-      const formData = new URLSearchParams()
-      formData.append('To', params.to)
-      formData.append('From', params.from)
-
-      // Either URL or TwiML (URL takes precedence)
-      if (params.url) {
-        formData.append('Url', params.url)
-      } else if (params.twiml) {
-        // Convert square bracket syntax to proper TwiML XML
-        const convertedTwiml = convertSquareBracketsToTwiML(params.twiml) || params.twiml
-        formData.append('Twiml', convertedTwiml)
+      const bodyParams: Record<string, any> = {
+        To: params.to,
+        From: params.from,
       }
 
-      // Optional parameters
+      if (params.url) {
+        bodyParams.Url = params.url
+      } else if (params.twiml) {
+        const convertedTwiml = convertSquareBracketsToTwiML(params.twiml) || params.twiml
+        bodyParams.Twiml = convertedTwiml
+      }
+
       if (params.statusCallback) {
-        formData.append('StatusCallback', params.statusCallback)
+        bodyParams.StatusCallback = params.statusCallback
       }
       if (params.statusCallbackMethod) {
-        formData.append('StatusCallbackMethod', params.statusCallbackMethod)
+        bodyParams.StatusCallbackMethod = params.statusCallbackMethod
       }
 
       if (params.record === true) {
         logger.info('Enabling call recording')
-        formData.append('Record', 'true')
+        bodyParams.Record = 'true'
       }
 
       if (params.recordingStatusCallback) {
-        formData.append('RecordingStatusCallback', params.recordingStatusCallback)
+        bodyParams.RecordingStatusCallback = params.recordingStatusCallback
       }
       if (params.timeout) {
-        formData.append('Timeout', params.timeout.toString())
+        bodyParams.Timeout = params.timeout.toString()
       }
       if (params.machineDetection) {
-        formData.append('MachineDetection', params.machineDetection)
+        bodyParams.MachineDetection = params.machineDetection
       }
 
-      const bodyString = formData.toString()
-      logger.info('Final Twilio request body:', bodyString)
+      logger.info('Final Twilio request body:', bodyParams)
 
-      return bodyString
+      return bodyParams
     },
   },
 

@@ -8,8 +8,8 @@ import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { env, isTruthy } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
-import { convertSquareBracketsToTwiML } from '@/lib/twiml'
 import {
+  convertSquareBracketsToTwiML,
   handleSlackChallenge,
   handleWhatsAppVerification,
   validateMicrosoftTeamsSignature,
@@ -36,18 +36,9 @@ function getExternalUrl(request: NextRequest): string {
   if (host) {
     const url = new URL(request.url)
     const reconstructed = `${proto}://${host}${url.pathname}${url.search}`
-    logger.debug('Reconstructing external URL', {
-      proto,
-      host,
-      pathname: url.pathname,
-      search: url.search,
-      originalUrl: request.url,
-      reconstructed,
-    })
     return reconstructed
   }
 
-  logger.debug('Using original request URL', { url: request.url })
   return request.url
 }
 
@@ -93,15 +84,13 @@ export async function parseWebhookBody(
       const formData = new URLSearchParams(rawBody)
       const payloadString = formData.get('payload')
 
-      if (payloadString) {
-        // GitHub-style: form-encoded with JSON in 'payload' field
-        body = JSON.parse(payloadString)
-        logger.debug(`[${requestId}] Parsed form-encoded GitHub webhook payload`)
-      } else {
-        // Twilio/other providers: form fields directly (CallSid, From, To, etc.)
-        body = Object.fromEntries(formData.entries())
-        logger.debug(`[${requestId}] Parsed form-encoded webhook data (direct fields)`)
+      if (!payloadString) {
+        logger.warn(`[${requestId}] No payload field found in form-encoded data`)
+        return new NextResponse('Missing payload field', { status: 400 })
       }
+
+      body = JSON.parse(payloadString)
+      logger.debug(`[${requestId}] Parsed form-encoded GitHub webhook payload`)
     } else {
       body = JSON.parse(rawBody)
       logger.debug(`[${requestId}] Parsed JSON webhook payload`)
@@ -193,6 +182,9 @@ export async function findWebhookAndWorkflow(
 
 /**
  * Resolve {{VARIABLE}} references in a string value
+ * @param value - String that may contain {{VARIABLE}} references
+ * @param envVars - Already decrypted environment variables
+ * @returns String with all {{VARIABLE}} references replaced
  */
 function resolveEnvVars(value: string, envVars: Record<string, string>): string {
   const envMatches = value.match(/\{\{([^}]+)\}\}/g)
@@ -203,14 +195,18 @@ function resolveEnvVars(value: string, envVars: Record<string, string>): string 
     const envKey = match.slice(2, -2).trim()
     const envValue = envVars[envKey]
     if (envValue !== undefined) {
-      resolvedValue = resolvedValue.replace(match, envValue)
+      // Use replaceAll to handle multiple occurrences of same variable
+      resolvedValue = resolvedValue.replaceAll(match, envValue)
     }
   }
   return resolvedValue
 }
 
 /**
- * Resolve environment variables in providerConfig
+ * Resolve environment variables in webhook providerConfig
+ * @param config - Raw providerConfig from database (may contain {{VARIABLE}} refs)
+ * @param envVars - Already decrypted environment variables
+ * @returns New object with resolved values (original config is unchanged)
  */
 function resolveProviderConfigEnvVars(
   config: Record<string, any>,
@@ -221,12 +217,17 @@ function resolveProviderConfigEnvVars(
     if (typeof value === 'string') {
       resolved[key] = resolveEnvVars(value, envVars)
     } else {
+      // Pass through non-string values unchanged (booleans, numbers, objects, arrays)
       resolved[key] = value
     }
   }
   return resolved
 }
 
+/**
+ * Verify webhook provider authentication and signatures
+ * @returns NextResponse with 401 if auth fails, null if auth passes
+ */
 export async function verifyProviderAuth(
   foundWebhook: any,
   foundWorkflow: any,
@@ -234,9 +235,7 @@ export async function verifyProviderAuth(
   rawBody: string,
   requestId: string
 ): Promise<NextResponse | null> {
-  // Fetch and decrypt environment variables for signature verification
-  // This is necessary because webhook signature verification must happen SYNCHRONOUSLY
-  // in the API route (before queueing), but env vars are stored as {{VARIABLE}} references
+  // Step 1: Fetch and decrypt environment variables for signature verification
   let decryptedEnvVars: Record<string, string> = {}
   try {
     const { getEffectiveDecryptedEnv } = await import('@/lib/environment/utils')
@@ -248,7 +247,7 @@ export async function verifyProviderAuth(
     logger.error(`[${requestId}] Failed to fetch environment variables`, { error })
   }
 
-  // Resolve any {{VARIABLE}} references in providerConfig
+  // Step 2: Resolve {{VARIABLE}} references in providerConfig
   const rawProviderConfig = (foundWebhook.providerConfig as Record<string, any>) || {}
   const providerConfig = resolveProviderConfigEnvVars(rawProviderConfig, decryptedEnvVars)
 
@@ -282,36 +281,6 @@ export async function verifyProviderAuth(
   const providerVerification = verifyProviderWebhook(foundWebhook, request, requestId)
   if (providerVerification) {
     return providerVerification
-  }
-
-  // Slack webhook signature verification
-  if (foundWebhook.provider === 'slack') {
-    const signingSecret = providerConfig.signingSecret as string | undefined
-
-    if (signingSecret) {
-      const signature = request.headers.get('x-slack-signature')
-      const timestamp = request.headers.get('x-slack-request-timestamp')
-
-      if (!signature || !timestamp) {
-        logger.warn(`[${requestId}] Slack webhook missing signature or timestamp headers`)
-        return new NextResponse('Unauthorized - Missing Slack signature', { status: 401 })
-      }
-
-      const { validateSlackSignature } = await import('@/lib/webhooks/utils')
-      const isValidSignature = await validateSlackSignature(
-        signingSecret,
-        signature,
-        timestamp,
-        rawBody
-      )
-
-      if (!isValidSignature) {
-        logger.warn(`[${requestId}] Slack signature verification failed`)
-        return new NextResponse('Unauthorized - Invalid Slack signature', { status: 401 })
-      }
-
-      logger.debug(`[${requestId}] Slack signature verified successfully`)
-    }
   }
 
   // Handle Google Forms shared-secret authentication (Apps Script forwarder)

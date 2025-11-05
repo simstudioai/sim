@@ -263,7 +263,7 @@ async function executeWebhookJobInternal(
           metadata,
           workflow,
           airtableInput,
-          {},
+          decryptedEnvVars,
           workflow.variables || {},
           []
         )
@@ -449,7 +449,7 @@ async function executeWebhookJobInternal(
       metadata,
       workflow,
       input || {},
-      {},
+      decryptedEnvVars,
       workflow.variables || {},
       []
     )
