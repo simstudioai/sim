@@ -19,6 +19,11 @@ import { handleManualEnterpriseSubscription } from '@/lib/billing/webhooks/enter
 import { db } from '@sim/db'
 import { subscription as subscriptionTable } from '@sim/db/schema'
 import { eq, or } from 'drizzle-orm'
+import type {
+  LoopsCheckoutSession,
+  LoopsWebhookEvent,
+} from '@/lib/billing/loops-types'
+import crypto from 'crypto'
 
 const logger = createLogger('LoopsPlugin')
 
@@ -156,23 +161,36 @@ export function loops(options: LoopsPluginOptions) {
           }
 
           try {
-            // Create checkout session with Loops
-            // Check Loops SDK documentation for exact parameter names
+            // Create checkout session with Loops using V3 API
+            // The Loops SDK uses productId instead of paymentLinkId for simplified usage
             const checkoutSession = await loopsClient.checkoutSessions.create({
-              paymentLinkId: selectedPlan.priceId, // Using priceId as paymentLinkId
+              productId: selectedPlan.priceId, // Using priceId as productId
+              quantity: seats || 1,
               externalCustomerId: session.user.id,
+              clientReferenceId: refId,
               metadata: {
                 plan: plan,
                 referenceId: refId,
                 userId: session.user.id,
                 ...(seats ? { seats: seats.toString() } : {}),
                 ...checkoutParams.metadata,
-              } as Record<string, string>,
-            } as any)
+              },
+            })
+
+            // The response should have a 'url' property
+            const checkoutUrl = (checkoutSession as any).url ?? ''
+
+            if (!checkoutUrl) {
+              logger.error('Checkout session created but no URL returned', {
+                sessionId: (checkoutSession as any).id,
+                response: checkoutSession,
+              })
+              return ctx.json({ error: 'Failed to get checkout URL' }, { status: 500 })
+            }
 
             return ctx.json({
-              url: (checkoutSession as any).url || (checkoutSession as any).checkoutUrl || '',
-              sessionId: checkoutSession.id,
+              url: checkoutUrl,
+              sessionId: (checkoutSession as any).id || 'unknown',
             })
           } catch (error: any) {
             logger.error('Failed to create checkout session', { error })
@@ -211,6 +229,85 @@ export function loops(options: LoopsPluginOptions) {
         }
       ),
 
+      // Create customer portal session
+      createPortalSession: createAuthEndpoint(
+        '/loops/portal-session',
+        {
+          method: 'POST',
+          use: [sessionMiddleware],
+        },
+        async (ctx) => {
+          const session = await getSessionFromCtx(ctx)
+
+          if (!session?.user) {
+            return ctx.json({ error: 'Unauthorized' }, { status: 401 })
+          }
+
+          const { returnUrl } = (ctx.body as { returnUrl?: string }) || {}
+
+          try {
+            // Create customer portal session using the Loops SDK
+            const portalSession = await loopsClient.customerPortal.postApiV3CustomerPortalSessions({
+              externalCustomerId: session.user.id,
+              returnUrl: returnUrl,
+            })
+
+            return ctx.json({
+              url: (portalSession as any).url || '',
+              sessionId: (portalSession as any).id || '',
+            })
+          } catch (error: any) {
+            logger.error('Failed to create portal session', { error })
+            return ctx.json({ error: 'Failed to create portal session' }, { status: 500 })
+          }
+        }
+      ),
+
+      // Cancel subscription
+      cancelSubscription: createAuthEndpoint(
+        '/loops/subscription/cancel',
+        {
+          method: 'POST',
+          use: [sessionMiddleware],
+        },
+        async (ctx) => {
+          const session = await getSessionFromCtx(ctx)
+
+          if (!session?.user) {
+            return ctx.json({ error: 'Unauthorized' }, { status: 401 })
+          }
+
+          const { subscriptionId } = ctx.body as { subscriptionId: string }
+
+          if (!subscriptionId) {
+            return ctx.json({ error: 'Subscription ID is required' }, { status: 400 })
+          }
+
+          try {
+            // Verify user owns this subscription
+            const subscription = await db
+              .select()
+              .from(subscriptionTable)
+              .where(eq(subscriptionTable.id, subscriptionId))
+              .limit(1)
+
+            if (!subscription.length || subscription[0].referenceId !== session.user.id) {
+              return ctx.json({ error: 'Subscription not found or unauthorized' }, { status: 404 })
+            }
+
+            // Cancel subscription using Loops SDK
+            await loopsClient.subscriptions.deleteApiV3SubscriptionsId({
+              id: subscriptionId,
+            })
+
+            return ctx.json({ success: true })
+          } catch (error: any) {
+            logger.error('Failed to cancel subscription', { error })
+            return ctx.json({ error: 'Failed to cancel subscription' }, { status: 500 })
+          }
+        }
+      ),
+
       // Webhook endpoint
       webhook: createAuthEndpoint(
         '/loops/webhook',
@@ -222,17 +319,59 @@ export function loops(options: LoopsPluginOptions) {
             return ctx.json({ error: 'Invalid request' }, { status: 400 })
           }
 
+          // Get raw body for signature verification
+          const rawBody = await ctx.request.text()
+
           // Verify webhook signature if secret is provided
           if (loopsWebhookSecret) {
             const signature = ctx.request.headers.get('x-loops-signature')
-            // TODO: Implement signature verification when Loops provides webhook signature details
+            const timestamp = ctx.request.headers.get('x-loops-timestamp')
+
+            if (!signature) {
+              logger.error('[webhook] Missing webhook signature')
+              return ctx.json({ error: 'Missing webhook signature' }, { status: 401 })
+            }
+
+            // Verify signature using HMAC SHA256
+            // Format: timestamp.payload
+            const signedPayload = timestamp ? `${timestamp}.${rawBody}` : rawBody
+            const expectedSignature = crypto
+              .createHmac('sha256', loopsWebhookSecret)
+              .update(signedPayload)
+              .digest('hex')
+
+            // Use timing-safe comparison to prevent timing attacks
+            const isValid = crypto.timingSafeEqual(
+              Buffer.from(signature),
+              Buffer.from(expectedSignature)
+            )
+
+            if (!isValid) {
+              logger.error('[webhook] Invalid webhook signature', {
+                receivedSignature: signature,
+              })
+              return ctx.json({ error: 'Invalid webhook signature' }, { status: 401 })
+            }
+
+            // Verify timestamp to prevent replay attacks (within 5 minutes)
+            if (timestamp) {
+              const currentTime = Math.floor(Date.now() / 1000)
+              const webhookTime = parseInt(timestamp, 10)
+
+              if (Math.abs(currentTime - webhookTime) > 300) {
+                logger.error('[webhook] Webhook timestamp too old', {
+                  timestamp,
+                  currentTime,
+                  diff: currentTime - webhookTime,
+                })
+                return ctx.json({ error: 'Webhook timestamp expired' }, { status: 401 })
+              }
+            }
+
+            logger.info('[webhook] Webhook signature verified successfully')
           }
 
-          const event = (await ctx.request.json()) as {
-            type: string
-            id: string
-            data: any
-          }
+          const event = JSON.parse(rawBody) as LoopsWebhookEvent
 
           logger.info('[webhook] Received Loops webhook', {
             eventId: event.id,

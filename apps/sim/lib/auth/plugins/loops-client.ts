@@ -33,6 +33,21 @@ export function loopsClient(options?: { subscription?: boolean }) {
           return res
         },
 
+        // Create customer portal session
+        createPortalSession: async (
+          data?: {
+            returnUrl?: string
+          },
+          fetchOptions?: any
+        ) => {
+          const res = await $fetch('/loops/portal-session', {
+            method: 'POST',
+            body: data || {},
+            ...fetchOptions,
+          })
+          return res
+        },
+
         // Subscription methods (mirroring Stripe plugin interface)
         subscription: options?.subscription
           ? {
@@ -64,17 +79,25 @@ export function loopsClient(options?: { subscription?: boolean }) {
                 },
                 fetchOptions?: any
               ) => {
-                // TODO: Implement cancellation when Loops API supports it
-                return { data: null, error: 'Cancellation not yet implemented' }
+                const res = await $fetch('/loops/subscription/cancel', {
+                  method: 'POST',
+                  body: data,
+                  ...fetchOptions,
+                })
+                return res
               },
-              restore: async (
-                data: {
-                  subscriptionId: string
+              portal: async (
+                data?: {
+                  returnUrl?: string
                 },
                 fetchOptions?: any
               ) => {
-                // TODO: Implement restoration when Loops API supports it
-                return { data: null, error: 'Restoration not yet implemented' }
+                const res = await $fetch('/loops/portal-session', {
+                  method: 'POST',
+                  body: data || {},
+                  ...fetchOptions,
+                })
+                return res
               },
             }
           : undefined,

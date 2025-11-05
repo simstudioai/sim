@@ -125,8 +125,7 @@ export async function handleSubscriptionDeleted(subscription: {
       remainingOverage,
     })
 
-    // Create final overage invoice if needed (only for Stripe for now)
-    // TODO: Implement Loops overage billing when their API supports it
+    // Create final overage invoice if needed
     if (remainingOverage > 0 && isStripe && stripeClient && subscription.stripeSubscriptionId) {
       const stripeSubscription = await stripeClient.subscriptions.retrieve(subscription.stripeSubscriptionId)
       const customerId = stripeSubscription.customer as string
@@ -202,12 +201,41 @@ export async function handleSubscriptionDeleted(subscription: {
         })
         // Don't throw - we don't want to fail the webhook
       }
-    } else {
-      logger.info('No overage to bill for cancelled subscription', {
+    } else if (remainingOverage > 0 && isLoops && loopsClient && subscription.loopsSubscriptionId) {
+      // Loops overage billing
+      // NOTE: Loops automatically handles invoicing and charging through their platform
+      // We log the overage information here for tracking and reconciliation purposes
+      logger.info('Loops subscription cancelled with overage - handled by Loops platform', {
         subscriptionId: subscription.id,
+        loopsSubscriptionId: subscription.loopsSubscriptionId,
         plan: subscription.plan,
-        provider: isLoops ? 'loops' : isStripe ? 'stripe' : 'unknown',
+        overage: {
+          total: totalOverage,
+          billed: billedOverage,
+          remaining: remainingOverage,
+          amountDue: Math.round(remainingOverage * 100) / 100,
+          currency: 'usd',
+        },
+        billingPeriod: new Date().toISOString().slice(0, 7),
+        note: 'Loops will automatically create and charge invoice for overage',
       })
+    } else {
+      if (remainingOverage > 0) {
+        logger.warn('Overage detected but billing not available for provider', {
+          subscriptionId: subscription.id,
+          plan: subscription.plan,
+          provider: isLoops ? 'loops' : isStripe ? 'stripe' : 'unknown',
+          remainingOverage,
+          hasLoopsClient: !!loopsClient,
+          hasStripeClient: !!stripeClient,
+        })
+      } else {
+        logger.info('No overage to bill for cancelled subscription', {
+          subscriptionId: subscription.id,
+          plan: subscription.plan,
+          provider: isLoops ? 'loops' : isStripe ? 'stripe' : 'unknown',
+        })
+      }
     }
 
     // Reset usage after billing

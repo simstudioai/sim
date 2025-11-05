@@ -87,15 +87,24 @@ export async function POST(request: NextRequest) {
     // Use Loops portal if Loops customer exists and client is available
     if (customerIdField === 'loopsCustomerId' && loopsClient) {
       try {
-        // Check if Loops SDK supports customer portal
-        // If not available, redirect to a custom billing management page
-        logger.info('Loops customer portal not yet implemented, redirecting to billing page', {
+        // Loops SDK does not currently support a customer portal like Stripe does
+        // Redirect to internal billing management page
+        //
+        // NOTE: The internal billing page should provide:
+        // 1. View current subscription details (plan, status, renewal date)
+        // 2. View and download past invoices (managed by Loops)
+        // 3. Update payment method (via Loops)
+        // 4. View current usage and limits
+        // 5. Upgrade/downgrade subscription plans
+        // 6. Cancel subscription (when Loops API supports it)
+        // 7. Update billing information (address, tax ID, etc.)
+
+        logger.info('Redirecting Loops customer to internal billing page', {
           customerId,
           userId: session.user.id,
         })
 
-        // For now, redirect to the billing settings page within the app
-        // You can implement a custom billing management UI here
+        // Redirect to the internal billing settings page
         return NextResponse.json({
           url: `${getBaseUrl()}/workspace/settings/billing?return=${encodeURIComponent(returnUrl)}`,
         })

@@ -5,6 +5,7 @@
       "name": "simstudio",
       "dependencies": {
         "@linear/sdk": "40.0.0",
+        "@loops-fi/sdk": "0.5.6",
         "@t3-oss/env-nextjs": "0.13.4",
         "cronstrue": "3.3.0",
         "drizzle-orm": "^0.44.5",
@@ -653,7 +654,7 @@
 
     "@linear/sdk": ["@linear/sdk@40.0.0", "", { "dependencies": { "@graphql-typed-document-node/core": "^3.1.0", "graphql": "^15.4.0", "isomorphic-unfetch": "^3.1.0" } }, "sha512-R4lyDIivdi00fO+DYPs7gWNX221dkPJhgDowFrsfos/rNG6o5HixsCPgwXWtKN0GA0nlqLvFTmzvzLXpud1xKw=="],
 
-    "@loops-fi/sdk": ["@loops-fi/sdk@0.5.4", "", { "dependencies": { "zod": "^3.20.0" } }, "sha512-t7VT4yB+jdxDMkQii2kZthENenyKAuetvB2WxOTEyNpIvMrpgF8DK8nodGj5XN34rDg2ugUmzWjvUSxYPAaUlA=="],
+    "@loops-fi/sdk": ["@loops-fi/sdk@0.5.6", "", { "dependencies": { "zod": "^3.20.0" } }, "sha512-HlTBu6Dny5Ysi4ih7nRcAH72RAM8vBXtTqWrbWq7hzfbCNG3zAXwS3twugnZDOhZn7NCc5Fuq9hlLYZigLoMeg=="],
 
     "@mdx-js/mdx": ["@mdx-js/mdx@3.1.1", "", { "dependencies": { "@types/estree": "^1.0.0", "@types/estree-jsx": "^1.0.0", "@types/hast": "^3.0.0", "@types/mdx": "^2.0.0", "acorn": "^8.0.0", "collapse-white-space": "^2.0.0", "devlop": "^1.0.0", "estree-util-is-identifier-name": "^3.0.0", "estree-util-scope": "^1.0.0", "estree-walker": "^3.0.0", "hast-util-to-jsx-runtime": "^2.0.0", "markdown-extensions": "^2.0.0", "recma-build-jsx": "^1.0.0", "recma-jsx": "^1.0.0", "recma-stringify": "^1.0.0", "rehype-recma": "^1.0.0", "remark-mdx": "^3.0.0", "remark-parse": "^11.0.0", "remark-rehype": "^11.0.0", "source-map": "^0.7.0", "unified": "^11.0.0", "unist-util-position-from-estree": "^2.0.0", "unist-util-stringify-position": "^4.0.0", "unist-util-visit": "^5.0.0", "vfile": "^6.0.0" } }, "sha512-f6ZO2ifpwAQIpzGWaBQT2TXxPv6z3RBzQKpVftEWN78Vl/YweF1uwussDx8ECAXVtr3Rs89fKyG9YlzUs9DyGQ=="],
 
@@ -3564,6 +3565,8 @@
     "send/debug": ["debug@2.6.9", "", { "dependencies": { "ms": "2.0.0" } }, "sha512-bC7ElrdJaJnPbAP+1EotYvqZsb3ecl5wi6Bfi6BJTUcNowp6cvspg0jXznRTKDjm/E7AdgFBVeAPVMNcKGsHMA=="],
 
     "send/encodeurl": ["encodeurl@1.0.2", "", {}, "sha512-TPJXq8JqFaVYm2CWmPvnP2Iyo4ZSM7/QKcSmuMLDObfpH5fi7RUGmd/rTDf+rut/saiDiQEeVTNgAmJEdAOx0w=="],
+
+    "sim/@loops-fi/sdk": ["@loops-fi/sdk@0.5.4", "", { "dependencies": { "zod": "^3.20.0" } }, "sha512-t7VT4yB+jdxDMkQii2kZthENenyKAuetvB2WxOTEyNpIvMrpgF8DK8nodGj5XN34rDg2ugUmzWjvUSxYPAaUlA=="],
 
     "sim/@types/node": ["@types/node@24.2.1", "", { "dependencies": { "undici-types": "~7.10.0" } }, "sha512-DRh5K+ka5eJic8CjH7td8QpYEV6Zo10gfRkjHCO3weqZHWDtAaSTFtl4+VMqOJ4N5jcuhZ9/l+yy8rVgw7BQeQ=="],
 
