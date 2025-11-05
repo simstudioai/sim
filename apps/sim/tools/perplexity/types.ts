@@ -25,3 +25,29 @@ export interface PerplexityChatResponse extends ToolResponse {
     }
   }
 }
+
+export interface PerplexitySearchParams {
+  query: string | string[]
+  max_results?: number
+  search_domain_filter?: string[]
+  max_tokens_per_page?: number
+  country?: string
+  search_recency_filter?: 'hour' | 'day' | 'week' | 'month' | 'year'
+  search_after_date?: string
+  search_before_date?: string
+  apiKey: string
+}
+
+export interface PerplexitySearchResult {
+  title: string
+  url: string
+  snippet: string
+  date: string
+  last_updated: string
+}
+
+export interface PerplexitySearchResponse extends ToolResponse {
+  output: {
+    results: PerplexitySearchResult[]
+  }
+}
