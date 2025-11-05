@@ -192,8 +192,6 @@ export async function uploadWorkspaceFile(
       type: contentType,
       url: serveUrl, // Use authenticated serve URL (enforces context)
       key: uploadResult.key,
-      uploadedAt: new Date().toISOString(),
-      expiresAt: new Date(Date.now() + 100 * 365 * 24 * 60 * 60 * 1000).toISOString(), // Far future date (effectively never expires)
       context: 'workspace',
     }
   } catch (error) {

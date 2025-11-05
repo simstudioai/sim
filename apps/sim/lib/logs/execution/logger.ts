@@ -26,6 +26,7 @@ import type {
   WorkflowExecutionSnapshot,
   WorkflowState,
 } from '@/lib/logs/types'
+import { filterForDisplay, redactApiKeys } from '@/lib/utils'
 
 export interface ToolCall {
   name: string
@@ -157,6 +158,11 @@ export class ExecutionLogger implements IExecutionLoggerService {
     // Extract files from trace spans, final output, and workflow input
     const executionFiles = this.extractFilesFromExecution(traceSpans, finalOutput, workflowInput)
 
+    const filteredTraceSpans = filterForDisplay(traceSpans)
+    const filteredFinalOutput = filterForDisplay(finalOutput)
+    const redactedTraceSpans = redactApiKeys(filteredTraceSpans)
+    const redactedFinalOutput = redactApiKeys(filteredFinalOutput)
+
     const [updatedLog] = await db
       .update(workflowExecutionLogs)
       .set({
@@ -165,8 +171,8 @@ export class ExecutionLogger implements IExecutionLoggerService {
         totalDurationMs,
         files: executionFiles.length > 0 ? executionFiles : null,
         executionData: {
-          traceSpans,
-          finalOutput,
+          traceSpans: redactedTraceSpans,
+          finalOutput: redactedFinalOutput,
           tokenBreakdown: {
             prompt: costSummary.totalPromptTokens,
             completion: costSummary.totalCompletionTokens,
@@ -492,10 +498,6 @@ export class ExecutionLogger implements IExecutionLoggerService {
                 type: file.type,
                 url: file.url,
                 key: file.key,
-                uploadedAt: file.uploadedAt,
-                expiresAt: file.expiresAt,
-                storageProvider: file.storageProvider,
-                bucketName: file.bucketName,
               })
             }
           }
@@ -515,10 +517,6 @@ export class ExecutionLogger implements IExecutionLoggerService {
                 type: file.type,
                 url: file.url,
                 key: file.key,
-                uploadedAt: file.uploadedAt,
-                expiresAt: file.expiresAt,
-                storageProvider: file.storageProvider,
-                bucketName: file.bucketName,
               })
             }
           }

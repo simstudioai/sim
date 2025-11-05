@@ -10,11 +10,6 @@ export interface ExecutionContext {
 }
 
 /**
- * File metadata stored in execution logs - now just uses UserFile directly
- */
-export type ExecutionFileMetadata = UserFile
-
-/**
  * Generate execution-scoped storage key with explicit prefix
  * Format: execution/workspace_id/workflow_id/execution_id/filename
  */
@@ -25,33 +20,10 @@ export function generateExecutionFileKey(context: ExecutionContext, fileName: st
 }
 
 /**
- * Generate execution prefix for cleanup operations
- * Format: execution/workspace_id/workflow_id/execution_id/
- */
-export function generateExecutionPrefix(context: ExecutionContext): string {
-  const { workspaceId, workflowId, executionId } = context
-  return `execution/${workspaceId}/${workflowId}/${executionId}/`
-}
-
-/**
  * Generate unique file ID for execution files
  */
 export function generateFileId(): string {
   return `file_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`
-}
-
-/**
- * Check if a user file is expired
- */
-export function isFileExpired(userFile: UserFile): boolean {
-  return new Date(userFile.expiresAt) < new Date()
-}
-
-/**
- * Get file expiration date for execution files (5 minutes from now)
- */
-export function getFileExpirationDate(): string {
-  return new Date(Date.now() + 5 * 60 * 1000).toISOString()
 }
 
 /**
@@ -67,33 +39,22 @@ export function isUuid(str: string): boolean {
 }
 
 /**
- * Parse execution file key to extract context
- * Format: execution/workspaceId/workflowId/executionId/filename
- * @returns ExecutionContext if key matches pattern, null otherwise
+ * Check if a key matches execution file pattern
+ * Execution files have keys in format: execution/workspaceId/workflowId/executionId/filename
  */
-export function parseExecutionFileKey(key: string): ExecutionContext | null {
+function matchesExecutionFilePattern(key: string): boolean {
   if (!key || key.startsWith('/api/') || key.startsWith('http')) {
-    return null
+    return false
   }
 
   const parts = key.split('/')
 
   if (parts[0] === 'execution' && parts.length >= 5) {
     const [, workspaceId, workflowId, executionId] = parts
-    if (isUuid(workspaceId) && isUuid(workflowId) && isUuid(executionId)) {
-      return { workspaceId, workflowId, executionId }
-    }
+    return isUuid(workspaceId) && isUuid(workflowId) && isUuid(executionId)
   }
 
-  return null
-}
-
-/**
- * Check if a key matches execution file pattern
- * Execution files have keys in format: execution/workspaceId/workflowId/executionId/filename
- */
-export function matchesExecutionFilePattern(key: string): boolean {
-  return parseExecutionFileKey(key) !== null
+  return false
 }
 
 /**

@@ -339,16 +339,6 @@ export function processSingleFileToUserFile(
     size: file.size,
     type: file.type || 'application/octet-stream',
     key: storageKey,
-    uploadedAt: file.uploadedAt
-      ? typeof file.uploadedAt === 'string'
-        ? file.uploadedAt
-        : file.uploadedAt.toISOString()
-      : new Date().toISOString(),
-    expiresAt: file.expiresAt
-      ? typeof file.expiresAt === 'string'
-        ? file.expiresAt
-        : file.expiresAt.toISOString()
-      : new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
   }
 
   logger.info(`[${requestId}] Converted file to UserFile: ${userFile.name} (key: ${userFile.key})`)
