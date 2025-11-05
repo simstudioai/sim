@@ -1,6 +1,7 @@
 ---
 title: Slack
-description: Sende Nachrichten an Slack oder löse Workflows durch Slack-Ereignisse aus
+description: Nachrichten senden, aktualisieren, löschen, Reaktionen in Slack
+  hinzufügen oder Workflows von Slack-Ereignissen auslösen
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -46,24 +47,29 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 Mit Slack kannst du:
 
-- **Agent-Benachrichtigungen automatisieren**: Sende Echtzeit-Updates von deinen Sim-Agenten an jeden Slack-Kanal
-- **Webhook-Endpunkte erstellen**: Konfiguriere Slack-Bots als Webhooks, um Sim-Workflows durch Slack-Aktivitäten auszulösen
-- **Agent-Workflows verbessern**: Integriere Slack-Messaging in deine Agenten, um Ergebnisse, Warnungen und Statusupdates zu liefern
-- **Slack-Canvases erstellen und teilen**: Erstelle programmatisch kollaborative Dokumente (Canvases) in Slack-Kanälen
-- **Nachrichten aus Kanälen lesen**: Rufe aktuelle Nachrichten aus jedem Slack-Kanal ab und verarbeite sie für Monitoring oder Workflow-Auslöser
+- **Automatisieren Sie Agenten-Benachrichtigungen**: Senden Sie Echtzeit-Updates von Ihren Sim-Agenten an jeden Slack-Kanal
+- **Erstellen Sie Webhook-Endpunkte**: Konfigurieren Sie Slack-Bots als Webhooks, um Sim-Workflows aus Slack-Aktivitäten auszulösen
+- **Verbessern Sie Agenten-Workflows**: Integrieren Sie Slack-Messaging in Ihre Agenten, um Ergebnisse, Warnungen und Statusaktualisierungen zu liefern
+- **Erstellen und teilen Sie Slack-Canvases**: Erstellen Sie programmatisch kollaborative Dokumente (Canvases) in Slack-Kanälen
+- **Lesen Sie Nachrichten aus Kanälen**: Rufen Sie aktuelle Nachrichten aus jedem Slack-Kanal ab und verarbeiten Sie diese für Überwachungs- oder Workflow-Auslöser
+- **Verwalten Sie Bot-Nachrichten**: Aktualisieren, löschen und fügen Sie Reaktionen zu Nachrichten hinzu, die von Ihrem Bot gesendet wurden
 
-In Sim ermöglicht die Slack-Integration Ihren Agenten, im Rahmen ihrer Workflows auf verschiedene Weise programmatisch mit Slack zu interagieren:
+In Sim ermöglicht die Slack-Integration Ihren Agenten, programmatisch mit Slack zu interagieren, mit vollständigen Nachrichtenverwaltungsfunktionen als Teil ihrer Workflows:
 
-- **Nachrichten senden**: Agenten können formatierte Nachrichten an jeden Slack-Kanal oder Benutzer senden und unterstützen dabei Slacks mrkdwn-Syntax für umfangreiche Formatierung.
-- **Canvases erstellen**: Agenten können Slack-Canvases (kollaborative Dokumente) direkt in Kanälen erstellen und teilen, was den Austausch von umfangreicheren Inhalten und Dokumentationen ermöglicht.
-- **Nachrichten lesen**: Agenten können aktuelle Nachrichten aus Kanälen lesen, was Überwachung, Berichterstattung oder das Auslösen weiterer Aktionen basierend auf Kanalaktivitäten ermöglicht.
+- **Nachrichten senden**: Agenten können formatierte Nachrichten an jeden Slack-Kanal oder Benutzer senden und unterstützen dabei Slacks mrkdwn-Syntax für umfangreiche Formatierung
+- **Nachrichten aktualisieren**: Bearbeiten Sie zuvor gesendete Bot-Nachrichten, um Informationen zu korrigieren oder Statusaktualisierungen bereitzustellen
+- **Nachrichten löschen**: Entfernen Sie Bot-Nachrichten, wenn sie nicht mehr benötigt werden oder Fehler enthalten
+- **Reaktionen hinzufügen**: Drücken Sie Stimmungen oder Bestätigungen aus, indem Sie Emoji-Reaktionen zu jeder Nachricht hinzufügen
+- **Canvases erstellen**: Erstellen und teilen Sie Slack-Canvases (kollaborative Dokumente) direkt in Kanälen, um reichhaltigere Inhalte zu teilen und zu dokumentieren
+- **Nachrichten lesen**: Lesen Sie aktuelle Nachrichten aus Kanälen, um Überwachung, Berichterstattung oder das Auslösen weiterer Aktionen basierend auf Kanalaktivitäten zu ermöglichen
+- **Dateien herunterladen**: Rufen Sie in Slack-Kanälen geteilte Dateien zur Verarbeitung oder Archivierung ab
 
-Dies ermöglicht leistungsstarke Automatisierungsszenarien wie das Senden von Benachrichtigungen, Warnungen, Updates und Berichten direkt an die Kommunikationszentrale Ihres Teams, das Teilen strukturierter Dokumente oder die Überwachung von Gesprächen für Workflow-Auslöser. Ihre Agenten können zeitnahe Informationen liefern, Ergebnisse aus abgeschlossenen Prozessen teilen, kollaborative Dokumente erstellen oder Teammitglieder benachrichtigen, wenn Aufmerksamkeit erforderlich ist. Diese Integration überbrückt die Lücke zwischen Ihren KI-Workflows und der Kommunikation Ihres Teams und stellt sicher, dass alle ohne manuelles Eingreifen informiert bleiben. Durch die Verbindung von Sim mit Slack können Sie Agenten erstellen, die Ihr Team automatisch mit relevanten Informationen zur richtigen Zeit auf dem Laufenden halten, die Zusammenarbeit durch automatisches Teilen von Erkenntnissen verbessern und den Bedarf an manuellen Statusaktualisierungen reduzieren – alles unter Nutzung Ihres bestehenden Slack-Arbeitsbereichs, in dem Ihr Team bereits kommuniziert.
+Dies ermöglicht leistungsstarke Automatisierungsszenarien wie das Senden von Benachrichtigungen mit dynamischen Updates, das Verwalten von Gesprächsabläufen mit bearbeitbaren Statusnachrichten, das Bestätigen wichtiger Nachrichten mit Reaktionen und das Sauberhalten von Kanälen durch Entfernen veralteter Bot-Nachrichten. Ihre Agenten können zeitnahe Informationen liefern, Nachrichten aktualisieren, während Workflows fortschreiten, kollaborative Dokumente erstellen oder Teammitglieder benachrichtigen, wenn Aufmerksamkeit benötigt wird. Diese Integration überbrückt die Lücke zwischen Ihren KI-Workflows und der Kommunikation Ihres Teams und stellt sicher, dass jeder mit genauen, aktuellen Informationen auf dem Laufenden bleibt. Durch die Verbindung von Sim mit Slack können Sie Agenten erstellen, die Ihr Team mit relevanten Informationen zur richtigen Zeit auf dem Laufenden halten, die Zusammenarbeit verbessern, indem sie Erkenntnisse automatisch teilen und aktualisieren, und die Notwendigkeit manueller Statusaktualisierungen reduzieren – alles während Sie Ihren bestehenden Slack-Workspace nutzen, in dem Ihr Team bereits kommuniziert.
 {/* MANUAL-CONTENT-END */}
 
 ## Nutzungsanweisungen
 
-Integrieren Sie Slack in den Workflow. Kann Nachrichten senden, Canvases erstellen und Nachrichten lesen. Erfordert OAuth. Kann im Auslösemodus verwendet werden, um einen Workflow zu starten, wenn eine Nachricht an einen Kanal gesendet wird.
+Integriert Slack in den Workflow. Kann Nachrichten senden, aktualisieren und löschen, Canvases erstellen, Nachrichten lesen und Reaktionen hinzufügen. Erfordert im erweiterten Modus ein Bot-Token anstelle von OAuth. Kann im Trigger-Modus verwendet werden, um einen Workflow auszulösen, wenn eine Nachricht an einen Kanal gesendet wird.
 
 ## Tools
 
@@ -76,9 +82,10 @@ Senden Sie Nachrichten an Slack-Kanäle oder Benutzer über die Slack-API. Unter
 | Parameter | Typ | Erforderlich | Beschreibung |
 | --------- | ---- | -------- | ----------- |
 | `authMethod` | string | Nein | Authentifizierungsmethode: oauth oder bot_token |
-| `botToken` | string | Nein | Bot-Token für Custom Bot |
+| `botToken` | string | Nein | Bot-Token für benutzerdefinierten Bot |
 | `channel` | string | Ja | Ziel-Slack-Kanal \(z.B. #general\) |
 | `text` | string | Ja | Nachrichtentext zum Senden \(unterstützt Slack mrkdwn-Formatierung\) |
+| `thread_ts` | string | Nein | Thread-Zeitstempel für Antworten \(erstellt Thread-Antwort\) |
 | `files` | file[] | Nein | Dateien, die an die Nachricht angehängt werden sollen |
 
 #### Ausgabe
@@ -131,6 +138,87 @@ Lesen Sie die neuesten Nachrichten aus Slack-Kanälen. Rufen Sie den Konversatio
 | Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
 | `messages` | array | Array von Nachrichtenobjekten aus dem Kanal |
+
+### `slack_download`
+
+Eine Datei von Slack herunterladen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `authMethod` | string | Nein | Authentifizierungsmethode: oauth oder bot_token |
+| `botToken` | string | Nein | Bot-Token für benutzerdefinierten Bot |
+| `fileId` | string | Ja | Die ID der herunterzuladenden Datei |
+| `fileName` | string | Nein | Optionale Überschreibung des Dateinamens |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `file` | file | Heruntergeladene Datei, gespeichert in den Ausführungsdateien |
+
+### `slack_update_message`
+
+Eine zuvor vom Bot in Slack gesendete Nachricht aktualisieren
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `authMethod` | string | Nein | Authentifizierungsmethode: oauth oder bot_token |
+| `botToken` | string | Nein | Bot-Token für Custom Bot |
+| `channel` | string | Ja | Kanal-ID, in dem die Nachricht gepostet wurde \(z.B. C1234567890\) |
+| `timestamp` | string | Ja | Zeitstempel der zu aktualisierenden Nachricht \(z.B. 1405894322.002768\) |
+| `text` | string | Ja | Neuer Nachrichtentext \(unterstützt Slack mrkdwn-Formatierung\) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `content` | string | Erfolgsmeldung |
+| `metadata` | object | Metadaten der aktualisierten Nachricht |
+
+### `slack_delete_message`
+
+Eine zuvor vom Bot in Slack gesendete Nachricht löschen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `authMethod` | string | Nein | Authentifizierungsmethode: oauth oder bot_token |
+| `botToken` | string | Nein | Bot-Token für Custom Bot |
+| `channel` | string | Ja | Kanal-ID, in dem die Nachricht gepostet wurde \(z.B. C1234567890\) |
+| `timestamp` | string | Ja | Zeitstempel der zu löschenden Nachricht \(z.B. 1405894322.002768\) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `content` | string | Erfolgsmeldung |
+| `metadata` | object | Metadaten der gelöschten Nachricht |
+
+### `slack_add_reaction`
+
+Emoji-Reaktion zu einer Slack-Nachricht hinzufügen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `authMethod` | string | Nein | Authentifizierungsmethode: oauth oder bot_token |
+| `botToken` | string | Nein | Bot-Token für Custom Bot |
+| `channel` | string | Ja | Kanal-ID, in dem die Nachricht gepostet wurde \(z.B. C1234567890\) |
+| `timestamp` | string | Ja | Zeitstempel der Nachricht, auf die reagiert werden soll \(z.B. 1405894322.002768\) |
+| `name` | string | Ja | Name der Emoji-Reaktion \(ohne Doppelpunkte, z.B. thumbsup, heart, eyes\) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `content` | string | Erfolgsmeldung |
+| `metadata` | object | Reaktions-Metadaten |
 
 ## Hinweise
 

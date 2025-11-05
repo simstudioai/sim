@@ -115,6 +115,24 @@ Einen neuen Ordner in Google Drive erstellen
 | --------- | ---- | ----------- |
 | `file` | json | Metadaten des erstellten Ordners einschließlich ID, Name und Informationen zum übergeordneten Ordner |
 
+### `google_drive_download`
+
+Eine Datei von Google Drive herunterladen (exportiert Google Workspace-Dateien automatisch)
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `fileId` | string | Ja | Die ID der herunterzuladenden Datei |
+| `mimeType` | string | Nein | Der MIME-Typ, in den Google Workspace-Dateien exportiert werden sollen (optional) |
+| `fileName` | string | Nein | Optionale Überschreibung des Dateinamens |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `file` | file | Heruntergeladene Datei, die in den Ausführungsdateien gespeichert ist |
+
 ### `google_drive_list`
 
 Dateien und Ordner in Google Drive auflisten
@@ -123,8 +141,8 @@ Dateien und Ordner in Google Drive auflisten
 
 | Parameter | Typ | Erforderlich | Beschreibung |
 | --------- | ---- | -------- | ----------- |
-| `folderSelector` | string | Nein | Wählen Sie den Ordner aus, aus dem Dateien aufgelistet werden sollen |
-| `folderId` | string | Nein | Die ID des Ordners, aus dem Dateien aufgelistet werden sollen \(interne Verwendung\) |
+| `folderSelector` | string | Nein | Den Ordner auswählen, aus dem Dateien aufgelistet werden sollen |
+| `folderId` | string | Nein | Die ID des Ordners, aus dem Dateien aufgelistet werden sollen (interne Verwendung) |
 | `query` | string | Nein | Eine Abfrage zum Filtern der Dateien |
 | `pageSize` | number | Nein | Die Anzahl der zurückzugebenden Dateien |
 | `pageToken` | string | Nein | Das Seitentoken für die Paginierung |

@@ -1,6 +1,7 @@
 ---
 title: Outlook
-description: Zugriff auf Outlook
+description: Outlook-E-Mail-Nachrichten senden, lesen, entwerfen, weiterleiten
+  und verschieben
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -134,18 +135,26 @@ Mit Microsoft Outlook können Sie:
 - **Geräteübergreifender Zugriff**: Nutzen Sie Outlook auf Desktop, Web und Mobilgeräten mit Echtzeit-Synchronisation  
 - **Datenschutz und Sicherheit gewährleisten**: Nutzen Sie Verschlüsselung und Compliance-Kontrollen auf Unternehmensebene
 
-In Sim ermöglicht die Microsoft Outlook-Integration Ihren Agenten, direkt programmatisch mit E-Mail- und Kalenderdaten zu interagieren. Dies ermöglicht leistungsstarke Automatisierungsszenarien wie das Senden benutzerdefinierter E-Mail-Updates, das Analysieren eingehender Nachrichten für Workflow-Trigger, das Erstellen von Kalenderereignissen und das Verwalten von Aufgabenerinnerungen. Durch die Verbindung von Sim mit Microsoft Outlook können intelligente Agenten Kommunikation automatisieren, Terminplanung optimieren und die Übersicht über die Organisationskorrespondenz behalten – alles innerhalb Ihres Workflow-Ökosystems.
+In Sim ermöglicht die Microsoft Outlook-Integration Ihren Agenten, direkt und programmgesteuert mit E-Mail- und Kalenderdaten zu interagieren, mit vollständigen E-Mail-Verwaltungsfunktionen. Dies ermöglicht leistungsstarke Automatisierungsszenarien für Ihren gesamten E-Mail-Workflow. Ihre Agenten können:
+
+- **Senden und entwerfen**: Professionelle E-Mails mit Anhängen verfassen und Entwürfe für später speichern
+- **Lesen und weiterleiten**: Auf Posteingang-Nachrichten zugreifen und wichtige Mitteilungen an Teammitglieder weiterleiten
+- **Effizient organisieren**: E-Mails als gelesen oder ungelesen markieren, Nachrichten zwischen Ordnern verschieben und E-Mails zur Referenz kopieren
+- **Posteingang aufräumen**: Unerwünschte Nachrichten löschen und organisierte Ordnerstrukturen pflegen
+- **Workflows auslösen**: In Echtzeit auf neue E-Mails reagieren und reaktionsschnelle Automatisierung basierend auf eingehenden Nachrichten ermöglichen
+
+Durch die Verbindung von Sim mit Microsoft Outlook ermöglichen Sie intelligenten Agenten, Kommunikation zu automatisieren, Terminplanung zu optimieren, Überblick über die Organisationskorrespondenz zu behalten und Posteingänge zu organisieren – alles innerhalb Ihres Workflow-Ökosystems. Ob Sie Kundenkommunikation verwalten, Rechnungen bearbeiten, Team-Updates koordinieren oder Nachfassaktionen automatisieren – die Outlook-Integration bietet E-Mail-Automatisierungsfunktionen auf Unternehmensniveau.
 {/* MANUAL-CONTENT-END */}
 
-## Nutzungsanleitung
+## Nutzungsanweisungen
 
-Integrieren Sie Outlook in den Workflow. Kann E-Mail-Nachrichten lesen, entwerfen und senden. Erfordert OAuth. Kann im Trigger-Modus verwendet werden, um einen Workflow auszulösen, wenn eine neue E-Mail empfangen wird.
+Integrieren Sie Outlook in den Workflow. Kann E-Mail-Nachrichten lesen, entwerfen, senden, weiterleiten und verschieben. Kann im Trigger-Modus verwendet werden, um einen Workflow auszulösen, wenn eine neue E-Mail empfangen wird.
 
 ## Tools
 
 ### `outlook_send`
 
-E-Mails über Outlook versenden
+E-Mails mit Outlook senden
 
 #### Eingabe
 
@@ -154,7 +163,7 @@ E-Mails über Outlook versenden
 | `to` | string | Ja | E-Mail-Adresse des Empfängers |
 | `subject` | string | Ja | E-Mail-Betreff |
 | `body` | string | Ja | E-Mail-Inhalt |
-| `replyToMessageId` | string | Nein | Nachrichten-ID, auf die geantwortet wird \(für Threading\) |
+| `replyToMessageId` | string | Nein | Nachrichten-ID für Antworten \(für Threading\) |
 | `conversationId` | string | Nein | Konversations-ID für Threading |
 | `cc` | string | Nein | CC-Empfänger \(durch Kommas getrennt\) |
 | `bcc` | string | Nein | BCC-Empfänger \(durch Kommas getrennt\) |
@@ -171,7 +180,7 @@ E-Mails über Outlook versenden
 
 ### `outlook_draft`
 
-E-Mails mit Outlook erstellen
+E-Mails mit Outlook entwerfen
 
 #### Eingabe
 
@@ -205,7 +214,7 @@ E-Mails aus Outlook lesen
 | --------- | ---- | -------- | ----------- |
 | `folder` | string | Nein | Ordner-ID, aus der E-Mails gelesen werden sollen \(Standard: Posteingang\) |
 | `maxResults` | number | Nein | Maximale Anzahl der abzurufenden E-Mails \(Standard: 1, max: 10\) |
-| `includeAttachments` | boolean | Nein | E-Mail-Anhänge herunterladen und einschließen |
+| `includeAttachments` | boolean | Nein | E-Mail-Anhänge herunterladen und einbeziehen |
 
 #### Ausgabe
 
@@ -213,7 +222,7 @@ E-Mails aus Outlook lesen
 | --------- | ---- | ----------- |
 | `message` | string | Erfolgs- oder Statusmeldung |
 | `results` | array | Array von E-Mail-Nachrichtenobjekten |
-| `attachments` | file[] | Alle E-Mail-Anhänge, zusammengefasst aus allen E-Mails |
+| `attachments` | file[] | Alle E-Mail-Anhänge aus allen E-Mails zusammengefasst |
 
 ### `outlook_forward`
 
@@ -233,6 +242,104 @@ Eine bestehende Outlook-Nachricht an bestimmte Empfänger weiterleiten
 | --------- | ---- | ----------- |
 | `message` | string | Erfolgs- oder Fehlermeldung |
 | `results` | object | Details zum Zustellungsergebnis |
+
+### `outlook_move`
+
+E-Mails zwischen Outlook-Ordnern verschieben
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `messageId` | string | Ja | ID der zu verschiebenden Nachricht |
+| `destinationId` | string | Ja | ID des Zielordners |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Status des erfolgreichen E-Mail-Verschiebens |
+| `message` | string | Erfolgs- oder Fehlermeldung |
+| `messageId` | string | ID der verschobenen Nachricht |
+| `newFolderId` | string | ID des Zielordners |
+
+### `outlook_mark_read`
+
+Outlook-Nachricht als gelesen markieren
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `messageId` | string | Ja | ID der Nachricht, die als gelesen markiert werden soll |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Erfolgsstatus der Operation |
+| `message` | string | Erfolgs- oder Fehlermeldung |
+| `messageId` | string | ID der Nachricht |
+| `isRead` | boolean | Lesestatus der Nachricht |
+
+### `outlook_mark_unread`
+
+Outlook-Nachricht als ungelesen markieren
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `messageId` | string | Ja | ID der Nachricht, die als ungelesen markiert werden soll |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Erfolgsstatus der Operation |
+| `message` | string | Erfolgs- oder Fehlermeldung |
+| `messageId` | string | ID der Nachricht |
+| `isRead` | boolean | Lesestatus der Nachricht |
+
+### `outlook_delete`
+
+Outlook-Nachricht löschen (in den Ordner "Gelöschte Elemente" verschieben)
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `messageId` | string | Ja | ID der zu löschenden Nachricht |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Erfolgsstatus der Operation |
+| `message` | string | Erfolgs- oder Fehlermeldung |
+| `messageId` | string | ID der gelöschten Nachricht |
+| `status` | string | Löschstatus |
+
+### `outlook_copy`
+
+Eine Outlook-Nachricht in einen anderen Ordner kopieren
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `messageId` | string | Ja | ID der zu kopierenden Nachricht |
+| `destinationId` | string | Ja | ID des Zielordners |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Status des erfolgreichen Kopierens der E-Mail |
+| `message` | string | Erfolgs- oder Fehlermeldung |
+| `originalMessageId` | string | ID der ursprünglichen Nachricht |
+| `copiedMessageId` | string | ID der kopierten Nachricht |
+| `destinationFolderId` | string | ID des Zielordners |
 
 ## Hinweise
 

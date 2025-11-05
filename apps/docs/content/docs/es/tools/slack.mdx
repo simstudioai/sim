@@ -1,6 +1,7 @@
 ---
 title: Slack
-description: Envía mensajes a Slack o activa flujos de trabajo desde eventos de Slack
+description: Envía, actualiza, elimina mensajes, añade reacciones en Slack o
+  activa flujos de trabajo desde eventos de Slack
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -46,24 +47,29 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 Con Slack, puedes:
 
-- **Automatizar notificaciones de agentes**: Enviar actualizaciones en tiempo real desde tus agentes Sim a cualquier canal de Slack
-- **Crear endpoints de webhook**: Configurar bots de Slack como webhooks para activar flujos de trabajo de Sim desde actividades de Slack
-- **Mejorar flujos de trabajo de agentes**: Integrar mensajería de Slack en tus agentes para entregar resultados, alertas y actualizaciones de estado
-- **Crear y compartir lienzos de Slack**: Generar programáticamente documentos colaborativos (lienzos) en canales de Slack
-- **Leer mensajes de canales**: Recuperar y procesar mensajes recientes de cualquier canal de Slack para monitoreo o activación de flujos de trabajo
+- **Automatiza notificaciones de agentes**: Envía actualizaciones en tiempo real desde tus agentes Sim a cualquier canal de Slack
+- **Crea endpoints de webhook**: Configura bots de Slack como webhooks para activar flujos de trabajo de Sim desde actividades de Slack
+- **Mejora los flujos de trabajo de agentes**: Integra mensajería de Slack en tus agentes para entregar resultados, alertas y actualizaciones de estado
+- **Crea y comparte lienzos de Slack**: Genera programáticamente documentos colaborativos (lienzos) en canales de Slack
+- **Lee mensajes de canales**: Recupera y procesa mensajes recientes de cualquier canal de Slack para monitoreo o activación de flujos de trabajo
+- **Gestiona mensajes de bot**: Actualiza, elimina y añade reacciones a mensajes enviados por tu bot
 
-En Sim, la integración con Slack permite a tus agentes interactuar programáticamente con Slack de varias maneras como parte de sus flujos de trabajo:
+En Sim, la integración con Slack permite a tus agentes interactuar programáticamente con Slack con capacidades completas de gestión de mensajes como parte de sus flujos de trabajo:
 
-- **Enviar mensajes**: Los agentes pueden enviar mensajes formateados a cualquier canal o usuario de Slack, compatible con la sintaxis mrkdwn de Slack para un formato enriquecido.
-- **Crear lienzos**: Los agentes pueden crear y compartir lienzos de Slack (documentos colaborativos) directamente en los canales, permitiendo compartir contenido más rico y documentación.
-- **Leer mensajes**: Los agentes pueden leer mensajes recientes de los canales, permitiendo monitorear, informar o desencadenar acciones adicionales basadas en la actividad del canal.
+- **Enviar mensajes**: Los agentes pueden enviar mensajes formateados a cualquier canal o usuario de Slack, compatible con la sintaxis mrkdwn de Slack para formato enriquecido
+- **Actualizar mensajes**: Editar mensajes de bot enviados previamente para corregir información o proporcionar actualizaciones de estado
+- **Eliminar mensajes**: Eliminar mensajes de bot cuando ya no son necesarios o contienen errores
+- **Añadir reacciones**: Expresar sentimiento o reconocimiento añadiendo reacciones con emojis a cualquier mensaje
+- **Crear lienzos**: Crear y compartir lienzos de Slack (documentos colaborativos) directamente en canales, permitiendo compartir contenido más rico y documentación
+- **Leer mensajes**: Leer mensajes recientes de canales, permitiendo monitoreo, informes o activación de acciones adicionales basadas en la actividad del canal
+- **Descargar archivos**: Recuperar archivos compartidos en canales de Slack para procesamiento o archivo
 
-Esto permite escenarios de automatización potentes como enviar notificaciones, alertas, actualizaciones e informes directamente al centro de comunicación de tu equipo, compartir documentos estructurados o monitorear conversaciones para desencadenar flujos de trabajo. Tus agentes pueden entregar información oportuna, compartir resultados de procesos que han completado, crear documentos colaborativos o alertar a los miembros del equipo cuando se necesita atención. Esta integración cierra la brecha entre tus flujos de trabajo de IA y la comunicación de tu equipo, asegurando que todos se mantengan informados sin intervención manual. Al conectar Sim con Slack, puedes crear agentes que mantengan a tu equipo actualizado con información relevante en el momento adecuado, mejorar la colaboración compartiendo conocimientos automáticamente y reducir la necesidad de actualizaciones manuales de estado, todo mientras aprovechas tu espacio de trabajo de Slack existente donde tu equipo ya se comunica.
+Esto permite escenarios de automatización potentes como enviar notificaciones con actualizaciones dinámicas, gestionar flujos conversacionales con mensajes de estado editables, reconocer mensajes importantes con reacciones y mantener canales limpios eliminando mensajes de bot obsoletos. Tus agentes pueden entregar información oportuna, actualizar mensajes a medida que avanzan los flujos de trabajo, crear documentos colaborativos o alertar a miembros del equipo cuando se necesita atención. Esta integración cierra la brecha entre tus flujos de trabajo de IA y la comunicación de tu equipo, asegurando que todos se mantengan informados con información precisa y actualizada. Al conectar Sim con Slack, puedes crear agentes que mantengan a tu equipo actualizado con información relevante en el momento adecuado, mejorar la colaboración compartiendo y actualizando información automáticamente, y reducir la necesidad de actualizaciones manuales de estado, todo mientras aprovechas tu espacio de trabajo de Slack existente donde tu equipo ya se comunica.
 {/* MANUAL-CONTENT-END */}
 
 ## Instrucciones de uso
 
-Integra Slack en el flujo de trabajo. Puede enviar mensajes, crear lienzos y leer mensajes. Requiere OAuth. Se puede usar en modo de activación para iniciar un flujo de trabajo cuando se envía un mensaje a un canal.
+Integra Slack en el flujo de trabajo. Puede enviar, actualizar y eliminar mensajes, crear lienzos, leer mensajes y añadir reacciones. Requiere Token de Bot en lugar de OAuth en modo avanzado. Se puede usar en modo de disparador para iniciar un flujo de trabajo cuando se envía un mensaje a un canal.
 
 ## Herramientas
 
@@ -79,6 +85,7 @@ Envía mensajes a canales o usuarios de Slack a través de la API de Slack. Comp
 | `botToken` | string | No | Token del bot para Bot personalizado |
 | `channel` | string | Sí | Canal de Slack objetivo (p. ej., #general) |
 | `text` | string | Sí | Texto del mensaje a enviar (admite formato mrkdwn de Slack) |
+| `thread_ts` | string | No | Marca de tiempo del hilo para responder (crea respuesta en hilo) |
 | `files` | file[] | No | Archivos para adjuntar al mensaje |
 
 #### Salida
@@ -131,6 +138,87 @@ Lee los últimos mensajes de los canales de Slack. Recupera el historial de conv
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
 | `messages` | array | Array de objetos de mensaje del canal |
+
+### `slack_download`
+
+Descargar un archivo de Slack
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `authMethod` | string | No | Método de autenticación: oauth o bot_token |
+| `botToken` | string | No | Token del bot para Bot personalizado |
+| `fileId` | string | Sí | El ID del archivo a descargar |
+| `fileName` | string | No | Anulación opcional del nombre del archivo |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `file` | file | Archivo descargado almacenado en los archivos de ejecución |
+
+### `slack_update_message`
+
+Actualizar un mensaje enviado previamente por el bot en Slack
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `authMethod` | string | No | Método de autenticación: oauth o bot_token |
+| `botToken` | string | No | Token del bot para Bot personalizado |
+| `channel` | string | Sí | ID del canal donde se publicó el mensaje (p. ej., C1234567890) |
+| `timestamp` | string | Sí | Marca de tiempo del mensaje a actualizar (p. ej., 1405894322.002768) |
+| `text` | string | Sí | Nuevo texto del mensaje (admite formato mrkdwn de Slack) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `content` | string | Mensaje de éxito |
+| `metadata` | object | Metadatos del mensaje actualizado |
+
+### `slack_delete_message`
+
+Eliminar un mensaje enviado previamente por el bot en Slack
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `authMethod` | string | No | Método de autenticación: oauth o bot_token |
+| `botToken` | string | No | Token del bot para Bot personalizado |
+| `channel` | string | Sí | ID del canal donde se publicó el mensaje (p. ej., C1234567890) |
+| `timestamp` | string | Sí | Marca de tiempo del mensaje a eliminar (p. ej., 1405894322.002768) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `content` | string | Mensaje de éxito |
+| `metadata` | object | Metadatos del mensaje eliminado |
+
+### `slack_add_reaction`
+
+Añadir una reacción con emoji a un mensaje de Slack
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `authMethod` | string | No | Método de autenticación: oauth o bot_token |
+| `botToken` | string | No | Token del bot para Bot personalizado |
+| `channel` | string | Sí | ID del canal donde se publicó el mensaje (p. ej., C1234567890) |
+| `timestamp` | string | Sí | Marca de tiempo del mensaje al que reaccionar (p. ej., 1405894322.002768) |
+| `name` | string | Sí | Nombre de la reacción emoji (sin dos puntos, p. ej., thumbsup, heart, eyes) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `content` | string | Mensaje de éxito |
+| `metadata` | object | Metadatos de la reacción |
 
 ## Notas
 
