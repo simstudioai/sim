@@ -1,6 +1,6 @@
 ---
 title: Perplexity
-description: Utilisez les modèles de chat Perplexity AI
+description: Utilisez Perplexity AI pour le chat et la recherche
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -36,7 +36,7 @@ Dans Sim, l'intégration de Perplexity permet à vos agents d'exploiter ces puis
 
 ## Instructions d'utilisation
 
-Intégrez Perplexity dans le flux de travail. Peut générer des compléments à l'aide des modèles de chat Perplexity AI. Nécessite une clé API.
+Intégrez Perplexity dans votre flux de travail. Peut générer des compléments en utilisant les modèles de chat Perplexity AI ou effectuer des recherches web avec filtrage avancé.
 
 ## Outils
 
@@ -62,7 +62,32 @@ Générez des compléments à l'aide des modèles de chat Perplexity AI
 | `success` | boolean | Statut de réussite de l'opération |
 | `output` | object | Résultats du complément de chat |
 
-## Remarques
+### `perplexity_search`
+
+Obtenez des résultats de recherche classés depuis Perplexity
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | Oui | Une requête de recherche ou un tableau de requêtes \(maximum 5 pour une recherche multi-requêtes\) |
+| `max_results` | number | Non | Nombre maximum de résultats de recherche à retourner \(1-20, par défaut : 10\) |
+| `search_domain_filter` | array | Non | Liste des domaines/URLs pour limiter les résultats de recherche \(max 20\) |
+| `max_tokens_per_page` | number | Non | Nombre maximum de tokens récupérés de chaque page web \(par défaut : 1024\) |
+| `country` | string | Non | Code pays pour filtrer les résultats de recherche \(ex. : US, GB, DE\) |
+| `search_recency_filter` | string | Non | Filtrer les résultats par récence : heure, jour, semaine, mois ou année |
+| `search_after_date` | string | Non | Inclure uniquement le contenu publié après cette date \(format : MM/JJ/AAAA\) |
+| `search_before_date` | string | Non | Inclure uniquement le contenu publié avant cette date \(format : MM/JJ/AAAA\) |
+| `apiKey` | string | Oui | Clé API Perplexity |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Statut de réussite de l'opération |
+| `output` | object | Résultats de recherche |
+
+## Notes
 
 - Catégorie : `tools`
 - Type : `perplexity`
