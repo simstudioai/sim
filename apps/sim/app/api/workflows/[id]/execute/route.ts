@@ -224,30 +224,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       enableSSE,
     })
 
-    // Check usage limits for this POST handler execution path
-    // Architecture note: This handler has two execution paths:
-    //   1. Non-SSE path (enableSSE=false): Calls executeWorkflowCore() directly (line 241)
-    //   2. SSE streaming path (enableSSE=true): Calls executeWorkflowCore() directly (line 470)
-    // Both paths in this handler call executeWorkflowCore() directly, so we check here.
-    // The executeWorkflow() wrapper function (used by chat) has its own check (line 54).
-    const usageCheck = await checkServerSideUsageLimits(userId)
-    if (usageCheck.isExceeded) {
-      logger.warn(`[${requestId}] User ${userId} has exceeded usage limits. Blocking execution.`, {
-        currentUsage: usageCheck.currentUsage,
-        limit: usageCheck.limit,
-        workflowId,
-        triggerType,
-      })
-
-      return NextResponse.json(
-        {
-          error:
-            usageCheck.message || 'Usage limit exceeded. Please upgrade your plan to continue.',
-        },
-        { status: 402 }
-      )
-    }
-
     const executionId = uuidv4()
     type LoggingTriggerType = 'api' | 'webhook' | 'schedule' | 'manual' | 'chat'
     let loggingTriggerType: LoggingTriggerType = 'manual'
@@ -266,6 +242,42 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       loggingTriggerType,
       requestId
     )
+
+    // Check usage limits for this POST handler execution path
+    // Architecture note: This handler calls executeWorkflowCore() directly (both SSE and non-SSE paths).
+    // The executeWorkflow() wrapper function (used by chat) has its own check (line 54).
+    const usageCheck = await checkServerSideUsageLimits(userId)
+    if (usageCheck.isExceeded) {
+      logger.warn(`[${requestId}] User ${userId} has exceeded usage limits. Blocking execution.`, {
+        currentUsage: usageCheck.currentUsage,
+        limit: usageCheck.limit,
+        workflowId,
+        triggerType,
+      })
+
+      await loggingSession.safeStart({
+        userId,
+        workspaceId: workflow.workspaceId || '',
+        variables: {},
+      })
+
+      await loggingSession.safeCompleteWithError({
+        error: {
+          message:
+            usageCheck.message || 'Usage limit exceeded. Please upgrade your plan to continue.',
+          stackTrace: undefined,
+        },
+        traceSpans: [],
+      })
+
+      return NextResponse.json(
+        {
+          error:
+            usageCheck.message || 'Usage limit exceeded. Please upgrade your plan to continue.',
+        },
+        { status: 402 }
+      )
+    }
 
     if (!enableSSE) {
       logger.info(`[${requestId}] Using non-SSE execution (direct JSON response)`)

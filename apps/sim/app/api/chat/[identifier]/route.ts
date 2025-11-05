@@ -2,7 +2,9 @@ import { db } from '@sim/db'
 import { chat, workflow, workspace } from '@sim/db/schema'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
+import { v4 as uuidv4 } from 'uuid'
 import { createLogger } from '@/lib/logs/console/logger'
+import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { ChatFiles } from '@/lib/uploads'
 import { generateRequestId } from '@/lib/utils'
 import {
@@ -59,6 +61,29 @@ export async function POST(
 
     if (!deployment.isActive) {
       logger.warn(`[${requestId}] Chat is not active: ${identifier}`)
+
+      const executionId = uuidv4()
+      const loggingSession = new LoggingSession(
+        deployment.workflowId,
+        executionId,
+        'chat',
+        requestId
+      )
+
+      await loggingSession.safeStart({
+        userId: deployment.userId,
+        workspaceId: '', // Will be resolved if needed
+        variables: {},
+      })
+
+      await loggingSession.safeCompleteWithError({
+        error: {
+          message: 'This chat is currently unavailable. The chat has been disabled.',
+          stackTrace: undefined,
+        },
+        traceSpans: [],
+      })
+
       return addCorsHeaders(createErrorResponse('This chat is currently unavailable', 403), request)
     }
 
@@ -96,6 +121,29 @@ export async function POST(
 
     if (workflowResult.length === 0 || !workflowResult[0].isDeployed) {
       logger.warn(`[${requestId}] Workflow not found or not deployed: ${deployment.workflowId}`)
+
+      const executionId = uuidv4()
+      const loggingSession = new LoggingSession(
+        deployment.workflowId,
+        executionId,
+        'chat',
+        requestId
+      )
+
+      await loggingSession.safeStart({
+        userId: deployment.userId,
+        workspaceId: workflowResult[0]?.workspaceId || '',
+        variables: {},
+      })
+
+      await loggingSession.safeCompleteWithError({
+        error: {
+          message: 'Chat workflow is not available. The workflow is not deployed.',
+          stackTrace: undefined,
+        },
+        traceSpans: [],
+      })
+
       return addCorsHeaders(createErrorResponse('Chat workflow is not available', 503), request)
     }
 
@@ -109,6 +157,29 @@ export async function POST(
 
       if (workspaceData.length === 0) {
         logger.error(`[${requestId}] Workspace not found for workflow ${deployment.workflowId}`)
+
+        const executionId = uuidv4()
+        const loggingSession = new LoggingSession(
+          deployment.workflowId,
+          executionId,
+          'chat',
+          requestId
+        )
+
+        await loggingSession.safeStart({
+          userId: deployment.userId,
+          workspaceId: workflowResult[0].workspaceId || '',
+          variables: {},
+        })
+
+        await loggingSession.safeCompleteWithError({
+          error: {
+            message: 'Workspace not found. Critical configuration error - please contact support.',
+            stackTrace: undefined,
+          },
+          traceSpans: [],
+        })
+
         return addCorsHeaders(createErrorResponse('Workspace not found', 500), request)
       }
 

@@ -2,10 +2,12 @@ import { db, webhook, workflow } from '@sim/db'
 import { tasks } from '@trigger.dev/sdk'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
+import { v4 as uuidv4 } from 'uuid'
 import { checkServerSideUsageLimits } from '@/lib/billing'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { env, isTruthy } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
+import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import {
   handleSlackChallenge,
   handleWhatsAppVerification,
@@ -307,6 +309,23 @@ export async function checkRateLimits(
         resetAt: rateLimitCheck.resetAt,
       })
 
+      const executionId = uuidv4()
+      const loggingSession = new LoggingSession(foundWorkflow.id, executionId, 'webhook', requestId)
+
+      await loggingSession.safeStart({
+        userId: actorUserId,
+        workspaceId: foundWorkflow.workspaceId || '',
+        variables: {},
+      })
+
+      await loggingSession.safeCompleteWithError({
+        error: {
+          message: `Rate limit exceeded. ${rateLimitCheck.remaining || 0} requests remaining. Resets at ${rateLimitCheck.resetAt ? new Date(rateLimitCheck.resetAt).toISOString() : 'unknown'}. Please try again later.`,
+          stackTrace: undefined,
+        },
+        traceSpans: [],
+      })
+
       if (foundWebhook.provider === 'microsoftteams') {
         return NextResponse.json(
           {
@@ -365,6 +384,25 @@ export async function checkUsageLimits(
           provider: foundWebhook.provider,
         }
       )
+
+      const executionId = uuidv4()
+      const loggingSession = new LoggingSession(foundWorkflow.id, executionId, 'webhook', requestId)
+
+      await loggingSession.safeStart({
+        userId: actorUserId,
+        workspaceId: foundWorkflow.workspaceId || '',
+        variables: {},
+      })
+
+      await loggingSession.safeCompleteWithError({
+        error: {
+          message:
+            usageCheck.message ||
+            'Usage limit exceeded. Please upgrade your plan to continue using webhooks.',
+          stackTrace: undefined,
+        },
+        traceSpans: [],
+      })
 
       if (foundWebhook.provider === 'microsoftteams') {
         return NextResponse.json(

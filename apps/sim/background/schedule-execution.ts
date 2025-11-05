@@ -48,11 +48,9 @@ function calculateNextRunTime(
   const scheduleType = getSubBlockValue(scheduleBlock, 'scheduleType')
   const scheduleValues = getScheduleTimeValues(scheduleBlock)
 
-  // Get timezone from schedule configuration (default to UTC)
   const timezone = scheduleValues.timezone || 'UTC'
 
   if (schedule.cronExpression) {
-    // Use Croner with timezone support for accurate scheduling
     const cron = new Cron(schedule.cronExpression, {
       timezone,
     })
@@ -87,6 +85,29 @@ export async function executeScheduleJob(payload: ScheduleExecutionPayload) {
 
     if (!workflowRecord) {
       logger.warn(`[${requestId}] Workflow ${payload.workflowId} not found`)
+
+      const loggingSession = new LoggingSession(
+        payload.workflowId,
+        executionId,
+        'schedule',
+        requestId
+      )
+
+      await loggingSession.safeStart({
+        userId: 'unknown',
+        workspaceId: '',
+        variables: {},
+      })
+
+      await loggingSession.safeCompleteWithError({
+        error: {
+          message:
+            'Workflow not found. The scheduled workflow may have been deleted or is no longer accessible.',
+          stackTrace: undefined,
+        },
+        traceSpans: [],
+      })
+
       return
     }
 
@@ -104,10 +125,40 @@ export async function executeScheduleJob(payload: ScheduleExecutionPayload) {
       logger.warn(
         `[${requestId}] Skipping schedule ${payload.scheduleId}: unable to resolve billed account.`
       )
+
+      const loggingSession = new LoggingSession(
+        payload.workflowId,
+        executionId,
+        'schedule',
+        requestId
+      )
+
+      await loggingSession.safeStart({
+        userId: workflowRecord.userId ?? 'unknown',
+        workspaceId: workflowRecord.workspaceId || '',
+        variables: {},
+      })
+
+      await loggingSession.safeCompleteWithError({
+        error: {
+          message:
+            'Unable to resolve billing account. This workflow cannot execute scheduled runs without a valid billing account.',
+          stackTrace: undefined,
+        },
+        traceSpans: [],
+      })
+
       return
     }
 
     const userSubscription = await getHighestPrioritySubscription(actorUserId)
+
+    const loggingSession = new LoggingSession(
+      payload.workflowId,
+      executionId,
+      'schedule',
+      requestId
+    )
 
     const rateLimiter = new RateLimiter()
     const rateLimitCheck = await rateLimiter.checkRateLimitWithSubscription(
@@ -126,6 +177,20 @@ export async function executeScheduleJob(payload: ScheduleExecutionPayload) {
           resetAt: rateLimitCheck.resetAt,
         }
       )
+
+      await loggingSession.safeStart({
+        userId: actorUserId,
+        workspaceId: workflowRecord.workspaceId || '',
+        variables: {},
+      })
+
+      await loggingSession.safeCompleteWithError({
+        error: {
+          message: `Rate limit exceeded. ${rateLimitCheck.remaining || 0} requests remaining. Resets at ${rateLimitCheck.resetAt ? new Date(rateLimitCheck.resetAt).toISOString() : 'unknown'}. Schedule will retry in 5 minutes.`,
+          stackTrace: undefined,
+        },
+        traceSpans: [],
+      })
 
       const retryDelay = 5 * 60 * 1000
       const nextRetryAt = new Date(now.getTime() + retryDelay)
@@ -157,6 +222,23 @@ export async function executeScheduleJob(payload: ScheduleExecutionPayload) {
           workflowId: payload.workflowId,
         }
       )
+
+      await loggingSession.safeStart({
+        userId: actorUserId,
+        workspaceId: workflowRecord.workspaceId || '',
+        variables: {},
+      })
+
+      await loggingSession.safeCompleteWithError({
+        error: {
+          message:
+            usageCheck.message ||
+            'Usage limit exceeded. Please upgrade your plan to continue using scheduled workflows.',
+          stackTrace: undefined,
+        },
+        traceSpans: [],
+      })
+
       try {
         const deployedData = await loadDeployedWorkflowState(payload.workflowId)
         const nextRunAt = calculateNextRunTime(payload, deployedData.blocks as any)
@@ -174,13 +256,6 @@ export async function executeScheduleJob(payload: ScheduleExecutionPayload) {
     }
 
     logger.info(`[${requestId}] Executing scheduled workflow ${payload.workflowId}`)
-
-    const loggingSession = new LoggingSession(
-      payload.workflowId,
-      executionId,
-      'schedule',
-      requestId
-    )
 
     try {
       const executionSuccess = await (async () => {
@@ -200,6 +275,21 @@ export async function executeScheduleJob(payload: ScheduleExecutionPayload) {
               logger.warn(
                 `[${requestId}] Schedule trigger block ${payload.blockId} not found in deployed workflow ${payload.workflowId}. Skipping execution.`
               )
+
+              await loggingSession.safeStart({
+                userId: actorUserId,
+                workspaceId: workflowRecord.workspaceId || '',
+                variables: {},
+              })
+
+              await loggingSession.safeCompleteWithError({
+                error: {
+                  message: `Trigger block not deployed. The schedule trigger (block ${payload.blockId}) is not present in the deployed workflow. Please redeploy the workflow.`,
+                  stackTrace: undefined,
+                },
+                traceSpans: [],
+              })
+
               return { skip: true, blocks: {} as Record<string, BlockState> }
             }
           }

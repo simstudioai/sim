@@ -75,6 +75,21 @@ export async function executeWorkflowJob(payload: WorkflowExecutionPayload) {
 
     const workflow = await getWorkflowById(workflowId)
     if (!workflow) {
+      await loggingSession.safeStart({
+        userId: payload.userId,
+        workspaceId: workspaceId || '',
+        variables: {},
+      })
+
+      await loggingSession.safeCompleteWithError({
+        error: {
+          message:
+            'Workflow not found. The workflow may have been deleted or is no longer accessible.',
+          stackTrace: undefined,
+        },
+        traceSpans: [],
+      })
+
       throw new Error(`Workflow ${workflowId} not found`)
     }
 

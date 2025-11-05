@@ -1,5 +1,7 @@
 import { type NextRequest, NextResponse } from 'next/server'
+import { v4 as uuidv4 } from 'uuid'
 import { createLogger } from '@/lib/logs/console/logger'
+import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { generateRequestId } from '@/lib/utils'
 import {
   checkRateLimits,
@@ -110,6 +112,30 @@ export async function POST(
       logger.warn(
         `[${requestId}] Trigger block ${foundWebhook.blockId} not found in deployment for workflow ${foundWorkflow.id}`
       )
+
+      const executionId = uuidv4()
+      const loggingSession = new LoggingSession(foundWorkflow.id, executionId, 'webhook', requestId)
+
+      const actorUserId = foundWorkflow.workspaceId
+        ? (await import('@/lib/workspaces/utils')).getWorkspaceBilledAccountUserId(
+            foundWorkflow.workspaceId
+          ) || foundWorkflow.userId
+        : foundWorkflow.userId
+
+      await loggingSession.safeStart({
+        userId: actorUserId,
+        workspaceId: foundWorkflow.workspaceId || '',
+        variables: {},
+      })
+
+      await loggingSession.safeCompleteWithError({
+        error: {
+          message: `Trigger block not deployed. The webhook trigger (block ${foundWebhook.blockId}) is not present in the deployed workflow. Please redeploy the workflow.`,
+          stackTrace: undefined,
+        },
+        traceSpans: [],
+      })
+
       return new NextResponse('Trigger block not deployed', { status: 404 })
     }
   }
