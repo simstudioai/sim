@@ -357,6 +357,34 @@ export async function verifyProviderAuth(
     }
   }
 
+  if (foundWebhook.provider === 'typeform') {
+    const secret = providerConfig.secret as string | undefined
+    const verifySignature = providerConfig.verifySignature !== false // Default to true
+
+    if (secret && verifySignature) {
+      const signature = request.headers.get('typeform-signature')
+
+      if (!signature) {
+        logger.warn(`[${requestId}] Typeform webhook missing signature header`)
+        return new NextResponse('Unauthorized - Missing Typeform signature', { status: 401 })
+      }
+
+      const { validateTypeformSignature } = await import('@/lib/webhooks/utils.server')
+
+      const isValidSignature = validateTypeformSignature(secret, signature, rawBody)
+
+      if (!isValidSignature) {
+        logger.warn(`[${requestId}] Typeform signature verification failed`, {
+          signatureLength: signature.length,
+          secretLength: secret.length,
+        })
+        return new NextResponse('Unauthorized - Invalid Typeform signature', { status: 401 })
+      }
+
+      logger.debug(`[${requestId}] Typeform signature verified successfully`)
+    }
+  }
+
   if (foundWebhook.provider === 'generic') {
     if (providerConfig.requireAuth) {
       const configToken = providerConfig.token

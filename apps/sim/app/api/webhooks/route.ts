@@ -25,7 +25,6 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Get query parameters
     const { searchParams } = new URL(request.url)
     const workflowId = searchParams.get('workflowId')
     const blockId = searchParams.get('blockId')
@@ -345,6 +344,30 @@ export async function POST(request: NextRequest) {
         return NextResponse.json(
           {
             error: 'Failed to create webhook in Webflow',
+            details: err instanceof Error ? err.message : 'Unknown error',
+          },
+          { status: 500 }
+        )
+      }
+    }
+
+    if (provider === 'typeform') {
+      const { createTypeformWebhook } = await import('@/lib/webhooks/webhook-helpers')
+      logger.info(`[${requestId}] Creating Typeform webhook before saving to database`)
+      try {
+        const usedTag = await createTypeformWebhook(request, createTempWebhookData(), requestId)
+
+        if (!finalProviderConfig.webhookTag) {
+          finalProviderConfig.webhookTag = usedTag
+          logger.info(`[${requestId}] Stored auto-generated webhook tag: ${usedTag}`)
+        }
+
+        externalSubscriptionCreated = true
+      } catch (err) {
+        logger.error(`[${requestId}] Error creating Typeform webhook`, err)
+        return NextResponse.json(
+          {
+            error: 'Failed to create webhook in Typeform',
             details: err instanceof Error ? err.message : 'Unknown error',
           },
           { status: 500 }

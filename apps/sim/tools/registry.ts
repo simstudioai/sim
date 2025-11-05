@@ -227,7 +227,16 @@ import {
 import { thinkingTool } from '@/tools/thinking'
 import { sendSMSTool } from '@/tools/twilio'
 import { getRecordingTool, listCallsTool, makeCallTool } from '@/tools/twilio_voice'
-import { typeformFilesTool, typeformInsightsTool, typeformResponsesTool } from '@/tools/typeform'
+import {
+  typeformCreateFormTool,
+  typeformDeleteFormTool,
+  typeformFilesTool,
+  typeformGetFormTool,
+  typeformInsightsTool,
+  typeformListFormsTool,
+  typeformResponsesTool,
+  typeformUpdateFormTool,
+} from '@/tools/typeform'
 import type { ToolConfig } from '@/tools/types'
 import { visionTool } from '@/tools/vision'
 import {
@@ -323,6 +332,11 @@ export const tools: Record<string, ToolConfig> = {
   typeform_responses: typeformResponsesTool,
   typeform_files: typeformFilesTool,
   typeform_insights: typeformInsightsTool,
+  typeform_list_forms: typeformListFormsTool,
+  typeform_get_form: typeformGetFormTool,
+  typeform_create_form: typeformCreateFormTool,
+  typeform_update_form: typeformUpdateFormTool,
+  typeform_delete_form: typeformDeleteFormTool,
   youtube_search: youtubeSearchTool,
   youtube_video_details: youtubeVideoDetailsTool,
   youtube_channel_info: youtubeChannelInfoTool,
