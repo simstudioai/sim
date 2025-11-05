@@ -8,6 +8,7 @@ import { processExecutionFiles } from '@/lib/execution/files'
 import { IdempotencyService, webhookIdempotency } from '@/lib/idempotency'
 import { createLogger } from '@/lib/logs/console/logger'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
+import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import { decryptSecret } from '@/lib/utils'
 import { WebhookAttachmentProcessor } from '@/lib/webhooks/attachment-processor'
 import { fetchAndProcessAirtablePayloads, formatWebhookInput } from '@/lib/webhooks/utils'
@@ -18,6 +19,7 @@ import {
 import { executeWorkflowCore } from '@/lib/workflows/executor/execution-core'
 import { getWorkflowById } from '@/lib/workflows/utils'
 import { type ExecutionMetadata, ExecutionSnapshot } from '@/executor/execution/snapshot'
+import type { ExecutionResult } from '@/executor/types'
 import { Serializer } from '@/serializer'
 import { mergeSubblockState } from '@/stores/workflows/server-utils'
 import { getTrigger, isTriggerValid } from '@/triggers'
@@ -479,6 +481,27 @@ async function executeWebhookJobInternal(
       workflowId: payload.workflowId,
       provider: payload.provider,
     })
+
+    try {
+      const executionResult = (error?.executionResult as ExecutionResult | undefined) || {
+        success: false,
+        output: {},
+        logs: [],
+      }
+      const { traceSpans } = buildTraceSpans(executionResult)
+
+      await loggingSession.safeCompleteWithError({
+        endedAt: new Date().toISOString(),
+        totalDurationMs: 0,
+        error: {
+          message: error.message || 'Webhook execution failed',
+          stackTrace: error.stack,
+        },
+        traceSpans,
+      })
+    } catch (loggingError) {
+      logger.error(`[${requestId}] Failed to complete logging session`, loggingError)
+    }
 
     throw error
   }
