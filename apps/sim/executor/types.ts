@@ -20,6 +20,43 @@ export interface UserFile {
 /**
  * Standardized block output format that ensures compatibility with the execution engine.
  */
+export interface ParallelPauseScope {
+  parallelId: string
+  branchIndex: number
+  branchTotal?: number
+}
+
+export interface LoopPauseScope {
+  loopId: string
+  iteration: number
+}
+
+export interface PauseMetadata {
+  contextId: string
+  triggerBlockId: string
+  blockId: string
+  response: any
+  timestamp: string
+  parallelScope?: ParallelPauseScope
+  loopScope?: LoopPauseScope
+}
+
+export interface PausePoint {
+  contextId: string
+  triggerBlockId: string
+  response: any
+  registeredAt: string
+  resumeStatus: 'paused' | 'resumed' | 'failed'
+  snapshotReady: boolean
+  parallelScope?: ParallelPauseScope
+  loopScope?: LoopPauseScope
+}
+
+export interface SerializedSnapshot {
+  snapshot: string
+  triggerIds: string[]
+}
+
 export interface NormalizedBlockOutput {
   [key: string]: any
   // Content fields
@@ -57,6 +94,8 @@ export interface NormalizedBlockOutput {
   // Child workflow introspection (for workflow blocks)
   childTraceSpans?: TraceSpan[]
   childWorkflowName?: string
+  // Pause metadata
+  _pauseMetadata?: PauseMetadata
 }
 
 /**
@@ -89,6 +128,12 @@ export interface ExecutionMetadata {
   isDebugSession?: boolean // Whether the workflow is running in debug mode
   context?: ExecutionContext // Runtime context for the workflow
   workflowConnections?: Array<{ source: string; target: string }> // Connections between workflow blocks
+  status?: 'running' | 'paused' | 'completed'
+  pausePoints?: string[]
+  resumeChain?: {
+    parentExecutionId?: string
+    depth: number
+  }
 }
 
 /**
@@ -199,6 +244,9 @@ export interface ExecutionResult {
   error?: string // Error message if execution failed
   logs?: BlockLog[] // Execution logs for all blocks
   metadata?: ExecutionMetadata
+  status?: 'completed' | 'paused'
+  pausePoints?: PausePoint[]
+  snapshotSeed?: SerializedSnapshot
   _streamingMetadata?: {
     // Internal metadata for streaming execution
     loggingSession: any
@@ -252,6 +300,19 @@ export interface BlockHandler {
     block: SerializedBlock,
     inputs: Record<string, any>
   ): Promise<BlockOutput | StreamingExecution>
+
+  executeWithNode?: (
+    ctx: ExecutionContext,
+    block: SerializedBlock,
+    inputs: Record<string, any>,
+    nodeMetadata: {
+      nodeId: string
+      loopId?: string
+      parallelId?: string
+      branchIndex?: number
+      branchTotal?: number
+    }
+  ) => Promise<BlockOutput | StreamingExecution>
 }
 
 /**

@@ -47,7 +47,10 @@ export class BlockExecutor {
 
     try {
       resolvedInputs = this.resolver.resolveInputs(ctx, node.id, block.config.params, block)
-      const output = await handler.execute(ctx, block, resolvedInputs)
+      const nodeMetadata = this.buildNodeMetadata(node)
+      const output = handler.executeWithNode
+        ? await handler.executeWithNode(ctx, block, resolvedInputs, nodeMetadata)
+        : await handler.execute(ctx, block, resolvedInputs)
 
       const isStreamingExecution =
         output && typeof output === 'object' && 'stream' in output && 'execution' in output
@@ -133,6 +136,23 @@ export class BlockExecutor {
       }
 
       throw error
+    }
+  }
+
+  private buildNodeMetadata(node: DAGNode): {
+    nodeId: string
+    loopId?: string
+    parallelId?: string
+    branchIndex?: number
+    branchTotal?: number
+  } {
+    const metadata = node?.metadata || {}
+    return {
+      nodeId: node.id,
+      loopId: metadata.loopId,
+      parallelId: metadata.parallelId,
+      branchIndex: metadata.branchIndex,
+      branchTotal: metadata.branchTotal,
     }
   }
 

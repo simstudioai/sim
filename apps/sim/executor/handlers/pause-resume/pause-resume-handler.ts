@@ -1,8 +1,13 @@
 import { createLogger } from '@/lib/logs/console/logger'
 import type { BlockOutput } from '@/blocks/types'
 import { BlockType, HTTP } from '@/executor/consts'
-import type { BlockHandler, ExecutionContext } from '@/executor/types'
+import type { BlockHandler, ExecutionContext, PauseMetadata } from '@/executor/types'
 import type { SerializedBlock } from '@/serializer/types'
+import {
+  buildTriggerBlockId,
+  generatePauseContextId,
+  mapNodeMetadataToPauseScopes,
+} from '@/executor/pause-resume/utils.ts'
 
 const logger = createLogger('PauseResumeBlockHandler')
 
@@ -24,25 +29,66 @@ export class PauseResumeBlockHandler implements BlockHandler {
     block: SerializedBlock,
     inputs: Record<string, any>
   ): Promise<BlockOutput> {
+    return this.executeWithNode(ctx, block, inputs, {
+      nodeId: block.id,
+    })
+  }
+
+  async executeWithNode(
+    ctx: ExecutionContext,
+    block: SerializedBlock,
+    inputs: Record<string, any>,
+    nodeMetadata: {
+      nodeId: string
+      loopId?: string
+      parallelId?: string
+      branchIndex?: number
+      branchTotal?: number
+    }
+  ): Promise<BlockOutput> {
     logger.info(`Executing pause resume block: ${block.id}`)
 
     try {
       const responseData = this.parseResponseData(inputs)
       const statusCode = this.parseStatus(inputs.status)
       const responseHeaders = this.parseHeaders(inputs.headers)
+      const timestamp = new Date().toISOString()
 
-      logger.info('Pause resume prepared', {
-        status: statusCode,
-        dataKeys: Object.keys(responseData),
-        headerKeys: Object.keys(responseHeaders),
-      })
+      const { parallelScope, loopScope } = mapNodeMetadataToPauseScopes(ctx, nodeMetadata)
+      const contextId = generatePauseContextId(block.id, nodeMetadata, loopScope)
+      const triggerBlockId = buildTriggerBlockId(nodeMetadata.nodeId)
 
-      return {
+      const pauseMetadata: PauseMetadata = {
+        contextId,
+        triggerBlockId,
+        blockId: nodeMetadata.nodeId,
         response: {
           data: responseData,
           status: statusCode,
           headers: responseHeaders,
         },
+        timestamp,
+        parallelScope,
+        loopScope,
+      }
+
+      const responseOutput = {
+        data: responseData,
+        status: statusCode,
+        headers: responseHeaders,
+      }
+
+      logger.info('Pause resume prepared', {
+        status: statusCode,
+        contextId,
+        triggerBlockId,
+        parallelScope,
+        loopScope,
+      })
+
+      return {
+        response: responseOutput,
+        _pauseMetadata: pauseMetadata,
       }
     } catch (error: any) {
       logger.error('Pause resume block execution failed:', error)
