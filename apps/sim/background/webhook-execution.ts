@@ -23,6 +23,7 @@ import type { ExecutionResult } from '@/executor/types'
 import { Serializer } from '@/serializer'
 import { mergeSubblockState } from '@/stores/workflows/server-utils'
 import { getTrigger, isTriggerValid } from '@/triggers'
+import { PauseResumeManager } from '@/lib/workflows/executor/pause-resume-manager'
 
 const logger = createLogger('TriggerWebhookExecution')
 
@@ -274,6 +275,21 @@ async function executeWebhookJobInternal(
           loggingSession,
         })
 
+        if (executionResult.status === 'paused') {
+          if (!executionResult.snapshotSeed) {
+            logger.error(`[${requestId}] Missing snapshot seed for paused execution`, {
+              executionId,
+            })
+          } else {
+            await PauseResumeManager.persistPauseResult({
+              workflowId: payload.workflowId,
+              executionId,
+              pausePoints: executionResult.pausePoints || [],
+              snapshotSeed: executionResult.snapshotSeed,
+            })
+          }
+        }
+
         logger.info(`[${requestId}] Airtable webhook execution completed`, {
           success: executionResult.success,
           workflowId: payload.workflowId,
@@ -459,6 +475,21 @@ async function executeWebhookJobInternal(
       callbacks: {},
       loggingSession,
     })
+
+    if (executionResult.status === 'paused') {
+      if (!executionResult.snapshotSeed) {
+        logger.error(`[${requestId}] Missing snapshot seed for paused execution`, {
+          executionId,
+        })
+      } else {
+        await PauseResumeManager.persistPauseResult({
+          workflowId: payload.workflowId,
+          executionId,
+          pausePoints: executionResult.pausePoints || [],
+          snapshotSeed: executionResult.snapshotSeed,
+        })
+      }
+    }
 
     logger.info(`[${requestId}] Webhook execution completed`, {
       success: executionResult.success,

@@ -6,6 +6,7 @@ import { createLogger } from '@/lib/logs/console/logger'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { generateRequestId, SSE_HEADERS } from '@/lib/utils'
 import { executeWorkflowCore } from '@/lib/workflows/executor/execution-core'
+import { PauseResumeManager } from '@/lib/workflows/executor/pause-resume-manager'
 import { type ExecutionEvent, encodeSSEEvent } from '@/lib/workflows/executor/execution-events'
 import { validateWorkflowAccess } from '@/app/api/workflows/middleware'
 import { type ExecutionMetadata, ExecutionSnapshot } from '@/executor/execution/snapshot'
@@ -128,6 +129,21 @@ export async function executeWorkflow(
       },
       loggingSession,
     })
+
+    if (result.status === 'paused') {
+      if (!result.snapshotSeed) {
+        logger.error(`[${requestId}] Missing snapshot seed for paused execution`, {
+          executionId,
+        })
+      } else {
+        await PauseResumeManager.persistPauseResult({
+          workflowId,
+          executionId,
+          pausePoints: result.pausePoints || [],
+          snapshotSeed: result.snapshotSeed,
+        })
+      }
+    }
 
     if (streamConfig?.skipLoggingComplete) {
       return {
@@ -543,6 +559,21 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
             },
             loggingSession,
           })
+
+          if (result.status === 'paused') {
+            if (!result.snapshotSeed) {
+              logger.error(`[${requestId}] Missing snapshot seed for paused execution`, {
+                executionId,
+              })
+            } else {
+              await PauseResumeManager.persistPauseResult({
+                workflowId,
+                executionId,
+                pausePoints: result.pausePoints || [],
+                snapshotSeed: result.snapshotSeed,
+              })
+            }
+          }
 
           if (result.error === 'Workflow execution was cancelled') {
             logger.info(`[${requestId}] Workflow execution was cancelled`)
