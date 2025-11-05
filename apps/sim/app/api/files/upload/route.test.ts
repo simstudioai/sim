@@ -8,8 +8,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { setupFileApiMocks } from '@/app/api/__test-utils__/utils'
 
 describe('File Upload API Route', () => {
-  const createMockFormData = (files: File[]): FormData => {
+  const createMockFormData = (files: File[], context = 'workspace'): FormData => {
     const formData = new FormData()
+    formData.append('context', context)
+    formData.append('workspaceId', 'test-workspace-id')
     files.forEach((file) => {
       formData.append('file', file)
     })
@@ -60,14 +62,15 @@ describe('File Upload API Route', () => {
     }
 
     expect(response.status).toBe(200)
-    expect(data).toHaveProperty('path')
-    expect(data.path).toMatch(/\/api\/files\/serve\/.*\.txt$/)
+    expect(data).toHaveProperty('url')
+    expect(data.url).toMatch(/\/api\/files\/serve\/.*\.txt$/)
     expect(data).toHaveProperty('name', 'test.txt')
     expect(data).toHaveProperty('size')
     expect(data).toHaveProperty('type', 'text/plain')
+    expect(data).toHaveProperty('key')
 
-    const { StorageService } = await import('@/lib/uploads')
-    expect(StorageService.uploadFile).toHaveBeenCalled()
+    const { uploadWorkspaceFile } = await import('@/lib/uploads/contexts/workspace')
+    expect(uploadWorkspaceFile).toHaveBeenCalled()
   })
 
   it('should upload a file to S3 when in S3 mode', async () => {
@@ -90,14 +93,15 @@ describe('File Upload API Route', () => {
     const data = await response.json()
 
     expect(response.status).toBe(200)
-    expect(data).toHaveProperty('path')
-    expect(data.path).toContain('/api/files/serve/')
+    expect(data).toHaveProperty('url')
+    expect(data.url).toContain('/api/files/serve/')
     expect(data).toHaveProperty('name', 'test.txt')
     expect(data).toHaveProperty('size')
     expect(data).toHaveProperty('type', 'text/plain')
+    expect(data).toHaveProperty('key')
 
-    const uploads = await import('@/lib/uploads')
-    expect(uploads.StorageService.uploadFile).toHaveBeenCalled()
+    const { uploadWorkspaceFile } = await import('@/lib/uploads/contexts/workspace')
+    expect(uploadWorkspaceFile).toHaveBeenCalled()
   })
 
   it('should handle multiple file uploads', async () => {
@@ -146,14 +150,15 @@ describe('File Upload API Route', () => {
   })
 
   it('should handle S3 upload errors', async () => {
+    vi.resetModules()
+
     setupFileApiMocks({
       cloudEnabled: true,
       storageProvider: 's3',
     })
 
-    vi.doMock('@/lib/uploads/core/storage-service', () => ({
-      uploadFile: vi.fn().mockRejectedValue(new Error('Upload failed')),
-      hasCloudStorage: vi.fn().mockReturnValue(true),
+    vi.doMock('@/lib/uploads/contexts/workspace', () => ({
+      uploadWorkspaceFile: vi.fn().mockRejectedValue(new Error('Storage limit exceeded')),
     }))
 
     const mockFile = createMockFile()
@@ -169,9 +174,11 @@ describe('File Upload API Route', () => {
     const response = await POST(req)
     const data = await response.json()
 
-    expect(response.status).toBe(500)
+    expect(response.status).toBe(413)
     expect(data).toHaveProperty('error')
     expect(typeof data.error).toBe('string')
+
+    vi.resetModules()
   })
 
   it('should handle CORS preflight requests', async () => {
@@ -223,6 +230,14 @@ describe('File Upload Security Tests', () => {
   })
 
   describe('File Extension Validation', () => {
+    beforeEach(() => {
+      vi.resetModules()
+      setupFileApiMocks({
+        cloudEnabled: false,
+        storageProvider: 'local',
+      })
+    })
+
     it('should accept allowed file types', async () => {
       const allowedTypes = [
         'pdf',
@@ -243,6 +258,8 @@ describe('File Upload Security Tests', () => {
         const formData = new FormData()
         const file = new File(['test content'], `test.${ext}`, { type: 'application/octet-stream' })
         formData.append('file', file)
+        formData.append('context', 'workspace')
+        formData.append('workspaceId', 'test-workspace-id')
 
         const req = new Request('http://localhost/api/files/upload', {
           method: 'POST',
@@ -261,6 +278,29 @@ describe('File Upload Security Tests', () => {
       const maliciousContent = '<script>alert("XSS")</script>'
       const file = new File([maliciousContent], 'malicious.html', { type: 'text/html' })
       formData.append('file', file)
+      formData.append('context', 'workspace')
+      formData.append('workspaceId', 'test-workspace-id')
+
+      const req = new Request('http://localhost/api/files/upload', {
+        method: 'POST',
+        body: formData,
+      })
+
+      const { POST } = await import('@/app/api/files/upload/route')
+      const response = await POST(req as any)
+
+      expect(response.status).toBe(400)
+      const data = await response.json()
+      expect(data.message).toContain("File type 'html' is not allowed")
+    })
+
+    it('should reject HTML files to prevent XSS', async () => {
+      const formData = new FormData()
+      const maliciousContent = '<script>alert("XSS")</script>'
+      const file = new File([maliciousContent], 'malicious.html', { type: 'text/html' })
+      formData.append('file', file)
+      formData.append('context', 'workspace')
+      formData.append('workspaceId', 'test-workspace-id')
 
       const req = new Request('http://localhost/api/files/upload', {
         method: 'POST',
@@ -280,6 +320,8 @@ describe('File Upload Security Tests', () => {
       const maliciousSvg = '<svg onload="alert(\'XSS\')" xmlns="http://www.w3.org/2000/svg"></svg>'
       const file = new File([maliciousSvg], 'malicious.svg', { type: 'image/svg+xml' })
       formData.append('file', file)
+      formData.append('context', 'workspace')
+      formData.append('workspaceId', 'test-workspace-id')
 
       const req = new Request('http://localhost/api/files/upload', {
         method: 'POST',
@@ -299,6 +341,8 @@ describe('File Upload Security Tests', () => {
       const maliciousJs = 'alert("XSS")'
       const file = new File([maliciousJs], 'malicious.js', { type: 'application/javascript' })
       formData.append('file', file)
+      formData.append('context', 'workspace')
+      formData.append('workspaceId', 'test-workspace-id')
 
       const req = new Request('http://localhost/api/files/upload', {
         method: 'POST',
@@ -317,6 +361,8 @@ describe('File Upload Security Tests', () => {
       const formData = new FormData()
       const file = new File(['test content'], 'noextension', { type: 'application/octet-stream' })
       formData.append('file', file)
+      formData.append('context', 'workspace')
+      formData.append('workspaceId', 'test-workspace-id')
 
       const req = new Request('http://localhost/api/files/upload', {
         method: 'POST',
@@ -341,6 +387,8 @@ describe('File Upload Security Tests', () => {
         type: 'text/html',
       })
       formData.append('file', invalidFile)
+      formData.append('context', 'workspace')
+      formData.append('workspaceId', 'test-workspace-id')
 
       const req = new Request('http://localhost/api/files/upload', {
         method: 'POST',
