@@ -132,13 +132,24 @@ async function executeWebhookJobInternal(
   const loggingSession = new LoggingSession(payload.workflowId, executionId, 'webhook', requestId)
 
   try {
-    // Load workflow state based on execution target
+    await loggingSession.safeStart({
+      userId: payload.userId,
+      workspaceId: '', // Will be resolved below
+      variables: {},
+      triggerData: {
+        isTest: payload.testMode === true,
+        executionTarget: payload.executionTarget || 'deployed',
+      },
+    })
+
     const workflowData =
       payload.executionTarget === 'live'
         ? await loadWorkflowFromNormalizedTables(payload.workflowId)
         : await loadDeployedWorkflowState(payload.workflowId)
     if (!workflowData) {
-      throw new Error(`Workflow ${payload.workflowId} has no live normalized state`)
+      throw new Error(
+        `Workflow state not found. The workflow may not be ${payload.executionTarget === 'live' ? 'saved' : 'deployed'} or the deployment data may be corrupted.`
+      )
     }
 
     const { blocks, edges, loops, parallels } = workflowData
@@ -163,17 +174,6 @@ async function executeWebhookJobInternal(
       })
     )
     const decryptedEnvVars: Record<string, string> = Object.fromEntries(decryptedPairs)
-
-    // Start logging session
-    await loggingSession.safeStart({
-      userId: payload.userId,
-      workspaceId: workspaceId || '',
-      variables: decryptedEnvVars,
-      triggerData: {
-        isTest: payload.testMode === true,
-        executionTarget: payload.executionTarget || 'deployed',
-      },
-    })
 
     // Merge subblock states (matching workflow-execution pattern)
     const mergedStates = mergeSubblockState(blocks, {})

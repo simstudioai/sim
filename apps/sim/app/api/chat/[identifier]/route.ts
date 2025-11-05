@@ -211,16 +211,43 @@ export async function POST(
           executionId,
         }
 
-        const uploadedFiles = await ChatFiles.processChatFiles(
-          files,
-          executionContext,
-          requestId,
-          deployment.userId
-        )
+        try {
+          const uploadedFiles = await ChatFiles.processChatFiles(
+            files,
+            executionContext,
+            requestId,
+            deployment.userId
+          )
 
-        if (uploadedFiles.length > 0) {
-          workflowInput.files = uploadedFiles
-          logger.info(`[${requestId}] Successfully processed ${uploadedFiles.length} files`)
+          if (uploadedFiles.length > 0) {
+            workflowInput.files = uploadedFiles
+            logger.info(`[${requestId}] Successfully processed ${uploadedFiles.length} files`)
+          }
+        } catch (fileError: any) {
+          logger.error(`[${requestId}] Failed to process chat files:`, fileError)
+
+          const fileLoggingSession = new LoggingSession(
+            deployment.workflowId,
+            executionId,
+            'chat',
+            requestId
+          )
+
+          await fileLoggingSession.safeStart({
+            userId: workspaceOwnerId,
+            workspaceId: workflowResult[0].workspaceId || '',
+            variables: {},
+          })
+
+          await fileLoggingSession.safeCompleteWithError({
+            error: {
+              message: `File upload failed: ${fileError.message || 'Unable to process uploaded files'}`,
+              stackTrace: fileError.stack,
+            },
+            traceSpans: [],
+          })
+
+          throw fileError
         }
       }
 
