@@ -31,6 +31,7 @@ export interface ExecuteWorkflowCoreOptions {
   snapshot: ExecutionSnapshot
   callbacks: ExecutionCallbacks
   loggingSession: LoggingSession
+  skipLogCreation?: boolean // For resume executions - reuse existing log entry
 }
 
 function parseVariableValueByType(value: any, type: string): any {
@@ -97,7 +98,7 @@ function parseVariableValueByType(value: any, type: string): any {
 export async function executeWorkflowCore(
   options: ExecuteWorkflowCoreOptions
 ): Promise<ExecutionResult> {
-  const { snapshot, callbacks, loggingSession } = options
+  const { snapshot, callbacks, loggingSession, skipLogCreation } = options
   const { metadata, workflow, input, environmentVariables, workflowVariables, selectedOutputs } =
     snapshot
   const { requestId, workflowId, userId, triggerType, executionId, triggerBlockId, useDraftState } =
@@ -155,6 +156,7 @@ export async function executeWorkflowCore(
       userId,
       workspaceId: providedWorkspaceId,
       variables,
+      skipLogCreation, // Skip if resuming an existing execution
     })
 
     // Process block states with env var substitution

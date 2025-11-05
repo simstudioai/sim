@@ -195,7 +195,8 @@ export class PauseResumeManager {
         .limit(1)
         .then((rows) => rows[0])
 
-      const resumeExecutionId = uuidv4()
+      // Use the original execution ID for resume to maintain continuity in logs
+      const resumeExecutionId = executionId
       const now = new Date()
 
       if (activeResume) {
@@ -371,6 +372,18 @@ export class PauseResumeManager {
     })
 
     if (stateCopy) {
+      // Calculate the pause duration (time from pause to resume)
+      const pauseDurationMs = pausedExecution.pausedAt 
+        ? Date.now() - new Date(pausedExecution.pausedAt).getTime()
+        : 0
+      
+      logger.info('Calculated pause duration', {
+        pauseBlockId,
+        pauseDurationMs,
+        pausedAt: pausedExecution.pausedAt,
+        resumedAt: new Date().toISOString(),
+      })
+      
       // Set the pause block as completed with the resume input
       const pauseBlockState = stateCopy.blockStates[pauseBlockId] ?? {
         output: {},
@@ -385,8 +398,10 @@ export class PauseResumeManager {
         },
         _resumed: true,
         _resumedFrom: pausedExecution.executionId,
+        _pauseDurationMs: pauseDurationMs,
       }
       pauseBlockState.executed = true
+      pauseBlockState.executionTime = pauseDurationMs
       stateCopy.blockStates[pauseBlockId] = pauseBlockState
       
       // Queue the downstream blocks for execution
@@ -401,8 +416,8 @@ export class PauseResumeManager {
 
     const metadata = {
       ...baseSnapshot.metadata,
-      executionId: resumeExecutionId,
-      requestId: resumeExecutionId.slice(0, 8),
+      executionId: resumeExecutionId, // Same as original
+      requestId: baseSnapshot.metadata.requestId, // Keep original requestId
       triggerBlockId: undefined, // No trigger needed for resume
       startTime: new Date().toISOString(),
       userId,
@@ -448,10 +463,12 @@ export class PauseResumeManager {
       resumeFromSnapshot: metadata.resumeFromSnapshot,
     })
 
+    // For resume executions, pass a flag to skip creating a new log entry
     return await executeWorkflowCore({
       snapshot: resumeSnapshot,
       callbacks: {},
       loggingSession,
+      skipLogCreation: true, // Reuse existing log entry
     })
   }
 
