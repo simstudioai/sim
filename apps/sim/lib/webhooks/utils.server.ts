@@ -1293,7 +1293,8 @@ export function verifyProviderWebhook(
       if (providerConfig.requireAuth) {
         let isAuthenticated = false
         if (providerConfig.token) {
-          const providedToken = authHeader?.startsWith('Bearer ') ? authHeader.substring(7) : null
+          const bearerMatch = authHeader?.match(/^bearer\s+(.+)$/i)
+          const providedToken = bearerMatch ? bearerMatch[1] : null
           if (providedToken === providerConfig.token) {
             isAuthenticated = true
           }
@@ -1305,7 +1306,7 @@ export function verifyProviderWebhook(
           }
           if (!isAuthenticated) {
             logger.warn(`[${requestId}] Unauthorized webhook access attempt - invalid token`)
-            return new NextResponse('Unauthorized', { status: 401 })
+            return new NextResponse('Unauthorized - Invalid authentication token', { status: 401 })
           }
         }
       }
