@@ -128,43 +128,43 @@ export const makeCallTool: ToolConfig<TwilioMakeCallParams, TwilioCallOutput> = 
         recordType: typeof params.record,
       })
 
-      const bodyParams: Record<string, any> = {
-        To: params.to,
-        From: params.from,
-      }
+      const formData = new URLSearchParams()
+      formData.append('To', params.to)
+      formData.append('From', params.from)
 
       if (params.url) {
-        bodyParams.Url = params.url
+        formData.append('Url', params.url)
       } else if (params.twiml) {
         const convertedTwiml = convertSquareBracketsToTwiML(params.twiml) || params.twiml
-        bodyParams.Twiml = convertedTwiml
+        formData.append('Twiml', convertedTwiml)
       }
 
       if (params.statusCallback) {
-        bodyParams.StatusCallback = params.statusCallback
+        formData.append('StatusCallback', params.statusCallback)
       }
       if (params.statusCallbackMethod) {
-        bodyParams.StatusCallbackMethod = params.statusCallbackMethod
+        formData.append('StatusCallbackMethod', params.statusCallbackMethod)
       }
 
       if (params.record === true) {
         logger.info('Enabling call recording')
-        bodyParams.Record = 'true'
+        formData.append('Record', 'true')
       }
 
       if (params.recordingStatusCallback) {
-        bodyParams.RecordingStatusCallback = params.recordingStatusCallback
+        formData.append('RecordingStatusCallback', params.recordingStatusCallback)
       }
       if (params.timeout) {
-        bodyParams.Timeout = params.timeout.toString()
+        formData.append('Timeout', params.timeout.toString())
       }
       if (params.machineDetection) {
-        bodyParams.MachineDetection = params.machineDetection
+        formData.append('MachineDetection', params.machineDetection)
       }
 
-      logger.info('Final Twilio request body:', bodyParams)
+      const bodyString = formData.toString()
+      logger.info('Final Twilio request body:', bodyString)
 
-      return bodyParams
+      return bodyString
     },
   },
 

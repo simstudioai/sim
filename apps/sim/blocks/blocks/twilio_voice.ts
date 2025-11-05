@@ -143,7 +143,7 @@ export const TwilioVoiceBlock: BlockConfig<ToolResponse> = {
     },
     {
       id: 'listTo',
-      title: 'Filter by To Number',
+      title: 'To Number',
       type: 'short-input',
       layout: 'half',
       placeholder: '+14155551234',
@@ -154,7 +154,7 @@ export const TwilioVoiceBlock: BlockConfig<ToolResponse> = {
     },
     {
       id: 'listFrom',
-      title: 'Filter by From Number',
+      title: 'From Number',
       type: 'short-input',
       layout: 'half',
       placeholder: '+14155556789',
@@ -165,7 +165,7 @@ export const TwilioVoiceBlock: BlockConfig<ToolResponse> = {
     },
     {
       id: 'listStatus',
-      title: 'Filter by Status',
+      title: 'Status',
       type: 'dropdown',
       layout: 'half',
       options: [
@@ -197,7 +197,7 @@ export const TwilioVoiceBlock: BlockConfig<ToolResponse> = {
     },
     {
       id: 'startTimeAfter',
-      title: 'Start Time After (YYYY-MM-DD)',
+      title: 'After (YYYY-MM-DD)',
       type: 'short-input',
       layout: 'half',
       placeholder: '2025-01-01',
@@ -208,7 +208,7 @@ export const TwilioVoiceBlock: BlockConfig<ToolResponse> = {
     },
     {
       id: 'startTimeBefore',
-      title: 'Start Time Before (YYYY-MM-DD)',
+      title: 'Before (YYYY-MM-DD)',
       type: 'short-input',
       layout: 'half',
       placeholder: '2025-12-31',
