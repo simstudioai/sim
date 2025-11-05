@@ -355,9 +355,7 @@ export const redactApiKeys = (obj: any): any => {
 /**
  * Type guard to check if an object is a UserFile
  */
-export function isUserFile(
-  candidate: unknown
-): candidate is {
+export function isUserFile(candidate: unknown): candidate is {
   id: string
   name: string
   url: string
