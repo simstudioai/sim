@@ -5,7 +5,12 @@ import { createLogger } from '@/lib/logs/console/logger'
 import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
 import { generateRequestId } from '@/lib/utils'
-import { base64UrlEncode, buildMimeMessage } from '@/tools/gmail/utils'
+import {
+  base64UrlEncode,
+  buildMimeMessage,
+  buildSimpleEmailMessage,
+  fetchThreadingHeaders,
+} from '@/tools/gmail/utils'
 
 export const dynamic = 'force-dynamic'
 
@@ -16,8 +21,10 @@ const GMAIL_API_BASE = 'https://gmail.googleapis.com/gmail/v1/users/me'
 const GmailSendSchema = z.object({
   accessToken: z.string().min(1, 'Access token is required'),
   to: z.string().min(1, 'Recipient email is required'),
-  subject: z.string().min(1, 'Subject is required'),
+  subject: z.string().optional().nullable(),
   body: z.string().min(1, 'Email body is required'),
+  threadId: z.string().optional().nullable(),
+  replyToMessageId: z.string().optional().nullable(),
   cc: z.string().optional().nullable(),
   bcc: z.string().optional().nullable(),
   attachments: z.array(z.any()).optional().nullable(),
@@ -49,10 +56,18 @@ export async function POST(request: NextRequest) {
 
     logger.info(`[${requestId}] Sending Gmail email`, {
       to: validatedData.to,
-      subject: validatedData.subject,
+      subject: validatedData.subject || '',
       hasAttachments: !!(validatedData.attachments && validatedData.attachments.length > 0),
       attachmentCount: validatedData.attachments?.length || 0,
     })
+
+    const threadingHeaders = validatedData.replyToMessageId
+      ? await fetchThreadingHeaders(validatedData.replyToMessageId, validatedData.accessToken)
+      : {}
+
+    const originalMessageId = threadingHeaders.messageId
+    const originalReferences = threadingHeaders.references
+    const originalSubject = threadingHeaders.subject
 
     let rawMessage: string | undefined
 
@@ -106,8 +121,10 @@ export async function POST(request: NextRequest) {
           to: validatedData.to,
           cc: validatedData.cc ?? undefined,
           bcc: validatedData.bcc ?? undefined,
-          subject: validatedData.subject,
+          subject: validatedData.subject || originalSubject || '',
           body: validatedData.body,
+          inReplyTo: originalMessageId,
+          references: originalReferences,
           attachments: attachmentBuffers,
         })
 
@@ -117,22 +134,21 @@ export async function POST(request: NextRequest) {
     }
 
     if (!rawMessage) {
-      const emailHeaders = [
-        'Content-Type: text/plain; charset="UTF-8"',
-        'MIME-Version: 1.0',
-        `To: ${validatedData.to}`,
-      ]
+      rawMessage = buildSimpleEmailMessage({
+        to: validatedData.to,
+        cc: validatedData.cc,
+        bcc: validatedData.bcc,
+        subject: validatedData.subject || originalSubject,
+        body: validatedData.body,
+        inReplyTo: originalMessageId,
+        references: originalReferences,
+      })
+    }
 
-      if (validatedData.cc) {
-        emailHeaders.push(`Cc: ${validatedData.cc}`)
-      }
-      if (validatedData.bcc) {
-        emailHeaders.push(`Bcc: ${validatedData.bcc}`)
-      }
+    const requestBody: { raw: string; threadId?: string } = { raw: rawMessage }
 
-      emailHeaders.push(`Subject: ${validatedData.subject}`, '', validatedData.body)
-      const email = emailHeaders.join('\n')
-      rawMessage = Buffer.from(email).toString('base64url')
+    if (validatedData.threadId) {
+      requestBody.threadId = validatedData.threadId
     }
 
     const gmailResponse = await fetch(`${GMAIL_API_BASE}/messages/send`, {
@@ -141,7 +157,7 @@ export async function POST(request: NextRequest) {
         Authorization: `Bearer ${validatedData.accessToken}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ raw: rawMessage }),
+      body: JSON.stringify(requestBody),
     })
 
     if (!gmailResponse.ok) {

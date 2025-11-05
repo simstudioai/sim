@@ -368,7 +368,7 @@ async function processOutlookEmails(
           const simplifiedEmail: SimplifiedOutlookEmail = {
             id: email.id,
             conversationId: email.conversationId,
-            subject: email.subject || '(No Subject)',
+            subject: email.subject || '',
             from: email.from?.emailAddress?.address || '',
             to: email.toRecipients?.map((r) => r.emailAddress.address).join(', ') || '',
             cc: email.ccRecipients?.map((r) => r.emailAddress.address).join(', ') || '',
