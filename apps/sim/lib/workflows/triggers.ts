@@ -9,6 +9,7 @@ export const TRIGGER_TYPES = {
   CHAT: 'chat_trigger',
   API: 'api_trigger',
   WEBHOOK: 'webhook',
+  GENERIC_WEBHOOK: 'generic_webhook',
   SCHEDULE: 'schedule',
   START: 'start_trigger',
   STARTER: 'starter', // Legacy
@@ -334,8 +335,7 @@ export class TriggerUtils {
     // Use the block's actual name from the registry
     const block = getBlock(triggerType)
     if (block) {
-      // Special case for generic_webhook - show as "Webhook" in UI
-      if (triggerType === 'generic_webhook') {
+      if (triggerType === TRIGGER_TYPES.GENERIC_WEBHOOK) {
         return 'Webhook'
       }
       return block.name

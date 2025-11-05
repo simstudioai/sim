@@ -5,6 +5,7 @@ import {
   resolveStartCandidates,
   StartBlockPath,
 } from '@/lib/workflows/triggers'
+import type { InputFormatField } from '@/lib/workflows/types'
 import type { NormalizedBlockOutput, UserFile } from '@/executor/types'
 import type { SerializedBlock } from '@/serializer/types'
 
@@ -93,12 +94,6 @@ export function buildResolutionFromBlock(block: SerializedBlock): ExecutorStartR
     block,
     path,
   }
-}
-
-type InputFormatField = {
-  name?: string
-  type?: string | null
-  value?: unknown
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
