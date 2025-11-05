@@ -195,7 +195,6 @@ function resolveEnvVars(value: string, envVars: Record<string, string>): string 
     const envKey = match.slice(2, -2).trim()
     const envValue = envVars[envKey]
     if (envValue !== undefined) {
-      // Use replaceAll to handle multiple occurrences of same variable
       resolvedValue = resolvedValue.replaceAll(match, envValue)
     }
   }
@@ -217,7 +216,6 @@ function resolveProviderConfigEnvVars(
     if (typeof value === 'string') {
       resolved[key] = resolveEnvVars(value, envVars)
     } else {
-      // Pass through non-string values unchanged (booleans, numbers, objects, arrays)
       resolved[key] = value
     }
   }
@@ -317,14 +315,6 @@ export async function verifyProviderAuth(
   if (foundWebhook.provider === 'twilio_voice') {
     const authToken = providerConfig.authToken as string | undefined
 
-    logger.info(`[${requestId}] Twilio Voice auth token check`, {
-      hasAuthToken: !!authToken,
-      authTokenLength: authToken?.length,
-      authTokenResolved: authToken && !authToken.startsWith('{{'), // Should be true if properly resolved
-      rawAuthToken: rawProviderConfig.authToken, // The original value from DB
-      providerConfigKeys: Object.keys(providerConfig),
-    })
-
     if (authToken) {
       const signature = request.headers.get('x-twilio-signature')
 
@@ -333,10 +323,8 @@ export async function verifyProviderAuth(
         return new NextResponse('Unauthorized - Missing Twilio signature', { status: 401 })
       }
 
-      // Parse the body to get parameters for signature validation
       let params: Record<string, any> = {}
       try {
-        // Body is URL-encoded for Twilio webhooks
         if (typeof rawBody === 'string') {
           const urlParams = new URLSearchParams(rawBody)
           params = Object.fromEntries(urlParams.entries())
@@ -350,15 +338,6 @@ export async function verifyProviderAuth(
       }
 
       const fullUrl = getExternalUrl(request)
-
-      logger.debug(`[${requestId}] Twilio signature validation details`, {
-        url: fullUrl,
-        signature: `${signature.substring(0, 10)}...`,
-        paramKeys: Object.keys(params).sort(),
-        hasAuthToken: !!authToken,
-        authTokenPrefix: `${authToken.substring(0, 4)}...`,
-        authTokenLength: authToken.length,
-      })
 
       const { validateTwilioSignature } = await import('@/lib/webhooks/utils')
 

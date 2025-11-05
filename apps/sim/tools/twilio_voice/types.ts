@@ -1,6 +1,5 @@
 import type { ToolResponse } from '@/tools/types'
 
-// Voice Call Types
 export interface TwilioMakeCallParams {
   to: string
   from: string

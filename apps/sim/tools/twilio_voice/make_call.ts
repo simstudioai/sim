@@ -3,7 +3,7 @@ import { convertSquareBracketsToTwiML } from '@/lib/webhooks/utils'
 import type { TwilioCallOutput, TwilioMakeCallParams } from '@/tools/twilio_voice/types'
 import type { ToolConfig } from '@/tools/types'
 
-const logger = createLogger('Twilio Voice Make Call Tool')
+const logger = createLogger('TwilioVoiceMakeCallTool')
 
 export const makeCallTool: ToolConfig<TwilioMakeCallParams, TwilioCallOutput> = {
   id: 'twilio_voice_make_call',

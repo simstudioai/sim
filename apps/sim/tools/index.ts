@@ -472,7 +472,7 @@ async function handleInternalRequest(
     // For custom tools, validate parameters on the client side before sending
     if (toolId.startsWith('custom_') && tool.request.body) {
       const requestBody = tool.request.body(params)
-      if (typeof requestBody === 'object' && requestBody !== null) {
+      if (requestBody.schema && requestBody.params) {
         try {
           validateClientSideParams(requestBody.params, requestBody.schema)
         } catch (validationError) {

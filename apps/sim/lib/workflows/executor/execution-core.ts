@@ -158,15 +158,6 @@ export async function executeWorkflowCore(
     })
 
     // Process block states with env var substitution
-    // This resolves {{VARIABLE}} references in block subBlock values
-    //
-    // NOTE: This is DIFFERENT from webhook providerConfig resolution:
-    // - THIS: Resolves during execution (async, background job)
-    // - WEBHOOKS: Resolve before queueing (sync, in API route for signature verification)
-    //
-    // Why the difference?
-    // - Block subBlocks are stored in workflow state, resolved at execution time
-    // - Webhook providerConfig is in DB webhook record, needs sync resolution for auth
     const currentBlockStates = await Object.entries(mergedStates).reduce(
       async (accPromise, [id, block]) => {
         const acc = await accPromise

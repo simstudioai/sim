@@ -2,7 +2,7 @@ import { createLogger } from '@/lib/logs/console/logger'
 import type { TwilioListCallsOutput, TwilioListCallsParams } from '@/tools/twilio_voice/types'
 import type { ToolConfig } from '@/tools/types'
 
-const logger = createLogger('Twilio Voice List Calls Tool')
+const logger = createLogger('TwilioVoiceListCallsTool')
 
 export const listCallsTool: ToolConfig<TwilioListCallsParams, TwilioListCallsOutput> = {
   id: 'twilio_voice_list_calls',
