@@ -7,6 +7,47 @@ import type {
 
 export const GMAIL_API_BASE = 'https://gmail.googleapis.com/gmail/v1/users/me'
 
+/**
+ * Fetch original message headers for threading
+ * @param messageId Gmail message ID to fetch headers from
+ * @param accessToken Gmail access token
+ * @returns Object containing threading headers (messageId, references, subject)
+ */
+export async function fetchThreadingHeaders(
+  messageId: string,
+  accessToken: string
+): Promise<{
+  messageId?: string
+  references?: string
+  subject?: string
+}> {
+  try {
+    const messageResponse = await fetch(
+      `${GMAIL_API_BASE}/messages/${messageId}?format=metadata&metadataHeaders=Message-ID&metadataHeaders=References&metadataHeaders=Subject`,
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      }
+    )
+
+    if (messageResponse.ok) {
+      const messageData = await messageResponse.json()
+      const headers = messageData.payload?.headers || []
+
+      return {
+        messageId: headers.find((h: any) => h.name.toLowerCase() === 'message-id')?.value,
+        references: headers.find((h: any) => h.name.toLowerCase() === 'references')?.value,
+        subject: headers.find((h: any) => h.name.toLowerCase() === 'subject')?.value,
+      }
+    }
+  } catch (error) {
+    // Continue without threading headers rather than failing
+  }
+
+  return {}
+}
+
 // Helper function to process a Gmail message
 export async function processMessage(
   message: GmailMessage,
@@ -286,7 +327,6 @@ export function buildMimeMessage(params: BuildMimeMessageParams): string {
   const boundary = generateBoundary()
   const messageParts: string[] = []
 
-  // Add headers
   messageParts.push(`To: ${to}`)
   if (cc) {
     messageParts.push(`Cc: ${cc}`)
@@ -296,23 +336,19 @@ export function buildMimeMessage(params: BuildMimeMessageParams): string {
   }
   messageParts.push(`Subject: ${subject || ''}`)
 
-  // Add threading headers for proper email client threading
   if (inReplyTo) {
     messageParts.push(`In-Reply-To: ${inReplyTo}`)
   }
   if (references) {
-    // Add the original references plus the message we're replying to
     const referencesChain = inReplyTo ? `${references} ${inReplyTo}` : references
     messageParts.push(`References: ${referencesChain}`)
   } else if (inReplyTo) {
-    // If no existing references, start the chain with the message we're replying to
     messageParts.push(`References: ${inReplyTo}`)
   }
 
   messageParts.push('MIME-Version: 1.0')
 
   if (attachments && attachments.length > 0) {
-    // Multipart message with attachments
     messageParts.push(`Content-Type: multipart/mixed; boundary="${boundary}"`)
     messageParts.push('')
     messageParts.push(`--${boundary}`)
@@ -322,7 +358,6 @@ export function buildMimeMessage(params: BuildMimeMessageParams): string {
     messageParts.push(body)
     messageParts.push('')
 
-    // Add each attachment
     for (const attachment of attachments) {
       messageParts.push(`--${boundary}`)
       messageParts.push(`Content-Type: ${attachment.mimeType}`)
@@ -330,7 +365,6 @@ export function buildMimeMessage(params: BuildMimeMessageParams): string {
       messageParts.push('Content-Transfer-Encoding: base64')
       messageParts.push('')
 
-      // Split base64 content into 76-character lines (MIME standard)
       const base64Content = attachment.content.toString('base64')
       const lines = base64Content.match(/.{1,76}/g) || []
       messageParts.push(...lines)
@@ -339,7 +373,6 @@ export function buildMimeMessage(params: BuildMimeMessageParams): string {
 
     messageParts.push(`--${boundary}--`)
   } else {
-    // Simple text message without attachments
     messageParts.push('Content-Type: text/plain; charset="UTF-8"')
     messageParts.push('MIME-Version: 1.0')
     messageParts.push('')

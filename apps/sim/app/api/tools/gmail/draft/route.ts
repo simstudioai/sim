@@ -5,7 +5,7 @@ import { createLogger } from '@/lib/logs/console/logger'
 import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
 import { generateRequestId } from '@/lib/utils'
-import { base64UrlEncode, buildMimeMessage } from '@/tools/gmail/utils'
+import { base64UrlEncode, buildMimeMessage, fetchThreadingHeaders } from '@/tools/gmail/utils'
 
 export const dynamic = 'force-dynamic'
 
@@ -51,41 +51,18 @@ export async function POST(request: NextRequest) {
 
     logger.info(`[${requestId}] Creating Gmail draft`, {
       to: validatedData.to,
-      subject: validatedData.subject || '(no subject)',
+      subject: validatedData.subject || '',
       hasAttachments: !!(validatedData.attachments && validatedData.attachments.length > 0),
       attachmentCount: validatedData.attachments?.length || 0,
     })
 
-    // Fetch original message headers if replyToMessageId is provided (for threading)
-    let originalMessageId: string | undefined
-    let originalReferences: string | undefined
-    let originalSubject: string | undefined
+    const threadingHeaders = validatedData.replyToMessageId
+      ? await fetchThreadingHeaders(validatedData.replyToMessageId, validatedData.accessToken)
+      : {}
 
-    if (validatedData.replyToMessageId) {
-      try {
-        const messageResponse = await fetch(
-          `${GMAIL_API_BASE}/messages/${validatedData.replyToMessageId}?format=metadata&metadataHeaders=Message-ID&metadataHeaders=References&metadataHeaders=Subject`,
-          {
-            headers: {
-              Authorization: `Bearer ${validatedData.accessToken}`,
-            },
-          }
-        )
-
-        if (messageResponse.ok) {
-          const messageData = await messageResponse.json()
-          const headers = messageData.payload?.headers || []
-
-          originalMessageId = headers.find((h: any) => h.name.toLowerCase() === 'message-id')?.value
-          originalReferences = headers.find(
-            (h: any) => h.name.toLowerCase() === 'references'
-          )?.value
-          originalSubject = headers.find((h: any) => h.name.toLowerCase() === 'subject')?.value
-        }
-      } catch (error) {
-        // Continue without threading headers rather than failing
-      }
-    }
+    const originalMessageId = threadingHeaders.messageId
+    const originalReferences = threadingHeaders.references
+    const originalSubject = threadingHeaders.subject
 
     let rawMessage: string | undefined
 

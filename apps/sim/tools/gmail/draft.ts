@@ -30,7 +30,7 @@ export const gmailDraftTool: ToolConfig<GmailSendParams, GmailToolResponse> = {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Email subject (optional when replying to thread)',
+      description: 'Email subject',
     },
     body: {
       type: 'string',

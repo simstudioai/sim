@@ -63,7 +63,7 @@ export const GmailBlock: BlockConfig<GmailToolResponse> = {
       title: 'Subject',
       type: 'short-input',
       layout: 'full',
-      placeholder: 'Email subject (optional when replying to thread)',
+      placeholder: 'Email subject',
       condition: { field: 'operation', value: ['send_gmail', 'draft_gmail'] },
       required: false,
     },
