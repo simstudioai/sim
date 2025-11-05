@@ -63,10 +63,12 @@ E-Mails über Gmail versenden
 | Parameter | Typ | Erforderlich | Beschreibung |
 | --------- | ---- | -------- | ----------- |
 | `to` | string | Ja | E-Mail-Adresse des Empfängers |
-| `subject` | string | Ja | Betreff der E-Mail |
+| `subject` | string | Nein | Betreff der E-Mail |
 | `body` | string | Ja | Inhalt der E-Mail |
-| `cc` | string | Nein | CC-Empfänger (durch Komma getrennt) |
-| `bcc` | string | Nein | BCC-Empfänger (durch Komma getrennt) |
+| `threadId` | string | Nein | Thread-ID für Antworten \(für Threading\) |
+| `replyToMessageId` | string | Nein | Gmail-Nachrichten-ID für Antworten - verwenden Sie das "id"-Feld aus den Gmail-Leseergebnissen \(nicht die RFC "messageId"\) |
+| `cc` | string | Nein | CC-Empfänger \(durch Kommas getrennt\) |
+| `bcc` | string | Nein | BCC-Empfänger \(durch Kommas getrennt\) |
 | `attachments` | file[] | Nein | Dateien, die an die E-Mail angehängt werden sollen |
 
 #### Ausgabe
@@ -85,10 +87,12 @@ E-Mail-Entwürfe in Gmail erstellen
 | Parameter | Typ | Erforderlich | Beschreibung |
 | --------- | ---- | -------- | ----------- |
 | `to` | string | Ja | E-Mail-Adresse des Empfängers |
-| `subject` | string | Ja | Betreff der E-Mail |
+| `subject` | string | Nein | Betreff der E-Mail |
 | `body` | string | Ja | Inhalt der E-Mail |
-| `cc` | string | Nein | CC-Empfänger (durch Komma getrennt) |
-| `bcc` | string | Nein | BCC-Empfänger (durch Komma getrennt) |
+| `threadId` | string | Nein | Thread-ID für Antworten \(für Threading\) |
+| `replyToMessageId` | string | Nein | Gmail-Nachrichten-ID für Antworten - verwenden Sie das "id"-Feld aus den Gmail-Leseergebnissen \(nicht die RFC "messageId"\) |
+| `cc` | string | Nein | CC-Empfänger \(durch Kommas getrennt\) |
+| `bcc` | string | Nein | BCC-Empfänger \(durch Kommas getrennt\) |
 | `attachments` | file[] | Nein | Dateien, die an den E-Mail-Entwurf angehängt werden sollen |
 
 #### Ausgabe

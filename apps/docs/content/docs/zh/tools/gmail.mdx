@@ -60,11 +60,13 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 #### 输入
 
-| 参数 | 类型 | 是否必需 | 描述 |
+| 参数 | 类型 | 必需 | 描述 |
 | --------- | ---- | -------- | ----------- |
 | `to` | string | 是 | 收件人电子邮件地址 |
-| `subject` | string | 是 | 电子邮件主题 |
+| `subject` | string | 否 | 电子邮件主题 |
 | `body` | string | 是 | 电子邮件正文内容 |
+| `threadId` | string | 否 | 要回复的线程 ID（用于线程化） |
+| `replyToMessageId` | string | 否 | Gmail 消息 ID，用于回复 - 使用 Gmail 读取结果中的 "id" 字段（不是 RFC 的 "messageId"） |
 | `cc` | string | 否 | 抄送收件人（逗号分隔） |
 | `bcc` | string | 否 | 密送收件人（逗号分隔） |
 | `attachments` | file[] | 否 | 附加到电子邮件的文件 |
@@ -82,11 +84,13 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 #### 输入
 
-| 参数 | 类型 | 是否必需 | 描述 |
+| 参数 | 类型 | 必需 | 描述 |
 | --------- | ---- | -------- | ----------- |
 | `to` | string | 是 | 收件人电子邮件地址 |
-| `subject` | string | 是 | 电子邮件主题 |
+| `subject` | string | 否 | 电子邮件主题 |
 | `body` | string | 是 | 电子邮件正文内容 |
+| `threadId` | string | 否 | 要回复的线程 ID（用于线程化） |
+| `replyToMessageId` | string | 否 | Gmail 消息 ID，用于回复 - 使用 Gmail 读取结果中的 "id" 字段（不是 RFC 的 "messageId"） |
 | `cc` | string | 否 | 抄送收件人（逗号分隔） |
 | `bcc` | string | 否 | 密送收件人（逗号分隔） |
 | `attachments` | file[] | 否 | 附加到电子邮件草稿的文件 |
