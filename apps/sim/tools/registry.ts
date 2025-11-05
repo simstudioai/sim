@@ -134,7 +134,7 @@ import {
   outlookSendTool,
 } from '@/tools/outlook'
 import { parallelSearchTool } from '@/tools/parallel'
-import { perplexityChatTool } from '@/tools/perplexity'
+import { perplexityChatTool, perplexitySearchTool } from '@/tools/perplexity'
 import {
   pineconeFetchTool,
   pineconeGenerateEmbeddingsTool,
@@ -348,6 +348,7 @@ export const tools: Record<string, ToolConfig> = {
   google_sheets_update: googleSheetsUpdateTool,
   google_sheets_append: googleSheetsAppendTool,
   perplexity_chat: perplexityChatTool,
+  perplexity_search: perplexitySearchTool,
   confluence_retrieve: confluenceRetrieveTool,
   confluence_update: confluenceUpdateTool,
   twilio_send_sms: sendSMSTool,
