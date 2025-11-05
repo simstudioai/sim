@@ -294,7 +294,7 @@ export async function POST(req: NextRequest) {
     let providerConfig: CopilotProviderConfig | undefined
     const providerEnv = env.COPILOT_PROVIDER as any
 
-    let azureConfig: any = undefined
+    let azureConfig: any
     if (providerEnv === 'azure-openai' || model === 'azure-openai') {
       azureConfig = {
         provider: 'azure-openai',
