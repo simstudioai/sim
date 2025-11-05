@@ -146,6 +146,22 @@ export async function POST(
     }
   }
 
+  if (foundWebhook.provider === 'stripe') {
+    const providerConfig = (foundWebhook.providerConfig as Record<string, any>) || {}
+    const eventTypes = providerConfig.eventTypes
+
+    if (eventTypes && Array.isArray(eventTypes) && eventTypes.length > 0) {
+      const eventType = body?.type
+
+      if (eventType && !eventTypes.includes(eventType)) {
+        logger.info(
+          `[${requestId}] Stripe event type '${eventType}' not in allowed list, skipping execution`
+        )
+        return new NextResponse('Event type filtered', { status: 200 })
+      }
+    }
+  }
+
   return queueWebhookExecution(foundWebhook, foundWorkflow, body, request, {
     requestId,
     path,
