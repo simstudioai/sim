@@ -471,7 +471,7 @@ async function handleInternalRequest(
 
     if (toolId.startsWith('custom_') && tool.request.body) {
       const requestBody = tool.request.body(params)
-      if (typeof requestBody === 'object' && requestBody.schema && requestBody.params) {
+      if (requestBody.schema && requestBody.params) {
         try {
           validateClientSideParams(requestBody.params, requestBody.schema)
         } catch (validationError) {

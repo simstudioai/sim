@@ -110,7 +110,7 @@ export const makeCallTool: ToolConfig<TwilioMakeCallParams, TwilioCallOutput> = 
         'Content-Type': 'application/x-www-form-urlencoded',
       }
     },
-    body: (params) => {
+    body: ((params) => {
       if (!params.to) {
         throw new Error('Destination phone number (to) is required')
       }
@@ -164,8 +164,8 @@ export const makeCallTool: ToolConfig<TwilioMakeCallParams, TwilioCallOutput> = 
       const bodyString = formData.toString()
       logger.info('Final Twilio request body:', bodyString)
 
-      return bodyString
-    },
+      return bodyString as any
+    }) as (params: TwilioMakeCallParams) => Record<string, any>,
   },
 
   transformResponse: async (response) => {
