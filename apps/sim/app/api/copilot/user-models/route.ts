@@ -1,6 +1,7 @@
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
+import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
 import { db } from '@/../../packages/db'
 import { settings } from '@/../../packages/db/schema'
@@ -63,6 +64,18 @@ export async function GET(request: NextRequest) {
           .where(eq(settings.userId, userId))
       }
 
+      const providerEnv = env.COPILOT_PROVIDER as any
+      if (providerEnv === 'azure-openai') {
+        const azureFilteredModels: Record<string, boolean> = {}
+        for (const [modelId] of Object.entries(mergedModels)) {
+          azureFilteredModels[modelId] = modelId === 'azure-openai'
+        }
+        azureFilteredModels['azure-openai'] = true
+        return NextResponse.json({
+          enabledModels: azureFilteredModels,
+        })
+      }
+
       return NextResponse.json({
         enabledModels: mergedModels,
       })
@@ -76,6 +89,20 @@ export async function GET(request: NextRequest) {
     })
 
     logger.info('Created new settings record with default models', { userId })
+
+    // If Azure is configured as the copilot provider, only show azure-openai
+    const providerEnv = env.COPILOT_PROVIDER as any
+    if (providerEnv === 'azure-openai') {
+      const azureFilteredModels: Record<string, boolean> = {}
+      for (const modelId of Object.keys(DEFAULT_ENABLED_MODELS)) {
+        azureFilteredModels[modelId] = modelId === 'azure-openai'
+      }
+      // Enable azure-openai model
+      azureFilteredModels['azure-openai'] = true
+      return NextResponse.json({
+        enabledModels: azureFilteredModels,
+      })
+    }
 
     return NextResponse.json({
       enabledModels: DEFAULT_ENABLED_MODELS,

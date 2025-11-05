@@ -1736,6 +1736,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
       { value: 'claude-4.5-haiku', label: 'claude-4.5-haiku' },
       { value: 'claude-4.5-sonnet', label: 'claude-4.5-sonnet' },
       { value: 'claude-4.1-opus', label: 'claude-4.1-opus' },
+      { value: 'azure-openai', label: 'azure-openai' },
     ] as const
 
     // Filter models based on user preferences
