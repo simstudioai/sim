@@ -16,8 +16,10 @@ const GMAIL_API_BASE = 'https://gmail.googleapis.com/gmail/v1/users/me'
 const GmailDraftSchema = z.object({
   accessToken: z.string().min(1, 'Access token is required'),
   to: z.string().min(1, 'Recipient email is required'),
-  subject: z.string().min(1, 'Subject is required'),
+  subject: z.string().optional().nullable(),
   body: z.string().min(1, 'Email body is required'),
+  threadId: z.string().optional().nullable(),
+  replyToMessageId: z.string().optional().nullable(),
   cc: z.string().optional().nullable(),
   bcc: z.string().optional().nullable(),
   attachments: z.array(z.any()).optional().nullable(),
@@ -49,10 +51,41 @@ export async function POST(request: NextRequest) {
 
     logger.info(`[${requestId}] Creating Gmail draft`, {
       to: validatedData.to,
-      subject: validatedData.subject,
+      subject: validatedData.subject || '(no subject)',
       hasAttachments: !!(validatedData.attachments && validatedData.attachments.length > 0),
       attachmentCount: validatedData.attachments?.length || 0,
     })
+
+    // Fetch original message headers if replyToMessageId is provided (for threading)
+    let originalMessageId: string | undefined
+    let originalReferences: string | undefined
+    let originalSubject: string | undefined
+
+    if (validatedData.replyToMessageId) {
+      try {
+        const messageResponse = await fetch(
+          `${GMAIL_API_BASE}/messages/${validatedData.replyToMessageId}?format=metadata&metadataHeaders=Message-ID&metadataHeaders=References&metadataHeaders=Subject`,
+          {
+            headers: {
+              Authorization: `Bearer ${validatedData.accessToken}`,
+            },
+          }
+        )
+
+        if (messageResponse.ok) {
+          const messageData = await messageResponse.json()
+          const headers = messageData.payload?.headers || []
+
+          originalMessageId = headers.find((h: any) => h.name.toLowerCase() === 'message-id')?.value
+          originalReferences = headers.find(
+            (h: any) => h.name.toLowerCase() === 'references'
+          )?.value
+          originalSubject = headers.find((h: any) => h.name.toLowerCase() === 'subject')?.value
+        }
+      } catch (error) {
+        // Continue without threading headers rather than failing
+      }
+    }
 
     let rawMessage: string | undefined
 
@@ -106,8 +139,10 @@ export async function POST(request: NextRequest) {
           to: validatedData.to,
           cc: validatedData.cc ?? undefined,
           bcc: validatedData.bcc ?? undefined,
-          subject: validatedData.subject,
+          subject: validatedData.subject || originalSubject || '',
           body: validatedData.body,
+          inReplyTo: originalMessageId,
+          references: originalReferences,
           attachments: attachmentBuffers,
         })
 
@@ -130,9 +165,26 @@ export async function POST(request: NextRequest) {
         emailHeaders.push(`Bcc: ${validatedData.bcc}`)
       }
 
-      emailHeaders.push(`Subject: ${validatedData.subject}`, '', validatedData.body)
+      emailHeaders.push(`Subject: ${validatedData.subject || originalSubject || ''}`)
+
+      // Add threading headers if available
+      if (originalMessageId) {
+        emailHeaders.push(`In-Reply-To: ${originalMessageId}`)
+        const referencesChain = originalReferences
+          ? `${originalReferences} ${originalMessageId}`
+          : originalMessageId
+        emailHeaders.push(`References: ${referencesChain}`)
+      }
+
+      emailHeaders.push('', validatedData.body)
       const email = emailHeaders.join('\n')
       rawMessage = Buffer.from(email).toString('base64url')
+    }
+
+    const draftMessage: { raw: string; threadId?: string } = { raw: rawMessage }
+
+    if (validatedData.threadId) {
+      draftMessage.threadId = validatedData.threadId
     }
 
     const gmailResponse = await fetch(`${GMAIL_API_BASE}/drafts`, {
@@ -142,7 +194,7 @@ export async function POST(request: NextRequest) {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        message: { raw: rawMessage },
+        message: draftMessage,
       }),
     })
 

@@ -81,6 +81,7 @@ export function processMessageForSummary(message: GmailMessage): any {
       threadId: message?.threadId || '',
       subject: 'Unknown Subject',
       from: 'Unknown Sender',
+      to: '',
       date: '',
       snippet: message?.snippet || '',
     }
@@ -89,6 +90,7 @@ export function processMessageForSummary(message: GmailMessage): any {
   const headers = message.payload.headers || []
   const subject = headers.find((h) => h.name.toLowerCase() === 'subject')?.value || 'No Subject'
   const from = headers.find((h) => h.name.toLowerCase() === 'from')?.value || 'Unknown Sender'
+  const to = headers.find((h) => h.name.toLowerCase() === 'to')?.value || ''
   const date = headers.find((h) => h.name.toLowerCase() === 'date')?.value || ''
 
   return {
@@ -96,6 +98,7 @@ export function processMessageForSummary(message: GmailMessage): any {
     threadId: message.threadId,
     subject,
     from,
+    to,
     date,
     snippet: message.snippet || '',
   }
@@ -230,7 +233,10 @@ export function createMessagesSummary(messages: any[]): string {
   messages.forEach((msg, index) => {
     summary += `${index + 1}. Subject: ${msg.subject}\n`
     summary += `   From: ${msg.from}\n`
+    summary += `   To: ${msg.to}\n`
     summary += `   Date: ${msg.date}\n`
+    summary += `   ID: ${msg.id}\n`
+    summary += `   Thread ID: ${msg.threadId}\n`
     summary += `   Preview: ${msg.snippet}\n\n`
   })
 
@@ -264,8 +270,10 @@ export interface BuildMimeMessageParams {
   to: string
   cc?: string
   bcc?: string
-  subject: string
+  subject?: string
   body: string
+  inReplyTo?: string
+  references?: string
   attachments?: Array<{
     filename: string
     mimeType: string
@@ -274,7 +282,7 @@ export interface BuildMimeMessageParams {
 }
 
 export function buildMimeMessage(params: BuildMimeMessageParams): string {
-  const { to, cc, bcc, subject, body, attachments } = params
+  const { to, cc, bcc, subject, body, inReplyTo, references, attachments } = params
   const boundary = generateBoundary()
   const messageParts: string[] = []
 
@@ -286,7 +294,21 @@ export function buildMimeMessage(params: BuildMimeMessageParams): string {
   if (bcc) {
     messageParts.push(`Bcc: ${bcc}`)
   }
-  messageParts.push(`Subject: ${subject}`)
+  messageParts.push(`Subject: ${subject || ''}`)
+
+  // Add threading headers for proper email client threading
+  if (inReplyTo) {
+    messageParts.push(`In-Reply-To: ${inReplyTo}`)
+  }
+  if (references) {
+    // Add the original references plus the message we're replying to
+    const referencesChain = inReplyTo ? `${references} ${inReplyTo}` : references
+    messageParts.push(`References: ${referencesChain}`)
+  } else if (inReplyTo) {
+    // If no existing references, start the chain with the message we're replying to
+    messageParts.push(`References: ${inReplyTo}`)
+  }
+
   messageParts.push('MIME-Version: 1.0')
 
   if (attachments && attachments.length > 0) {

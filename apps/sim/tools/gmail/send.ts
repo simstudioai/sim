@@ -28,15 +28,28 @@ export const gmailSendTool: ToolConfig<GmailSendParams, GmailToolResponse> = {
     },
     subject: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
-      description: 'Email subject',
+      description: 'Email subject (optional when replying to thread)',
     },
     body: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
       description: 'Email body content',
+    },
+    threadId: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Thread ID to reply to (for threading)',
+    },
+    replyToMessageId: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Gmail message ID to reply to - use the "id" field from Gmail Read results (not the RFC "messageId")',
     },
     cc: {
       type: 'string',
@@ -69,6 +82,8 @@ export const gmailSendTool: ToolConfig<GmailSendParams, GmailToolResponse> = {
       to: params.to,
       subject: params.subject,
       body: params.body,
+      threadId: params.threadId,
+      replyToMessageId: params.replyToMessageId,
       cc: params.cc,
       bcc: params.bcc,
       attachments: params.attachments,

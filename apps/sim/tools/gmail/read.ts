@@ -225,6 +225,7 @@ export const gmailReadTool: ToolConfig<GmailReadParams, GmailToolResponse> = {
                   threadId: msg.threadId,
                   subject: msg.subject,
                   from: msg.from,
+                  to: msg.to,
                   date: msg.date,
                 })),
               },
