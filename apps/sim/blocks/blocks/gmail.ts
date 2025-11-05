@@ -433,9 +433,15 @@ export const GmailBlock: BlockConfig<GmailToolResponse> = {
 
         // Handle move operation
         if (rest.operation === 'move_gmail') {
-          rest.messageId = moveMessageId
-          rest.addLabelIds = (destinationLabel || manualDestinationLabel || '').trim()
-          rest.removeLabelIds = (sourceLabel || manualSourceLabel || '').trim()
+          if (moveMessageId) {
+            rest.messageId = moveMessageId
+          }
+          if (!rest.addLabelIds) {
+            rest.addLabelIds = (destinationLabel || manualDestinationLabel || '').trim()
+          }
+          if (!rest.removeLabelIds) {
+            rest.removeLabelIds = (sourceLabel || manualSourceLabel || '').trim()
+          }
         }
 
         // Handle simple message ID operations
@@ -448,13 +454,18 @@ export const GmailBlock: BlockConfig<GmailToolResponse> = {
             'delete_gmail',
           ].includes(rest.operation)
         ) {
-          rest.messageId = actionMessageId
+          if (actionMessageId) {
+            rest.messageId = actionMessageId
+          }
         }
 
-        // Handle label management operations
         if (['add_label_gmail', 'remove_label_gmail'].includes(rest.operation)) {
-          rest.messageId = labelActionMessageId
-          rest.labelIds = (labelManagement || manualLabelManagement || '').trim()
+          if (labelActionMessageId) {
+            rest.messageId = labelActionMessageId
+          }
+          if (!rest.labelIds) {
+            rest.labelIds = (labelManagement || manualLabelManagement || '').trim()
+          }
         }
 
         return {

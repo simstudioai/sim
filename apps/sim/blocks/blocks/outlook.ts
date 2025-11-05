@@ -363,26 +363,38 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
 
         // Handle move operation
         if (rest.operation === 'move_outlook') {
-          rest.messageId = moveMessageId
-          rest.destinationId = (destinationFolder || manualDestinationFolder || '').trim()
+          if (moveMessageId) {
+            rest.messageId = moveMessageId
+          }
+          if (!rest.destinationId) {
+            rest.destinationId = (destinationFolder || manualDestinationFolder || '').trim()
+          }
         }
 
-        // Handle simple message ID operations
         if (
           ['mark_read_outlook', 'mark_unread_outlook', 'delete_outlook'].includes(rest.operation)
         ) {
-          rest.messageId = actionMessageId
+          if (actionMessageId) {
+            rest.messageId = actionMessageId
+          }
         }
 
-        // Handle copy operation
         if (rest.operation === 'copy_outlook') {
-          rest.messageId = copyMessageId
-          rest.destinationId = (copyDestinationFolder || manualCopyDestinationFolder || '').trim()
+          if (copyMessageId) {
+            rest.messageId = copyMessageId
+          }
+          // Handle copyDestinationId (from UI canonical param) or destinationId (from trigger)
+          if (rest.copyDestinationId) {
+            rest.destinationId = rest.copyDestinationId
+            rest.copyDestinationId = undefined
+          } else if (!rest.destinationId) {
+            rest.destinationId = (copyDestinationFolder || manualCopyDestinationFolder || '').trim()
+          }
         }
 
         return {
           ...rest,
-          credential, // Keep the credential parameter
+          credential,
         }
       },
     },
