@@ -39,21 +39,32 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 ## 使用说明
 
-将 YouTube 集成到工作流程中。可以搜索视频、获取视频详情、获取频道信息、获取播放列表项目以及获取视频评论。
+将 YouTube 集成到工作流程中。可以搜索视频、获取视频详情、获取频道信息、获取频道中的所有视频、获取频道播放列表、获取播放列表项目、查找相关视频以及获取视频评论。
 
 ## 工具
 
 ### `youtube_search`
 
-使用 YouTube Data API 搜索 YouTube 视频。
+使用 YouTube Data API 在 YouTube 上搜索视频。支持通过频道、日期范围、时长、类别、质量、字幕等进行高级筛选。
 
 #### 输入
 
 | 参数 | 类型 | 必需 | 描述 |
 | --------- | ---- | -------- | ----------- |
 | `query` | 字符串 | 是 | YouTube 视频的搜索查询 |
-| `maxResults` | 数字 | 否 | 返回视频的最大数量 |
+| `maxResults` | 数字 | 否 | 返回视频的最大数量 \(1-50\) |
 | `apiKey` | 字符串 | 是 | YouTube API 密钥 |
+| `channelId` | 字符串 | 否 | 将结果筛选为特定的 YouTube 频道 ID |
+| `publishedAfter` | 字符串 | 否 | 仅返回此日期之后发布的视频 \(RFC 3339 格式: "2024-01-01T00:00:00Z"\) |
+| `publishedBefore` | 字符串 | 否 | 仅返回此日期之前发布的视频 \(RFC 3339 格式: "2024-01-01T00:00:00Z"\) |
+| `videoDuration` | 字符串 | 否 | 按视频时长筛选: "short" \(&lt;4 分钟\), "medium" \(4-20 分钟\), "long" \(&gt;20 分钟\), "any" |
+| `order` | 字符串 | 否 | 按以下方式排序结果: "date", "rating", "relevance" \(默认\), "title", "videoCount", "viewCount" |
+| `videoCategoryId` | 字符串 | 否 | 按 YouTube 类别 ID 筛选 \(例如: "10" 表示音乐, "20" 表示游戏\) |
+| `videoDefinition` | 字符串 | 否 | 按视频质量筛选: "high" \(高清\), "standard", "any" |
+| `videoCaption` | 字符串 | 否 | 按字幕可用性筛选: "closedCaption" \(有字幕\), "none" \(无字幕\), "any" |
+| `regionCode` | 字符串 | 否 | 返回与特定地区相关的结果 \(ISO 3166-1 alpha-2 国家代码, 例如: "US", "GB"\) |
+| `relevanceLanguage` | 字符串 | 否 | 返回与特定语言最相关的结果 \(ISO 639-1 代码, 例如: "en", "es"\) |
+| `safeSearch` | 字符串 | 否 | 内容过滤级别: "moderate" \(默认\), "none", "strict" |
 
 #### 输出
 
@@ -115,6 +126,45 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 | `thumbnail` | 字符串 | 频道缩略图 URL |
 | `customUrl` | 字符串 | 频道自定义 URL |
 
+### `youtube_channel_videos`
+
+从特定的 YouTube 频道获取所有视频，并提供排序选项。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `channelId` | 字符串 | 是 | 要获取视频的 YouTube 频道 ID |
+| `maxResults` | 数字 | 否 | 返回视频的最大数量 \(1-50\) |
+| `order` | 字符串 | 否 | 排序顺序："date" \(最新优先\)、"rating"、"relevance"、"title"、"viewCount" |
+| `pageToken` | 字符串 | 否 | 分页的页面令牌 |
+| `apiKey` | 字符串 | 是 | YouTube API 密钥 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `items` | 数组 | 来自频道的视频数组 |
+
+### `youtube_channel_playlists`
+
+从特定的 YouTube 频道获取所有播放列表。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `channelId` | 字符串 | 是 | 要获取播放列表的 YouTube 频道 ID |
+| `maxResults` | 数字 | 否 | 返回播放列表的最大数量 \(1-50\) |
+| `pageToken` | 字符串 | 否 | 分页的页面令牌 |
+| `apiKey` | 字符串 | 是 | YouTube API 密钥 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `items` | 数组 | 来自频道的播放列表数组 |
+
 ### `youtube_playlist_items`
 
 从 YouTube 播放列表中获取视频。
@@ -133,6 +183,25 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
 | `items` | 数组 | 播放列表中的视频数组 |
+
+### `youtube_related_videos`
+
+查找与特定 YouTube 视频相关的视频。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `videoId` | 字符串 | 是 | 用于查找相关视频的 YouTube 视频 ID |
+| `maxResults` | 数字 | 否 | 返回相关视频的最大数量 \(1-50\) |
+| `pageToken` | 字符串 | 否 | 分页的页面令牌 |
+| `apiKey` | 字符串 | 是 | YouTube API 密钥 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `items` | 数组 | 相关视频的数组 |
 
 ### `youtube_comments`
 

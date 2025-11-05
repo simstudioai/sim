@@ -39,21 +39,32 @@ Simでは、YouTube統合によりエージェントがワークフローの一�
 
 ## 使用方法
 
-YouTubeをワークフローに統合します。動画の検索、動画の詳細取得、チャンネル情報の取得、プレイリスト項目の取得、動画コメントの取得が可能です。
+YouTubeをワークフローに統合します。動画の検索、動画詳細の取得、チャンネル情報の取得、チャンネルからすべての動画の取得、チャンネルプレイリストの取得、プレイリスト項目の取得、関連動画の検索、動画コメントの取得が可能です。
 
 ## ツール
 
 ### `youtube_search`
 
-YouTube Data APIを使用してYouTubeで動画を検索します。
+YouTube Data APIを使用してYouTubeで動画を検索します。チャンネル、日付範囲、動画の長さ、カテゴリ、品質、字幕などによる高度なフィルタリングをサポートしています。
 
 #### 入力
 
 | パラメータ | 型 | 必須 | 説明 |
 | --------- | ---- | -------- | ----------- |
 | `query` | string | はい | YouTube動画の検索クエリ |
-| `maxResults` | number | いいえ | 返す動画の最大数 |
+| `maxResults` | number | いいえ | 返す動画の最大数（1-50） |
 | `apiKey` | string | はい | YouTube APIキー |
+| `channelId` | string | いいえ | 特定のYouTubeチャンネルIDに結果をフィルタリング |
+| `publishedAfter` | string | いいえ | この日付以降に公開された動画のみを返す（RFC 3339形式："2024-01-01T00:00:00Z"） |
+| `publishedBefore` | string | いいえ | この日付以前に公開された動画のみを返す（RFC 3339形式："2024-01-01T00:00:00Z"） |
+| `videoDuration` | string | いいえ | 動画の長さでフィルタリング："short"（4分未満）、"medium"（4-20分）、"long"（20分以上）、"any" |
+| `order` | string | いいえ | 結果の並べ替え："date"、"rating"、"relevance"（デフォルト）、"title"、"videoCount"、"viewCount" |
+| `videoCategoryId` | string | いいえ | YouTubeカテゴリIDでフィルタリング（例："10"は音楽、"20"はゲーム） |
+| `videoDefinition` | string | いいえ | 動画品質でフィルタリング："high"（HD）、"standard"、"any" |
+| `videoCaption` | string | いいえ | 字幕の有無でフィルタリング："closedCaption"（字幕あり）、"none"（字幕なし）、"any" |
+| `regionCode` | string | いいえ | 特定の地域に関連する結果を返す（ISO 3166-1 alpha-2国コード、例："US"、"GB"） |
+| `relevanceLanguage` | string | いいえ | 言語に最も関連する結果を返す（ISO 639-1コード、例："en"、"es"） |
+| `safeSearch` | string | いいえ | コンテンツフィルタリングレベル："moderate"（デフォルト）、"none"、"strict" |
 
 #### 出力
 
@@ -115,15 +126,54 @@ YouTubeチャンネルに関する詳細情報を取得します。
 | `thumbnail` | string | チャンネルサムネイルURL |
 | `customUrl` | string | チャンネルカスタムURL |
 
-### `youtube_playlist_items`
+### `youtube_channel_videos`
 
-YouTubeプレイリストから動画を取得します。
+特定のYouTubeチャンネルからすべての動画を取得し、並べ替えオプションを提供します。
 
 #### 入力
 
 | パラメータ | 型 | 必須 | 説明 |
 | --------- | ---- | -------- | ----------- |
-| `playlistId` | string | はい | YouTubeプレイリストID |
+| `channelId` | string | はい | 動画を取得するYouTubeチャンネルID |
+| `maxResults` | number | いいえ | 返す動画の最大数（1-50） |
+| `order` | string | いいえ | 並べ替え順：「date」（最新順）、「rating」、「relevance」、「title」、「viewCount」 |
+| `pageToken` | string | いいえ | ページネーション用のページトークン |
+| `apiKey` | string | はい | YouTube APIキー |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `items` | array | チャンネルからの動画の配列 |
+
+### `youtube_channel_playlists`
+
+特定のYouTubeチャンネルからすべての再生リストを取得します。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `channelId` | string | はい | 再生リストを取得するYouTubeチャンネルID |
+| `maxResults` | number | いいえ | 返す再生リストの最大数（1-50） |
+| `pageToken` | string | いいえ | ページネーション用のページトークン |
+| `apiKey` | string | はい | YouTube APIキー |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `items` | array | チャンネルからの再生リストの配列 |
+
+### `youtube_playlist_items`
+
+YouTube再生リストから動画を取得します。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `playlistId` | string | はい | YouTube再生リストID |
 | `maxResults` | number | いいえ | 返す動画の最大数 |
 | `pageToken` | string | いいえ | ページネーション用のページトークン |
 | `apiKey` | string | はい | YouTube APIキー |
@@ -133,6 +183,25 @@ YouTubeプレイリストから動画を取得します。
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
 | `items` | array | プレイリスト内の動画の配列 |
+
+### `youtube_related_videos`
+
+特定のYouTube動画に関連する動画を検索します。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `videoId` | string | はい | 関連動画を検索するYouTube動画ID |
+| `maxResults` | number | いいえ | 返す関連動画の最大数（1-50） |
+| `pageToken` | string | いいえ | ページネーション用のページトークン |
+| `apiKey` | string | はい | YouTube APIキー |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `items` | array | 関連動画の配列 |
 
 ### `youtube_comments`
 
@@ -144,7 +213,7 @@ YouTube動画からコメントを取得します。
 | --------- | ---- | -------- | ----------- |
 | `videoId` | string | はい | YouTube動画ID |
 | `maxResults` | number | いいえ | 返すコメントの最大数 |
-| `order` | string | いいえ | コメントの並び順：time（時間順）またはrelevance（関連性順） |
+| `order` | string | いいえ | コメントの並び順：timeまたはrelevance |
 | `pageToken` | string | いいえ | ページネーション用のページトークン |
 | `apiKey` | string | はい | YouTube APIキー |
 
