@@ -57,6 +57,7 @@ import { QdrantBlock } from '@/blocks/blocks/qdrant'
 import { RedditBlock } from '@/blocks/blocks/reddit'
 import { ResendBlock } from '@/blocks/blocks/resend'
 import { ResponseBlock } from '@/blocks/blocks/response'
+import { PauseResumeBlock } from '@/blocks/blocks/pause_resume'
 import { RouterBlock } from '@/blocks/blocks/router'
 import { S3Block } from '@/blocks/blocks/s3'
 import { ScheduleBlock } from '@/blocks/blocks/schedule'
@@ -148,6 +149,7 @@ export const registry: Record<string, BlockConfig> = {
   memory: MemoryBlock,
   reddit: RedditBlock,
   response: ResponseBlock,
+  pause_resume: PauseResumeBlock,
   router: RouterBlock,
   schedule: ScheduleBlock,
   s3: S3Block,

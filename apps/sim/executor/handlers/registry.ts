@@ -13,6 +13,7 @@ import { EvaluatorBlockHandler } from './evaluator/evaluator-handler'
 import { FunctionBlockHandler } from './function/function-handler'
 import { GenericBlockHandler } from './generic/generic-handler'
 import { ResponseBlockHandler } from './response/response-handler'
+import { PauseResumeBlockHandler } from './pause-resume/pause-resume-handler'
 import { RouterBlockHandler } from './router/router-handler'
 import { TriggerBlockHandler } from './trigger/trigger-handler'
 import { VariablesBlockHandler } from './variables/variables-handler'
@@ -34,6 +35,7 @@ export function createBlockHandlers(): BlockHandler[] {
     new ConditionBlockHandler(),
     new RouterBlockHandler(),
     new ResponseBlockHandler(),
+    new PauseResumeBlockHandler(),
     new AgentBlockHandler(),
     new VariablesBlockHandler(),
     new WorkflowBlockHandler(),

@@ -5,6 +5,7 @@ import { EvaluatorBlockHandler } from '@/executor/handlers/evaluator/evaluator-h
 import { FunctionBlockHandler } from '@/executor/handlers/function/function-handler'
 import { GenericBlockHandler } from '@/executor/handlers/generic/generic-handler'
 import { ResponseBlockHandler } from '@/executor/handlers/response/response-handler'
+import { PauseResumeBlockHandler } from '@/executor/handlers/pause-resume/pause-resume-handler'
 import { RouterBlockHandler } from '@/executor/handlers/router/router-handler'
 import { TriggerBlockHandler } from '@/executor/handlers/trigger/trigger-handler'
 import { VariablesBlockHandler } from '@/executor/handlers/variables/variables-handler'
@@ -19,6 +20,7 @@ export {
   FunctionBlockHandler,
   GenericBlockHandler,
   ResponseBlockHandler,
+  PauseResumeBlockHandler,
   RouterBlockHandler,
   TriggerBlockHandler,
   VariablesBlockHandler,

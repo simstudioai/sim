@@ -29,6 +29,7 @@ export enum BlockType {
 
   // I/O
   RESPONSE = 'response',
+  PAUSE_RESUME = 'pause_resume',
   WORKFLOW = 'workflow',
   WORKFLOW_INPUT = 'workflow_input',
 
