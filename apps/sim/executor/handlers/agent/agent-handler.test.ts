@@ -17,6 +17,8 @@ vi.mock('@/lib/environment', () => ({
   isDev: vi.fn().mockReturnValue(true),
   isTest: vi.fn().mockReturnValue(false),
   getCostMultiplier: vi.fn().mockReturnValue(1),
+  isEmailVerificationEnabled: false,
+  isBillingEnabled: false,
 }))
 
 vi.mock('@/providers/utils', () => ({

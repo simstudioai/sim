@@ -91,7 +91,13 @@ export async function POST(
 
   const { webhook: foundWebhook, workflow: foundWorkflow } = findResult
 
-  const authError = await verifyProviderAuth(foundWebhook, request, rawBody, requestId)
+  const authError = await verifyProviderAuth(
+    foundWebhook,
+    foundWorkflow,
+    request,
+    rawBody,
+    requestId
+  )
   if (authError) {
     return authError
   }

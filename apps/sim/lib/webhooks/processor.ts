@@ -8,12 +8,13 @@ import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { env, isTruthy } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
+import { convertSquareBracketsToTwiML } from '@/lib/webhooks/utils'
 import {
   handleSlackChallenge,
   handleWhatsAppVerification,
   validateMicrosoftTeamsSignature,
   verifyProviderWebhook,
-} from '@/lib/webhooks/utils'
+} from '@/lib/webhooks/utils.server'
 import { getWorkspaceBilledAccountUserId } from '@/lib/workspaces/utils'
 import { executeWebhookJob } from '@/background/webhook-execution'
 import { RateLimiter } from '@/services/queue'
@@ -26,6 +27,19 @@ export interface WebhookProcessorOptions {
   webhookId?: string
   testMode?: boolean
   executionTarget?: 'deployed' | 'live'
+}
+
+function getExternalUrl(request: NextRequest): string {
+  const proto = request.headers.get('x-forwarded-proto') || 'https'
+  const host = request.headers.get('x-forwarded-host') || request.headers.get('host')
+
+  if (host) {
+    const url = new URL(request.url)
+    const reconstructed = `${proto}://${host}${url.pathname}${url.search}`
+    return reconstructed
+  }
+
+  return request.url
 }
 
 async function resolveWorkflowActorUserId(foundWorkflow: {
@@ -70,13 +84,13 @@ export async function parseWebhookBody(
       const formData = new URLSearchParams(rawBody)
       const payloadString = formData.get('payload')
 
-      if (!payloadString) {
-        logger.warn(`[${requestId}] No payload field found in form-encoded data`)
-        return new NextResponse('Missing payload field', { status: 400 })
+      if (payloadString) {
+        body = JSON.parse(payloadString)
+        logger.debug(`[${requestId}] Parsed form-encoded GitHub webhook payload`)
+      } else {
+        body = Object.fromEntries(formData.entries())
+        logger.debug(`[${requestId}] Parsed form-encoded webhook data (direct fields)`)
       }
-
-      body = JSON.parse(payloadString)
-      logger.debug(`[${requestId}] Parsed form-encoded GitHub webhook payload`)
     } else {
       body = JSON.parse(rawBody)
       logger.debug(`[${requestId}] Parsed JSON webhook payload`)
@@ -166,15 +180,76 @@ export async function findWebhookAndWorkflow(
   return null
 }
 
+/**
+ * Resolve {{VARIABLE}} references in a string value
+ * @param value - String that may contain {{VARIABLE}} references
+ * @param envVars - Already decrypted environment variables
+ * @returns String with all {{VARIABLE}} references replaced
+ */
+function resolveEnvVars(value: string, envVars: Record<string, string>): string {
+  const envMatches = value.match(/\{\{([^}]+)\}\}/g)
+  if (!envMatches) return value
+
+  let resolvedValue = value
+  for (const match of envMatches) {
+    const envKey = match.slice(2, -2).trim()
+    const envValue = envVars[envKey]
+    if (envValue !== undefined) {
+      resolvedValue = resolvedValue.replaceAll(match, envValue)
+    }
+  }
+  return resolvedValue
+}
+
+/**
+ * Resolve environment variables in webhook providerConfig
+ * @param config - Raw providerConfig from database (may contain {{VARIABLE}} refs)
+ * @param envVars - Already decrypted environment variables
+ * @returns New object with resolved values (original config is unchanged)
+ */
+function resolveProviderConfigEnvVars(
+  config: Record<string, any>,
+  envVars: Record<string, string>
+): Record<string, any> {
+  const resolved: Record<string, any> = {}
+  for (const [key, value] of Object.entries(config)) {
+    if (typeof value === 'string') {
+      resolved[key] = resolveEnvVars(value, envVars)
+    } else {
+      resolved[key] = value
+    }
+  }
+  return resolved
+}
+
+/**
+ * Verify webhook provider authentication and signatures
+ * @returns NextResponse with 401 if auth fails, null if auth passes
+ */
 export async function verifyProviderAuth(
   foundWebhook: any,
+  foundWorkflow: any,
   request: NextRequest,
   rawBody: string,
   requestId: string
 ): Promise<NextResponse | null> {
-  if (foundWebhook.provider === 'microsoftteams') {
-    const providerConfig = (foundWebhook.providerConfig as Record<string, any>) || {}
+  // Step 1: Fetch and decrypt environment variables for signature verification
+  let decryptedEnvVars: Record<string, string> = {}
+  try {
+    const { getEffectiveDecryptedEnv } = await import('@/lib/environment/utils')
+    decryptedEnvVars = await getEffectiveDecryptedEnv(
+      foundWorkflow.userId,
+      foundWorkflow.workspaceId
+    )
+  } catch (error) {
+    logger.error(`[${requestId}] Failed to fetch environment variables`, { error })
+  }
 
+  // Step 2: Resolve {{VARIABLE}} references in providerConfig
+  const rawProviderConfig = (foundWebhook.providerConfig as Record<string, any>) || {}
+  const providerConfig = resolveProviderConfigEnvVars(rawProviderConfig, decryptedEnvVars)
+
+  if (foundWebhook.provider === 'microsoftteams') {
     if (providerConfig.hmacSecret) {
       const authHeader = request.headers.get('authorization')
 
@@ -208,7 +283,6 @@ export async function verifyProviderAuth(
 
   // Handle Google Forms shared-secret authentication (Apps Script forwarder)
   if (foundWebhook.provider === 'google_forms') {
-    const providerConfig = (foundWebhook.providerConfig as Record<string, any>) || {}
     const expectedToken = providerConfig.token as string | undefined
     const secretHeaderName = providerConfig.secretHeaderName as string | undefined
 
@@ -237,10 +311,53 @@ export async function verifyProviderAuth(
     }
   }
 
-  // Generic webhook authentication
-  if (foundWebhook.provider === 'generic') {
-    const providerConfig = (foundWebhook.providerConfig as Record<string, any>) || {}
+  // Twilio Voice webhook signature verification
+  if (foundWebhook.provider === 'twilio_voice') {
+    const authToken = providerConfig.authToken as string | undefined
 
+    if (authToken) {
+      const signature = request.headers.get('x-twilio-signature')
+
+      if (!signature) {
+        logger.warn(`[${requestId}] Twilio Voice webhook missing signature header`)
+        return new NextResponse('Unauthorized - Missing Twilio signature', { status: 401 })
+      }
+
+      let params: Record<string, any> = {}
+      try {
+        if (typeof rawBody === 'string') {
+          const urlParams = new URLSearchParams(rawBody)
+          params = Object.fromEntries(urlParams.entries())
+        }
+      } catch (error) {
+        logger.error(
+          `[${requestId}] Error parsing Twilio webhook body for signature validation:`,
+          error
+        )
+        return new NextResponse('Bad Request - Invalid body format', { status: 400 })
+      }
+
+      const fullUrl = getExternalUrl(request)
+
+      const { validateTwilioSignature } = await import('@/lib/webhooks/utils.server')
+
+      const isValidSignature = await validateTwilioSignature(authToken, signature, fullUrl, params)
+
+      if (!isValidSignature) {
+        logger.warn(`[${requestId}] Twilio Voice signature verification failed`, {
+          url: fullUrl,
+          signatureLength: signature.length,
+          paramsCount: Object.keys(params).length,
+          authTokenLength: authToken.length,
+        })
+        return new NextResponse('Unauthorized - Invalid Twilio signature', { status: 401 })
+      }
+
+      logger.debug(`[${requestId}] Twilio Voice signature verified successfully`)
+    }
+  }
+
+  if (foundWebhook.provider === 'generic') {
     if (providerConfig.requireAuth) {
       const configToken = providerConfig.token
       const secretHeaderName = providerConfig.secretHeaderName
@@ -249,13 +366,11 @@ export async function verifyProviderAuth(
         let isTokenValid = false
 
         if (secretHeaderName) {
-          // Check custom header (headers are case-insensitive)
           const headerValue = request.headers.get(secretHeaderName.toLowerCase())
           if (headerValue === configToken) {
             isTokenValid = true
           }
         } else {
-          // Check Authorization: Bearer <token> (case-insensitive)
           const authHeader = request.headers.get('authorization')
           if (authHeader?.toLowerCase().startsWith('bearer ')) {
             const token = authHeader.substring(7)
@@ -520,6 +635,37 @@ export async function queueWebhookExecution(
       })
     }
 
+    // Twilio Voice requires TwiML XML response
+    if (foundWebhook.provider === 'twilio_voice') {
+      const providerConfig = (foundWebhook.providerConfig as Record<string, any>) || {}
+      const twimlResponse = (providerConfig.twimlResponse as string | undefined)?.trim()
+
+      // If user provided custom TwiML, convert square brackets to angle brackets and return
+      if (twimlResponse && twimlResponse.length > 0) {
+        const convertedTwiml = convertSquareBracketsToTwiML(twimlResponse)
+        return new NextResponse(convertedTwiml, {
+          status: 200,
+          headers: {
+            'Content-Type': 'text/xml; charset=utf-8',
+          },
+        })
+      }
+
+      // Default TwiML if none provided
+      const defaultTwiml = `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Say>Your call is being processed.</Say>
+  <Pause length="1"/>
+</Response>`
+
+      return new NextResponse(defaultTwiml, {
+        status: 200,
+        headers: {
+          'Content-Type': 'text/xml; charset=utf-8',
+        },
+      })
+    }
+
     return NextResponse.json({ message: 'Webhook processed' })
   } catch (error: any) {
     logger.error(`[${options.requestId}] Failed to queue webhook execution:`, error)
@@ -532,6 +678,21 @@ export async function queueWebhookExecution(
         },
         { status: 500 }
       )
+    }
+
+    if (foundWebhook.provider === 'twilio_voice') {
+      const errorTwiml = `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Say>We're sorry, but an error occurred processing your call. Please try again later.</Say>
+  <Hangup/>
+</Response>`
+
+      return new NextResponse(errorTwiml, {
+        status: 200,
+        headers: {
+          'Content-Type': 'text/xml',
+        },
+      })
     }
 
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

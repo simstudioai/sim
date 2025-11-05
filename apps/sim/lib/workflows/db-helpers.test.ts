@@ -71,6 +71,12 @@ vi.doMock('drizzle-orm', () => ({
   eq: vi.fn((field, value) => ({ field, value, type: 'eq' })),
   and: vi.fn((...conditions) => ({ type: 'and', conditions })),
   desc: vi.fn((field) => ({ field, type: 'desc' })),
+  sql: vi.fn((strings, ...values) => ({
+    strings,
+    values,
+    type: 'sql',
+    _: { brand: 'SQL' },
+  })),
 }))
 
 vi.doMock('@/lib/logs/console/logger', () => ({

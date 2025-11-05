@@ -417,7 +417,7 @@ export async function POST(request: NextRequest) {
     if (savedWebhook && provider === 'gmail') {
       logger.info(`[${requestId}] Gmail provider detected. Setting up Gmail webhook configuration.`)
       try {
-        const { configureGmailPolling } = await import('@/lib/webhooks/utils')
+        const { configureGmailPolling } = await import('@/lib/webhooks/utils.server')
         const success = await configureGmailPolling(savedWebhook, requestId)
 
         if (!success) {
@@ -456,7 +456,7 @@ export async function POST(request: NextRequest) {
         `[${requestId}] Outlook provider detected. Setting up Outlook webhook configuration.`
       )
       try {
-        const { configureOutlookPolling } = await import('@/lib/webhooks/utils')
+        const { configureOutlookPolling } = await import('@/lib/webhooks/utils.server')
         const success = await configureOutlookPolling(savedWebhook, requestId)
 
         if (!success) {

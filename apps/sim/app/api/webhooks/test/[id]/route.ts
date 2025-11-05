@@ -56,7 +56,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   const { webhook: foundWebhook, workflow: foundWorkflow } = result
 
-  const authError = await verifyProviderAuth(foundWebhook, request, rawBody, requestId)
+  const authError = await verifyProviderAuth(
+    foundWebhook,
+    foundWorkflow,
+    request,
+    rawBody,
+    requestId
+  )
   if (authError) {
     return authError
   }
