@@ -465,22 +465,16 @@ export async function executeScheduleJob(payload: ScheduleExecutionPayload) {
           )
 
           try {
-            await loggingSession.safeStart({
-              userId: workflowRecord.userId,
-              workspaceId: workflowRecord.workspaceId || '',
-              variables: {},
-            })
-
             await loggingSession.safeCompleteWithError({
               error: {
-                message: `Schedule execution failed before workflow started: ${earlyError.message}`,
+                message: `Schedule execution failed: ${earlyError.message}`,
                 stackTrace: earlyError.stack,
               },
               traceSpans: [],
             })
           } catch (loggingError) {
             logger.error(
-              `[${requestId}] Failed to create log entry for early schedule failure`,
+              `[${requestId}] Failed to complete log entry for schedule failure`,
               loggingError
             )
           }
@@ -574,34 +568,6 @@ export async function executeScheduleJob(payload: ScheduleExecutionPayload) {
           `[${requestId}] Error executing scheduled workflow ${payload.workflowId}`,
           error
         )
-
-        try {
-          const failureLoggingSession = new LoggingSession(
-            payload.workflowId,
-            executionId,
-            'schedule',
-            requestId
-          )
-
-          await failureLoggingSession.safeStart({
-            userId: workflowRecord.userId,
-            workspaceId: workflowRecord.workspaceId || '',
-            variables: {},
-          })
-
-          await failureLoggingSession.safeCompleteWithError({
-            error: {
-              message: `Schedule execution failed: ${error.message}`,
-              stackTrace: error.stack,
-            },
-            traceSpans: [],
-          })
-        } catch (loggingError) {
-          logger.error(
-            `[${requestId}] Failed to create log entry for failed schedule execution`,
-            loggingError
-          )
-        }
 
         let nextRunAt: Date
         try {
