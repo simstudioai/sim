@@ -51,6 +51,12 @@ export const slackMessageTool: ToolConfig<SlackMessageParams, SlackMessageRespon
       visibility: 'user-or-llm',
       description: 'Message text to send (supports Slack mrkdwn formatting)',
     },
+    thread_ts: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Thread timestamp to reply to (creates thread reply)',
+    },
     files: {
       type: 'file[]',
       required: false,
@@ -70,6 +76,7 @@ export const slackMessageTool: ToolConfig<SlackMessageParams, SlackMessageRespon
         accessToken: params.accessToken || params.botToken,
         channel: params.channel,
         text: params.text,
+        thread_ts: params.thread_ts || undefined,
         files: params.files || null,
       }
     },

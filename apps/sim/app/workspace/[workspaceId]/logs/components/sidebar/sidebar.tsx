@@ -7,7 +7,6 @@ import { CopyButton } from '@/components/ui/copy-button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { BASE_EXECUTION_CHARGE } from '@/lib/billing/constants'
-import { redactApiKeys } from '@/lib/utils'
 import { FrozenCanvasModal } from '@/app/workspace/[workspaceId]/logs/components/frozen-canvas/frozen-canvas-modal'
 import { FileDownload } from '@/app/workspace/[workspaceId]/logs/components/sidebar/components/file-download'
 import LogMarkdownRenderer from '@/app/workspace/[workspaceId]/logs/components/sidebar/components/markdown-renderer'
@@ -99,17 +98,17 @@ const BlockContentDisplay = ({
 }) => {
   const [activeTab, setActiveTab] = useState<'output' | 'input'>(blockInput ? 'output' : 'output')
 
-  const redactedBlockInput = useMemo(() => {
-    return blockInput ? redactApiKeys(blockInput) : undefined
+  const blockInputString = useMemo(() => {
+    if (!blockInput) return undefined
+    return JSON.stringify(blockInput, null, 2)
   }, [blockInput])
 
-  const redactedOutput = useMemo(() => {
+  const outputString = useMemo(() => {
     if (!isJson) return formatted
 
     try {
       const parsedOutput = JSON.parse(formatted)
-      const redactedJson = redactApiKeys(parsedOutput)
-      return JSON.stringify(redactedJson, null, 2)
+      return JSON.stringify(parsedOutput, null, 2)
     } catch (_e) {
       return formatted
     }
@@ -120,7 +119,7 @@ const BlockContentDisplay = ({
       <div className='mb-2 font-medium text-muted-foreground text-sm'>{systemComment}</div>
 
       {/* Tabs for switching between output and input */}
-      {redactedBlockInput && (
+      {blockInputString && (
         <div className='mb-2 flex space-x-1'>
           <button
             onClick={() => setActiveTab('output')}
@@ -149,26 +148,23 @@ const BlockContentDisplay = ({
       <div className='group relative rounded-md bg-secondary/30 p-3'>
         {activeTab === 'output' ? (
           <>
-            <CopyButton text={redactedOutput} className='z-10 h-7 w-7' />
+            <CopyButton text={outputString} className='z-10 h-7 w-7' />
             {isJson ? (
               <pre className='w-full overflow-y-auto overflow-x-hidden whitespace-pre-wrap break-all text-sm'>
-                {redactedOutput}
+                {outputString}
               </pre>
             ) : (
-              <LogMarkdownRenderer content={redactedOutput} />
+              <LogMarkdownRenderer content={outputString} />
             )}
           </>
-        ) : (
+        ) : blockInputString ? (
           <>
-            <CopyButton
-              text={JSON.stringify(redactedBlockInput, null, 2)}
-              className='z-10 h-7 w-7'
-            />
+            <CopyButton text={blockInputString} className='z-10 h-7 w-7' />
             <pre className='w-full overflow-y-auto overflow-x-hidden whitespace-pre-wrap break-all text-sm'>
-              {JSON.stringify(redactedBlockInput, null, 2)}
+              {blockInputString}
             </pre>
           </>
-        )}
+        ) : null}
       </div>
     </div>
   )

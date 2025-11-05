@@ -102,12 +102,25 @@ describe('Copilot Chat API Route', () => {
       generateRequestId: vi.fn(() => 'test-request-id'),
     }))
 
+    const mockEnvValues = {
+      SIM_AGENT_API_URL: 'http://localhost:8000',
+      COPILOT_API_KEY: 'test-sim-agent-key',
+      BETTER_AUTH_URL: 'http://localhost:3000',
+      NEXT_PUBLIC_APP_URL: 'http://localhost:3000',
+      NODE_ENV: 'test',
+    } as const
+
     vi.doMock('@/lib/env', () => ({
-      env: {
-        SIM_AGENT_API_URL: 'http://localhost:8000',
-        COPILOT_API_KEY: 'test-sim-agent-key',
-        BETTER_AUTH_URL: 'http://localhost:3000',
-      },
+      env: mockEnvValues,
+      getEnv: (variable: string) => mockEnvValues[variable as keyof typeof mockEnvValues],
+      isTruthy: (value: string | boolean | number | undefined) =>
+        typeof value === 'string'
+          ? value.toLowerCase() === 'true' || value === '1'
+          : Boolean(value),
+      isFalsy: (value: string | boolean | number | undefined) =>
+        typeof value === 'string'
+          ? value.toLowerCase() === 'false' || value === '0'
+          : value === false,
     }))
 
     global.fetch = vi.fn()

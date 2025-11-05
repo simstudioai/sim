@@ -190,13 +190,12 @@ export function getBlockOutputPaths(
         if (value.type === 'files') {
           // Show properties without [0] for cleaner display
           // The tag dropdown will add [0] automatically when inserting
-          paths.push(`${path}.url`)
+          // Only expose user-accessible fields (matches UserFile interface)
+          paths.push(`${path}.id`)
           paths.push(`${path}.name`)
+          paths.push(`${path}.url`)
           paths.push(`${path}.size`)
           paths.push(`${path}.type`)
-          paths.push(`${path}.key`)
-          paths.push(`${path}.uploadedAt`)
-          paths.push(`${path}.expiresAt`)
         } else {
           paths.push(path)
         }
@@ -232,18 +231,15 @@ export function getBlockOutputType(
   const pathParts = cleanPath.split('.').filter(Boolean)
 
   const filePropertyTypes: Record<string, string> = {
-    url: 'string',
+    id: 'string',
     name: 'string',
+    url: 'string',
     size: 'number',
     type: 'string',
-    key: 'string',
-    uploadedAt: 'string',
-    expiresAt: 'string',
   }
 
   const lastPart = pathParts[pathParts.length - 1]
   if (lastPart && filePropertyTypes[lastPart]) {
-    const parentPath = pathParts.slice(0, -1).join('.')
     let current: any = outputs
     for (const part of pathParts.slice(0, -1)) {
       if (!current || typeof current !== 'object') break

@@ -24,6 +24,7 @@ export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
         { label: 'Create Folder', id: 'create_folder' },
         { label: 'Create File', id: 'create_file' },
         { label: 'Upload File', id: 'upload' },
+        { label: 'Download File', id: 'download' },
         { label: 'List Files', id: 'list' },
       ],
       value: () => 'create_folder',
@@ -259,9 +260,79 @@ export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
       placeholder: 'Number of results (default: 100, max: 1000)',
       condition: { field: 'operation', value: 'list' },
     },
+    // Download File Fields - File Selector (basic mode)
+    {
+      id: 'fileSelector',
+      title: 'Select File',
+      type: 'file-selector',
+      layout: 'full',
+      canonicalParamId: 'fileId',
+      provider: 'google-drive',
+      serviceId: 'google-drive',
+      requiredScopes: [
+        'https://www.googleapis.com/auth/drive.readonly',
+        'https://www.googleapis.com/auth/drive.file',
+      ],
+      placeholder: 'Select a file to download',
+      mode: 'basic',
+      dependsOn: ['credential'],
+      condition: { field: 'operation', value: 'download' },
+    },
+    // Manual File ID input (advanced mode)
+    {
+      id: 'manualFileId',
+      title: 'File ID',
+      type: 'short-input',
+      layout: 'full',
+      canonicalParamId: 'fileId',
+      placeholder: 'Enter file ID',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'download' },
+      required: true,
+    },
+    // Export format for Google Workspace files (download operation)
+    {
+      id: 'mimeType',
+      title: 'Export Format (for Google Workspace files)',
+      type: 'dropdown',
+      layout: 'full',
+      options: [
+        { label: 'Plain Text (text/plain)', id: 'text/plain' },
+        { label: 'HTML (text/html)', id: 'text/html' },
+        { label: 'PDF (application/pdf)', id: 'application/pdf' },
+        {
+          label: 'DOCX (MS Word)',
+          id: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        },
+        {
+          label: 'XLSX (MS Excel)',
+          id: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        },
+        {
+          label: 'PPTX (MS PowerPoint)',
+          id: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+        },
+        { label: 'CSV (text/csv)', id: 'text/csv' },
+      ],
+      placeholder: 'Optional: Choose export format for Google Docs/Sheets/Slides',
+      condition: { field: 'operation', value: 'download' },
+    },
+    {
+      id: 'fileName',
+      title: 'File Name Override',
+      type: 'short-input',
+      layout: 'full',
+      placeholder: 'Optional: Override the filename',
+      condition: { field: 'operation', value: 'download' },
+    },
   ],
   tools: {
-    access: ['google_drive_upload', 'google_drive_create_folder', 'google_drive_list'],
+    access: [
+      'google_drive_upload',
+      'google_drive_create_folder',
+      'google_drive_download',
+      'google_drive_list',
+    ],
     config: {
       tool: (params) => {
         switch (params.operation) {
@@ -270,6 +341,8 @@ export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
             return 'google_drive_upload'
           case 'create_folder':
             return 'google_drive_create_folder'
+          case 'download':
+            return 'google_drive_download'
           case 'list':
             return 'google_drive_list'
           default:
@@ -277,14 +350,26 @@ export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
         }
       },
       params: (params) => {
-        const { credential, folderSelector, manualFolderId, mimeType, ...rest } = params
+        const {
+          credential,
+          folderSelector,
+          manualFolderId,
+          fileSelector,
+          manualFileId,
+          mimeType,
+          ...rest
+        } = params
 
         // Use folderSelector if provided, otherwise use manualFolderId
         const effectiveFolderId = (folderSelector || manualFolderId || '').trim()
 
+        // Use fileSelector if provided, otherwise use manualFileId
+        const effectiveFileId = (fileSelector || manualFileId || '').trim()
+
         return {
           credential,
           folderId: effectiveFolderId || undefined,
+          fileId: effectiveFileId || undefined,
           pageSize: rest.pageSize ? Number.parseInt(rest.pageSize as string, 10) : undefined,
           mimeType: mimeType,
           ...rest,
@@ -299,7 +384,10 @@ export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
     fileName: { type: 'string', description: 'File or folder name' },
     file: { type: 'json', description: 'File to upload (UserFile object)' },
     content: { type: 'string', description: 'Text content to upload' },
-    mimeType: { type: 'string', description: 'File MIME type' },
+    mimeType: { type: 'string', description: 'File MIME type or export format' },
+    // Download operation inputs
+    fileSelector: { type: 'string', description: 'Selected file to download' },
+    manualFileId: { type: 'string', description: 'Manual file identifier' },
     // List operation inputs
     folderSelector: { type: 'string', description: 'Selected folder' },
     manualFolderId: { type: 'string', description: 'Manual folder identifier' },

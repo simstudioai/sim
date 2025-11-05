@@ -1,11 +1,11 @@
 export type StorageContext =
-  | 'general'
   | 'knowledge-base'
   | 'chat'
   | 'copilot'
   | 'execution'
   | 'workspace'
   | 'profile-pictures'
+  | 'logs'
 
 export interface FileInfo {
   path: string

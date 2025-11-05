@@ -7,10 +7,11 @@ import { getTrigger } from '@/triggers'
 export const SlackBlock: BlockConfig<SlackResponse> = {
   type: 'slack',
   name: 'Slack',
-  description: 'Send messages to Slack or trigger workflows from Slack events',
+  description:
+    'Send, update, delete messages, add reactions in Slack or trigger workflows from Slack events',
   authMode: AuthMode.OAuth,
   longDescription:
-    'Integrate Slack into the workflow. Can send messages, create canvases, and read messages. Requires Bot Token instead of OAuth in advanced mode. Can be used in trigger mode to trigger a workflow when a message is sent to a channel.',
+    'Integrate Slack into the workflow. Can send, update, and delete messages, create canvases, read messages, and add reactions. Requires Bot Token instead of OAuth in advanced mode. Can be used in trigger mode to trigger a workflow when a message is sent to a channel.',
   docsLink: 'https://docs.sim.ai/tools/slack',
   category: 'tools',
   bgColor: '#611f69',
@@ -26,6 +27,10 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
         { label: 'Send Message', id: 'send' },
         { label: 'Create Canvas', id: 'canvas' },
         { label: 'Read Messages', id: 'read' },
+        { label: 'Download File', id: 'download' },
+        { label: 'Update Message', id: 'update' },
+        { label: 'Delete Message', id: 'delete' },
+        { label: 'Add Reaction', id: 'react' },
       ],
       value: () => 'send',
     },
@@ -110,6 +115,19 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
       },
       required: true,
     },
+    {
+      id: 'threadTs',
+      title: 'Thread Timestamp (Optional)',
+      type: 'short-input',
+      layout: 'full',
+      canonicalParamId: 'thread_ts',
+      placeholder: 'Reply to thread (e.g., 1405894322.002768)',
+      condition: {
+        field: 'operation',
+        value: 'send',
+      },
+      required: false,
+    },
     // File upload (basic mode)
     {
       id: 'attachmentFiles',
@@ -183,10 +201,111 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
         value: 'read',
       },
     },
+    // Download File specific fields
+    {
+      id: 'fileId',
+      title: 'File ID',
+      type: 'short-input',
+      layout: 'full',
+      placeholder: 'Enter Slack file ID (e.g., F1234567890)',
+      condition: {
+        field: 'operation',
+        value: 'download',
+      },
+      required: true,
+    },
+    {
+      id: 'downloadFileName',
+      title: 'File Name Override',
+      type: 'short-input',
+      layout: 'full',
+      canonicalParamId: 'fileName',
+      placeholder: 'Optional: Override the filename',
+      condition: {
+        field: 'operation',
+        value: 'download',
+      },
+    },
+    // Update Message specific fields
+    {
+      id: 'updateTimestamp',
+      title: 'Message Timestamp',
+      type: 'short-input',
+      layout: 'full',
+      canonicalParamId: 'timestamp',
+      placeholder: 'Message timestamp (e.g., 1405894322.002768)',
+      condition: {
+        field: 'operation',
+        value: 'update',
+      },
+      required: true,
+    },
+    {
+      id: 'updateText',
+      title: 'New Message Text',
+      type: 'long-input',
+      layout: 'full',
+      canonicalParamId: 'text',
+      placeholder: 'Enter new message text (supports Slack mrkdwn)',
+      condition: {
+        field: 'operation',
+        value: 'update',
+      },
+      required: true,
+    },
+    // Delete Message specific fields
+    {
+      id: 'deleteTimestamp',
+      title: 'Message Timestamp',
+      type: 'short-input',
+      layout: 'full',
+      canonicalParamId: 'timestamp',
+      placeholder: 'Message timestamp (e.g., 1405894322.002768)',
+      condition: {
+        field: 'operation',
+        value: 'delete',
+      },
+      required: true,
+    },
+    // Add Reaction specific fields
+    {
+      id: 'reactionTimestamp',
+      title: 'Message Timestamp',
+      type: 'short-input',
+      layout: 'full',
+      canonicalParamId: 'timestamp',
+      placeholder: 'Message timestamp (e.g., 1405894322.002768)',
+      condition: {
+        field: 'operation',
+        value: 'react',
+      },
+      required: true,
+    },
+    {
+      id: 'emojiName',
+      title: 'Emoji Name',
+      type: 'short-input',
+      layout: 'full',
+      canonicalParamId: 'name',
+      placeholder: 'Emoji name without colons (e.g., thumbsup, heart, eyes)',
+      condition: {
+        field: 'operation',
+        value: 'react',
+      },
+      required: true,
+    },
     ...getTrigger('slack_webhook').subBlocks,
   ],
   tools: {
-    access: ['slack_message', 'slack_canvas', 'slack_message_reader'],
+    access: [
+      'slack_message',
+      'slack_canvas',
+      'slack_message_reader',
+      'slack_download',
+      'slack_update_message',
+      'slack_delete_message',
+      'slack_add_reaction',
+    ],
     config: {
       tool: (params) => {
         switch (params.operation) {
@@ -196,6 +315,14 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
             return 'slack_canvas'
           case 'read':
             return 'slack_message_reader'
+          case 'download':
+            return 'slack_download'
+          case 'update':
+            return 'slack_update_message'
+          case 'delete':
+            return 'slack_delete_message'
+          case 'react':
+            return 'slack_add_reaction'
           default:
             throw new Error(`Invalid Slack operation: ${params.operation}`)
         }
@@ -214,6 +341,12 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
           oldest,
           attachmentFiles,
           files,
+          threadTs,
+          updateTimestamp,
+          updateText,
+          deleteTimestamp,
+          reactionTimestamp,
+          emojiName,
           ...rest
         } = params
 
@@ -249,6 +382,10 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
               throw new Error('Message text is required for send operation')
             }
             baseParams.text = rest.text
+            // Add thread_ts if provided
+            if (threadTs) {
+              baseParams.thread_ts = threadTs
+            }
             // Add files if provided
             const fileParam = attachmentFiles || files
             if (fileParam) {
@@ -276,6 +413,42 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
               baseParams.oldest = oldest
             }
             break
+
+          case 'download': {
+            const fileId = (rest as any).fileId
+            const downloadFileName = (rest as any).downloadFileName
+            if (!fileId) {
+              throw new Error('File ID is required for download operation')
+            }
+            baseParams.fileId = fileId
+            if (downloadFileName) {
+              baseParams.fileName = downloadFileName
+            }
+            break
+          }
+
+          case 'update':
+            if (!updateTimestamp || !updateText) {
+              throw new Error('Timestamp and text are required for update operation')
+            }
+            baseParams.timestamp = updateTimestamp
+            baseParams.text = updateText
+            break
+
+          case 'delete':
+            if (!deleteTimestamp) {
+              throw new Error('Timestamp is required for delete operation')
+            }
+            baseParams.timestamp = deleteTimestamp
+            break
+
+          case 'react':
+            if (!reactionTimestamp || !emojiName) {
+              throw new Error('Timestamp and emoji name are required for reaction operation')
+            }
+            baseParams.timestamp = reactionTimestamp
+            baseParams.name = emojiName
+            break
         }
 
         return baseParams
@@ -296,6 +469,18 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
     content: { type: 'string', description: 'Canvas content' },
     limit: { type: 'string', description: 'Message limit' },
     oldest: { type: 'string', description: 'Oldest timestamp' },
+    fileId: { type: 'string', description: 'File ID to download' },
+    downloadFileName: { type: 'string', description: 'File name override for download' },
+    // Update/Delete/React operation inputs
+    updateTimestamp: { type: 'string', description: 'Message timestamp for update' },
+    updateText: { type: 'string', description: 'New text for update' },
+    deleteTimestamp: { type: 'string', description: 'Message timestamp for delete' },
+    reactionTimestamp: { type: 'string', description: 'Message timestamp for reaction' },
+    emojiName: { type: 'string', description: 'Emoji name for reaction' },
+    timestamp: { type: 'string', description: 'Message timestamp' },
+    name: { type: 'string', description: 'Emoji name' },
+    threadTs: { type: 'string', description: 'Thread timestamp' },
+    thread_ts: { type: 'string', description: 'Thread timestamp for reply' },
   },
   outputs: {
     // slack_message outputs
@@ -309,13 +494,24 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
     // slack_message_reader outputs
     messages: {
       type: 'json',
-      description: 'Array of message objects',
+      description: 'Array of message objects with text, user, timestamp, and file attachments',
+    },
+
+    // slack_download outputs
+    file: {
+      type: 'json',
+      description: 'Downloaded file stored in execution files',
     },
 
     // Trigger outputs (when used as webhook trigger)
     event_type: { type: 'string', description: 'Type of Slack event that triggered the workflow' },
     channel_name: { type: 'string', description: 'Human-readable channel name' },
     user_name: { type: 'string', description: 'Username who triggered the event' },
+    timestamp: { type: 'string', description: 'Message timestamp from the triggering event' },
+    thread_ts: {
+      type: 'string',
+      description: 'Parent thread timestamp (if message is in a thread)',
+    },
     team_id: { type: 'string', description: 'Slack workspace/team ID' },
     event_id: { type: 'string', description: 'Unique event identifier for the trigger' },
   },

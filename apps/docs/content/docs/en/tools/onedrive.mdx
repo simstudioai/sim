@@ -98,6 +98,23 @@ Create a new folder in OneDrive
 | `success` | boolean | Whether the folder was created successfully |
 | `file` | object | The created folder object with metadata including id, name, webViewLink, and timestamps |
 
+### `onedrive_download`
+
+Download a file from OneDrive
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `fileId` | string | Yes | The ID of the file to download |
+| `fileName` | string | No | Optional filename override |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `file` | file | Downloaded file stored in execution files |
+
 ### `onedrive_list`
 
 List files and folders in OneDrive

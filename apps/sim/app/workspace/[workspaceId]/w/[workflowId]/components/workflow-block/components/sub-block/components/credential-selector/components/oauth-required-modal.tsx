@@ -31,20 +31,19 @@ export interface OAuthRequiredModalProps {
   serviceId?: string
 }
 
-// Map of OAuth scopes to user-friendly descriptions
 const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'https://www.googleapis.com/auth/gmail.send': 'Send emails on your behalf',
   'https://www.googleapis.com/auth/gmail.labels': 'View and manage your email labels',
   'https://www.googleapis.com/auth/gmail.modify': 'View and manage your email messages',
-  // 'https://www.googleapis.com/auth/gmail.readonly': 'View and read your email messages',
-  // 'https://www.googleapis.com/auth/drive': 'View and manage your Google Drive files',
+  'https://www.googleapis.com/auth/gmail.readonly': 'View and read your email messages',
   'https://www.googleapis.com/auth/drive.readonly': 'View and read your Google Drive files',
   'https://www.googleapis.com/auth/drive.file': 'View and manage your Google Drive files',
-  // 'https://www.googleapis.com/auth/documents': 'View and manage your Google Docs',
   'https://www.googleapis.com/auth/calendar': 'View and manage your calendar',
   'https://www.googleapis.com/auth/userinfo.email': 'View your email address',
   'https://www.googleapis.com/auth/userinfo.profile': 'View your basic profile info',
   'https://www.googleapis.com/auth/forms.responses.readonly': 'View responses to your Google Forms',
+  'https://www.googleapis.com/auth/ediscovery': 'Access Google Vault for eDiscovery',
+  'https://www.googleapis.com/auth/devstorage.read_only': 'Read files from Google Cloud Storage',
   'read:page:confluence': 'Read Confluence pages',
   'write:page:confluence': 'Write Confluence pages',
   'read:me': 'Read your profile information',
@@ -101,11 +100,24 @@ const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'Mail.ReadBasic': 'Read your Microsoft emails',
   'Mail.Read': 'Read your Microsoft emails',
   'Mail.Send': 'Send emails on your behalf',
+  'Files.Read': 'Read your OneDrive files',
+  'Files.ReadWrite': 'Read and write your OneDrive files',
+  'ChannelMember.Read.All': 'Read team channel members',
+  'Tasks.ReadWrite': 'Read and manage your Planner tasks',
+  'Sites.Read.All': 'Read Sharepoint sites',
+  'Sites.ReadWrite.All': 'Read and write Sharepoint sites',
+  'Sites.Manage.All': 'Manage Sharepoint sites',
+  openid: 'Standard authentication',
+  profile: 'Access your profile information',
+  email: 'Access your email address',
   identify: 'Read your Discord user',
   bot: 'Read your Discord bot',
   'messages.read': 'Read your Discord messages',
   guilds: 'Read your Discord guilds',
   'guilds.members.read': 'Read your Discord guild members',
+  identity: 'Access your Reddit identity',
+  login: 'Access your Wealthbox account',
+  data: 'Access your Wealthbox data',
   read: 'Read access to your workspace',
   write: 'Write access to your Linear workspace',
   'channels:read': 'View public channels',
@@ -116,14 +128,15 @@ const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'chat:write.public': 'Post to public channels',
   'users:read': 'View workspace users',
   'files:write': 'Upload files',
+  'files:read': 'Download and read files',
   'canvases:write': 'Create canvas documents',
+  'reactions:write': 'Add emoji reactions to messages',
   'sites:read': 'View your Webflow sites',
   'sites:write': 'Manage webhooks and site settings',
   'cms:read': 'View your CMS content',
   'cms:write': 'Manage your CMS content',
 }
 
-// Convert OAuth scope to user-friendly description
 function getScopeDescription(scope: string): string {
   return SCOPE_DESCRIPTIONS[scope] || scope
 }
@@ -136,16 +149,13 @@ export function OAuthRequiredModal({
   requiredScopes = [],
   serviceId,
 }: OAuthRequiredModalProps) {
-  // Get provider configuration and service
   const effectiveServiceId = serviceId || getServiceIdFromScopes(provider, requiredScopes)
   const { baseProvider } = parseProvider(provider)
   const baseProviderConfig = OAUTH_PROVIDERS[baseProvider]
 
-  // Default to base provider name and icon
   let providerName = baseProviderConfig?.name || provider
   let ProviderIcon = baseProviderConfig?.icon || (() => null)
 
-  // Try to find the specific service
   if (baseProviderConfig) {
     for (const service of Object.values(baseProviderConfig.services)) {
       if (service.id === effectiveServiceId || service.providerId === provider) {
@@ -156,17 +166,14 @@ export function OAuthRequiredModal({
     }
   }
 
-  // Filter out userinfo scopes as they're not relevant to show to users
   const displayScopes = requiredScopes.filter(
     (scope) => !scope.includes('userinfo.email') && !scope.includes('userinfo.profile')
   )
 
   const handleConnectDirectly = async () => {
     try {
-      // Determine the appropriate serviceId and providerId
       const providerId = getProviderIdFromServiceId(effectiveServiceId)
 
-      // Close the modal
       onClose()
 
       logger.info('Linking OAuth2:', {

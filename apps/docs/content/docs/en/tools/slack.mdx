@@ -1,6 +1,6 @@
 ---
 title: Slack
-description: Send messages to Slack or trigger workflows from Slack events
+description: Send, update, delete messages, add reactions in Slack or trigger workflows from Slack events
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -51,20 +51,25 @@ With Slack, you can:
 - **Enhance agent workflows**: Integrate Slack messaging into your agents to deliver results, alerts, and status updates
 - **Create and share Slack canvases**: Programmatically generate collaborative documents (canvases) in Slack channels
 - **Read messages from channels**: Retrieve and process recent messages from any Slack channel for monitoring or workflow triggers
+- **Manage bot messages**: Update, delete, and add reactions to messages sent by your bot
 
-In Sim, the Slack integration enables your agents to programmatically interact with Slack in several ways as part of their workflows:
+In Sim, the Slack integration enables your agents to programmatically interact with Slack with full message management capabilities as part of their workflows:
 
-- **Send messages**: Agents can send formatted messages to any Slack channel or user, supporting Slack's mrkdwn syntax for rich formatting.
-- **Create canvases**: Agents can create and share Slack canvases (collaborative documents) directly in channels, enabling richer content sharing and documentation.
-- **Read messages**: Agents can read recent messages from channels, allowing for monitoring, reporting, or triggering further actions based on channel activity.
+- **Send messages**: Agents can send formatted messages to any Slack channel or user, supporting Slack's mrkdwn syntax for rich formatting
+- **Update messages**: Edit previously sent bot messages to correct information or provide status updates
+- **Delete messages**: Remove bot messages when they're no longer needed or contain errors
+- **Add reactions**: Express sentiment or acknowledgment by adding emoji reactions to any message
+- **Create canvases**: Create and share Slack canvases (collaborative documents) directly in channels, enabling richer content sharing and documentation
+- **Read messages**: Read recent messages from channels, allowing for monitoring, reporting, or triggering further actions based on channel activity
+- **Download files**: Retrieve files shared in Slack channels for processing or archival
 
-This allows for powerful automation scenarios such as sending notifications, alerts, updates, and reports directly to your team's communication hub, sharing structured documents, or monitoring conversations for workflow triggers. Your agents can deliver timely information, share results from processes they've completed, create collaborative documents, or alert team members when attention is needed. This integration bridges the gap between your AI workflows and your team's communication, ensuring everyone stays informed without manual intervention. By connecting Sim with Slack, you can create agents that keep your team updated with relevant information at the right time, enhance collaboration by sharing insights automatically, and reduce the need for manual status updates—all while leveraging your existing Slack workspace where your team already communicates.
+This allows for powerful automation scenarios such as sending notifications with dynamic updates, managing conversational flows with editable status messages, acknowledging important messages with reactions, and maintaining clean channels by removing outdated bot messages. Your agents can deliver timely information, update messages as workflows progress, create collaborative documents, or alert team members when attention is needed. This integration bridges the gap between your AI workflows and your team's communication, ensuring everyone stays informed with accurate, up-to-date information. By connecting Sim with Slack, you can create agents that keep your team updated with relevant information at the right time, enhance collaboration by sharing and updating insights automatically, and reduce the need for manual status updates—all while leveraging your existing Slack workspace where your team already communicates.
 {/* MANUAL-CONTENT-END */}
 
 
 ## Usage Instructions
 
-Integrate Slack into the workflow. Can send messages, create canvases, and read messages. Requires Bot Token instead of OAuth in advanced mode. Can be used in trigger mode to trigger a workflow when a message is sent to a channel.
+Integrate Slack into the workflow. Can send, update, and delete messages, create canvases, read messages, and add reactions. Requires Bot Token instead of OAuth in advanced mode. Can be used in trigger mode to trigger a workflow when a message is sent to a channel.
 
 
 
@@ -82,6 +87,7 @@ Send messages to Slack channels or users through the Slack API. Supports Slack m
 | `botToken` | string | No | Bot token for Custom Bot |
 | `channel` | string | Yes | Target Slack channel \(e.g., #general\) |
 | `text` | string | Yes | Message text to send \(supports Slack mrkdwn formatting\) |
+| `thread_ts` | string | No | Thread timestamp to reply to \(creates thread reply\) |
 | `files` | file[] | No | Files to attach to the message |
 
 #### Output
@@ -134,6 +140,87 @@ Read the latest messages from Slack channels. Retrieve conversation history with
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `messages` | array | Array of message objects from the channel |
+
+### `slack_download`
+
+Download a file from Slack
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `authMethod` | string | No | Authentication method: oauth or bot_token |
+| `botToken` | string | No | Bot token for Custom Bot |
+| `fileId` | string | Yes | The ID of the file to download |
+| `fileName` | string | No | Optional filename override |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `file` | file | Downloaded file stored in execution files |
+
+### `slack_update_message`
+
+Update a message previously sent by the bot in Slack
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `authMethod` | string | No | Authentication method: oauth or bot_token |
+| `botToken` | string | No | Bot token for Custom Bot |
+| `channel` | string | Yes | Channel ID where the message was posted \(e.g., C1234567890\) |
+| `timestamp` | string | Yes | Timestamp of the message to update \(e.g., 1405894322.002768\) |
+| `text` | string | Yes | New message text \(supports Slack mrkdwn formatting\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | string | Success message |
+| `metadata` | object | Updated message metadata |
+
+### `slack_delete_message`
+
+Delete a message previously sent by the bot in Slack
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `authMethod` | string | No | Authentication method: oauth or bot_token |
+| `botToken` | string | No | Bot token for Custom Bot |
+| `channel` | string | Yes | Channel ID where the message was posted \(e.g., C1234567890\) |
+| `timestamp` | string | Yes | Timestamp of the message to delete \(e.g., 1405894322.002768\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | string | Success message |
+| `metadata` | object | Deleted message metadata |
+
+### `slack_add_reaction`
+
+Add an emoji reaction to a Slack message
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `authMethod` | string | No | Authentication method: oauth or bot_token |
+| `botToken` | string | No | Bot token for Custom Bot |
+| `channel` | string | Yes | Channel ID where the message was posted \(e.g., C1234567890\) |
+| `timestamp` | string | Yes | Timestamp of the message to react to \(e.g., 1405894322.002768\) |
+| `name` | string | Yes | Name of the emoji reaction \(without colons, e.g., thumbsup, heart, eyes\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | string | Success message |
+| `metadata` | object | Reaction metadata |
 
 
 

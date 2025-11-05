@@ -27,6 +27,28 @@ export interface SlackMessageReaderParams extends SlackBaseParams {
   latest?: string
 }
 
+export interface SlackDownloadParams extends SlackBaseParams {
+  fileId: string
+  fileName?: string
+}
+
+export interface SlackUpdateMessageParams extends SlackBaseParams {
+  channel: string
+  timestamp: string
+  text: string
+}
+
+export interface SlackDeleteMessageParams extends SlackBaseParams {
+  channel: string
+  timestamp: string
+}
+
+export interface SlackAddReactionParams extends SlackBaseParams {
+  channel: string
+  timestamp: string
+  name: string
+}
+
 export interface SlackMessageResponse extends ToolResponse {
   output: {
     ts: string
@@ -50,8 +72,65 @@ export interface SlackMessageReaderResponse extends ToolResponse {
       user: string
       type: string
       subtype?: string
+      files?: Array<{
+        id: string
+        name: string
+        mimetype: string
+        size: number
+        url_private?: string
+      }>
     }>
   }
 }
 
-export type SlackResponse = SlackCanvasResponse | SlackMessageReaderResponse | SlackMessageResponse
+export interface SlackDownloadResponse extends ToolResponse {
+  output: {
+    file: {
+      name: string
+      mimeType: string
+      data: Buffer | string // Buffer for direct use, string for base64-encoded data
+      size: number
+    }
+  }
+}
+
+export interface SlackUpdateMessageResponse extends ToolResponse {
+  output: {
+    content: string
+    metadata: {
+      channel: string
+      timestamp: string
+      text: string
+    }
+  }
+}
+
+export interface SlackDeleteMessageResponse extends ToolResponse {
+  output: {
+    content: string
+    metadata: {
+      channel: string
+      timestamp: string
+    }
+  }
+}
+
+export interface SlackAddReactionResponse extends ToolResponse {
+  output: {
+    content: string
+    metadata: {
+      channel: string
+      timestamp: string
+      reaction: string
+    }
+  }
+}
+
+export type SlackResponse =
+  | SlackCanvasResponse
+  | SlackMessageReaderResponse
+  | SlackMessageResponse
+  | SlackDownloadResponse
+  | SlackUpdateMessageResponse
+  | SlackDeleteMessageResponse
+  | SlackAddReactionResponse

@@ -32,7 +32,20 @@ import {
   githubPrTool,
   githubRepoInfoTool,
 } from '@/tools/github'
-import { gmailDraftTool, gmailReadTool, gmailSearchTool, gmailSendTool } from '@/tools/gmail'
+import {
+  gmailAddLabelTool,
+  gmailArchiveTool,
+  gmailDeleteTool,
+  gmailDraftTool,
+  gmailMarkReadTool,
+  gmailMarkUnreadTool,
+  gmailMoveTool,
+  gmailReadTool,
+  gmailRemoveLabelTool,
+  gmailSearchTool,
+  gmailSendTool,
+  gmailUnarchiveTool,
+} from '@/tools/gmail'
 import { searchTool as googleSearchTool } from '@/tools/google'
 import {
   googleCalendarCreateTool,
@@ -44,6 +57,7 @@ import {
 import { googleDocsCreateTool, googleDocsReadTool, googleDocsWriteTool } from '@/tools/google_docs'
 import {
   googleDriveCreateFolderTool,
+  googleDriveDownloadTool,
   googleDriveGetContentTool,
   googleDriveListTool,
   googleDriveUploadTool,
@@ -125,11 +139,21 @@ import {
   notionSearchTool,
   notionWriteTool,
 } from '@/tools/notion'
-import { onedriveCreateFolderTool, onedriveListTool, onedriveUploadTool } from '@/tools/onedrive'
+import {
+  onedriveCreateFolderTool,
+  onedriveDownloadTool,
+  onedriveListTool,
+  onedriveUploadTool,
+} from '@/tools/onedrive'
 import { imageTool, embeddingsTool as openAIEmbeddings } from '@/tools/openai'
 import {
+  outlookCopyTool,
+  outlookDeleteTool,
   outlookDraftTool,
   outlookForwardTool,
+  outlookMarkReadTool,
+  outlookMarkUnreadTool,
+  outlookMoveTool,
   outlookReadTool,
   outlookSendTool,
 } from '@/tools/outlook'
@@ -170,7 +194,15 @@ import {
   sharepointUpdateListItemTool,
   sharepointUploadFileTool,
 } from '@/tools/sharepoint'
-import { slackCanvasTool, slackMessageReaderTool, slackMessageTool } from '@/tools/slack'
+import {
+  slackAddReactionTool,
+  slackCanvasTool,
+  slackDeleteMessageTool,
+  slackDownloadTool,
+  slackMessageReaderTool,
+  slackMessageTool,
+  slackUpdateMessageTool,
+} from '@/tools/slack'
 import { smsSendTool } from '@/tools/sms'
 import { stagehandAgentTool, stagehandExtractTool } from '@/tools/stagehand'
 import {
@@ -272,6 +304,10 @@ export const tools: Record<string, ToolConfig> = {
   slack_message: slackMessageTool,
   slack_message_reader: slackMessageReaderTool,
   slack_canvas: slackCanvasTool,
+  slack_download: slackDownloadTool,
+  slack_update_message: slackUpdateMessageTool,
+  slack_delete_message: slackDeleteMessageTool,
+  slack_add_reaction: slackAddReactionTool,
   github_repo_info: githubRepoInfoTool,
   github_latest_commit: githubLatestCommitTool,
   serper_search: serperSearch,
@@ -306,6 +342,14 @@ export const tools: Record<string, ToolConfig> = {
   gmail_read: gmailReadTool,
   gmail_search: gmailSearchTool,
   gmail_draft: gmailDraftTool,
+  gmail_move: gmailMoveTool,
+  gmail_mark_read: gmailMarkReadTool,
+  gmail_mark_unread: gmailMarkUnreadTool,
+  gmail_archive: gmailArchiveTool,
+  gmail_unarchive: gmailUnarchiveTool,
+  gmail_delete: gmailDeleteTool,
+  gmail_add_label: gmailAddLabelTool,
+  gmail_remove_label: gmailRemoveLabelTool,
   whatsapp_send_message: whatsappSendMessageTool,
   x_write: xWriteTool,
   x_read: xReadTool,
@@ -345,6 +389,7 @@ export const tools: Record<string, ToolConfig> = {
   google_drive_get_content: googleDriveGetContentTool,
   google_drive_list: googleDriveListTool,
   google_drive_upload: googleDriveUploadTool,
+  google_drive_download: googleDriveDownloadTool,
   google_drive_create_folder: googleDriveCreateFolderTool,
   google_docs_read: googleDocsReadTool,
   google_docs_write: googleDocsWriteTool,
@@ -415,9 +460,15 @@ export const tools: Record<string, ToolConfig> = {
   outlook_send: outlookSendTool,
   outlook_draft: outlookDraftTool,
   outlook_forward: outlookForwardTool,
+  outlook_move: outlookMoveTool,
+  outlook_mark_read: outlookMarkReadTool,
+  outlook_mark_unread: outlookMarkUnreadTool,
+  outlook_delete: outlookDeleteTool,
+  outlook_copy: outlookCopyTool,
   linear_read_issues: linearReadIssuesTool,
   linear_create_issue: linearCreateIssueTool,
   onedrive_create_folder: onedriveCreateFolderTool,
+  onedrive_download: onedriveDownloadTool,
   onedrive_list: onedriveListTool,
   onedrive_upload: onedriveUploadTool,
   microsoft_excel_read: microsoftExcelReadTool,

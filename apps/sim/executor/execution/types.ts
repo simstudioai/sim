@@ -4,6 +4,7 @@ import type { SubflowType } from '@/stores/workflows/workflow/types'
 export interface ContextExtensions {
   workspaceId?: string
   executionId?: string
+  userId?: string
   stream?: boolean
   selectedOutputs?: string[]
   edges?: Array<{ source: string; target: string }>

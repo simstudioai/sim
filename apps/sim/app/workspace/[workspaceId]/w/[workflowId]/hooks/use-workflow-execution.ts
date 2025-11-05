@@ -319,6 +319,7 @@ export function useWorkflowExecution() {
                   // Create FormData for upload
                   const formData = new FormData()
                   formData.append('file', fileData.file)
+                  formData.append('context', 'execution')
                   formData.append('workflowId', activeWorkflowId)
                   formData.append('executionId', executionId)
                   formData.append('workspaceId', workspaceId)
@@ -585,12 +586,12 @@ export function useWorkflowExecution() {
       }
 
       // For manual (non-chat) execution
-      const executionId = uuidv4()
+      const manualExecutionId = uuidv4()
       try {
         const result = await executeWorkflow(
           workflowInput,
           undefined,
-          executionId,
+          manualExecutionId,
           undefined,
           'manual'
         )
@@ -615,7 +616,7 @@ export function useWorkflowExecution() {
         }
         return result
       } catch (error: any) {
-        const errorResult = handleExecutionError(error, { executionId })
+        const errorResult = handleExecutionError(error, { executionId: manualExecutionId })
         // Note: Error logs are already persisted server-side via execution-core.ts
         return errorResult
       }
@@ -777,6 +778,7 @@ export function useWorkflowExecution() {
     // Helper to extract test values from inputFormat subblock
     const extractTestValuesFromInputFormat = (inputFormatValue: any): Record<string, any> => {
       const testInput: Record<string, any> = {}
+
       if (Array.isArray(inputFormatValue)) {
         inputFormatValue.forEach((field: any) => {
           if (field && typeof field === 'object' && field.name && field.value !== undefined) {
@@ -784,6 +786,7 @@ export function useWorkflowExecution() {
           }
         })
       }
+
       return testInput
     }
 

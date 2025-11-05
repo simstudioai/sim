@@ -1349,6 +1349,19 @@ export function setupFileApiMocks(
     }),
   }))
 
+  vi.doMock('@/lib/uploads/contexts/workspace', () => ({
+    uploadWorkspaceFile: vi.fn().mockResolvedValue({
+      id: 'test-file-id',
+      name: 'test.txt',
+      url: '/api/files/serve/workspace/test-workspace-id/test-file.txt',
+      size: 100,
+      type: 'text/plain',
+      key: 'workspace/test-workspace-id/1234567890-test.txt',
+      uploadedAt: new Date().toISOString(),
+      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+    }),
+  }))
+
   mockFileSystem({
     writeFileSuccess: true,
     readFileContent: 'test content',

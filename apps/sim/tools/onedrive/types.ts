@@ -19,6 +19,17 @@ export interface MicrosoftGraphDriveItem {
     driveId: string
     path: string
   }
+  thumbnails?: Array<{
+    small?: { url: string }
+    medium?: { url: string }
+    large?: { url: string }
+  }>
+  createdBy?: {
+    user?: {
+      displayName?: string
+      email?: string
+    }
+  }
 }
 
 export interface OneDriveFile {
@@ -55,6 +66,17 @@ export interface OneDriveUploadResponse extends ToolResponse {
   }
 }
 
+export interface OneDriveDownloadResponse extends ToolResponse {
+  output: {
+    file: {
+      name: string
+      mimeType: string
+      data: Buffer | string // Buffer for direct use, string for base64-encoded data
+      size: number
+    }
+  }
+}
+
 export interface OneDriveToolParams {
   accessToken: string
   folderSelector?: string
@@ -73,4 +95,7 @@ export interface OneDriveToolParams {
   values?: (string | number | boolean | null)[][]
 }
 
-export type OneDriveResponse = OneDriveUploadResponse | OneDriveListResponse
+export type OneDriveResponse =
+  | OneDriveUploadResponse
+  | OneDriveDownloadResponse
+  | OneDriveListResponse

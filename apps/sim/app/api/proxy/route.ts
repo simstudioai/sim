@@ -306,12 +306,17 @@ export async function POST(request: NextRequest) {
         (output) => output.type === 'file' || output.type === 'file[]'
       )
 
+    // Add userId to execution context for file uploads
+    const contextWithUser = executionContext
+      ? { ...executionContext, userId: authResult.userId }
+      : undefined
+
     const result = await executeTool(
       toolId,
       params,
       true, // skipProxy (we're already in the proxy)
       !hasFileOutputs, // skipPostProcess (don't skip if tool has file outputs)
-      executionContext // pass execution context for file processing
+      contextWithUser // pass execution context with userId for file processing
     )
 
     if (!result.success) {

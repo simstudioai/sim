@@ -17,7 +17,15 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { text, voiceId, apiKey, modelId = 'eleven_monolingual_v1' } = body
+    const {
+      text,
+      voiceId,
+      apiKey,
+      modelId = 'eleven_monolingual_v1',
+      workspaceId,
+      workflowId,
+      executionId,
+    } = body
 
     if (!text || !voiceId || !apiKey) {
       return NextResponse.json({ error: 'Missing required parameters' }, { status: 400 })
@@ -29,7 +37,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: voiceIdValidation.error }, { status: 400 })
     }
 
-    logger.info('Proxying TTS request for voice:', voiceId)
+    // Check if this is an execution context (from workflow tool execution)
+    const hasExecutionContext = workspaceId && workflowId && executionId
+    logger.info('Proxying TTS request for voice:', {
+      voiceId,
+      hasExecutionContext,
+      workspaceId,
+      workflowId,
+      executionId,
+    })
 
     const endpoint = `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`
 
@@ -64,16 +80,51 @@ export async function POST(request: NextRequest) {
 
     const audioBuffer = Buffer.from(await audioBlob.arrayBuffer())
     const timestamp = Date.now()
-    const fileName = `elevenlabs-tts-${timestamp}.mp3`
 
+    // Use execution storage for workflow tool calls, copilot for chat UI
+    if (hasExecutionContext) {
+      const { uploadExecutionFile } = await import('@/lib/uploads/contexts/execution')
+      const fileName = `tts-${timestamp}.mp3`
+
+      const userFile = await uploadExecutionFile(
+        {
+          workspaceId,
+          workflowId,
+          executionId,
+        },
+        audioBuffer,
+        fileName,
+        'audio/mpeg',
+        authResult.userId
+      )
+
+      logger.info('TTS audio stored in execution context:', {
+        executionId,
+        fileName,
+        size: userFile.size,
+      })
+
+      return NextResponse.json({
+        audioFile: userFile,
+        audioUrl: userFile.url,
+      })
+    }
+
+    // Chat UI usage - no execution context, use copilot context
+    const fileName = `tts-${timestamp}.mp3`
     const fileInfo = await StorageService.uploadFile({
       file: audioBuffer,
       fileName,
       contentType: 'audio/mpeg',
-      context: 'general',
+      context: 'copilot',
     })
 
     const audioUrl = `${getBaseUrl()}${fileInfo.path}`
+
+    logger.info('TTS audio stored in copilot context (chat UI):', {
+      fileName,
+      size: fileInfo.size,
+    })
 
     return NextResponse.json({
       audioUrl,

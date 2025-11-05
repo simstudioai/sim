@@ -107,19 +107,29 @@ describe('SearchSuggestions', () => {
 
   describe('generatePreview', () => {
     it.concurrent('should generate correct preview for filter keys', () => {
-      const suggestion = { id: 'test', value: 'level:', label: 'Status', category: 'filters' }
+      const suggestion = {
+        id: 'test',
+        value: 'level:',
+        label: 'Status',
+        category: 'filters' as const,
+      }
       const preview = engine.generatePreview(suggestion, '', 0)
       expect(preview).toBe('level:')
     })
 
     it.concurrent('should generate correct preview for filter values', () => {
-      const suggestion = { id: 'test', value: 'error', label: 'Error', category: 'level' }
+      const suggestion = { id: 'test', value: 'error', label: 'Error', category: 'level' as const }
       const preview = engine.generatePreview(suggestion, 'level:', 6)
       expect(preview).toBe('level:error')
     })
 
     it.concurrent('should handle partial replacements correctly', () => {
-      const suggestion = { id: 'test', value: 'level:', label: 'Status', category: 'filters' }
+      const suggestion = {
+        id: 'test',
+        value: 'level:',
+        label: 'Status',
+        category: 'filters' as const,
+      }
       const preview = engine.generatePreview(suggestion, 'lev', 3)
       expect(preview).toBe('level:')
     })
@@ -129,32 +139,42 @@ describe('SearchSuggestions', () => {
         id: 'test',
         value: '"workflow1"',
         label: 'workflow1',
-        category: 'workflow',
+        category: 'workflow' as const,
       }
       const preview = engine.generatePreview(suggestion, 'workflow:', 9)
       expect(preview).toBe('workflow:"workflow1"')
     })
 
     it.concurrent('should add space when adding filter after completed filter', () => {
-      const suggestion = { id: 'test', value: 'trigger:', label: 'Trigger', category: 'filters' }
+      const suggestion = {
+        id: 'test',
+        value: 'trigger:',
+        label: 'Trigger',
+        category: 'filters' as const,
+      }
       const preview = engine.generatePreview(suggestion, 'level:error ', 12)
       expect(preview).toBe('level:error trigger:')
     })
 
     it.concurrent('should handle multiple completed filters', () => {
-      const suggestion = { id: 'test', value: 'cost:', label: 'Cost', category: 'filters' }
+      const suggestion = { id: 'test', value: 'cost:', label: 'Cost', category: 'filters' as const }
       const preview = engine.generatePreview(suggestion, 'level:error trigger:api ', 24)
       expect(preview).toBe('level:error trigger:api cost:')
     })
 
     it.concurrent('should handle adding same filter type multiple times', () => {
-      const suggestion = { id: 'test', value: 'level:', label: 'Status', category: 'filters' }
+      const suggestion = {
+        id: 'test',
+        value: 'level:',
+        label: 'Status',
+        category: 'filters' as const,
+      }
       const preview = engine.generatePreview(suggestion, 'level:error ', 12)
       expect(preview).toBe('level:error level:')
     })
 
     it.concurrent('should handle filter value after existing filters', () => {
-      const suggestion = { id: 'test', value: 'info', label: 'Info', category: 'level' }
+      const suggestion = { id: 'test', value: 'info', label: 'Info', category: 'level' as const }
       const preview = engine.generatePreview(suggestion, 'level:error level:', 19)
       expect(preview).toBe('level:error level:info')
     })

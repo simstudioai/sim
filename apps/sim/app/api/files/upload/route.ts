@@ -60,24 +60,18 @@ export async function POST(request: NextRequest) {
     const workspaceId = formData.get('workspaceId') as string | null
     const contextParam = formData.get('context') as string | null
 
-    // Determine context: explicit > workspace > execution > general
-    const context: StorageContext =
-      (contextParam as StorageContext) ||
-      (workspaceId ? 'workspace' : workflowId && executionId ? 'execution' : 'general')
+    // Context must be explicitly provided
+    if (!contextParam) {
+      throw new InvalidRequestError(
+        'Upload requires explicit context parameter (knowledge-base, workspace, execution, copilot, chat, or profile-pictures)'
+      )
+    }
+
+    const context = contextParam as StorageContext
 
     const storageService = await import('@/lib/uploads/core/storage-service')
     const usingCloudStorage = storageService.hasCloudStorage()
     logger.info(`Using storage mode: ${usingCloudStorage ? 'Cloud' : 'Local'} for file upload`)
-
-    if (workflowId && executionId) {
-      logger.info(
-        `Uploading files for execution-scoped storage: workflow=${workflowId}, execution=${executionId}`
-      )
-    } else if (workspaceId) {
-      logger.info(`Uploading files for workspace-scoped storage: workspace=${workspaceId}`)
-    } else if (contextParam) {
-      logger.info(`Uploading files for ${contextParam} context`)
-    }
 
     const uploadResults = []
 
@@ -94,8 +88,14 @@ export async function POST(request: NextRequest) {
       const bytes = await file.arrayBuffer()
       const buffer = Buffer.from(bytes)
 
-      // Priority 1: Execution-scoped storage (temporary, 5 min expiry)
-      if (workflowId && executionId) {
+      // Handle execution context
+      if (context === 'execution') {
+        if (!workflowId || !executionId) {
+          throw new InvalidRequestError(
+            'Execution context requires workflowId and executionId parameters'
+          )
+        }
+
         const { uploadExecutionFile } = await import('@/lib/uploads/contexts/execution')
         const userFile = await uploadExecutionFile(
           {
@@ -106,14 +106,14 @@ export async function POST(request: NextRequest) {
           buffer,
           originalName,
           file.type,
-          session.user.id // userId available from session
+          session.user.id
         )
 
         uploadResults.push(userFile)
         continue
       }
 
-      // Priority 2: Knowledge-base files (must check BEFORE workspace to avoid duplicate file check)
+      // Handle knowledge-base context
       if (context === 'knowledge-base') {
         // Validate file type for knowledge base
         const validationError = validateFileType(originalName, file.type)
@@ -178,9 +178,12 @@ export async function POST(request: NextRequest) {
         continue
       }
 
-      // Priority 3: Workspace-scoped storage (persistent, no expiry)
-      // Only if context is NOT explicitly set to something else
-      if (workspaceId && !contextParam) {
+      // Handle workspace context
+      if (context === 'workspace') {
+        if (!workspaceId) {
+          throw new InvalidRequestError('Workspace context requires workspaceId parameter')
+        }
+
         try {
           const { uploadWorkspaceFile } = await import('@/lib/uploads/contexts/workspace')
           const userFile = await uploadWorkspaceFile(
@@ -218,7 +221,7 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      // Priority 4: Context-specific uploads (copilot, chat, profile-pictures)
+      // Handle image-only contexts (copilot, chat, profile-pictures)
       if (context === 'copilot' || context === 'chat' || context === 'profile-pictures') {
         if (!isImageFileType(file.type)) {
           throw new InvalidRequestError(
@@ -281,60 +284,10 @@ export async function POST(request: NextRequest) {
         continue
       }
 
-      // Priority 5: General uploads (fallback)
-      try {
-        logger.info(`Uploading file (general context): ${originalName}`)
-
-        const metadata: Record<string, string> = {
-          originalName: originalName,
-          uploadedAt: new Date().toISOString(),
-          purpose: 'general',
-          userId: session.user.id,
-        }
-
-        if (workspaceId) {
-          metadata.workspaceId = workspaceId
-        }
-
-        const fileInfo = await storageService.uploadFile({
-          file: buffer,
-          fileName: originalName,
-          contentType: file.type,
-          context: 'general',
-          metadata,
-        })
-
-        let downloadUrl: string | undefined
-        if (storageService.hasCloudStorage()) {
-          try {
-            downloadUrl = await storageService.generatePresignedDownloadUrl(
-              fileInfo.key,
-              'general',
-              24 * 60 * 60 // 24 hours
-            )
-          } catch (error) {
-            logger.warn(`Failed to generate presigned URL for ${originalName}:`, error)
-          }
-        }
-
-        const uploadResult = {
-          name: originalName,
-          size: buffer.length,
-          type: file.type,
-          key: fileInfo.key,
-          path: fileInfo.path,
-          url: downloadUrl || fileInfo.path,
-          uploadedAt: new Date().toISOString(),
-          expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // 24 hours
-          context: 'general',
-        }
-
-        logger.info(`Successfully uploaded: ${fileInfo.key}`)
-        uploadResults.push(uploadResult)
-      } catch (error) {
-        logger.error(`Error uploading ${originalName}:`, error)
-        throw error
-      }
+      // Unknown context
+      throw new InvalidRequestError(
+        `Unsupported context: ${context}. Use knowledge-base, workspace, execution, copilot, chat, or profile-pictures`
+      )
     }
 
     if (uploadResults.length === 1) {

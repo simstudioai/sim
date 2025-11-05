@@ -76,15 +76,18 @@ export async function lookupWorkspaceFileByKey(
  * Pattern: {workspaceId}/{timestamp}-{random}-{filename}
  */
 function extractWorkspaceIdFromKey(key: string): string | null {
-  // Use inferContextFromKey to check if it's a workspace file
   const inferredContext = inferContextFromKey(key)
   if (inferredContext !== 'workspace') {
     return null
   }
 
+  // Use the proper parsing utility from workspace context module
   const parts = key.split('/')
   const workspaceId = parts[0]
-  if (workspaceId && /^[a-f0-9-]{36}$/.test(workspaceId)) {
+
+  // Validate UUID format
+  const UUID_PATTERN = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i
+  if (workspaceId && UUID_PATTERN.test(workspaceId)) {
     return workspaceId
   }
 
@@ -228,7 +231,8 @@ function isExecutionFile(cloudKey: string, bucketType?: string | null): boolean 
 
 /**
  * Verify access to execution files
- * Execution files: workspace_id/workflow_id/execution_id/filename
+ * Modern format: execution/workspace_id/workflow_id/execution_id/filename
+ * Legacy format: workspace_id/workflow_id/execution_id/filename
  */
 async function verifyExecutionFileAccess(
   cloudKey: string,
@@ -236,12 +240,25 @@ async function verifyExecutionFileAccess(
   customConfig?: StorageConfig
 ): Promise<boolean> {
   const parts = cloudKey.split('/')
-  if (parts.length < 3) {
-    logger.warn('Invalid execution file path format', { cloudKey })
-    return false
+
+  // Determine if this is modern prefixed or legacy format
+  let workspaceId: string
+  if (parts[0] === 'execution') {
+    // Modern format: execution/workspaceId/workflowId/executionId/filename
+    if (parts.length < 5) {
+      logger.warn('Invalid execution file path format (modern)', { cloudKey })
+      return false
+    }
+    workspaceId = parts[1]
+  } else {
+    // Legacy format: workspaceId/workflowId/executionId/filename
+    if (parts.length < 4) {
+      logger.warn('Invalid execution file path format (legacy)', { cloudKey })
+      return false
+    }
+    workspaceId = parts[0]
   }
 
-  const workspaceId = parts[0]
   if (!workspaceId) {
     logger.warn('Could not extract workspaceId from execution file path', { cloudKey })
     return false
