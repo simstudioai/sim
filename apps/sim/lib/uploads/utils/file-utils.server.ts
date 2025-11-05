@@ -2,24 +2,9 @@
 
 import type { Logger } from '@/lib/logs/console/logger'
 import type { StorageContext } from '@/lib/uploads'
+import { isExecutionFile } from '@/lib/uploads/contexts/execution/execution-file-helpers'
 import type { UserFile } from '@/executor/types'
 import { inferContextFromKey } from './file-utils'
-
-/**
- * Check if a file is from execution storage based on its key pattern
- * Execution files have keys in format: workspaceId/workflowId/executionId/filename
- * Regular files have keys in format: timestamp-random-filename or just filename
- */
-function isExecutionFile(file: UserFile): boolean {
-  if (!file.key) {
-    return false
-  }
-
-  // Execution files have at least 3 slashes in their key (4 parts)
-  // e.g., "workspace123/workflow456/execution789/document.pdf"
-  const parts = file.key.split('/')
-  return parts.length >= 4 && !file.key.startsWith('/api/') && !file.key.startsWith('http')
-}
 
 /**
  * Download a file from a URL (internal or external)
@@ -34,7 +19,7 @@ export async function downloadFileFromUrl(fileUrl: string, timeoutMs = 180000): 
 
   try {
     if (isInternalFileUrl(fileUrl)) {
-      const { key, context } = parseInternalFileUrl(fileUrl, 'knowledge-base')
+      const { key, context } = parseInternalFileUrl(fileUrl)
       const { downloadFile } = await import('@/lib/uploads/core/storage-service')
       const buffer = await downloadFile({ key, context })
       clearTimeout(timeoutId)

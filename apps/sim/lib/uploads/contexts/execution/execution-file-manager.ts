@@ -10,6 +10,66 @@ import {
 
 const logger = createLogger('ExecutionFileStorage')
 
+function isUserFile(candidate: unknown): candidate is UserFile {
+  if (!candidate || typeof candidate !== 'object') {
+    return false
+  }
+
+  const value = candidate as Partial<UserFile>
+  return (
+    typeof value.id === 'string' &&
+    typeof value.key === 'string' &&
+    typeof value.url === 'string' &&
+    typeof value.name === 'string'
+  )
+}
+
+function isSerializedBuffer(value: unknown): value is { type: string; data: number[] } {
+  return (
+    !!value &&
+    typeof value === 'object' &&
+    (value as { type?: unknown }).type === 'Buffer' &&
+    Array.isArray((value as { data?: unknown }).data)
+  )
+}
+
+function toBuffer(data: unknown, fileName: string): Buffer {
+  if (data === undefined || data === null) {
+    throw new Error(`File '${fileName}' has no data`)
+  }
+
+  if (Buffer.isBuffer(data)) {
+    return data
+  }
+
+  if (isSerializedBuffer(data)) {
+    return Buffer.from(data.data)
+  }
+
+  if (data instanceof ArrayBuffer) {
+    return Buffer.from(data)
+  }
+
+  if (ArrayBuffer.isView(data)) {
+    return Buffer.from(data.buffer, data.byteOffset, data.byteLength)
+  }
+
+  if (Array.isArray(data)) {
+    return Buffer.from(data)
+  }
+
+  if (typeof data === 'string') {
+    const trimmed = data.trim()
+    if (trimmed.startsWith('data:')) {
+      const [, base64Data] = trimmed.split(',')
+      return Buffer.from(base64Data ?? '', 'base64')
+    }
+    return Buffer.from(trimmed, 'base64')
+  }
+
+  throw new Error(`File '${fileName}' has unsupported data format: ${typeof data}`)
+}
+
 /**
  * Upload a file to execution-scoped storage
  */
@@ -157,4 +217,31 @@ export async function deleteExecutionFile(userFile: UserFile): Promise<void> {
       `Failed to delete file: ${error instanceof Error ? error.message : 'Unknown error'}`
     )
   }
+}
+
+/**
+ * Convert raw file data (from tools/triggers) to UserFile
+ * Handles all common formats: Buffer, serialized Buffer, base64, data URLs
+ */
+export async function uploadFileFromRawData(
+  rawData: {
+    name?: string
+    filename?: string
+    data?: unknown
+    mimeType?: string
+    contentType?: string
+    size?: number
+  },
+  context: ExecutionContext,
+  userId?: string
+): Promise<UserFile> {
+  if (isUserFile(rawData)) {
+    return rawData
+  }
+
+  const fileName = rawData.name || rawData.filename || 'file.bin'
+  const buffer = toBuffer(rawData.data, fileName)
+  const contentType = rawData.mimeType || rawData.contentType || 'application/octet-stream'
+
+  return uploadExecutionFile(context, buffer, fileName, contentType, userId)
 }

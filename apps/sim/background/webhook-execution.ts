@@ -38,6 +38,7 @@ async function processTriggerFileOutputs(
     workflowId: string
     executionId: string
     requestId: string
+    userId?: string
   },
   path = ''
 ): Promise<any> {
@@ -178,21 +179,6 @@ async function executeWebhookJobInternal(
     // Merge subblock states (matching workflow-execution pattern)
     const mergedStates = mergeSubblockState(blocks, {})
 
-    // Process block states for execution
-    const processedBlockStates = Object.entries(mergedStates).reduce(
-      (acc, [blockId, blockState]) => {
-        acc[blockId] = Object.entries(blockState.subBlocks).reduce(
-          (subAcc, [key, subBlock]) => {
-            subAcc[key] = subBlock.value
-            return subAcc
-          },
-          {} as Record<string, any>
-        )
-        return acc
-      },
-      {} as Record<string, Record<string, any>>
-    )
-
     // Create serialized workflow
     const serializer = new Serializer()
     const serializedWorkflow = serializer.serializeWorkflow(
@@ -263,8 +249,8 @@ async function executeWebhookJobInternal(
           metadata,
           workflow,
           airtableInput,
-          decryptedEnvVars,
-          workflow.variables || {},
+          {},
+          workflowVariables,
           []
         )
 
@@ -355,21 +341,30 @@ async function executeWebhookJobInternal(
     if (input && payload.blockId && blocks[payload.blockId]) {
       try {
         const triggerBlock = blocks[payload.blockId]
-        const triggerId = triggerBlock?.subBlocks?.triggerId?.value
+        const rawSelectedTriggerId = triggerBlock?.subBlocks?.selectedTriggerId?.value
+        const rawTriggerId = triggerBlock?.subBlocks?.triggerId?.value
 
-        if (triggerId && typeof triggerId === 'string' && isTriggerValid(triggerId)) {
-          const triggerConfig = getTrigger(triggerId)
+        const resolvedTriggerId = [rawSelectedTriggerId, rawTriggerId].find(
+          (candidate): candidate is string =>
+            typeof candidate === 'string' && isTriggerValid(candidate)
+        )
+
+        if (resolvedTriggerId) {
+          const triggerConfig = getTrigger(resolvedTriggerId)
 
           if (triggerConfig.outputs) {
-            logger.debug(`[${requestId}] Processing trigger ${triggerId} file outputs`)
+            logger.debug(`[${requestId}] Processing trigger ${resolvedTriggerId} file outputs`)
             const processedInput = await processTriggerFileOutputs(input, triggerConfig.outputs, {
               workspaceId: workspaceId || '',
               workflowId: payload.workflowId,
               executionId,
               requestId,
+              userId: payload.userId,
             })
             Object.assign(input, processedInput)
           }
+        } else {
+          logger.debug(`[${requestId}] No valid triggerId found for block ${payload.blockId}`)
         }
       } catch (error) {
         logger.error(`[${requestId}] Error processing trigger file outputs:`, error)
@@ -449,8 +444,8 @@ async function executeWebhookJobInternal(
       metadata,
       workflow,
       input || {},
-      decryptedEnvVars,
-      workflow.variables || {},
+      {},
+      workflowVariables,
       []
     )
 

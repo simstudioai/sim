@@ -37,14 +37,54 @@ export interface WorkspaceFileRecord {
 }
 
 /**
- * Generate workspace-scoped storage key
- * Pattern: {workspaceId}/{timestamp}-{filename}
+ * UUID pattern for validating workspace IDs
+ */
+const UUID_PATTERN = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i
+
+/**
+ * Workspace file key pattern: workspace/{workspaceId}/{timestamp}-{random}-{filename}
+ */
+const WORKSPACE_KEY_PATTERN = /^workspace\/([a-f0-9-]{36})\/(\d+)-([a-z0-9]+)-(.+)$/
+
+/**
+ * Check if a key matches workspace file pattern
+ * Format: workspace/{workspaceId}/{timestamp}-{random}-{filename}
+ */
+export function matchesWorkspaceFilePattern(key: string): boolean {
+  if (!key || key.startsWith('/api/') || key.startsWith('http')) {
+    return false
+  }
+  return WORKSPACE_KEY_PATTERN.test(key)
+}
+
+/**
+ * Parse workspace file key to extract workspace ID
+ * Format: workspace/{workspaceId}/{timestamp}-{random}-{filename}
+ * @returns workspaceId if key matches pattern, null otherwise
+ */
+export function parseWorkspaceFileKey(key: string): string | null {
+  if (!matchesWorkspaceFilePattern(key)) {
+    return null
+  }
+
+  const match = key.match(WORKSPACE_KEY_PATTERN)
+  if (!match) {
+    return null
+  }
+
+  const workspaceId = match[1]
+  return UUID_PATTERN.test(workspaceId) ? workspaceId : null
+}
+
+/**
+ * Generate workspace-scoped storage key with explicit prefix
+ * Format: workspace/{workspaceId}/{timestamp}-{random}-{filename}
  */
 export function generateWorkspaceFileKey(workspaceId: string, fileName: string): string {
   const timestamp = Date.now()
   const random = Math.random().toString(36).substring(2, 9)
   const safeFileName = fileName.replace(/\s+/g, '-').replace(/[^a-zA-Z0-9.-]/g, '_')
-  return `${workspaceId}/${timestamp}-${random}-${safeFileName}`
+  return `workspace/${workspaceId}/${timestamp}-${random}-${safeFileName}`
 }
 
 /**

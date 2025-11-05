@@ -109,8 +109,6 @@ export async function executeWorkflowCore(
   let processedInput = input || {}
 
   try {
-    const startTime = new Date()
-
     let blocks
     let edges: Edge[]
     let loops
@@ -270,6 +268,7 @@ export async function executeWorkflowCore(
       selectedOutputs,
       executionId,
       workspaceId: providedWorkspaceId,
+      userId,
       isDeployedContext: triggerType !== 'manual',
       onBlockStart,
       onBlockComplete,

@@ -15,22 +15,22 @@ export interface ExecutionContext {
 export type ExecutionFileMetadata = UserFile
 
 /**
- * Generate execution-scoped storage key
- * Format: workspace_id/workflow_id/execution_id/filename
+ * Generate execution-scoped storage key with explicit prefix
+ * Format: execution/workspace_id/workflow_id/execution_id/filename
  */
 export function generateExecutionFileKey(context: ExecutionContext, fileName: string): string {
   const { workspaceId, workflowId, executionId } = context
   const safeFileName = fileName.replace(/\s+/g, '-').replace(/[^a-zA-Z0-9.-]/g, '_')
-  return `${workspaceId}/${workflowId}/${executionId}/${safeFileName}`
+  return `execution/${workspaceId}/${workflowId}/${executionId}/${safeFileName}`
 }
 
 /**
  * Generate execution prefix for cleanup operations
- * Format: workspace_id/workflow_id/execution_id/
+ * Format: execution/workspace_id/workflow_id/execution_id/
  */
 export function generateExecutionPrefix(context: ExecutionContext): string {
   const { workspaceId, workflowId, executionId } = context
-  return `${workspaceId}/${workflowId}/${executionId}/`
+  return `execution/${workspaceId}/${workflowId}/${executionId}/`
 }
 
 /**
@@ -55,17 +55,55 @@ export function getFileExpirationDate(): string {
 }
 
 /**
+ * UUID pattern for validating execution context IDs
+ */
+const UUID_PATTERN = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i
+
+/**
+ * Check if a string matches UUID pattern
+ */
+export function isUuid(str: string): boolean {
+  return UUID_PATTERN.test(str)
+}
+
+/**
+ * Parse execution file key to extract context
+ * Format: execution/workspaceId/workflowId/executionId/filename
+ * @returns ExecutionContext if key matches pattern, null otherwise
+ */
+export function parseExecutionFileKey(key: string): ExecutionContext | null {
+  if (!key || key.startsWith('/api/') || key.startsWith('http')) {
+    return null
+  }
+
+  const parts = key.split('/')
+
+  if (parts[0] === 'execution' && parts.length >= 5) {
+    const [, workspaceId, workflowId, executionId] = parts
+    if (isUuid(workspaceId) && isUuid(workflowId) && isUuid(executionId)) {
+      return { workspaceId, workflowId, executionId }
+    }
+  }
+
+  return null
+}
+
+/**
+ * Check if a key matches execution file pattern
+ * Execution files have keys in format: execution/workspaceId/workflowId/executionId/filename
+ */
+export function matchesExecutionFilePattern(key: string): boolean {
+  return parseExecutionFileKey(key) !== null
+}
+
+/**
  * Check if a file is from execution storage based on its key pattern
- * Execution files have keys in format: workspaceId/workflowId/executionId/filename
- * Regular files have keys in format: timestamp-random-filename or just filename
+ * Execution files have keys in format: execution/workspaceId/workflowId/executionId/filename
  */
 export function isExecutionFile(file: UserFile): boolean {
   if (!file.key) {
     return false
   }
 
-  // Execution files have at least 3 slashes in their key (4 parts)
-  // e.g., "workspace123/workflow456/execution789/document.pdf"
-  const parts = file.key.split('/')
-  return parts.length >= 4 && !file.key.startsWith('/api/') && !file.key.startsWith('http')
+  return matchesExecutionFilePattern(file.key)
 }
