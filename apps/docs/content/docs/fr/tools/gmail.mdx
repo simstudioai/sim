@@ -64,10 +64,12 @@ Envoyer des e-mails via Gmail
 | Paramètre | Type | Obligatoire | Description |
 | --------- | ---- | ---------- | ----------- |
 | `to` | chaîne | Oui | Adresse e-mail du destinataire |
-| `subject` | chaîne | Oui | Objet de l'e-mail |
+| `subject` | chaîne | Non | Objet de l'e-mail |
 | `body` | chaîne | Oui | Contenu du corps de l'e-mail |
-| `cc` | chaîne | Non | Destinataires en CC \(séparés par des virgules\) |
-| `bcc` | chaîne | Non | Destinataires en BCC \(séparés par des virgules\) |
+| `threadId` | chaîne | Non | ID de conversation pour répondre \(pour le fil de discussion\) |
+| `replyToMessageId` | chaîne | Non | ID de message Gmail pour répondre - utilisez le champ "id" des résultats de Gmail Read \(pas le "messageId" RFC\) |
+| `cc` | chaîne | Non | Destinataires en copie \(séparés par des virgules\) |
+| `bcc` | chaîne | Non | Destinataires en copie cachée \(séparés par des virgules\) |
 | `attachments` | fichier[] | Non | Fichiers à joindre à l'e-mail |
 
 #### Sortie
@@ -86,10 +88,12 @@ Créer des brouillons d'e-mails avec Gmail
 | Paramètre | Type | Obligatoire | Description |
 | --------- | ---- | ---------- | ----------- |
 | `to` | chaîne | Oui | Adresse e-mail du destinataire |
-| `subject` | chaîne | Oui | Objet de l'e-mail |
+| `subject` | chaîne | Non | Objet de l'e-mail |
 | `body` | chaîne | Oui | Contenu du corps de l'e-mail |
-| `cc` | chaîne | Non | Destinataires en CC \(séparés par des virgules\) |
-| `bcc` | chaîne | Non | Destinataires en BCC \(séparés par des virgules\) |
+| `threadId` | chaîne | Non | ID de conversation pour répondre \(pour le fil de discussion\) |
+| `replyToMessageId` | chaîne | Non | ID de message Gmail pour répondre - utilisez le champ "id" des résultats de Gmail Read \(pas le "messageId" RFC\) |
+| `cc` | chaîne | Non | Destinataires en copie \(séparés par des virgules\) |
+| `bcc` | chaîne | Non | Destinataires en copie cachée \(séparés par des virgules\) |
 | `attachments` | fichier[] | Non | Fichiers à joindre au brouillon d'e-mail |
 
 #### Sortie

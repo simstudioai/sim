@@ -63,8 +63,10 @@ Enviar correos electrónicos usando Gmail
 | Parámetro | Tipo | Obligatorio | Descripción |
 | --------- | ---- | -------- | ----------- |
 | `to` | string | Sí | Dirección de correo electrónico del destinatario |
-| `subject` | string | Sí | Asunto del correo electrónico |
+| `subject` | string | No | Asunto del correo electrónico |
 | `body` | string | Sí | Contenido del cuerpo del correo electrónico |
+| `threadId` | string | No | ID del hilo para responder (para encadenar mensajes) |
+| `replyToMessageId` | string | No | ID del mensaje de Gmail para responder - use el campo "id" de los resultados de Gmail Read (no el "messageId" del RFC) |
 | `cc` | string | No | Destinatarios en CC (separados por comas) |
 | `bcc` | string | No | Destinatarios en CCO (separados por comas) |
 | `attachments` | file[] | No | Archivos para adjuntar al correo electrónico |
@@ -85,8 +87,10 @@ Crear borradores de correos electrónicos usando Gmail
 | Parámetro | Tipo | Obligatorio | Descripción |
 | --------- | ---- | -------- | ----------- |
 | `to` | string | Sí | Dirección de correo electrónico del destinatario |
-| `subject` | string | Sí | Asunto del correo electrónico |
+| `subject` | string | No | Asunto del correo electrónico |
 | `body` | string | Sí | Contenido del cuerpo del correo electrónico |
+| `threadId` | string | No | ID del hilo para responder (para encadenar mensajes) |
+| `replyToMessageId` | string | No | ID del mensaje de Gmail para responder - use el campo "id" de los resultados de Gmail Read (no el "messageId" del RFC) |
 | `cc` | string | No | Destinatarios en CC (separados por comas) |
 | `bcc` | string | No | Destinatarios en CCO (separados por comas) |
 | `attachments` | file[] | No | Archivos para adjuntar al borrador del correo electrónico |

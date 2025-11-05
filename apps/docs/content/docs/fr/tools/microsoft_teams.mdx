@@ -97,7 +97,7 @@ Dans Sim, l'intégration de Microsoft Teams permet à vos agents d'interagir dir
 
 ## Instructions d'utilisation
 
-Intégrez Microsoft Teams dans le flux de travail. Peut lire et écrire des messages de chat, ainsi que lire et écrire des messages de canal. Nécessite OAuth. Peut être utilisé en mode déclencheur pour lancer un flux de travail lorsqu'un message est envoyé à un chat ou à un canal.
+Intégrez Microsoft Teams dans le flux de travail. Peut lire et écrire des messages de chat, ainsi que lire et écrire des messages de canal. Peut être utilisé en mode déclencheur pour lancer un flux de travail lorsqu'un message est envoyé à un chat ou à un canal. Pour mentionner des utilisateurs dans les messages, encadrez leur nom avec les balises `<at>` : `<at>userName</at>`
 
 ## Outils
 
@@ -203,13 +203,3 @@ Lire le contenu d'un canal Microsoft Teams
 
 - Catégorie : `tools`
 - Type : `microsoft_teams`
-
-### Mentionner des utilisateurs
-
-Pour mentionner des utilisateurs dans vos messages (à la fois dans les discussions et les canaux), encadrez leur nom d'affichage avec les balises `<at>` :
-
-```
-<at>John Doe</at> can you review this?
-```
-
-La mention sera automatiquement résolue vers l'utilisateur correct et ils recevront une notification dans Microsoft Teams. Cela fonctionne à la fois pour les messages de discussion et les messages de canal. Les bots/applications ne peuvent pas être tagués.
