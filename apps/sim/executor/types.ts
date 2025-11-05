@@ -39,6 +39,13 @@ export interface PauseMetadata {
   timestamp: string
   parallelScope?: ParallelPauseScope
   loopScope?: LoopPauseScope
+  resumeLinks?: {
+    apiUrl: string
+    uiUrl: string
+    contextId: string
+    executionId: string
+    workflowId: string
+  }
 }
 
 export interface PausePoint {
@@ -50,6 +57,13 @@ export interface PausePoint {
   snapshotReady: boolean
   parallelScope?: ParallelPauseScope
   loopScope?: LoopPauseScope
+  resumeLinks?: {
+    apiUrl: string
+    uiUrl: string
+    contextId: string
+    executionId: string
+    workflowId: string
+  }
 }
 
 export interface SerializedSnapshot {
@@ -134,6 +148,8 @@ export interface ExecutionMetadata {
     parentExecutionId?: string
     depth: number
   }
+  userId?: string
+  executionId?: string
 }
 
 /**

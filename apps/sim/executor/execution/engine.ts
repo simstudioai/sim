@@ -251,6 +251,7 @@ export class ExecutionEngine {
       snapshotReady: true,
       parallelScope: pause.parallelScope,
       loopScope: pause.loopScope,
+      resumeLinks: pause.resumeLinks,
     }))
 
     return {

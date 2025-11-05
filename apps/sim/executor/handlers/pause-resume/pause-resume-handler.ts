@@ -58,6 +58,19 @@ export class PauseResumeBlockHandler implements BlockHandler {
       const contextId = generatePauseContextId(block.id, nodeMetadata, loopScope)
       const triggerBlockId = buildTriggerBlockId(nodeMetadata.nodeId)
 
+      const executionId = ctx.executionId || ctx.metadata?.executionId
+      const workflowId = ctx.workflowId
+      const resumeLinks =
+        executionId && workflowId
+          ? {
+              apiUrl: `/api/resume/${workflowId}/${executionId}/${contextId}`,
+              uiUrl: `/resume/${workflowId}/${executionId}/${contextId}`,
+              contextId,
+              executionId,
+              workflowId,
+            }
+          : undefined
+
       const pauseMetadata: PauseMetadata = {
         contextId,
         triggerBlockId,
@@ -70,12 +83,23 @@ export class PauseResumeBlockHandler implements BlockHandler {
         timestamp,
         parallelScope,
         loopScope,
+        resumeLinks,
       }
 
-      const responseOutput = {
+      const responseOutput: BlockOutput['response'] & { resume?: typeof resumeLinks } = {
         data: responseData,
         status: statusCode,
         headers: responseHeaders,
+      }
+
+      if (resumeLinks) {
+        responseOutput.resume = resumeLinks
+        if (responseData && typeof responseData === 'object' && !Array.isArray(responseData)) {
+          responseOutput.data = {
+            ...responseData,
+            _resume: resumeLinks,
+          }
+        }
       }
 
       logger.info('Pause resume prepared', {

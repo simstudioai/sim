@@ -141,8 +141,11 @@ export async function executeWorkflow(
           executionId,
           pausePoints: result.pausePoints || [],
           snapshotSeed: result.snapshotSeed,
+          executorUserId: result.metadata?.userId,
         })
       }
+    } else {
+      await PauseResumeManager.processQueuedResumes(executionId)
     }
 
     if (streamConfig?.skipLoggingComplete) {
@@ -571,8 +574,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
                 executionId,
                 pausePoints: result.pausePoints || [],
                 snapshotSeed: result.snapshotSeed,
+                executorUserId: result.metadata?.userId,
               })
             }
+          } else {
+            await PauseResumeManager.processQueuedResumes(executionId)
           }
 
           if (result.error === 'Workflow execution was cancelled') {

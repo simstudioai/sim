@@ -464,8 +464,11 @@ export async function executeScheduleJob(payload: ScheduleExecutionPayload) {
                 executionId,
                 pausePoints: executionResult.pausePoints || [],
                 snapshotSeed: executionResult.snapshotSeed,
+                executorUserId: executionResult.metadata?.userId,
               })
             }
+          } else {
+            await PauseResumeManager.processQueuedResumes(executionId)
           }
 
           logger.info(`[${requestId}] Workflow execution completed: ${payload.workflowId}`, {

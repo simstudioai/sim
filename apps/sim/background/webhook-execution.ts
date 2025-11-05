@@ -286,8 +286,11 @@ async function executeWebhookJobInternal(
               executionId,
               pausePoints: executionResult.pausePoints || [],
               snapshotSeed: executionResult.snapshotSeed,
+              executorUserId: executionResult.metadata?.userId,
             })
           }
+        } else {
+          await PauseResumeManager.processQueuedResumes(executionId)
         }
 
         logger.info(`[${requestId}] Airtable webhook execution completed`, {
@@ -487,8 +490,11 @@ async function executeWebhookJobInternal(
           executionId,
           pausePoints: executionResult.pausePoints || [],
           snapshotSeed: executionResult.snapshotSeed,
+          executorUserId: executionResult.metadata?.userId,
         })
       }
+    } else {
+      await PauseResumeManager.processQueuedResumes(executionId)
     }
 
     logger.info(`[${requestId}] Webhook execution completed`, {

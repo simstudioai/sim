@@ -1,17 +1,67 @@
 import { v4 as uuidv4 } from 'uuid'
-import { sql, eq, and, inArray, lt } from 'drizzle-orm'
+import { sql, eq, and, inArray, lt, asc, desc } from 'drizzle-orm'
 import { db } from '@sim/db'
 import { pausedExecutions, resumeQueue } from '@sim/db/schema'
-import type { PausePoint, SerializedSnapshot } from '@/executor/types'
+import type { ExecutionResult, PausePoint, SerializedSnapshot } from '@/executor/types'
 import { ExecutionSnapshot } from '@/executor/execution/snapshot'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
+import { createLogger } from '@/lib/logs/console/logger'
 import { executeWorkflowCore } from './execution-core'
+
+const logger = createLogger('PauseResumeManager')
+
+interface ResumeQueueEntrySummary {
+  id: string
+  pausedExecutionId: string
+  parentExecutionId: string
+  newExecutionId: string
+  contextId: string
+  resumeInput: any
+  status: string
+  queuedAt: string | null
+  claimedAt: string | null
+  completedAt: string | null
+  failureReason: string | null
+}
+
+interface PausePointWithQueue extends PausePoint {
+  queuePosition?: number | null
+  latestResumeEntry?: ResumeQueueEntrySummary | null
+}
+
+interface PausedExecutionSummary {
+  id: string
+  workflowId: string
+  executionId: string
+  status: string
+  totalPauseCount: number
+  resumedCount: number
+  pausedAt: string | null
+  updatedAt: string | null
+  expiresAt: string | null
+  metadata: Record<string, any> | null
+  triggerIds: string[]
+  pausePoints: PausePointWithQueue[]
+}
+
+interface PausedExecutionDetail extends PausedExecutionSummary {
+  executionSnapshot: SerializedSnapshot
+  queue: ResumeQueueEntrySummary[]
+}
+
+interface PauseContextDetail {
+  execution: PausedExecutionSummary
+  pausePoint: PausePointWithQueue
+  queue: ResumeQueueEntrySummary[]
+  activeResumeEntry?: ResumeQueueEntrySummary | null
+}
 
 interface PersistPauseResultArgs {
   workflowId: string
   executionId: string
   pausePoints: PausePoint[]
   snapshotSeed: SerializedSnapshot
+  executorUserId?: string
 }
 
 interface EnqueueResumeArgs {
@@ -48,7 +98,7 @@ interface StartResumeExecutionArgs {
 
 export class PauseResumeManager {
   static async persistPauseResult(args: PersistPauseResultArgs): Promise<void> {
-    const { workflowId, executionId, pausePoints, snapshotSeed } = args
+    const { workflowId, executionId, pausePoints, snapshotSeed, executorUserId } = args
 
     const pausePointsRecord = pausePoints.reduce<Record<string, any>>((acc, point) => {
       acc[point.contextId] = {
@@ -60,6 +110,7 @@ export class PauseResumeManager {
         registeredAt: point.registeredAt,
         parallelScope: point.parallelScope,
         loopScope: point.loopScope,
+        resumeLinks: point.resumeLinks,
       }
       return acc
     }, {})
@@ -80,6 +131,7 @@ export class PauseResumeManager {
         metadata: {
           pauseScope: 'execution',
           triggerIds: snapshotSeed.triggerIds,
+          executorUserId: executorUserId ?? null,
         },
         pausedAt: now,
         updatedAt: now,
@@ -95,6 +147,7 @@ export class PauseResumeManager {
           metadata: {
             pauseScope: 'execution',
             triggerIds: snapshotSeed.triggerIds,
+            executorUserId: executorUserId ?? null,
           },
           updatedAt: now,
         },
@@ -125,6 +178,9 @@ export class PauseResumeManager {
       }
       if (pausePoint.resumeStatus !== 'paused') {
         throw new Error('Pause point already resumed')
+      }
+      if (!pausePoint.snapshotReady) {
+        throw new Error('Snapshot not ready; execution still finalizing pause')
       }
 
       const activeResume = await tx
@@ -157,7 +213,7 @@ export class PauseResumeManager {
           })
           .returning({ id: resumeQueue.id, queuedAt: resumeQueue.queuedAt })
 
-        const [{ position }] = await tx
+        const [positionRow = { position: 0 }] = await tx
           .select({ position: sql<number>`count(*)` })
           .from(resumeQueue)
           .where(
@@ -171,7 +227,7 @@ export class PauseResumeManager {
         return {
           status: 'queued',
           resumeExecutionId,
-          queuePosition: Number(position) + 1,
+          queuePosition: Number(positionRow.position ?? 0) + 1,
         }
       }
 
@@ -205,13 +261,29 @@ export class PauseResumeManager {
       args
 
     try {
-      await this.runResumeExecution({
+      const result = await this.runResumeExecution({
         resumeExecutionId,
         pausedExecution,
         contextId,
         resumeInput,
         userId,
       })
+
+      if (result.status === 'paused') {
+        if (!result.snapshotSeed) {
+          logger.error('Missing snapshot seed for paused resume execution', {
+            resumeExecutionId,
+          })
+        } else {
+          await this.persistPauseResult({
+            workflowId: pausedExecution.workflowId,
+            executionId: result.metadata?.executionId ?? resumeExecutionId,
+            pausePoints: result.pausePoints || [],
+            snapshotSeed: result.snapshotSeed,
+            executorUserId: result.metadata?.userId,
+          })
+        }
+      }
 
       await this.markResumeCompleted({
         resumeEntryId,
@@ -223,6 +295,13 @@ export class PauseResumeManager {
       await this.processQueuedResumes(pausedExecution.executionId)
     } catch (error) {
       await this.markResumeFailed({ resumeEntryId, failureReason: (error as Error).message })
+      logger.error('Resume execution failed', {
+        parentExecutionId: pausedExecution.executionId,
+        resumeExecutionId,
+        contextId,
+        error,
+      })
+      await this.processQueuedResumes(pausedExecution.executionId)
       throw error
     }
   }
@@ -233,7 +312,7 @@ export class PauseResumeManager {
     contextId: string
     resumeInput: any
     userId: string
-  }): Promise<void> {
+  }): Promise<ExecutionResult> {
     const { resumeExecutionId, pausedExecution, contextId, resumeInput, userId } = args
 
     const serializedSnapshot = pausedExecution.executionSnapshot as SerializedSnapshot
@@ -303,7 +382,7 @@ export class PauseResumeManager {
       metadata.requestId
     )
 
-    await executeWorkflowCore({
+    return await executeWorkflowCore({
       snapshot: resumeSnapshot,
       callbacks: {},
       loggingSession,
@@ -359,13 +438,110 @@ export class PauseResumeManager {
       .where(eq(resumeQueue.id, args.resumeEntryId))
   }
 
+  static async listPausedExecutions(options: {
+    workflowId: string
+    status?: string | string[]
+  }): Promise<PausedExecutionSummary[]> {
+    const { workflowId, status } = options
+
+    let whereClause: any = eq(pausedExecutions.workflowId, workflowId)
+
+    if (status) {
+      const statuses = Array.isArray(status) ? status : String(status).split(',').map((s) => s.trim())
+      if (statuses.length === 1) {
+        whereClause = and(whereClause, eq(pausedExecutions.status, statuses[0]))
+      } else if (statuses.length > 1) {
+        whereClause = and(whereClause, inArray(pausedExecutions.status, statuses as any))
+      }
+    }
+
+    const rows = await db
+      .select()
+      .from(pausedExecutions)
+      .where(whereClause)
+      .orderBy(desc(pausedExecutions.pausedAt))
+
+    return rows.map((row) => this.normalizePausedExecution(row, this.mapPausePoints(row.pausePoints)))
+  }
+
+  static async getPausedExecutionDetail(options: {
+    workflowId: string
+    executionId: string
+  }): Promise<PausedExecutionDetail | null> {
+    const { workflowId, executionId } = options
+
+    const row = await db
+      .select()
+      .from(pausedExecutions)
+      .where(
+        and(eq(pausedExecutions.workflowId, workflowId), eq(pausedExecutions.executionId, executionId))
+      )
+      .limit(1)
+      .then((rows) => rows[0])
+
+    if (!row) {
+      return null
+    }
+
+    const queueEntries = await db
+      .select()
+      .from(resumeQueue)
+      .where(eq(resumeQueue.parentExecutionId, executionId))
+      .orderBy(asc(resumeQueue.queuedAt))
+
+    const normalizedQueue = queueEntries.map((entry) => this.normalizeQueueEntry(entry))
+    const queuePositions = this.computeQueuePositions(normalizedQueue)
+    const latestEntries = this.computeLatestEntriesByContext(normalizedQueue)
+
+    const pausePoints = this.mapPausePoints(row.pausePoints, queuePositions, latestEntries)
+
+    const executionSummary = this.normalizePausedExecution(row, pausePoints)
+
+    return {
+      ...executionSummary,
+      executionSnapshot: row.executionSnapshot as SerializedSnapshot,
+      queue: normalizedQueue,
+    }
+  }
+
+  static async getPauseContextDetail(options: {
+    workflowId: string
+    executionId: string
+    contextId: string
+  }): Promise<PauseContextDetail | null> {
+    const { workflowId, executionId, contextId } = options
+    const detail = await this.getPausedExecutionDetail({ workflowId, executionId })
+
+    if (!detail) {
+      return null
+    }
+
+    const pausePoint = detail.pausePoints.find((point) => point.contextId === contextId)
+    if (!pausePoint) {
+      return null
+    }
+
+    const activeResumeEntry = detail.queue.find((entry) =>
+      entry.contextId === contextId && (entry.status === 'claimed' || entry.status === 'pending')
+    )
+
+    return {
+      execution: detail,
+      pausePoint,
+      queue: detail.queue,
+      activeResumeEntry,
+    }
+  }
+
   static async processQueuedResumes(parentExecutionId: string): Promise<void> {
     const pendingEntry = await db.transaction(async (tx) => {
       const entry = await tx
         .select()
         .from(resumeQueue)
-        .where(and(eq(resumeQueue.parentExecutionId, parentExecutionId), eq(resumeQueue.status, 'pending')))
-        .orderBy(resumeQueue.queuedAt)
+        .where(
+          and(eq(resumeQueue.parentExecutionId, parentExecutionId), eq(resumeQueue.status, 'pending'))
+        )
+        .orderBy(asc(resumeQueue.queuedAt))
         .limit(1)
         .then((rows) => rows[0])
 
@@ -398,14 +574,132 @@ export class PauseResumeManager {
 
     const { entry, pausedExecution } = pendingEntry
 
-    void this.startResumeExecution({
+    const pausedMetadata = (pausedExecution.metadata as Record<string, any>) || {}
+
+    this.startResumeExecution({
       resumeEntryId: entry.id,
       resumeExecutionId: entry.newExecutionId,
       pausedExecution,
       contextId: entry.contextId,
       resumeInput: entry.resumeInput,
-      userId: '',
+      userId: pausedMetadata.executorUserId ?? '',
+    }).catch((error) => {
+      logger.error('Failed to start queued resume execution', {
+        parentExecutionId,
+        resumeEntryId: entry.id,
+        error,
+      })
     })
+  }
+
+  private static normalizeQueueEntry(entry: typeof resumeQueue.$inferSelect): ResumeQueueEntrySummary {
+    return {
+      id: entry.id,
+      pausedExecutionId: entry.pausedExecutionId,
+      parentExecutionId: entry.parentExecutionId,
+      newExecutionId: entry.newExecutionId,
+      contextId: entry.contextId,
+      resumeInput: entry.resumeInput,
+      status: entry.status,
+      queuedAt: entry.queuedAt ? entry.queuedAt.toISOString() : null,
+      claimedAt: entry.claimedAt ? entry.claimedAt.toISOString() : null,
+      completedAt: entry.completedAt ? entry.completedAt.toISOString() : null,
+      failureReason: entry.failureReason ?? null,
+    }
+  }
+
+  private static normalizePausedExecution(
+    row: typeof pausedExecutions.$inferSelect,
+    pausePoints: PausePointWithQueue[]
+  ): PausedExecutionSummary {
+    return {
+      id: row.id,
+      workflowId: row.workflowId,
+      executionId: row.executionId,
+      status: row.status,
+      totalPauseCount: row.totalPauseCount,
+      resumedCount: row.resumedCount,
+      pausedAt: row.pausedAt ? row.pausedAt.toISOString() : null,
+      updatedAt: row.updatedAt ? row.updatedAt.toISOString() : null,
+      expiresAt: row.expiresAt ? row.expiresAt.toISOString() : null,
+      metadata: row.metadata as Record<string, any>,
+      triggerIds: (row.executionSnapshot as SerializedSnapshot)?.triggerIds || [],
+      pausePoints,
+    }
+  }
+
+  private static mapPausePoints(
+    pausePoints: any,
+    queuePositions?: Map<string, number | null>,
+    latestEntries?: Map<string, ResumeQueueEntrySummary>
+  ): PausePointWithQueue[] {
+    const record = pausePoints as Record<string, any>
+    if (!record) {
+      return []
+    }
+
+    return Object.values(record).map((point: any) => {
+      const queuePosition = queuePositions?.get(point.contextId ?? '') ?? null
+      const latestEntry = latestEntries?.get(point.contextId ?? '')
+
+      return {
+        contextId: point.contextId,
+        triggerBlockId: point.triggerBlockId,
+        response: point.response,
+        registeredAt: point.registeredAt,
+        resumeStatus: point.resumeStatus || 'paused',
+        snapshotReady: Boolean(point.snapshotReady),
+        parallelScope: point.parallelScope,
+        loopScope: point.loopScope,
+        resumeLinks: point.resumeLinks,
+        queuePosition,
+        latestResumeEntry: latestEntry ?? null,
+      }
+    })
+  }
+
+  private static computeQueuePositions(
+    queueEntries: ResumeQueueEntrySummary[]
+  ): Map<string, number | null> {
+    const pendingEntries = queueEntries
+      .filter((entry) => entry.status === 'pending')
+      .sort((a, b) => {
+        const aTime = a.queuedAt ? Date.parse(a.queuedAt) : 0
+        const bTime = b.queuedAt ? Date.parse(b.queuedAt) : 0
+        return aTime - bTime
+      })
+
+    const positions = new Map<string, number | null>()
+    pendingEntries.forEach((entry, index) => {
+      if (!positions.has(entry.contextId)) {
+        positions.set(entry.contextId, index + 1)
+      }
+    })
+
+    return positions
+  }
+
+  private static computeLatestEntriesByContext(
+    queueEntries: ResumeQueueEntrySummary[]
+  ): Map<string, ResumeQueueEntrySummary> {
+    const latestEntries = new Map<string, ResumeQueueEntrySummary>()
+
+    queueEntries.forEach((entry) => {
+      const existing = latestEntries.get(entry.contextId)
+      if (!existing) {
+        latestEntries.set(entry.contextId, entry)
+        return
+      }
+
+      const existingTime = existing.queuedAt ? Date.parse(existing.queuedAt) : 0
+      const currentTime = entry.queuedAt ? Date.parse(entry.queuedAt) : 0
+
+      if (currentTime >= existingTime) {
+        latestEntries.set(entry.contextId, entry)
+      }
+    })
+
+    return latestEntries
   }
 }
 

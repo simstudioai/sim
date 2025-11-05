@@ -131,8 +131,11 @@ export async function executeWorkflowJob(payload: WorkflowExecutionPayload) {
           executionId,
           pausePoints: result.pausePoints || [],
           snapshotSeed: result.snapshotSeed,
+          executorUserId: result.metadata?.userId,
         })
       }
+    } else {
+      await PauseResumeManager.processQueuedResumes(executionId)
     }
 
     logger.info(`[${requestId}] Workflow execution completed: ${workflowId}`, {

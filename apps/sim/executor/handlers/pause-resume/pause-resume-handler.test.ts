@@ -94,6 +94,40 @@ describe('PauseResumeBlockHandler', () => {
       iteration: 2,
     })
     expect(output._pauseMetadata?.timestamp).toBeTypeOf('string')
+    expect(output._pauseMetadata?.resumeLinks).toBeUndefined()
   })
-})
+
+  it('includes resume links when execution and workflow IDs are present', async () => {
+    const executionContext: ExecutionContext = {
+      workflowId: 'wf_123',
+      executionId: 'exec_456',
+      workspaceId: 'ws_789',
+      blockStates: new Map(),
+      executedBlocks: new Set(),
+      blockLogs: [],
+      metadata: {
+        duration: 0,
+        startTime: new Date().toISOString(),
+        executionId: 'exec_456',
+      },
+      environmentVariables: {},
+      decisions: {
+        router: new Map(),
+        condition: new Map(),
+      },
+      loopIterations: new Map(),
+      loopItems: new Map(),
+      completedLoops: new Set(),
+      activeExecutionPath: new Set(),
+    }
+
+    const block = {
+      id: 'pause_block',
+      metadata: { id: 'pause_resume' },
+      config: { params: {} },
+    } as any
+
+    const inputs = {
+      dataMode: 'json',
+      data: '{
 
