@@ -11,7 +11,7 @@ import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import { decryptSecret } from '@/lib/utils'
 import { WebhookAttachmentProcessor } from '@/lib/webhooks/attachment-processor'
-import { fetchAndProcessAirtablePayloads, formatWebhookInput } from '@/lib/webhooks/utils'
+import { fetchAndProcessAirtablePayloads, formatWebhookInput } from '@/lib/webhooks/utils.server'
 import {
   loadDeployedWorkflowState,
   loadWorkflowFromNormalizedTables,

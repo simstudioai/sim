@@ -8,13 +8,13 @@ import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { env, isTruthy } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
+import { convertSquareBracketsToTwiML } from '@/lib/webhooks/utils'
 import {
-  convertSquareBracketsToTwiML,
   handleSlackChallenge,
   handleWhatsAppVerification,
   validateMicrosoftTeamsSignature,
   verifyProviderWebhook,
-} from '@/lib/webhooks/utils'
+} from '@/lib/webhooks/utils.server'
 import { getWorkspaceBilledAccountUserId } from '@/lib/workspaces/utils'
 import { executeWebhookJob } from '@/background/webhook-execution'
 import { RateLimiter } from '@/services/queue'
@@ -339,7 +339,7 @@ export async function verifyProviderAuth(
 
       const fullUrl = getExternalUrl(request)
 
-      const { validateTwilioSignature } = await import('@/lib/webhooks/utils')
+      const { validateTwilioSignature } = await import('@/lib/webhooks/utils.server')
 
       const isValidSignature = await validateTwilioSignature(authToken, signature, fullUrl, params)
 

@@ -11,7 +11,7 @@ import { outlookPollingTrigger } from '@/triggers/outlook'
 import { slackWebhookTrigger } from '@/triggers/slack'
 import { stripeWebhookTrigger } from '@/triggers/stripe'
 import { telegramWebhookTrigger } from '@/triggers/telegram'
-import { twilioVoiceWebhookTrigger } from '@/triggers/twilio_voice/webhook'
+import { twilioVoiceWebhookTrigger } from '@/triggers/twilio_voice'
 import type { TriggerRegistry } from '@/triggers/types'
 import {
   webflowCollectionItemChangedTrigger,
