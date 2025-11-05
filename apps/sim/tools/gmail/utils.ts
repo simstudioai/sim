@@ -303,6 +303,47 @@ export function base64UrlEncode(data: string | Buffer): string {
 }
 
 /**
+ * Build a simple text email message (without attachments)
+ * @param params Email parameters including recipients, subject, body, and threading info
+ * @returns Base64url encoded raw message
+ */
+export function buildSimpleEmailMessage(params: {
+  to: string
+  cc?: string | null
+  bcc?: string | null
+  subject?: string | null
+  body: string
+  inReplyTo?: string
+  references?: string
+}): string {
+  const { to, cc, bcc, subject, body, inReplyTo, references } = params
+  const emailHeaders = [
+    'Content-Type: text/plain; charset="UTF-8"',
+    'MIME-Version: 1.0',
+    `To: ${to}`,
+  ]
+
+  if (cc) {
+    emailHeaders.push(`Cc: ${cc}`)
+  }
+  if (bcc) {
+    emailHeaders.push(`Bcc: ${bcc}`)
+  }
+
+  emailHeaders.push(`Subject: ${subject || ''}`)
+
+  if (inReplyTo) {
+    emailHeaders.push(`In-Reply-To: ${inReplyTo}`)
+    const referencesChain = references ? `${references} ${inReplyTo}` : inReplyTo
+    emailHeaders.push(`References: ${referencesChain}`)
+  }
+
+  emailHeaders.push('', body)
+  const email = emailHeaders.join('\n')
+  return Buffer.from(email).toString('base64url')
+}
+
+/**
  * Build a MIME multipart message with optional attachments
  * @param params Message parameters including recipients, subject, body, and attachments
  * @returns Complete MIME message string ready to be base64url encoded

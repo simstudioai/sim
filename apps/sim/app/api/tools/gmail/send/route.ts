@@ -5,7 +5,12 @@ import { createLogger } from '@/lib/logs/console/logger'
 import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
 import { generateRequestId } from '@/lib/utils'
-import { base64UrlEncode, buildMimeMessage, fetchThreadingHeaders } from '@/tools/gmail/utils'
+import {
+  base64UrlEncode,
+  buildMimeMessage,
+  buildSimpleEmailMessage,
+  fetchThreadingHeaders,
+} from '@/tools/gmail/utils'
 
 export const dynamic = 'force-dynamic'
 
@@ -129,33 +134,15 @@ export async function POST(request: NextRequest) {
     }
 
     if (!rawMessage) {
-      const emailHeaders = [
-        'Content-Type: text/plain; charset="UTF-8"',
-        'MIME-Version: 1.0',
-        `To: ${validatedData.to}`,
-      ]
-
-      if (validatedData.cc) {
-        emailHeaders.push(`Cc: ${validatedData.cc}`)
-      }
-      if (validatedData.bcc) {
-        emailHeaders.push(`Bcc: ${validatedData.bcc}`)
-      }
-
-      emailHeaders.push(`Subject: ${validatedData.subject || originalSubject || ''}`)
-
-      // Add threading headers if available
-      if (originalMessageId) {
-        emailHeaders.push(`In-Reply-To: ${originalMessageId}`)
-        const referencesChain = originalReferences
-          ? `${originalReferences} ${originalMessageId}`
-          : originalMessageId
-        emailHeaders.push(`References: ${referencesChain}`)
-      }
-
-      emailHeaders.push('', validatedData.body)
-      const email = emailHeaders.join('\n')
-      rawMessage = Buffer.from(email).toString('base64url')
+      rawMessage = buildSimpleEmailMessage({
+        to: validatedData.to,
+        cc: validatedData.cc,
+        bcc: validatedData.bcc,
+        subject: validatedData.subject || originalSubject,
+        body: validatedData.body,
+        inReplyTo: originalMessageId,
+        references: originalReferences,
+      })
     }
 
     const requestBody: { raw: string; threadId?: string } = { raw: rawMessage }
