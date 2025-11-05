@@ -9,7 +9,7 @@ export const YouTubeBlock: BlockConfig<YouTubeResponse> = {
   description: 'Interact with YouTube videos, channels, and playlists',
   authMode: AuthMode.ApiKey,
   longDescription:
-    'Integrate YouTube into the workflow. Can search for videos, get video details, get channel information, get playlist items, and get video comments.',
+    'Integrate YouTube into the workflow. Can search for videos, get video details, get channel information, get all videos from a channel, get channel playlists, get playlist items, find related videos, and get video comments.',
   docsLink: 'https://docs.sim.ai/tools/youtube',
   category: 'tools',
   bgColor: '#FF0000',
@@ -24,7 +24,10 @@ export const YouTubeBlock: BlockConfig<YouTubeResponse> = {
         { label: 'Search Videos', id: 'youtube_search' },
         { label: 'Get Video Details', id: 'youtube_video_details' },
         { label: 'Get Channel Info', id: 'youtube_channel_info' },
+        { label: 'Get Channel Videos', id: 'youtube_channel_videos' },
+        { label: 'Get Channel Playlists', id: 'youtube_channel_playlists' },
         { label: 'Get Playlist Items', id: 'youtube_playlist_items' },
+        { label: 'Get Related Videos', id: 'youtube_related_videos' },
         { label: 'Get Video Comments', id: 'youtube_comments' },
       ],
       value: () => 'youtube_search',
@@ -50,13 +53,129 @@ export const YouTubeBlock: BlockConfig<YouTubeResponse> = {
       integer: true,
       condition: { field: 'operation', value: 'youtube_search' },
     },
+    {
+      id: 'channelId',
+      title: 'Filter by Channel ID',
+      type: 'short-input',
+      layout: 'full',
+      placeholder: 'Filter results to a specific channel',
+      condition: { field: 'operation', value: 'youtube_search' },
+    },
+    {
+      id: 'publishedAfter',
+      title: 'Published After',
+      type: 'short-input',
+      layout: 'half',
+      placeholder: '2024-01-01T00:00:00Z',
+      condition: { field: 'operation', value: 'youtube_search' },
+    },
+    {
+      id: 'publishedBefore',
+      title: 'Published Before',
+      type: 'short-input',
+      layout: 'half',
+      placeholder: '2024-12-31T23:59:59Z',
+      condition: { field: 'operation', value: 'youtube_search' },
+    },
+    {
+      id: 'videoDuration',
+      title: 'Video Duration',
+      type: 'dropdown',
+      layout: 'half',
+      options: [
+        { label: 'Any', id: 'any' },
+        { label: 'Short (<4 min)', id: 'short' },
+        { label: 'Medium (4-20 min)', id: 'medium' },
+        { label: 'Long (>20 min)', id: 'long' },
+      ],
+      value: () => 'any',
+      condition: { field: 'operation', value: 'youtube_search' },
+    },
+    {
+      id: 'order',
+      title: 'Sort Order',
+      type: 'dropdown',
+      layout: 'half',
+      options: [
+        { label: 'Relevance', id: 'relevance' },
+        { label: 'Date (Newest First)', id: 'date' },
+        { label: 'View Count', id: 'viewCount' },
+        { label: 'Rating', id: 'rating' },
+        { label: 'Title', id: 'title' },
+      ],
+      value: () => 'relevance',
+      condition: { field: 'operation', value: 'youtube_search' },
+    },
+    {
+      id: 'videoCategoryId',
+      title: 'Category ID',
+      type: 'short-input',
+      layout: 'half',
+      placeholder: '10 for Music, 20 for Gaming',
+      condition: { field: 'operation', value: 'youtube_search' },
+    },
+    {
+      id: 'videoDefinition',
+      title: 'Video Quality',
+      type: 'dropdown',
+      layout: 'half',
+      options: [
+        { label: 'Any', id: 'any' },
+        { label: 'HD', id: 'high' },
+        { label: 'Standard', id: 'standard' },
+      ],
+      value: () => 'any',
+      condition: { field: 'operation', value: 'youtube_search' },
+    },
+    {
+      id: 'videoCaption',
+      title: 'Captions',
+      type: 'dropdown',
+      layout: 'half',
+      options: [
+        { label: 'Any', id: 'any' },
+        { label: 'Has Captions', id: 'closedCaption' },
+        { label: 'No Captions', id: 'none' },
+      ],
+      value: () => 'any',
+      condition: { field: 'operation', value: 'youtube_search' },
+    },
+    {
+      id: 'regionCode',
+      title: 'Region Code',
+      type: 'short-input',
+      layout: 'half',
+      placeholder: 'US, GB, JP',
+      condition: { field: 'operation', value: 'youtube_search' },
+    },
+    {
+      id: 'relevanceLanguage',
+      title: 'Language Code',
+      type: 'short-input',
+      layout: 'half',
+      placeholder: 'en, es, fr',
+      condition: { field: 'operation', value: 'youtube_search' },
+    },
+    {
+      id: 'safeSearch',
+      title: 'Safe Search',
+      type: 'dropdown',
+      layout: 'half',
+      options: [
+        { label: 'Moderate', id: 'moderate' },
+        { label: 'None', id: 'none' },
+        { label: 'Strict', id: 'strict' },
+      ],
+      value: () => 'moderate',
+      condition: { field: 'operation', value: 'youtube_search' },
+    },
     // Get Video Details operation inputs
     {
       id: 'videoId',
       title: 'Video ID',
       type: 'short-input',
       layout: 'full',
-      placeholder: 'Enter YouTube video ID (e.g., dQw4w9WgXcQ)',
+      placeholder: 'Enter YouTube video ID',
       required: true,
       condition: { field: 'operation', value: 'youtube_video_details' },
     },
@@ -76,6 +195,63 @@ export const YouTubeBlock: BlockConfig<YouTubeResponse> = {
       layout: 'full',
       placeholder: 'Enter channel username (if not using channel ID)',
       condition: { field: 'operation', value: 'youtube_channel_info' },
+    },
+    // Get Channel Videos operation inputs
+    {
+      id: 'channelId',
+      title: 'Channel ID',
+      type: 'short-input',
+      layout: 'full',
+      placeholder: 'Enter YouTube channel ID',
+      required: true,
+      condition: { field: 'operation', value: 'youtube_channel_videos' },
+    },
+    {
+      id: 'maxResults',
+      title: 'Max Results',
+      type: 'slider',
+      layout: 'half',
+      min: 1,
+      max: 50,
+      step: 1,
+      integer: true,
+      condition: { field: 'operation', value: 'youtube_channel_videos' },
+    },
+    {
+      id: 'order',
+      title: 'Sort Order',
+      type: 'dropdown',
+      layout: 'full',
+      options: [
+        { label: 'Date (Newest First)', id: 'date' },
+        { label: 'Relevance', id: 'relevance' },
+        { label: 'View Count', id: 'viewCount' },
+        { label: 'Rating', id: 'rating' },
+        { label: 'Title', id: 'title' },
+      ],
+      value: () => 'date',
+      condition: { field: 'operation', value: 'youtube_channel_videos' },
+    },
+    // Get Channel Playlists operation inputs
+    {
+      id: 'channelId',
+      title: 'Channel ID',
+      type: 'short-input',
+      layout: 'full',
+      placeholder: 'Enter YouTube channel ID',
+      required: true,
+      condition: { field: 'operation', value: 'youtube_channel_playlists' },
+    },
+    {
+      id: 'maxResults',
+      title: 'Max Results',
+      type: 'slider',
+      layout: 'half',
+      min: 1,
+      max: 50,
+      step: 1,
+      integer: true,
+      condition: { field: 'operation', value: 'youtube_channel_playlists' },
     },
     // Get Playlist Items operation inputs
     {
@@ -97,6 +273,27 @@ export const YouTubeBlock: BlockConfig<YouTubeResponse> = {
       step: 1,
       integer: true,
       condition: { field: 'operation', value: 'youtube_playlist_items' },
+    },
+    // Get Related Videos operation inputs
+    {
+      id: 'videoId',
+      title: 'Video ID',
+      type: 'short-input',
+      layout: 'full',
+      placeholder: 'Enter YouTube video ID to find related videos',
+      required: true,
+      condition: { field: 'operation', value: 'youtube_related_videos' },
+    },
+    {
+      id: 'maxResults',
+      title: 'Max Results',
+      type: 'slider',
+      layout: 'half',
+      min: 1,
+      max: 50,
+      step: 1,
+      integer: true,
+      condition: { field: 'operation', value: 'youtube_related_videos' },
     },
     // Get Video Comments operation inputs
     {
@@ -147,7 +344,10 @@ export const YouTubeBlock: BlockConfig<YouTubeResponse> = {
       'youtube_search',
       'youtube_video_details',
       'youtube_channel_info',
+      'youtube_channel_videos',
+      'youtube_channel_playlists',
       'youtube_playlist_items',
+      'youtube_related_videos',
       'youtube_comments',
     ],
     config: {
@@ -164,8 +364,14 @@ export const YouTubeBlock: BlockConfig<YouTubeResponse> = {
             return 'youtube_video_details'
           case 'youtube_channel_info':
             return 'youtube_channel_info'
+          case 'youtube_channel_videos':
+            return 'youtube_channel_videos'
+          case 'youtube_channel_playlists':
+            return 'youtube_channel_playlists'
           case 'youtube_playlist_items':
             return 'youtube_playlist_items'
+          case 'youtube_related_videos':
+            return 'youtube_related_videos'
           case 'youtube_comments':
             return 'youtube_comments'
           default:
@@ -180,6 +386,16 @@ export const YouTubeBlock: BlockConfig<YouTubeResponse> = {
     // Search Videos
     query: { type: 'string', description: 'Search query' },
     maxResults: { type: 'number', description: 'Maximum number of results' },
+    // Search Filters
+    publishedAfter: { type: 'string', description: 'Published after date (RFC 3339)' },
+    publishedBefore: { type: 'string', description: 'Published before date (RFC 3339)' },
+    videoDuration: { type: 'string', description: 'Video duration filter' },
+    videoCategoryId: { type: 'string', description: 'YouTube category ID' },
+    videoDefinition: { type: 'string', description: 'Video quality filter' },
+    videoCaption: { type: 'string', description: 'Caption availability filter' },
+    regionCode: { type: 'string', description: 'Region code (ISO 3166-1)' },
+    relevanceLanguage: { type: 'string', description: 'Language code (ISO 639-1)' },
+    safeSearch: { type: 'string', description: 'Safe search level' },
     // Video Details & Comments
     videoId: { type: 'string', description: 'YouTube video ID' },
     // Channel Info
@@ -187,8 +403,8 @@ export const YouTubeBlock: BlockConfig<YouTubeResponse> = {
     username: { type: 'string', description: 'YouTube channel username' },
     // Playlist Items
     playlistId: { type: 'string', description: 'YouTube playlist ID' },
-    // Comments
-    order: { type: 'string', description: 'Sort order for comments' },
+    // Sort Order (used by multiple operations)
+    order: { type: 'string', description: 'Sort order' },
   },
   outputs: {
     // Search Videos & Playlist Items
