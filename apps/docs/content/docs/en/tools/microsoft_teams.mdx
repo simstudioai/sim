@@ -98,7 +98,7 @@ In Sim, the Microsoft Teams integration enables your agents to interact directly
 
 ## Usage Instructions
 
-Integrate Microsoft Teams into the workflow. Can read and write chat messages, and read and write channel messages. Can be used in trigger mode to trigger a workflow when a message is sent to a chat or channel.
+Integrate Microsoft Teams into the workflow. Can read and write chat messages, and read and write channel messages. Can be used in trigger mode to trigger a workflow when a message is sent to a chat or channel. To mention users in messages, wrap their name in `<at>` tags: `<at>userName</at>`
 
 
 
@@ -208,13 +208,3 @@ Write or send a message to a Microsoft Teams channel
 
 - Category: `tools`
 - Type: `microsoft_teams`
-
-### Mentioning Users
-
-To mention users in your messages (both in chats and channels), wrap their display name in `<at>` tags:
-
-```
-<at>John Doe</at> can you review this?
-```
-
-The mention will be automatically resolved to the correct user and they will receive a notification in Microsoft Teams. This works for both chat messages and channel messages. Bots/Apps cannot be tagged.

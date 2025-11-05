@@ -10,7 +10,7 @@ export const MicrosoftTeamsBlock: BlockConfig<MicrosoftTeamsResponse> = {
   description: 'Read, write, and create messages',
   authMode: AuthMode.OAuth,
   longDescription:
-    'Integrate Microsoft Teams into the workflow. Can read and write chat messages, and read and write channel messages. Can be used in trigger mode to trigger a workflow when a message is sent to a chat or channel. To mention users in messages, wrap their name in <at> tags: <at>userName</at>',
+    'Integrate Microsoft Teams into the workflow. Can read and write chat messages, and read and write channel messages. Can be used in trigger mode to trigger a workflow when a message is sent to a chat or channel. To mention users in messages, wrap their name in `<at>` tags: `<at>userName</at>`',
   docsLink: 'https://docs.sim.ai/tools/microsoft_teams',
   category: 'tools',
   triggerAllowed: true,

@@ -32,6 +32,7 @@ Key features of Twilio Voice include:
 In Sim, the Twilio Voice integration enables your agents to leverage these powerful voice capabilities as part of their workflows. This creates opportunities for sophisticated customer engagement scenarios like appointment reminders, verification calls, automated support lines, and interactive voice response systems. The integration bridges the gap between your AI workflows and voice communication channels, enabling your agents to deliver timely, relevant information directly through phone calls. By connecting Sim with Twilio Voice, you can create intelligent agents that engage customers through their preferred communication channel, enhancing the user experience while automating routine calling tasks.
 {/* MANUAL-CONTENT-END */}
 
+
 ## Usage Instructions
 
 Integrate Twilio Voice into the workflow. Make outbound calls and retrieve call recordings.
@@ -51,7 +52,7 @@ Make an outbound phone call using Twilio Voice API.
 | `to` | string | Yes | Phone number to call \(E.164 format, e.g., +14155551234\) |
 | `from` | string | Yes | Your Twilio phone number to call from \(E.164 format\) |
 | `url` | string | No | URL that returns TwiML instructions for the call |
-| `twiml` | string | No | TwiML instructions to execute \(alternative to URL\) |
+| `twiml` | string | No | TwiML instructions to execute \(alternative to URL\). Use square brackets instead of angle brackets, e.g., \[Response\]\[Say\]Hello\[/Say\]\[/Response\] |
 | `statusCallback` | string | No | Webhook URL for call status updates |
 | `statusCallbackMethod` | string | No | HTTP method for status callback \(GET or POST\) |
 | `accountSid` | string | Yes | Twilio Account SID |

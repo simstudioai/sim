@@ -66,8 +66,10 @@ Send emails using Gmail
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `to` | string | Yes | Recipient email address |
-| `subject` | string | Yes | Email subject |
+| `subject` | string | No | Email subject |
 | `body` | string | Yes | Email body content |
+| `threadId` | string | No | Thread ID to reply to \(for threading\) |
+| `replyToMessageId` | string | No | Gmail message ID to reply to - use the "id" field from Gmail Read results \(not the RFC "messageId"\) |
 | `cc` | string | No | CC recipients \(comma-separated\) |
 | `bcc` | string | No | BCC recipients \(comma-separated\) |
 | `attachments` | file[] | No | Files to attach to the email |
@@ -88,8 +90,10 @@ Draft emails using Gmail
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `to` | string | Yes | Recipient email address |
-| `subject` | string | Yes | Email subject |
+| `subject` | string | No | Email subject |
 | `body` | string | Yes | Email body content |
+| `threadId` | string | No | Thread ID to reply to \(for threading\) |
+| `replyToMessageId` | string | No | Gmail message ID to reply to - use the "id" field from Gmail Read results \(not the RFC "messageId"\) |
 | `cc` | string | No | CC recipients \(comma-separated\) |
 | `bcc` | string | No | BCC recipients \(comma-separated\) |
 | `attachments` | file[] | No | Files to attach to the email draft |
