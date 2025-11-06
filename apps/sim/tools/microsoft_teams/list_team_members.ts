@@ -12,6 +12,7 @@ export const listTeamMembersTool: ToolConfig<
   name: 'List Microsoft Teams Team Members',
   description: 'List all members of a Microsoft Teams team',
   version: '1.0',
+  errorExtractor: 'nested-error-object',
   oauth: {
     required: true,
     provider: 'microsoft-teams',

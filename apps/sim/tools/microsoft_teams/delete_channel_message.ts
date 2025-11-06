@@ -12,6 +12,7 @@ export const deleteChannelMessageTool: ToolConfig<
   name: 'Delete Microsoft Teams Channel Message',
   description: 'Soft delete a message in a Microsoft Teams channel',
   version: '1.0',
+  errorExtractor: 'nested-error-object',
   oauth: {
     required: true,
     provider: 'microsoft-teams',

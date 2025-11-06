@@ -12,6 +12,7 @@ export const replyToMessageTool: ToolConfig<
   name: 'Reply to Microsoft Teams Channel Message',
   description: 'Reply to an existing message in a Microsoft Teams channel',
   version: '1.0',
+  errorExtractor: 'nested-error-object',
   oauth: {
     required: true,
     provider: 'microsoft-teams',
