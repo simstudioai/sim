@@ -39,6 +39,14 @@ export class BlockExecutor {
     if (!isSentinel) {
       blockLog = this.createBlockLog(ctx, node.id, block, node)
       ctx.blockLogs.push(blockLog)
+      logger.info('[BLOCK-EXEC] Block started', {
+        blockId: node.id,
+        blockName: block.metadata?.name,
+        blockType: block.metadata?.id,
+        loopId: node.metadata?.loopId,
+        iterationIndex: blockLog.iterationIndex,
+        totalLogsInContext: ctx.blockLogs.length,
+      })
       this.callOnBlockStart(ctx, node, block)
     }
 
@@ -81,6 +89,13 @@ export class BlockExecutor {
         blockLog.durationMs = duration
         blockLog.success = true
         blockLog.output = normalizedOutput
+        logger.info('[BLOCK-EXEC] Block completed successfully', {
+          blockId: node.id,
+          blockName: block.metadata?.name,
+          duration,
+          iterationIndex: blockLog.iterationIndex,
+          totalLogsInContext: ctx.blockLogs.length,
+        })
       }
 
       ctx.blockStates.set(node.id, {

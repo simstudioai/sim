@@ -334,7 +334,7 @@ export async function executeWorkflowCore(
       resolvedTriggerBlockId
     )) as ExecutionResult
 
-    // Build trace spans for logging
+    // Build trace spans for logging from the full execution result
     const { traceSpans, totalDuration } = buildTraceSpans(result)
 
     // Update workflow run counts

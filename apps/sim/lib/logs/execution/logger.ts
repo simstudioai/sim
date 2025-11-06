@@ -233,9 +233,11 @@ export class ExecutionLogger implements IExecutionLoggerService {
     // Extract files from trace spans, final output, and workflow input
     const executionFiles = this.extractFilesFromExecution(traceSpans, finalOutput, workflowInput)
 
-    // Merge trace spans if resuming
-    const mergedTraceSpans = isResume && existingLog?.executionData?.traceSpans
-      ? this.mergeTraceSpans(existingLog.executionData.traceSpans || [], traceSpans || [])
+    // For resume executions, rebuild trace spans from the aggregated logs
+    const mergedTraceSpans = isResume
+      ? (traceSpans && traceSpans.length > 0
+          ? traceSpans
+          : existingLog?.executionData?.traceSpans || [])
       : traceSpans
 
     // Merge costs if resuming

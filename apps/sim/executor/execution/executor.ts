@@ -97,6 +97,17 @@ export class DAGExecutor {
   private createExecutionContext(workflowId: string, triggerBlockId?: string): ExecutionContext {
     const snapshotState = this.contextExtensions.snapshotState
     
+    if (snapshotState?.blockLogs) {
+      logger.info('[EXECUTOR] Restoring context from snapshot', {
+        restoredLogsCount: snapshotState.blockLogs.length,
+        restoredLogs: snapshotState.blockLogs.map(l => ({ 
+          blockId: l.blockId, 
+          blockName: l.blockName,
+          iterationIndex: l.iterationIndex 
+        })),
+      })
+    }
+    
     const context: ExecutionContext = {
       workflowId,
       workspaceId: this.contextExtensions.workspaceId,

@@ -294,6 +294,12 @@ export class PauseResumeManager {
         userId,
       })
 
+      console.log('[RESUME] Resume execution result:', {
+        status: result.status,
+        logsCount: result.logs?.length || 0,
+        logs: result.logs?.map(log => ({ blockId: log.blockId, blockName: log.blockName, iterationIndex: log.iterationIndex })),
+      })
+
       if (result.status === 'paused') {
         if (!result.snapshotSeed) {
           logger.error('Missing snapshot seed for paused resume execution', {
