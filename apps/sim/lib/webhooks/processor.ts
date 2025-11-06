@@ -599,7 +599,6 @@ export async function queueWebhookExecution(
         const eventType = request.headers.get('x-github-event')
         const action = body.action
 
-        // Import event matching utility
         const { isGitHubEventMatch } = await import('@/triggers/github/utils')
 
         if (!isGitHubEventMatch(triggerId, eventType || '', action, body)) {
