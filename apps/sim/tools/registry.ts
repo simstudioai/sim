@@ -523,6 +523,14 @@ import {
   telegramSendVideoTool,
 } from '@/tools/telegram'
 import { thinkingTool } from '@/tools/thinking'
+import {
+  trelloAddCommentTool,
+  trelloCreateCardTool,
+  trelloGetActionsTool,
+  trelloListCardsTool,
+  trelloListListsTool,
+  trelloUpdateCardTool,
+} from '@/tools/trello'
 import { sendSMSTool } from '@/tools/twilio'
 import { getRecordingTool, listCallsTool, makeCallTool } from '@/tools/twilio_voice'
 import {
@@ -811,6 +819,7 @@ export const tools: Record<string, ToolConfig> = {
   perplexity_search: perplexitySearchTool,
   confluence_retrieve: confluenceRetrieveTool,
   confluence_update: confluenceUpdateTool,
+<<<<<<< HEAD
   confluence_create_page: confluenceCreatePageTool,
   confluence_delete_page: confluenceDeletePageTool,
   confluence_search: confluenceSearchTool,
@@ -823,6 +832,14 @@ export const tools: Record<string, ToolConfig> = {
   confluence_list_labels: confluenceListLabelsTool,
   confluence_get_space: confluenceGetSpaceTool,
   confluence_list_spaces: confluenceListSpacesTool,
+=======
+  trello_list_lists: trelloListListsTool,
+  trello_list_cards: trelloListCardsTool,
+  trello_create_card: trelloCreateCardTool,
+  trello_update_card: trelloUpdateCardTool,
+  trello_get_actions: trelloGetActionsTool,
+  trello_add_comment: trelloAddCommentTool,
+>>>>>>> 5f728c323 (trello integration added)
   twilio_send_sms: sendSMSTool,
   twilio_voice_make_call: makeCallTool,
   twilio_voice_list_calls: listCallsTool,
