@@ -1,13 +1,10 @@
 import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/execution/constants'
 import { DEFAULT_CODE_LANGUAGE } from '@/lib/execution/languages'
-import { createLogger } from '@/lib/logs/console/logger'
 import { BlockType } from '@/executor/consts'
 import type { BlockHandler, ExecutionContext } from '@/executor/types'
 import { collectBlockData } from '@/executor/utils/block-data'
 import type { SerializedBlock } from '@/serializer/types'
 import { executeTool } from '@/tools'
-
-const logger = createLogger('FunctionBlockHandler')
 
 /**
  * Handler for Function blocks that execute custom code.
@@ -33,7 +30,6 @@ export class FunctionBlockHandler implements BlockHandler {
       {
         code: codeContent,
         language: inputs.language || DEFAULT_CODE_LANGUAGE,
-        useLocalVM: !inputs.remoteExecution,
         timeout: inputs.timeout || DEFAULT_EXECUTION_TIMEOUT_MS,
         envVars: ctx.environmentVariables || {},
         workflowVariables: ctx.workflowVariables || {},

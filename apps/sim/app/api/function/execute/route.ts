@@ -8,9 +8,8 @@ import { validateProxyUrl } from '@/lib/security/input-validation'
 import { generateRequestId } from '@/lib/utils'
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
-// Segment config exports must be statically analyzable.
-// Mirror MAX_EXECUTION_DURATION (210s) from '@/lib/execution/constants'.
-export const maxDuration = 210
+
+export const MAX_DURATION = 210
 
 const logger = createLogger('FunctionExecuteAPI')
 
@@ -658,7 +657,6 @@ export async function POST(req: NextRequest) {
       params = {},
       timeout = DEFAULT_EXECUTION_TIMEOUT_MS,
       language = DEFAULT_CODE_LANGUAGE,
-      useLocalVM = false,
       envVars = {},
       blockData = {},
       blockNameMapping = {},
@@ -693,11 +691,46 @@ export async function POST(req: NextRequest) {
 
     const e2bEnabled = isTruthy(env.E2B_ENABLED)
     const lang = isValidCodeLanguage(language) ? language : DEFAULT_CODE_LANGUAGE
+
+    // Extract imports once for JavaScript code (reuse later to avoid double extraction)
+    let jsImports = ''
+    let jsRemainingCode = resolvedCode
+    let hasImports = false
+
+    if (lang === CodeLanguage.JavaScript) {
+      const extractionResult = await extractJavaScriptImports(resolvedCode)
+      jsImports = extractionResult.imports
+      jsRemainingCode = extractionResult.remainingCode
+
+      // Check for ES6 imports or CommonJS require statements
+      // ES6 imports are extracted by the TypeScript parser
+      // Also check for require() calls which indicate external dependencies
+      const hasRequireStatements = /require\s*\(\s*['"`]/.test(resolvedCode)
+      hasImports = jsImports.trim().length > 0 || hasRequireStatements
+    }
+
+    // Python always requires E2B
+    if (lang === CodeLanguage.Python && !e2bEnabled) {
+      throw new Error(
+        'Python execution requires E2B to be enabled. Please contact your administrator to enable E2B, or use JavaScript instead.'
+      )
+    }
+
+    // JavaScript with imports requires E2B
+    if (lang === CodeLanguage.JavaScript && hasImports && !e2bEnabled) {
+      throw new Error(
+        'JavaScript code with import statements requires E2B to be enabled. Please remove the import statements, or contact your administrator to enable E2B.'
+      )
+    }
+
+    // Use E2B if:
+    // - E2B is enabled AND
+    // - Not a custom tool AND
+    // - (Python OR JavaScript with imports)
     const useE2B =
       e2bEnabled &&
-      !useLocalVM &&
       !isCustomTool &&
-      (lang === CodeLanguage.JavaScript || lang === CodeLanguage.Python)
+      (lang === CodeLanguage.Python || (lang === CodeLanguage.JavaScript && hasImports))
 
     if (useE2B) {
       logger.info(`[${requestId}] E2B status`, {
@@ -712,7 +745,9 @@ export async function POST(req: NextRequest) {
         // Track prologue lines for error adjustment
         let prologueLineCount = 0
 
-        const { imports, remainingCode } = await extractJavaScriptImports(resolvedCode)
+        // Reuse the imports we already extracted earlier
+        const imports = jsImports
+        const remainingCode = jsRemainingCode
 
         const importSection: string = imports ? `${imports}\n` : ''
         const importLineCount = imports ? imports.split('\n').length : 0

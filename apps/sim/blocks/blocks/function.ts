@@ -8,11 +8,11 @@ export const FunctionBlock: BlockConfig<CodeExecutionOutput> = {
   name: 'Function',
   description: 'Run custom logic',
   longDescription:
-    'This is a core workflow block. Execute custom JavaScript or Python code within your workflow. Use E2B for remote execution with imports or enable Fast Mode (bolt) to run JavaScript locally for lowest latency.',
+    'This is a core workflow block. Execute custom JavaScript or Python code within your workflow. JavaScript without imports runs locally for fast execution, while code with imports or Python uses E2B sandbox.',
   bestPractices: `
-  - If the user asks for Python, you should always use the Remote Code Execution switch and select Python.
-  - If the user asks Javascript and you need imports, you should use the Remote Code Execution switch and select Javascript.
-  - If the user asks for a simple function, don't turn on the Remote Code Execution switch and write it in javascript.
+  - JavaScript code without external imports runs in a local VM for fastest execution.
+  - JavaScript code with import/require statements requires E2B and runs in a secure sandbox.
+  - Python code always requires E2B and runs in a secure sandbox.
   - Can reference workflow variables using <blockName.output> syntax as usual within code. Avoid XML/HTML tags.
   `,
   docsLink: 'https://docs.sim.ai/blocks/function',
@@ -20,13 +20,6 @@ export const FunctionBlock: BlockConfig<CodeExecutionOutput> = {
   bgColor: '#FF402F',
   icon: CodeIcon,
   subBlocks: [
-    {
-      id: 'remoteExecution',
-      type: 'switch',
-      title: 'Remote Code Execution',
-      description: 'Python/Javascript code run in a sandbox environment. Slower execution times.',
-      requiresFeature: 'NEXT_PUBLIC_E2B_ENABLED',
-    },
     {
       id: 'language',
       type: 'dropdown',
@@ -37,10 +30,6 @@ export const FunctionBlock: BlockConfig<CodeExecutionOutput> = {
       placeholder: 'Select language',
       value: () => CodeLanguage.JavaScript,
       requiresFeature: 'NEXT_PUBLIC_E2B_ENABLED',
-      condition: {
-        field: 'remoteExecution',
-        value: true,
-      },
     },
     {
       id: 'code',
@@ -105,7 +94,6 @@ try {
   },
   inputs: {
     code: { type: 'string', description: 'JavaScript or Python code to execute' },
-    remoteExecution: { type: 'boolean', description: 'Use E2B remote execution' },
     language: { type: 'string', description: 'Language (javascript or python)' },
     timeout: { type: 'number', description: 'Execution timeout' },
   },
