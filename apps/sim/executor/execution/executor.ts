@@ -53,6 +53,14 @@ export class DAGExecutor {
     const savedIncomingEdges = this.contextExtensions.dagIncomingEdges
     const dag = this.dagBuilder.build(this.workflow, triggerBlockId, savedIncomingEdges)
     const { context, state } = this.createExecutionContext(workflowId, triggerBlockId)
+    
+    // Link cancellation flag to context
+    Object.defineProperty(context, 'isCancelled', {
+      get: () => this.isCancelled,
+      enumerable: true,
+      configurable: true,
+    })
+    
     const resolver = new VariableResolver(this.workflow, this.workflowVariables, state)
     const loopOrchestrator = new LoopOrchestrator(dag, state, resolver)
     const parallelOrchestrator = new ParallelOrchestrator(dag, state)

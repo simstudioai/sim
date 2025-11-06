@@ -113,6 +113,12 @@ export class LoopOrchestrator {
       }
     }
 
+    // Check for cancellation
+    if (ctx.isCancelled) {
+      logger.info('Loop execution cancelled', { loopId, iteration: scope.iteration })
+      return this.createExitResult(ctx, loopId, scope)
+    }
+
     const iterationResults: NormalizedBlockOutput[] = []
     for (const blockOutput of scope.currentIterationOutputs.values()) {
       iterationResults.push(blockOutput)
@@ -268,18 +274,45 @@ export class LoopOrchestrator {
       const referencePattern = /<([^>]+)>/g
       let evaluatedCondition = condition
 
+      logger.info('Evaluating loop condition', {
+        originalCondition: condition,
+        iteration: scope.iteration,
+        workflowVariables: ctx.workflowVariables,
+      })
+
       evaluatedCondition = evaluatedCondition.replace(referencePattern, (match) => {
         const resolved = this.resolver.resolveSingleReference(ctx, '', match, scope)
+        logger.info('Resolved variable reference in loop condition', {
+          reference: match,
+          resolvedValue: resolved,
+          resolvedType: typeof resolved,
+        })
         if (resolved !== undefined) {
+          // For booleans and numbers, return as-is (no quotes)
+          if (typeof resolved === 'boolean' || typeof resolved === 'number') {
+            return String(resolved)
+          }
+          // For strings that represent booleans, return without quotes
           if (typeof resolved === 'string') {
+            const lower = resolved.toLowerCase().trim()
+            if (lower === 'true' || lower === 'false') {
+              return lower
+            }
             return `"${resolved}"`
           }
-          return String(resolved)
+          // For other types, stringify them
+          return JSON.stringify(resolved)
         }
         return match
       })
 
       const result = Boolean(new Function(`return (${evaluatedCondition})`)())
+
+      logger.info('Loop condition evaluation result', {
+        originalCondition: condition,
+        evaluatedCondition,
+        result,
+      })
 
       return result
     } catch (error) {

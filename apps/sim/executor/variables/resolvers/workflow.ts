@@ -28,21 +28,30 @@ export class WorkflowResolver implements Resolver {
 
     const [_, variableName] = parts
 
-    if (context.executionContext.workflowVariables) {
-      for (const varObj of Object.values(context.executionContext.workflowVariables)) {
-        const v = varObj as any
-        if (v.name === variableName || v.id === variableName) {
-          return v.value
+    const workflowVars = context.executionContext.workflowVariables || this.workflowVariables
+
+    for (const varObj of Object.values(workflowVars)) {
+      const v = varObj as any
+      if (v.name === variableName || v.id === variableName) {
+        let value = v.value
+
+        logger.debug('Resolving workflow variable', {
+          variableName,
+          originalType: typeof value,
+          declaredType: v.type,
+          originalValue: value,
+        })
+
+        if (v.type === 'boolean' && typeof value === 'string') {
+          const lower = value.toLowerCase().trim()
+          if (lower === 'true') value = true
+          else if (lower === 'false') value = false
         }
+
+        return value
       }
     }
 
-    for (const varObj of Object.values(this.workflowVariables)) {
-      const v = varObj as any
-      if (v.name === variableName || v.id === variableName) {
-        return v.value
-      }
-    }
     return undefined
   }
 }

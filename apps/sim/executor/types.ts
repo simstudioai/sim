@@ -222,6 +222,9 @@ export interface ExecutionContext {
     blockType: string,
     output: any
   ) => Promise<void>
+
+  // Cancellation support
+  isCancelled?: boolean
 }
 
 export interface ExecutionResult {
