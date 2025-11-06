@@ -83,7 +83,11 @@ export class LoopOrchestrator {
         throw new Error(`Unknown loop type: ${loopType}`)
     }
 
-    this.state.setLoopScope(loopId, scope)
+    // Store in context - single source of truth
+    if (!ctx.loopExecutions) {
+      ctx.loopExecutions = new Map()
+    }
+    ctx.loopExecutions.set(loopId, scope)
     return scope
   }
 
@@ -93,7 +97,7 @@ export class LoopOrchestrator {
     nodeId: string,
     output: NormalizedBlockOutput
   ): void {
-    const scope = this.state.getLoopScope(loopId)
+    const scope = ctx.loopExecutions?.get(loopId)
     if (!scope) {
       logger.warn('Loop scope not found for node output storage', { loopId, nodeId })
       return
@@ -110,7 +114,7 @@ export class LoopOrchestrator {
   }
 
   evaluateLoopContinuation(ctx: ExecutionContext, loopId: string): LoopContinuationResult {
-    const scope = this.state.getLoopScope(loopId)
+    const scope = ctx.loopExecutions?.get(loopId)
     if (!scope) {
       logger.error('Loop scope not found during continuation evaluation', { loopId })
       return {
@@ -150,6 +154,7 @@ export class LoopOrchestrator {
     }
 
     scope.iteration++
+    
     if (scope.items && scope.iteration < scope.items.length) {
       scope.item = scope.items[scope.iteration]
     }
@@ -271,8 +276,8 @@ export class LoopOrchestrator {
     logger.debug('Restored loop edges', { loopId, edgesRestored: restoredCount })
   }
 
-  getLoopScope(loopId: string): LoopScope | undefined {
-    return this.state.getLoopScope(loopId)
+  getLoopScope(ctx: ExecutionContext, loopId: string): LoopScope | undefined {
+    return ctx.loopExecutions?.get(loopId)
   }
 
   shouldExecuteLoopNode(nodeId: string, loopId: string, context: ExecutionContext): boolean {

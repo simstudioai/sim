@@ -1,5 +1,5 @@
 import { createLogger } from '@/lib/logs/console/logger'
-import type { NormalizedBlockOutput } from '@/executor/types'
+import type { ExecutionContext, NormalizedBlockOutput } from '@/executor/types'
 import type { ParallelConfigWithNodes } from '@/executor/types/parallel'
 import {
   calculateBranchCount,
@@ -34,6 +34,7 @@ export class ParallelOrchestrator {
   ) {}
 
   initializeParallelScope(
+    ctx: ExecutionContext,
     parallelId: string,
     totalBranches: number,
     terminalNodesCount = 1
@@ -45,7 +46,10 @@ export class ParallelOrchestrator {
       completedCount: 0,
       totalExpectedNodes: totalBranches * terminalNodesCount,
     }
-    this.state.setParallelScope(parallelId, scope)
+    if (!ctx.parallelExecutions) {
+      ctx.parallelExecutions = new Map()
+    }
+    ctx.parallelExecutions.set(parallelId, scope)
     logger.debug('Initialized parallel scope', {
       parallelId,
       totalBranches,
@@ -56,11 +60,12 @@ export class ParallelOrchestrator {
   }
 
   handleParallelBranchCompletion(
+    ctx: ExecutionContext,
     parallelId: string,
     nodeId: string,
     output: NormalizedBlockOutput
   ): boolean {
-    const scope = this.state.getParallelScope(parallelId)
+    const scope = ctx.parallelExecutions?.get(parallelId)
     if (!scope) {
       logger.warn('Parallel scope not found for branch completion', { parallelId, nodeId })
       return false
@@ -96,8 +101,8 @@ export class ParallelOrchestrator {
     return allComplete
   }
 
-  aggregateParallelResults(parallelId: string): ParallelAggregationResult {
-    const scope = this.state.getParallelScope(parallelId)
+  aggregateParallelResults(ctx: ExecutionContext, parallelId: string): ParallelAggregationResult {
+    const scope = ctx.parallelExecutions?.get(parallelId)
     if (!scope) {
       logger.error('Parallel scope not found for aggregation', { parallelId })
       return { allBranchesComplete: false }
@@ -151,8 +156,8 @@ export class ParallelOrchestrator {
     }
   }
 
-  getParallelScope(parallelId: string): ParallelScope | undefined {
-    return this.state.getParallelScope(parallelId)
+  getParallelScope(ctx: ExecutionContext, parallelId: string): ParallelScope | undefined {
+    return ctx.parallelExecutions?.get(parallelId)
   }
 
   findParallelIdForNode(baseNodeId: string): string | undefined {

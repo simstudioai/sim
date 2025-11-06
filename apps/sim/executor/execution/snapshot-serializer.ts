@@ -13,6 +13,38 @@ function setToArray<T>(set?: Set<T>): T[] | undefined {
   return Array.from(set)
 }
 
+function serializeLoopExecutions(
+  loopExecutions?: Map<string, any>
+): Record<string, any> | undefined {
+  if (!loopExecutions) return undefined
+  const result: Record<string, any> = {}
+  for (const [loopId, scope] of loopExecutions.entries()) {
+    result[loopId] = {
+      ...scope,
+      currentIterationOutputs: scope.currentIterationOutputs instanceof Map
+        ? Object.fromEntries(scope.currentIterationOutputs)
+        : scope.currentIterationOutputs || {},
+    }
+  }
+  return result
+}
+
+function serializeParallelExecutions(
+  parallelExecutions?: Map<string, any>
+): Record<string, any> | undefined {
+  if (!parallelExecutions) return undefined
+  const result: Record<string, any> = {}
+  for (const [parallelId, scope] of parallelExecutions.entries()) {
+    result[parallelId] = {
+      ...scope,
+      branchOutputs: scope.branchOutputs instanceof Map
+        ? Object.fromEntries(scope.branchOutputs)
+        : scope.branchOutputs || {},
+    }
+  }
+  return result
+}
+
 export function serializePauseSnapshot(
   context: ExecutionContext,
   triggerBlockIds: string[],
@@ -22,7 +54,6 @@ export function serializePauseSnapshot(
   const useDraftState =
     metadataFromContext?.useDraftState ?? (context.isDeployedContext === true ? false : true)
 
-  // Serialize DAG incoming edges if available
   const dagIncomingEdges: Record<string, string[]> | undefined = dag
     ? Object.fromEntries(
         Array.from(dag.nodes.entries()).map(([nodeId, node]) => [
@@ -40,11 +71,9 @@ export function serializePauseSnapshot(
       router: Object.fromEntries(context.decisions.router),
       condition: Object.fromEntries(context.decisions.condition),
     },
-    loopIterations: Object.fromEntries(context.loopIterations),
-    loopItems: Object.fromEntries(context.loopItems),
     completedLoops: Array.from(context.completedLoops),
-    loopExecutions: mapFromEntries(context.loopExecutions),
-    parallelExecutions: mapFromEntries(context.parallelExecutions),
+    loopExecutions: serializeLoopExecutions(context.loopExecutions),
+    parallelExecutions: serializeParallelExecutions(context.parallelExecutions),
     parallelBlockMapping: mapFromEntries(context.parallelBlockMapping),
     activeExecutionPath: Array.from(context.activeExecutionPath),
     pendingQueue: triggerBlockIds,

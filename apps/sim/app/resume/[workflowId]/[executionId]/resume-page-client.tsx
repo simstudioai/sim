@@ -119,8 +119,12 @@ export default function ResumeExecutionPage({
 
   const defaultContextId = useMemo(() => {
     if (initialContextId) return initialContextId
-    return pausePoints.find((point) => point.resumeStatus !== 'resumed')?.contextId ?? pausePoints[0]?.contextId
+    return pausePoints.find((point) => point.resumeStatus === 'paused')?.contextId ?? pausePoints[0]?.contextId
   }, [initialContextId, pausePoints])
+  const actionablePausePoints = useMemo(
+    () => pausePoints.filter((point) => point.resumeStatus === 'paused'),
+    [pausePoints]
+  )
 
   const [selectedContextId, setSelectedContextId] = useState<string | null>(defaultContextId ?? null)
   const [selectedDetail, setSelectedDetail] = useState<PauseContextDetail | null>(null)
@@ -216,7 +220,7 @@ export default function ResumeExecutionPage({
       setExecutionDetail(data)
 
       if (!selectedContextId) {
-        const first = data.pausePoints?.[0]?.contextId ?? null
+        const first = data.pausePoints?.find((point: PausePointWithQueue) => point.resumeStatus === 'paused')?.contextId ?? null
         setSelectedContextId(first)
       }
     } catch (err) {
@@ -292,12 +296,60 @@ export default function ResumeExecutionPage({
         return
       }
 
+      const nextStatus = payload.status === 'queued' ? 'queued' : 'resuming'
+      const nextQueuePosition = payload.queuePosition ?? null
+
+      const fallbackContextId = executionDetail?.pausePoints
+        .find((point) => point.contextId !== selectedContextId && point.resumeStatus === 'paused')
+        ?.contextId ?? null
+
+      setExecutionDetail((prev) => {
+        if (!prev) {
+          return prev
+        }
+
+        return {
+          ...prev,
+          pausePoints: prev.pausePoints.map((point) =>
+            point.contextId === selectedContextId
+              ? {
+                  ...point,
+                  resumeStatus: nextStatus,
+                  queuePosition: nextQueuePosition,
+                }
+              : point
+          ),
+        }
+      })
+
+      setSelectedDetail((prev) => {
+        if (!prev || prev.pausePoint.contextId !== selectedContextId) {
+          return prev
+        }
+
+        return {
+          ...prev,
+          pausePoint: {
+            ...prev.pausePoint,
+            resumeStatus: nextStatus,
+            queuePosition: nextQueuePosition,
+          },
+        }
+      })
+
+      setSelectedStatus(nextStatus)
+      setQueuePosition(nextQueuePosition)
+
+      setSelectedContextId((prev) => {
+        if (prev !== selectedContextId) {
+          return prev
+        }
+        return fallbackContextId
+      })
+
       if (payload.status === 'queued') {
-        setSelectedStatus('queued')
-        setQueuePosition(payload.queuePosition)
         setMessage('Resume request queued. This page will refresh automatically.')
       } else {
-        setSelectedStatus('resuming')
         setMessage('Resume execution started. Monitoring for completion...')
       }
 
@@ -307,7 +359,16 @@ export default function ResumeExecutionPage({
     } finally {
       setLoadingAction(false)
     }
-  }, [workflowId, executionId, selectedContextId, resumeInput, selectedDetail, refreshExecutionDetail, refreshSelectedDetail])
+  }, [
+    workflowId,
+    executionId,
+    selectedContextId,
+    resumeInput,
+    selectedDetail,
+    executionDetail,
+    refreshExecutionDetail,
+    refreshSelectedDetail,
+  ])
 
   useEffect(() => {
     if (!selectedContextId) return
@@ -349,7 +410,11 @@ export default function ResumeExecutionPage({
   }, [selectedDetail])
 
   const resumeDisabled =
-    loadingAction || selectedStatus === 'resumed' || selectedStatus === 'failed' || selectedStatus === 'resuming'
+    loadingAction ||
+    selectedStatus === 'resumed' ||
+    selectedStatus === 'failed' ||
+    selectedStatus === 'resuming' ||
+    selectedStatus === 'queued'
 
   if (!executionDetail) {
     return (
@@ -426,13 +491,13 @@ export default function ResumeExecutionPage({
               </Button>
             </div>
 
-            {pausePoints.length === 0 ? (
+            {actionablePausePoints.length === 0 ? (
               <p className={`${inter.className} text-sm text-muted-foreground`}>
-                No pauses are currently registered for this execution.
+                No pauses currently require approval for this execution.
               </p>
             ) : (
               <div className='space-y-3'>
-                {pausePoints.map((pause) => {
+                {actionablePausePoints.map((pause) => {
                   const isSelected = pause.contextId === selectedContextId
                   return (
                     <button

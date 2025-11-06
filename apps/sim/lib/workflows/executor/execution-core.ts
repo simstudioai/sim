@@ -300,6 +300,8 @@ export async function executeWorkflowCore(
       resumeFromSnapshot,
       resumePendingQueue,
       remainingEdges: snapshot.state?.remainingEdges,
+      dagIncomingEdges: snapshot.state?.dagIncomingEdges,
+      snapshotState: snapshot.state,
     }
 
     const executorInstance = new Executor({

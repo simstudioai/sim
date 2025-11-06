@@ -103,6 +103,7 @@ export class PauseResumeManager {
     const pausePointsRecord = pausePoints.reduce<Record<string, any>>((acc, point) => {
       acc[point.contextId] = {
         contextId: point.contextId,
+        blockId: this.normalizePauseBlockId(point.blockId ?? point.contextId),
         response: point.response,
         resumeStatus: point.resumeStatus,
         snapshotReady: point.snapshotReady,
@@ -176,7 +177,7 @@ export class PauseResumeManager {
         throw new Error('Pause point not found for execution')
       }
       if (pausePoint.resumeStatus !== 'paused') {
-        throw new Error('Pause point already resumed')
+        throw new Error('Pause point already resumed or in progress')
       }
       if (!pausePoint.snapshotReady) {
         throw new Error('Snapshot not ready; execution still finalizing pause')
@@ -213,6 +214,15 @@ export class PauseResumeManager {
           })
           .returning({ id: resumeQueue.id, queuedAt: resumeQueue.queuedAt })
 
+        await tx
+          .update(pausedExecutions)
+          .set({
+            pausePoints: sql`jsonb_set(pause_points, ARRAY[${contextId}, 'resumeStatus'], '"queued"'::jsonb)`
+          })
+          .where(eq(pausedExecutions.id, pausedExecution.id))
+
+        pausePoint.resumeStatus = 'queued'
+
         const [positionRow = { position: 0 }] = await tx
           .select({ position: sql<number>`count(*)` })
           .from(resumeQueue)
@@ -244,6 +254,15 @@ export class PauseResumeManager {
         claimedAt: now,
       })
 
+      await tx
+        .update(pausedExecutions)
+        .set({
+          pausePoints: sql`jsonb_set(pause_points, ARRAY[${contextId}, 'resumeStatus'], '"resuming"'::jsonb)`
+        })
+        .where(eq(pausedExecutions.id, pausedExecution.id))
+
+      pausePoint.resumeStatus = 'resuming'
+
       return {
         status: 'starting',
         resumeExecutionId,
@@ -259,6 +278,12 @@ export class PauseResumeManager {
   static async startResumeExecution(args: StartResumeExecutionArgs): Promise<void> {
     const { resumeEntryId, resumeExecutionId, pausedExecution, contextId, resumeInput, userId } =
       args
+
+    const pausePointsRecord = pausedExecution.pausePoints as Record<string, any>
+    const pausePointForContext = pausePointsRecord?.[contextId]
+    const pauseBlockId = PauseResumeManager.normalizePauseBlockId(
+      pausePointForContext?.blockId ?? pausePointForContext?.contextId ?? contextId
+    )
 
     try {
       const result = await this.runResumeExecution({
@@ -287,6 +312,7 @@ export class PauseResumeManager {
         await this.updateSnapshotAfterResume({
           pausedExecutionId: pausedExecution.id,
           contextId,
+          pauseBlockId: pauseBlockId,
           result,
         })
       }
@@ -300,7 +326,12 @@ export class PauseResumeManager {
 
       await this.processQueuedResumes(pausedExecution.executionId)
     } catch (error) {
-      await this.markResumeFailed({ resumeEntryId, failureReason: (error as Error).message })
+      await this.markResumeFailed({
+        resumeEntryId,
+        pausedExecutionId: pausedExecution.id,
+        contextId,
+        failureReason: (error as Error).message,
+      })
       logger.error('Resume execution failed', {
         parentExecutionId: pausedExecution.executionId,
         resumeExecutionId,
@@ -350,7 +381,9 @@ export class PauseResumeManager {
     })
 
     // Find the blocks downstream of the pause block
-    const pauseBlockId = contextId // The pause block's ID is the contextId
+    const pauseBlockId = PauseResumeManager.normalizePauseBlockId(
+      pausePoint.blockId ?? contextId
+    )
     const downstreamBlocks = baseSnapshot.workflow.connections
       .filter((conn: any) => conn.source === pauseBlockId)
       .map((conn: any) => conn.target)
@@ -387,7 +420,10 @@ export class PauseResumeManager {
       })
       
       // Set the pause block as completed with the resume input
-      const pauseBlockState = stateCopy.blockStates[pauseBlockId] ?? {
+      const existingBlockState =
+        stateCopy.blockStates[pauseBlockId] ?? stateCopy.blockStates[contextId]
+
+      const pauseBlockState = existingBlockState ?? {
         output: {},
         executed: true,
         executionTime: 0,
@@ -404,10 +440,17 @@ export class PauseResumeManager {
       }
       pauseBlockState.executed = true
       pauseBlockState.executionTime = pauseDurationMs
+      if (!stateCopy.blockStates[pauseBlockId] && stateCopy.blockStates[contextId]) {
+        delete stateCopy.blockStates[contextId]
+      }
       stateCopy.blockStates[pauseBlockId] = pauseBlockState
 
       // Track all pause contexts that have already been resumed
-      const completedPauseContexts = new Set<string>(stateCopy.completedPauseContexts ?? [])
+      const completedPauseContexts = new Set<string>(
+        (stateCopy.completedPauseContexts ?? []).map((id: string) =>
+          PauseResumeManager.normalizePauseBlockId(id)
+        )
+      )
       completedPauseContexts.add(pauseBlockId)
 
       // Store edges to remove (all edges FROM any completed pause block)
@@ -532,20 +575,34 @@ export class PauseResumeManager {
 
   private static async markResumeFailed(args: {
     resumeEntryId: string
+    pausedExecutionId: string
+    contextId: string
     failureReason: string
   }): Promise<void> {
-    await db
-      .update(resumeQueue)
-      .set({ status: 'failed', failureReason: args.failureReason, completedAt: new Date() })
-      .where(eq(resumeQueue.id, args.resumeEntryId))
+    const now = new Date()
+
+    await db.transaction(async (tx) => {
+      await tx
+        .update(resumeQueue)
+        .set({ status: 'failed', failureReason: args.failureReason, completedAt: now })
+        .where(eq(resumeQueue.id, args.resumeEntryId))
+
+      await tx
+        .update(pausedExecutions)
+        .set({
+          pausePoints: sql`jsonb_set(pause_points, ARRAY[${args.contextId}, 'resumeStatus'], '"failed"'::jsonb)`
+        })
+        .where(eq(pausedExecutions.id, args.pausedExecutionId))
+    })
   }
 
   private static async updateSnapshotAfterResume(args: {
     pausedExecutionId: string
     contextId: string
+    pauseBlockId: string
     result: ExecutionResult
   }): Promise<void> {
-    const { pausedExecutionId, contextId, result } = args
+    const { pausedExecutionId, contextId, pauseBlockId, result } = args
 
     // Load the current snapshot from the database
     const pausedExecution = await db
@@ -567,8 +624,12 @@ export class PauseResumeManager {
     // Remove the edge from the resumed pause block
     if (snapshotData.state) {
       // Track completed pause contexts so future resumes remove their edges
-      const completedPauseContexts = new Set<string>(snapshotData.state.completedPauseContexts ?? [])
-      completedPauseContexts.add(contextId)
+      const completedPauseContexts = new Set<string>(
+        (snapshotData.state.completedPauseContexts ?? []).map((id: string) =>
+          PauseResumeManager.normalizePauseBlockId(id)
+        )
+      )
+      completedPauseContexts.add(pauseBlockId)
       snapshotData.state.completedPauseContexts = Array.from(completedPauseContexts)
 
       const dagIncomingEdges = snapshotData.state.dagIncomingEdges
@@ -579,16 +640,16 @@ export class PauseResumeManager {
         const connections = workflowData.connections || []
         
         for (const conn of connections) {
-          if (conn.source === contextId) {
+          if (conn.source === pauseBlockId) {
             const targetId = conn.target
             if (dagIncomingEdges[targetId]) {
               // Remove this source from the target's incoming edges
               dagIncomingEdges[targetId] = dagIncomingEdges[targetId].filter(
-                (sourceId: string) => sourceId !== contextId
+                (sourceId: string) => sourceId !== pauseBlockId
               )
               
               logger.debug('Updated DAG incoming edges in snapshot', {
-                removedSource: contextId,
+                removedSource: pauseBlockId,
                 target: targetId,
                 remainingIncoming: dagIncomingEdges[targetId].length,
               })
@@ -745,6 +806,13 @@ export class PauseResumeManager {
         return null
       }
 
+      await tx
+        .update(pausedExecutions)
+        .set({
+          pausePoints: sql`jsonb_set(pause_points, ARRAY[${entry.contextId}, 'resumeStatus'], '"resuming"'::jsonb)`
+        })
+        .where(eq(pausedExecutions.id, pausedExecution.id))
+
       return { entry, pausedExecution }
     })
 
@@ -822,6 +890,8 @@ export class PauseResumeManager {
       const queuePosition = queuePositions?.get(point.contextId ?? '') ?? null
       const latestEntry = latestEntries?.get(point.contextId ?? '')
 
+      const blockId = this.normalizePauseBlockId(point.blockId ?? point.contextId)
+
       const resumeLinks = point.resumeLinks
         ? {
             ...point.resumeLinks,
@@ -833,6 +903,7 @@ export class PauseResumeManager {
 
       return {
         contextId: point.contextId,
+        blockId,
         response: point.response,
         registeredAt: point.registeredAt,
         resumeStatus: point.resumeStatus || 'paused',
@@ -888,6 +959,18 @@ export class PauseResumeManager {
     })
 
     return latestEntries
+  }
+
+  private static normalizePauseBlockId(id?: string | null): string {
+    if (!id) {
+      return ''
+    }
+
+    const normalized = id
+      .replace(/₍\d+₎/g, '')
+      .replace(/_loop\d+/g, '')
+
+    return normalized || id
   }
 }
 

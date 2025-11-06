@@ -101,8 +101,7 @@ describe('ConditionBlockHandler', () => {
       metadata: { duration: 0 },
       environmentVariables: {}, // Now set the context's env vars
       decisions: { router: new Map(), condition: new Map() },
-      loopIterations: new Map(),
-      loopItems: new Map(),
+      loopExecutions: new Map(),
       executedBlocks: new Set([mockSourceBlock.id]),
       activeExecutionPath: new Set(),
       workflow: mockWorkflow as SerializedWorkflow,

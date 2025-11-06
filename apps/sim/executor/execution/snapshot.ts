@@ -35,8 +35,6 @@ export interface SerializableExecutionState {
     router: Record<string, string>
     condition: Record<string, string>
   }
-  loopIterations: Record<string, number>
-  loopItems: Record<string, any>
   completedLoops: string[]
   loopExecutions?: Record<string, any>
   parallelExecutions?: Record<string, any>

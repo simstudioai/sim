@@ -54,7 +54,7 @@ export class DAGExecutor {
     const savedIncomingEdges = this.contextExtensions.dagIncomingEdges
     const dag = this.dagBuilder.build(this.workflow, triggerBlockId, savedIncomingEdges)
     const context = this.createExecutionContext(workflowId, triggerBlockId)
-    // Create state with shared references to context's maps/sets for single source of truth
+    
     const state = new ExecutionState(context.blockStates, context.executedBlocks)
     const resolver = new VariableResolver(this.workflow, this.workflowVariables, state)
     const loopOrchestrator = new LoopOrchestrator(dag, state, resolver)
@@ -69,7 +69,7 @@ export class DAGExecutor {
       loopOrchestrator,
       parallelOrchestrator
     )
-    const engine = new ExecutionEngine(dag, edgeManager, nodeOrchestrator, context)
+    const engine = new ExecutionEngine(dag, edgeManager, nodeOrchestrator, context, state)
     return await engine.run(triggerBlockId)
   }
 
@@ -95,13 +95,17 @@ export class DAGExecutor {
   }
 
   private createExecutionContext(workflowId: string, triggerBlockId?: string): ExecutionContext {
+    const snapshotState = this.contextExtensions.snapshotState
+    
     const context: ExecutionContext = {
       workflowId,
       workspaceId: this.contextExtensions.workspaceId,
       executionId: this.contextExtensions.executionId,
       isDeployedContext: this.contextExtensions.isDeployedContext,
-      blockStates: new Map(),
-      blockLogs: [],
+      blockStates: snapshotState?.blockStates
+        ? new Map(Object.entries(snapshotState.blockStates))
+        : new Map(),
+      blockLogs: snapshotState?.blockLogs || [],
       metadata: {
         startTime: new Date().toISOString(),
         duration: 0,
@@ -110,14 +114,50 @@ export class DAGExecutor {
       environmentVariables: this.environmentVariables,
       workflowVariables: this.workflowVariables,
       decisions: {
-        router: new Map(),
-        condition: new Map(),
+        router: snapshotState?.decisions?.router
+          ? new Map(Object.entries(snapshotState.decisions.router))
+          : new Map(),
+        condition: snapshotState?.decisions?.condition
+          ? new Map(Object.entries(snapshotState.decisions.condition))
+          : new Map(),
       },
-      loopIterations: new Map(),
-      loopItems: new Map(),
-      completedLoops: new Set(),
-      executedBlocks: new Set(),
-      activeExecutionPath: new Set(),
+      completedLoops: snapshotState?.completedLoops
+        ? new Set(snapshotState.completedLoops)
+        : new Set(),
+      loopExecutions: snapshotState?.loopExecutions
+        ? new Map(
+            Object.entries(snapshotState.loopExecutions).map(([loopId, scope]) => [
+              loopId,
+              {
+                ...scope,
+                currentIterationOutputs: scope.currentIterationOutputs
+                  ? new Map(Object.entries(scope.currentIterationOutputs))
+                  : new Map(),
+              },
+            ])
+          )
+        : new Map(),
+      parallelExecutions: snapshotState?.parallelExecutions
+        ? new Map(
+            Object.entries(snapshotState.parallelExecutions).map(([parallelId, scope]) => [
+              parallelId,
+              {
+                ...scope,
+                branchOutputs: scope.branchOutputs
+                  ? new Map(
+                      Object.entries(scope.branchOutputs).map(([k, v]) => [Number(k), v])
+                    )
+                  : new Map(),
+              },
+            ])
+          )
+        : new Map(),
+      executedBlocks: snapshotState?.executedBlocks
+        ? new Set(snapshotState.executedBlocks)
+        : new Set(),
+      activeExecutionPath: snapshotState?.activeExecutionPath
+        ? new Set(snapshotState.activeExecutionPath)
+        : new Set(),
       workflow: this.workflow,
       stream: this.contextExtensions.stream || false,
       selectedOutputs: this.contextExtensions.selectedOutputs || [],

@@ -37,7 +37,7 @@ export class LoopResolver implements Resolver {
         logger.debug('Block not in a loop', { nodeId: context.currentNodeId })
         return undefined
       }
-      loopScope = context.executionState.getLoopScope(loopId)
+      loopScope = context.executionContext.loopExecutions?.get(loopId)
     }
 
     if (!loopScope) {

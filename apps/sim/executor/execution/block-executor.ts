@@ -191,9 +191,9 @@ export class BlockExecutor {
           branchIndex: node.metadata.branchIndex,
           blockName,
         })
-      } else if (node.metadata.isLoopNode && node.metadata.loopId && this.state) {
+      } else if (node.metadata.isLoopNode && node.metadata.loopId) {
         loopId = node.metadata.loopId
-        const loopScope = this.state.getLoopScope(loopId)
+        const loopScope = ctx.loopExecutions?.get(loopId)
         if (loopScope && loopScope.iteration !== undefined) {
           blockName = `${blockName} (iteration ${loopScope.iteration})`
           iterationIndex = loopScope.iteration
@@ -240,7 +240,7 @@ export class BlockExecutor {
     const blockName = block.metadata?.name || blockId
     const blockType = block.metadata?.id || DEFAULTS.BLOCK_TYPE
 
-    const iterationContext = this.getIterationContext(node)
+    const iterationContext = this.getIterationContext(ctx, node)
 
     if (this.contextExtensions.onBlockStart) {
       this.contextExtensions.onBlockStart(blockId, blockName, blockType, iterationContext)
@@ -259,7 +259,7 @@ export class BlockExecutor {
     const blockName = block.metadata?.name || blockId
     const blockType = block.metadata?.id || DEFAULTS.BLOCK_TYPE
 
-    const iterationContext = this.getIterationContext(node)
+    const iterationContext = this.getIterationContext(ctx, node)
 
     if (this.contextExtensions.onBlockComplete) {
       this.contextExtensions.onBlockComplete(
@@ -277,6 +277,7 @@ export class BlockExecutor {
   }
 
   private getIterationContext(
+    ctx: ExecutionContext,
     node: DAGNode
   ): { iterationCurrent: number; iterationTotal: number; iterationType: SubflowType } | undefined {
     if (!node?.metadata) return undefined
@@ -289,8 +290,8 @@ export class BlockExecutor {
       }
     }
 
-    if (node.metadata.isLoopNode && node.metadata.loopId && this.state) {
-      const loopScope = this.state.getLoopScope(node.metadata.loopId)
+    if (node.metadata.isLoopNode && node.metadata.loopId) {
+      const loopScope = ctx.loopExecutions?.get(node.metadata.loopId)
       if (loopScope && loopScope.iteration !== undefined && loopScope.maxIterations) {
         return {
           iterationCurrent: loopScope.iteration,

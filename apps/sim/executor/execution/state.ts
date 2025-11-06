@@ -25,8 +25,6 @@ export class ExecutionState {
     { output: NormalizedBlockOutput; executed: boolean; executionTime: number }
   >
   readonly executedBlocks: Set<string>
-  readonly loopScopes = new Map<string, LoopScope>()
-  readonly parallelScopes = new Map<string, ParallelScope>()
 
   constructor(
     blockStates: Map<
@@ -50,21 +48,5 @@ export class ExecutionState {
 
   hasExecuted(blockId: string): boolean {
     return this.executedBlocks.has(blockId)
-  }
-
-  getLoopScope(loopId: string): LoopScope | undefined {
-    return this.loopScopes.get(loopId)
-  }
-
-  setLoopScope(loopId: string, scope: LoopScope): void {
-    this.loopScopes.set(loopId, scope)
-  }
-
-  getParallelScope(parallelId: string): ParallelScope | undefined {
-    return this.parallelScopes.get(parallelId)
-  }
-
-  setParallelScope(parallelId: string, scope: ParallelScope): void {
-    this.parallelScopes.set(parallelId, scope)
   }
 }

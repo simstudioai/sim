@@ -42,7 +42,7 @@ export class NodeExecutionOrchestrator {
     }
 
     const loopId = node.metadata.loopId
-    if (loopId && !this.loopOrchestrator.getLoopScope(loopId)) {
+    if (loopId && !this.loopOrchestrator.getLoopScope(context, loopId)) {
       logger.debug('Initializing loop scope before first execution', { loopId, nodeId })
       this.loopOrchestrator.initializeLoopScope(context, loopId)
     }
@@ -155,7 +155,7 @@ export class NodeExecutionOrchestrator {
       const parallelId = this.findParallelIdForNode(node.id)
       if (parallelId) {
         logger.debug('Handling parallel node', { nodeId: node.id, parallelId })
-        this.handleParallelNodeCompletion(node, output, parallelId)
+        this.handleParallelNodeCompletion(context, node, output, parallelId)
       } else {
         this.handleRegularNodeCompletion(node, output, context)
       }
@@ -176,24 +176,26 @@ export class NodeExecutionOrchestrator {
   }
 
   private handleParallelNodeCompletion(
+    context: ExecutionContext,
     node: DAGNode,
     output: NormalizedBlockOutput,
     parallelId: string
   ): void {
-    const scope = this.parallelOrchestrator.getParallelScope(parallelId)
+    const scope = this.parallelOrchestrator.getParallelScope(context, parallelId)
     if (!scope) {
       const totalBranches = node.metadata.branchTotal || 1
       const parallelConfig = this.dag.parallelConfigs.get(parallelId)
       const nodesInParallel = (parallelConfig as any)?.nodes?.length || 1
-      this.parallelOrchestrator.initializeParallelScope(parallelId, totalBranches, nodesInParallel)
+      this.parallelOrchestrator.initializeParallelScope(context, parallelId, totalBranches, nodesInParallel)
     }
     const allComplete = this.parallelOrchestrator.handleParallelBranchCompletion(
+      context,
       parallelId,
       node.id,
       output
     )
     if (allComplete) {
-      this.parallelOrchestrator.aggregateParallelResults(parallelId)
+      this.parallelOrchestrator.aggregateParallelResults(context, parallelId)
     }
 
     this.state.setBlockOutput(node.id, output)

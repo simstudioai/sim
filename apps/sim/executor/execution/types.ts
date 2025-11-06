@@ -13,6 +13,7 @@ export interface ContextExtensions {
   resumePendingQueue?: string[]
   remainingEdges?: Array<{ source: string; target: string; sourceHandle?: string; targetHandle?: string }>
   dagIncomingEdges?: Record<string, string[]>
+  snapshotState?: import('@/executor/execution/snapshot').SerializableExecutionState
   onStream?: (streamingExecution: unknown) => Promise<void>
   onBlockStart?: (
     blockId: string,

@@ -65,7 +65,8 @@ export function mapNodeMetadataToPauseScopes(
   }
 
   if (nodeMetadata.loopId) {
-    const iteration = ctx.loopIterations?.get(nodeMetadata.loopId) ?? 0
+    const loopExecution = ctx.loopExecutions?.get(nodeMetadata.loopId)
+    const iteration = loopExecution?.iteration ?? 0
     loopScope = {
       loopId: nodeMetadata.loopId,
       iteration,

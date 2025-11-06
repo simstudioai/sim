@@ -12,6 +12,8 @@ import type { DAG } from '../dag/builder'
 import type { NodeExecutionOrchestrator } from '../orchestrators/node'
 import type { EdgeManager } from './edge-manager'
 
+import type { ExecutionState } from './state'
+
 const logger = createLogger('ExecutionEngine')
 
 export class ExecutionEngine {
@@ -26,7 +28,8 @@ export class ExecutionEngine {
     private dag: DAG,
     private edgeManager: EdgeManager,
     private nodeOrchestrator: NodeExecutionOrchestrator,
-    private context: ExecutionContext
+    private context: ExecutionContext,
+    private state: ExecutionState
   ) {
     this.allowResumeTriggers = this.context.metadata.resumeFromSnapshot === true
   }
@@ -343,6 +346,7 @@ export class ExecutionEngine {
     const snapshotSeed = serializePauseSnapshot(this.context, [], this.dag)
     const pausePoints: PausePoint[] = Array.from(this.pausedBlocks.values()).map((pause) => ({
       contextId: pause.contextId,
+      blockId: pause.blockId,
       response: pause.response,
       registeredAt: pause.timestamp,
       resumeStatus: 'paused',

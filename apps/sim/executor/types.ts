@@ -49,6 +49,7 @@ export interface PauseMetadata {
 
 export interface PausePoint {
   contextId: string
+  blockId?: string
   response: any
   registeredAt: string
   resumeStatus: 'paused' | 'resumed' | 'failed' | 'queued' | 'resuming'
@@ -193,33 +194,34 @@ export interface ExecutionContext {
     condition: Map<string, string> // Condition block ID -> Selected condition ID
   }
 
-  loopIterations: Map<string, number> // Tracks current iteration count for each loop
-  loopItems: Map<string, any> // Tracks current item for forEach loops and parallel distribution
   completedLoops: Set<string> // Tracks which loops have completed all iterations
 
-  // Parallel execution tracking
-  parallelExecutions?: Map<
-    string,
-    {
-      parallelCount: number
-      distributionItems: any[] | Record<string, any> | null
-      completedExecutions: number
-      executionResults: Map<string, any>
-      activeIterations: Set<number>
-      currentIteration: number
-      parallelType?: 'count' | 'collection'
-    }
-  >
-
-  // Loop execution tracking
+  // Loop execution tracking - single source of truth for loop state
   loopExecutions?: Map<
     string,
     {
-      maxIterations: number
-      loopType: 'for' | 'forEach'
-      forEachItems?: any[] | Record<string, any> | null
-      executionResults: Map<string, any> // iteration_0, iteration_1, etc.
-      currentIteration: number
+      iteration: number // Current iteration
+      currentIterationOutputs: Map<string, any> // Outputs from blocks in current iteration
+      allIterationOutputs: any[][] // Outputs from all completed iterations
+      maxIterations?: number
+      item?: any // Current item (for forEach loops)
+      items?: any[] // All items (for forEach loops)
+      condition?: string // Loop condition expression
+      skipFirstConditionCheck?: boolean // For do-while loops
+      loopType?: 'for' | 'forEach' | 'while' | 'doWhile'
+    }
+  >
+
+  // Parallel execution tracking - single source of truth for parallel state
+  parallelExecutions?: Map<
+    string,
+    {
+      parallelId: string
+      totalBranches: number
+      branchOutputs: Map<number, any[]> // Outputs from each branch
+      completedCount: number
+      totalExpectedNodes: number
+      parallelType?: 'count' | 'collection'
     }
   >
 
