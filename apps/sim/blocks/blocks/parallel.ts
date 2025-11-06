@@ -90,15 +90,6 @@ export const ParallelBlock: BlockConfig<ToolResponse> = {
       condition: { field: 'operation', value: 'deep_research' },
     },
     {
-      id: 'output_schema',
-      title: 'Output Format',
-      type: 'long-input',
-      placeholder:
-        'Enter "text" for markdown report, or describe desired output structure (leave empty for auto)',
-      required: false,
-      condition: { field: 'operation', value: 'deep_research' },
-    },
-    {
       id: 'include_domains',
       title: 'Include Domains',
       type: 'short-input',
@@ -229,7 +220,6 @@ export const ParallelBlock: BlockConfig<ToolResponse> = {
     excerpts: { type: 'boolean', description: 'Include excerpts' },
     full_content: { type: 'boolean', description: 'Include full content' },
     research_input: { type: 'string', description: 'Deep research query' },
-    output_schema: { type: 'string', description: 'Output format specification' },
     include_domains: { type: 'string', description: 'Domains to include' },
     exclude_domains: { type: 'string', description: 'Domains to exclude' },
     processor: { type: 'string', description: 'Processing method' },

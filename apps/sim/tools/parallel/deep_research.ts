@@ -22,13 +22,6 @@ export const deepResearchTool: ToolConfig<ParallelDeepResearchParams, ToolRespon
       description:
         'Compute level: base, lite, pro, ultra, ultra2x, ultra4x, ultra8x (default: base)',
     },
-    output_schema: {
-      type: 'string',
-      required: false,
-      visibility: 'user-only',
-      description:
-        'Desired output format description. Use "text" for markdown reports with citations, or describe structured JSON format',
-    },
     include_domains: {
       type: 'string',
       required: false,
@@ -62,27 +55,12 @@ export const deepResearchTool: ToolConfig<ParallelDeepResearchParams, ToolRespon
         processor: params.processor || 'base',
       }
 
-      // Build task_spec
       const taskSpec: Record<string, unknown> = {}
 
-      // Handle output_schema - can be "text" or a custom description
-      if (params.output_schema) {
-        if (params.output_schema.toLowerCase() === 'text') {
-          taskSpec.output_schema = 'text'
-        } else {
-          taskSpec.output_schema = {
-            description: params.output_schema,
-            type: 'text',
-          }
-        }
-      } else {
-        // Default to auto mode for deep research
-        taskSpec.output_schema = 'auto'
-      }
+      taskSpec.output_schema = 'auto'
 
       body.task_spec = taskSpec
 
-      // Handle source policy (include/exclude domains)
       if (params.include_domains || params.exclude_domains) {
         const sourcePolicy: Record<string, string[]> = {}
 
@@ -112,7 +90,6 @@ export const deepResearchTool: ToolConfig<ParallelDeepResearchParams, ToolRespon
   transformResponse: async (response: Response) => {
     const data = await response.json()
 
-    // Check if the task is still running
     if (data.status === 'running') {
       return {
         success: true,
@@ -125,7 +102,6 @@ export const deepResearchTool: ToolConfig<ParallelDeepResearchParams, ToolRespon
       }
     }
 
-    // Task completed
     return {
       success: true,
       output: {
