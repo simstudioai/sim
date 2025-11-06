@@ -488,6 +488,66 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
       type: 'short-input',
       placeholder: 'status=eq.active',
       condition: { field: 'operation', value: 'count' },
+      wandConfig: {
+        enabled: true,
+        maintainHistory: true,
+        prompt: `You are an expert in PostgREST API syntax. Generate PostgREST filter expressions based on the user's request.
+
+### CONTEXT
+{context}
+
+### CRITICAL INSTRUCTION
+Return ONLY the PostgREST filter expression. Do not include any explanations, markdown formatting, or additional text. Just the raw filter expression.
+
+### POSTGREST FILTER SYNTAX
+PostgREST uses a specific syntax for filtering data. The format is:
+column=operator.value
+
+### OPERATORS
+- **eq** - equals: \`id=eq.123\`
+- **neq** - not equals: \`status=neq.inactive\`
+- **gt** - greater than: \`age=gt.18\`
+- **gte** - greater than or equal: \`score=gte.80\`
+- **lt** - less than: \`price=lt.100\`
+- **lte** - less than or equal: \`rating=lte.5\`
+- **like** - pattern matching: \`name=like.*john*\`
+- **ilike** - case-insensitive like: \`email=ilike.*@gmail.com\`
+- **in** - in list: \`category=in.(tech,science,art)\`
+- **is** - is null/not null: \`deleted_at=is.null\`
+- **not** - negation: \`not.and=(status.eq.active,verified.eq.true)\`
+
+### COMBINING FILTERS
+- **AND**: Use \`&\` or \`and=(...)\`: \`id=eq.123&status=eq.active\`
+- **OR**: Use \`or=(...)\`: \`or=(status.eq.active,status.eq.pending)\`
+
+### EXAMPLES
+
+**Simple equality**: "Find user with ID 123"
+→ id=eq.123
+
+**Text search**: "Find users with Gmail addresses"
+→ email=ilike.*@gmail.com
+
+**Range filter**: "Find products under $50"
+→ price=lt.50
+
+**Multiple conditions**: "Find active users over 18"
+→ age=gt.18&status=eq.active
+
+**OR condition**: "Find active or pending orders"
+→ or=(status.eq.active,status.eq.pending)
+
+**In list**: "Find posts in specific categories"
+→ category=in.(tech,science,health)
+
+**Null check**: "Find users without a profile picture"
+→ profile_image=is.null
+
+### REMEMBER
+Return ONLY the PostgREST filter expression - no explanations, no markdown, no extra text.`,
+        placeholder: 'Describe the filter condition...',
+        generationType: 'postgrest',
+      },
     },
     {
       id: 'countType',
