@@ -1,8 +1,8 @@
 import { createLogger } from '@/lib/logs/console/logger'
 import { EDGE } from '@/executor/consts'
 import type { NormalizedBlockOutput } from '@/executor/types'
-import type { DAG, DAGNode } from '../dag/builder'
-import type { DAGEdge } from '../dag/types'
+import type { DAG, DAGNode } from '@/executor/dag/builder'
+import type { DAGEdge } from '@/executor/dag/types'
 
 const logger = createLogger('EdgeManager')
 

@@ -1,7 +1,7 @@
 import { ExecutionSnapshot } from '@/executor/execution/snapshot'
 import type { SerializableExecutionState } from '@/executor/execution/snapshot'
 import type { ExecutionContext, ExecutionMetadata, SerializedSnapshot } from '@/executor/types'
-import type { DAG } from '../dag/builder'
+import type { DAG } from '@/executor/dag/builder'
 
 function mapFromEntries<T>(map?: Map<string, T>): Record<string, T> | undefined {
   if (!map) return undefined
@@ -124,5 +124,3 @@ export function serializePauseSnapshot(
     triggerIds: triggerBlockIds,
   }
 }
-
-

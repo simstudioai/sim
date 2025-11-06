@@ -14,9 +14,9 @@ import type {
 } from '@/executor/types'
 import type { SerializedBlock } from '@/serializer/types'
 import type { SubflowType } from '@/stores/workflows/workflow/types'
-import type { DAGNode } from '../dag/builder'
-import type { VariableResolver } from '../variables/resolver'
-import type { BlockStateWriter, ContextExtensions } from './types'
+import type { DAGNode } from '@/executor/dag/builder'
+import type { VariableResolver } from '@/executor/variables/resolver'
+import type { BlockStateWriter, ContextExtensions } from '@/executor/execution/types'
 import { getBaseUrl } from '@/lib/urls/utils'
 
 const logger = createLogger('BlockExecutor')

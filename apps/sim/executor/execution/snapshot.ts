@@ -82,19 +82,3 @@ export class ExecutionSnapshot {
     )
   }
 }
-
-// TODO: Implement pause/resume functionality
-//
-// Future implementation should include:
-// 1. executor.pause() - Captures current state mid-execution
-//    - Serialize ExecutionContext (blockStates, decisions, loops, etc) to state property
-//    - Save snapshot.toJSON() to database
-// 2. executor.resume(snapshot) - Reconstructs execution from saved state
-//    - Load snapshot from database
-//    - Restore ExecutionContext from state property
-//    - Continue execution from pendingQueue
-// 3. API endpoints:
-//    - POST /api/executions/[id]/pause
-//    - POST /api/executions/[id]/resume
-// 4. Database schema:
-//    - execution_snapshots table with snapshot JSON column

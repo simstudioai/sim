@@ -18,6 +18,7 @@ import Nav from '@/app/(landing)/components/nav/nav'
 import { inter } from '@/app/fonts/inter'
 import { soehne } from '@/app/fonts/soehne/soehne'
 import { useBrandConfig } from '@/lib/branding/branding'
+import type { ResumeStatus } from '@/executor/types'
 
 interface ResumeLinks {
   apiUrl: string
@@ -64,7 +65,7 @@ interface PausePointWithQueue {
   triggerBlockId: string
   response: any
   registeredAt: string
-  resumeStatus: 'paused' | 'resumed' | 'failed' | 'queued' | 'resuming'
+  resumeStatus: ResumeStatus
   snapshotReady: boolean
   resumeLinks?: ResumeLinks
   queuePosition?: number | null

@@ -1,5 +1,5 @@
 import type { BlockState, NormalizedBlockOutput } from '@/executor/types'
-import type { BlockStateController } from './types'
+import type { BlockStateController } from '@/executor/execution/types'
 
 function normalizeLookupId(id: string): string {
   return id

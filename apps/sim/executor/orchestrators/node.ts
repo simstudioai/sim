@@ -2,11 +2,11 @@ import { createLogger } from '@/lib/logs/console/logger'
 import { EDGE } from '@/executor/consts'
 import type { ExecutionContext, NormalizedBlockOutput } from '@/executor/types'
 import { extractBaseBlockId } from '@/executor/utils/subflow-utils'
-import type { DAG, DAGNode } from '../dag/builder'
-import type { BlockExecutor } from '../execution/block-executor'
-import type { BlockStateController } from '../execution/types'
-import type { LoopOrchestrator } from './loop'
-import type { ParallelOrchestrator } from './parallel'
+import type { DAG, DAGNode } from '@/executor/dag/builder'
+import type { BlockExecutor } from '@/executor/execution/block-executor'
+import type { BlockStateController } from '@/executor/execution/types'
+import type { LoopOrchestrator } from '@/executor/orchestrators/loop'
+import type { ParallelOrchestrator } from '@/executor/orchestrators/parallel'
 
 const logger = createLogger('NodeExecutionOrchestrator')
 

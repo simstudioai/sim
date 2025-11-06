@@ -8,10 +8,10 @@ import {
   extractBaseBlockId,
 } from '@/executor/utils/subflow-utils'
 import type { SerializedLoop } from '@/serializer/types'
-import type { DAG } from '../dag/builder'
-import type { LoopScope } from '../execution/state'
-import type { BlockStateController } from '../execution/types'
-import type { VariableResolver } from '../variables/resolver'
+import type { DAG } from '@/executor/dag/builder'
+import type { LoopScope } from '@/executor/execution/state'
+import type { BlockStateController } from '@/executor/execution/types'
+import type { VariableResolver } from '@/executor/variables/resolver'
 
 const logger = createLogger('LoopOrchestrator')
 
@@ -276,7 +276,7 @@ export class LoopOrchestrator {
     return ctx.loopExecutions?.get(loopId)
   }
 
-  shouldExecuteLoopNode(ctx: ExecutionContext, nodeId: string, loopId: string): boolean {
+  shouldExecuteLoopNode(_ctx: ExecutionContext, _nodeId: string, _loopId: string): boolean {
     return true
   }
 
@@ -302,16 +302,13 @@ export class LoopOrchestrator {
     try {
       const referencePattern = /<([^>]+)>/g
       let evaluatedCondition = condition
-      const replacements: Record<string, string> = {}
 
       evaluatedCondition = evaluatedCondition.replace(referencePattern, (match) => {
         const resolved = this.resolver.resolveSingleReference(ctx, '', match, scope)
         if (resolved !== undefined) {
           if (typeof resolved === 'string') {
-            replacements[match] = `"${resolved}"`
             return `"${resolved}"`
           }
-          replacements[match] = String(resolved)
           return String(resolved)
         }
         return match
@@ -321,7 +318,6 @@ export class LoopOrchestrator {
 
       logger.debug('Evaluated loop condition', {
         condition,
-        replacements,
         evaluatedCondition,
         result,
         iteration: scope.iteration,

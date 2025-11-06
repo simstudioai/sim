@@ -8,9 +8,9 @@ import {
   parseDistributionItems,
 } from '@/executor/utils/subflow-utils'
 import type { SerializedParallel } from '@/serializer/types'
-import type { DAG } from '../dag/builder'
-import type { ParallelScope } from '../execution/state'
-import type { BlockStateWriter } from '../execution/types'
+import type { DAG } from '@/executor/dag/builder'
+import type { ParallelScope } from '@/executor/execution/state'
+import type { BlockStateWriter } from '@/executor/execution/types'
 
 const logger = createLogger('ParallelOrchestrator')
 

@@ -9,16 +9,16 @@ import {
 } from '@/executor/utils/start-block'
 import { StartBlockPath } from '@/lib/workflows/triggers'
 import type { SerializedWorkflow } from '@/serializer/types'
-import { DAGBuilder } from '../dag/builder'
-import { LoopOrchestrator } from '../orchestrators/loop'
-import { NodeExecutionOrchestrator } from '../orchestrators/node'
-import { ParallelOrchestrator } from '../orchestrators/parallel'
-import { VariableResolver } from '../variables/resolver'
-import { BlockExecutor } from './block-executor'
-import { EdgeManager } from './edge-manager'
-import { ExecutionEngine } from './engine'
-import { ExecutionState } from './state'
-import type { ContextExtensions, WorkflowInput } from './types'
+import { DAGBuilder } from '@/executor/dag/builder'
+import { LoopOrchestrator } from '@/executor/orchestrators/loop'
+import { NodeExecutionOrchestrator } from '@/executor/orchestrators/node'
+import { ParallelOrchestrator } from '@/executor/orchestrators/parallel'
+import { VariableResolver } from '@/executor/variables/resolver'
+import { BlockExecutor } from '@/executor/execution/block-executor'
+import { EdgeManager } from '@/executor/execution/edge-manager'
+import { ExecutionEngine } from '@/executor/execution/engine'
+import { ExecutionState } from '@/executor/execution/state'
+import type { ContextExtensions, WorkflowInput } from '@/executor/execution/types'
 
 const logger = createLogger('DAGExecutor')
 
@@ -33,7 +33,6 @@ export interface DAGExecutorOptions {
 
 export class DAGExecutor {
   private workflow: SerializedWorkflow
-  private initialBlockStates: Record<string, BlockOutput>
   private environmentVariables: Record<string, string>
   private workflowInput: WorkflowInput
   private workflowVariables: Record<string, unknown>
@@ -43,7 +42,6 @@ export class DAGExecutor {
 
   constructor(options: DAGExecutorOptions) {
     this.workflow = options.workflow
-    this.initialBlockStates = options.currentBlockStates ?? {}
     this.environmentVariables = options.envVarValues ?? {}
     this.workflowInput = options.workflowInput ?? {}
     this.workflowVariables = options.workflowVariables ?? {}
@@ -68,7 +66,7 @@ export class DAGExecutor {
       loopOrchestrator,
       parallelOrchestrator
     )
-    const engine = new ExecutionEngine(dag, edgeManager, nodeOrchestrator, context, state)
+    const engine = new ExecutionEngine(context, dag, edgeManager, nodeOrchestrator)
     return await engine.run(triggerBlockId)
   }
 
@@ -77,7 +75,7 @@ export class DAGExecutor {
   }
 
   async continueExecution(
-    pendingBlocks: string[],
+    _pendingBlocks: string[],
     context: ExecutionContext
   ): Promise<ExecutionResult> {
     logger.warn('Debug mode (continueExecution) is not yet implemented in the refactored executor')

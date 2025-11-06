@@ -115,15 +115,11 @@ export class ResponseBlockHandler implements BlockHandler {
         continue
       }
 
-      // For UI display, keep variable references as-is without processing
       result[prop.name] = prop.value
     }
 
-    // Convert to JSON string, then replace quoted variable references with unquoted ones
     let jsonString = JSON.stringify(result, null, 2)
 
-    // Replace quoted variable references with unquoted ones
-    // Pattern: "<variable.name>" -> <variable.name>
     jsonString = jsonString.replace(/"(<[^>]+>)"/g, '$1')
 
     return jsonString

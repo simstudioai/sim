@@ -1,73 +1,42 @@
-/**
- * Central constants and types for the executor
- *
- * Consolidates all magic strings, block types, edge handles, and type definitions
- * used throughout the executor to eliminate duplication and improve type safety.
- */
-
-/**
- * Block types
- */
 export enum BlockType {
-  // Control flow
   PARALLEL = 'parallel',
   LOOP = 'loop',
   ROUTER = 'router',
   CONDITION = 'condition',
 
-  // Triggers
   START_TRIGGER = 'start_trigger',
   STARTER = 'starter',
   TRIGGER = 'trigger',
 
-  // Data processing
   FUNCTION = 'function',
   AGENT = 'agent',
   API = 'api',
   EVALUATOR = 'evaluator',
   VARIABLES = 'variables',
 
-  // I/O
   RESPONSE = 'response',
   PAUSE_RESUME = 'pause_resume',
   WORKFLOW = 'workflow',
   WORKFLOW_INPUT = 'workflow_input',
 
-  // Utilities
   WAIT = 'wait',
 
-  // Infrastructure (virtual blocks)
   SENTINEL_START = 'sentinel_start',
   SENTINEL_END = 'sentinel_end',
 }
 
-/**
- * Trigger block types (blocks that can start a workflow)
- */
 export const TRIGGER_BLOCK_TYPES = [
   BlockType.START_TRIGGER,
   BlockType.STARTER,
   BlockType.TRIGGER,
 ] as const
 
-/**
- * Metadata-only block types (not executable, just configuration)
- */
 export const METADATA_ONLY_BLOCK_TYPES = [BlockType.LOOP, BlockType.PARALLEL] as const
 
-/**
- * Loop types
- */
 export type LoopType = 'for' | 'forEach' | 'while' | 'doWhile'
 
-/**
- * Sentinel types
- */
 export type SentinelType = 'start' | 'end'
 
-/**
- * Parallel types
- */
 export type ParallelType = 'collection' | 'count'
 
 export const EDGE = {
@@ -83,11 +52,7 @@ export const EDGE = {
   DEFAULT: 'default',
 } as const
 
-/**
- * Loop configuration
- */
 export const LOOP = {
-  // Loop types
   TYPE: {
     FOR: 'for' as LoopType,
     FOR_EACH: 'forEach' as LoopType,
@@ -95,7 +60,6 @@ export const LOOP = {
     DO_WHILE: 'doWhile',
   },
 
-  // Sentinel node naming
   SENTINEL: {
     PREFIX: 'loop-',
     START_SUFFIX: '-sentinel-start',
@@ -105,29 +69,20 @@ export const LOOP = {
   },
 } as const
 
-/**
- * Parallel configuration
- */
 export const PARALLEL = {
-  // Parallel types
   TYPE: {
     COLLECTION: 'collection' as ParallelType,
     COUNT: 'count' as ParallelType,
   },
 
-  // Branch notation
   BRANCH: {
     PREFIX: '₍',
     SUFFIX: '₎',
   },
 
-  // Default values
   DEFAULT_COUNT: 1,
 } as const
 
-/**
- * Reference syntax for variable resolution
- */
 export const REFERENCE = {
   START: '<',
   END: '>',
@@ -147,9 +102,6 @@ export const SPECIAL_REFERENCE_PREFIXES = [
   REFERENCE.PREFIX.VARIABLE,
 ] as const
 
-/**
- * Loop reference fields
- */
 export const LOOP_REFERENCE = {
   ITERATION: 'iteration',
   INDEX: 'index',
@@ -157,9 +109,6 @@ export const LOOP_REFERENCE = {
   INDEX_PATH: 'loop.index',
 } as const
 
-/**
- * Parallel reference fields
- */
 export const PARALLEL_REFERENCE = {
   INDEX: 'index',
   CURRENT_ITEM: 'currentItem',
@@ -260,14 +209,8 @@ export const PARSING = {
   PREVIEW_SUFFIX: '...',
 } as const
 
-/**
- * Field type definitions for input/output formats
- */
 export type FieldType = 'string' | 'number' | 'boolean' | 'object' | 'array' | 'files' | 'plain'
 
-/**
- * Condition configuration
- */
 export interface ConditionConfig {
   id: string
   label?: string

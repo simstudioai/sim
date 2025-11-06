@@ -2,7 +2,7 @@ import { createLogger } from '@/lib/logs/console/logger'
 import { BlockType, REFERENCE } from '@/executor/consts'
 import type { ExecutionContext } from '@/executor/types'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
-import type { ExecutionState, LoopScope } from '../execution/state'
+import type { ExecutionState, LoopScope } from '@/executor/execution/state'
 import { BlockResolver } from './resolvers/block'
 import { EnvResolver } from './resolvers/env'
 import { LoopResolver } from './resolvers/loop'
@@ -182,10 +182,6 @@ export class VariableResolver {
     return result
   }
 
-  /**
-   * Resolves template string but without condition-specific formatting.
-   * Used when resolving condition values that are already parsed from JSON.
-   */
   private resolveTemplateWithoutConditionFormatting(
     ctx: ExecutionContext,
     currentNodeId: string,
@@ -215,17 +211,13 @@ export class VariableResolver {
           return match
         }
 
-        // Format value for JavaScript evaluation
-        // Strings need to be quoted, objects need JSON.stringify
         if (typeof resolved === 'string') {
-          // Escape backslashes first, then single quotes, then wrap in single quotes
           const escaped = resolved.replace(/\\/g, '\\\\').replace(/'/g, "\\'")
           return `'${escaped}'`
         }
         if (typeof resolved === 'object' && resolved !== null) {
           return JSON.stringify(resolved)
         }
-        // For numbers, booleans, null, undefined - use as-is
         return String(resolved)
       } catch (error) {
         replacementError = error instanceof Error ? error : new Error(String(error))
