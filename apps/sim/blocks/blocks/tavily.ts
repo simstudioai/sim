@@ -70,11 +70,11 @@ export const TavilyBlock: BlockConfig<TavilyResponse> = {
       title: 'Include Answer',
       type: 'dropdown',
       options: [
-        { label: 'None', id: 'false' },
+        { label: 'None', id: '' },
         { label: 'Basic', id: 'basic' },
         { label: 'Advanced', id: 'advanced' },
       ],
-      value: () => 'false',
+      value: () => '',
       condition: { field: 'operation', value: 'tavily_search' },
     },
     {
@@ -82,32 +82,29 @@ export const TavilyBlock: BlockConfig<TavilyResponse> = {
       title: 'Include Raw Content',
       type: 'dropdown',
       options: [
-        { label: 'None', id: 'false' },
+        { label: 'None', id: '' },
         { label: 'Markdown', id: 'markdown' },
         { label: 'Text', id: 'text' },
       ],
-      value: () => 'false',
+      value: () => '',
       condition: { field: 'operation', value: 'tavily_search' },
     },
     {
       id: 'include_images',
       title: 'Include Images',
       type: 'switch',
-      value: () => 'false',
       condition: { field: 'operation', value: 'tavily_search' },
     },
     {
       id: 'include_image_descriptions',
       title: 'Include Image Descriptions',
       type: 'switch',
-      value: () => 'false',
       condition: { field: 'operation', value: 'tavily_search' },
     },
     {
       id: 'include_favicon',
       title: 'Include Favicon',
       type: 'switch',
-      value: () => 'false',
       condition: { field: 'operation', value: 'tavily_search' },
     },
     {
@@ -179,14 +176,12 @@ export const TavilyBlock: BlockConfig<TavilyResponse> = {
       id: 'include_images',
       title: 'Include Images',
       type: 'switch',
-      value: () => 'false',
       condition: { field: 'operation', value: 'tavily_extract' },
     },
     {
       id: 'include_favicon',
       title: 'Include Favicon',
       type: 'switch',
-      value: () => 'false',
       condition: { field: 'operation', value: 'tavily_extract' },
     },
     {
@@ -257,14 +252,12 @@ export const TavilyBlock: BlockConfig<TavilyResponse> = {
       id: 'allow_external',
       title: 'Allow External Links',
       type: 'switch',
-      value: () => 'true',
       condition: { field: 'operation', value: ['tavily_crawl', 'tavily_map'] },
     },
     {
       id: 'include_images',
       title: 'Include Images',
       type: 'switch',
-      value: () => 'false',
       condition: { field: 'operation', value: 'tavily_crawl' },
     },
     {
@@ -293,7 +286,6 @@ export const TavilyBlock: BlockConfig<TavilyResponse> = {
       id: 'include_favicon',
       title: 'Include Favicon',
       type: 'switch',
-      value: () => 'false',
       condition: { field: 'operation', value: 'tavily_crawl' },
     },
     {

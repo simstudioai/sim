@@ -135,8 +135,28 @@ export const searchTool: ToolConfig<TavilySearchParams, TavilySearchResponse> = 
       if (params.max_results) body.max_results = Number(params.max_results)
       if (params.topic) body.topic = params.topic
       if (params.search_depth) body.search_depth = params.search_depth
-      if (params.include_answer) body.include_answer = params.include_answer
-      if (params.include_raw_content) body.include_raw_content = params.include_raw_content
+
+      // Handle include_answer: only include if not empty and not "false"
+      if (
+        params.include_answer &&
+        params.include_answer !== 'false' &&
+        params.include_answer !== ''
+      ) {
+        // Accept "basic" or "advanced" as strings, convert "true" to boolean
+        body.include_answer = params.include_answer === 'true' ? true : params.include_answer
+      }
+
+      // Handle include_raw_content: only include if not empty and not "false"
+      if (
+        params.include_raw_content &&
+        params.include_raw_content !== 'false' &&
+        params.include_raw_content !== ''
+      ) {
+        // Accept "markdown" or "text" as strings, convert "true" to boolean
+        body.include_raw_content =
+          params.include_raw_content === 'true' ? true : params.include_raw_content
+      }
+
       if (params.include_images !== undefined) body.include_images = params.include_images
       if (params.include_image_descriptions !== undefined)
         body.include_image_descriptions = params.include_image_descriptions

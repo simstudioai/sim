@@ -1012,11 +1012,13 @@ export function ToolInput({
               />
             </SelectTrigger>
             <SelectContent>
-              {uiComponent.options?.map((option: any) => (
-                <SelectItem key={option.id} value={option.id}>
-                  {option.label}
-                </SelectItem>
-              ))}
+              {uiComponent.options
+                ?.filter((option: any) => option.id !== '')
+                .map((option: any) => (
+                  <SelectItem key={option.id} value={option.id}>
+                    {option.label}
+                  </SelectItem>
+                ))}
             </SelectContent>
           </Select>
         )
@@ -1624,11 +1626,13 @@ export function ToolInput({
                                   />
                                 </SelectTrigger>
                                 <SelectContent>
-                                  {operationOptions.map((option) => (
-                                    <SelectItem key={option.id} value={option.id}>
-                                      {option.label}
-                                    </SelectItem>
-                                  ))}
+                                  {operationOptions
+                                    .filter((option) => option.id !== '')
+                                    .map((option) => (
+                                      <SelectItem key={option.id} value={option.id}>
+                                        {option.label}
+                                      </SelectItem>
+                                    ))}
                                 </SelectContent>
                               </Select>
                             </div>
