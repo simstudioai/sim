@@ -48,30 +48,6 @@ export const findSimilarLinksTool: ToolConfig<
       visibility: 'user-only',
       description: 'Exclude the source domain from results (default: false)',
     },
-    startPublishedDate: {
-      type: 'string',
-      required: false,
-      visibility: 'user-only',
-      description: 'Filter results published after this date (ISO 8601 format, e.g., 2024-01-01)',
-    },
-    endPublishedDate: {
-      type: 'string',
-      required: false,
-      visibility: 'user-only',
-      description: 'Filter results published before this date (ISO 8601 format)',
-    },
-    startCrawlDate: {
-      type: 'string',
-      required: false,
-      visibility: 'user-only',
-      description: 'Filter results crawled after this date (ISO 8601 format)',
-    },
-    endCrawlDate: {
-      type: 'string',
-      required: false,
-      visibility: 'user-only',
-      description: 'Filter results crawled before this date (ISO 8601 format)',
-    },
     category: {
       type: 'string',
       required: false,
@@ -136,12 +112,6 @@ export const findSimilarLinksTool: ToolConfig<
       if (params.excludeSourceDomain !== undefined) {
         body.excludeSourceDomain = params.excludeSourceDomain
       }
-
-      // Date filtering
-      if (params.startPublishedDate) body.startPublishedDate = params.startPublishedDate
-      if (params.endPublishedDate) body.endPublishedDate = params.endPublishedDate
-      if (params.startCrawlDate) body.startCrawlDate = params.startCrawlDate
-      if (params.endCrawlDate) body.endCrawlDate = params.endCrawlDate
 
       // Category filtering
       if (params.category) body.category = params.category

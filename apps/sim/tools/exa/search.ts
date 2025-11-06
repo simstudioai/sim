@@ -45,30 +45,6 @@ export const searchTool: ToolConfig<ExaSearchParams, ExaSearchResponse> = {
       visibility: 'user-only',
       description: 'Comma-separated list of domains to exclude from results',
     },
-    startPublishedDate: {
-      type: 'string',
-      required: false,
-      visibility: 'user-only',
-      description: 'Filter results published after this date (ISO 8601 format, e.g., 2024-01-01)',
-    },
-    endPublishedDate: {
-      type: 'string',
-      required: false,
-      visibility: 'user-only',
-      description: 'Filter results published before this date (ISO 8601 format)',
-    },
-    startCrawlDate: {
-      type: 'string',
-      required: false,
-      visibility: 'user-only',
-      description: 'Filter results crawled after this date (ISO 8601 format)',
-    },
-    endCrawlDate: {
-      type: 'string',
-      required: false,
-      visibility: 'user-only',
-      description: 'Filter results crawled before this date (ISO 8601 format)',
-    },
     category: {
       type: 'string',
       required: false,
@@ -138,12 +114,6 @@ export const searchTool: ToolConfig<ExaSearchParams, ExaSearchResponse> = {
           .map((d: string) => d.trim())
           .filter((d: string) => d.length > 0)
       }
-
-      // Date filtering
-      if (params.startPublishedDate) body.startPublishedDate = params.startPublishedDate
-      if (params.endPublishedDate) body.endPublishedDate = params.endPublishedDate
-      if (params.startCrawlDate) body.startCrawlDate = params.startCrawlDate
-      if (params.endCrawlDate) body.endCrawlDate = params.endCrawlDate
 
       // Category filtering
       if (params.category) body.category = params.category
