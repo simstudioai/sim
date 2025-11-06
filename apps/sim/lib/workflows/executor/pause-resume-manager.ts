@@ -169,6 +169,7 @@ export class PauseResumeManager {
         .select()
         .from(pausedExecutions)
         .where(eq(pausedExecutions.executionId, executionId))
+        .for('update')
         .limit(1)
         .then((rows) => rows[0])
 
