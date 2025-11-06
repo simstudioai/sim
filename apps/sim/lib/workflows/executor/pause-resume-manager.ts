@@ -822,6 +822,15 @@ export class PauseResumeManager {
       const queuePosition = queuePositions?.get(point.contextId ?? '') ?? null
       const latestEntry = latestEntries?.get(point.contextId ?? '')
 
+      const resumeLinks = point.resumeLinks
+        ? {
+            ...point.resumeLinks,
+            uiUrl: typeof point.resumeLinks.uiUrl === 'string'
+              ? point.resumeLinks.uiUrl.split('?')[0]
+              : point.resumeLinks.uiUrl,
+          }
+        : undefined
+
       return {
         contextId: point.contextId,
         response: point.response,
@@ -830,7 +839,7 @@ export class PauseResumeManager {
         snapshotReady: Boolean(point.snapshotReady),
         parallelScope: point.parallelScope,
         loopScope: point.loopScope,
-        resumeLinks: point.resumeLinks,
+        resumeLinks,
         queuePosition,
         latestResumeEntry: latestEntry ?? null,
       }

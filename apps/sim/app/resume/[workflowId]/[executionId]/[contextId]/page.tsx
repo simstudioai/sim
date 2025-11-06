@@ -1,5 +1,4 @@
-import { PauseResumeManager } from '@/lib/workflows/executor/pause-resume-manager'
-import ResumeClientPage from './resume-page-client'
+import { redirect } from 'next/navigation'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -15,19 +14,7 @@ export default async function ResumePage({
 }: {
   params: Promise<PageParams>
 }) {
-  const resolvedParams = await params
-  const { workflowId, executionId, contextId } = resolvedParams
-
-  const detail = await PauseResumeManager.getPauseContextDetail({
-    workflowId,
-    executionId,
-    contextId,
-  })
-
-  return (
-    <ResumeClientPage
-      params={resolvedParams}
-      initialDetail={detail ? JSON.parse(JSON.stringify(detail)) : null}
-    />
-  )
+  const { workflowId, executionId, contextId } = await params
+  redirect(`/resume/${workflowId}/${executionId}?contextId=${contextId}`)
 }
+  

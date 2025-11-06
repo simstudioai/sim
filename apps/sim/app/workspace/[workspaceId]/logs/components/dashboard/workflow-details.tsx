@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Info, Loader2 } from 'lucide-react'
+import { ArrowUpRight, Info, Loader2 } from 'lucide-react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import LineChart, {
@@ -27,6 +28,7 @@ export interface ExecutionLogItem {
   } | null
   workflowName?: string
   workflowColor?: string
+  hasPendingPause?: boolean
 }
 
 export interface WorkflowDetailsData {
@@ -263,7 +265,7 @@ export function WorkflowDetails({
               <div className='w-full overflow-x-auto'>
                 <div>
                   <div className='border-border border-b'>
-                    <div className='grid min-w-[980px] grid-cols-[140px_90px_90px_90px_180px_1fr_100px] gap-2 px-2 pb-3 md:gap-3 lg:min-w-0 lg:gap-4'>
+                    <div className='grid min-w-[980px] grid-cols-[140px_90px_90px_90px_180px_1fr_100px_40px] gap-2 px-2 pb-3 md:gap-3 lg:min-w-0 lg:gap-4'>
                       <div className='font-[460] font-sans text-[13px] text-muted-foreground leading-normal'>
                         Time
                       </div>
@@ -284,6 +286,9 @@ export function WorkflowDetails({
                       </div>
                       <div className='text-right font-[480] font-sans text-[13px] text-muted-foreground leading-normal'>
                         Duration
+                      </div>
+                      <div className='text-right font-[480] font-sans text-[13px] text-muted-foreground leading-normal'>
+                        Resume
                       </div>
                     </div>
                   </div>
@@ -318,7 +323,7 @@ export function WorkflowDetails({
                       const errorStr = log.errorMessage || ''
                       const isExpanded = expandedRowId === log.id
                       const baseLevel = (log.level || 'info').toLowerCase()
-                      const isPending = log.duration == null
+                      const isPending = log.hasPendingPause === true
                       const isError = baseLevel === 'error'
                       const statusLabel = isPending
                         ? 'Pending'
@@ -335,7 +340,7 @@ export function WorkflowDetails({
                             setExpandedRowId((prev) => (prev === log.id ? null : log.id))
                           }
                         >
-                          <div className='grid min-w-[980px] grid-cols-[140px_90px_90px_90px_180px_1fr_100px] items-center gap-2 px-2 py-3 md:gap-3 lg:min-w-0 lg:gap-4'>
+                          <div className='grid min-w-[980px] grid-cols-[140px_90px_90px_90px_180px_1fr_100px_40px] items-center gap-2 px-2 py-3 md:gap-3 lg:min-w-0 lg:gap-4'>
                             <div>
                               <div className='text-[13px]'>
                                 <span className='font-sm text-muted-foreground'>
@@ -430,6 +435,20 @@ export function WorkflowDetails({
                               <div className='text-muted-foreground text-xs tabular-nums'>
                                 {typeof log.duration === 'number' ? `${log.duration}ms` : '—'}
                               </div>
+                            </div>
+
+                            <div className='flex justify-end'>
+                              {isPending && log.executionId ? (
+                                <Link
+                                  href={`/resume/${expandedWorkflowId}/${log.executionId}`}
+                                  className='inline-flex h-7 w-7 items-center justify-center rounded-md border border-dashed border-primary/60 text-primary hover:bg-primary/10'
+                                  aria-label='Open resume console'
+                                >
+                                  <ArrowUpRight className='h-4 w-4' />
+                                </Link>
+                              ) : (
+                                <span className='h-7 w-7' />
+                              )}
                             </div>
                           </div>
                           {isExpanded && (

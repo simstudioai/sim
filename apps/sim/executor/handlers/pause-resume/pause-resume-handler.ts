@@ -67,7 +67,7 @@ export class PauseResumeBlockHandler implements BlockHandler {
           const baseUrl = getBaseUrl()
           resumeLinks = {
             apiUrl: `${baseUrl}/api/resume/${workflowId}/${executionId}/${contextId}`,
-            uiUrl: `${baseUrl}/resume/${workflowId}/${executionId}/${contextId}`,
+            uiUrl: `${baseUrl}/resume/${workflowId}/${executionId}`,
             contextId,
             executionId,
             workflowId,
@@ -76,7 +76,7 @@ export class PauseResumeBlockHandler implements BlockHandler {
           logger.warn('Failed to get base URL, using relative paths', { error })
           resumeLinks = {
             apiUrl: `/api/resume/${workflowId}/${executionId}/${contextId}`,
-            uiUrl: `/resume/${workflowId}/${executionId}/${contextId}`,
+            uiUrl: `/resume/${workflowId}/${executionId}`,
             contextId,
             executionId,
             workflowId,
