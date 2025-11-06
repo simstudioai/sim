@@ -381,7 +381,7 @@ export default function ResumeExecutionPage({
 
       switch (field.type) {
         case 'boolean': {
-          const selectValue = value === 'true' || value === 'false' ? value : ''
+          const selectValue = value === 'true' || value === 'false' ? value : '__unset__'
           return (
             <Select
               value={selectValue}
@@ -395,7 +395,7 @@ export default function ResumeExecutionPage({
                 />
               </SelectTrigger>
               <SelectContent>
-                {!field.required && <SelectItem value=''>Not set</SelectItem>}
+                {!field.required && <SelectItem value='__unset__'>Not set</SelectItem>}
                 <SelectItem value='true'>True</SelectItem>
                 <SelectItem value='false'>False</SelectItem>
               </SelectContent>
@@ -720,9 +720,9 @@ export default function ResumeExecutionPage({
         const hasValue =
           field.type === 'boolean'
             ? rawValue === 'true' || rawValue === 'false'
-            : rawValue.trim().length > 0
+            : rawValue.trim().length > 0 && rawValue !== '__unset__'
 
-        if (!hasValue) {
+        if (!hasValue || rawValue === '__unset__') {
           if (field.required) {
             errors[field.name] = 'This field is required.'
           }
