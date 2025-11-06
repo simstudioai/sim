@@ -1,6 +1,6 @@
 ---
 title: Parallel AI
-description: Search with Parallel AI
+description: Web research with Parallel AI
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -71,7 +71,7 @@ In Sim, the Parallel AI integration empowers your agents to perform web searches
 
 ## Usage Instructions
 
-Integrate Parallel AI into the workflow. Can search the web.
+Integrate Parallel AI into the workflow. Can search the web, extract information from URLs, and conduct deep research.
 
 
 
@@ -97,6 +97,51 @@ Search the web using Parallel AI. Provides comprehensive search results with int
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `results` | array | Search results with excerpts from relevant pages |
+
+### `parallel_extract`
+
+Extract targeted information from specific URLs using Parallel AI. Processes provided URLs to pull relevant content based on your objective.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `urls` | string | Yes | Comma-separated list of URLs to extract information from |
+| `objective` | string | Yes | What information to extract from the provided URLs |
+| `excerpts` | boolean | Yes | Include relevant excerpts from the content |
+| `full_content` | boolean | Yes | Include full page content |
+| `apiKey` | string | Yes | Parallel AI API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `results` | array | Extracted information from the provided URLs |
+
+### `parallel_deep_research`
+
+Conduct comprehensive deep research across the web using Parallel AI. Synthesizes information from multiple sources with citations. Can take up to 15 minutes to complete.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `input` | string | Yes | Research query or question \(up to 15,000 characters\) |
+| `processor` | string | No | Compute level: base, lite, pro, ultra, ultra2x, ultra4x, ultra8x \(default: base\) |
+| `output_schema` | string | No | Desired output format description. Use "text" for markdown reports with citations, or describe structured JSON format |
+| `include_domains` | string | No | Comma-separated list of domains to restrict research to \(source policy\) |
+| `exclude_domains` | string | No | Comma-separated list of domains to exclude from research \(source policy\) |
+| `apiKey` | string | Yes | Parallel AI API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | string | Task status \(running, completed, failed\) |
+| `run_id` | string | Unique ID for this research task |
+| `message` | string | Status message \(for running tasks\) |
+| `content` | object | Research results \(structured based on output_schema\) |
+| `basis` | array | Citations and sources with excerpts and confidence levels |
 
 
 

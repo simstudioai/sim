@@ -20,11 +20,11 @@ export const researchTool: ToolConfig<ExaResearchParams, ExaResearchResponse> = 
       visibility: 'user-or-llm',
       description: 'Research query or topic',
     },
-    includeText: {
-      type: 'boolean',
+    model: {
+      type: 'string',
       required: false,
       visibility: 'user-only',
-      description: 'Include full text content in results',
+      description: 'Research model: exa-research-fast, exa-research (default), or exa-research-pro',
     },
     apiKey: {
       type: 'string',
@@ -35,7 +35,7 @@ export const researchTool: ToolConfig<ExaResearchParams, ExaResearchResponse> = 
   },
 
   request: {
-    url: 'https://api.exa.ai/research/v0/tasks',
+    url: 'https://api.exa.ai/research/v1/',
     method: 'POST',
     headers: (params) => ({
       'Content-Type': 'application/json',
@@ -44,30 +44,11 @@ export const researchTool: ToolConfig<ExaResearchParams, ExaResearchResponse> = 
     body: (params) => {
       const body: any = {
         instructions: params.query,
-        model: 'exa-research',
-        output: {
-          schema: {
-            type: 'object',
-            properties: {
-              results: {
-                type: 'array',
-                items: {
-                  type: 'object',
-                  properties: {
-                    title: { type: 'string' },
-                    url: { type: 'string' },
-                    summary: { type: 'string' },
-                    text: { type: 'string' },
-                    publishedDate: { type: 'string' },
-                    author: { type: 'string' },
-                    score: { type: 'number' },
-                  },
-                },
-              },
-            },
-            required: ['results'],
-          },
-        },
+      }
+
+      // Add model if specified, otherwise use default
+      if (params.model) {
+        body.model = params.model
       }
 
       return body

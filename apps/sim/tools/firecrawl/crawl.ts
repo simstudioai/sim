@@ -31,6 +31,90 @@ export const crawlTool: ToolConfig<FirecrawlCrawlParams, FirecrawlCrawlResponse>
       visibility: 'user-only',
       description: 'Extract only main content from pages',
     },
+    prompt: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Natural language instruction to auto-generate crawler options',
+    },
+    maxDiscoveryDepth: {
+      type: 'number',
+      required: false,
+      visibility: 'user-only',
+      description: 'Depth limit for URL discovery (root pages have depth 0)',
+    },
+    sitemap: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description: 'Whether to use sitemap data: "skip" or "include" (default: "include")',
+    },
+    crawlEntireDomain: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-only',
+      description: 'Follow sibling/parent URLs or only child paths (default: false)',
+    },
+    allowExternalLinks: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-only',
+      description: 'Follow external website links (default: false)',
+    },
+    allowSubdomains: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-only',
+      description: 'Follow subdomain links (default: false)',
+    },
+    ignoreQueryParameters: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-only',
+      description: 'Prevent re-scraping same path with different query params (default: false)',
+    },
+    delay: {
+      type: 'number',
+      required: false,
+      visibility: 'user-only',
+      description: 'Seconds between scrapes for rate limit compliance',
+    },
+    maxConcurrency: {
+      type: 'number',
+      required: false,
+      visibility: 'user-only',
+      description: 'Concurrent scrape limit',
+    },
+    excludePaths: {
+      type: 'json',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Array of regex patterns for URLs to exclude',
+    },
+    includePaths: {
+      type: 'json',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Array of regex patterns for URLs to include exclusively',
+    },
+    webhook: {
+      type: 'json',
+      required: false,
+      visibility: 'hidden',
+      description: 'Webhook configuration for crawl notifications',
+    },
+    scrapeOptions: {
+      type: 'json',
+      required: false,
+      visibility: 'hidden',
+      description: 'Advanced scraping configuration',
+    },
+    zeroDataRetention: {
+      type: 'boolean',
+      required: false,
+      visibility: 'hidden',
+      description: 'Enable zero data retention (default: false)',
+    },
     apiKey: {
       type: 'string',
       required: true,
@@ -45,14 +129,35 @@ export const crawlTool: ToolConfig<FirecrawlCrawlParams, FirecrawlCrawlResponse>
       'Content-Type': 'application/json',
       Authorization: `Bearer ${params.apiKey}`,
     }),
-    body: (params) => ({
-      url: params.url,
-      limit: Number(params.limit) || 100,
-      scrapeOptions: {
-        formats: ['markdown'],
-        onlyMainContent: params.onlyMainContent || false,
-      },
-    }),
+    body: (params) => {
+      const body: Record<string, any> = {
+        url: params.url,
+        limit: Number(params.limit) || 100,
+        scrapeOptions: params.scrapeOptions || {
+          formats: ['markdown'],
+          onlyMainContent: params.onlyMainContent || false,
+        },
+      }
+
+      // Add all optional crawl-specific parameters if provided
+      if (params.prompt !== undefined) body.prompt = params.prompt
+      if (params.maxDiscoveryDepth !== undefined) body.maxDiscoveryDepth = params.maxDiscoveryDepth
+      if (params.sitemap !== undefined) body.sitemap = params.sitemap
+      if (params.crawlEntireDomain !== undefined) body.crawlEntireDomain = params.crawlEntireDomain
+      if (params.allowExternalLinks !== undefined)
+        body.allowExternalLinks = params.allowExternalLinks
+      if (params.allowSubdomains !== undefined) body.allowSubdomains = params.allowSubdomains
+      if (params.ignoreQueryParameters !== undefined)
+        body.ignoreQueryParameters = params.ignoreQueryParameters
+      if (params.delay !== undefined) body.delay = params.delay
+      if (params.maxConcurrency !== undefined) body.maxConcurrency = params.maxConcurrency
+      if (params.excludePaths !== undefined) body.excludePaths = params.excludePaths
+      if (params.includePaths !== undefined) body.includePaths = params.includePaths
+      if (params.webhook !== undefined) body.webhook = params.webhook
+      if (params.zeroDataRetention !== undefined) body.zeroDataRetention = params.zeroDataRetention
+
+      return body
+    },
   },
   transformResponse: async (response: Response) => {
     const data = await response.json()

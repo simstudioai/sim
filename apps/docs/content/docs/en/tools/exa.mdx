@@ -62,6 +62,17 @@ Search the web using Exa AI. Returns relevant search results with titles, URLs, 
 | `numResults` | number | No | Number of results to return \(default: 10, max: 25\) |
 | `useAutoprompt` | boolean | No | Whether to use autoprompt to improve the query \(default: false\) |
 | `type` | string | No | Search type: neural, keyword, auto or fast \(default: auto\) |
+| `includeDomains` | string | No | Comma-separated list of domains to include in results |
+| `excludeDomains` | string | No | Comma-separated list of domains to exclude from results |
+| `startPublishedDate` | string | No | Filter results published after this date \(ISO 8601 format, e.g., 2024-01-01\) |
+| `endPublishedDate` | string | No | Filter results published before this date \(ISO 8601 format\) |
+| `startCrawlDate` | string | No | Filter results crawled after this date \(ISO 8601 format\) |
+| `endCrawlDate` | string | No | Filter results crawled before this date \(ISO 8601 format\) |
+| `category` | string | No | Filter by category: company, research_paper, news_article, pdf, github, tweet, movie, song, personal_site |
+| `text` | boolean | No | Include full text content in results \(default: false\) |
+| `highlights` | boolean | No | Include highlighted snippets in results \(default: false\) |
+| `summary` | boolean | No | Include AI-generated summaries in results \(default: false\) |
+| `livecrawl` | string | No | Live crawling mode: always, fallback, or never \(default: never\) |
 | `apiKey` | string | Yes | Exa AI API Key |
 
 #### Output
@@ -81,6 +92,10 @@ Retrieve the contents of webpages using Exa AI. Returns the title, text content,
 | `urls` | string | Yes | Comma-separated list of URLs to retrieve content from |
 | `text` | boolean | No | If true, returns full page text with default settings. If false, disables text return. |
 | `summaryQuery` | string | No | Query to guide the summary generation |
+| `subpages` | number | No | Number of subpages to crawl from the provided URLs |
+| `subpageTarget` | string | No | Comma-separated keywords to target specific subpages \(e.g., "docs,tutorial,about"\) |
+| `highlights` | boolean | No | Include highlighted snippets in results \(default: false\) |
+| `livecrawl` | string | No | Live crawling mode: always, fallback, or never \(default: never\) |
 | `apiKey` | string | Yes | Exa AI API Key |
 
 #### Output
@@ -100,6 +115,17 @@ Find webpages similar to a given URL using Exa AI. Returns a list of similar lin
 | `url` | string | Yes | The URL to find similar links for |
 | `numResults` | number | No | Number of similar links to return \(default: 10, max: 25\) |
 | `text` | boolean | No | Whether to include the full text of the similar pages |
+| `includeDomains` | string | No | Comma-separated list of domains to include in results |
+| `excludeDomains` | string | No | Comma-separated list of domains to exclude from results |
+| `excludeSourceDomain` | boolean | No | Exclude the source domain from results \(default: false\) |
+| `startPublishedDate` | string | No | Filter results published after this date \(ISO 8601 format, e.g., 2024-01-01\) |
+| `endPublishedDate` | string | No | Filter results published before this date \(ISO 8601 format\) |
+| `startCrawlDate` | string | No | Filter results crawled after this date \(ISO 8601 format\) |
+| `endCrawlDate` | string | No | Filter results crawled before this date \(ISO 8601 format\) |
+| `category` | string | No | Filter by category: company, research_paper, news_article, pdf, github, tweet, movie, song, personal_site |
+| `highlights` | boolean | No | Include highlighted snippets in results \(default: false\) |
+| `summary` | boolean | No | Include AI-generated summaries in results \(default: false\) |
+| `livecrawl` | string | No | Live crawling mode: always, fallback, or never \(default: never\) |
 | `apiKey` | string | Yes | Exa AI API Key |
 
 #### Output
@@ -136,7 +162,7 @@ Perform comprehensive research using AI to generate detailed reports with citati
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `query` | string | Yes | Research query or topic |
-| `includeText` | boolean | No | Include full text content in results |
+| `model` | string | No | Research model: exa-research-fast, exa-research \(default\), or exa-research-pro |
 | `apiKey` | string | Yes | Exa AI API Key |
 
 #### Output

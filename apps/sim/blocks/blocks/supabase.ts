@@ -11,7 +11,7 @@ export const SupabaseBlock: BlockConfig<SupabaseResponse> = {
   description: 'Use Supabase database',
   authMode: AuthMode.ApiKey,
   longDescription:
-    'Integrate Supabase into the workflow. Can get many rows, get, create, update, delete, and upsert a row.',
+    'Integrate Supabase into the workflow. Supports database operations (query, insert, update, delete, upsert), full-text search, RPC functions, row counting, vector search, and complete storage management (upload, download, list, move, copy, delete files and buckets).',
   docsLink: 'https://docs.sim.ai/tools/supabase',
   category: 'tools',
   bgColor: '#1C1C1C',
@@ -23,13 +23,31 @@ export const SupabaseBlock: BlockConfig<SupabaseResponse> = {
       type: 'dropdown',
       layout: 'full',
       options: [
+        // Database Operations
         { label: 'Get Many Rows', id: 'query' },
         { label: 'Get a Row', id: 'get_row' },
         { label: 'Create a Row', id: 'insert' },
         { label: 'Update a Row', id: 'update' },
         { label: 'Delete a Row', id: 'delete' },
         { label: 'Upsert a Row', id: 'upsert' },
+        { label: 'Count Rows', id: 'count' },
+        // Advanced Database Operations
+        { label: 'Full-Text Search', id: 'text_search' },
         { label: 'Vector Search', id: 'vector_search' },
+        { label: 'Call RPC Function', id: 'rpc' },
+        // Storage - File Operations
+        { label: 'Storage: Upload File', id: 'storage_upload' },
+        { label: 'Storage: Download File', id: 'storage_download' },
+        { label: 'Storage: List Files', id: 'storage_list' },
+        { label: 'Storage: Delete Files', id: 'storage_delete' },
+        { label: 'Storage: Move File', id: 'storage_move' },
+        { label: 'Storage: Copy File', id: 'storage_copy' },
+        { label: 'Storage: Get Public URL', id: 'storage_get_public_url' },
+        { label: 'Storage: Create Signed URL', id: 'storage_create_signed_url' },
+        // Storage - Bucket Operations
+        { label: 'Storage: Create Bucket', id: 'storage_create_bucket' },
+        { label: 'Storage: List Buckets', id: 'storage_list_buckets' },
+        { label: 'Storage: Delete Bucket', id: 'storage_delete_bucket' },
       ],
       value: () => 'query',
     },
@@ -49,6 +67,10 @@ export const SupabaseBlock: BlockConfig<SupabaseResponse> = {
       layout: 'full',
       placeholder: 'Name of the table',
       required: true,
+      condition: {
+        field: 'operation',
+        value: ['query', 'get_row', 'insert', 'update', 'delete', 'upsert', 'count', 'text_search'],
+      },
     },
     {
       id: 'apiKey',
@@ -417,6 +439,355 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
       placeholder: '10',
       condition: { field: 'operation', value: 'vector_search' },
     },
+    // RPC operation fields
+    {
+      id: 'functionName',
+      title: 'Function Name',
+      type: 'short-input',
+      layout: 'full',
+      placeholder: 'my_function_name',
+      condition: { field: 'operation', value: 'rpc' },
+      required: true,
+    },
+    {
+      id: 'params',
+      title: 'Parameters (JSON)',
+      type: 'code',
+      layout: 'full',
+      placeholder: '{\n  "param1": "value1",\n  "param2": "value2"\n}',
+      condition: { field: 'operation', value: 'rpc' },
+    },
+    // Text Search operation fields
+    {
+      id: 'column',
+      title: 'Column to Search',
+      type: 'short-input',
+      layout: 'full',
+      placeholder: 'content',
+      condition: { field: 'operation', value: 'text_search' },
+      required: true,
+    },
+    {
+      id: 'query',
+      title: 'Search Query',
+      type: 'short-input',
+      layout: 'full',
+      placeholder: 'search terms',
+      condition: { field: 'operation', value: 'text_search' },
+      required: true,
+    },
+    {
+      id: 'searchType',
+      title: 'Search Type',
+      type: 'dropdown',
+      layout: 'full',
+      options: [
+        { label: 'Websearch (natural language)', id: 'websearch' },
+        { label: 'Plain', id: 'plain' },
+        { label: 'Phrase', id: 'phrase' },
+      ],
+      value: () => 'websearch',
+      condition: { field: 'operation', value: 'text_search' },
+    },
+    {
+      id: 'language',
+      title: 'Language',
+      type: 'short-input',
+      layout: 'full',
+      placeholder: 'english',
+      condition: { field: 'operation', value: 'text_search' },
+    },
+    {
+      id: 'limit',
+      title: 'Limit',
+      type: 'short-input',
+      layout: 'full',
+      placeholder: '100',
+      condition: { field: 'operation', value: 'text_search' },
+    },
+    // Count operation fields
+    {
+      id: 'filter',
+      title: 'Filter (PostgREST syntax)',
+      type: 'short-input',
+      layout: 'full',
+      placeholder: 'status=eq.active',
+      condition: { field: 'operation', value: 'count' },
+    },
+    {
+      id: 'countType',
+      title: 'Count Type',
+      type: 'dropdown',
+      layout: 'full',
+      options: [
+        { label: 'Exact', id: 'exact' },
+        { label: 'Planned', id: 'planned' },
+        { label: 'Estimated', id: 'estimated' },
+      ],
+      value: () => 'exact',
+      condition: { field: 'operation', value: 'count' },
+    },
+    // Storage bucket field (for all storage operations except list_buckets)
+    {
+      id: 'bucket',
+      title: 'Bucket Name',
+      type: 'short-input',
+      layout: 'full',
+      placeholder: 'my-bucket',
+      condition: {
+        field: 'operation',
+        value: [
+          'storage_upload',
+          'storage_download',
+          'storage_list',
+          'storage_delete',
+          'storage_move',
+          'storage_copy',
+          'storage_create_bucket',
+          'storage_delete_bucket',
+          'storage_get_public_url',
+          'storage_create_signed_url',
+        ],
+      },
+      required: true,
+    },
+    // Storage Upload fields
+    {
+      id: 'path',
+      title: 'File Path',
+      type: 'short-input',
+      layout: 'full',
+      placeholder: 'folder/file.jpg',
+      condition: { field: 'operation', value: 'storage_upload' },
+      required: true,
+    },
+    {
+      id: 'fileContent',
+      title: 'File Content',
+      type: 'code',
+      layout: 'full',
+      placeholder: 'Base64 encoded for binary files, or plain text',
+      condition: { field: 'operation', value: 'storage_upload' },
+      required: true,
+    },
+    {
+      id: 'contentType',
+      title: 'Content Type (MIME)',
+      type: 'short-input',
+      layout: 'full',
+      placeholder: 'image/jpeg',
+      condition: { field: 'operation', value: 'storage_upload' },
+    },
+    {
+      id: 'upsert',
+      title: 'Upsert (overwrite if exists)',
+      type: 'dropdown',
+      layout: 'full',
+      options: [
+        { label: 'False', id: 'false' },
+        { label: 'True', id: 'true' },
+      ],
+      value: () => 'false',
+      condition: { field: 'operation', value: 'storage_upload' },
+    },
+    // Storage Download fields
+    {
+      id: 'path',
+      title: 'File Path',
+      type: 'short-input',
+      layout: 'full',
+      placeholder: 'folder/file.jpg',
+      condition: { field: 'operation', value: 'storage_download' },
+      required: true,
+    },
+    // Storage List fields
+    {
+      id: 'path',
+      title: 'Folder Path (optional)',
+      type: 'short-input',
+      layout: 'full',
+      placeholder: 'folder/',
+      condition: { field: 'operation', value: 'storage_list' },
+    },
+    {
+      id: 'limit',
+      title: 'Limit',
+      type: 'short-input',
+      layout: 'full',
+      placeholder: '100',
+      condition: { field: 'operation', value: 'storage_list' },
+    },
+    {
+      id: 'offset',
+      title: 'Offset',
+      type: 'short-input',
+      layout: 'full',
+      placeholder: '0',
+      condition: { field: 'operation', value: 'storage_list' },
+    },
+    {
+      id: 'sortBy',
+      title: 'Sort By',
+      type: 'dropdown',
+      layout: 'full',
+      options: [
+        { label: 'Name', id: 'name' },
+        { label: 'Created At', id: 'created_at' },
+        { label: 'Updated At', id: 'updated_at' },
+      ],
+      value: () => 'name',
+      condition: { field: 'operation', value: 'storage_list' },
+    },
+    {
+      id: 'sortOrder',
+      title: 'Sort Order',
+      type: 'dropdown',
+      layout: 'full',
+      options: [
+        { label: 'Ascending', id: 'asc' },
+        { label: 'Descending', id: 'desc' },
+      ],
+      value: () => 'asc',
+      condition: { field: 'operation', value: 'storage_list' },
+    },
+    {
+      id: 'search',
+      title: 'Search',
+      type: 'short-input',
+      layout: 'full',
+      placeholder: 'search term',
+      condition: { field: 'operation', value: 'storage_list' },
+    },
+    // Storage Delete fields
+    {
+      id: 'paths',
+      title: 'File Paths (JSON array)',
+      type: 'code',
+      layout: 'full',
+      placeholder: '["folder/file1.jpg", "folder/file2.jpg"]',
+      condition: { field: 'operation', value: 'storage_delete' },
+      required: true,
+    },
+    // Storage Move fields
+    {
+      id: 'fromPath',
+      title: 'From Path',
+      type: 'short-input',
+      layout: 'full',
+      placeholder: 'folder/old.jpg',
+      condition: { field: 'operation', value: 'storage_move' },
+      required: true,
+    },
+    {
+      id: 'toPath',
+      title: 'To Path',
+      type: 'short-input',
+      layout: 'full',
+      placeholder: 'newfolder/new.jpg',
+      condition: { field: 'operation', value: 'storage_move' },
+      required: true,
+    },
+    // Storage Copy fields
+    {
+      id: 'fromPath',
+      title: 'From Path',
+      type: 'short-input',
+      layout: 'full',
+      placeholder: 'folder/source.jpg',
+      condition: { field: 'operation', value: 'storage_copy' },
+      required: true,
+    },
+    {
+      id: 'toPath',
+      title: 'To Path',
+      type: 'short-input',
+      layout: 'full',
+      placeholder: 'folder/copy.jpg',
+      condition: { field: 'operation', value: 'storage_copy' },
+      required: true,
+    },
+    // Storage Get Public URL fields
+    {
+      id: 'path',
+      title: 'File Path',
+      type: 'short-input',
+      layout: 'full',
+      placeholder: 'folder/file.jpg',
+      condition: { field: 'operation', value: 'storage_get_public_url' },
+      required: true,
+    },
+    {
+      id: 'download',
+      title: 'Force Download',
+      type: 'dropdown',
+      layout: 'full',
+      options: [
+        { label: 'False', id: 'false' },
+        { label: 'True', id: 'true' },
+      ],
+      value: () => 'false',
+      condition: { field: 'operation', value: 'storage_get_public_url' },
+    },
+    // Storage Create Signed URL fields
+    {
+      id: 'path',
+      title: 'File Path',
+      type: 'short-input',
+      layout: 'full',
+      placeholder: 'folder/file.jpg',
+      condition: { field: 'operation', value: 'storage_create_signed_url' },
+      required: true,
+    },
+    {
+      id: 'expiresIn',
+      title: 'Expires In (seconds)',
+      type: 'short-input',
+      layout: 'full',
+      placeholder: '3600',
+      condition: { field: 'operation', value: 'storage_create_signed_url' },
+      required: true,
+    },
+    {
+      id: 'download',
+      title: 'Force Download',
+      type: 'dropdown',
+      layout: 'full',
+      options: [
+        { label: 'False', id: 'false' },
+        { label: 'True', id: 'true' },
+      ],
+      value: () => 'false',
+      condition: { field: 'operation', value: 'storage_create_signed_url' },
+    },
+    // Storage Create Bucket fields
+    {
+      id: 'isPublic',
+      title: 'Public Bucket',
+      type: 'dropdown',
+      layout: 'full',
+      options: [
+        { label: 'False (Private)', id: 'false' },
+        { label: 'True (Public)', id: 'true' },
+      ],
+      value: () => 'false',
+      condition: { field: 'operation', value: 'storage_create_bucket' },
+    },
+    {
+      id: 'fileSizeLimit',
+      title: 'File Size Limit (bytes)',
+      type: 'short-input',
+      layout: 'full',
+      placeholder: '52428800',
+      condition: { field: 'operation', value: 'storage_create_bucket' },
+    },
+    {
+      id: 'allowedMimeTypes',
+      title: 'Allowed MIME Types (JSON array)',
+      type: 'code',
+      layout: 'full',
+      placeholder: '["image/png", "image/jpeg"]',
+      condition: { field: 'operation', value: 'storage_create_bucket' },
+    },
   ],
   tools: {
     access: [
@@ -426,7 +797,21 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
       'supabase_update',
       'supabase_delete',
       'supabase_upsert',
+      'supabase_count',
+      'supabase_text_search',
       'supabase_vector_search',
+      'supabase_rpc',
+      'supabase_storage_upload',
+      'supabase_storage_download',
+      'supabase_storage_list',
+      'supabase_storage_delete',
+      'supabase_storage_move',
+      'supabase_storage_copy',
+      'supabase_storage_create_bucket',
+      'supabase_storage_list_buckets',
+      'supabase_storage_delete_bucket',
+      'supabase_storage_get_public_url',
+      'supabase_storage_create_signed_url',
     ],
     config: {
       tool: (params) => {
@@ -443,14 +828,53 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
             return 'supabase_delete'
           case 'upsert':
             return 'supabase_upsert'
+          case 'count':
+            return 'supabase_count'
+          case 'text_search':
+            return 'supabase_text_search'
           case 'vector_search':
             return 'supabase_vector_search'
+          case 'rpc':
+            return 'supabase_rpc'
+          case 'storage_upload':
+            return 'supabase_storage_upload'
+          case 'storage_download':
+            return 'supabase_storage_download'
+          case 'storage_list':
+            return 'supabase_storage_list'
+          case 'storage_delete':
+            return 'supabase_storage_delete'
+          case 'storage_move':
+            return 'supabase_storage_move'
+          case 'storage_copy':
+            return 'supabase_storage_copy'
+          case 'storage_create_bucket':
+            return 'supabase_storage_create_bucket'
+          case 'storage_list_buckets':
+            return 'supabase_storage_list_buckets'
+          case 'storage_delete_bucket':
+            return 'supabase_storage_delete_bucket'
+          case 'storage_get_public_url':
+            return 'supabase_storage_get_public_url'
+          case 'storage_create_signed_url':
+            return 'supabase_storage_create_signed_url'
           default:
             throw new Error(`Invalid Supabase operation: ${params.operation}`)
         }
       },
       params: (params) => {
-        const { operation, data, filter, queryEmbedding, ...rest } = params
+        const {
+          operation,
+          data,
+          filter,
+          queryEmbedding,
+          params: rpcParams,
+          paths,
+          allowedMimeTypes,
+          upsert,
+          download,
+          ...rest
+        } = params
 
         // Parse JSON data if it's a string
         let parsedData
@@ -489,6 +913,56 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
           parsedQueryEmbedding = queryEmbedding
         }
 
+        // Handle RPC params
+        let parsedRpcParams
+        if (rpcParams && typeof rpcParams === 'string' && rpcParams.trim()) {
+          try {
+            parsedRpcParams = JSON.parse(rpcParams)
+          } catch (parseError) {
+            const errorMsg = parseError instanceof Error ? parseError.message : 'Unknown JSON error'
+            throw new Error(
+              `Invalid RPC params format: ${errorMsg}. Please provide a valid JSON object.`
+            )
+          }
+        } else if (rpcParams && typeof rpcParams === 'object') {
+          parsedRpcParams = rpcParams
+        }
+
+        // Handle paths array for storage delete
+        let parsedPaths
+        if (paths && typeof paths === 'string' && paths.trim()) {
+          try {
+            parsedPaths = JSON.parse(paths)
+          } catch (parseError) {
+            const errorMsg = parseError instanceof Error ? parseError.message : 'Unknown JSON error'
+            throw new Error(
+              `Invalid paths format: ${errorMsg}. Please provide a valid JSON array like ["path1", "path2"].`
+            )
+          }
+        } else if (paths && Array.isArray(paths)) {
+          parsedPaths = paths
+        }
+
+        // Handle allowedMimeTypes array
+        let parsedAllowedMimeTypes
+        if (allowedMimeTypes && typeof allowedMimeTypes === 'string' && allowedMimeTypes.trim()) {
+          try {
+            parsedAllowedMimeTypes = JSON.parse(allowedMimeTypes)
+          } catch (parseError) {
+            const errorMsg = parseError instanceof Error ? parseError.message : 'Unknown JSON error'
+            throw new Error(
+              `Invalid allowedMimeTypes format: ${errorMsg}. Please provide a valid JSON array.`
+            )
+          }
+        } else if (allowedMimeTypes && Array.isArray(allowedMimeTypes)) {
+          parsedAllowedMimeTypes = allowedMimeTypes
+        }
+
+        // Convert string booleans to actual booleans
+        const parsedUpsert = upsert === 'true' || upsert === true
+        const parsedDownload = download === 'true' || download === true
+        const parsedIsPublic = rest.isPublic === 'true' || rest.isPublic === true
+
         // Build params object, only including defined values
         const result = { ...rest }
 
@@ -502,6 +976,30 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
 
         if (parsedQueryEmbedding !== undefined) {
           result.queryEmbedding = parsedQueryEmbedding
+        }
+
+        if (parsedRpcParams !== undefined) {
+          result.params = parsedRpcParams
+        }
+
+        if (parsedPaths !== undefined) {
+          result.paths = parsedPaths
+        }
+
+        if (parsedAllowedMimeTypes !== undefined) {
+          result.allowedMimeTypes = parsedAllowedMimeTypes
+        }
+
+        if (upsert !== undefined) {
+          result.upsert = parsedUpsert
+        }
+
+        if (download !== undefined) {
+          result.download = parsedDownload
+        }
+
+        if (rest.isPublic !== undefined) {
+          result.isPublic = parsedIsPublic
         }
 
         return result
@@ -520,11 +1018,41 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
     // Query operation inputs
     orderBy: { type: 'string', description: 'Sort column' },
     limit: { type: 'number', description: 'Result limit' },
+    offset: { type: 'number', description: 'Number of rows to skip' },
     // Vector search operation inputs
-    functionName: { type: 'string', description: 'PostgreSQL function name for vector search' },
+    functionName: {
+      type: 'string',
+      description: 'PostgreSQL function name for vector search or RPC',
+    },
     queryEmbedding: { type: 'array', description: 'Query vector/embedding for similarity search' },
     matchThreshold: { type: 'number', description: 'Minimum similarity threshold (0-1)' },
     matchCount: { type: 'number', description: 'Maximum number of similar results to return' },
+    // RPC operation inputs
+    params: { type: 'json', description: 'Parameters to pass to RPC function' },
+    // Text search inputs
+    column: { type: 'string', description: 'Column name to search in' },
+    query: { type: 'string', description: 'Search query' },
+    searchType: { type: 'string', description: 'Search type: plain, phrase, or websearch' },
+    language: { type: 'string', description: 'Language for text search' },
+    // Count operation inputs
+    countType: { type: 'string', description: 'Count type: exact, planned, or estimated' },
+    // Storage operation inputs
+    bucket: { type: 'string', description: 'Storage bucket name' },
+    path: { type: 'string', description: 'File path in storage' },
+    fileContent: { type: 'string', description: 'File content (base64 for binary)' },
+    contentType: { type: 'string', description: 'MIME type of the file' },
+    upsert: { type: 'boolean', description: 'Whether to overwrite existing file' },
+    download: { type: 'boolean', description: 'Whether to force download' },
+    paths: { type: 'array', description: 'Array of file paths' },
+    fromPath: { type: 'string', description: 'Source file path for move/copy' },
+    toPath: { type: 'string', description: 'Destination file path for move/copy' },
+    sortBy: { type: 'string', description: 'Column to sort by' },
+    sortOrder: { type: 'string', description: 'Sort order: asc or desc' },
+    search: { type: 'string', description: 'Search term for filtering' },
+    expiresIn: { type: 'number', description: 'Expiration time in seconds for signed URL' },
+    isPublic: { type: 'boolean', description: 'Whether bucket should be public' },
+    fileSizeLimit: { type: 'number', description: 'Maximum file size in bytes' },
+    allowedMimeTypes: { type: 'array', description: 'Array of allowed MIME types' },
   },
   outputs: {
     message: {
@@ -533,7 +1061,32 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
     },
     results: {
       type: 'json',
-      description: 'Database records returned from query, insert, update, or delete operations',
+      description:
+        'Database records, storage objects, or operation results depending on the operation type',
+    },
+    count: {
+      type: 'number',
+      description: 'Row count for count operations',
+    },
+    fileContent: {
+      type: 'string',
+      description: 'Downloaded file content (base64 for binary files)',
+    },
+    contentType: {
+      type: 'string',
+      description: 'MIME type of downloaded file',
+    },
+    isBase64: {
+      type: 'boolean',
+      description: 'Whether file content is base64 encoded',
+    },
+    publicUrl: {
+      type: 'string',
+      description: 'Public URL for storage file',
+    },
+    signedUrl: {
+      type: 'string',
+      description: 'Temporary signed URL for storage file',
     },
   },
 }

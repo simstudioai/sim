@@ -1,0 +1,180 @@
+import { createLogger } from '@/lib/logs/console/logger'
+import type {
+  MicrosoftPlannerToolParams,
+  MicrosoftPlannerUpdateTaskResponse,
+  PlannerTask,
+} from '@/tools/microsoft_planner/types'
+import type { ToolConfig } from '@/tools/types'
+
+const logger = createLogger('MicrosoftPlannerUpdateTask')
+
+export const updateTaskTool: ToolConfig<
+  MicrosoftPlannerToolParams,
+  MicrosoftPlannerUpdateTaskResponse
+> = {
+  id: 'microsoft_planner_update_task',
+  name: 'Update Microsoft Planner Task',
+  description: 'Update a task in Microsoft Planner',
+  version: '1.0',
+
+  oauth: {
+    required: true,
+    provider: 'microsoft-planner',
+    additionalScopes: [],
+  },
+
+  params: {
+    accessToken: {
+      type: 'string',
+      required: true,
+      visibility: 'hidden',
+      description: 'The access token for the Microsoft Planner API',
+    },
+    taskId: {
+      type: 'string',
+      required: true,
+      visibility: 'user-only',
+      description: 'The ID of the task to update',
+    },
+    etag: {
+      type: 'string',
+      required: true,
+      visibility: 'user-only',
+      description: 'The ETag value from the task to update (If-Match header)',
+    },
+    title: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description: 'The new title of the task',
+    },
+    bucketId: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description: 'The bucket ID to move the task to',
+    },
+    dueDateTime: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description: 'The due date and time for the task (ISO 8601 format)',
+    },
+    startDateTime: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description: 'The start date and time for the task (ISO 8601 format)',
+    },
+    percentComplete: {
+      type: 'number',
+      required: false,
+      visibility: 'user-only',
+      description: 'The percentage of task completion (0-100)',
+    },
+    priority: {
+      type: 'number',
+      required: false,
+      visibility: 'user-only',
+      description: 'The priority of the task (0-10)',
+    },
+    assigneeUserId: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description: 'The user ID to assign the task to',
+    },
+  },
+
+  request: {
+    url: (params) => {
+      if (!params.taskId) {
+        throw new Error('Task ID is required')
+      }
+      return `https://graph.microsoft.com/v1.0/planner/tasks/${params.taskId}`
+    },
+    method: 'PATCH',
+    headers: (params) => {
+      if (!params.accessToken) {
+        throw new Error('Access token is required')
+      }
+      if (!params.etag) {
+        throw new Error('ETag is required for update operations')
+      }
+
+      return {
+        Authorization: `Bearer ${params.accessToken}`,
+        'Content-Type': 'application/json',
+        'If-Match': params.etag,
+      }
+    },
+    body: (params) => {
+      const body: Partial<PlannerTask> = {}
+
+      if (params.title) {
+        body.title = params.title
+      }
+
+      if (params.bucketId) {
+        body.bucketId = params.bucketId
+      }
+
+      if (params.dueDateTime) {
+        body.dueDateTime = params.dueDateTime
+      }
+
+      if (params.startDateTime) {
+        body.startDateTime = params.startDateTime
+      }
+
+      if (params.percentComplete !== undefined) {
+        body.percentComplete = params.percentComplete
+      }
+
+      if (params.priority !== undefined) {
+        body.priority = params.priority
+      }
+
+      if (params.assigneeUserId) {
+        body.assignments = {
+          [params.assigneeUserId]: {
+            '@odata.type': 'microsoft.graph.plannerAssignment',
+            orderHint: ' !',
+          },
+        }
+      }
+
+      if (Object.keys(body).length === 0) {
+        throw new Error('At least one field must be provided to update')
+      }
+
+      logger.info('Updating task with body:', body)
+      return body
+    },
+  },
+
+  transformResponse: async (response: Response) => {
+    const task = await response.json()
+    logger.info('Updated task:', task)
+
+    const result: MicrosoftPlannerUpdateTaskResponse = {
+      success: true,
+      output: {
+        task,
+        metadata: {
+          taskId: task.id,
+          planId: task.planId,
+          taskUrl: `https://graph.microsoft.com/v1.0/planner/tasks/${task.id}`,
+        },
+      },
+    }
+
+    return result
+  },
+
+  outputs: {
+    success: { type: 'boolean', description: 'Whether the task was updated successfully' },
+    task: { type: 'object', description: 'The updated task object with all properties' },
+    metadata: { type: 'object', description: 'Metadata including taskId, planId, and taskUrl' },
+  },
+}

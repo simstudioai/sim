@@ -53,6 +53,7 @@ export const searchTool: ToolConfig<ParallelSearchParams, ToolResponse> = {
     headers: (params) => ({
       'Content-Type': 'application/json',
       'x-api-key': params.apiKey,
+      'parallel-beta': 'search-extract-2025-10-10',
     }),
     body: (params) => {
       const body: Record<string, unknown> = {

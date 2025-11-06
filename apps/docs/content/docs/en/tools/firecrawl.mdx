@@ -1,6 +1,6 @@
 ---
 title: Firecrawl
-description: Scrape or search the web
+description: Scrape, search, crawl, map, and extract web data
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -59,7 +59,7 @@ This allows your agents to gather information from websites, extract structured 
 
 ## Usage Instructions
 
-Integrate Firecrawl into the workflow. Can search, scrape, or crawl websites.
+Integrate Firecrawl into the workflow. Can scrape pages, search the web, crawl entire websites, map URL structures, and extract structured data using AI.
 
 
 
@@ -74,7 +74,25 @@ Extract structured content from web pages with comprehensive metadata support. C
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `url` | string | Yes | The URL to scrape content from |
-| `scrapeOptions` | json | No | Options for content scraping |
+| `formats` | json | No | Output formats \(markdown, html, rawHtml, links, images, screenshot\). Default: \["markdown"\] |
+| `onlyMainContent` | boolean | No | Extract only main content, excluding headers, navs, footers \(default: true\) |
+| `includeTags` | json | No | HTML tags to retain in the output |
+| `excludeTags` | json | No | HTML tags to remove from the output |
+| `maxAge` | number | No | Return cached version if younger than this age in ms \(default: 172800000\) |
+| `headers` | json | No | Custom request headers \(cookies, user-agent, etc.\) |
+| `waitFor` | number | No | Delay in milliseconds before fetching \(default: 0\) |
+| `mobile` | boolean | No | Emulate mobile device \(default: false\) |
+| `skipTlsVerification` | boolean | No | Skip TLS certificate verification \(default: true\) |
+| `timeout` | number | No | Request timeout in milliseconds |
+| `parsers` | json | No | File processing controls \(e.g., \["pdf"\]\) |
+| `actions` | json | No | Pre-scrape operations \(wait, click, scroll, screenshot, etc.\) |
+| `location` | json | No | Geographic settings \(country, languages\) |
+| `removeBase64Images` | boolean | No | Strip base64 images from output \(default: true\) |
+| `blockAds` | boolean | No | Enable ad and popup blocking \(default: true\) |
+| `proxy` | string | No | Proxy type: basic, stealth, or auto \(default: auto\) |
+| `storeInCache` | boolean | No | Cache the page \(default: true\) |
+| `zeroDataRetention` | boolean | No | Enable zero data retention mode \(default: false\) |
+| `scrapeOptions` | json | No | Options for content scraping \(legacy, prefer top-level params\) |
 | `apiKey` | string | Yes | Firecrawl API key |
 
 #### Output
@@ -94,6 +112,15 @@ Search for information on the web using Firecrawl
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `query` | string | Yes | The search query to use |
+| `limit` | number | No | Maximum number of results to return \(1-100, default: 5\) |
+| `sources` | json | No | Search sources: \["web"\], \["images"\], or \["news"\] \(default: \["web"\]\) |
+| `categories` | json | No | Filter by categories: \["github"\], \["research"\], or \["pdf"\] |
+| `tbs` | string | No | Time-based search: qdr:h \(hour\), qdr:d \(day\), qdr:w \(week\), qdr:m \(month\), qdr:y \(year\) |
+| `location` | string | No | Geographic location for results \(e.g., "San Francisco, California, United States"\) |
+| `country` | string | No | ISO country code for geo-targeting \(default: US\) |
+| `timeout` | number | No | Timeout in milliseconds \(default: 60000\) |
+| `ignoreInvalidURLs` | boolean | No | Exclude invalid URLs from results \(default: false\) |
+| `scrapeOptions` | json | No | Advanced scraping configuration for search results |
 | `apiKey` | string | Yes | Firecrawl API key |
 
 #### Output
@@ -113,6 +140,20 @@ Crawl entire websites and extract structured content from all accessible pages
 | `url` | string | Yes | The website URL to crawl |
 | `limit` | number | No | Maximum number of pages to crawl \(default: 100\) |
 | `onlyMainContent` | boolean | No | Extract only main content from pages |
+| `prompt` | string | No | Natural language instruction to auto-generate crawler options |
+| `maxDiscoveryDepth` | number | No | Depth limit for URL discovery \(root pages have depth 0\) |
+| `sitemap` | string | No | Whether to use sitemap data: "skip" or "include" \(default: "include"\) |
+| `crawlEntireDomain` | boolean | No | Follow sibling/parent URLs or only child paths \(default: false\) |
+| `allowExternalLinks` | boolean | No | Follow external website links \(default: false\) |
+| `allowSubdomains` | boolean | No | Follow subdomain links \(default: false\) |
+| `ignoreQueryParameters` | boolean | No | Prevent re-scraping same path with different query params \(default: false\) |
+| `delay` | number | No | Seconds between scrapes for rate limit compliance |
+| `maxConcurrency` | number | No | Concurrent scrape limit |
+| `excludePaths` | json | No | Array of regex patterns for URLs to exclude |
+| `includePaths` | json | No | Array of regex patterns for URLs to include exclusively |
+| `webhook` | json | No | Webhook configuration for crawl notifications |
+| `scrapeOptions` | json | No | Advanced scraping configuration |
+| `zeroDataRetention` | boolean | No | Enable zero data retention \(default: false\) |
 | `apiKey` | string | Yes | Firecrawl API Key |
 
 #### Output
@@ -120,6 +161,58 @@ Crawl entire websites and extract structured content from all accessible pages
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `pages` | array | Array of crawled pages with their content and metadata |
+
+### `firecrawl_map`
+
+Get a complete list of URLs from any website quickly and reliably. Useful for discovering all pages on a site without crawling them.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `url` | string | Yes | The base URL to map and discover links from |
+| `search` | string | No | Filter results by relevance to a search term \(e.g., "blog"\) |
+| `sitemap` | string | No | Controls sitemap usage: "skip", "include" \(default\), or "only" |
+| `includeSubdomains` | boolean | No | Whether to include URLs from subdomains \(default: true\) |
+| `ignoreQueryParameters` | boolean | No | Exclude URLs containing query strings \(default: true\) |
+| `limit` | number | No | Maximum number of links to return \(max: 100,000, default: 5,000\) |
+| `timeout` | number | No | Request timeout in milliseconds |
+| `location` | json | No | Geographic context for proxying \(country, languages\) |
+| `apiKey` | string | Yes | Firecrawl API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the mapping operation was successful |
+| `links` | array | Array of discovered URLs from the website |
+
+### `firecrawl_extract`
+
+Extract structured data from entire webpages using natural language prompts and JSON schema. Powerful agentic feature for intelligent data extraction.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `urls` | json | Yes | Array of URLs to extract data from \(supports glob format\) |
+| `prompt` | string | No | Natural language guidance for the extraction process |
+| `schema` | json | No | JSON Schema defining the structure of data to extract |
+| `enableWebSearch` | boolean | No | Enable web search to find supplementary information \(default: false\) |
+| `ignoreSitemap` | boolean | No | Ignore sitemap.xml files during scanning \(default: false\) |
+| `includeSubdomains` | boolean | No | Extend scanning to subdomains \(default: true\) |
+| `showSources` | boolean | No | Return data sources in the response \(default: false\) |
+| `ignoreInvalidURLs` | boolean | No | Skip invalid URLs in the array \(default: true\) |
+| `scrapeOptions` | json | No | Advanced scraping configuration options |
+| `apiKey` | string | Yes | Firecrawl API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the extraction operation was successful |
+| `data` | object | Extracted structured data according to the schema or prompt |
+| `sources` | array | Data sources \(only if showSources is enabled\) |
 
 
 
