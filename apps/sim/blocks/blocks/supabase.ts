@@ -638,7 +638,7 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
     // Storage List fields
     {
       id: 'path',
-      title: 'Folder Path (optional)',
+      title: 'Folder Path',
       type: 'short-input',
       placeholder: 'folder/',
       condition: { field: 'operation', value: 'storage_list' },
