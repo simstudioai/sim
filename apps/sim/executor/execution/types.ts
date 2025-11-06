@@ -11,6 +11,8 @@ export interface ContextExtensions {
   isChildExecution?: boolean
   resumeFromSnapshot?: boolean
   resumePendingQueue?: string[]
+  remainingEdges?: Array<{ source: string; target: string; sourceHandle?: string; targetHandle?: string }>
+  dagIncomingEdges?: Record<string, string[]>
   onStream?: (streamingExecution: unknown) => Promise<void>
   onBlockStart?: (
     blockId: string,

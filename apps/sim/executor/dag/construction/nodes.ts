@@ -114,19 +114,6 @@ export class NodeConstructor {
     for (let branchIndex = 0; branchIndex < expansion.branchCount; branchIndex++) {
       const branchNode = this.createParallelBranchNode(block, branchIndex, expansion)
       dag.nodes.set(branchNode.id, branchNode)
-
-      if (block.metadata?.id === BlockType.PAUSE_RESUME) {
-        const triggerId = `${branchNode.id}__trigger`
-        const triggerNode = this.createTriggerNode(block, triggerId, {
-          isParallelBranch: true,
-          parallelId: expansion.parallelId,
-          branchIndex,
-          branchTotal: expansion.branchCount,
-          loopId: branchNode.metadata.loopId,
-        })
-        dag.nodes.set(triggerId, triggerNode)
-        pauseTriggerMapping.set(branchNode.id, triggerId)
-      }
     }
   }
 
@@ -192,15 +179,6 @@ export class NodeConstructor {
         originalBlockId: block.id,
       },
     })
-
-    if (isPauseBlock) {
-      const triggerId = `${block.id}__trigger`
-      const triggerNode = this.createTriggerNode(block, triggerId, {
-        loopId,
-      })
-      dag.nodes.set(triggerId, triggerNode)
-      pauseTriggerMapping.set(block.id, triggerId)
-    }
   }
 
   private createTriggerNode(

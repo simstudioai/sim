@@ -57,7 +57,6 @@ export class PauseResumeBlockHandler implements BlockHandler {
 
       const { parallelScope, loopScope } = mapNodeMetadataToPauseScopes(ctx, nodeMetadata)
       const contextId = generatePauseContextId(block.id, nodeMetadata, loopScope)
-      const triggerBlockId = buildTriggerBlockId(nodeMetadata.nodeId)
 
       const executionId = ctx.executionId || ctx.metadata?.executionId
       const workflowId = ctx.workflowId
@@ -87,7 +86,6 @@ export class PauseResumeBlockHandler implements BlockHandler {
 
       const pauseMetadata: PauseMetadata = {
         contextId,
-        triggerBlockId,
         blockId: nodeMetadata.nodeId,
         response: {
           data: responseData,
@@ -130,7 +128,6 @@ export class PauseResumeBlockHandler implements BlockHandler {
       logger.info('Pause resume prepared', {
         status: statusCode,
         contextId,
-        triggerBlockId,
         parallelScope,
         loopScope,
       })

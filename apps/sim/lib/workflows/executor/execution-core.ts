@@ -299,6 +299,7 @@ export async function executeWorkflowCore(
       onStream,
       resumeFromSnapshot,
       resumePendingQueue,
+      remainingEdges: snapshot.state?.remainingEdges,
     }
 
     const executorInstance = new Executor({

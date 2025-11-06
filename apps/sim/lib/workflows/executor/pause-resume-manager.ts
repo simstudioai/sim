@@ -103,7 +103,6 @@ export class PauseResumeManager {
     const pausePointsRecord = pausePoints.reduce<Record<string, any>>((acc, point) => {
       acc[point.contextId] = {
         contextId: point.contextId,
-        triggerBlockId: point.triggerBlockId,
         response: point.response,
         resumeStatus: point.resumeStatus,
         snapshotReady: point.snapshotReady,
@@ -284,6 +283,12 @@ export class PauseResumeManager {
             executorUserId: result.metadata?.userId,
           })
         }
+      } else {
+        await this.updateSnapshotAfterResume({
+          pausedExecutionId: pausedExecution.id,
+          contextId,
+          result,
+        })
       }
 
       await this.markResumeCompleted({
@@ -338,11 +343,8 @@ export class PauseResumeManager {
     if (!pausePoint) {
       throw new Error('Pause point not found for resume execution')
     }
-
-    const triggerBlockId: string = pausePoint.triggerBlockId
     
-    logger.info('Resume trigger identified', {
-      triggerBlockId,
+    logger.info('Resume pause point identified', {
       contextId,
       pausePointKeys: Object.keys(pausePoints),
     })
@@ -403,13 +405,31 @@ export class PauseResumeManager {
       pauseBlockState.executed = true
       pauseBlockState.executionTime = pauseDurationMs
       stateCopy.blockStates[pauseBlockId] = pauseBlockState
-      
-      // Queue the downstream blocks for execution
-      stateCopy.pendingQueue = downstreamBlocks.length > 0 ? downstreamBlocks : []
-      
+
+      // Track all pause contexts that have already been resumed
+      const completedPauseContexts = new Set<string>(stateCopy.completedPauseContexts ?? [])
+      completedPauseContexts.add(pauseBlockId)
+
+      // Store edges to remove (all edges FROM any completed pause block)
+      const edgesToRemove = baseSnapshot.workflow.connections
+        .filter((conn: any) => completedPauseContexts.has(conn.source))
+        .map((conn: any) => ({
+          source: conn.source,
+          target: conn.target,
+          sourceHandle: conn.sourceHandle,
+          targetHandle: conn.targetHandle,
+        }))
+
+      // Persist state updates
+      stateCopy.completedPauseContexts = Array.from(completedPauseContexts)
+      stateCopy.remainingEdges = edgesToRemove
+      stateCopy.pendingQueue = [] // Let the engine determine what's ready after removing edges
+
       logger.info('Updated pause block state for resume', {
         pauseBlockId,
-        pendingQueue: stateCopy.pendingQueue,
+        downstreamBlocks,
+        edgesToRemove: edgesToRemove.length,
+        completedPauseContexts: stateCopy.completedPauseContexts,
         pauseBlockOutput: pauseBlockState.output,
       })
     }
@@ -418,7 +438,6 @@ export class PauseResumeManager {
       ...baseSnapshot.metadata,
       executionId: resumeExecutionId, // Same as original
       requestId: baseSnapshot.metadata.requestId, // Keep original requestId
-      triggerBlockId: undefined, // No trigger needed for resume
       startTime: new Date().toISOString(),
       userId,
       useDraftState: baseSnapshot.metadata.useDraftState,
@@ -519,6 +538,84 @@ export class PauseResumeManager {
       .update(resumeQueue)
       .set({ status: 'failed', failureReason: args.failureReason, completedAt: new Date() })
       .where(eq(resumeQueue.id, args.resumeEntryId))
+  }
+
+  private static async updateSnapshotAfterResume(args: {
+    pausedExecutionId: string
+    contextId: string
+    result: ExecutionResult
+  }): Promise<void> {
+    const { pausedExecutionId, contextId, result } = args
+
+    // Load the current snapshot from the database
+    const pausedExecution = await db
+      .select()
+      .from(pausedExecutions)
+      .where(eq(pausedExecutions.id, pausedExecutionId))
+      .limit(1)
+      .then((rows) => rows[0])
+
+    if (!pausedExecution) {
+      logger.error('Paused execution not found when updating snapshot', { pausedExecutionId })
+      return
+    }
+
+    const currentSnapshot = pausedExecution.executionSnapshot as SerializedSnapshot
+    const snapshotData = JSON.parse(currentSnapshot.snapshot)
+
+    // Update the DAG incoming edges in the snapshot
+    // Remove the edge from the resumed pause block
+    if (snapshotData.state) {
+      // Track completed pause contexts so future resumes remove their edges
+      const completedPauseContexts = new Set<string>(snapshotData.state.completedPauseContexts ?? [])
+      completedPauseContexts.add(contextId)
+      snapshotData.state.completedPauseContexts = Array.from(completedPauseContexts)
+
+      const dagIncomingEdges = snapshotData.state.dagIncomingEdges
+
+      if (dagIncomingEdges) {
+        // Find all edges from the resumed pause block and remove them from targets
+        const workflowData = snapshotData.workflow
+        const connections = workflowData.connections || []
+        
+        for (const conn of connections) {
+          if (conn.source === contextId) {
+            const targetId = conn.target
+            if (dagIncomingEdges[targetId]) {
+              // Remove this source from the target's incoming edges
+              dagIncomingEdges[targetId] = dagIncomingEdges[targetId].filter(
+                (sourceId: string) => sourceId !== contextId
+              )
+              
+              logger.debug('Updated DAG incoming edges in snapshot', {
+                removedSource: contextId,
+                target: targetId,
+                remainingIncoming: dagIncomingEdges[targetId].length,
+              })
+            }
+          }
+        }
+      }
+    }
+
+    // Update the snapshot in the database
+    const updatedSnapshot: SerializedSnapshot = {
+      snapshot: JSON.stringify(snapshotData),
+      triggerIds: currentSnapshot.triggerIds,
+    }
+
+    await db
+      .update(pausedExecutions)
+      .set({
+        executionSnapshot: updatedSnapshot,
+        updatedAt: new Date(),
+      })
+      .where(eq(pausedExecutions.id, pausedExecutionId))
+
+    logger.info('Updated snapshot after resume', {
+      pausedExecutionId,
+      contextId,
+    })
   }
 
   static async listPausedExecutions(options: {
@@ -727,7 +824,6 @@ export class PauseResumeManager {
 
       return {
         contextId: point.contextId,
-        triggerBlockId: point.triggerBlockId,
         response: point.response,
         registeredAt: point.registeredAt,
         resumeStatus: point.resumeStatus || 'paused',

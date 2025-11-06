@@ -33,7 +33,6 @@ export interface LoopPauseScope {
 
 export interface PauseMetadata {
   contextId: string
-  triggerBlockId: string
   blockId: string
   response: any
   timestamp: string
@@ -50,7 +49,6 @@ export interface PauseMetadata {
 
 export interface PausePoint {
   contextId: string
-  triggerBlockId: string
   response: any
   registeredAt: string
   resumeStatus: 'paused' | 'resumed' | 'failed' | 'queued' | 'resuming'

@@ -1,6 +1,7 @@
 import { ExecutionSnapshot } from '@/executor/execution/snapshot'
 import type { SerializableExecutionState } from '@/executor/execution/snapshot'
 import type { ExecutionContext, ExecutionMetadata, SerializedSnapshot } from '@/executor/types'
+import type { DAG } from '../dag/builder'
 
 function mapFromEntries<T>(map?: Map<string, T>): Record<string, T> | undefined {
   if (!map) return undefined
@@ -14,11 +15,22 @@ function setToArray<T>(set?: Set<T>): T[] | undefined {
 
 export function serializePauseSnapshot(
   context: ExecutionContext,
-  triggerBlockIds: string[]
+  triggerBlockIds: string[],
+  dag?: DAG
 ): SerializedSnapshot {
   const metadataFromContext = context.metadata as ExecutionMetadata | undefined
   const useDraftState =
     metadataFromContext?.useDraftState ?? (context.isDeployedContext === true ? false : true)
+
+  // Serialize DAG incoming edges if available
+  const dagIncomingEdges: Record<string, string[]> | undefined = dag
+    ? Object.fromEntries(
+        Array.from(dag.nodes.entries()).map(([nodeId, node]) => [
+          nodeId,
+          Array.from(node.incomingEdges),
+        ])
+      )
+    : undefined
 
   const state: SerializableExecutionState = {
     blockStates: Object.fromEntries(context.blockStates),
@@ -36,6 +48,7 @@ export function serializePauseSnapshot(
     parallelBlockMapping: mapFromEntries(context.parallelBlockMapping),
     activeExecutionPath: Array.from(context.activeExecutionPath),
     pendingQueue: triggerBlockIds,
+    dagIncomingEdges,
   }
 
   const executionMetadata = {

@@ -33,7 +33,7 @@ export class DAGBuilder {
   private nodeConstructor = new NodeConstructor()
   private edgeConstructor = new EdgeConstructor()
 
-  build(workflow: SerializedWorkflow, triggerBlockId?: string): DAG {
+  build(workflow: SerializedWorkflow, triggerBlockId?: string, savedIncomingEdges?: Record<string, string[]>): DAG {
     const dag: DAG = {
       nodes: new Map(),
       loopConfigs: new Map(),
@@ -73,6 +73,23 @@ export class DAGBuilder {
       reachableBlocks,
       pauseTriggerMapping
     )
+
+    if (savedIncomingEdges) {
+      logger.info('Restoring DAG incoming edges from snapshot', {
+        nodeCount: Object.keys(savedIncomingEdges).length,
+      })
+      
+      for (const [nodeId, incomingEdgeArray] of Object.entries(savedIncomingEdges)) {
+        const node = dag.nodes.get(nodeId)
+        if (node) {
+          node.incomingEdges = new Set(incomingEdgeArray)
+          logger.debug('Restored incoming edges for node', {
+            nodeId,
+            edgeCount: incomingEdgeArray.length,
+          })
+        }
+      }
+    }
 
     logger.info('DAG built', {
       totalNodes: dag.nodes.size,

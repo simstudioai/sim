@@ -51,7 +51,8 @@ export class DAGExecutor {
   }
 
   async execute(workflowId: string, triggerBlockId?: string): Promise<ExecutionResult> {
-    const dag = this.dagBuilder.build(this.workflow, triggerBlockId)
+    const savedIncomingEdges = this.contextExtensions.dagIncomingEdges
+    const dag = this.dagBuilder.build(this.workflow, triggerBlockId, savedIncomingEdges)
     const context = this.createExecutionContext(workflowId, triggerBlockId)
     // Create state with shared references to context's maps/sets for single source of truth
     const state = new ExecutionState(context.blockStates, context.executedBlocks)
@@ -130,7 +131,15 @@ export class DAGExecutor {
       context.metadata.resumeFromSnapshot = true
       logger.info('Resume from snapshot enabled', {
         resumePendingQueue: this.contextExtensions.resumePendingQueue,
+        remainingEdges: this.contextExtensions.remainingEdges,
         triggerBlockId,
+      })
+    }
+
+    if (this.contextExtensions.remainingEdges) {
+      ;(context.metadata as any).remainingEdges = this.contextExtensions.remainingEdges
+      logger.info('Set remaining edges for resume', {
+        edgeCount: this.contextExtensions.remainingEdges.length,
       })
     }
 

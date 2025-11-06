@@ -144,6 +144,43 @@ export class ExecutionEngine {
 
   private initializeQueue(triggerBlockId?: string): void {
     const pendingBlocks = this.context.metadata.pendingBlocks
+    const remainingEdges = (this.context.metadata as any).remainingEdges
+    
+    // If we have remaining edges to remove (from resume), remove them first
+    if (remainingEdges && Array.isArray(remainingEdges) && remainingEdges.length > 0) {
+      logger.info('Removing edges from resumed pause blocks', {
+        edgeCount: remainingEdges.length,
+        edges: remainingEdges,
+      })
+      
+      for (const edge of remainingEdges) {
+        const targetNode = this.dag.nodes.get(edge.target)
+        if (targetNode) {
+          const hadEdge = targetNode.incomingEdges.has(edge.source)
+          targetNode.incomingEdges.delete(edge.source)
+          logger.debug('Removed edge from pause block', {
+            source: edge.source,
+            target: edge.target,
+            hadEdge,
+            remainingIncomingEdges: targetNode.incomingEdges.size,
+          })
+          
+          // If this node is now ready (no more incoming edges), add it to queue
+          if (this.edgeManager.isNodeReady(targetNode)) {
+            logger.info('Node became ready after edge removal', { nodeId: targetNode.id })
+            this.addToQueue(targetNode.id)
+          }
+        }
+      }
+      
+      logger.info('Edge removal complete, queued ready nodes', {
+        queueLength: this.readyQueue.length,
+        queuedNodes: this.readyQueue,
+      })
+      
+      return
+    }
+    
     if (pendingBlocks && pendingBlocks.length > 0) {
       logger.info('Initializing queue from pending blocks (resume mode)', {
         pendingBlocks,
@@ -268,7 +305,6 @@ export class ExecutionEngine {
       logger.debug('Registered pause metadata', {
         nodeId,
         contextId: pauseMetadata.contextId,
-        triggerBlockId: pauseMetadata.triggerBlockId,
       })
 
       return
@@ -304,13 +340,9 @@ export class ExecutionEngine {
     this.context.metadata.duration = endTime - startTime
     this.context.metadata.status = 'paused'
 
-    const triggerIds = Array.from(this.pausedBlocks.values()).map(
-      (pause) => pause.triggerBlockId
-    )
-    const snapshotSeed = serializePauseSnapshot(this.context, triggerIds)
+    const snapshotSeed = serializePauseSnapshot(this.context, [], this.dag)
     const pausePoints: PausePoint[] = Array.from(this.pausedBlocks.values()).map((pause) => ({
       contextId: pause.contextId,
-      triggerBlockId: pause.triggerBlockId,
       response: pause.response,
       registeredAt: pause.timestamp,
       resumeStatus: 'paused',

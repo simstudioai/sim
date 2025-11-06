@@ -44,6 +44,8 @@ export interface SerializableExecutionState {
   activeExecutionPath: string[]
   pendingQueue?: string[]
   remainingEdges?: Edge[]
+  dagIncomingEdges?: Record<string, string[]>
+  completedPauseContexts?: string[]
 }
 
 export class ExecutionSnapshot {
