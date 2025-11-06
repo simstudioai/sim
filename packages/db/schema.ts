@@ -37,6 +37,7 @@ export const user = pgTable('user', {
   createdAt: timestamp('created_at').notNull(),
   updatedAt: timestamp('updated_at').notNull(),
   stripeCustomerId: text('stripe_customer_id'),
+  isSuperUser: boolean('is_super_user').notNull().default(false),
 })
 
 export const session = pgTable(
@@ -371,6 +372,7 @@ export const settings = pgTable('settings', {
   // UI preferences
   showFloatingControls: boolean('show_floating_controls').notNull().default(true),
   showTrainingControls: boolean('show_training_controls').notNull().default(false),
+  superUserModeEnabled: boolean('super_user_mode_enabled').notNull().default(true),
 
   // Copilot preferences - maps model_id to enabled/disabled boolean
   copilotEnabledModels: jsonb('copilot_enabled_models').notNull().default('{}'),
@@ -1253,40 +1255,45 @@ export const workflowCheckpoints = pgTable(
   })
 )
 
+export const templateStatusEnum = pgEnum('template_status', ['pending', 'approved', 'rejected'])
+export const templateAuthorTypeEnum = pgEnum('template_author_type', ['user', 'organization'])
+
 export const templates = pgTable(
   'templates',
   {
     id: text('id').primaryKey(),
-    workflowId: text('workflow_id').references(() => workflow.id),
+    workflowId: text('workflow_id').references(() => workflow.id, { onDelete: 'set null' }),
     userId: text('user_id')
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
     name: text('name').notNull(),
     description: text('description'),
-    author: text('author').notNull(),
+    author: text('author').notNull(), // Display name for author (user name or org name)
+    authorType: templateAuthorTypeEnum('author_type').notNull().default('user'),
+    organizationId: text('organization_id').references(() => organization.id, {
+      onDelete: 'set null',
+    }),
     views: integer('views').notNull().default(0),
     stars: integer('stars').notNull().default(0),
-    color: text('color').notNull().default('#3972F6'),
-    icon: text('icon').notNull().default('FileText'), // Lucide icon name as string
-    category: text('category').notNull(),
-    state: jsonb('state').notNull(), // Using jsonb for better performance
+    status: templateStatusEnum('status').notNull().default('pending'),
+    state: jsonb('state').notNull(), // Store the workflow state directly
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
   (table) => ({
     // Primary access patterns
-    workflowIdIdx: index('templates_workflow_id_idx').on(table.workflowId),
     userIdIdx: index('templates_user_id_idx').on(table.userId),
-    categoryIdx: index('templates_category_idx').on(table.category),
+    statusIdx: index('templates_status_idx').on(table.status),
+    organizationIdIdx: index('templates_organization_id_idx').on(table.organizationId),
 
     // Sorting indexes for popular/trending templates
     viewsIdx: index('templates_views_idx').on(table.views),
     starsIdx: index('templates_stars_idx').on(table.stars),
 
     // Composite indexes for common queries
-    categoryViewsIdx: index('templates_category_views_idx').on(table.category, table.views),
-    categoryStarsIdx: index('templates_category_stars_idx').on(table.category, table.stars),
-    userCategoryIdx: index('templates_user_category_idx').on(table.userId, table.category),
+    statusViewsIdx: index('templates_status_views_idx').on(table.status, table.views),
+    statusStarsIdx: index('templates_status_stars_idx').on(table.status, table.stars),
+    userStatusIdx: index('templates_user_status_idx').on(table.userId, table.status),
 
     // Temporal indexes
     createdAtIdx: index('templates_created_at_idx').on(table.createdAt),

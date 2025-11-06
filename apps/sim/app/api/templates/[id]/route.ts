@@ -1,11 +1,10 @@
 import { db } from '@sim/db'
-import { templates, workflow } from '@sim/db/schema'
-import { eq, sql } from 'drizzle-orm'
+import { templates, workflowDeploymentVersion } from '@sim/db/schema'
+import { and, eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console/logger'
-import { hasAdminPermission } from '@/lib/permissions/utils'
 import { generateRequestId } from '@/lib/utils'
 
 const logger = createLogger('TemplateByIdAPI')
@@ -19,10 +18,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
   try {
     const session = await getSession()
-    if (!session?.user?.id) {
-      logger.warn(`[${requestId}] Unauthorized template access attempt for ID: ${id}`)
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
 
     logger.debug(`[${requestId}] Fetching template: ${id}`)
 
@@ -36,7 +31,26 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     const template = result[0]
 
-    // Increment the view count
+    // Only show approved templates to non-authenticated users
+    if (!session?.user?.id && template.status !== 'approved') {
+      return NextResponse.json({ error: 'Template not found' }, { status: 404 })
+    }
+
+    // Check if user has starred (only if authenticated)
+    let isStarred = false
+    if (session?.user?.id) {
+      const { templateStars } = await import('@sim/db/schema')
+      const starResult = await db
+        .select()
+        .from(templateStars)
+        .where(
+          sql`${templateStars.templateId} = ${id} AND ${templateStars.userId} = ${session.user.id}`
+        )
+        .limit(1)
+      isStarred = starResult.length > 0
+    }
+
+    // Increment the view count (don't fail if this errors)
     try {
       await db
         .update(templates)
@@ -58,6 +72,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       data: {
         ...template,
         views: template.views + 1, // Return the incremented view count
+        isStarred,
       },
     })
   } catch (error: any) {
@@ -70,10 +85,8 @@ const updateTemplateSchema = z.object({
   name: z.string().min(1).max(100),
   description: z.string().min(1).max(500),
   author: z.string().min(1).max(100),
-  category: z.string().min(1),
-  icon: z.string().min(1),
-  color: z.string().regex(/^#[0-9A-F]{6}$/i),
-  state: z.any().optional(), // Workflow state
+  authorType: z.enum(['user', 'organization']).optional(),
+  organizationId: z.string().optional(),
 })
 
 // PUT /api/templates/[id] - Update a template
@@ -99,7 +112,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       )
     }
 
-    const { name, description, author, category, icon, color, state } = validationResult.data
+    const { name, description, author, authorType, organizationId } = validationResult.data
 
     // Check if template exists
     const existingTemplate = await db.select().from(templates).where(eq(templates.id, id)).limit(1)
@@ -109,41 +122,45 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.json({ error: 'Template not found' }, { status: 404 })
     }
 
-    // Permission: template owner OR admin of the workflow's workspace (if any)
-    let canUpdate = existingTemplate[0].userId === session.user.id
-
-    if (!canUpdate && existingTemplate[0].workflowId) {
-      const wfRows = await db
-        .select({ workspaceId: workflow.workspaceId })
-        .from(workflow)
-        .where(eq(workflow.id, existingTemplate[0].workflowId))
-        .limit(1)
-
-      const workspaceId = wfRows[0]?.workspaceId as string | null | undefined
-      if (workspaceId) {
-        const hasAdmin = await hasAdminPermission(session.user.id, workspaceId)
-        if (hasAdmin) canUpdate = true
-      }
-    }
-
-    if (!canUpdate) {
+    // Permission: template owner only
+    if (existingTemplate[0].userId !== session.user.id) {
       logger.warn(`[${requestId}] User denied permission to update template ${id}`)
       return NextResponse.json({ error: 'Access denied' }, { status: 403 })
     }
 
-    // Update the template
+    // Prepare update data
+    const updateData: any = {
+      name,
+      description,
+      author,
+      updatedAt: new Date(),
+    }
+
+    // Optional fields
+    if (authorType) updateData.authorType = authorType
+    if (organizationId !== undefined) updateData.organizationId = organizationId
+
+    // If the template has a connected workflow, update the state from the latest deployment
+    if (existingTemplate[0].workflowId) {
+      const activeVersion = await db
+        .select({ state: workflowDeploymentVersion.state })
+        .from(workflowDeploymentVersion)
+        .where(
+          and(
+            eq(workflowDeploymentVersion.workflowId, existingTemplate[0].workflowId),
+            eq(workflowDeploymentVersion.isActive, true)
+          )
+        )
+        .limit(1)
+
+      if (activeVersion.length > 0) {
+        updateData.state = activeVersion[0].state
+      }
+    }
+
     const updatedTemplate = await db
       .update(templates)
-      .set({
-        name,
-        description,
-        author,
-        category,
-        icon,
-        color,
-        ...(state && { state }),
-        updatedAt: new Date(),
-      })
+      .set(updateData)
       .where(eq(templates.id, id))
       .returning()
 
@@ -183,25 +200,8 @@ export async function DELETE(
 
     const template = existing[0]
 
-    // Permission: owner or admin of the workflow's workspace (if any)
-    let canDelete = template.userId === session.user.id
-
-    if (!canDelete && template.workflowId) {
-      // Look up workflow to get workspaceId
-      const wfRows = await db
-        .select({ workspaceId: workflow.workspaceId })
-        .from(workflow)
-        .where(eq(workflow.id, template.workflowId))
-        .limit(1)
-
-      const workspaceId = wfRows[0]?.workspaceId as string | null | undefined
-      if (workspaceId) {
-        const hasAdmin = await hasAdminPermission(session.user.id, workspaceId)
-        if (hasAdmin) canDelete = true
-      }
-    }
-
-    if (!canDelete) {
+    // Permission: owner only
+    if (template.userId !== session.user.id) {
       logger.warn(`[${requestId}] User denied permission to delete template ${id}`)
       return NextResponse.json({ error: 'Access denied' }, { status: 403 })
     }

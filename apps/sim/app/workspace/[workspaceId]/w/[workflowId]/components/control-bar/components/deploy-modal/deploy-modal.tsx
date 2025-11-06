@@ -18,7 +18,10 @@ import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
 import type { WorkflowDeploymentVersionResponse } from '@/lib/workflows/db-helpers'
 import { resolveStartCandidates, StartBlockPath } from '@/lib/workflows/triggers'
-import { DeploymentInfo } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/control-bar/components/deploy-modal/components'
+import {
+  DeploymentInfo,
+  TemplateDeploy,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/control-bar/components/deploy-modal/components'
 import { ChatDeploy } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/control-bar/components/deploy-modal/components/chat-deploy/chat-deploy'
 import { DeployedWorkflowModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/control-bar/components/deployment-controls/components/deployed-workflow-modal'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -47,7 +50,7 @@ interface WorkflowDeploymentInfo {
   needsRedeployment: boolean
 }
 
-type TabView = 'api' | 'versions' | 'chat'
+type TabView = 'api' | 'versions' | 'chat' | 'template'
 
 export function DeployModal({
   open,
@@ -352,6 +355,9 @@ export function DeployModal({
 
       setVersionToActivate(null)
       setApiDeployError(null)
+
+      // Templates connected to this workflow are automatically updated with the new state
+      // The deployWorkflow function handles updating template states in db-helpers.ts
     } catch (error: unknown) {
       logger.error('Error deploying workflow:', { error })
       const errorMessage = error instanceof Error ? error.message : 'Failed to deploy workflow'
@@ -633,6 +639,16 @@ export function DeployModal({
                 >
                   Versions
                 </button>
+                <button
+                  onClick={() => setActiveTab('template')}
+                  className={`rounded-md px-3 py-1 text-sm transition-colors ${
+                    activeTab === 'template'
+                      ? 'bg-accent text-foreground'
+                      : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground'
+                  }`}
+                >
+                  Template
+                </button>
               </div>
             </div>
 
@@ -882,6 +898,10 @@ export function DeployModal({
                     onUndeploy={handleUndeploy}
                     onVersionActivated={() => setVersionToActivate(null)}
                   />
+                )}
+
+                {activeTab === 'template' && workflowId && (
+                  <TemplateDeploy workflowId={workflowId} onDeploymentComplete={handleCloseModal} />
                 )}
               </div>
             </div>

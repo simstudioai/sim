@@ -1,5 +1,6 @@
 import {
   db,
+  templates,
   workflow,
   workflowBlocks,
   workflowDeploymentVersion,
@@ -446,6 +447,15 @@ export async function deployWorkflow(params: {
       }
 
       await tx.update(workflow).set(updateData).where(eq(workflow.id, workflowId))
+
+      // Update any connected templates with the new state
+      await tx
+        .update(templates)
+        .set({
+          state: currentState,
+          updatedAt: now,
+        })
+        .where(eq(templates.workflowId, workflowId))
 
       return nextVersion
     })

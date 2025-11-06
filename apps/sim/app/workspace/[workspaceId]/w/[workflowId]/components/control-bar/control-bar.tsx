@@ -10,7 +10,6 @@ import {
   RefreshCw,
   SkipForward,
   StepForward,
-  Store,
   Trash2,
   Webhook,
   WifiOff,
@@ -39,7 +38,6 @@ import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/provide
 import {
   DeploymentControls,
   ExportControls,
-  TemplateModal,
   WebhookSettings,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/control-bar/components'
 import { useWorkflowExecution } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-workflow-execution'
@@ -111,7 +109,6 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
   const [mounted, setMounted] = useState(false)
   const [, forceUpdate] = useState({})
   const [isExpanded, setIsExpanded] = useState(false)
-  const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false)
   const [isWebhookSettingsOpen, setIsWebhookSettingsOpen] = useState(false)
   const [isAutoLayouting, setIsAutoLayouting] = useState(false)
 
@@ -646,24 +643,28 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              {deleteState.showTemplateChoice ? 'Published Templates Found' : 'Delete workflow?'}
+              {deleteState.showTemplateChoice ? 'Template Connected' : 'Delete workflow?'}
             </AlertDialogTitle>
             {deleteState.showTemplateChoice ? (
               <div className='space-y-3'>
-                <AlertDialogDescription>
-                  This workflow has {deleteState.publishedTemplates.length} published template
-                  {deleteState.publishedTemplates.length > 1 ? 's' : ''}:
-                </AlertDialogDescription>
-                {deleteState.publishedTemplates.length > 0 && (
-                  <ul className='list-disc space-y-1 pl-6'>
-                    {deleteState.publishedTemplates.map((template) => (
-                      <li key={template.id}>{template.name}</li>
-                    ))}
-                  </ul>
-                )}
-                <AlertDialogDescription>
-                  What would you like to do with the published template
-                  {deleteState.publishedTemplates.length > 1 ? 's' : ''}?
+                <AlertDialogDescription asChild>
+                  <div className='space-y-2'>
+                    <div>
+                      This workflow is connected to a template:{' '}
+                      <strong>{deleteState.publishedTemplates[0]?.name}</strong>
+                    </div>
+                    <div className='mt-3'>What would you like to do with it?</div>
+                    <div className='mt-2 space-y-1 text-xs'>
+                      <div className='text-muted-foreground'>
+                        <strong>Keep template:</strong> Template remains in the marketplace. You can
+                        reconnect it later by clicking "Edit" on the template.
+                      </div>
+                      <div className='text-muted-foreground'>
+                        <strong>Delete template:</strong> Permanently remove template from the
+                        marketplace.
+                      </div>
+                    </div>
+                  </div>
                 </AlertDialogDescription>
               </div>
             ) : (
@@ -685,14 +686,14 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
                   disabled={deleteState.isDeleting}
                   className='h-9 flex-1 rounded-[8px]'
                 >
-                  Keep templates
+                  Keep template
                 </Button>
                 <Button
                   onClick={() => handleTemplateAction('delete')}
                   disabled={deleteState.isDeleting}
                   className='h-9 flex-1 rounded-[8px] bg-red-500 text-white transition-all duration-200 hover:bg-red-600 dark:bg-red-500 dark:hover:bg-red-600'
                 >
-                  {deleteState.isDeleting ? 'Deleting...' : 'Delete templates'}
+                  {deleteState.isDeleting ? 'Deleting...' : 'Delete template'}
                 </Button>
               </div>
             ) : (
@@ -984,43 +985,6 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
   }
 
   /**
-   * Render publish template button
-   */
-  const renderPublishButton = () => {
-    const canEdit = userPermissions.canEdit
-    const isDisabled = isExecuting || isDebugging || !canEdit
-
-    const getTooltipText = () => {
-      if (!canEdit) return 'Admin permission required to publish templates'
-      if (isDebugging) return 'Cannot publish template while debugging'
-      if (isExecuting) return 'Cannot publish template while workflow is running'
-      return 'Publish as template'
-    }
-
-    return (
-      <Tooltip>
-        <TooltipTrigger asChild>
-          {isDisabled ? (
-            <div className='inline-flex h-12 w-12 cursor-not-allowed items-center justify-center rounded-[11px] border bg-card text-card-foreground opacity-50 shadow-xs transition-colors'>
-              <Store className='h-4 w-4' />
-            </div>
-          ) : (
-            <Button
-              variant='outline'
-              onClick={() => setIsTemplateModalOpen(true)}
-              className='h-12 w-12 rounded-[11px] border bg-card text-card-foreground shadow-xs hover:bg-secondary'
-            >
-              <Store className='h-5 w-5' />
-              <span className='sr-only'>Publish Template</span>
-            </Button>
-          )}
-        </TooltipTrigger>
-        <TooltipContent>{getTooltipText()}</TooltipContent>
-      </Tooltip>
-    )
-  }
-
-  /**
    * Render debug mode toggle button
    */
   const renderDebugModeToggle = () => {
@@ -1273,21 +1237,11 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
       {isExpanded && renderWebhookButton()}
       {isExpanded && <ExportControls />}
       {isExpanded && renderAutoLayoutButton()}
-      {isExpanded && renderPublishButton()}
       {renderDeleteButton()}
       {renderDuplicateButton()}
       {!isDebugging && renderDebugModeToggle()}
       {renderDeployButton()}
       {isDebugging ? renderDebugControlsBar() : renderRunButton()}
-
-      {/* Template Modal */}
-      {activeWorkflowId && (
-        <TemplateModal
-          open={isTemplateModalOpen}
-          onOpenChange={setIsTemplateModalOpen}
-          workflowId={activeWorkflowId}
-        />
-      )}
 
       {/* Webhook Settings */}
       {activeWorkflowId && (

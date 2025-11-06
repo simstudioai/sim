@@ -1,5 +1,12 @@
 import { db } from '@sim/db'
-import { templateStars, templates, workflow } from '@sim/db/schema'
+import {
+  member,
+  templateStars,
+  templates,
+  user,
+  workflow,
+  workflowDeploymentVersion,
+} from '@sim/db/schema'
 import { and, desc, eq, ilike, or, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
@@ -61,24 +68,18 @@ const CreateTemplateSchema = z.object({
     .string()
     .min(1, 'Author is required')
     .max(100, 'Author must be less than 100 characters'),
-  category: z.string().min(1, 'Category is required'),
-  icon: z.string().min(1, 'Icon is required'),
-  color: z.string().regex(/^#[0-9A-F]{6}$/i, 'Color must be a valid hex color (e.g., #3972F6)'),
-  state: z.object({
-    blocks: z.record(z.any()),
-    edges: z.array(z.any()),
-    loops: z.record(z.any()),
-    parallels: z.record(z.any()),
-  }),
+  authorType: z.enum(['user', 'organization']).default('user'),
+  organizationId: z.string().optional(),
 })
 
 // Schema for query parameters
 const QueryParamsSchema = z.object({
-  category: z.string().optional(),
   limit: z.coerce.number().optional().default(50),
   offset: z.coerce.number().optional().default(0),
   search: z.string().optional(),
   workflowId: z.string().optional(),
+  status: z.enum(['pending', 'approved', 'rejected']).optional(),
+  includeAllStatuses: z.coerce.boolean().optional().default(false), // For super users
 })
 
 // GET /api/templates - Retrieve templates
@@ -97,12 +98,28 @@ export async function GET(request: NextRequest) {
 
     logger.debug(`[${requestId}] Fetching templates with params:`, params)
 
+    // Check if user is a super user
+    const currentUser = await db.select().from(user).where(eq(user.id, session.user.id)).limit(1)
+    const isSuperUser = currentUser[0]?.isSuperUser || false
+
     // Build query conditions
     const conditions = []
 
-    // Apply category filter if provided
-    if (params.category) {
-      conditions.push(eq(templates.category, params.category))
+    // Apply workflow filter if provided (for getting template by workflow)
+    // When fetching by workflowId, we want to get the template regardless of status
+    // This is used by the deploy modal to check if a template exists
+    if (params.workflowId) {
+      conditions.push(eq(templates.workflowId, params.workflowId))
+      // Don't apply status filter when fetching by workflowId - we want to show
+      // the template to its owner even if it's pending
+    } else {
+      // Apply status filter - only approved templates for non-super users
+      if (params.status) {
+        conditions.push(eq(templates.status, params.status))
+      } else if (!isSuperUser || !params.includeAllStatuses) {
+        // Non-super users and super users without includeAllStatuses flag see only approved templates
+        conditions.push(eq(templates.status, 'approved'))
+      }
     }
 
     // Apply search filter if provided
@@ -111,11 +128,6 @@ export async function GET(request: NextRequest) {
       conditions.push(
         or(ilike(templates.name, searchTerm), ilike(templates.description, searchTerm))
       )
-    }
-
-    // Apply workflow filter if provided (for getting template by workflow)
-    if (params.workflowId) {
-      conditions.push(eq(templates.workflowId, params.workflowId))
     }
 
     // Combine conditions
@@ -130,15 +142,16 @@ export async function GET(request: NextRequest) {
         name: templates.name,
         description: templates.description,
         author: templates.author,
+        authorType: templates.authorType,
+        organizationId: templates.organizationId,
         views: templates.views,
         stars: templates.stars,
-        color: templates.color,
-        icon: templates.icon,
-        category: templates.category,
+        status: templates.status,
         state: templates.state,
         createdAt: templates.createdAt,
         updatedAt: templates.updatedAt,
         isStarred: sql<boolean>`CASE WHEN ${templateStars.id} IS NOT NULL THEN true ELSE false END`,
+        isSuperUser: sql<boolean>`${isSuperUser}`, // Include super user status in response
       })
       .from(templates)
       .leftJoin(
@@ -200,7 +213,6 @@ export async function POST(request: NextRequest) {
 
     logger.debug(`[${requestId}] Creating template:`, {
       name: data.name,
-      category: data.category,
       workflowId: data.workflowId,
     })
 
@@ -216,12 +228,62 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Workflow not found' }, { status: 404 })
     }
 
+    // Validate organization ownership if authorType is organization
+    if (data.authorType === 'organization') {
+      if (!data.organizationId) {
+        logger.warn(`[${requestId}] Organization ID required for organization author type`)
+        return NextResponse.json(
+          { error: 'Organization ID is required when author type is organization' },
+          { status: 400 }
+        )
+      }
+
+      // Verify user is a member of the organization
+      const membership = await db
+        .select()
+        .from(member)
+        .where(
+          and(eq(member.userId, session.user.id), eq(member.organizationId, data.organizationId))
+        )
+        .limit(1)
+
+      if (membership.length === 0) {
+        logger.warn(`[${requestId}] User not a member of organization: ${data.organizationId}`)
+        return NextResponse.json(
+          { error: 'You must be a member of the organization to publish on its behalf' },
+          { status: 403 }
+        )
+      }
+    }
+
     // Create the template
     const templateId = uuidv4()
     const now = new Date()
 
-    // Sanitize the workflow state to remove sensitive credentials
-    const sanitizedState = sanitizeWorkflowState(data.state)
+    // Get the active deployment version for the workflow to copy its state
+    const activeVersion = await db
+      .select({
+        id: workflowDeploymentVersion.id,
+        state: workflowDeploymentVersion.state,
+      })
+      .from(workflowDeploymentVersion)
+      .where(
+        and(
+          eq(workflowDeploymentVersion.workflowId, data.workflowId),
+          eq(workflowDeploymentVersion.isActive, true)
+        )
+      )
+      .limit(1)
+
+    if (activeVersion.length === 0) {
+      logger.warn(
+        `[${requestId}] No active deployment version found for workflow: ${data.workflowId}`
+      )
+      return NextResponse.json(
+        { error: 'Workflow must be deployed before creating a template' },
+        { status: 400 }
+      )
+    }
 
     const newTemplate = {
       id: templateId,
@@ -230,12 +292,12 @@ export async function POST(request: NextRequest) {
       name: data.name,
       description: data.description || null,
       author: data.author,
+      authorType: data.authorType,
+      organizationId: data.organizationId || null,
       views: 0,
       stars: 0,
-      color: data.color,
-      icon: data.icon,
-      category: data.category,
-      state: sanitizedState,
+      status: 'pending' as const, // All new templates start as pending
+      state: activeVersion[0].state, // Copy the state from the deployment version
       createdAt: now,
       updatedAt: now,
     }
@@ -247,7 +309,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         id: templateId,
-        message: 'Template created successfully',
+        message: 'Template submitted for approval successfully',
       },
       { status: 201 }
     )

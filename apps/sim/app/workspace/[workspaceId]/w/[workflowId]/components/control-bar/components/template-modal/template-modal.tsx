@@ -85,7 +85,6 @@ import { useSession } from '@/lib/auth-client'
 import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
 import { buildWorkflowStateForTemplate } from '@/lib/workflows/state-builder'
-import { categories } from '@/app/workspace/[workspaceId]/templates/templates'
 
 const logger = createLogger('TemplateModal')
 
@@ -99,12 +98,18 @@ const templateSchema = z.object({
     .string()
     .min(1, 'Author is required')
     .max(100, 'Author must be less than 100 characters'),
-  category: z.string().min(1, 'Category is required'),
+  authorType: z.enum(['user', 'organization']).default('user'),
+  organizationId: z.string().optional(),
   icon: z.string().min(1, 'Icon is required'),
   color: z.string().regex(/^#[0-9A-F]{6}$/i, 'Color must be a valid hex color (e.g., #3972F6)'),
 })
 
 type TemplateFormData = z.infer<typeof templateSchema>
+
+interface Organization {
+  id: string
+  name: string
+}
 
 interface TemplateModalProps {
   open: boolean
@@ -180,6 +185,8 @@ export function TemplateModal({ open, onOpenChange, workflowId }: TemplateModalP
   const [isLoadingTemplate, setIsLoadingTemplate] = useState(false)
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [organizations, setOrganizations] = useState<Organization[]>([])
+  const [loadingOrgs, setLoadingOrgs] = useState(false)
 
   const form = useForm<TemplateFormData>({
     resolver: zodResolver(templateSchema),
@@ -187,7 +194,8 @@ export function TemplateModal({ open, onOpenChange, workflowId }: TemplateModalP
       name: '',
       description: '',
       author: session?.user?.name || session?.user?.email || '',
-      category: '',
+      authorType: 'user',
+      organizationId: undefined,
       icon: 'FileText',
       color: '#3972F6',
     },
@@ -195,12 +203,37 @@ export function TemplateModal({ open, onOpenChange, workflowId }: TemplateModalP
 
   // Watch form state to determine if all required fields are valid
   const formValues = form.watch()
+  const authorType = form.watch('authorType')
   const isFormValid =
     form.formState.isValid &&
     formValues.name?.trim() &&
     formValues.description?.trim() &&
-    formValues.author?.trim() &&
-    formValues.category
+    formValues.author?.trim()
+
+  // Fetch user's organizations when modal opens
+  useEffect(() => {
+    const fetchOrganizations = async () => {
+      if (!open || !session?.user?.id) return
+
+      setLoadingOrgs(true)
+      try {
+        const response = await fetch('/api/organizations')
+        if (response.ok) {
+          const data = await response.json()
+          setOrganizations(data.organizations || [])
+        }
+      } catch (error) {
+        logger.error('Error fetching organizations:', error)
+        setOrganizations([])
+      } finally {
+        setLoadingOrgs(false)
+      }
+    }
+
+    if (open) {
+      fetchOrganizations()
+    }
+  }, [open, session?.user?.id])
 
   // Check for existing template when modal opens
   useEffect(() => {
@@ -224,7 +257,8 @@ export function TemplateModal({ open, onOpenChange, workflowId }: TemplateModalP
             name: template.name,
             description: template.description,
             author: template.author,
-            category: template.category,
+            authorType: template.authorType || 'user',
+            organizationId: template.organizationId || undefined,
             icon: template.icon,
             color: template.color,
           })
@@ -236,7 +270,8 @@ export function TemplateModal({ open, onOpenChange, workflowId }: TemplateModalP
             name: '',
             description: '',
             author: session?.user?.name || session?.user?.email || '',
-            category: '',
+            authorType: 'user',
+            organizationId: undefined,
             icon: 'FileText',
             color: '#3972F6',
           })
@@ -267,7 +302,8 @@ export function TemplateModal({ open, onOpenChange, workflowId }: TemplateModalP
         name: data.name,
         description: data.description || '',
         author: data.author,
-        category: data.category,
+        authorType: data.authorType,
+        organizationId: data.organizationId,
         icon: data.icon,
         color: data.color,
         state: templateState,
@@ -400,14 +436,14 @@ export function TemplateModal({ open, onOpenChange, workflowId }: TemplateModalP
                     <Skeleton className='h-10 w-full' /> {/* Input */}
                   </div>
 
-                  {/* Author and Category row */}
+                  {/* Author and Author Type row */}
                   <div className='grid grid-cols-2 gap-4'>
                     <div>
                       <Skeleton className='mb-2 h-4 w-14' /> {/* Label */}
                       <Skeleton className='h-10 w-full' /> {/* Input */}
                     </div>
                     <div>
-                      <Skeleton className='mb-2 h-4 w-16' /> {/* Label */}
+                      <Skeleton className='mb-2 h-4 w-24' /> {/* Label */}
                       <Skeleton className='h-10 w-full' /> {/* Select */}
                     </div>
                   </div>
@@ -535,24 +571,30 @@ export function TemplateModal({ open, onOpenChange, workflowId }: TemplateModalP
 
                     <FormField
                       control={form.control}
-                      name='category'
+                      name='authorType'
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel className='!text-foreground font-medium text-sm'>
-                            Category
+                            Author Type
                           </FormLabel>
-                          <Select onValueChange={field.onChange} defaultValue={field.value}>
+                          <Select
+                            onValueChange={(value) => {
+                              field.onChange(value)
+                              // Reset org selection when switching to user
+                              if (value === 'user') {
+                                form.setValue('organizationId', undefined)
+                              }
+                            }}
+                            defaultValue={field.value}
+                          >
                             <FormControl>
                               <SelectTrigger className='h-10 rounded-[8px]'>
-                                <SelectValue placeholder='Select a category' />
+                                <SelectValue placeholder='Select author type' />
                               </SelectTrigger>
                             </FormControl>
                             <SelectContent>
-                              {categories.map((category) => (
-                                <SelectItem key={category.value} value={category.value}>
-                                  {category.label}
-                                </SelectItem>
-                              ))}
+                              <SelectItem value='user'>User</SelectItem>
+                              <SelectItem value='organization'>Organization</SelectItem>
                             </SelectContent>
                           </Select>
                           <FormMessage />
@@ -560,6 +602,46 @@ export function TemplateModal({ open, onOpenChange, workflowId }: TemplateModalP
                       )}
                     />
                   </div>
+
+                  {/* Organization selector - only show when authorType is 'organization' */}
+                  {authorType === 'organization' && (
+                    <FormField
+                      control={form.control}
+                      name='organizationId'
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className='!text-foreground font-medium text-sm'>
+                            Organization
+                          </FormLabel>
+                          <Select onValueChange={field.onChange} defaultValue={field.value}>
+                            <FormControl>
+                              <SelectTrigger className='h-10 rounded-[8px]'>
+                                <SelectValue placeholder='Select an organization' />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {loadingOrgs ? (
+                                <SelectItem value='loading' disabled>
+                                  Loading organizations...
+                                </SelectItem>
+                              ) : organizations.length === 0 ? (
+                                <SelectItem value='none' disabled>
+                                  No organizations available
+                                </SelectItem>
+                              ) : (
+                                organizations.map((org) => (
+                                  <SelectItem key={org.id} value={org.id}>
+                                    {org.name}
+                                  </SelectItem>
+                                ))
+                              )}
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  )}
 
                   <FormField
                     control={form.control}

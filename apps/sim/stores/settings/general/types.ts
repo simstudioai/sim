@@ -4,6 +4,7 @@ export interface General {
   isConsoleExpandedByDefault: boolean
   showFloatingControls: boolean
   showTrainingControls: boolean
+  superUserModeEnabled: boolean
   theme: 'system' | 'light' | 'dark'
   telemetryEnabled: boolean
   isLoading: boolean
@@ -17,6 +18,7 @@ export interface General {
   isBillingUsageNotificationsEnabled: boolean
   isFloatingControlsLoading: boolean
   isTrainingControlsLoading: boolean
+  isSuperUserModeLoading: boolean
 }
 
 export interface GeneralActions {
@@ -25,6 +27,7 @@ export interface GeneralActions {
   toggleConsoleExpandedByDefault: () => Promise<void>
   toggleFloatingControls: () => Promise<void>
   toggleTrainingControls: () => Promise<void>
+  toggleSuperUserMode: () => Promise<void>
   setTheme: (theme: 'system' | 'light' | 'dark') => Promise<void>
   setTelemetryEnabled: (enabled: boolean) => Promise<void>
   setBillingUsageNotificationsEnabled: (enabled: boolean) => Promise<void>
@@ -41,6 +44,7 @@ export type UserSettings = {
   consoleExpandedByDefault: boolean
   showFloatingControls: boolean
   showTrainingControls: boolean
+  superUserModeEnabled: boolean
   telemetryEnabled: boolean
   isBillingUsageNotificationsEnabled: boolean
 }

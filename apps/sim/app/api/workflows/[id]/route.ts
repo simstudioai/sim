@@ -218,7 +218,13 @@ export async function DELETE(
     if (checkTemplates) {
       // Return template information for frontend to handle
       const publishedTemplates = await db
-        .select()
+        .select({
+          id: templates.id,
+          name: templates.name,
+          views: templates.views,
+          stars: templates.stars,
+          status: templates.status,
+        })
         .from(templates)
         .where(eq(templates.workflowId, workflowId))
 

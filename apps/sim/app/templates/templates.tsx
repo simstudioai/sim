@@ -1,14 +1,13 @@
 'use client'
 
 import { useState } from 'react'
-import { Search } from 'lucide-react'
+import { ArrowLeft, Search } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { createLogger } from '@/lib/logs/console/logger'
-import { NavigationTabs } from '@/app/workspace/[workspaceId]/templates/components/navigation-tabs'
-import {
-  TemplateCard,
-  TemplateCardSkeleton,
-} from '@/app/workspace/[workspaceId]/templates/components/template-card'
+import { NavigationTabs } from '@/app/templates/components/navigation-tabs'
+import { TemplateCard, TemplateCardSkeleton } from '@/app/templates/components/template-card'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('TemplatesPage')
@@ -25,8 +24,6 @@ export interface Template {
   organizationId: string | null
   views: number
   stars: number
-  color: string
-  icon: string
   status: 'pending' | 'approved' | 'rejected'
   state: WorkflowState
   createdAt: Date | string
@@ -37,7 +34,7 @@ export interface Template {
 
 interface TemplatesProps {
   initialTemplates: Template[]
-  currentUserId: string
+  currentUserId: string | null
   isSuperUser: boolean
 }
 
@@ -46,8 +43,9 @@ export default function Templates({
   currentUserId,
   isSuperUser,
 }: TemplatesProps) {
+  const router = useRouter()
   const [searchQuery, setSearchQuery] = useState('')
-  const [activeTab, setActiveTab] = useState('your')
+  const [activeTab, setActiveTab] = useState('gallery')
   const [templates, setTemplates] = useState<Template[]>(initialTemplates)
   const [loading, setLoading] = useState(false)
 
@@ -71,7 +69,8 @@ export default function Templates({
     // Filter by active tab
     if (activeTab === 'your') {
       filtered = filtered.filter(
-        (template) => template.userId === currentUserId || template.isStarred === true
+        (template) =>
+          (currentUserId && template.userId === currentUserId) || template.isStarred === true
       )
     } else if (activeTab === 'gallery') {
       // Show all approved templates
@@ -104,14 +103,15 @@ export default function Templates({
       title={template.name}
       description={template.description || ''}
       author={template.author}
+      userId={template.userId}
+      authorType={template.authorType}
+      organizationId={template.organizationId}
       usageCount={template.views.toString()}
       stars={template.stars}
-      icon={template.icon}
-      iconColor={template.color}
       state={template.state as { blocks?: Record<string, { type: string; name?: string }> }}
       isStarred={template.isStarred}
       onStarChange={handleStarChange}
-      isAuthenticated={true}
+      isAuthenticated={!!currentUserId}
     />
   )
 
@@ -124,22 +124,28 @@ export default function Templates({
 
   // Calculate counts for tabs
   const yourTemplatesCount = templates.filter(
-    (template) => template.userId === currentUserId || template.isStarred === true
+    (template) =>
+      (currentUserId && template.userId === currentUserId) || template.isStarred === true
   ).length
   const galleryCount = templates.filter((template) => template.status === 'approved').length
   const pendingCount = templates.filter((template) => template.status === 'pending').length
 
+  // Build tabs based on user status
   const navigationTabs = [
     {
       id: 'gallery',
       label: 'Gallery',
       count: galleryCount,
     },
-    {
-      id: 'your',
-      label: 'Your Templates',
-      count: yourTemplatesCount,
-    },
+    ...(currentUserId
+      ? [
+          {
+            id: 'your',
+            label: 'Your Templates',
+            count: yourTemplatesCount,
+          },
+        ]
+      : []),
     ...(isSuperUser
       ? [
           {
@@ -151,12 +157,41 @@ export default function Templates({
       : []),
   ]
 
+  // Show tabs if there's more than one tab
+  const showTabs = navigationTabs.length > 1
+
+  const handleBackToWorkspace = async () => {
+    try {
+      const response = await fetch('/api/workspaces')
+      if (response.ok) {
+        const data = await response.json()
+        const defaultWorkspace = data.workspaces?.[0]
+        if (defaultWorkspace) {
+          router.push(`/workspace/${defaultWorkspace.id}`)
+        }
+      }
+    } catch (error) {
+      logger.error('Error navigating to workspace:', error)
+    }
+  }
+
   return (
-    <div className='flex h-[100vh] flex-col pl-64'>
+    <div className='flex h-[100vh] flex-col'>
       <div className='flex flex-1 overflow-hidden'>
         <div className='flex flex-1 flex-col overflow-auto p-6'>
-          {/* Header */}
+          {/* Header with Back Button */}
           <div className='mb-6'>
+            {currentUserId && (
+              <Button
+                variant='ghost'
+                size='sm'
+                onClick={handleBackToWorkspace}
+                className='mb-4 -ml-2 text-muted-foreground hover:text-foreground'
+              >
+                <ArrowLeft className='mr-2 h-4 w-4' />
+                Back to Workspace
+              </Button>
+            )}
             <h1 className='mb-2 font-sans font-semibold text-3xl text-foreground tracking-[0.01em]'>
               Templates
             </h1>
@@ -167,7 +202,7 @@ export default function Templates({
             </p>
           </div>
 
-          {/* Search and Create New */}
+          {/* Search */}
           <div className='mb-6 flex items-center justify-between'>
             <div className='flex h-9 w-[460px] items-center gap-2 rounded-lg border bg-transparent pr-2 pl-3'>
               <Search className='h-4 w-4 text-muted-foreground' strokeWidth={2} />
@@ -178,23 +213,18 @@ export default function Templates({
                 className='flex-1 border-0 bg-transparent px-0 font-normal font-sans text-base text-foreground leading-none placeholder:text-muted-foreground focus-visible:ring-0 focus-visible:ring-offset-0'
               />
             </div>
-            {/* <Button
-              onClick={handleCreateNew}
-              className='flex h-9 items-center gap-2 rounded-lg bg-[var(--brand-primary-hex)] px-4 py-2 font-normal font-sans text-sm text-white hover:bg-[#601EE0]'
-            >
-              <Plus className='h-4 w-4' />
-              Create New
-            </Button> */}
           </div>
 
-          {/* Navigation */}
-          <div className='mb-6'>
-            <NavigationTabs
-              tabs={navigationTabs}
-              activeTab={activeTab}
-              onTabClick={handleTabClick}
-            />
-          </div>
+          {/* Navigation - only show if multiple tabs */}
+          {showTabs && (
+            <div className='mb-6'>
+              <NavigationTabs
+                tabs={navigationTabs}
+                activeTab={activeTab}
+                onTabClick={handleTabClick}
+              />
+            </div>
+          )}
 
           {/* Templates Grid - Based on Active Tab */}
           <div className='grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'>

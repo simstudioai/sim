@@ -114,10 +114,11 @@ interface TemplateCardProps {
   title: string
   description: string
   author: string
+  userId: string
+  authorType: 'user' | 'organization'
+  organizationId: string | null
   usageCount: string
   stars?: number
-  icon?: React.ReactNode | string
-  iconColor?: string
   blocks?: string[]
   onClick?: () => void
   className?: string
@@ -210,19 +211,6 @@ const extractBlockTypesFromState = (state?: {
   return [...new Set(blockTypes)]
 }
 
-// Utility function to get icon component from string or return the component directly
-const getIconComponent = (icon: React.ReactNode | string | undefined): React.ReactNode => {
-  if (typeof icon === 'string') {
-    const IconComponent = iconMap[icon as keyof typeof iconMap]
-    return IconComponent ? <IconComponent /> : <FileText />
-  }
-  if (icon) {
-    return icon
-  }
-  // Default fallback icon
-  return <FileText />
-}
-
 // Utility function to get block display name
 const getBlockDisplayName = (blockType: string): string => {
   const block = getBlock(blockType)
@@ -240,10 +228,11 @@ export function TemplateCard({
   title,
   description,
   author,
+  userId,
+  authorType,
+  organizationId,
   usageCount,
   stars = 0,
-  icon,
-  iconColor = 'bg-blue-500',
   blocks = [],
   onClick,
   className,
@@ -266,9 +255,6 @@ export function TemplateCard({
   const blockTypes = state
     ? extractBlockTypesFromState(state)
     : blocks.filter((blockType) => blockType !== 'starter').sort()
-
-  // Get the icon component
-  const iconComponent = getIconComponent(icon)
 
   // Handle star toggle with optimistic updates
   const handleStarClick = async (e: React.MouseEvent) => {
@@ -354,20 +340,6 @@ export function TemplateCard({
         <div className='space-y-2'>
           <div className='flex min-w-0 items-center justify-between gap-2.5'>
             <div className='flex min-w-0 items-center gap-2.5'>
-              {/* Icon container */}
-              <div
-                className={cn(
-                  'flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-[8px]',
-                  // Use CSS class if iconColor doesn't start with #
-                  iconColor?.startsWith('#') ? '' : iconColor || 'bg-blue-500'
-                )}
-                style={{
-                  // Use inline style for hex colors
-                  backgroundColor: iconColor?.startsWith('#') ? iconColor : undefined,
-                }}
-              >
-                <div className='h-3 w-3 text-white [&>svg]:h-3 [&>svg]:w-3'>{iconComponent}</div>
-              </div>
               {/* Template name */}
               <h3 className='truncate font-medium font-sans text-card-foreground text-sm leading-tight'>
                 {title}

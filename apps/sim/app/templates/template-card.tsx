@@ -116,8 +116,6 @@ interface TemplateCardProps {
   author: string
   usageCount: string
   stars?: number
-  icon?: React.ReactNode | string
-  iconColor?: string
   blocks?: string[]
   onClick?: () => void
   className?: string
@@ -130,8 +128,11 @@ interface TemplateCardProps {
   onTemplateUsed?: () => void
   // Callback when star state changes (for parent state updates)
   onStarChange?: (templateId: string, isStarred: boolean, newStarCount: number) => void
-  // User authentication status
-  isAuthenticated?: boolean
+  // Super user props for approval
+  status?: 'pending' | 'approved' | 'rejected'
+  isSuperUser?: boolean
+  onApprove?: (templateId: string) => void
+  onReject?: (templateId: string) => void
 }
 
 // Skeleton component for loading states
@@ -210,19 +211,6 @@ const extractBlockTypesFromState = (state?: {
   return [...new Set(blockTypes)]
 }
 
-// Utility function to get icon component from string or return the component directly
-const getIconComponent = (icon: React.ReactNode | string | undefined): React.ReactNode => {
-  if (typeof icon === 'string') {
-    const IconComponent = iconMap[icon as keyof typeof iconMap]
-    return IconComponent ? <IconComponent /> : <FileText />
-  }
-  if (icon) {
-    return icon
-  }
-  // Default fallback icon
-  return <FileText />
-}
-
 // Utility function to get block display name
 const getBlockDisplayName = (blockType: string): string => {
   const block = getBlock(blockType)
@@ -242,8 +230,6 @@ export function TemplateCard({
   author,
   usageCount,
   stars = 0,
-  icon,
-  iconColor = 'bg-blue-500',
   blocks = [],
   onClick,
   className,
@@ -251,10 +237,15 @@ export function TemplateCard({
   isStarred = false,
   onTemplateUsed,
   onStarChange,
-  isAuthenticated = true,
+  status,
+  isSuperUser,
+  onApprove,
+  onReject,
 }: TemplateCardProps) {
   const router = useRouter()
   const params = useParams()
+  const [isApproving, setIsApproving] = useState(false)
+  const [isRejecting, setIsRejecting] = useState(false)
 
   // Local state for optimistic updates
   const [localIsStarred, setLocalIsStarred] = useState(isStarred)
@@ -266,9 +257,6 @@ export function TemplateCard({
   const blockTypes = state
     ? extractBlockTypesFromState(state)
     : blocks.filter((blockType) => blockType !== 'starter').sort()
-
-  // Get the icon component
-  const iconComponent = getIconComponent(icon)
 
   // Handle star toggle with optimistic updates
   const handleStarClick = async (e: React.MouseEvent) => {
@@ -323,10 +311,46 @@ export function TemplateCard({
     }
   }
 
-  // Handle use click - just navigate to detail page
+  // Handle use template
   const handleUseClick = async (e: React.MouseEvent) => {
     e.stopPropagation()
-    router.push(`/templates/${id}`)
+    try {
+      const response = await fetch(`/api/templates/${id}/use`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          workspaceId: params.workspaceId,
+        }),
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        logger.info('Template use API response:', data)
+
+        if (!data.workflowId) {
+          logger.error('No workflowId returned from API:', data)
+          return
+        }
+
+        const workflowUrl = `/workspace/${params.workspaceId}/w/${data.workflowId}`
+        logger.info('Template used successfully, navigating to:', workflowUrl)
+
+        // Call the callback if provided (for closing modals, etc.)
+        if (onTemplateUsed) {
+          onTemplateUsed()
+        }
+
+        // Use window.location.href for more reliable navigation
+        window.location.href = workflowUrl
+      } else {
+        const errorText = await response.text()
+        logger.error('Failed to use template:', response.statusText, errorText)
+      }
+    } catch (error) {
+      logger.error('Error using template:', error)
+    }
   }
 
   const handleCardClick = (e: React.MouseEvent) => {
@@ -336,7 +360,50 @@ export function TemplateCard({
       return
     }
 
-    router.push(`/templates/${id}`)
+    const workspaceId = params?.workspaceId as string
+    if (workspaceId) {
+      router.push(`/workspace/${workspaceId}/templates/${id}`)
+    }
+  }
+
+  const handleApprove = async (e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (isApproving || !onApprove) return
+
+    setIsApproving(true)
+    try {
+      const response = await fetch(`/api/templates/${id}/approve`, {
+        method: 'POST',
+      })
+
+      if (response.ok) {
+        onApprove(id)
+      }
+    } catch (error) {
+      logger.error('Error approving template:', error)
+    } finally {
+      setIsApproving(false)
+    }
+  }
+
+  const handleReject = async (e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (isRejecting || !onReject) return
+
+    setIsRejecting(true)
+    try {
+      const response = await fetch(`/api/templates/${id}/reject`, {
+        method: 'POST',
+      })
+
+      if (response.ok) {
+        onReject(id)
+      }
+    } catch (error) {
+      logger.error('Error rejecting template:', error)
+    } finally {
+      setIsRejecting(false)
+    }
   }
 
   return (
@@ -354,20 +421,6 @@ export function TemplateCard({
         <div className='space-y-2'>
           <div className='flex min-w-0 items-center justify-between gap-2.5'>
             <div className='flex min-w-0 items-center gap-2.5'>
-              {/* Icon container */}
-              <div
-                className={cn(
-                  'flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-[8px]',
-                  // Use CSS class if iconColor doesn't start with #
-                  iconColor?.startsWith('#') ? '' : iconColor || 'bg-blue-500'
-                )}
-                style={{
-                  // Use inline style for hex colors
-                  backgroundColor: iconColor?.startsWith('#') ? iconColor : undefined,
-                }}
-              >
-                <div className='h-3 w-3 text-white [&>svg]:h-3 [&>svg]:w-3'>{iconComponent}</div>
-              </div>
               {/* Template name */}
               <h3 className='truncate font-medium font-sans text-card-foreground text-sm leading-tight'>
                 {title}
@@ -376,29 +429,54 @@ export function TemplateCard({
 
             {/* Actions */}
             <div className='flex flex-shrink-0 items-center gap-2'>
-              {/* Star button - only for authenticated users */}
-              {isAuthenticated && (
-                <Star
-                  onClick={handleStarClick}
-                  className={cn(
-                    'h-4 w-4 cursor-pointer transition-colors duration-50',
-                    localIsStarred
-                      ? 'fill-yellow-400 text-yellow-400'
-                      : 'text-muted-foreground hover:fill-yellow-400 hover:text-yellow-400',
-                    isStarLoading && 'opacity-50'
-                  )}
-                />
+              {/* Approve/Reject buttons for pending templates (super users only) */}
+              {isSuperUser && status === 'pending' ? (
+                <>
+                  <button
+                    onClick={handleApprove}
+                    disabled={isApproving}
+                    className={cn(
+                      'rounded-[8px] px-3 py-1 font-medium font-sans text-white text-xs transition-colors duration-200',
+                      'bg-green-600 hover:bg-green-700 disabled:opacity-50'
+                    )}
+                  >
+                    {isApproving ? '...' : 'Approve'}
+                  </button>
+                  <button
+                    onClick={handleReject}
+                    disabled={isRejecting}
+                    className={cn(
+                      'rounded-[8px] px-3 py-1 font-medium font-sans text-white text-xs transition-colors duration-200',
+                      'bg-red-600 hover:bg-red-700 disabled:opacity-50'
+                    )}
+                  >
+                    {isRejecting ? '...' : 'Reject'}
+                  </button>
+                </>
+              ) : (
+                <>
+                  <Star
+                    onClick={handleStarClick}
+                    className={cn(
+                      'h-4 w-4 cursor-pointer transition-colors duration-50',
+                      localIsStarred
+                        ? 'fill-yellow-400 text-yellow-400'
+                        : 'text-muted-foreground hover:fill-yellow-400 hover:text-yellow-400',
+                      isStarLoading && 'opacity-50'
+                    )}
+                  />
+                  <button
+                    onClick={handleUseClick}
+                    className={cn(
+                      'rounded-[8px] px-3 py-1 font-medium font-sans text-white text-xs transition-[background-color,box-shadow] duration-200',
+                      'bg-[var(--brand-primary-hex)] hover:bg-[var(--brand-primary-hover-hex)]',
+                      'shadow-[0_0_0_0_var(--brand-primary-hex)] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)]'
+                    )}
+                  >
+                    Use
+                  </button>
+                </>
               )}
-              <button
-                onClick={handleUseClick}
-                className={cn(
-                  'rounded-[8px] px-3 py-1 font-medium font-sans text-white text-xs transition-[background-color,box-shadow] duration-200',
-                  'bg-[var(--brand-primary-hex)] hover:bg-[var(--brand-primary-hover-hex)]',
-                  'shadow-[0_0_0_0_var(--brand-primary-hex)] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)]'
-                )}
-              >
-                Use
-              </button>
             </div>
           </div>
 

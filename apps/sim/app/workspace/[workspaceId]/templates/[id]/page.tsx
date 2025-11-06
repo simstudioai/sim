@@ -1,11 +1,10 @@
 import { db } from '@sim/db'
-import { templateStars, templates } from '@sim/db/schema'
+import { templateStars, templates, workflowDeploymentVersion } from '@sim/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { notFound } from 'next/navigation'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console/logger'
 import TemplateDetails from '@/app/workspace/[workspaceId]/templates/[id]/template'
-import type { Template } from '@/app/workspace/[workspaceId]/templates/templates'
 
 const logger = createLogger('TemplatePage')
 
@@ -27,11 +26,7 @@ export default async function TemplatePage({ params }: TemplatePageProps) {
 
     const session = await getSession()
 
-    if (!session?.user?.id) {
-      return <div>Please log in to view this template</div>
-    }
-
-    // Fetch template data first without star status to avoid query issues
+    // Fetch template data - no auth required for viewing
     const templateData = await db
       .select({
         id: templates.id,
@@ -40,16 +35,21 @@ export default async function TemplatePage({ params }: TemplatePageProps) {
         name: templates.name,
         description: templates.description,
         author: templates.author,
+        authorType: templates.authorType,
+        organizationId: templates.organizationId,
         views: templates.views,
         stars: templates.stars,
-        color: templates.color,
-        icon: templates.icon,
-        category: templates.category,
-        state: templates.state,
+        status: templates.status,
+        deploymentVersionId: templates.deploymentVersionId,
+        state: workflowDeploymentVersion.state,
         createdAt: templates.createdAt,
         updatedAt: templates.updatedAt,
       })
       .from(templates)
+      .leftJoin(
+        workflowDeploymentVersion,
+        eq(templates.deploymentVersionId, workflowDeploymentVersion.id)
+      )
       .where(eq(templates.id, id))
       .limit(1)
 
@@ -58,6 +58,11 @@ export default async function TemplatePage({ params }: TemplatePageProps) {
     }
 
     const template = templateData[0]
+
+    // Only show approved templates to non-logged-in users
+    if (!session?.user?.id && template.status !== 'approved') {
+      notFound()
+    }
 
     // Validate that required fields are present
     if (!template.id || !template.name || !template.author) {
@@ -69,59 +74,84 @@ export default async function TemplatePage({ params }: TemplatePageProps) {
       notFound()
     }
 
-    // Check if user has starred this template
+    // Check if user has starred this template (only if logged in)
     let isStarred = false
-    try {
-      const starData = await db
-        .select({ id: templateStars.id })
-        .from(templateStars)
-        .where(
-          and(eq(templateStars.templateId, template.id), eq(templateStars.userId, session.user.id))
-        )
-        .limit(1)
-      isStarred = starData.length > 0
-    } catch {
-      // Continue with isStarred = false
+    if (session?.user?.id) {
+      try {
+        const starData = await db
+          .select({ id: templateStars.id })
+          .from(templateStars)
+          .where(
+            and(
+              eq(templateStars.templateId, template.id),
+              eq(templateStars.userId, session.user.id)
+            )
+          )
+          .limit(1)
+        isStarred = starData.length > 0
+      } catch {
+        // Continue with isStarred = false
+      }
     }
 
     // Ensure proper serialization of the template data with null checks
-    const serializedTemplate: Template = {
+    // Parse state if it's a string
+    let parsedState = template.state
+    if (typeof parsedState === 'string') {
+      try {
+        parsedState = JSON.parse(parsedState)
+      } catch (e) {
+        logger.error('Failed to parse template state', e)
+      }
+    }
+
+    const serializedTemplate = {
       id: template.id,
       workflowId: template.workflowId,
       userId: template.userId,
       name: template.name,
       description: template.description,
       author: template.author,
+      authorType: template.authorType,
+      organizationId: template.organizationId,
       views: template.views,
       stars: template.stars,
-      color: template.color || '#3972F6', // Default color if missing
-      icon: template.icon || 'FileText', // Default icon if missing
-      category: template.category as any,
-      state: template.state as any,
+      status: template.status,
+      deploymentVersionId: template.deploymentVersionId,
+      state: parsedState,
       createdAt: template.createdAt ? template.createdAt.toISOString() : new Date().toISOString(),
       updatedAt: template.updatedAt ? template.updatedAt.toISOString() : new Date().toISOString(),
       isStarred,
     }
 
-    logger.info('Template from DB:', template)
-    logger.info('Serialized template:', serializedTemplate)
-    logger.info('Template state from DB:', template.state)
+    // Deep serialize to ensure Next.js can pass it to client component
+    const fullySerializedTemplate = JSON.parse(JSON.stringify(serializedTemplate))
+
+    logger.info('Rendering template detail page', {
+      templateId: fullySerializedTemplate.id,
+      templateName: fullySerializedTemplate.name,
+      hasState: !!fullySerializedTemplate.state,
+      stateType: typeof fullySerializedTemplate.state,
+    })
 
     return (
       <TemplateDetails
-        template={serializedTemplate}
+        template={fullySerializedTemplate}
         workspaceId={workspaceId}
-        currentUserId={session.user.id}
+        currentUserId={session?.user?.id || null}
       />
     )
   } catch (error) {
-    console.error('Error loading template:', error)
+    logger.error('Error loading template:', error)
     return (
       <div className='flex h-screen items-center justify-center'>
         <div className='text-center'>
           <h1 className='mb-4 font-bold text-2xl'>Error Loading Template</h1>
           <p className='text-muted-foreground'>There was an error loading this template.</p>
           <p className='mt-2 text-muted-foreground text-sm'>Template ID: {id}</p>
+          <p className='mt-2 text-red-500 text-xs'>
+            {error instanceof Error ? error.message : 'Unknown error'}
+          </p>
         </div>
       </div>
     )

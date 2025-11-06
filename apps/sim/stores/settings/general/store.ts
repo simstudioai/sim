@@ -23,6 +23,7 @@ export const useGeneralStore = create<GeneralStore>()(
           isConsoleExpandedByDefault: true,
           showFloatingControls: true,
           showTrainingControls: false,
+          superUserModeEnabled: true,
           theme: 'system' as const, // Keep for compatibility but not used
           telemetryEnabled: true,
           isLoading: false,
@@ -37,6 +38,7 @@ export const useGeneralStore = create<GeneralStore>()(
           isBillingUsageNotificationsEnabled: true,
           isFloatingControlsLoading: false,
           isTrainingControlsLoading: false,
+          isSuperUserModeLoading: false,
         }
 
         // Optimistic update helper
@@ -119,6 +121,17 @@ export const useGeneralStore = create<GeneralStore>()(
               newValue,
               'isTrainingControlsLoading',
               'showTrainingControls'
+            )
+          },
+
+          toggleSuperUserMode: async () => {
+            if (get().isSuperUserModeLoading) return
+            const newValue = !get().superUserModeEnabled
+            await updateSettingOptimistic(
+              'superUserModeEnabled',
+              newValue,
+              'isSuperUserModeLoading',
+              'superUserModeEnabled'
             )
           },
 
@@ -219,6 +232,7 @@ export const useGeneralStore = create<GeneralStore>()(
                 isConsoleExpandedByDefault: data.consoleExpandedByDefault ?? true,
                 showFloatingControls: data.showFloatingControls ?? true,
                 showTrainingControls: data.showTrainingControls ?? false,
+                superUserModeEnabled: data.superUserModeEnabled ?? true,
                 theme: data.theme || 'system',
                 telemetryEnabled: data.telemetryEnabled,
                 isBillingUsageNotificationsEnabled: data.billingUsageNotificationsEnabled ?? true,

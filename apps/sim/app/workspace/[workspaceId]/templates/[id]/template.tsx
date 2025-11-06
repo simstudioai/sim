@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   ArrowLeft,
   Award,
@@ -45,12 +45,11 @@ import {
   Wrench,
   Zap,
 } from 'lucide-react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
 import type { Template } from '@/app/workspace/[workspaceId]/templates/templates'
-import { categories } from '@/app/workspace/[workspaceId]/templates/templates'
 import { WorkflowPreview } from '@/app/workspace/[workspaceId]/w/components/workflow-preview/workflow-preview'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
@@ -59,7 +58,7 @@ const logger = createLogger('TemplateDetails')
 interface TemplateDetailsProps {
   template: Template
   workspaceId: string
-  currentUserId: string
+  currentUserId: string | null
 }
 
 // Icon mapping - reuse from template-card
@@ -110,34 +109,55 @@ const getIconComponent = (icon: string): React.ReactNode => {
   return IconComponent ? <IconComponent className='h-6 w-6' /> : <FileText className='h-6 w-6' />
 }
 
-// Get category display name
-const getCategoryDisplayName = (categoryValue: string): string => {
-  const category = categories.find((c) => c.value === categoryValue)
-  return category?.label || categoryValue
-}
-
 export default function TemplateDetails({
   template,
   workspaceId,
   currentUserId,
 }: TemplateDetailsProps) {
   const router = useRouter()
-  const [isStarred, setIsStarred] = useState(template?.isStarred || false)
-  const [starCount, setStarCount] = useState(template?.stars || 0)
-  const [isStarring, setIsStarring] = useState(false)
-  const [isUsing, setIsUsing] = useState(false)
+  const searchParams = useSearchParams()
 
-  // Defensive check for template after hooks are initialized
+  // Defensive check for template BEFORE initializing state hooks
   if (!template) {
+    logger.error('Template prop is undefined or null in TemplateDetails component', {
+      template,
+      workspaceId,
+      currentUserId,
+    })
     return (
       <div className='flex h-screen items-center justify-center'>
         <div className='text-center'>
           <h1 className='mb-4 font-bold text-2xl'>Template Not Found</h1>
           <p className='text-muted-foreground'>The template you're looking for doesn't exist.</p>
+          <p className='mt-2 text-muted-foreground text-xs'>Template data failed to load</p>
         </div>
       </div>
     )
   }
+
+  logger.info('Template loaded in TemplateDetails', {
+    id: template.id,
+    name: template.name,
+    hasState: !!template.state,
+  })
+
+  const [isStarred, setIsStarred] = useState(template.isStarred || false)
+  const [starCount, setStarCount] = useState(template.stars || 0)
+  const [isStarring, setIsStarring] = useState(false)
+  const [isUsing, setIsUsing] = useState(false)
+  const [isEditing, setIsEditing] = useState(false)
+
+  const isOwner = currentUserId && template.userId === currentUserId
+
+  // Auto-use template after login if use=true query param is present
+  useEffect(() => {
+    const shouldAutoUse = searchParams?.get('use') === 'true'
+    if (shouldAutoUse && currentUserId && !isUsing) {
+      handleUseTemplate()
+      // Clean up URL
+      router.replace(`/workspace/${workspaceId}/templates/${template.id}`)
+    }
+  }, [searchParams, currentUserId])
 
   // Render workflow preview exactly like deploy-modal.tsx
   const renderWorkflowPreview = () => {
@@ -189,7 +209,7 @@ export default function TemplateDetails({
   }
 
   const handleStarToggle = async () => {
-    if (isStarring) return
+    if (isStarring || !currentUserId) return
 
     setIsStarring(true)
     try {
@@ -210,39 +230,75 @@ export default function TemplateDetails({
   const handleUseTemplate = async () => {
     if (isUsing) return
 
+    // Check if user is logged in
+    if (!currentUserId) {
+      // Redirect to login with callback URL to use template after login
+      const callbackUrl = encodeURIComponent(
+        `/workspace/${workspaceId}/templates/${template.id}?use=true`
+      )
+      router.push(`/login?callbackUrl=${callbackUrl}`)
+      return
+    }
+
     setIsUsing(true)
     try {
-      // TODO: Implement proper template usage logic
-      // This should create a new workflow from the template state
-      // For now, we'll create a basic workflow and navigate to it
-      logger.info('Using template:', template.id)
-
-      // Create a new workflow
-      const response = await fetch('/api/workflows', {
+      const response = await fetch(`/api/templates/${template.id}/use`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: `${template.name} (Copy)`,
-          description: `Created from template: ${template.name}`,
-          color: template.color,
-          workspaceId,
-          folderId: null,
-        }),
+        body: JSON.stringify({ workspaceId }),
       })
 
       if (!response.ok) {
-        throw new Error('Failed to create workflow from template')
+        throw new Error('Failed to use template')
       }
 
-      const newWorkflow = await response.json()
+      const { workflowId } = await response.json()
 
       // Navigate to the new workflow
-      router.push(`/workspace/${workspaceId}/w/${newWorkflow.id}`)
+      router.push(`/workspace/${workspaceId}/w/${workflowId}`)
     } catch (error) {
       logger.error('Error using template:', error)
-      // Show error to user (could implement toast notification)
     } finally {
       setIsUsing(false)
+    }
+  }
+
+  const handleEditTemplate = async () => {
+    if (isEditing || !currentUserId) return
+
+    setIsEditing(true)
+    try {
+      // If template already has a connected workflowId, check if it exists in user's workspace
+      if (template.workflowId) {
+        // Try to fetch the workflow to see if it still exists
+        const checkResponse = await fetch(`/api/workflows/${template.workflowId}`)
+
+        if (checkResponse.ok) {
+          // Workflow exists, redirect to it
+          router.push(`/workspace/${workspaceId}/w/${template.workflowId}`)
+          return
+        }
+      }
+
+      // No connected workflow or it was deleted - create a new one
+      const response = await fetch(`/api/templates/${template.id}/edit`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ workspaceId }),
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to edit template')
+      }
+
+      const { workflowId } = await response.json()
+
+      // Navigate to the workflow
+      router.push(`/workspace/${workspaceId}/w/${workflowId}`)
+    } catch (error) {
+      logger.error('Error editing template:', error)
+    } finally {
+      setIsEditing(false)
     }
   }
 
@@ -282,20 +338,36 @@ export default function TemplateDetails({
 
             {/* Action buttons */}
             <div className='flex items-center gap-3'>
-              {/* Star button */}
-              <Button
-                variant='outline'
-                size='sm'
-                onClick={handleStarToggle}
-                disabled={isStarring}
-                className={cn(
-                  'transition-colors',
-                  isStarred && 'border-yellow-200 bg-yellow-50 text-yellow-700 hover:bg-yellow-100'
-                )}
-              >
-                <Star className={cn('mr-2 h-4 w-4', isStarred && 'fill-current')} />
-                {starCount}
-              </Button>
+              {/* Star button - only for logged-in users */}
+              {currentUserId && (
+                <Button
+                  variant='outline'
+                  size='sm'
+                  onClick={handleStarToggle}
+                  disabled={isStarring}
+                  className={cn(
+                    'transition-colors',
+                    isStarred &&
+                      'border-yellow-200 bg-yellow-50 text-yellow-700 hover:bg-yellow-100'
+                  )}
+                >
+                  <Star className={cn('mr-2 h-4 w-4', isStarred && 'fill-current')} />
+                  {starCount}
+                </Button>
+              )}
+
+              {/* Edit button - only for template owner when logged in */}
+              {isOwner && currentUserId && (
+                <Button
+                  variant='outline'
+                  onClick={handleEditTemplate}
+                  disabled={isEditing}
+                  className='border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100'
+                >
+                  <Edit className='mr-2 h-4 w-4' />
+                  {isEditing ? 'Opening...' : 'Edit'}
+                </Button>
+              )}
 
               {/* Use template button */}
               <Button
@@ -303,28 +375,23 @@ export default function TemplateDetails({
                 disabled={isUsing}
                 className='bg-purple-600 text-white hover:bg-purple-700'
               >
-                Use this template
+                {isUsing ? 'Creating...' : currentUserId ? 'Use this template' : 'Sign in to use'}
               </Button>
             </div>
           </div>
 
           {/* Tags */}
           <div className='mt-6 flex items-center gap-3 text-muted-foreground text-sm'>
-            {/* Category */}
-            <div className='flex items-center gap-1 rounded-full bg-secondary px-3 py-1'>
-              <span>{getCategoryDisplayName(template.category)}</span>
-            </div>
-
             {/* Views */}
             <div className='flex items-center gap-1 rounded-full bg-secondary px-3 py-1'>
               <Eye className='h-3 w-3' />
-              <span>{template.views}</span>
+              <span>{template.views} views</span>
             </div>
 
             {/* Stars */}
             <div className='flex items-center gap-1 rounded-full bg-secondary px-3 py-1'>
               <Star className='h-3 w-3' />
-              <span>{starCount}</span>
+              <span>{starCount} stars</span>
             </div>
 
             {/* Author */}
@@ -332,6 +399,14 @@ export default function TemplateDetails({
               <User className='h-3 w-3' />
               <span>by {template.author}</span>
             </div>
+
+            {/* Author Type - show if organization */}
+            {template.authorType === 'organization' && (
+              <div className='flex items-center gap-1 rounded-full bg-secondary px-3 py-1'>
+                <Users className='h-3 w-3' />
+                <span>Organization</span>
+              </div>
+            )}
           </div>
         </div>
       </div>
