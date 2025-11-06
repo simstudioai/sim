@@ -12,15 +12,12 @@ import { submitPostTool } from '@/tools/reddit/submit_post'
 import { subscribeTool } from '@/tools/reddit/subscribe'
 import { voteTool } from '@/tools/reddit/vote'
 
-// Read operations
 export const redditHotPostsTool = hotPostsTool
 export const redditGetPostsTool = getPostsTool
 export const redditGetCommentsTool = getCommentsTool
 export const redditGetControversialTool = getControversialTool
 export const redditGetGildedTool = getGildedTool
 export const redditSearchTool = searchTool
-
-// Write operations
 export const redditSubmitPostTool = submitPostTool
 export const redditVoteTool = voteTool
 export const redditSaveTool = saveTool
