@@ -7,6 +7,7 @@ import { ExecutionSnapshot } from '@/executor/execution/snapshot'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { createLogger } from '@/lib/logs/console/logger'
 import { executeWorkflowCore } from './execution-core'
+import type { Edge } from 'reactflow'
 
 const logger = createLogger('PauseResumeManager')
 
@@ -387,12 +388,27 @@ export class PauseResumeManager {
     })
 
     // Find the blocks downstream of the pause block
-    const pauseBlockId = PauseResumeManager.normalizePauseBlockId(
-      pausePoint.blockId ?? contextId
-    )
-    const downstreamBlocks = baseSnapshot.workflow.connections
-      .filter((conn: any) => conn.source === pauseBlockId)
-      .map((conn: any) => conn.target)
+    const rawPauseBlockId = pausePoint.blockId ?? contextId
+    const pauseBlockId = PauseResumeManager.normalizePauseBlockId(rawPauseBlockId)
+
+    const dagIncomingEdgesFromSnapshot: Record<string, string[]> | undefined =
+      (baseSnapshot.state as any)?.dagIncomingEdges
+
+    const downstreamBlocks = dagIncomingEdgesFromSnapshot
+      ? Object.entries(dagIncomingEdgesFromSnapshot)
+          .filter(([, incoming]) =>
+            Array.isArray(incoming) &&
+            incoming.some((sourceId) =>
+              PauseResumeManager.normalizePauseBlockId(sourceId) === pauseBlockId
+            )
+          )
+          .map(([nodeId]) => nodeId)
+      : baseSnapshot.workflow.connections
+          .filter(
+            (conn: any) =>
+              PauseResumeManager.normalizePauseBlockId(conn.source) === pauseBlockId
+          )
+          .map((conn: any) => conn.target)
     
     logger.info('Found downstream blocks', {
       pauseBlockId,
@@ -413,6 +429,9 @@ export class PauseResumeManager {
     })
 
     if (stateCopy) {
+      const dagIncomingEdges: Record<string, string[]> | undefined =
+        (stateCopy as any)?.dagIncomingEdges || dagIncomingEdgesFromSnapshot
+
       // Calculate the pause duration (time from pause to resume)
       const pauseDurationMs = pausedExecution.pausedAt 
         ? Date.now() - new Date(pausedExecution.pausedAt).getTime()
@@ -460,14 +479,66 @@ export class PauseResumeManager {
       completedPauseContexts.add(pauseBlockId)
 
       // Store edges to remove (all edges FROM any completed pause block)
-      const edgesToRemove = baseSnapshot.workflow.connections
-        .filter((conn: any) => completedPauseContexts.has(conn.source))
-        .map((conn: any) => ({
-          source: conn.source,
-          target: conn.target,
-          sourceHandle: conn.sourceHandle,
-          targetHandle: conn.targetHandle,
-        }))
+      let edgesToRemove: Edge[]
+
+      if (dagIncomingEdges) {
+        const seen = new Set<string>()
+        edgesToRemove = []
+
+        for (const [targetNodeId, incomingEdges] of Object.entries(dagIncomingEdges)) {
+          if (!Array.isArray(incomingEdges)) continue
+
+          for (const sourceNodeId of incomingEdges) {
+            const normalizedSource = PauseResumeManager.normalizePauseBlockId(sourceNodeId)
+            if (!completedPauseContexts.has(normalizedSource)) {
+              continue
+            }
+
+            const key = `${sourceNodeId}→${targetNodeId}`
+            if (seen.has(key)) {
+              continue
+            }
+            seen.add(key)
+
+            edgesToRemove.push({
+              id: key,
+              source: sourceNodeId,
+              target: targetNodeId,
+            })
+          }
+        }
+
+        // If we didn't find any edges via the DAG snapshot, fall back to workflow connections
+        if (edgesToRemove.length === 0 && baseSnapshot.workflow.connections?.length) {
+          edgesToRemove = baseSnapshot.workflow.connections
+            .filter((conn: any) =>
+              completedPauseContexts.has(
+                PauseResumeManager.normalizePauseBlockId(conn.source)
+              )
+            )
+            .map((conn: any) => ({
+              id: conn.id ?? `${conn.source}→${conn.target}`,
+              source: conn.source,
+              target: conn.target,
+              sourceHandle: conn.sourceHandle,
+              targetHandle: conn.targetHandle,
+            }))
+        }
+      } else {
+        edgesToRemove = baseSnapshot.workflow.connections
+          .filter((conn: any) =>
+            completedPauseContexts.has(
+              PauseResumeManager.normalizePauseBlockId(conn.source)
+            )
+          )
+          .map((conn: any) => ({
+            id: conn.id ?? `${conn.source}→${conn.target}`,
+            source: conn.source,
+            target: conn.target,
+            sourceHandle: conn.sourceHandle,
+            targetHandle: conn.targetHandle,
+          }))
+      }
 
       // Persist state updates
       stateCopy.completedPauseContexts = Array.from(completedPauseContexts)
@@ -973,7 +1044,6 @@ export class PauseResumeManager {
     }
 
     const normalized = id
-      .replace(/₍\d+₎/g, '')
       .replace(/_loop\d+/g, '')
 
     return normalized || id

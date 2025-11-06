@@ -1,9 +1,10 @@
 'use client'
 
-import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
+import { Badge } from '@/components/ui/badge'
 import Nav from '@/app/(landing)/components/nav/nav'
 import { inter } from '@/app/fonts/inter'
 import { soehne } from '@/app/fonts/soehne/soehne'
@@ -76,7 +77,13 @@ interface ResumeExecutionPageProps {
   initialContextId?: string | null
 }
 
-const POLL_INTERVAL_MS = 5000
+const RESUME_STATUS_STYLES: Record<string, string> = {
+  paused: 'border-amber-200 bg-amber-50 text-amber-700',
+  queued: 'border-blue-200 bg-blue-50 text-blue-700',
+  resuming: 'border-indigo-200 bg-indigo-50 text-indigo-700',
+  resumed: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+  failed: 'border-red-200 bg-red-50 text-red-700',
+}
 
 function formatDate(value: string | null): string {
   if (!value) return '—'
@@ -87,19 +94,18 @@ function formatDate(value: string | null): string {
   }
 }
 
-function getStatusClass(status: string): string {
-  switch (status) {
-    case 'resumed':
-      return 'bg-emerald-100 text-emerald-800'
-    case 'failed':
-      return 'bg-red-100 text-red-800'
-    case 'queued':
-      return 'bg-blue-100 text-blue-800'
-    case 'resuming':
-      return 'bg-indigo-100 text-indigo-800'
-    default:
-      return 'bg-amber-100 text-amber-900'
-  }
+function getStatusLabel(status: string): string {
+  if (!status) return 'Unknown'
+  return status.charAt(0).toUpperCase() + status.slice(1)
+}
+
+function ResumeStatusBadge({ status }: { status: string }) {
+  const className = RESUME_STATUS_STYLES[status] ?? 'border-slate-200 bg-slate-100 text-slate-700'
+  return (
+    <Badge variant='outline' className={className}>
+      {getStatusLabel(status)}
+    </Badge>
+  )
 }
 
 export default function ResumeExecutionPage({
@@ -126,6 +132,16 @@ export default function ResumeExecutionPage({
     [pausePoints]
   )
 
+  const groupedPausePoints = useMemo(() => {
+    const activeStatuses = new Set(['paused', 'queued', 'resuming'])
+    const resolvedStatuses = new Set(['resumed', 'failed'])
+
+    return {
+      active: pausePoints.filter((point) => activeStatuses.has(point.resumeStatus)),
+      resolved: pausePoints.filter((point) => resolvedStatuses.has(point.resumeStatus)),
+    }
+  }, [pausePoints])
+
   const [selectedContextId, setSelectedContextId] = useState<string | null>(defaultContextId ?? null)
   const [selectedDetail, setSelectedDetail] = useState<PauseContextDetail | null>(null)
   const [selectedStatus, setSelectedStatus] = useState<PausePointWithQueue['resumeStatus']>('paused')
@@ -134,6 +150,7 @@ export default function ResumeExecutionPage({
   const [resumeInput, setResumeInput] = useState('')
   const [loadingDetail, setLoadingDetail] = useState(false)
   const [loadingAction, setLoadingAction] = useState(false)
+  const [refreshingExecution, setRefreshingExecution] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
 
@@ -205,6 +222,7 @@ export default function ResumeExecutionPage({
   }, [workflowId, executionId, selectedContextId])
 
   const refreshExecutionDetail = useCallback(async () => {
+    setRefreshingExecution(true)
     try {
       const response = await fetch(`/api/resume/${workflowId}/${executionId}`, {
         method: 'GET',
@@ -225,6 +243,8 @@ export default function ResumeExecutionPage({
       }
     } catch (err) {
       console.error('Failed to refresh execution detail', err)
+    } finally {
+      setRefreshingExecution(false)
     }
   }, [workflowId, executionId, selectedContextId])
 
@@ -348,9 +368,9 @@ export default function ResumeExecutionPage({
       })
 
       if (payload.status === 'queued') {
-        setMessage('Resume request queued. This page will refresh automatically.')
+        setMessage('Resume request queued. Use refresh to monitor its progress.')
       } else {
-        setMessage('Resume execution started. Monitoring for completion...')
+        setMessage('Resume execution started. Refresh to check for updates.')
       }
 
       await Promise.all([refreshExecutionDetail(), refreshSelectedDetail(selectedContextId, false)])
@@ -370,36 +390,6 @@ export default function ResumeExecutionPage({
     refreshSelectedDetail,
   ])
 
-  useEffect(() => {
-    if (!selectedContextId) return
-
-    if (selectedStatus === 'resumed' || selectedStatus === 'failed') {
-      return
-    }
-
-    const interval = window.setInterval(() => {
-      refreshExecutionDetail()
-      refreshSelectedDetail(selectedContextId, false)
-    }, POLL_INTERVAL_MS)
-
-    return () => window.clearInterval(interval)
-  }, [selectedContextId, selectedStatus, refreshExecutionDetail, refreshSelectedDetail])
-
-  const statusLabel = useMemo(() => {
-    if (selectedStatus === 'queued') {
-      if (queuePosition && queuePosition > 0) {
-        return `Queued (position ${queuePosition})`
-      }
-      return 'Queued'
-    }
-
-    if (selectedStatus === 'resuming') {
-      return 'Resuming'
-    }
-
-    return selectedStatus.charAt(0).toUpperCase() + selectedStatus.slice(1)
-  }, [selectedStatus, queuePosition])
-
   const pauseResponsePreview = useMemo(() => {
     if (!selectedDetail?.pausePoint.response?.data) return '{}'
     try {
@@ -408,6 +398,67 @@ export default function ResumeExecutionPage({
       return String(selectedDetail.pausePoint.response.data)
     }
   }, [selectedDetail])
+
+  const statusDetailNode = useMemo(() => {
+    return (
+      <div className='flex flex-wrap items-center gap-2'>
+        <ResumeStatusBadge status={selectedStatus} />
+        {queuePosition && queuePosition > 0 ? (
+          <span className={`${inter.className} text-xs text-slate-500`}>
+            Queue position {queuePosition}
+          </span>
+        ) : null}
+      </div>
+    )
+  }, [selectedStatus, queuePosition])
+
+  const renderPausePointCard = useCallback(
+    (pause: PausePointWithQueue, subdued = false) => {
+      const isSelected = pause.contextId === selectedContextId
+      const baseClasses = subdued
+        ? 'border-slate-200 bg-slate-50 hover:border-slate-300'
+        : 'border-slate-200 bg-white hover:border-primary/30'
+      const selectedClasses = 'border-primary/50 bg-primary/5 shadow-sm'
+
+      return (
+        <button
+          key={pause.contextId}
+          type='button'
+          onClick={() => {
+            setSelectedContextId(pause.contextId)
+            setError(null)
+            setMessage(null)
+          }}
+          className={`w-full rounded-[16px] border p-4 text-left transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-primary/40 ${
+            isSelected ? selectedClasses : baseClasses
+          }`}
+        >
+          <div className='flex items-start justify-between gap-3'>
+            <div className='overflow-hidden'>
+              <p className={`${soehne.className} truncate text-sm font-semibold text-slate-800`}>
+                {pause.contextId}
+              </p>
+              <p className={`${inter.className} mt-1 text-xs text-muted-foreground`}>
+                Registered {formatDate(pause.registeredAt)}
+              </p>
+              {pause.queuePosition != null && pause.queuePosition > 0 && (
+                <p className={`${inter.className} mt-1 text-xs text-slate-500`}>
+                  Queue position {pause.queuePosition}
+                </p>
+              )}
+              {pause.resumeLinks?.uiUrl && (
+                <p className={`${inter.className} mt-1 truncate text-xs text-slate-500`}>
+                  UI link: <span className='font-medium'>{pause.resumeLinks.uiUrl}</span>
+                </p>
+              )}
+            </div>
+            <ResumeStatusBadge status={pause.resumeStatus} />
+          </div>
+        </button>
+      )
+    },
+    [selectedContextId]
+  )
 
   const resumeDisabled =
     loadingAction ||
@@ -481,65 +532,45 @@ export default function ResumeExecutionPage({
             </div>
           </div>
 
-          <div className='space-y-3 rounded-[20px] border border-slate-200 bg-white p-6 shadow-sm'>
+          <div className='space-y-4 rounded-[20px] border border-slate-200 bg-white p-6 shadow-sm'>
             <div className='flex items-center justify-between'>
               <h3 className={`${soehne.className} text-[15px] font-semibold text-slate-800`}>
                 Pause Points
               </h3>
-              <Button variant='outline' size='sm' onClick={refreshExecutionDetail} className='rounded-[10px] border-slate-200'>
-                Refresh
+              <Button
+                variant='outline'
+                size='sm'
+                onClick={refreshExecutionDetail}
+                disabled={refreshingExecution}
+                className='rounded-[10px] border-slate-200'
+              >
+                {refreshingExecution ? 'Refreshing…' : 'Refresh'}
               </Button>
             </div>
 
-            {actionablePausePoints.length === 0 ? (
-              <p className={`${inter.className} text-sm text-muted-foreground`}>
-                No pauses currently require approval for this execution.
-              </p>
-            ) : (
-              <div className='space-y-3'>
-                {actionablePausePoints.map((pause) => {
-                  const isSelected = pause.contextId === selectedContextId
-                  return (
-                    <button
-                      key={pause.contextId}
-                      type='button'
-                      onClick={() => {
-                        setSelectedContextId(pause.contextId)
-                        setError(null)
-                        setMessage(null)
-                      }}
-                      className={`w-full rounded-[16px] border p-4 text-left transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-primary/40 ${
-                        isSelected ? 'border-primary/50 bg-primary/5 shadow-sm' : 'border-slate-200 bg-white hover:border-primary/30'
-                      }`}
-                    >
-                      <div className='flex items-center justify-between gap-2'>
-                        <div>
-                          <p className={`${soehne.className} text-sm font-semibold text-slate-800`}>
-                            Context {pause.contextId}
-                          </p>
-                          <p className={`${inter.className} text-xs text-muted-foreground`}>
-                            Registered {formatDate(pause.registeredAt)}
-                          </p>
-                        </div>
-                        <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-medium ${getStatusClass(pause.resumeStatus)}`}>
-                          {pause.resumeStatus.charAt(0).toUpperCase() + pause.resumeStatus.slice(1)}
-                        </span>
-                      </div>
-                      {pause.queuePosition != null && pause.queuePosition > 0 && (
-                        <p className={`${inter.className} mt-2 text-xs text-slate-500`}>
-                          Queue position {pause.queuePosition}
-                        </p>
-                      )}
-                      {pause.resumeLinks?.uiUrl && (
-                        <p className={`${inter.className} mt-2 truncate text-xs text-slate-500`}>
-                          Shareable link: <span className='font-medium'>{pause.resumeLinks.uiUrl}</span>
-                        </p>
-                      )}
-                    </button>
-                  )
-                })}
+            <div className='space-y-6'>
+              <div>
+                <p className={`${inter.className} text-xs uppercase tracking-wide text-slate-500`}>Active</p>
+                {groupedPausePoints.active.length === 0 ? (
+                  <p className={`${inter.className} mt-2 text-sm text-muted-foreground`}>
+                    No active pauses right now. Resume requests will appear here when available.
+                  </p>
+                ) : (
+                  <div className='mt-3 space-y-3'>
+                    {groupedPausePoints.active.map((pause) => renderPausePointCard(pause))}
+                  </div>
+                )}
               </div>
-            )}
+
+              {groupedPausePoints.resolved.length > 0 && (
+                <div className='border-t border-slate-200 pt-4'>
+                  <p className={`${inter.className} text-xs uppercase tracking-wide text-slate-500`}>Completed</p>
+                  <div className='mt-3 space-y-2'>
+                    {groupedPausePoints.resolved.map((pause) => renderPausePointCard(pause, true))}
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </aside>
 
@@ -572,10 +603,41 @@ export default function ResumeExecutionPage({
                   <DetailRow label='Workflow ID' value={selectedDetail.execution.workflowId} />
                   <DetailRow label='Execution ID' value={selectedDetail.execution.executionId} />
                   <DetailRow label='Context ID' value={selectedDetail.pausePoint.contextId} />
-                  <DetailRow label='Status' value={statusLabel} />
+                  <DetailRow label='Status' value={statusDetailNode} />
                   <DetailRow label='Registered At' value={formatDate(selectedDetail.pausePoint.registeredAt)} />
                   <DetailRow label='Last Updated' value={formatDate(selectedDetail.execution.updatedAt)} />
                 </div>
+
+                {selectedDetail.activeResumeEntry && (
+                  <div className='rounded-xl border border-blue-200 bg-blue-50 p-4 text-left'>
+                    <div className='flex flex-wrap items-center justify-between gap-2'>
+                      <h2 className={`${soehne.className} text-sm font-semibold text-blue-900`}>
+                        Current Resume Attempt
+                      </h2>
+                      <ResumeStatusBadge status={selectedDetail.activeResumeEntry.status?.toLowerCase?.() ?? selectedDetail.activeResumeEntry.status} />
+                    </div>
+                    <div className='mt-3 space-y-1'>
+                      <p className={`${inter.className} text-xs text-blue-800`}>
+                        Resume execution ID: <span className='font-medium'>{selectedDetail.activeResumeEntry.newExecutionId}</span>
+                      </p>
+                      {selectedDetail.activeResumeEntry.claimedAt && (
+                        <p className={`${inter.className} text-xs text-blue-800`}>
+                          Started at {formatDate(selectedDetail.activeResumeEntry.claimedAt)}
+                        </p>
+                      )}
+                      {selectedDetail.activeResumeEntry.completedAt && (
+                        <p className={`${inter.className} text-xs text-blue-800`}>
+                          Completed at {formatDate(selectedDetail.activeResumeEntry.completedAt)}
+                        </p>
+                      )}
+                    </div>
+                    {selectedDetail.activeResumeEntry.failureReason && (
+                      <div className='mt-3 rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-700'>
+                        {selectedDetail.activeResumeEntry.failureReason}
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {selectedDetail.pausePoint.resumeLinks && (
                   <div className='rounded-xl bg-slate-100 p-4 text-left'>
@@ -666,24 +728,42 @@ export default function ResumeExecutionPage({
                 {selectedDetail.queue.length > 0 && (
                   <div className='space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4 text-left'>
                     <h2 className={`${soehne.className} text-sm font-semibold text-slate-700`}>
-                      Resume Queue History
+                      Resume Attempts
                     </h2>
                     <div className='space-y-3'>
-                      {selectedDetail.queue.map((entry) => (
-                        <div key={entry.id} className='rounded-lg border border-slate-200 bg-white p-3'>
-                          <p className={`${inter.className} text-sm font-medium text-slate-700`}>
-                            {entry.status.toUpperCase()} · {formatDate(entry.queuedAt)}
-                          </p>
-                          <p className={`${inter.className} mt-1 text-xs text-slate-500`}>
-                            Resume Execution ID: {entry.newExecutionId}
-                          </p>
-                          {entry.failureReason && (
-                            <p className={`${inter.className} mt-1 text-xs text-red-600`}>
-                              Failure: {entry.failureReason}
-                            </p>
-                          )}
-                        </div>
-                      ))}
+                      {selectedDetail.queue.map((entry) => {
+                        const normalizedStatus = entry.status?.toLowerCase?.() ?? entry.status
+                        return (
+                          <div key={entry.id} className='rounded-xl border border-slate-200 bg-white p-4'>
+                            <div className='flex flex-wrap items-center justify-between gap-2'>
+                              <ResumeStatusBadge status={normalizedStatus} />
+                              <span className={`${inter.className} text-xs text-slate-500`}>
+                                {formatDate(entry.queuedAt)}
+                              </span>
+                            </div>
+                            <div className='mt-3 space-y-1'>
+                              <p className={`${inter.className} text-xs text-slate-500`}>
+                                Resume execution ID: <span className='font-medium text-slate-700'>{entry.newExecutionId}</span>
+                              </p>
+                              {entry.claimedAt && (
+                                <p className={`${inter.className} text-xs text-slate-500`}>
+                                  Started at <span className='font-medium text-slate-700'>{formatDate(entry.claimedAt)}</span>
+                                </p>
+                              )}
+                              {entry.completedAt && (
+                                <p className={`${inter.className} text-xs text-slate-500`}>
+                                  Completed at <span className='font-medium text-slate-700'>{formatDate(entry.completedAt)}</span>
+                                </p>
+                              )}
+                            </div>
+                            {entry.failureReason && (
+                              <div className='mt-3 rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-700'>
+                                {entry.failureReason}
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })}
                     </div>
                   </div>
                 )}
@@ -717,11 +797,17 @@ function SummaryStat({ label, value }: { label: string; value: number }) {
   )
 }
 
-function DetailRow({ label, value }: { label: string; value: string | number | null | undefined }) {
+function DetailRow({ label, value }: { label: string; value?: ReactNode }) {
+  const shouldShowPlaceholder =
+    value === null ||
+    value === undefined ||
+    (typeof value === 'string' && value.trim().length === 0)
+  const displayValue = shouldShowPlaceholder ? '—' : value
+
   return (
     <div className='rounded-xl border border-slate-200 bg-slate-50 p-3 text-left'>
       <p className={`${inter.className} text-xs uppercase tracking-wide text-slate-500`}>{label}</p>
-      <p className={`${soehne.className} mt-1 text-sm font-semibold text-slate-800`}>{value ?? '—'}</p>
+      <div className={`${soehne.className} mt-1 text-sm font-semibold text-slate-800`}>{displayValue}</div>
     </div>
   )
 }
