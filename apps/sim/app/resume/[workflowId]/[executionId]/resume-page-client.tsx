@@ -14,11 +14,30 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card'
+import { Separator } from '@/components/ui/separator'
 import { useBrandConfig } from '@/lib/branding/branding'
 import Nav from '@/app/(landing)/components/nav/nav'
 import { inter } from '@/app/fonts/inter'
 import { soehne } from '@/app/fonts/soehne/soehne'
 import type { ResumeStatus } from '@/executor/types'
+import { 
+  CheckCircle2, 
+  Clock, 
+  Play, 
+  XCircle, 
+  RefreshCw, 
+  AlertCircle,
+  FileText,
+  Link as LinkIcon,
+  Calendar
+} from 'lucide-react'
 
 interface ResumeLinks {
   apiUrl: string
@@ -107,12 +126,27 @@ interface ResumeExecutionPageProps {
   initialContextId?: string | null
 }
 
-const RESUME_STATUS_STYLES: Record<string, string> = {
-  paused: 'border-amber-200 bg-amber-50 text-amber-700',
-  queued: 'border-blue-200 bg-blue-50 text-blue-700',
-  resuming: 'border-indigo-200 bg-indigo-50 text-indigo-700',
-  resumed: 'border-emerald-200 bg-emerald-50 text-emerald-700',
-  failed: 'border-red-200 bg-red-50 text-red-700',
+const RESUME_STATUS_STYLES: Record<string, { style: string; icon: React.ReactNode }> = {
+  paused: {
+    style: 'border-amber-200 bg-amber-50 text-amber-700',
+    icon: <Clock className="h-3 w-3" />,
+  },
+  queued: {
+    style: 'border-blue-200 bg-blue-50 text-blue-700',
+    icon: <Clock className="h-3 w-3" />,
+  },
+  resuming: {
+    style: 'border-indigo-200 bg-indigo-50 text-indigo-700',
+    icon: <Play className="h-3 w-3" />,
+  },
+  resumed: {
+    style: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+    icon: <CheckCircle2 className="h-3 w-3" />,
+  },
+  failed: {
+    style: 'border-red-200 bg-red-50 text-red-700',
+    icon: <XCircle className="h-3 w-3" />,
+  },
 }
 
 function formatDate(value: string | null): string {
@@ -130,9 +164,13 @@ function getStatusLabel(status: string): string {
 }
 
 function ResumeStatusBadge({ status }: { status: string }) {
-  const className = RESUME_STATUS_STYLES[status] ?? 'border-slate-200 bg-slate-100 text-slate-700'
+  const config = RESUME_STATUS_STYLES[status] ?? {
+    style: 'border-slate-200 bg-slate-100 text-slate-700',
+    icon: <AlertCircle className="h-3 w-3" />,
+  }
   return (
-    <Badge variant='outline' className={className}>
+    <Badge variant='outline' className={`${config.style} flex items-center gap-1.5`}>
+      {config.icon}
       {getStatusLabel(status)}
     </Badge>
   )
@@ -890,11 +928,7 @@ export default function ResumeExecutionPage({
   const renderPausePointCard = useCallback(
     (pause: PausePointWithQueue, subdued = false) => {
       const isSelected = pause.contextId === selectedContextId
-      const baseClasses = subdued
-        ? 'border-slate-200 bg-slate-50 hover:border-slate-300'
-        : 'border-slate-200 bg-white hover:border-primary/30'
-      const selectedClasses = 'border-primary/50 bg-primary/5 shadow-sm'
-
+      
       return (
         <button
           key={pause.contextId}
@@ -904,30 +938,35 @@ export default function ResumeExecutionPage({
             setError(null)
             setMessage(null)
           }}
-          className={`w-full rounded-[16px] border p-4 text-left transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-primary/40 ${
-            isSelected ? selectedClasses : baseClasses
+          className={`group w-full rounded-lg border p-3 text-left transition-all duration-150 hover:border-slate-300 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40 ${
+            isSelected
+              ? 'border-blue-500 bg-blue-50/50 shadow-sm'
+              : subdued
+                ? 'border-slate-200 bg-slate-50 opacity-75'
+                : 'border-slate-200 bg-white'
           }`}
         >
-          <div className='flex items-start justify-between gap-3'>
-            <div className='overflow-hidden'>
-              <p className={`${soehne.className} truncate font-semibold text-slate-800 text-sm`}>
-                {pause.contextId}
-              </p>
-              <p className={`${inter.className} mt-1 text-muted-foreground text-xs`}>
-                Registered {formatDate(pause.registeredAt)}
-              </p>
+          <div className='flex items-start justify-between gap-2'>
+            <div className='min-w-0 flex-1'>
+              <div className='flex items-center gap-2'>
+                <p className='truncate font-medium text-sm text-slate-900'>
+                  {pause.contextId}
+                </p>
+              </div>
+              <div className='mt-1.5 flex items-center gap-1 text-xs text-slate-500'>
+                <Calendar className='h-3 w-3' />
+                <span>{formatDate(pause.registeredAt)}</span>
+              </div>
               {pause.queuePosition != null && pause.queuePosition > 0 && (
-                <p className={`${inter.className} mt-1 text-slate-500 text-xs`}>
-                  Queue position {pause.queuePosition}
-                </p>
-              )}
-              {pause.resumeLinks?.uiUrl && (
-                <p className={`${inter.className} mt-1 truncate text-slate-500 text-xs`}>
-                  UI link: <span className='font-medium'>{pause.resumeLinks.uiUrl}</span>
-                </p>
+                <div className='mt-1 flex items-center gap-1 text-xs text-amber-600'>
+                  <Clock className='h-3 w-3' />
+                  <span>Position {pause.queuePosition}</span>
+                </div>
               )}
             </div>
-            <ResumeStatusBadge status={pause.resumeStatus} />
+            <div className='flex-shrink-0'>
+              <ResumeStatusBadge status={pause.resumeStatus} />
+            </div>
           </div>
         </button>
       )
@@ -1012,396 +1051,415 @@ export default function ResumeExecutionPage({
   }
 
   return (
-    <div className='min-h-screen bg-white'>
+    <div className='min-h-screen bg-gradient-to-b from-slate-50 to-white'>
       <Nav variant='auth' />
-      <div className='mx-auto flex min-h-[calc(100vh-120px)] max-w-6xl flex-col gap-6 px-4 py-8 xl:flex-row'>
-        <aside className='w-full space-y-4 xl:w-[320px]'>
-          <div className='space-y-2 rounded-[20px] border border-slate-200 bg-white p-6 shadow-sm'>
-            <div className='space-y-1 text-left'>
-              <h2
-                className={`${soehne.className} font-medium text-[22px] text-black tracking-tight`}
-              >
+      <div className='mx-auto min-h-[calc(100vh-120px)] max-w-7xl px-4 py-6 sm:py-8'>
+        {/* Header Section */}
+        <div className='mb-6'>
+          <div className='flex items-center justify-between'>
+            <div>
+              <h1 className={`${soehne.className} text-3xl font-semibold tracking-tight text-slate-900`}>
                 Paused Execution
-              </h2>
-              <p className={`${inter.className} text-[14px] text-muted-foreground`}>
-                Manage all pauses for this execution from a single workspace.
+              </h1>
+              <p className={`${inter.className} mt-1 text-sm text-slate-600`}>
+                Review and manage execution pause points
               </p>
             </div>
-            <div className='grid grid-cols-3 gap-3 text-center'>
-              <SummaryStat label='Total Pauses' value={totalPauses} />
-              <SummaryStat label='Resumed' value={resumedCount} />
-              <SummaryStat label='Pending' value={pendingCount} />
-            </div>
+            <Button
+              variant='outline'
+              size='sm'
+              onClick={refreshExecutionDetail}
+              disabled={refreshingExecution}
+              className='gap-2'
+            >
+              <RefreshCw className={`h-4 w-4 ${refreshingExecution ? 'animate-spin' : ''}`} />
+              {refreshingExecution ? 'Refreshing' : 'Refresh'}
+            </Button>
           </div>
+        </div>
 
-          <div className='space-y-4 rounded-[20px] border border-slate-200 bg-white p-6 shadow-sm'>
-            <div className='flex items-center justify-between'>
-              <h3 className={`${soehne.className} font-semibold text-[15px] text-slate-800`}>
-                Pause Points
-              </h3>
-              <Button
-                variant='outline'
-                size='sm'
-                onClick={refreshExecutionDetail}
-                disabled={refreshingExecution}
-                className='rounded-[10px] border-slate-200'
-              >
-                {refreshingExecution ? 'Refreshing…' : 'Refresh'}
-              </Button>
-            </div>
+        {/* Stats Cards */}
+        <div className='mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3'>
+          <Card>
+            <CardContent className='p-6'>
+              <div className='flex items-center justify-between'>
+                <div>
+                  <p className='text-sm font-medium text-slate-600'>Total Pauses</p>
+                  <p className='mt-2 text-3xl font-semibold text-slate-900'>{totalPauses}</p>
+                </div>
+                <div className='rounded-full bg-blue-100 p-3'>
+                  <Clock className='h-6 w-6 text-blue-600' />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          
+          <Card>
+            <CardContent className='p-6'>
+              <div className='flex items-center justify-between'>
+                <div>
+                  <p className='text-sm font-medium text-slate-600'>Resumed</p>
+                  <p className='mt-2 text-3xl font-semibold text-emerald-600'>{resumedCount}</p>
+                </div>
+                <div className='rounded-full bg-emerald-100 p-3'>
+                  <CheckCircle2 className='h-6 w-6 text-emerald-600' />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          
+          <Card>
+            <CardContent className='p-6'>
+              <div className='flex items-center justify-between'>
+                <div>
+                  <p className='text-sm font-medium text-slate-600'>Pending</p>
+                  <p className='mt-2 text-3xl font-semibold text-amber-600'>{pendingCount}</p>
+                </div>
+                <div className='rounded-full bg-amber-100 p-3'>
+                  <AlertCircle className='h-6 w-6 text-amber-600' />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
 
-            <div className='space-y-6'>
-              <div>
-                <p className={`${inter.className} text-slate-500 text-xs uppercase tracking-wide`}>
-                  Active
-                </p>
-                {groupedPausePoints.active.length === 0 ? (
-                  <p className={`${inter.className} mt-2 text-muted-foreground text-sm`}>
-                    No active pauses right now. Resume requests will appear here when available.
-                  </p>
+        {/* Main Content */}
+        <div className='grid grid-cols-1 gap-6 lg:grid-cols-3'>
+          {/* Left Column: Pause Points + History */}
+          <div className='space-y-6 lg:col-span-1'>
+            {/* Pause Points List */}
+            <Card className='h-fit'>
+              <CardHeader>
+                <CardTitle className='text-lg'>Pause Points</CardTitle>
+                <CardDescription>Select a pause point to view details</CardDescription>
+              </CardHeader>
+              <CardContent className='space-y-4'>
+                {groupedPausePoints.active.length === 0 && groupedPausePoints.resolved.length === 0 ? (
+                  <div className='flex flex-col items-center justify-center py-8 text-center'>
+                    <Clock className='mb-3 h-12 w-12 text-slate-300' />
+                    <p className='text-sm text-slate-500'>No pause points found</p>
+                  </div>
                 ) : (
-                  <div className='mt-3 space-y-3'>
-                    {groupedPausePoints.active.map((pause) => renderPausePointCard(pause))}
-                  </div>
+                  <>
+                    {groupedPausePoints.active.length > 0 && (
+                      <div className='space-y-3'>
+                        <h3 className='text-xs font-semibold uppercase tracking-wider text-slate-500'>
+                          Active
+                        </h3>
+                        <div className='space-y-2'>
+                          {groupedPausePoints.active.map((pause) => renderPausePointCard(pause))}
+                        </div>
+                      </div>
+                    )}
+
+                    {groupedPausePoints.resolved.length > 0 && (
+                      <>
+                        {groupedPausePoints.active.length > 0 && (
+                          <Separator className='my-4' />
+                        )}
+                        <div className='space-y-3'>
+                          <h3 className='text-xs font-semibold uppercase tracking-wider text-slate-500'>
+                            Completed
+                          </h3>
+                          <div className='space-y-2'>
+                            {groupedPausePoints.resolved.map((pause) => renderPausePointCard(pause, true))}
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </>
                 )}
-              </div>
+              </CardContent>
+            </Card>
 
-              {groupedPausePoints.resolved.length > 0 && (
-                <div className='border-slate-200 border-t pt-4'>
-                  <p
-                    className={`${inter.className} text-slate-500 text-xs uppercase tracking-wide`}
-                  >
-                    Completed
-                  </p>
-                  <div className='mt-3 space-y-2'>
-                    {groupedPausePoints.resolved.map((pause) => renderPausePointCard(pause, true))}
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        </aside>
-
-        <main className='flex-1'>
-          <div className='space-y-6 rounded-[20px] border border-slate-200 bg-white p-8 shadow-sm'>
-            {loadingDetail && !selectedDetail ? (
-              <div className='flex h-32 items-center justify-center text-muted-foreground'>
-                Loading pause details...
-              </div>
-            ) : !selectedContextId ? (
-              <div className='flex h-32 items-center justify-center text-muted-foreground'>
-                Select a pause point to view details.
-              </div>
-            ) : !selectedDetail ? (
-              <div className='flex h-32 items-center justify-center text-muted-foreground'>
-                Pause details could not be loaded.
-              </div>
-            ) : (
-              <Fragment>
-                <div className='space-y-2 text-left'>
-                  <h1
-                    className={`${soehne.className} font-medium text-[32px] text-black tracking-tight`}
-                  >
-                    Pause Details
-                  </h1>
-                  <p className={`${inter.className} font-[380] text-[16px] text-muted-foreground`}>
-                    Provide optional input and resume the selected pause.
-                  </p>
-                </div>
-
-                <div className='grid grid-cols-1 gap-3 md:grid-cols-2'>
-                  <DetailRow label='Workflow ID' value={selectedDetail.execution.workflowId} />
-                  <DetailRow label='Execution ID' value={selectedDetail.execution.executionId} />
-                  <DetailRow label='Context ID' value={selectedDetail.pausePoint.contextId} />
-                  <DetailRow label='Status' value={statusDetailNode} />
-                  <DetailRow
-                    label='Registered At'
-                    value={formatDate(selectedDetail.pausePoint.registeredAt)}
-                  />
-                  <DetailRow
-                    label='Last Updated'
-                    value={formatDate(selectedDetail.execution.updatedAt)}
-                  />
-                </div>
-
-                {selectedDetail.activeResumeEntry && (
-                  <div className='rounded-xl border border-blue-200 bg-blue-50 p-4 text-left'>
-                    <div className='flex flex-wrap items-center justify-between gap-2'>
-                      <h2 className={`${soehne.className} font-semibold text-blue-900 text-sm`}>
-                        Current Resume Attempt
-                      </h2>
-                      <ResumeStatusBadge
-                        status={
-                          selectedDetail.activeResumeEntry.status?.toLowerCase?.() ??
-                          selectedDetail.activeResumeEntry.status
-                        }
-                      />
+            {/* History */}
+            {selectedDetail && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className='text-lg'>Resume History</CardTitle>
+                  <CardDescription>Previous resume attempts for this pause</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {selectedDetail.queue.length > 0 ? (
+                    <div className='space-y-3'>
+                      {selectedDetail.queue.map((entry) => {
+                        const normalizedStatus = entry.status?.toLowerCase?.() ?? entry.status
+                        return (
+                          <div key={entry.id} className='rounded-lg border bg-white p-3'>
+                            <div className='flex items-start justify-between gap-2'>
+                              <div className='space-y-2'>
+                                <ResumeStatusBadge status={normalizedStatus} />
+                                <div className='space-y-1 text-xs text-slate-600'>
+                                  <p>
+                                    ID:{' '}
+                                    <span className='font-medium text-slate-900'>
+                                      {entry.newExecutionId}
+                                    </span>
+                                  </p>
+                                  {entry.claimedAt && (
+                                    <p>Started: {formatDate(entry.claimedAt)}</p>
+                                  )}
+                                  {entry.completedAt && (
+                                    <p>Completed: {formatDate(entry.completedAt)}</p>
+                                  )}
+                                </div>
+                                {entry.failureReason && (
+                                  <div className='mt-2 rounded border border-red-200 bg-red-50 p-2 text-xs text-red-700'>
+                                    {entry.failureReason}
+                                  </div>
+                                )}
+                              </div>
+                              <span className='text-xs text-slate-400'>
+                                {formatDate(entry.queuedAt)}
+                              </span>
+                            </div>
+                          </div>
+                        )
+                      })}
                     </div>
-                    <div className='mt-3 space-y-1'>
-                      <p className={`${inter.className} text-blue-800 text-xs`}>
+                  ) : (
+                    <div className='flex flex-col items-center justify-center py-8 text-center'>
+                      <Clock className='mb-3 h-8 w-8 text-slate-300' />
+                      <p className='text-sm text-slate-500'>No resume attempts yet</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+          </div>
+
+          {/* Right Column: Content + Input */}
+          <div className='space-y-6 lg:col-span-2'>
+            {loadingDetail && !selectedDetail ? (
+              <Card>
+                <CardContent className='flex h-64 items-center justify-center p-6'>
+                  <div className='text-center'>
+                    <RefreshCw className='mx-auto mb-3 h-8 w-8 animate-spin text-slate-400' />
+                    <p className='text-sm text-slate-500'>Loading pause details...</p>
+                  </div>
+                </CardContent>
+              </Card>
+            ) : !selectedContextId ? (
+              <Card>
+                <CardContent className='flex h-64 items-center justify-center p-6'>
+                  <div className='text-center'>
+                    <FileText className='mx-auto mb-3 h-12 w-12 text-slate-300' />
+                    <p className='text-sm text-slate-500'>Select a pause point to view details</p>
+                  </div>
+                </CardContent>
+              </Card>
+            ) : !selectedDetail ? (
+              <Card>
+                <CardContent className='flex h-64 items-center justify-center p-6'>
+                  <div className='text-center'>
+                    <XCircle className='mx-auto mb-3 h-12 w-12 text-red-300' />
+                    <p className='text-sm text-slate-500'>Pause details could not be loaded</p>
+                  </div>
+                </CardContent>
+              </Card>
+            ) : (
+              <>
+                {/* Header with Status */}
+                <div className='flex items-center justify-between'>
+                  <div>
+                    <h2 className='text-2xl font-semibold text-slate-900'>Pause Details</h2>
+                    <p className='mt-1 text-sm text-slate-600'>
+                      Review content and provide input to resume
+                    </p>
+                  </div>
+                  {statusDetailNode}
+                </div>
+
+                {/* Active Resume Entry Alert */}
+                {selectedDetail.activeResumeEntry && (
+                  <Card className='border-blue-200 bg-blue-50/50'>
+                    <CardHeader>
+                      <div className='flex items-center justify-between'>
+                        <CardTitle className='text-sm text-blue-900'>
+                          Current Resume Attempt
+                        </CardTitle>
+                        <ResumeStatusBadge
+                          status={
+                            selectedDetail.activeResumeEntry.status?.toLowerCase?.() ??
+                            selectedDetail.activeResumeEntry.status
+                          }
+                        />
+                      </div>
+                    </CardHeader>
+                    <CardContent className='space-y-2 text-sm text-blue-800'>
+                      <p>
                         Resume execution ID:{' '}
                         <span className='font-medium'>
                           {selectedDetail.activeResumeEntry.newExecutionId}
                         </span>
                       </p>
                       {selectedDetail.activeResumeEntry.claimedAt && (
-                        <p className={`${inter.className} text-blue-800 text-xs`}>
-                          Started at {formatDate(selectedDetail.activeResumeEntry.claimedAt)}
-                        </p>
+                        <p>Started at {formatDate(selectedDetail.activeResumeEntry.claimedAt)}</p>
                       )}
                       {selectedDetail.activeResumeEntry.completedAt && (
-                        <p className={`${inter.className} text-blue-800 text-xs`}>
-                          Completed at {formatDate(selectedDetail.activeResumeEntry.completedAt)}
-                        </p>
+                        <p>Completed at {formatDate(selectedDetail.activeResumeEntry.completedAt)}</p>
                       )}
-                    </div>
-                    {selectedDetail.activeResumeEntry.failureReason && (
-                      <div className='mt-3 rounded-lg border border-red-200 bg-red-50 p-3 text-red-700 text-xs'>
-                        {selectedDetail.activeResumeEntry.failureReason}
-                      </div>
-                    )}
-                  </div>
+                      {selectedDetail.activeResumeEntry.failureReason && (
+                        <div className='mt-2 rounded border border-red-300 bg-red-100 p-3 text-sm text-red-800'>
+                          {selectedDetail.activeResumeEntry.failureReason}
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
                 )}
 
-                {selectedDetail.pausePoint.resumeLinks && (
-                  <div className='rounded-xl bg-slate-100 p-4 text-left'>
-                    <h2 className={`${soehne.className} font-semibold text-slate-700 text-sm`}>
-                      Shareable Links
-                    </h2>
-                    <p className={`${inter.className} mt-2 break-words text-slate-600 text-sm`}>
-                      UI:{' '}
-                      <span className='font-medium'>
-                        {selectedDetail.pausePoint.resumeLinks.uiUrl}
-                      </span>
-                    </p>
-                    <p className={`${inter.className} mt-1 break-words text-slate-600 text-sm`}>
-                      API:{' '}
-                      <span className='font-medium'>
-                        {selectedDetail.pausePoint.resumeLinks.apiUrl}
-                      </span>
-                    </p>
-                  </div>
-                )}
 
-                {responseStructureRows.length > 0 && (
-                  <div className='space-y-3 text-left'>
-                    <h2 className={`${soehne.className} font-semibold text-slate-700 text-sm`}>
-                      Response Structure
-                    </h2>
-                    <div className='overflow-hidden rounded-xl border border-slate-200'>
-                      <table className='min-w-full divide-y divide-slate-200 text-sm'>
-                        <thead className='bg-slate-50'>
-                          <tr>
-                            <th className='px-3 py-2 text-left font-semibold text-slate-600'>
-                              Field
-                            </th>
-                            <th className='px-3 py-2 text-left font-semibold text-slate-600'>
-                              Type
-                            </th>
-                            <th className='px-3 py-2 text-left font-semibold text-slate-600'>
-                              Value
-                            </th>
-                          </tr>
-                        </thead>
-                        <tbody className='divide-y divide-slate-200 bg-white'>
-                          {responseStructureRows.map((row) => (
-                            <tr key={row.id}>
-                              <td className='px-3 py-2 font-medium text-slate-800'>{row.name}</td>
-                              <td className='px-3 py-2 text-slate-500'>{row.type}</td>
-                              <td className='px-3 py-2'>
-                                <pre className='max-h-40 overflow-auto whitespace-pre-wrap break-words font-mono text-slate-800 text-xs'>
-                                  {formatStructureValue(row.value)}
-                                </pre>
-                              </td>
+
+                {/* Content Section */}
+                {responseStructureRows.length > 0 ? (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className='text-sm'>Content</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className='overflow-hidden rounded-lg border'>
+                        <table className='min-w-full divide-y divide-slate-200'>
+                          <thead className='bg-slate-50'>
+                            <tr>
+                              <th className='px-4 py-2 text-left text-xs font-medium text-slate-600'>
+                                Field
+                              </th>
+                              <th className='px-4 py-2 text-left text-xs font-medium text-slate-600'>
+                                Type
+                              </th>
+                              <th className='px-4 py-2 text-left text-xs font-medium text-slate-600'>
+                                Value
+                              </th>
                             </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
+                          </thead>
+                          <tbody className='divide-y divide-slate-200 bg-white'>
+                            {responseStructureRows.map((row) => (
+                              <tr key={row.id}>
+                                <td className='px-4 py-2 text-sm font-medium text-slate-800'>
+                                  {row.name}
+                                </td>
+                                <td className='px-4 py-2 text-sm text-slate-500'>{row.type}</td>
+                                <td className='px-4 py-2'>
+                                  <pre className='max-h-32 overflow-auto whitespace-pre-wrap break-words font-mono text-xs text-slate-700'>
+                                    {formatStructureValue(row.value)}
+                                  </pre>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ) : (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className='text-sm'>Pause Response Data</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <pre className='max-h-60 overflow-auto rounded-lg bg-slate-900 p-4 font-mono text-xs text-slate-100'>
+                        {pauseResponsePreview}
+                      </pre>
+                    </CardContent>
+                  </Card>
                 )}
 
-                {(!isHumanMode || responseStructureRows.length === 0) && (
-                  <div className='space-y-3 text-left'>
-                    <h2 className={`${soehne.className} font-semibold text-slate-700 text-sm`}>
-                      Pause Response Preview
-                    </h2>
-                    <pre className='max-h-60 overflow-auto rounded-xl bg-slate-900 p-4 text-slate-100 text-sm'>
-                      {pauseResponsePreview}
-                    </pre>
-                  </div>
-                )}
-
+                {/* Input Section */}
                 {isHumanMode && hasInputFormat ? (
-                  <div className='space-y-3 text-left'>
-                    <h2 className={`${soehne.className} font-semibold text-slate-700 text-sm`}>
-                      Approval Response
-                    </h2>
-                    <div className='space-y-4'>
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className='text-sm'>Resume Form</CardTitle>
+                      <CardDescription>Fill out the required fields to resume execution</CardDescription>
+                    </CardHeader>
+                    <CardContent className='space-y-4'>
                       {inputFormatFields.map((field) => (
                         <div key={field.id} className='space-y-2'>
-                          <Label
-                            className={`${soehne.className} font-semibold text-slate-700 text-sm`}
-                          >
+                          <Label className='text-sm font-medium text-slate-700'>
                             {field.label}
                             {field.required && <span className='ml-1 text-red-500'>*</span>}
                           </Label>
                           {field.description && (
-                            <p className={`${inter.className} text-slate-600 text-xs`}>
-                              {field.description}
-                            </p>
+                            <p className='text-xs text-slate-500'>{field.description}</p>
                           )}
                           {renderFieldInput(field)}
                           {formErrors[field.name] && (
-                            <p className={`${inter.className} text-red-600 text-xs`}>
-                              {formErrors[field.name]}
-                            </p>
+                            <p className='text-xs text-red-600'>{formErrors[field.name]}</p>
                           )}
                         </div>
                       ))}
-                    </div>
-                  </div>
+                    </CardContent>
+                  </Card>
                 ) : (
-                  <div className='space-y-2 text-left'>
-                    <label
-                      htmlFor='resume-input-textarea'
-                      className={`${soehne.className} font-semibold text-slate-700 text-sm`}
-                    >
-                      Resume Input (JSON, optional)
-                    </label>
-                    <Textarea
-                      id='resume-input-textarea'
-                      value={resumeInput}
-                      onChange={(event) => {
-                        setResumeInput(event.target.value)
-                        if (selectedContextId) {
-                          setResumeInputs((prev) => ({
-                            ...prev,
-                            [selectedContextId]: event.target.value,
-                          }))
-                        }
-                      }}
-                      placeholder='{
-  "example": "value"
-}'
-                      className='min-h-[160px] resize-y rounded-xl border-slate-200 bg-white font-mono text-sm'
-                    />
-                  </div>
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className='text-sm'>Resume Input (JSON)</CardTitle>
+                      <CardDescription>
+                        Provide optional JSON input to pass to the resumed execution
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <Textarea
+                        id='resume-input-textarea'
+                        value={resumeInput}
+                        onChange={(event) => {
+                          setResumeInput(event.target.value)
+                          if (selectedContextId) {
+                            setResumeInputs((prev) => ({
+                              ...prev,
+                              [selectedContextId]: event.target.value,
+                            }))
+                          }
+                        }}
+                        placeholder='{&#10;  "example": "value"&#10;}'
+                        className='min-h-[200px] font-mono text-sm'
+                      />
+                    </CardContent>
+                  </Card>
                 )}
 
+                {/* Error/Success Messages */}
                 {error && (
-                  <div className='rounded-xl border border-red-200 bg-red-50 p-4 text-red-700 text-sm'>
-                    {error}
-                  </div>
+                  <Card className='border-red-200 bg-red-50'>
+                    <CardContent className='flex items-start gap-3 p-4'>
+                      <XCircle className='mt-0.5 h-5 w-5 flex-shrink-0 text-red-600' />
+                      <div className='text-sm text-red-700'>{error}</div>
+                    </CardContent>
+                  </Card>
                 )}
 
                 {message && (
-                  <div className='rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-700 text-sm'>
-                    {message}
-                  </div>
+                  <Card className='border-emerald-200 bg-emerald-50'>
+                    <CardContent className='flex items-start gap-3 p-4'>
+                      <CheckCircle2 className='mt-0.5 h-5 w-5 flex-shrink-0 text-emerald-600' />
+                      <div className='text-sm text-emerald-700'>{message}</div>
+                    </CardContent>
+                  </Card>
                 )}
 
-                <div className='flex flex-col gap-3 sm:flex-row sm:justify-between'>
+                {/* Action Buttons */}
+                <div className='flex justify-start'>
                   <Button
                     type='button'
                     onClick={handleResume}
                     disabled={resumeDisabled}
-                    className='auth-button-gradient flex w-full items-center justify-center gap-2 rounded-[10px] border font-medium text-[15px] text-white transition-all duration-200 sm:w-auto'
+                    className='gap-2'
+                    size='lg'
                   >
-                    {loadingAction ? 'Resuming…' : 'Resume Execution'}
+                    <Play className='h-4 w-4' />
+                    {loadingAction ? 'Resuming...' : 'Resume Execution'}
                   </Button>
-
-                  <div className='flex w-full items-center justify-between gap-3 sm:w-auto'>
-                    <Button
-                      variant='outline'
-                      type='button'
-                      onClick={() => {
-                        if (selectedContextId) {
-                          refreshSelectedDetail(selectedContextId)
-                        }
-                      }}
-                      className='flex-1 rounded-[10px] border-slate-200 font-medium text-[15px] sm:flex-none'
-                    >
-                      Refresh
-                    </Button>
-                    <Button
-                      variant='ghost'
-                      type='button'
-                      onClick={() => router.push('/')}
-                      className='flex-1 rounded-[10px] font-medium text-[15px] text-slate-700 sm:flex-none'
-                    >
-                      Home
-                    </Button>
-                  </div>
                 </div>
-
-                {selectedDetail.queue.length > 0 && (
-                  <div className='space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4 text-left'>
-                    <h2 className={`${soehne.className} font-semibold text-slate-700 text-sm`}>
-                      Resume Attempts
-                    </h2>
-                    <div className='space-y-3'>
-                      {selectedDetail.queue.map((entry) => {
-                        const normalizedStatus = entry.status?.toLowerCase?.() ?? entry.status
-                        return (
-                          <div
-                            key={entry.id}
-                            className='rounded-xl border border-slate-200 bg-white p-4'
-                          >
-                            <div className='flex flex-wrap items-center justify-between gap-2'>
-                              <ResumeStatusBadge status={normalizedStatus} />
-                              <span className={`${inter.className} text-slate-500 text-xs`}>
-                                {formatDate(entry.queuedAt)}
-                              </span>
-                            </div>
-                            <div className='mt-3 space-y-1'>
-                              <p className={`${inter.className} text-slate-500 text-xs`}>
-                                Resume execution ID:{' '}
-                                <span className='font-medium text-slate-700'>
-                                  {entry.newExecutionId}
-                                </span>
-                              </p>
-                              {entry.claimedAt && (
-                                <p className={`${inter.className} text-slate-500 text-xs`}>
-                                  Started at{' '}
-                                  <span className='font-medium text-slate-700'>
-                                    {formatDate(entry.claimedAt)}
-                                  </span>
-                                </p>
-                              )}
-                              {entry.completedAt && (
-                                <p className={`${inter.className} text-slate-500 text-xs`}>
-                                  Completed at{' '}
-                                  <span className='font-medium text-slate-700'>
-                                    {formatDate(entry.completedAt)}
-                                  </span>
-                                </p>
-                              )}
-                            </div>
-                            {entry.failureReason && (
-                              <div className='mt-3 rounded-lg border border-red-200 bg-red-50 p-3 text-red-700 text-xs'>
-                                {entry.failureReason}
-                              </div>
-                            )}
-                          </div>
-                        )
-                      })}
-                    </div>
-                  </div>
-                )}
-              </Fragment>
+              </>
             )}
           </div>
-        </main>
+        </div>
       </div>
 
-      <div
-        className={`${inter.className} auth-text-muted fixed right-0 bottom-0 left-0 z-50 pb-8 text-center font-[340] text-[13px] leading-relaxed`}
-      >
+      <div className='border-t bg-white py-4 text-center text-sm text-slate-600'>
         Need help?{' '}
         <a
           href={`mailto:${brandConfig.supportEmail}`}
-          className='auth-link underline-offset-4 transition hover:underline'
+          className='text-blue-600 underline-offset-4 transition hover:underline'
         >
           Contact support
         </a>
@@ -1410,30 +1468,3 @@ export default function ResumeExecutionPage({
   )
 }
 
-function SummaryStat({ label, value }: { label: string; value: number }) {
-  return (
-    <div className='rounded-[14px] border border-slate-200 bg-slate-50 p-3'>
-      <p className={`${inter.className} text-[11px] text-slate-500 uppercase tracking-wide`}>
-        {label}
-      </p>
-      <p className={`${soehne.className} mt-1 font-semibold text-[18px] text-slate-800`}>{value}</p>
-    </div>
-  )
-}
-
-function DetailRow({ label, value }: { label: string; value?: ReactNode }) {
-  const shouldShowPlaceholder =
-    value === null ||
-    value === undefined ||
-    (typeof value === 'string' && value.trim().length === 0)
-  const displayValue = shouldShowPlaceholder ? '—' : value
-
-  return (
-    <div className='rounded-xl border border-slate-200 bg-slate-50 p-3 text-left'>
-      <p className={`${inter.className} text-slate-500 text-xs uppercase tracking-wide`}>{label}</p>
-      <div className={`${soehne.className} mt-1 font-semibold text-slate-800 text-sm`}>
-        {displayValue}
-      </div>
-    </div>
-  )
-}
