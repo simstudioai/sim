@@ -21,37 +21,12 @@ export const searchTool: ToolConfig<SearchParams, SearchResponse> = {
       visibility: 'user-only',
       description: 'Your Jina AI API key',
     },
-    // Geographic & language params
-    gl: {
-      type: 'string',
-      required: false,
-      visibility: 'user-only',
-      description: 'Two-letter country code for geo-specific results (e.g., "US", "UK", "JP")',
-    },
-    location: {
-      type: 'string',
-      required: false,
-      visibility: 'user-only',
-      description: 'City-level location for localized search results',
-    },
-    hl: {
-      type: 'string',
-      required: false,
-      visibility: 'user-only',
-      description: 'Two-letter language code for results (e.g., "en", "es", "fr")',
-    },
     // Pagination
     num: {
       type: 'number',
       required: false,
       visibility: 'user-only',
       description: 'Maximum number of results per page (default: 5)',
-    },
-    page: {
-      type: 'number',
-      required: false,
-      visibility: 'user-only',
-      description: 'Page number for pagination (offset)',
     },
     // Site restriction
     site: {
@@ -110,35 +85,11 @@ export const searchTool: ToolConfig<SearchParams, SearchResponse> = {
       visibility: 'user-only',
       description: 'Output format: markdown, html, text, screenshot, or pageshot',
     },
-    engine: {
-      type: 'string',
-      required: false,
-      visibility: 'user-only',
-      description: 'Rendering engine: browser or direct',
-    },
     timeout: {
       type: 'number',
       required: false,
       visibility: 'user-only',
       description: 'Maximum seconds to wait for page load',
-    },
-    setCookie: {
-      type: 'string',
-      required: false,
-      visibility: 'user-only',
-      description: 'Forward authentication cookies',
-    },
-    proxyUrl: {
-      type: 'string',
-      required: false,
-      visibility: 'user-only',
-      description: 'HTTP proxy URL for request routing',
-    },
-    locale: {
-      type: 'string',
-      required: false,
-      visibility: 'user-only',
-      description: 'Browser locale for rendering (e.g., "en-US")',
     },
   },
 
@@ -191,46 +142,8 @@ export const searchTool: ToolConfig<SearchParams, SearchResponse> = {
       if (params.returnFormat) {
         headers['X-Return-Format'] = params.returnFormat
       }
-      if (params.engine) {
-        headers['X-Engine'] = params.engine
-      }
       if (params.timeout) {
         headers['X-Timeout'] = Number(params.timeout).toString()
-      }
-      if (params.setCookie) {
-        headers['X-Set-Cookie'] = params.setCookie
-      }
-      if (params.proxyUrl) {
-        headers['X-Proxy-Url'] = params.proxyUrl
-      }
-      if (params.locale) {
-        headers['X-Locale'] = params.locale
-      }
-
-      // Geographic & language headers
-      if (params.gl) {
-        headers['X-Gl'] = params.gl
-      }
-      if (params.location) {
-        headers['X-Location'] = params.location
-      }
-      if (params.hl) {
-        headers['X-Hl'] = params.hl
-      }
-
-      // Pagination headers
-      if (params.num) {
-<<<<<<< HEAD
-        headers['X-Num'] = Number(params.num).toString()
-      }
-      if (params.page) {
-        headers['X-Page'] = Number(params.page).toString()
-=======
-        headers['X-Num'] = params.num.toString()
-      }
-      if (params.page) {
-        headers['X-Page'] = params.page.toString()
->>>>>>> 942ef43a6 (feat(tools): added 150+ new tools across confluence, discord, exa, firecrawl, jina, jira, linear, linkup, MS suite, parallel, reddit, supabase, & tavily)
       }
 
       return headers

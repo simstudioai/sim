@@ -40,24 +40,6 @@ export const readUrlTool: ToolConfig<ReadUrlParams, ReadUrlResponse> = {
       description: 'Your Jina AI API key',
     },
     // Content extraction params
-    targetSelector: {
-      type: 'string',
-      required: false,
-      visibility: 'user-only',
-      description: 'CSS selector to target specific page elements (e.g., "#main-content")',
-    },
-    waitForSelector: {
-      type: 'string',
-      required: false,
-      visibility: 'user-only',
-      description: 'CSS selector to wait for before extracting content (useful for dynamic pages)',
-    },
-    removeSelector: {
-      type: 'string',
-      required: false,
-      visibility: 'user-only',
-      description: 'CSS selector for elements to exclude (e.g., "header, footer, .ad")',
-    },
     timeout: {
       type: 'number',
       required: false,
@@ -94,49 +76,12 @@ export const readUrlTool: ToolConfig<ReadUrlParams, ReadUrlResponse> = {
       visibility: 'user-only',
       description: 'Extract Shadow DOM content',
     },
-    // Authentication & proxy
-    setCookie: {
-      type: 'string',
-      required: false,
-      visibility: 'user-only',
-      description: 'Forward authentication cookies (disables caching)',
-    },
-    proxyUrl: {
-      type: 'string',
-      required: false,
-      visibility: 'user-only',
-      description: 'HTTP proxy URL for request routing',
-    },
-    proxy: {
-      type: 'string',
-      required: false,
-      visibility: 'user-only',
-      description: 'Country code for proxy (e.g., "US", "UK") or "auto"/"none"',
-    },
     // Performance & caching
-    engine: {
-      type: 'string',
-      required: false,
-      visibility: 'user-only',
-      description: 'Rendering engine: browser, direct, or cf-browser-rendering',
-    },
-    tokenBudget: {
-      type: 'number',
-      required: false,
-      visibility: 'user-only',
-      description: 'Maximum tokens for the request (cost control)',
-    },
     noCache: {
       type: 'boolean',
       required: false,
       visibility: 'user-only',
       description: 'Bypass cached content for real-time retrieval',
-    },
-    cacheTolerance: {
-      type: 'number',
-      required: false,
-      visibility: 'user-only',
-      description: 'Custom cache lifetime in seconds',
     },
     // Advanced options
     withGeneratedAlt: {
@@ -144,18 +89,6 @@ export const readUrlTool: ToolConfig<ReadUrlParams, ReadUrlResponse> = {
       required: false,
       visibility: 'user-only',
       description: 'Generate alt text for images using VLM',
-    },
-    baseUrl: {
-      type: 'string',
-      required: false,
-      visibility: 'user-only',
-      description: 'Set to "final" to follow redirect chain',
-    },
-    locale: {
-      type: 'string',
-      required: false,
-      visibility: 'user-only',
-      description: 'Browser locale for rendering (e.g., "en-US")',
     },
     robotsTxt: {
       type: 'string',
@@ -198,15 +131,6 @@ export const readUrlTool: ToolConfig<ReadUrlParams, ReadUrlResponse> = {
       }
 
       // Content extraction headers
-      if (params.targetSelector) {
-        headers['X-Target-Selector'] = params.targetSelector
-      }
-      if (params.waitForSelector) {
-        headers['X-Wait-For-Selector'] = params.waitForSelector
-      }
-      if (params.removeSelector) {
-        headers['X-Remove-Selector'] = params.removeSelector
-      }
       if (params.timeout) {
         headers['X-Timeout'] = Number(params.timeout).toString()
       }
@@ -226,48 +150,9 @@ export const readUrlTool: ToolConfig<ReadUrlParams, ReadUrlResponse> = {
         headers['X-With-Shadow-Dom'] = 'true'
       }
 
-      // Authentication & proxy headers
-      if (params.setCookie) {
-        headers['X-Set-Cookie'] = params.setCookie
-      }
-      if (params.proxyUrl) {
-        headers['X-Proxy-Url'] = params.proxyUrl
-      }
-      if (params.proxy) {
-        headers['X-Proxy'] = params.proxy
-      }
-
-      // Performance & caching headers
-      if (params.engine) {
-        headers['X-Engine'] = params.engine
-      }
-      if (params.tokenBudget) {
-<<<<<<< HEAD
-        headers['X-Token-Budget'] = Number(params.tokenBudget).toString()
-=======
-        headers['X-Token-Budget'] = params.tokenBudget.toString()
->>>>>>> 942ef43a6 (feat(tools): added 150+ new tools across confluence, discord, exa, firecrawl, jina, jira, linear, linkup, MS suite, parallel, reddit, supabase, & tavily)
-      }
-      if (params.noCache === true) {
-        headers['X-No-Cache'] = 'true'
-      }
-      if (params.cacheTolerance) {
-<<<<<<< HEAD
-        headers['X-Cache-Tolerance'] = Number(params.cacheTolerance).toString()
-=======
-        headers['X-Cache-Tolerance'] = params.cacheTolerance.toString()
->>>>>>> 942ef43a6 (feat(tools): added 150+ new tools across confluence, discord, exa, firecrawl, jina, jira, linear, linkup, MS suite, parallel, reddit, supabase, & tavily)
-      }
-
       // Advanced options
       if (params.withGeneratedAlt === true) {
         headers['X-With-Generated-Alt'] = 'true'
-      }
-      if (params.baseUrl) {
-        headers['X-Base'] = params.baseUrl
-      }
-      if (params.locale) {
-        headers['X-Locale'] = params.locale
       }
       if (params.robotsTxt) {
         headers['X-Robots-Txt'] = params.robotsTxt
