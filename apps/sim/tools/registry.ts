@@ -1,4 +1,3 @@
-// Provider tools - handled separately
 import {
   airtableCreateRecordsTool,
   airtableGetRecordTool,
