@@ -17,13 +17,13 @@ import {
   loadWorkflowFromNormalizedTables,
 } from '@/lib/workflows/db-helpers'
 import { executeWorkflowCore } from '@/lib/workflows/executor/execution-core'
+import { PauseResumeManager } from '@/lib/workflows/executor/pause-resume-manager'
 import { getWorkflowById } from '@/lib/workflows/utils'
 import { type ExecutionMetadata, ExecutionSnapshot } from '@/executor/execution/snapshot'
 import type { ExecutionResult } from '@/executor/types'
 import { Serializer } from '@/serializer'
 import { mergeSubblockState } from '@/stores/workflows/server-utils'
 import { getTrigger, isTriggerValid } from '@/triggers'
-import { PauseResumeManager } from '@/lib/workflows/executor/pause-resume-manager'
 
 const logger = createLogger('TriggerWebhookExecution')
 

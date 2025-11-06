@@ -1,7 +1,6 @@
 import { createLogger } from '@/lib/logs/console/logger'
 import { BlockType, HTTP } from '@/executor/consts'
 import type { BlockHandler, ExecutionContext } from '@/executor/types'
-import { stringifyJSON } from '@/executor/utils/json'
 import type { SerializedBlock } from '@/serializer/types'
 import { executeTool } from '@/tools'
 import { getTool } from '@/tools/utils'
@@ -64,23 +63,12 @@ export class ApiBlockHandler implements BlockHandler {
             const trimmedBody = processedInputs.body.trim()
             if (trimmedBody.startsWith('{') || trimmedBody.startsWith('[')) {
               processedInputs.body = JSON.parse(trimmedBody)
-              logger.info(
-                '[ApiBlockHandler] Parsed JSON body:',
-                stringifyJSON(processedInputs.body)
-              )
             }
-          } catch (e) {
-            logger.info('[ApiBlockHandler] Failed to parse body as JSON, using as string:', e)
-          }
+          } catch (e) {}
         } else if (processedInputs.body === null) {
           processedInputs.body = undefined
         }
       }
-
-      logger.info(
-        '[ApiBlockHandler] Final processed request body:',
-        stringifyJSON(processedInputs.body)
-      )
 
       const result = await executeTool(
         block.config.tool,

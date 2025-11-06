@@ -94,7 +94,9 @@ export class LoggingSession {
       } else {
         this.isResume = true // Mark as resume
         if (this.requestId) {
-          logger.debug(`[${this.requestId}] Resuming logging for existing execution ${this.executionId}`)
+          logger.debug(
+            `[${this.requestId}] Resuming logging for existing execution ${this.executionId}`
+          )
         }
       }
     } catch (error) {

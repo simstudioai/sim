@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { type NextRequest, NextResponse } from 'next/server'
 import { createLogger } from '@/lib/logs/console/logger'
 import { PauseResumeManager } from '@/lib/workflows/executor/pause-resume-manager'
 import { validateWorkflowAccess } from '@/app/api/workflows/middleware'

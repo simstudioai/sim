@@ -47,8 +47,6 @@ export class WaitBlockHandler implements BlockHandler {
     block: SerializedBlock,
     inputs: Record<string, any>
   ): Promise<any> {
-    logger.info(`Executing Wait block: ${block.id}`, { inputs })
-
     const timeValue = Number.parseInt(inputs.timeValue || '10', 10)
     const timeUnit = inputs.timeUnit || 'seconds'
 
@@ -67,8 +65,6 @@ export class WaitBlockHandler implements BlockHandler {
       throw new Error(`Wait time exceeds maximum of ${maxDisplay}`)
     }
 
-    logger.info(`Waiting for ${waitMs}ms (${timeValue} ${timeUnit})`)
-
     const checkCancelled = () => {
       return (ctx as any).isCancelled === true
     }
@@ -76,14 +72,12 @@ export class WaitBlockHandler implements BlockHandler {
     const completed = await sleep(waitMs, checkCancelled)
 
     if (!completed) {
-      logger.info('Wait was interrupted by cancellation')
       return {
         waitDuration: waitMs,
         status: 'cancelled',
       }
     }
 
-    logger.info('Wait completed successfully')
     return {
       waitDuration: waitMs,
       status: 'completed',

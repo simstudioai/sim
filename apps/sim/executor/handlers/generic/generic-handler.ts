@@ -17,8 +17,6 @@ export class GenericBlockHandler implements BlockHandler {
     block: SerializedBlock,
     inputs: Record<string, any>
   ): Promise<any> {
-    logger.info(`Executing block: ${block.id} (Type: ${block.metadata?.id})`)
-
     const isMcpTool = block.config.tool?.startsWith('mcp-')
     let tool = null
 
@@ -38,10 +36,6 @@ export class GenericBlockHandler implements BlockHandler {
         try {
           const transformedParams = blockConfig.tools.config.params(inputs)
           finalInputs = { ...inputs, ...transformedParams }
-          logger.info(`Applied parameter transformation for block type: ${blockType}`, {
-            original: inputs,
-            transformed: transformedParams,
-          })
         } catch (error) {
           logger.warn(`Failed to apply parameter transformation for block type ${blockType}:`, {
             error: error instanceof Error ? error.message : String(error),
@@ -49,14 +43,6 @@ export class GenericBlockHandler implements BlockHandler {
         }
       }
     }
-
-    logger.info(`[GenericBlockHandler] Calling executeTool for ${block.config.tool}`, {
-      blockId: block.id,
-      blockName: block.metadata?.name,
-      originalInputs: inputs,
-      finalInputs: finalInputs,
-      tool: block.config.tool,
-    })
 
     try {
       const result = await executeTool(

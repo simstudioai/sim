@@ -234,7 +234,7 @@ export async function executeWorkflowCore(
     const resumePendingQueue = snapshot.state?.pendingQueue
 
     let resolvedTriggerBlockId = triggerBlockId
-    
+
     // For resume executions, skip trigger resolution since we have a pending queue
     if (resumeFromSnapshot && resumePendingQueue?.length) {
       resolvedTriggerBlockId = undefined
@@ -282,7 +282,9 @@ export async function executeWorkflowCore(
       logger.info(`[${requestId}] Resume execution detected`, {
         resumePendingQueue,
         hasState: !!snapshot.state,
-        stateBlockStatesCount: snapshot.state ? Object.keys(snapshot.state.blockStates || {}).length : 0,
+        stateBlockStatesCount: snapshot.state
+          ? Object.keys(snapshot.state.blockStates || {}).length
+          : 0,
         executedBlocksCount: snapshot.state?.executedBlocks?.length ?? 0,
         useDraftState,
       })

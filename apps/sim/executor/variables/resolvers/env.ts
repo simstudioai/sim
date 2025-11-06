@@ -1,6 +1,6 @@
 import { createLogger } from '@/lib/logs/console/logger'
 import { extractEnvVarName, isEnvVarReference } from '@/executor/consts'
-import type { ResolutionContext, Resolver } from './reference'
+import type { ResolutionContext, Resolver } from '@/executor/variables/resolvers/reference'
 
 const logger = createLogger('EnvResolver')
 

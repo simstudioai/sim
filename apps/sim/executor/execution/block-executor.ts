@@ -1,10 +1,19 @@
 import { createLogger } from '@/lib/logs/console/logger'
-import { DEFAULTS, EDGE, BlockType, isSentinelBlockType, PAUSE_RESUME, buildResumeApiUrl, buildResumeUiUrl } from '@/executor/consts'
+import { getBaseUrl } from '@/lib/urls/utils'
+import {
+  BlockType,
+  buildResumeApiUrl,
+  buildResumeUiUrl,
+  DEFAULTS,
+  EDGE,
+  isSentinelBlockType,
+} from '@/executor/consts'
+import type { DAGNode } from '@/executor/dag/builder'
+import type { BlockStateWriter, ContextExtensions } from '@/executor/execution/types'
 import {
   generatePauseContextId,
   mapNodeMetadataToPauseScopes,
 } from '@/executor/pause-resume/utils.ts'
-import { buildBlockExecutionError, normalizeError } from '@/executor/utils/errors'
 import type {
   BlockHandler,
   BlockLog,
@@ -12,12 +21,10 @@ import type {
   ExecutionContext,
   NormalizedBlockOutput,
 } from '@/executor/types'
+import { buildBlockExecutionError, normalizeError } from '@/executor/utils/errors'
+import type { VariableResolver } from '@/executor/variables/resolver'
 import type { SerializedBlock } from '@/serializer/types'
 import type { SubflowType } from '@/stores/workflows/workflow/types'
-import type { DAGNode } from '@/executor/dag/builder'
-import type { VariableResolver } from '@/executor/variables/resolver'
-import type { BlockStateWriter, ContextExtensions } from '@/executor/execution/types'
-import { getBaseUrl } from '@/lib/urls/utils'
 
 const logger = createLogger('BlockExecutor')
 
@@ -252,7 +259,10 @@ export class BlockExecutor {
     return { result: output }
   }
 
-  private filterOutputForLog(block: SerializedBlock, output: NormalizedBlockOutput): NormalizedBlockOutput {
+  private filterOutputForLog(
+    block: SerializedBlock,
+    output: NormalizedBlockOutput
+  ): NormalizedBlockOutput {
     if (block.metadata?.id === BlockType.PAUSE_RESUME) {
       const filtered: NormalizedBlockOutput = {}
       for (const [key, value] of Object.entries(output)) {

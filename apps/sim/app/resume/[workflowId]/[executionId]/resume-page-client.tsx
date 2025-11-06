@@ -1,10 +1,9 @@
 'use client'
 
-import { Fragment, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { Fragment, type ReactNode, useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Button } from '@/components/ui/button'
-import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
@@ -14,10 +13,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { Textarea } from '@/components/ui/textarea'
+import { useBrandConfig } from '@/lib/branding/branding'
 import Nav from '@/app/(landing)/components/nav/nav'
 import { inter } from '@/app/fonts/inter'
 import { soehne } from '@/app/fonts/soehne/soehne'
-import { useBrandConfig } from '@/lib/branding/branding'
 import type { ResumeStatus } from '@/executor/types'
 
 interface ResumeLinks {
@@ -147,7 +147,9 @@ export default function ResumeExecutionPage({
   const router = useRouter()
   const brandConfig = useBrandConfig()
 
-  const [executionDetail, setExecutionDetail] = useState<PausedExecutionDetail | null>(initialExecutionDetail)
+  const [executionDetail, setExecutionDetail] = useState<PausedExecutionDetail | null>(
+    initialExecutionDetail
+  )
   const totalPauses = executionDetail?.totalPauseCount ?? 0
   const resumedCount = executionDetail?.resumedCount ?? 0
   const pendingCount = Math.max(0, totalPauses - resumedCount)
@@ -155,7 +157,10 @@ export default function ResumeExecutionPage({
 
   const defaultContextId = useMemo(() => {
     if (initialContextId) return initialContextId
-    return pausePoints.find((point) => point.resumeStatus === 'paused')?.contextId ?? pausePoints[0]?.contextId
+    return (
+      pausePoints.find((point) => point.resumeStatus === 'paused')?.contextId ??
+      pausePoints[0]?.contextId
+    )
   }, [initialContextId, pausePoints])
   const actionablePausePoints = useMemo(
     () => pausePoints.filter((point) => point.resumeStatus === 'paused'),
@@ -172,13 +177,18 @@ export default function ResumeExecutionPage({
     }
   }, [pausePoints])
 
-  const [selectedContextId, setSelectedContextId] = useState<string | null>(defaultContextId ?? null)
+  const [selectedContextId, setSelectedContextId] = useState<string | null>(
+    defaultContextId ?? null
+  )
   const [selectedDetail, setSelectedDetail] = useState<PauseContextDetail | null>(null)
-  const [selectedStatus, setSelectedStatus] = useState<PausePointWithQueue['resumeStatus']>('paused')
+  const [selectedStatus, setSelectedStatus] =
+    useState<PausePointWithQueue['resumeStatus']>('paused')
   const [queuePosition, setQueuePosition] = useState<number | null | undefined>(undefined)
   const [resumeInputs, setResumeInputs] = useState<Record<string, string>>({})
   const [resumeInput, setResumeInput] = useState('')
-  const [formValuesByContext, setFormValuesByContext] = useState<Record<string, Record<string, string>>>({})
+  const [formValuesByContext, setFormValuesByContext] = useState<
+    Record<string, Record<string, string>>
+  >({})
   const [formValues, setFormValues] = useState<Record<string, string>>({})
   const [formErrors, setFormErrors] = useState<Record<string, string>>({})
   const [loadingDetail, setLoadingDetail] = useState(false)
@@ -187,91 +197,94 @@ export default function ResumeExecutionPage({
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
 
-  const normalizeInputFormatFields = useCallback(
-    (raw: any): NormalizedInputField[] => {
-      if (!Array.isArray(raw)) return []
+  const normalizeInputFormatFields = useCallback((raw: any): NormalizedInputField[] => {
+    if (!Array.isArray(raw)) return []
 
-      return raw
-        .map((field: any, index: number) => {
-          if (!field || typeof field !== 'object') return null
+    return raw
+      .map((field: any, index: number) => {
+        if (!field || typeof field !== 'object') return null
 
-          const name = typeof field.name === 'string' ? field.name.trim() : ''
-          if (!name) return null
+        const name = typeof field.name === 'string' ? field.name.trim() : ''
+        if (!name) return null
 
-          const id = typeof field.id === 'string' && field.id.length > 0 ? field.id : `field_${index}`
-          const label =
-            typeof field.label === 'string' && field.label.trim().length > 0 ? field.label.trim() : name
-          const type = typeof field.type === 'string' && field.type.trim().length > 0 ? field.type : 'string'
-          const description =
-            typeof field.description === 'string' && field.description.trim().length > 0
-              ? field.description.trim()
-              : undefined
-          const placeholder =
-            typeof field.placeholder === 'string' && field.placeholder.trim().length > 0
-              ? field.placeholder.trim()
-              : undefined
-          const required = field.required === true
-          const options = Array.isArray(field.options) ? field.options : undefined
-          const rows = typeof field.rows === 'number' ? field.rows : undefined
+        const id = typeof field.id === 'string' && field.id.length > 0 ? field.id : `field_${index}`
+        const label =
+          typeof field.label === 'string' && field.label.trim().length > 0
+            ? field.label.trim()
+            : name
+        const type =
+          typeof field.type === 'string' && field.type.trim().length > 0 ? field.type : 'string'
+        const description =
+          typeof field.description === 'string' && field.description.trim().length > 0
+            ? field.description.trim()
+            : undefined
+        const placeholder =
+          typeof field.placeholder === 'string' && field.placeholder.trim().length > 0
+            ? field.placeholder.trim()
+            : undefined
+        const required = field.required === true
+        const options = Array.isArray(field.options) ? field.options : undefined
+        const rows = typeof field.rows === 'number' ? field.rows : undefined
 
-          return {
-            id,
-            name,
-            label,
-            type,
-            description,
-            placeholder,
-            value: field.value,
-            required,
-            options,
-            rows,
-          } as NormalizedInputField
-        })
-        .filter((field): field is NormalizedInputField => field !== null)
+        return {
+          id,
+          name,
+          label,
+          type,
+          description,
+          placeholder,
+          value: field.value,
+          required,
+          options,
+          rows,
+        } as NormalizedInputField
+      })
+      .filter((field): field is NormalizedInputField => field !== null)
+  }, [])
+
+  const formatValueForInputField = useCallback(
+    (field: NormalizedInputField, value: any): string => {
+      if (value === undefined || value === null) {
+        return ''
+      }
+
+      switch (field.type) {
+        case 'boolean':
+          if (typeof value === 'boolean') {
+            return value ? 'true' : 'false'
+          }
+          if (typeof value === 'string') {
+            const normalized = value.trim().toLowerCase()
+            if (normalized === 'true' || normalized === 'false') {
+              return normalized
+            }
+          }
+          return ''
+        case 'number':
+          if (typeof value === 'number') {
+            return Number.isFinite(value) ? String(value) : ''
+          }
+          if (typeof value === 'string') {
+            return value
+          }
+          return ''
+        case 'array':
+        case 'object':
+        case 'files':
+          if (typeof value === 'string') {
+            return value
+          }
+          try {
+            return JSON.stringify(value, null, 2)
+          } catch {
+            return ''
+          }
+        default:
+          return typeof value === 'string' ? value : JSON.stringify(value)
+      }
     },
     []
   )
-
-  const formatValueForInputField = useCallback((field: NormalizedInputField, value: any): string => {
-    if (value === undefined || value === null) {
-      return ''
-    }
-
-    switch (field.type) {
-      case 'boolean':
-        if (typeof value === 'boolean') {
-          return value ? 'true' : 'false'
-        }
-        if (typeof value === 'string') {
-          const normalized = value.trim().toLowerCase()
-          if (normalized === 'true' || normalized === 'false') {
-            return normalized
-          }
-        }
-        return ''
-      case 'number':
-        if (typeof value === 'number') {
-          return Number.isFinite(value) ? String(value) : ''
-        }
-        if (typeof value === 'string') {
-          return value
-        }
-        return ''
-      case 'array':
-      case 'object':
-      case 'files':
-        if (typeof value === 'string') {
-          return value
-        }
-        try {
-          return JSON.stringify(value, null, 2)
-        } catch {
-          return ''
-        }
-      default:
-        return typeof value === 'string' ? value : JSON.stringify(value)
-    }
-  }, [])
 
   const buildInitialFormValues = useCallback(
     (fields: NormalizedInputField[], submission?: Record<string, any>) => {
@@ -279,9 +292,7 @@ export default function ResumeExecutionPage({
 
       for (const field of fields) {
         const candidate =
-          submission && Object.prototype.hasOwnProperty.call(submission, field.name)
-            ? submission[field.name]
-            : field.value
+          submission && Object.hasOwn(submission, field.name) ? submission[field.name] : field.value
 
         initial[field.name] = formatValueForInputField(field, candidate)
       }
@@ -372,9 +383,16 @@ export default function ResumeExecutionPage({
         case 'boolean': {
           const selectValue = value === 'true' || value === 'false' ? value : ''
           return (
-            <Select value={selectValue} onValueChange={(val) => handleFormFieldChange(field.name, val)}>
+            <Select
+              value={selectValue}
+              onValueChange={(val) => handleFormFieldChange(field.name, val)}
+            >
               <SelectTrigger className='w-full rounded-[12px] border-slate-200'>
-                <SelectValue placeholder={field.required ? 'Select true or false' : 'Select true, false, or leave blank'} />
+                <SelectValue
+                  placeholder={
+                    field.required ? 'Select true or false' : 'Select true, false, or leave blank'
+                  }
+                />
               </SelectTrigger>
               <SelectContent>
                 {!field.required && <SelectItem value=''>Not set</SelectItem>}
@@ -438,8 +456,7 @@ export default function ResumeExecutionPage({
   const isHumanMode = selectedOperation === 'human'
 
   const inputFormatFields = useMemo(
-    () =>
-      normalizeInputFormatFields(selectedDetail?.pausePoint.response?.data?.inputFormat),
+    () => normalizeInputFormatFields(selectedDetail?.pausePoint.response?.data?.inputFormat),
     [normalizeInputFormatFields, selectedDetail]
   )
   const hasInputFormat = inputFormatFields.length > 0
@@ -457,8 +474,8 @@ export default function ResumeExecutionPage({
           typeof entry.type === 'string' && entry.type.length > 0
             ? entry.type
             : Array.isArray(entry.value)
-            ? 'array'
-            : typeof entry.value
+              ? 'array'
+              : typeof entry.value
 
         return {
           id: entry.id ?? `${name}_${index}`,
@@ -515,7 +532,9 @@ export default function ResumeExecutionPage({
         const operation = responseData.operation || 'human'
         const fetchedInputFields = normalizeInputFormatFields(responseData.inputFormat)
         const submission =
-          responseData && typeof responseData.submission === 'object' && !Array.isArray(responseData.submission)
+          responseData &&
+          typeof responseData.submission === 'object' &&
+          !Array.isArray(responseData.submission)
             ? (responseData.submission as Record<string, any>)
             : undefined
 
@@ -567,7 +586,13 @@ export default function ResumeExecutionPage({
 
     loadDetail()
     return () => controller.abort()
-  }, [workflowId, executionId, selectedContextId, normalizeInputFormatFields, buildInitialFormValues])
+  }, [
+    workflowId,
+    executionId,
+    selectedContextId,
+    normalizeInputFormatFields,
+    buildInitialFormValues,
+  ])
 
   const refreshExecutionDetail = useCallback(async () => {
     setRefreshingExecution(true)
@@ -586,7 +611,9 @@ export default function ResumeExecutionPage({
       setExecutionDetail(data)
 
       if (!selectedContextId) {
-        const first = data.pausePoints?.find((point: PausePointWithQueue) => point.resumeStatus === 'paused')?.contextId ?? null
+        const first =
+          data.pausePoints?.find((point: PausePointWithQueue) => point.resumeStatus === 'paused')
+            ?.contextId ?? null
         setSelectedContextId(first)
       }
     } catch (err) {
@@ -621,7 +648,9 @@ export default function ResumeExecutionPage({
         const operation = responseData.operation || 'human'
         const fetchedInputFields = normalizeInputFormatFields(responseData.inputFormat)
         const submission =
-          responseData && typeof responseData.submission === 'object' && !Array.isArray(responseData.submission)
+          responseData &&
+          typeof responseData.submission === 'object' &&
+          !Array.isArray(responseData.submission)
             ? (responseData.submission as Record<string, any>)
             : undefined
 
@@ -680,7 +709,7 @@ export default function ResumeExecutionPage({
     setError(null)
     setMessage(null)
 
-    let resumePayload: any = undefined
+    let resumePayload: any
 
     if (isHumanMode && hasInputFormat) {
       const errors: Record<string, string> = {}
@@ -720,7 +749,7 @@ export default function ResumeExecutionPage({
       setFormErrors({})
       resumePayload = { submission }
     } else {
-      let parsedInput: any = undefined
+      let parsedInput: any
 
       if (resumeInput && resumeInput.trim().length > 0) {
         try {
@@ -736,14 +765,17 @@ export default function ResumeExecutionPage({
     }
 
     try {
-      const response = await fetch(`/api/resume/${workflowId}/${executionId}/${selectedContextId}`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(resumePayload ? { input: resumePayload } : {}),
-      })
+      const response = await fetch(
+        `/api/resume/${workflowId}/${executionId}/${selectedContextId}`,
+        {
+          method: 'POST',
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(resumePayload ? { input: resumePayload } : {}),
+        }
+      )
 
       const payload = await response.json()
 
@@ -756,9 +788,10 @@ export default function ResumeExecutionPage({
       const nextStatus = payload.status === 'queued' ? 'queued' : 'resuming'
       const nextQueuePosition = payload.queuePosition ?? null
 
-      const fallbackContextId = executionDetail?.pausePoints
-        .find((point) => point.contextId !== selectedContextId && point.resumeStatus === 'paused')
-        ?.contextId ?? null
+      const fallbackContextId =
+        executionDetail?.pausePoints.find(
+          (point) => point.contextId !== selectedContextId && point.resumeStatus === 'paused'
+        )?.contextId ?? null
 
       setExecutionDetail((prev) => {
         if (!prev) {
@@ -846,7 +879,7 @@ export default function ResumeExecutionPage({
       <div className='flex flex-wrap items-center gap-2'>
         <ResumeStatusBadge status={selectedStatus} />
         {queuePosition && queuePosition > 0 ? (
-          <span className={`${inter.className} text-xs text-slate-500`}>
+          <span className={`${inter.className} text-slate-500 text-xs`}>
             Queue position {queuePosition}
           </span>
         ) : null}
@@ -877,19 +910,19 @@ export default function ResumeExecutionPage({
         >
           <div className='flex items-start justify-between gap-3'>
             <div className='overflow-hidden'>
-              <p className={`${soehne.className} truncate text-sm font-semibold text-slate-800`}>
+              <p className={`${soehne.className} truncate font-semibold text-slate-800 text-sm`}>
                 {pause.contextId}
               </p>
-              <p className={`${inter.className} mt-1 text-xs text-muted-foreground`}>
+              <p className={`${inter.className} mt-1 text-muted-foreground text-xs`}>
                 Registered {formatDate(pause.registeredAt)}
               </p>
               {pause.queuePosition != null && pause.queuePosition > 0 && (
-                <p className={`${inter.className} mt-1 text-xs text-slate-500`}>
+                <p className={`${inter.className} mt-1 text-slate-500 text-xs`}>
                   Queue position {pause.queuePosition}
                 </p>
               )}
               {pause.resumeLinks?.uiUrl && (
-                <p className={`${inter.className} mt-1 truncate text-xs text-slate-500`}>
+                <p className={`${inter.className} mt-1 truncate text-slate-500 text-xs`}>
                   UI link: <span className='font-medium'>{pause.resumeLinks.uiUrl}</span>
                 </p>
               )}
@@ -939,11 +972,14 @@ export default function ResumeExecutionPage({
           <div className='w-full max-w-[410px]'>
             <div className='flex flex-col items-center justify-center'>
               <div className='space-y-1 text-center'>
-                <h1 className={`${soehne.className} font-medium text-[32px] text-black tracking-tight`}>
+                <h1
+                  className={`${soehne.className} font-medium text-[32px] text-black tracking-tight`}
+                >
                   Execution Not Found
                 </h1>
                 <p className={`${inter.className} font-[380] text-[16px] text-muted-foreground`}>
-                  The execution you are trying to resume could not be located or has already completed.
+                  The execution you are trying to resume could not be located or has already
+                  completed.
                 </p>
               </div>
 
@@ -982,7 +1018,9 @@ export default function ResumeExecutionPage({
         <aside className='w-full space-y-4 xl:w-[320px]'>
           <div className='space-y-2 rounded-[20px] border border-slate-200 bg-white p-6 shadow-sm'>
             <div className='space-y-1 text-left'>
-              <h2 className={`${soehne.className} text-[22px] font-medium text-black tracking-tight`}>
+              <h2
+                className={`${soehne.className} font-medium text-[22px] text-black tracking-tight`}
+              >
                 Paused Execution
               </h2>
               <p className={`${inter.className} text-[14px] text-muted-foreground`}>
@@ -998,7 +1036,7 @@ export default function ResumeExecutionPage({
 
           <div className='space-y-4 rounded-[20px] border border-slate-200 bg-white p-6 shadow-sm'>
             <div className='flex items-center justify-between'>
-              <h3 className={`${soehne.className} text-[15px] font-semibold text-slate-800`}>
+              <h3 className={`${soehne.className} font-semibold text-[15px] text-slate-800`}>
                 Pause Points
               </h3>
               <Button
@@ -1014,9 +1052,11 @@ export default function ResumeExecutionPage({
 
             <div className='space-y-6'>
               <div>
-                <p className={`${inter.className} text-xs uppercase tracking-wide text-slate-500`}>Active</p>
+                <p className={`${inter.className} text-slate-500 text-xs uppercase tracking-wide`}>
+                  Active
+                </p>
                 {groupedPausePoints.active.length === 0 ? (
-                  <p className={`${inter.className} mt-2 text-sm text-muted-foreground`}>
+                  <p className={`${inter.className} mt-2 text-muted-foreground text-sm`}>
                     No active pauses right now. Resume requests will appear here when available.
                   </p>
                 ) : (
@@ -1027,8 +1067,12 @@ export default function ResumeExecutionPage({
               </div>
 
               {groupedPausePoints.resolved.length > 0 && (
-                <div className='border-t border-slate-200 pt-4'>
-                  <p className={`${inter.className} text-xs uppercase tracking-wide text-slate-500`}>Completed</p>
+                <div className='border-slate-200 border-t pt-4'>
+                  <p
+                    className={`${inter.className} text-slate-500 text-xs uppercase tracking-wide`}
+                  >
+                    Completed
+                  </p>
                   <div className='mt-3 space-y-2'>
                     {groupedPausePoints.resolved.map((pause) => renderPausePointCard(pause, true))}
                   </div>
@@ -1055,10 +1099,12 @@ export default function ResumeExecutionPage({
             ) : (
               <Fragment>
                 <div className='space-y-2 text-left'>
-                  <h1 className={`${soehne.className} text-[32px] font-medium text-black tracking-tight`}>
+                  <h1
+                    className={`${soehne.className} font-medium text-[32px] text-black tracking-tight`}
+                  >
                     Pause Details
                   </h1>
-                  <p className={`${inter.className} text-[16px] font-[380] text-muted-foreground`}>
+                  <p className={`${inter.className} font-[380] text-[16px] text-muted-foreground`}>
                     Provide optional input and resume the selected pause.
                   </p>
                 </div>
@@ -1068,35 +1114,49 @@ export default function ResumeExecutionPage({
                   <DetailRow label='Execution ID' value={selectedDetail.execution.executionId} />
                   <DetailRow label='Context ID' value={selectedDetail.pausePoint.contextId} />
                   <DetailRow label='Status' value={statusDetailNode} />
-                  <DetailRow label='Registered At' value={formatDate(selectedDetail.pausePoint.registeredAt)} />
-                  <DetailRow label='Last Updated' value={formatDate(selectedDetail.execution.updatedAt)} />
+                  <DetailRow
+                    label='Registered At'
+                    value={formatDate(selectedDetail.pausePoint.registeredAt)}
+                  />
+                  <DetailRow
+                    label='Last Updated'
+                    value={formatDate(selectedDetail.execution.updatedAt)}
+                  />
                 </div>
 
                 {selectedDetail.activeResumeEntry && (
                   <div className='rounded-xl border border-blue-200 bg-blue-50 p-4 text-left'>
                     <div className='flex flex-wrap items-center justify-between gap-2'>
-                      <h2 className={`${soehne.className} text-sm font-semibold text-blue-900`}>
+                      <h2 className={`${soehne.className} font-semibold text-blue-900 text-sm`}>
                         Current Resume Attempt
                       </h2>
-                      <ResumeStatusBadge status={selectedDetail.activeResumeEntry.status?.toLowerCase?.() ?? selectedDetail.activeResumeEntry.status} />
+                      <ResumeStatusBadge
+                        status={
+                          selectedDetail.activeResumeEntry.status?.toLowerCase?.() ??
+                          selectedDetail.activeResumeEntry.status
+                        }
+                      />
                     </div>
                     <div className='mt-3 space-y-1'>
-                      <p className={`${inter.className} text-xs text-blue-800`}>
-                        Resume execution ID: <span className='font-medium'>{selectedDetail.activeResumeEntry.newExecutionId}</span>
+                      <p className={`${inter.className} text-blue-800 text-xs`}>
+                        Resume execution ID:{' '}
+                        <span className='font-medium'>
+                          {selectedDetail.activeResumeEntry.newExecutionId}
+                        </span>
                       </p>
                       {selectedDetail.activeResumeEntry.claimedAt && (
-                        <p className={`${inter.className} text-xs text-blue-800`}>
+                        <p className={`${inter.className} text-blue-800 text-xs`}>
                           Started at {formatDate(selectedDetail.activeResumeEntry.claimedAt)}
                         </p>
                       )}
                       {selectedDetail.activeResumeEntry.completedAt && (
-                        <p className={`${inter.className} text-xs text-blue-800`}>
+                        <p className={`${inter.className} text-blue-800 text-xs`}>
                           Completed at {formatDate(selectedDetail.activeResumeEntry.completedAt)}
                         </p>
                       )}
                     </div>
                     {selectedDetail.activeResumeEntry.failureReason && (
-                      <div className='mt-3 rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-700'>
+                      <div className='mt-3 rounded-lg border border-red-200 bg-red-50 p-3 text-red-700 text-xs'>
                         {selectedDetail.activeResumeEntry.failureReason}
                       </div>
                     )}
@@ -1105,28 +1165,42 @@ export default function ResumeExecutionPage({
 
                 {selectedDetail.pausePoint.resumeLinks && (
                   <div className='rounded-xl bg-slate-100 p-4 text-left'>
-                    <h2 className={`${soehne.className} text-sm font-semibold text-slate-700`}>Shareable Links</h2>
-                    <p className={`${inter.className} mt-2 break-words text-sm text-slate-600`}>
-                      UI: <span className='font-medium'>{selectedDetail.pausePoint.resumeLinks.uiUrl}</span>
+                    <h2 className={`${soehne.className} font-semibold text-slate-700 text-sm`}>
+                      Shareable Links
+                    </h2>
+                    <p className={`${inter.className} mt-2 break-words text-slate-600 text-sm`}>
+                      UI:{' '}
+                      <span className='font-medium'>
+                        {selectedDetail.pausePoint.resumeLinks.uiUrl}
+                      </span>
                     </p>
-                    <p className={`${inter.className} mt-1 break-words text-sm text-slate-600`}>
-                      API: <span className='font-medium'>{selectedDetail.pausePoint.resumeLinks.apiUrl}</span>
+                    <p className={`${inter.className} mt-1 break-words text-slate-600 text-sm`}>
+                      API:{' '}
+                      <span className='font-medium'>
+                        {selectedDetail.pausePoint.resumeLinks.apiUrl}
+                      </span>
                     </p>
                   </div>
                 )}
 
                 {responseStructureRows.length > 0 && (
                   <div className='space-y-3 text-left'>
-                    <h2 className={`${soehne.className} text-sm font-semibold text-slate-700`}>
+                    <h2 className={`${soehne.className} font-semibold text-slate-700 text-sm`}>
                       Response Structure
                     </h2>
                     <div className='overflow-hidden rounded-xl border border-slate-200'>
                       <table className='min-w-full divide-y divide-slate-200 text-sm'>
                         <thead className='bg-slate-50'>
                           <tr>
-                            <th className='px-3 py-2 text-left font-semibold text-slate-600'>Field</th>
-                            <th className='px-3 py-2 text-left font-semibold text-slate-600'>Type</th>
-                            <th className='px-3 py-2 text-left font-semibold text-slate-600'>Value</th>
+                            <th className='px-3 py-2 text-left font-semibold text-slate-600'>
+                              Field
+                            </th>
+                            <th className='px-3 py-2 text-left font-semibold text-slate-600'>
+                              Type
+                            </th>
+                            <th className='px-3 py-2 text-left font-semibold text-slate-600'>
+                              Value
+                            </th>
                           </tr>
                         </thead>
                         <tbody className='divide-y divide-slate-200 bg-white'>
@@ -1135,7 +1209,7 @@ export default function ResumeExecutionPage({
                               <td className='px-3 py-2 font-medium text-slate-800'>{row.name}</td>
                               <td className='px-3 py-2 text-slate-500'>{row.type}</td>
                               <td className='px-3 py-2'>
-                                <pre className='max-h-40 overflow-auto whitespace-pre-wrap break-words font-mono text-xs text-slate-800'>
+                                <pre className='max-h-40 overflow-auto whitespace-pre-wrap break-words font-mono text-slate-800 text-xs'>
                                   {formatStructureValue(row.value)}
                                 </pre>
                               </td>
@@ -1149,10 +1223,10 @@ export default function ResumeExecutionPage({
 
                 {(!isHumanMode || responseStructureRows.length === 0) && (
                   <div className='space-y-3 text-left'>
-                    <h2 className={`${soehne.className} text-sm font-semibold text-slate-700`}>
+                    <h2 className={`${soehne.className} font-semibold text-slate-700 text-sm`}>
                       Pause Response Preview
                     </h2>
-                    <pre className='max-h-60 overflow-auto rounded-xl bg-slate-900 p-4 text-sm text-slate-100'>
+                    <pre className='max-h-60 overflow-auto rounded-xl bg-slate-900 p-4 text-slate-100 text-sm'>
                       {pauseResponsePreview}
                     </pre>
                   </div>
@@ -1160,22 +1234,26 @@ export default function ResumeExecutionPage({
 
                 {isHumanMode && hasInputFormat ? (
                   <div className='space-y-3 text-left'>
-                    <h2 className={`${soehne.className} text-sm font-semibold text-slate-700`}>
+                    <h2 className={`${soehne.className} font-semibold text-slate-700 text-sm`}>
                       Approval Response
                     </h2>
                     <div className='space-y-4'>
                       {inputFormatFields.map((field) => (
                         <div key={field.id} className='space-y-2'>
-                          <Label className={`${soehne.className} text-sm font-semibold text-slate-700`}>
+                          <Label
+                            className={`${soehne.className} font-semibold text-slate-700 text-sm`}
+                          >
                             {field.label}
                             {field.required && <span className='ml-1 text-red-500'>*</span>}
                           </Label>
                           {field.description && (
-                            <p className={`${inter.className} text-xs text-slate-600`}>{field.description}</p>
+                            <p className={`${inter.className} text-slate-600 text-xs`}>
+                              {field.description}
+                            </p>
                           )}
                           {renderFieldInput(field)}
                           {formErrors[field.name] && (
-                            <p className={`${inter.className} text-xs text-red-600`}>
+                            <p className={`${inter.className} text-red-600 text-xs`}>
                               {formErrors[field.name]}
                             </p>
                           )}
@@ -1185,15 +1263,22 @@ export default function ResumeExecutionPage({
                   </div>
                 ) : (
                   <div className='space-y-2 text-left'>
-                    <label className={`${soehne.className} text-sm font-semibold text-slate-700`}>
+                    <label
+                      htmlFor='resume-input-textarea'
+                      className={`${soehne.className} font-semibold text-slate-700 text-sm`}
+                    >
                       Resume Input (JSON, optional)
                     </label>
                     <Textarea
+                      id='resume-input-textarea'
                       value={resumeInput}
                       onChange={(event) => {
                         setResumeInput(event.target.value)
                         if (selectedContextId) {
-                          setResumeInputs((prev) => ({ ...prev, [selectedContextId]: event.target.value }))
+                          setResumeInputs((prev) => ({
+                            ...prev,
+                            [selectedContextId]: event.target.value,
+                          }))
                         }
                       }}
                       placeholder='{
@@ -1205,13 +1290,13 @@ export default function ResumeExecutionPage({
                 )}
 
                 {error && (
-                  <div className='rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700'>
+                  <div className='rounded-xl border border-red-200 bg-red-50 p-4 text-red-700 text-sm'>
                     {error}
                   </div>
                 )}
 
                 {message && (
-                  <div className='rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-700'>
+                  <div className='rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-700 text-sm'>
                     {message}
                   </div>
                 )}
@@ -1252,37 +1337,49 @@ export default function ResumeExecutionPage({
 
                 {selectedDetail.queue.length > 0 && (
                   <div className='space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4 text-left'>
-                    <h2 className={`${soehne.className} text-sm font-semibold text-slate-700`}>
+                    <h2 className={`${soehne.className} font-semibold text-slate-700 text-sm`}>
                       Resume Attempts
                     </h2>
                     <div className='space-y-3'>
                       {selectedDetail.queue.map((entry) => {
                         const normalizedStatus = entry.status?.toLowerCase?.() ?? entry.status
                         return (
-                          <div key={entry.id} className='rounded-xl border border-slate-200 bg-white p-4'>
+                          <div
+                            key={entry.id}
+                            className='rounded-xl border border-slate-200 bg-white p-4'
+                          >
                             <div className='flex flex-wrap items-center justify-between gap-2'>
                               <ResumeStatusBadge status={normalizedStatus} />
-                              <span className={`${inter.className} text-xs text-slate-500`}>
+                              <span className={`${inter.className} text-slate-500 text-xs`}>
                                 {formatDate(entry.queuedAt)}
                               </span>
                             </div>
                             <div className='mt-3 space-y-1'>
-                              <p className={`${inter.className} text-xs text-slate-500`}>
-                                Resume execution ID: <span className='font-medium text-slate-700'>{entry.newExecutionId}</span>
+                              <p className={`${inter.className} text-slate-500 text-xs`}>
+                                Resume execution ID:{' '}
+                                <span className='font-medium text-slate-700'>
+                                  {entry.newExecutionId}
+                                </span>
                               </p>
                               {entry.claimedAt && (
-                                <p className={`${inter.className} text-xs text-slate-500`}>
-                                  Started at <span className='font-medium text-slate-700'>{formatDate(entry.claimedAt)}</span>
+                                <p className={`${inter.className} text-slate-500 text-xs`}>
+                                  Started at{' '}
+                                  <span className='font-medium text-slate-700'>
+                                    {formatDate(entry.claimedAt)}
+                                  </span>
                                 </p>
                               )}
                               {entry.completedAt && (
-                                <p className={`${inter.className} text-xs text-slate-500`}>
-                                  Completed at <span className='font-medium text-slate-700'>{formatDate(entry.completedAt)}</span>
+                                <p className={`${inter.className} text-slate-500 text-xs`}>
+                                  Completed at{' '}
+                                  <span className='font-medium text-slate-700'>
+                                    {formatDate(entry.completedAt)}
+                                  </span>
                                 </p>
                               )}
                             </div>
                             {entry.failureReason && (
-                              <div className='mt-3 rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-700'>
+                              <div className='mt-3 rounded-lg border border-red-200 bg-red-50 p-3 text-red-700 text-xs'>
                                 {entry.failureReason}
                               </div>
                             )}
@@ -1316,8 +1413,10 @@ export default function ResumeExecutionPage({
 function SummaryStat({ label, value }: { label: string; value: number }) {
   return (
     <div className='rounded-[14px] border border-slate-200 bg-slate-50 p-3'>
-      <p className={`${inter.className} text-[11px] uppercase tracking-wide text-slate-500`}>{label}</p>
-      <p className={`${soehne.className} mt-1 text-[18px] font-semibold text-slate-800`}>{value}</p>
+      <p className={`${inter.className} text-[11px] text-slate-500 uppercase tracking-wide`}>
+        {label}
+      </p>
+      <p className={`${soehne.className} mt-1 font-semibold text-[18px] text-slate-800`}>{value}</p>
     </div>
   )
 }
@@ -1331,8 +1430,10 @@ function DetailRow({ label, value }: { label: string; value?: ReactNode }) {
 
   return (
     <div className='rounded-xl border border-slate-200 bg-slate-50 p-3 text-left'>
-      <p className={`${inter.className} text-xs uppercase tracking-wide text-slate-500`}>{label}</p>
-      <div className={`${soehne.className} mt-1 text-sm font-semibold text-slate-800`}>{displayValue}</div>
+      <p className={`${inter.className} text-slate-500 text-xs uppercase tracking-wide`}>{label}</p>
+      <div className={`${soehne.className} mt-1 font-semibold text-slate-800 text-sm`}>
+        {displayValue}
+      </div>
     </div>
   )
 }

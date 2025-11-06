@@ -1,9 +1,5 @@
 import { PARALLEL } from '@/executor/consts'
-import type {
-  ExecutionContext,
-  LoopPauseScope,
-  ParallelPauseScope,
-} from '@/executor/types'
+import type { ExecutionContext, LoopPauseScope, ParallelPauseScope } from '@/executor/types'
 
 interface NodeMetadataLike {
   nodeId: string
@@ -53,10 +49,7 @@ export function mapNodeMetadataToPauseScopes(
   let parallelScope: ParallelPauseScope | undefined
   let loopScope: LoopPauseScope | undefined
 
-  if (
-    nodeMetadata.parallelId &&
-    typeof nodeMetadata.branchIndex === 'number'
-  ) {
+  if (nodeMetadata.parallelId && typeof nodeMetadata.branchIndex === 'number') {
     parallelScope = {
       parallelId: nodeMetadata.parallelId,
       branchIndex: nodeMetadata.branchIndex,
@@ -78,4 +71,3 @@ export function mapNodeMetadataToPauseScopes(
     loopScope,
   }
 }
-

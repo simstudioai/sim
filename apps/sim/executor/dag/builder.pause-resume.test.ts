@@ -70,5 +70,3 @@ describe('DAGBuilder pause-resume transformation', () => {
     expect(triggerOutgoing[0].target).toBe('finish')
   })
 })
-
-

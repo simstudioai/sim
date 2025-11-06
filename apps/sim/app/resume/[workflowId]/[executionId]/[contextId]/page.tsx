@@ -9,12 +9,7 @@ interface PageParams {
   contextId: string
 }
 
-export default async function ResumePage({
-  params,
-}: {
-  params: Promise<PageParams>
-}) {
+export default async function ResumePage({ params }: { params: Promise<PageParams> }) {
   const { workflowId, executionId, contextId } = await params
   redirect(`/resume/${workflowId}/${executionId}?contextId=${contextId}`)
 }
-  

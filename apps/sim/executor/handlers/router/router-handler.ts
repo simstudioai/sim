@@ -64,8 +64,7 @@ export class RouterBlockHandler implements BlockHandler {
           if (errorData.error) {
             errorMessage = errorData.error
           }
-        } catch (_e) {
-        }
+        } catch (_e) {}
         throw new Error(errorMessage)
       }
 

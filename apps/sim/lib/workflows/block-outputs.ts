@@ -100,9 +100,9 @@ export function getBlockOutputs(
       uiUrl: { type: 'string', description: 'Resume UI URL' },
       apiUrl: { type: 'string', description: 'Resume API URL' },
     }
-    
+
     const normalizedInputFormat = normalizeInputFormatValue(subBlocks?.inputFormat?.value)
-    
+
     // Add each input format field as a top-level output
     for (const field of normalizedInputFormat) {
       const fieldName = field?.name?.trim()
@@ -113,7 +113,7 @@ export function getBlockOutputs(
         description: `Field from input format`,
       }
     }
-    
+
     return pauseResumeOutputs
   }
 

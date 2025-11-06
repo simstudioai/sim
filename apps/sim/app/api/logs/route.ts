@@ -103,7 +103,10 @@ export async function GET(request: NextRequest) {
       const baseQuery = db
         .select(selectColumns)
         .from(workflowExecutionLogs)
-        .leftJoin(pausedExecutions, eq(pausedExecutions.executionId, workflowExecutionLogs.executionId))
+        .leftJoin(
+          pausedExecutions,
+          eq(pausedExecutions.executionId, workflowExecutionLogs.executionId)
+        )
         .innerJoin(
           workflow,
           and(
@@ -193,7 +196,10 @@ export async function GET(request: NextRequest) {
       const countQuery = db
         .select({ count: sql<number>`count(*)` })
         .from(workflowExecutionLogs)
-        .leftJoin(pausedExecutions, eq(pausedExecutions.executionId, workflowExecutionLogs.executionId))
+        .leftJoin(
+          pausedExecutions,
+          eq(pausedExecutions.executionId, workflowExecutionLogs.executionId)
+        )
         .innerJoin(
           workflow,
           and(

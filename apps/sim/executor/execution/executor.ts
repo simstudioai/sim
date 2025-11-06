@@ -1,24 +1,24 @@
 import { createLogger } from '@/lib/logs/console/logger'
+import { StartBlockPath } from '@/lib/workflows/triggers'
 import type { BlockOutput } from '@/blocks/types'
+import { DAGBuilder } from '@/executor/dag/builder'
+import { BlockExecutor } from '@/executor/execution/block-executor'
+import { EdgeManager } from '@/executor/execution/edge-manager'
+import { ExecutionEngine } from '@/executor/execution/engine'
+import { ExecutionState } from '@/executor/execution/state'
+import type { ContextExtensions, WorkflowInput } from '@/executor/execution/types'
 import { createBlockHandlers } from '@/executor/handlers/registry'
+import { LoopOrchestrator } from '@/executor/orchestrators/loop'
+import { NodeExecutionOrchestrator } from '@/executor/orchestrators/node'
+import { ParallelOrchestrator } from '@/executor/orchestrators/parallel'
 import type { BlockState, ExecutionContext, ExecutionResult } from '@/executor/types'
 import {
   buildResolutionFromBlock,
   buildStartBlockOutput,
   resolveExecutorStartBlock,
 } from '@/executor/utils/start-block'
-import { StartBlockPath } from '@/lib/workflows/triggers'
-import type { SerializedWorkflow } from '@/serializer/types'
-import { DAGBuilder } from '@/executor/dag/builder'
-import { LoopOrchestrator } from '@/executor/orchestrators/loop'
-import { NodeExecutionOrchestrator } from '@/executor/orchestrators/node'
-import { ParallelOrchestrator } from '@/executor/orchestrators/parallel'
 import { VariableResolver } from '@/executor/variables/resolver'
-import { BlockExecutor } from '@/executor/execution/block-executor'
-import { EdgeManager } from '@/executor/execution/edge-manager'
-import { ExecutionEngine } from '@/executor/execution/engine'
-import { ExecutionState } from '@/executor/execution/state'
-import type { ContextExtensions, WorkflowInput } from '@/executor/execution/types'
+import type { SerializedWorkflow } from '@/serializer/types'
 
 const logger = createLogger('DAGExecutor')
 
@@ -149,9 +149,7 @@ export class DAGExecutor {
               {
                 ...scope,
                 branchOutputs: scope.branchOutputs
-                  ? new Map(
-                      Object.entries(scope.branchOutputs).map(([k, v]) => [Number(k), v])
-                    )
+                  ? new Map(Object.entries(scope.branchOutputs).map(([k, v]) => [Number(k), v]))
                   : new Map(),
               },
             ])

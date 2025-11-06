@@ -1,7 +1,7 @@
 import { isReference, parseReferencePath, SPECIAL_REFERENCE_PREFIXES } from '@/executor/consts'
+import type { ResolutionContext, Resolver } from '@/executor/variables/resolvers/reference'
 import type { SerializedWorkflow } from '@/serializer/types'
 import { normalizeBlockName } from '@/stores/workflows/utils'
-import type { ResolutionContext, Resolver } from './reference'
 
 export class BlockResolver implements Resolver {
   private blockByNormalizedName: Map<string, string>

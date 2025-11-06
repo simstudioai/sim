@@ -100,32 +100,32 @@ export interface NormalizedBlockOutput {
 }
 
 export interface BlockLog {
-  blockId: string 
-  blockName?: string 
-  blockType?: string 
-  startedAt: string 
-  endedAt: string 
-  durationMs: number 
-  success: boolean 
-  output?: any 
-  input?: any 
-  error?: string 
-  loopId?: string 
-  parallelId?: string 
-  iterationIndex?: number 
+  blockId: string
+  blockName?: string
+  blockType?: string
+  startedAt: string
+  endedAt: string
+  durationMs: number
+  success: boolean
+  output?: any
+  input?: any
+  error?: string
+  loopId?: string
+  parallelId?: string
+  iterationIndex?: number
 }
 
 export interface ExecutionMetadata {
   requestId?: string
   workflowId?: string
   workspaceId?: string
-  startTime?: string 
-  endTime?: string 
-  duration: number 
-  pendingBlocks?: string[] 
-  isDebugSession?: boolean 
-  context?: ExecutionContext 
-  workflowConnections?: Array<{ source: string; target: string }> 
+  startTime?: string
+  endTime?: string
+  duration: number
+  pendingBlocks?: string[]
+  isDebugSession?: boolean
+  context?: ExecutionContext
+  workflowConnections?: Array<{ source: string; target: string }>
   status?: 'running' | 'paused' | 'completed'
   pausePoints?: string[]
   resumeChain?: {
@@ -141,67 +141,60 @@ export interface ExecutionMetadata {
 }
 
 export interface BlockState {
-  output: NormalizedBlockOutput 
-  executed: boolean 
-  executionTime: number 
+  output: NormalizedBlockOutput
+  executed: boolean
+  executionTime: number
 }
 
 export interface ExecutionContext {
-  workflowId: string 
-  workspaceId?: string 
-  executionId?: string 
-  
-  
+  workflowId: string
+  workspaceId?: string
+  executionId?: string
+
   isDeployedContext?: boolean
 
-  
-  
   blockStates: ReadonlyMap<string, BlockState>
-  executedBlocks: ReadonlySet<string> 
+  executedBlocks: ReadonlySet<string>
 
-  blockLogs: BlockLog[] 
-  metadata: ExecutionMetadata 
-  environmentVariables: Record<string, string> 
-  workflowVariables?: Record<string, any> 
+  blockLogs: BlockLog[]
+  metadata: ExecutionMetadata
+  environmentVariables: Record<string, string>
+  workflowVariables?: Record<string, any>
 
-  
   decisions: {
-    router: Map<string, string> 
-    condition: Map<string, string> 
+    router: Map<string, string>
+    condition: Map<string, string>
   }
 
-  completedLoops: Set<string> 
+  completedLoops: Set<string>
 
-  
   loopExecutions?: Map<
     string,
     {
-      iteration: number 
-      currentIterationOutputs: Map<string, any> 
-      allIterationOutputs: any[][] 
+      iteration: number
+      currentIterationOutputs: Map<string, any>
+      allIterationOutputs: any[][]
       maxIterations?: number
-      item?: any 
-      items?: any[] 
-      condition?: string 
-      skipFirstConditionCheck?: boolean 
+      item?: any
+      items?: any[]
+      condition?: string
+      skipFirstConditionCheck?: boolean
       loopType?: 'for' | 'forEach' | 'while' | 'doWhile'
     }
   >
 
-  
   parallelExecutions?: Map<
     string,
     {
       parallelId: string
       totalBranches: number
-      branchOutputs: Map<number, any[]> 
+      branchOutputs: Map<number, any[]>
       completedCount: number
       totalExpectedNodes: number
       parallelType?: 'count' | 'collection'
     }
   >
 
-  
   parallelBlockMapping?: Map<
     string,
     {
@@ -211,19 +204,16 @@ export interface ExecutionContext {
     }
   >
 
-  
   currentVirtualBlockId?: string
 
-  activeExecutionPath: Set<string> 
+  activeExecutionPath: Set<string>
 
-  workflow?: SerializedWorkflow 
+  workflow?: SerializedWorkflow
 
-  
-  stream?: boolean 
-  selectedOutputs?: string[] 
-  edges?: Array<{ source: string; target: string }> 
+  stream?: boolean
+  selectedOutputs?: string[]
+  edges?: Array<{ source: string; target: string }>
 
-  
   onStream?: (streamingExecution: StreamingExecution) => Promise<void>
   onBlockStart?: (blockId: string, blockName: string, blockType: string) => Promise<void>
   onBlockComplete?: (
@@ -235,24 +225,23 @@ export interface ExecutionContext {
 }
 
 export interface ExecutionResult {
-  success: boolean 
-  output: NormalizedBlockOutput 
-  error?: string 
-  logs?: BlockLog[] 
+  success: boolean
+  output: NormalizedBlockOutput
+  error?: string
+  logs?: BlockLog[]
   metadata?: ExecutionMetadata
   status?: 'completed' | 'paused'
   pausePoints?: PausePoint[]
   snapshotSeed?: SerializedSnapshot
   _streamingMetadata?: {
-    
     loggingSession: any
     processedInput: any
   }
 }
 
 export interface StreamingExecution {
-  stream: ReadableStream 
-  execution: ExecutionResult & { isStreaming?: boolean } 
+  stream: ReadableStream
+  execution: ExecutionResult & { isStreaming?: boolean }
 }
 
 export interface BlockExecutor {
@@ -289,30 +278,27 @@ export interface BlockHandler {
 }
 
 export interface Tool<P = any, O = Record<string, any>> {
-  id: string 
-  name: string 
-  description: string 
-  version: string 
+  id: string
+  name: string
+  description: string
+  version: string
 
-  
   params: {
     [key: string]: {
-      type: string 
-      required?: boolean 
-      description?: string 
-      default?: any 
+      type: string
+      required?: boolean
+      description?: string
+      default?: any
     }
   }
 
-  
   request?: {
-    url?: string | ((params: P) => string) 
-    method?: string 
-    headers?: (params: P) => Record<string, string> 
-    body?: (params: P) => Record<string, any> 
+    url?: string | ((params: P) => string)
+    method?: string
+    headers?: (params: P) => Record<string, string>
+    body?: (params: P) => Record<string, any>
   }
 
-  
   transformResponse?: (response: any) => Promise<{
     success: boolean
     output: O

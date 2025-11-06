@@ -1,8 +1,8 @@
 import { createLogger } from '@/lib/logs/console/logger'
 import { isReference, parseReferencePath, REFERENCE } from '@/executor/consts'
 import { extractBaseBlockId } from '@/executor/utils/subflow-utils'
+import type { ResolutionContext, Resolver } from '@/executor/variables/resolvers/reference'
 import type { SerializedWorkflow } from '@/serializer/types'
-import type { ResolutionContext, Resolver } from './reference'
 
 const logger = createLogger('LoopResolver')
 

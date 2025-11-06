@@ -17,9 +17,7 @@ export async function evaluateConditionExpression(
   resolver: any,
   providedEvalContext?: Record<string, any>
 ): Promise<boolean> {
-  const evalContext = providedEvalContext || {
-    ...(ctx.loopItems.get(block.id) || {}),
-  }
+  const evalContext = providedEvalContext || {}
 
   let resolvedConditionValue = conditionExpression
   try {
@@ -27,9 +25,6 @@ export async function evaluateConditionExpression(
       const resolvedVars = resolver.resolveVariableReferences(conditionExpression, block)
       const resolvedRefs = resolver.resolveBlockReferences(resolvedVars, ctx, block)
       resolvedConditionValue = resolver.resolveEnvVariables(resolvedRefs)
-      logger.info(
-        `Resolved condition: from "${conditionExpression}" to "${resolvedConditionValue}"`
-      )
     }
   } catch (resolveError: any) {
     logger.error(`Failed to resolve references in condition: ${resolveError.message}`, {
@@ -40,12 +35,10 @@ export async function evaluateConditionExpression(
   }
 
   try {
-    logger.info(`Evaluating resolved condition: "${resolvedConditionValue}"`, { evalContext })
     const conditionMet = new Function(
       'context',
       `with(context) { return ${resolvedConditionValue} }`
     )(evalContext)
-    logger.info(`Condition evaluated to: ${conditionMet}`)
     return Boolean(conditionMet)
   } catch (evalError: any) {
     logger.error(`Failed to evaluate condition: ${evalError.message}`, {
@@ -78,10 +71,6 @@ export class ConditionBlockHandler implements BlockHandler {
     block: SerializedBlock,
     inputs: Record<string, any>
   ): Promise<BlockOutput> {
-    logger.info(`Executing condition block: ${block.id}`, {
-      rawConditionsInput: inputs.conditions,
-    })
-
     const conditions = this.parseConditions(inputs.conditions)
 
     const sourceBlockId = ctx.workflow?.connections.find((conn) => conn.target === block.id)?.source
@@ -103,10 +92,6 @@ export class ConditionBlockHandler implements BlockHandler {
       throw new Error(`Target block ${selectedConnection?.target} not found`)
     }
 
-    logger.info(
-      `Condition block ${block.id} selected path: ${selectedCondition.title} (${selectedCondition.id}) -> ${targetBlock.metadata?.name || targetBlock.id}`
-    )
-
     const decisionKey = ctx.currentVirtualBlockId || block.id
     ctx.decisions.condition.set(decisionKey, selectedCondition.id)
 
@@ -126,7 +111,6 @@ export class ConditionBlockHandler implements BlockHandler {
   private parseConditions(input: any): Array<{ id: string; title: string; value: string }> {
     try {
       const conditions = Array.isArray(input) ? input : JSON.parse(input || '[]')
-      logger.info('Parsed conditions:', conditions)
       return conditions
     } catch (error: any) {
       logger.error('Failed to parse conditions:', { input, error })
@@ -139,9 +123,7 @@ export class ConditionBlockHandler implements BlockHandler {
     blockId: string,
     sourceBlockId?: string
   ): Record<string, any> {
-    let evalContext: Record<string, any> = {
-      ...(ctx.loopItems.get(blockId) || {}),
-    }
+    let evalContext: Record<string, any> = {}
 
     if (sourceBlockId) {
       const sourceOutput = ctx.blockStates.get(sourceBlockId)?.output
@@ -153,7 +135,6 @@ export class ConditionBlockHandler implements BlockHandler {
       }
     }
 
-    logger.info('Base eval context:', evalContext)
     return evalContext
   }
 
@@ -185,7 +166,6 @@ export class ConditionBlockHandler implements BlockHandler {
           this.resolver,
           evalContext
         )
-        logger.info(`Condition "${condition.title}" (${condition.id}) met: ${conditionMet}`)
 
         const connection = this.findConnectionForCondition(outgoingConnections, condition.id)
 

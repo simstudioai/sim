@@ -441,7 +441,7 @@ export function WorkflowDetails({
                               {isPending && log.executionId ? (
                                 <Link
                                   href={`/resume/${expandedWorkflowId}/${log.executionId}`}
-                                  className='inline-flex h-7 w-7 items-center justify-center rounded-md border border-dashed border-primary/60 text-primary hover:bg-primary/10'
+                                  className='inline-flex h-7 w-7 items-center justify-center rounded-md border border-primary/60 border-dashed text-primary hover:bg-primary/10'
                                   aria-label='Open resume console'
                                 >
                                   <ArrowUpRight className='h-4 w-4' />

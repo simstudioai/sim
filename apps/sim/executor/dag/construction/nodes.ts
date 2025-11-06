@@ -1,11 +1,12 @@
 import { BlockType, isMetadataOnlyBlockType } from '@/executor/consts'
+import type { DAG, DAGNode } from '@/executor/dag/builder'
 import {
   buildBranchNodeId,
   calculateBranchCount,
   parseDistributionItems,
 } from '@/executor/utils/subflow-utils'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
-import type { DAG, DAGNode } from '../builder'
+
 interface ParallelExpansion {
   parallelId: string
   branchCount: number
@@ -25,18 +26,23 @@ export class NodeConstructor {
     const blocksInLoops = new Set<string>()
     const blocksInParallels = new Set<string>()
     const pauseTriggerMapping = new Map<string, string>()
+
     this.categorizeBlocks(dag, reachableBlocks, blocksInLoops, blocksInParallels)
+
     for (const block of workflow.blocks) {
       if (!this.shouldProcessBlock(block, reachableBlocks)) {
         continue
       }
+
       const parallelId = this.findParallelForBlock(block.id, dag)
+
       if (parallelId) {
-        this.createParallelBranchNodes(block, parallelId, dag, pauseTriggerMapping)
+        this.createParallelBranchNodes(block, parallelId, dag)
       } else {
-        this.createRegularOrLoopNode(block, blocksInLoops, dag, pauseTriggerMapping)
+        this.createRegularOrLoopNode(block, blocksInLoops, dag)
       }
     }
+
     return { blocksInLoops, blocksInParallels, pauseTriggerMapping }
   }
 
@@ -44,12 +50,15 @@ export class NodeConstructor {
     if (!block.enabled) {
       return false
     }
+
     if (!reachableBlocks.has(block.id)) {
       return false
     }
+
     if (isMetadataOnlyBlockType(block.metadata?.id)) {
       return false
     }
+
     return true
   }
 
@@ -91,13 +100,9 @@ export class NodeConstructor {
     }
   }
 
-  private createParallelBranchNodes(
-    block: SerializedBlock,
-    parallelId: string,
-    dag: DAG,
-    pauseTriggerMapping: Map<string, string>
-  ): void {
+  private createParallelBranchNodes(block: SerializedBlock, parallelId: string, dag: DAG): void {
     const expansion = this.calculateParallelExpansion(parallelId, dag)
+
     for (let branchIndex = 0; branchIndex < expansion.branchCount; branchIndex++) {
       const branchNode = this.createParallelBranchNode(block, branchIndex, expansion)
       dag.nodes.set(branchNode.id, branchNode)
@@ -106,11 +111,14 @@ export class NodeConstructor {
 
   private calculateParallelExpansion(parallelId: string, dag: DAG): ParallelExpansion {
     const config = dag.parallelConfigs.get(parallelId)
+
     if (!config) {
       throw new Error(`Parallel config not found: ${parallelId}`)
     }
+
     const distributionItems = parseDistributionItems(config)
     const branchCount = calculateBranchCount(config, distributionItems)
+
     return {
       parallelId,
       branchCount,
@@ -148,12 +156,12 @@ export class NodeConstructor {
   private createRegularOrLoopNode(
     block: SerializedBlock,
     blocksInLoops: Set<string>,
-    dag: DAG,
-    pauseTriggerMapping: Map<string, string>
+    dag: DAG
   ): void {
     const isLoopNode = blocksInLoops.has(block.id)
     const loopId = isLoopNode ? this.findLoopIdForBlock(block.id, dag) : undefined
     const isPauseBlock = block.metadata?.id === BlockType.PAUSE_RESUME
+
     dag.nodes.set(block.id, {
       id: block.id,
       block,

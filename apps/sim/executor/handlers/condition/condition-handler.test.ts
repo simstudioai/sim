@@ -332,13 +332,18 @@ describe('ConditionBlockHandler', () => {
   it('should handle missing source block output gracefully', async () => {
     const conditions = [{ id: 'cond1', title: 'if', value: 'true' }]
     const inputs = { conditions: JSON.stringify(conditions) }
-    mockContext.blockStates.delete(mockSourceBlock.id)
+
+    // Create a new context with empty blockStates instead of trying to delete from readonly map
+    const contextWithoutSource = {
+      ...mockContext,
+      blockStates: new Map<string, BlockState>(),
+    }
 
     mockResolver.resolveVariableReferences.mockReturnValue('true')
     mockResolver.resolveBlockReferences.mockReturnValue('true')
     mockResolver.resolveEnvVariables.mockReturnValue('true')
 
-    const result = await handler.execute(mockContext, mockBlock, inputs)
+    const result = await handler.execute(contextWithoutSource, mockBlock, inputs)
 
     expect(result).toHaveProperty('conditionResult', true)
     expect(result).toHaveProperty('selectedConditionId', 'cond1')
@@ -398,8 +403,6 @@ describe('ConditionBlockHandler', () => {
       { id: 'else1', title: 'else', value: '' },
     ]
     const inputs = { conditions: JSON.stringify(conditions) }
-
-    mockContext.loopItems.set(mockBlock.id, { item: 'apple' })
 
     // Mock the full resolution pipeline
     mockResolver.resolveVariableReferences.mockReturnValue('context.item === "apple"')

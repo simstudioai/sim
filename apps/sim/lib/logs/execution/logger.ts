@@ -47,8 +47,8 @@ export class ExecutionLogger implements IExecutionLoggerService {
     if (!additional || additional.length === 0) return existing
 
     // Find the root "Workflow Execution" span in both arrays
-    const existingRoot = existing.find(s => s.name === 'Workflow Execution')
-    const additionalRoot = additional.find(s => s.name === 'Workflow Execution')
+    const existingRoot = existing.find((s) => s.name === 'Workflow Execution')
+    const additionalRoot = additional.find((s) => s.name === 'Workflow Execution')
 
     if (!existingRoot || !additionalRoot) {
       // If we can't find both roots, just concatenate (fallback)
@@ -58,25 +58,23 @@ export class ExecutionLogger implements IExecutionLoggerService {
     // Calculate the full duration from original start to resume end
     const startTime = existingRoot.startTime
     const endTime = additionalRoot.endTime || existingRoot.endTime
-    const fullDuration = startTime && endTime
-      ? new Date(endTime).getTime() - new Date(startTime).getTime()
-      : (existingRoot.duration || 0) + (additionalRoot.duration || 0)
+    const fullDuration =
+      startTime && endTime
+        ? new Date(endTime).getTime() - new Date(startTime).getTime()
+        : (existingRoot.duration || 0) + (additionalRoot.duration || 0)
 
     // Merge the children of the workflow execution spans
     const mergedRoot = {
       ...existingRoot,
-      children: [
-        ...(existingRoot.children || []),
-        ...(additionalRoot.children || []),
-      ],
+      children: [...(existingRoot.children || []), ...(additionalRoot.children || [])],
       endTime,
       duration: fullDuration,
     }
 
     // Return array with merged root plus any other top-level spans
-    const otherExisting = existing.filter(s => s.name !== 'Workflow Execution')
-    const otherAdditional = additional.filter(s => s.name !== 'Workflow Execution')
-    
+    const otherExisting = existing.filter((s) => s.name !== 'Workflow Execution')
+    const otherAdditional = additional.filter((s) => s.name !== 'Workflow Execution')
+
     return [mergedRoot, ...otherExisting, ...otherAdditional]
   }
 
@@ -235,9 +233,9 @@ export class ExecutionLogger implements IExecutionLoggerService {
 
     // For resume executions, rebuild trace spans from the aggregated logs
     const mergedTraceSpans = isResume
-      ? (traceSpans && traceSpans.length > 0
-          ? traceSpans
-          : existingLog?.executionData?.traceSpans || [])
+      ? traceSpans && traceSpans.length > 0
+        ? traceSpans
+        : existingLog?.executionData?.traceSpans || []
       : traceSpans
 
     // Merge costs if resuming
@@ -272,9 +270,10 @@ export class ExecutionLogger implements IExecutionLoggerService {
     const mergedFiles = [...existingFiles, ...executionFiles]
 
     // Calculate the actual total duration for resume executions
-    const actualTotalDuration = isResume && existingLog?.startedAt
-      ? new Date(endedAt).getTime() - new Date(existingLog.startedAt).getTime()
-      : totalDurationMs
+    const actualTotalDuration =
+      isResume && existingLog?.startedAt
+        ? new Date(endedAt).getTime() - new Date(existingLog.startedAt).getTime()
+        : totalDurationMs
 
     const [updatedLog] = await db
       .update(workflowExecutionLogs)

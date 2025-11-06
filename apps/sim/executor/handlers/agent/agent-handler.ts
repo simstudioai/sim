@@ -34,8 +34,6 @@ export class AgentBlockHandler implements BlockHandler {
     block: SerializedBlock,
     inputs: AgentInputs
   ): Promise<BlockOutput | StreamingExecution> {
-    logger.info(`Executing agent block: ${block.id}`)
-
     const responseFormat = this.parseResponseFormat(inputs.responseFormat)
     const model = inputs.model || AGENT.DEFAULT_MODEL
     const providerId = getProviderFromModel(model)
@@ -76,9 +74,6 @@ export class AgentBlockHandler implements BlockHandler {
       const trimmedValue = responseFormat.trim()
 
       if (trimmedValue.startsWith('<') && trimmedValue.includes('>')) {
-        logger.info('Response format contains variable reference:', {
-          value: trimmedValue,
-        })
         return undefined
       }
 
@@ -255,8 +250,6 @@ export class AgentBlockHandler implements BlockHandler {
         params: userProvidedParams,
         usageControl: tool.usageControl || 'auto',
         executeFunction: async (callParams: Record<string, any>) => {
-          logger.info(`Executing MCP tool ${toolName} on server ${serverId}`)
-
           const headers = await buildAuthHeaders()
           const execUrl = buildAPIUrl('/api/mcp/tools/execute')
 
@@ -563,8 +556,6 @@ export class AgentBlockHandler implements BlockHandler {
     responseFormat: any,
     providerStartTime: number
   ) {
-    logger.info('Using HTTP provider request (browser environment)')
-
     const url = buildAPIUrl('/api/providers')
     const response = await fetch(url.toString(), {
       method: 'POST',
@@ -589,7 +580,6 @@ export class AgentBlockHandler implements BlockHandler {
 
     const contentType = response.headers.get('Content-Type')
     if (contentType?.includes(HTTP.CONTENT_TYPE.EVENT_STREAM)) {
-      logger.info('Received streaming response')
       return this.handleStreamingResponse(response, block)
     }
 
@@ -661,15 +651,6 @@ export class AgentBlockHandler implements BlockHandler {
         : response && typeof response === 'object' && 'stream' in response
           ? 'streaming-execution'
           : 'json'
-
-    logger.info('Provider request completed successfully', {
-      provider,
-      model,
-      workflowId: ctx.workflowId,
-      blockId: block.id,
-      executionTime,
-      responseType,
-    })
   }
 
   private handleExecutionError(
@@ -742,7 +723,6 @@ export class AgentBlockHandler implements BlockHandler {
     block: SerializedBlock
   ): StreamingExecution {
     const streamingExec = response as StreamingExecution
-    logger.info(`Received StreamingExecution for block ${block.id}`)
 
     if (streamingExec.execution.output) {
       const execution = streamingExec.execution as any
@@ -783,16 +763,11 @@ export class AgentBlockHandler implements BlockHandler {
 
     try {
       const extractedJson = JSON.parse(content.trim())
-      logger.info('Successfully parsed structured response content')
       return {
         ...extractedJson,
         ...this.createResponseMetadata(result),
       }
     } catch (error) {
-      logger.info('JSON parsing failed', {
-        error: error instanceof Error ? error.message : 'Unknown error',
-      })
-
       logger.error('LLM did not adhere to structured response format:', {
         content: content.substring(0, 200) + (content.length > 200 ? '...' : ''),
         responseFormat: responseFormat,

@@ -1,4 +1,7 @@
 import { createLogger } from '@/lib/logs/console/logger'
+import type { DAG } from '@/executor/dag/builder'
+import type { ParallelScope } from '@/executor/execution/state'
+import type { BlockStateWriter } from '@/executor/execution/types'
 import type { ExecutionContext, NormalizedBlockOutput } from '@/executor/types'
 import type { ParallelConfigWithNodes } from '@/executor/types/parallel'
 import {
@@ -8,9 +11,6 @@ import {
   parseDistributionItems,
 } from '@/executor/utils/subflow-utils'
 import type { SerializedParallel } from '@/serializer/types'
-import type { DAG } from '@/executor/dag/builder'
-import type { ParallelScope } from '@/executor/execution/state'
-import type { BlockStateWriter } from '@/executor/execution/types'
 
 const logger = createLogger('ParallelOrchestrator')
 

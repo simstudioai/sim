@@ -1,7 +1,7 @@
-import { ExecutionSnapshot } from '@/executor/execution/snapshot'
-import type { SerializableExecutionState } from '@/executor/execution/snapshot'
-import type { ExecutionContext, ExecutionMetadata, SerializedSnapshot } from '@/executor/types'
 import type { DAG } from '@/executor/dag/builder'
+import type { SerializableExecutionState } from '@/executor/execution/snapshot'
+import { ExecutionSnapshot } from '@/executor/execution/snapshot'
+import type { ExecutionContext, ExecutionMetadata, SerializedSnapshot } from '@/executor/types'
 
 function mapFromEntries<T>(map?: Map<string, T>): Record<string, T> | undefined {
   if (!map) return undefined
@@ -98,7 +98,10 @@ export function serializePauseSnapshot(
 
   const executionMetadata = {
     requestId:
-      (context.metadata as any)?.requestId ?? context.executionId ?? context.workflowId ?? 'unknown',
+      (context.metadata as any)?.requestId ??
+      context.executionId ??
+      context.workflowId ??
+      'unknown',
     executionId: context.executionId ?? 'unknown',
     workflowId: context.workflowId,
     workspaceId: context.workspaceId,

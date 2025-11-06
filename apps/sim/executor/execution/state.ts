@@ -1,10 +1,8 @@
-import type { BlockState, NormalizedBlockOutput } from '@/executor/types'
 import type { BlockStateController } from '@/executor/execution/types'
+import type { BlockState, NormalizedBlockOutput } from '@/executor/types'
 
 function normalizeLookupId(id: string): string {
-  return id
-    .replace(/₍\d+₎/gu, '')
-    .replace(/_loop\d+/g, '')
+  return id.replace(/₍\d+₎/gu, '').replace(/_loop\d+/g, '')
 }
 export interface LoopScope {
   iteration: number
@@ -29,10 +27,7 @@ export class ExecutionState implements BlockStateController {
   private readonly blockStates: Map<string, BlockState>
   private readonly executedBlocks: Set<string>
 
-  constructor(
-    blockStates?: Map<string, BlockState>,
-    executedBlocks?: Set<string>
-  ) {
+  constructor(blockStates?: Map<string, BlockState>, executedBlocks?: Set<string>) {
     this.blockStates = blockStates ?? new Map()
     this.executedBlocks = executedBlocks ?? new Set()
   }

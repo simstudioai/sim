@@ -1,13 +1,13 @@
-import { v4 as uuidv4 } from 'uuid'
-import { sql, eq, and, inArray, lt, asc, desc } from 'drizzle-orm'
 import { db } from '@sim/db'
 import { pausedExecutions, resumeQueue } from '@sim/db/schema'
-import type { ExecutionResult, PausePoint, SerializedSnapshot } from '@/executor/types'
-import { ExecutionSnapshot } from '@/executor/execution/snapshot'
-import { LoggingSession } from '@/lib/logs/execution/logging-session'
-import { createLogger } from '@/lib/logs/console/logger'
-import { executeWorkflowCore } from './execution-core'
+import { and, asc, desc, eq, inArray, lt, sql } from 'drizzle-orm'
 import type { Edge } from 'reactflow'
+import { v4 as uuidv4 } from 'uuid'
+import { createLogger } from '@/lib/logs/console/logger'
+import { LoggingSession } from '@/lib/logs/execution/logging-session'
+import { ExecutionSnapshot } from '@/executor/execution/snapshot'
+import type { ExecutionResult, PausePoint, SerializedSnapshot } from '@/executor/types'
+import { executeWorkflowCore } from './execution-core'
 
 function isPlainObject(value: unknown): value is Record<string, any> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -108,7 +108,7 @@ export class PauseResumeManager {
     const pausePointsRecord = pausePoints.reduce<Record<string, any>>((acc, point) => {
       acc[point.contextId] = {
         contextId: point.contextId,
-        blockId: this.normalizePauseBlockId(point.blockId ?? point.contextId),
+        blockId: PauseResumeManager.normalizePauseBlockId(point.blockId ?? point.contextId),
         response: point.response,
         resumeStatus: point.resumeStatus,
         snapshotReady: point.snapshotReady,
@@ -158,7 +158,7 @@ export class PauseResumeManager {
         },
       })
 
-    await this.processQueuedResumes(executionId)
+    await PauseResumeManager.processQueuedResumes(executionId)
   }
 
   static async enqueueOrStartResume(args: EnqueueResumeArgs): Promise<EnqueueResumeResult> {
@@ -222,7 +222,7 @@ export class PauseResumeManager {
         await tx
           .update(pausedExecutions)
           .set({
-            pausePoints: sql`jsonb_set(pause_points, ARRAY[${contextId}, 'resumeStatus'], '"queued"'::jsonb)`
+            pausePoints: sql`jsonb_set(pause_points, ARRAY[${contextId}, 'resumeStatus'], '"queued"'::jsonb)`,
           })
           .where(eq(pausedExecutions.id, pausedExecution.id))
 
@@ -262,7 +262,7 @@ export class PauseResumeManager {
       await tx
         .update(pausedExecutions)
         .set({
-          pausePoints: sql`jsonb_set(pause_points, ARRAY[${contextId}, 'resumeStatus'], '"resuming"'::jsonb)`
+          pausePoints: sql`jsonb_set(pause_points, ARRAY[${contextId}, 'resumeStatus'], '"resuming"'::jsonb)`,
         })
         .where(eq(pausedExecutions.id, pausedExecution.id))
 
@@ -291,7 +291,7 @@ export class PauseResumeManager {
     )
 
     try {
-      const result = await this.runResumeExecution({
+      const result = await PauseResumeManager.runResumeExecution({
         resumeExecutionId,
         pausedExecution,
         contextId,
@@ -305,7 +305,7 @@ export class PauseResumeManager {
             resumeExecutionId,
           })
         } else {
-          await this.persistPauseResult({
+          await PauseResumeManager.persistPauseResult({
             workflowId: pausedExecution.workflowId,
             executionId: result.metadata?.executionId ?? resumeExecutionId,
             pausePoints: result.pausePoints || [],
@@ -314,7 +314,7 @@ export class PauseResumeManager {
           })
         }
       } else {
-        await this.updateSnapshotAfterResume({
+        await PauseResumeManager.updateSnapshotAfterResume({
           pausedExecutionId: pausedExecution.id,
           contextId,
           pauseBlockId: pauseBlockId,
@@ -322,16 +322,16 @@ export class PauseResumeManager {
         })
       }
 
-      await this.markResumeCompleted({
+      await PauseResumeManager.markResumeCompleted({
         resumeEntryId,
         pausedExecutionId: pausedExecution.id,
         parentExecutionId: pausedExecution.executionId,
         contextId,
       })
 
-      await this.processQueuedResumes(pausedExecution.executionId)
+      await PauseResumeManager.processQueuedResumes(pausedExecution.executionId)
     } catch (error) {
-      await this.markResumeFailed({
+      await PauseResumeManager.markResumeFailed({
         resumeEntryId,
         pausedExecutionId: pausedExecution.id,
         contextId,
@@ -343,7 +343,7 @@ export class PauseResumeManager {
         contextId,
         error,
       })
-      await this.processQueuedResumes(pausedExecution.executionId)
+      await PauseResumeManager.processQueuedResumes(pausedExecution.executionId)
       throw error
     }
   }
@@ -366,7 +366,7 @@ export class PauseResumeManager {
 
     const serializedSnapshot = pausedExecution.executionSnapshot as SerializedSnapshot
     const baseSnapshot = ExecutionSnapshot.fromJSON(serializedSnapshot.snapshot)
-    
+
     logger.info('Loaded snapshot from paused execution', {
       workflowId: baseSnapshot.workflow?.version,
       workflowBlockCount: baseSnapshot.workflow?.blocks?.length,
@@ -379,7 +379,7 @@ export class PauseResumeManager {
     if (!pausePoint) {
       throw new Error('Pause point not found for resume execution')
     }
-    
+
     logger.info('Resume pause point identified', {
       contextId,
       pausePointKeys: Object.keys(pausePoints),
@@ -389,25 +389,26 @@ export class PauseResumeManager {
     const rawPauseBlockId = pausePoint.blockId ?? contextId
     const pauseBlockId = PauseResumeManager.normalizePauseBlockId(rawPauseBlockId)
 
-    const dagIncomingEdgesFromSnapshot: Record<string, string[]> | undefined =
-      (baseSnapshot.state as any)?.dagIncomingEdges
+    const dagIncomingEdgesFromSnapshot: Record<string, string[]> | undefined = (
+      baseSnapshot.state as any
+    )?.dagIncomingEdges
 
     const downstreamBlocks = dagIncomingEdgesFromSnapshot
       ? Object.entries(dagIncomingEdgesFromSnapshot)
-          .filter(([, incoming]) =>
-            Array.isArray(incoming) &&
-            incoming.some((sourceId) =>
-              PauseResumeManager.normalizePauseBlockId(sourceId) === pauseBlockId
-            )
+          .filter(
+            ([, incoming]) =>
+              Array.isArray(incoming) &&
+              incoming.some(
+                (sourceId) => PauseResumeManager.normalizePauseBlockId(sourceId) === pauseBlockId
+              )
           )
           .map(([nodeId]) => nodeId)
       : baseSnapshot.workflow.connections
           .filter(
-            (conn: any) =>
-              PauseResumeManager.normalizePauseBlockId(conn.source) === pauseBlockId
+            (conn: any) => PauseResumeManager.normalizePauseBlockId(conn.source) === pauseBlockId
           )
           .map((conn: any) => conn.target)
-    
+
     logger.info('Found downstream blocks', {
       pauseBlockId,
       downstreamBlocks,
@@ -431,25 +432,24 @@ export class PauseResumeManager {
         (stateCopy as any)?.dagIncomingEdges || dagIncomingEdgesFromSnapshot
 
       // Calculate the pause duration (time from pause to resume)
-      const pauseDurationMs = pausedExecution.pausedAt 
+      const pauseDurationMs = pausedExecution.pausedAt
         ? Date.now() - new Date(pausedExecution.pausedAt).getTime()
         : 0
-      
+
       logger.info('Calculated pause duration', {
         pauseBlockId,
         pauseDurationMs,
         pausedAt: pausedExecution.pausedAt,
         resumedAt: new Date().toISOString(),
       })
-      
+
       // Set the pause block as completed with the resume input
       const existingBlockState =
         stateCopy.blockStates[pauseBlockId] ?? stateCopy.blockStates[contextId]
 
       const stateBlockKey = rawPauseBlockId
 
-      const existingBlockStateWithRaw =
-        stateCopy.blockStates[stateBlockKey] ?? existingBlockState
+      const existingBlockStateWithRaw = stateCopy.blockStates[stateBlockKey] ?? existingBlockState
 
       const pauseBlockState = existingBlockStateWithRaw ?? {
         output: {},
@@ -484,7 +484,9 @@ export class PauseResumeManager {
       const existingOutput = pauseBlockState.output || {}
       const existingResponse = existingOutput.response || {}
       const existingResponseData =
-        existingResponse && typeof existingResponse.data === 'object' && !Array.isArray(existingResponse.data)
+        existingResponse &&
+        typeof existingResponse.data === 'object' &&
+        !Array.isArray(existingResponse.data)
           ? existingResponse.data
           : {}
 
@@ -546,7 +548,9 @@ export class PauseResumeManager {
       stateCopy.blockStates[stateBlockKey] = pauseBlockState
 
       if (Array.isArray(stateCopy.executedBlocks)) {
-        const filtered = stateCopy.executedBlocks.filter((id: string) => id !== pauseBlockId && id !== contextId)
+        const filtered = stateCopy.executedBlocks.filter(
+          (id: string) => id !== pauseBlockId && id !== contextId
+        )
         if (!filtered.includes(stateBlockKey)) {
           filtered.push(stateBlockKey)
         }
@@ -595,9 +599,7 @@ export class PauseResumeManager {
         if (edgesToRemove.length === 0 && baseSnapshot.workflow.connections?.length) {
           edgesToRemove = baseSnapshot.workflow.connections
             .filter((conn: any) =>
-              completedPauseContexts.has(
-                PauseResumeManager.normalizePauseBlockId(conn.source)
-              )
+              completedPauseContexts.has(PauseResumeManager.normalizePauseBlockId(conn.source))
             )
             .map((conn: any) => ({
               id: conn.id ?? `${conn.source}→${conn.target}`,
@@ -610,9 +612,7 @@ export class PauseResumeManager {
       } else {
         edgesToRemove = baseSnapshot.workflow.connections
           .filter((conn: any) =>
-            completedPauseContexts.has(
-              PauseResumeManager.normalizePauseBlockId(conn.source)
-            )
+            completedPauseContexts.has(PauseResumeManager.normalizePauseBlockId(conn.source))
           )
           .map((conn: any) => ({
             id: conn.id ?? `${conn.source}→${conn.target}`,
@@ -664,13 +664,9 @@ export class PauseResumeManager {
       pendingQueue: stateCopy?.pendingQueue,
     })
 
-    const triggerType = (metadata.triggerType as
-      | 'api'
-      | 'webhook'
-      | 'schedule'
-      | 'manual'
-      | 'chat'
-      | undefined) ?? 'manual'
+    const triggerType =
+      (metadata.triggerType as 'api' | 'webhook' | 'schedule' | 'manual' | 'chat' | undefined) ??
+      'manual'
     const loggingSession = new LoggingSession(
       metadata.workflowId,
       resumeExecutionId,
@@ -750,7 +746,7 @@ export class PauseResumeManager {
       await tx
         .update(pausedExecutions)
         .set({
-          pausePoints: sql`jsonb_set(pause_points, ARRAY[${args.contextId}, 'resumeStatus'], '"failed"'::jsonb)`
+          pausePoints: sql`jsonb_set(pause_points, ARRAY[${args.contextId}, 'resumeStatus'], '"failed"'::jsonb)`,
         })
         .where(eq(pausedExecutions.id, args.pausedExecutionId))
     })
@@ -798,7 +794,7 @@ export class PauseResumeManager {
         // Find all edges from the resumed pause block and remove them from targets
         const workflowData = snapshotData.workflow
         const connections = workflowData.connections || []
-        
+
         for (const conn of connections) {
           if (conn.source === pauseBlockId) {
             const targetId = conn.target
@@ -807,7 +803,7 @@ export class PauseResumeManager {
               dagIncomingEdges[targetId] = dagIncomingEdges[targetId].filter(
                 (sourceId: string) => sourceId !== pauseBlockId
               )
-              
+
               logger.debug('Updated DAG incoming edges in snapshot', {
                 removedSource: pauseBlockId,
                 target: targetId,
@@ -848,7 +844,11 @@ export class PauseResumeManager {
     let whereClause: any = eq(pausedExecutions.workflowId, workflowId)
 
     if (status) {
-      const statuses = Array.isArray(status) ? status : String(status).split(',').map((s) => s.trim())
+      const statuses = Array.isArray(status)
+        ? status
+        : String(status)
+            .split(',')
+            .map((s) => s.trim())
       if (statuses.length === 1) {
         whereClause = and(whereClause, eq(pausedExecutions.status, statuses[0]))
       } else if (statuses.length > 1) {
@@ -862,7 +862,12 @@ export class PauseResumeManager {
       .where(whereClause)
       .orderBy(desc(pausedExecutions.pausedAt))
 
-    return rows.map((row) => this.normalizePausedExecution(row, this.mapPausePoints(row.pausePoints)))
+    return rows.map((row) =>
+      PauseResumeManager.normalizePausedExecution(
+        row,
+        PauseResumeManager.mapPausePoints(row.pausePoints)
+      )
+    )
   }
 
   static async getPausedExecutionDetail(options: {
@@ -875,7 +880,10 @@ export class PauseResumeManager {
       .select()
       .from(pausedExecutions)
       .where(
-        and(eq(pausedExecutions.workflowId, workflowId), eq(pausedExecutions.executionId, executionId))
+        and(
+          eq(pausedExecutions.workflowId, workflowId),
+          eq(pausedExecutions.executionId, executionId)
+        )
       )
       .limit(1)
       .then((rows) => rows[0])
@@ -890,13 +898,19 @@ export class PauseResumeManager {
       .where(eq(resumeQueue.parentExecutionId, executionId))
       .orderBy(asc(resumeQueue.queuedAt))
 
-    const normalizedQueue = queueEntries.map((entry) => this.normalizeQueueEntry(entry))
-    const queuePositions = this.computeQueuePositions(normalizedQueue)
-    const latestEntries = this.computeLatestEntriesByContext(normalizedQueue)
+    const normalizedQueue = queueEntries.map((entry) =>
+      PauseResumeManager.normalizeQueueEntry(entry)
+    )
+    const queuePositions = PauseResumeManager.computeQueuePositions(normalizedQueue)
+    const latestEntries = PauseResumeManager.computeLatestEntriesByContext(normalizedQueue)
 
-    const pausePoints = this.mapPausePoints(row.pausePoints, queuePositions, latestEntries)
+    const pausePoints = PauseResumeManager.mapPausePoints(
+      row.pausePoints,
+      queuePositions,
+      latestEntries
+    )
 
-    const executionSummary = this.normalizePausedExecution(row, pausePoints)
+    const executionSummary = PauseResumeManager.normalizePausedExecution(row, pausePoints)
 
     return {
       ...executionSummary,
@@ -911,7 +925,7 @@ export class PauseResumeManager {
     contextId: string
   }): Promise<PauseContextDetail | null> {
     const { workflowId, executionId, contextId } = options
-    const detail = await this.getPausedExecutionDetail({ workflowId, executionId })
+    const detail = await PauseResumeManager.getPausedExecutionDetail({ workflowId, executionId })
 
     if (!detail) {
       return null
@@ -922,8 +936,9 @@ export class PauseResumeManager {
       return null
     }
 
-    const activeResumeEntry = detail.queue.find((entry) =>
-      entry.contextId === contextId && (entry.status === 'claimed' || entry.status === 'pending')
+    const activeResumeEntry = detail.queue.find(
+      (entry) =>
+        entry.contextId === contextId && (entry.status === 'claimed' || entry.status === 'pending')
     )
 
     return {
@@ -940,7 +955,10 @@ export class PauseResumeManager {
         .select()
         .from(resumeQueue)
         .where(
-          and(eq(resumeQueue.parentExecutionId, parentExecutionId), eq(resumeQueue.status, 'pending'))
+          and(
+            eq(resumeQueue.parentExecutionId, parentExecutionId),
+            eq(resumeQueue.status, 'pending')
+          )
         )
         .orderBy(asc(resumeQueue.queuedAt))
         .limit(1)
@@ -969,7 +987,7 @@ export class PauseResumeManager {
       await tx
         .update(pausedExecutions)
         .set({
-          pausePoints: sql`jsonb_set(pause_points, ARRAY[${entry.contextId}, 'resumeStatus'], '"resuming"'::jsonb)`
+          pausePoints: sql`jsonb_set(pause_points, ARRAY[${entry.contextId}, 'resumeStatus'], '"resuming"'::jsonb)`,
         })
         .where(eq(pausedExecutions.id, pausedExecution.id))
 
@@ -984,7 +1002,7 @@ export class PauseResumeManager {
 
     const pausedMetadata = (pausedExecution.metadata as Record<string, any>) || {}
 
-    this.startResumeExecution({
+    PauseResumeManager.startResumeExecution({
       resumeEntryId: entry.id,
       resumeExecutionId: entry.newExecutionId,
       pausedExecution,
@@ -1000,7 +1018,9 @@ export class PauseResumeManager {
     })
   }
 
-  private static normalizeQueueEntry(entry: typeof resumeQueue.$inferSelect): ResumeQueueEntrySummary {
+  private static normalizeQueueEntry(
+    entry: typeof resumeQueue.$inferSelect
+  ): ResumeQueueEntrySummary {
     return {
       id: entry.id,
       pausedExecutionId: entry.pausedExecutionId,
@@ -1050,14 +1070,15 @@ export class PauseResumeManager {
       const queuePosition = queuePositions?.get(point.contextId ?? '') ?? null
       const latestEntry = latestEntries?.get(point.contextId ?? '')
 
-      const blockId = this.normalizePauseBlockId(point.blockId ?? point.contextId)
+      const blockId = PauseResumeManager.normalizePauseBlockId(point.blockId ?? point.contextId)
 
       const resumeLinks = point.resumeLinks
         ? {
             ...point.resumeLinks,
-            uiUrl: typeof point.resumeLinks.uiUrl === 'string'
-              ? point.resumeLinks.uiUrl.split('?')[0]
-              : point.resumeLinks.uiUrl,
+            uiUrl:
+              typeof point.resumeLinks.uiUrl === 'string'
+                ? point.resumeLinks.uiUrl.split('?')[0]
+                : point.resumeLinks.uiUrl,
           }
         : undefined
 
@@ -1126,10 +1147,8 @@ export class PauseResumeManager {
       return ''
     }
 
-    const normalized = id
-      .replace(/_loop\d+/g, '')
+    const normalized = id.replace(/_loop\d+/g, '')
 
     return normalized || id
   }
 }
-

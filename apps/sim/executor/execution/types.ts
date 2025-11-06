@@ -11,7 +11,12 @@ export interface ContextExtensions {
   isChildExecution?: boolean
   resumeFromSnapshot?: boolean
   resumePendingQueue?: string[]
-  remainingEdges?: Array<{ source: string; target: string; sourceHandle?: string; targetHandle?: string }>
+  remainingEdges?: Array<{
+    source: string
+    target: string
+    sourceHandle?: string
+    targetHandle?: string
+  }>
   dagIncomingEdges?: Record<string, string[]>
   snapshotState?: import('@/executor/execution/snapshot').SerializableExecutionState
   onStream?: (streamingExecution: unknown) => Promise<void>

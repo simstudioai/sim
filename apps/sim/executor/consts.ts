@@ -66,6 +66,8 @@ export const LOOP = {
     END_SUFFIX: '-sentinel-end',
     START_TYPE: 'start' as SentinelType,
     END_TYPE: 'end' as SentinelType,
+    START_NAME_PREFIX: 'Loop Start',
+    END_NAME_PREFIX: 'Loop End',
   },
 } as const
 

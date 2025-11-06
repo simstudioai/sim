@@ -39,11 +39,11 @@ export class TriggerBlockHandler implements BlockHandler {
 
     const starterBlock = ctx.workflow?.blocks?.find((b) => b.metadata?.id === 'starter')
     if (starterBlock) {
-        const starterState = ctx.blockStates.get(starterBlock.id)
-        if (starterState?.output && Object.keys(starterState.output).length > 0) {
-          const starterOutput = starterState.output
+      const starterState = ctx.blockStates.get(starterBlock.id)
+      if (starterState?.output && Object.keys(starterState.output).length > 0) {
+        const starterOutput = starterState.output
 
-          if (starterOutput.webhook?.data) {
+        if (starterOutput.webhook?.data) {
           const webhookData = starterOutput.webhook?.data || {}
           const provider = webhookData.provider
 

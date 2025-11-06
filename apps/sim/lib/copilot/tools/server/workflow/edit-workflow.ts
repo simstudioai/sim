@@ -9,7 +9,6 @@ import { extractAndPersistCustomTools } from '@/lib/workflows/custom-tools-persi
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/db-helpers'
 import { validateWorkflowState } from '@/lib/workflows/validation'
 import { getAllBlocks } from '@/blocks/registry'
-import { getBlockOutputs } from '@/lib/workflows/block-outputs'
 import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
 
 interface EditWorkflowOperation {

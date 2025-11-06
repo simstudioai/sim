@@ -1,5 +1,8 @@
 import { createLogger } from '@/lib/logs/console/logger'
 import { buildLoopIndexCondition, DEFAULTS, EDGE } from '@/executor/consts'
+import type { DAG } from '@/executor/dag/builder'
+import type { LoopScope } from '@/executor/execution/state'
+import type { BlockStateController } from '@/executor/execution/types'
 import type { ExecutionContext, NormalizedBlockOutput } from '@/executor/types'
 import type { LoopConfigWithNodes } from '@/executor/types/loop'
 import {
@@ -7,11 +10,8 @@ import {
   buildSentinelStartId,
   extractBaseBlockId,
 } from '@/executor/utils/subflow-utils'
-import type { SerializedLoop } from '@/serializer/types'
-import type { DAG } from '@/executor/dag/builder'
-import type { LoopScope } from '@/executor/execution/state'
-import type { BlockStateController } from '@/executor/execution/types'
 import type { VariableResolver } from '@/executor/variables/resolver'
+import type { SerializedLoop } from '@/serializer/types'
 
 const logger = createLogger('LoopOrchestrator')
 
@@ -133,7 +133,7 @@ export class LoopOrchestrator {
     }
 
     scope.iteration++
-    
+
     if (scope.items && scope.iteration < scope.items.length) {
       scope.item = scope.items[scope.iteration]
     }

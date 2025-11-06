@@ -873,10 +873,12 @@ export default function Logs() {
 
                           {/* Resume Link */}
                           <div className='flex justify-end'>
-                            {isPending && log.executionId && (log.workflow?.id || log.workflowId) ? (
+                            {isPending &&
+                            log.executionId &&
+                            (log.workflow?.id || log.workflowId) ? (
                               <Link
                                 href={`/resume/${log.workflow?.id || log.workflowId}/${log.executionId}`}
-                                className='inline-flex h-7 w-7 items-center justify-center rounded-md border border-dashed border-primary/60 text-primary hover:bg-primary/10'
+                                className='inline-flex h-7 w-7 items-center justify-center rounded-md border border-primary/60 border-dashed text-primary hover:bg-primary/10'
                                 aria-label='Open resume console'
                               >
                                 <ArrowUpRight className='h-4 w-4' />

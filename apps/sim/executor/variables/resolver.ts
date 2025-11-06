@@ -1,14 +1,14 @@
 import { createLogger } from '@/lib/logs/console/logger'
 import { BlockType, REFERENCE } from '@/executor/consts'
-import type { ExecutionContext } from '@/executor/types'
-import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 import type { ExecutionState, LoopScope } from '@/executor/execution/state'
-import { BlockResolver } from './resolvers/block'
-import { EnvResolver } from './resolvers/env'
-import { LoopResolver } from './resolvers/loop'
-import { ParallelResolver } from './resolvers/parallel'
-import type { ResolutionContext, Resolver } from './resolvers/reference'
-import { WorkflowResolver } from './resolvers/workflow'
+import type { ExecutionContext } from '@/executor/types'
+import { BlockResolver } from '@/executor/variables/resolvers/block'
+import { EnvResolver } from '@/executor/variables/resolvers/env'
+import { LoopResolver } from '@/executor/variables/resolvers/loop'
+import { ParallelResolver } from '@/executor/variables/resolvers/parallel'
+import type { ResolutionContext, Resolver } from '@/executor/variables/resolvers/reference'
+import { WorkflowResolver } from '@/executor/variables/resolvers/workflow'
+import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 
 const logger = createLogger('VariableResolver')
 
@@ -17,8 +17,8 @@ export class VariableResolver {
   private blockResolver: BlockResolver
 
   constructor(
-    private workflow: SerializedWorkflow,
-    private workflowVariables: Record<string, any>,
+    workflow: SerializedWorkflow,
+    workflowVariables: Record<string, any>,
     private state: ExecutionState
   ) {
     this.blockResolver = new BlockResolver(workflow)

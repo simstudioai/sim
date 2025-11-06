@@ -1,6 +1,9 @@
 import { createLogger } from '@/lib/logs/console/logger'
 import { BlockType } from '@/executor/consts'
-import { normalizeError } from '@/executor/utils/errors'
+import type { DAG } from '@/executor/dag/builder'
+import type { EdgeManager } from '@/executor/execution/edge-manager'
+import { serializePauseSnapshot } from '@/executor/execution/snapshot-serializer'
+import type { NodeExecutionOrchestrator } from '@/executor/orchestrators/node'
 import type {
   ExecutionContext,
   ExecutionResult,
@@ -9,10 +12,7 @@ import type {
   PausePoint,
   ResumeStatus,
 } from '@/executor/types'
-import { serializePauseSnapshot } from '@/executor/execution/snapshot-serializer'
-import type { DAG } from '@/executor/dag/builder'
-import type { NodeExecutionOrchestrator } from '@/executor/orchestrators/node'
-import type { EdgeManager } from '@/executor/execution/edge-manager'
+import { normalizeError } from '@/executor/utils/errors'
 
 const logger = createLogger('ExecutionEngine')
 
@@ -137,50 +137,50 @@ export class ExecutionEngine {
   private initializeQueue(triggerBlockId?: string): void {
     const pendingBlocks = this.context.metadata.pendingBlocks
     const remainingEdges = (this.context.metadata as any).remainingEdges
-    
+
     if (remainingEdges && Array.isArray(remainingEdges) && remainingEdges.length > 0) {
       logger.info('Removing edges from resumed pause blocks', {
         edgeCount: remainingEdges.length,
         edges: remainingEdges,
       })
-      
+
       for (const edge of remainingEdges) {
         const targetNode = this.dag.nodes.get(edge.target)
         if (targetNode) {
           const hadEdge = targetNode.incomingEdges.has(edge.source)
           targetNode.incomingEdges.delete(edge.source)
-          
+
           if (this.edgeManager.isNodeReady(targetNode)) {
             logger.info('Node became ready after edge removal', { nodeId: targetNode.id })
             this.addToQueue(targetNode.id)
           }
         }
       }
-      
+
       logger.info('Edge removal complete, queued ready nodes', {
         queueLength: this.readyQueue.length,
         queuedNodes: this.readyQueue,
       })
-      
+
       return
     }
-    
+
     if (pendingBlocks && pendingBlocks.length > 0) {
       logger.info('Initializing queue from pending blocks (resume mode)', {
         pendingBlocks,
         allowResumeTriggers: this.allowResumeTriggers,
         dagNodeCount: this.dag.nodes.size,
       })
-      
+
       for (const nodeId of pendingBlocks) {
         this.addToQueue(nodeId)
       }
-      
+
       logger.info('Pending blocks queued', {
         queueLength: this.readyQueue.length,
         queuedNodes: this.readyQueue,
       })
-      
+
       this.context.metadata.pendingBlocks = []
       return
     }
@@ -219,9 +219,9 @@ export class ExecutionEngine {
     try {
       const wasAlreadyExecuted = this.context.executedBlocks.has(nodeId)
       const node = this.dag.nodes.get(nodeId)
-      
+
       const result = await this.nodeOrchestrator.executeNode(this.context, nodeId)
-      
+
       if (!wasAlreadyExecuted) {
         await this.withQueueLock(async () => {
           await this.handleNodeCompletion(nodeId, result.output, result.isFinalOutput)
@@ -261,14 +261,14 @@ export class ExecutionEngine {
     }
 
     const readyNodes = this.edgeManager.processOutgoingEdges(node, output, false)
-    
+
     logger.info('Processing outgoing edges', {
       nodeId,
       outgoingEdgesCount: node.outgoingEdges.size,
       readyNodesCount: readyNodes.length,
       readyNodes,
     })
-    
+
     this.addMultipleToQueue(readyNodes)
   }
 

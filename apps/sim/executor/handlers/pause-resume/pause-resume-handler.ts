@@ -1,17 +1,23 @@
 import { createLogger } from '@/lib/logs/console/logger'
+import { getBaseUrl } from '@/lib/urls/utils'
 import type { BlockOutput } from '@/blocks/types'
-import { BlockType, FieldType, HTTP, PAUSE_RESUME, buildResumeApiUrl, buildResumeUiUrl } from '@/executor/consts'
-import type { BlockHandler, ExecutionContext, PauseMetadata } from '@/executor/types'
-import type { SerializedBlock } from '@/serializer/types'
 import {
-  buildTriggerBlockId,
+  BlockType,
+  buildResumeApiUrl,
+  buildResumeUiUrl,
+  type FieldType,
+  HTTP,
+  PAUSE_RESUME,
+} from '@/executor/consts'
+import {
   generatePauseContextId,
   mapNodeMetadataToPauseScopes,
 } from '@/executor/pause-resume/utils.ts'
-import { getBaseUrl } from '@/lib/urls/utils'
-import { executeTool } from '@/tools'
+import type { BlockHandler, ExecutionContext, PauseMetadata } from '@/executor/types'
 import { collectBlockData } from '@/executor/utils/block-data'
+import type { SerializedBlock } from '@/serializer/types'
 import { normalizeBlockName } from '@/stores/workflows/utils'
+import { executeTool } from '@/tools'
 
 const logger = createLogger('PauseResumeBlockHandler')
 
@@ -76,18 +82,16 @@ export class PauseResumeBlockHandler implements BlockHandler {
       branchTotal?: number
     }
   ): Promise<BlockOutput> {
-    logger.info(`Executing pause resume block: ${block.id}`)
-
     try {
       const operation = inputs.operation ?? PAUSE_RESUME.OPERATION.HUMAN
-      
+
       const { parallelScope, loopScope } = mapNodeMetadataToPauseScopes(ctx, nodeMetadata)
       const contextId = generatePauseContextId(block.id, nodeMetadata, loopScope)
       const timestamp = new Date().toISOString()
 
       const executionId = ctx.executionId ?? ctx.metadata?.executionId
       const workflowId = ctx.workflowId
-      
+
       let resumeLinks: typeof pauseMetadata.resumeLinks | undefined
       if (executionId && workflowId) {
         try {
@@ -147,7 +151,11 @@ export class PauseResumeBlockHandler implements BlockHandler {
 
       let notificationResults: NotificationToolResult[] | undefined
 
-      if (operation === PAUSE_RESUME.OPERATION.HUMAN && inputs.notification && Array.isArray(inputs.notification)) {
+      if (
+        operation === PAUSE_RESUME.OPERATION.HUMAN &&
+        inputs.notification &&
+        Array.isArray(inputs.notification)
+      ) {
         notificationResults = await this.executeNotificationTools(ctx, block, inputs.notification, {
           resumeLinks,
           executionId,
@@ -159,7 +167,10 @@ export class PauseResumeBlockHandler implements BlockHandler {
       }
 
       const responseDataWithResume =
-        resumeLinks && responseData && typeof responseData === 'object' && !Array.isArray(responseData)
+        resumeLinks &&
+        responseData &&
+        typeof responseData === 'object' &&
+        !Array.isArray(responseData)
           ? { ...responseData, _resume: resumeLinks }
           : responseData
 
@@ -193,14 +204,6 @@ export class PauseResumeBlockHandler implements BlockHandler {
       if (resumeLinks) {
         responseOutput.resume = resumeLinks
       }
-
-      logger.info('Pause resume prepared', {
-        status: statusCode,
-        contextId,
-        operation,
-        parallelScope,
-        loopScope,
-      })
 
       const structuredFields: Record<string, any> = {}
       if (operation === PAUSE_RESUME.OPERATION.HUMAN) {
@@ -313,10 +316,14 @@ export class PauseResumeBlockHandler implements BlockHandler {
         const name = typeof field?.name === 'string' ? field.name.trim() : ''
         if (!name) return null
 
-        const id = typeof field?.id === 'string' && field.id.length > 0 ? field.id : `field_${index}`
+        const id =
+          typeof field?.id === 'string' && field.id.length > 0 ? field.id : `field_${index}`
         const label =
-          typeof field?.label === 'string' && field.label.trim().length > 0 ? field.label.trim() : name
-        const type = typeof field?.type === 'string' && field.type.trim().length > 0 ? field.type : 'string'
+          typeof field?.label === 'string' && field.label.trim().length > 0
+            ? field.label.trim()
+            : name
+        const type =
+          typeof field?.type === 'string' && field.type.trim().length > 0 ? field.type : 'string'
         const description =
           typeof field?.description === 'string' && field.description.trim().length > 0
             ? field.description.trim()
@@ -547,8 +554,6 @@ export class PauseResumeBlockHandler implements BlockHandler {
       return []
     }
 
-    logger.info('Executing notification tools', { toolCount: tools.length })
-
     const { blockData: collectedBlockData, blockNameMapping: collectedBlockNameMapping } =
       collectBlockData(ctx)
 
@@ -603,12 +608,6 @@ export class PauseResumeBlockHandler implements BlockHandler {
           }
         }
 
-        logger.info('Executing notification tool', {
-          toolId,
-          title: toolConfig.title,
-          operation: toolConfig.operation,
-        })
-
         const toolParams = {
           ...toolConfig.params,
           _pauseContext: {
@@ -645,11 +644,6 @@ export class PauseResumeBlockHandler implements BlockHandler {
             durationMs,
           }
         }
-
-        logger.info('Notification tool executed successfully', {
-          toolId,
-          output: result.output,
-        })
 
         return {
           toolId,

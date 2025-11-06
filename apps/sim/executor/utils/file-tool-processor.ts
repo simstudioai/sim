@@ -102,13 +102,11 @@ export class FileToolProcessor {
     context: ExecutionContext,
     outputKey: string
   ): Promise<UserFile> {
-    logger.info(`Processing file data for output '${outputKey}': ${fileData.name}`)
     try {
       let buffer: Buffer
 
       if (Buffer.isBuffer(fileData.data)) {
         buffer = fileData.data
-        logger.info(`Using Buffer data for ${fileData.name} (${buffer.length} bytes)`)
       } else if (
         fileData.data &&
         typeof fileData.data === 'object' &&
@@ -121,9 +119,6 @@ export class FileToolProcessor {
         } else {
           throw new Error(`Invalid serialized buffer format for ${fileData.name}`)
         }
-        logger.info(
-          `Converted serialized Buffer to Buffer for ${fileData.name} (${buffer.length} bytes)`
-        )
       } else if (typeof fileData.data === 'string' && fileData.data) {
         let base64Data = fileData.data
 
@@ -132,11 +127,7 @@ export class FileToolProcessor {
         }
 
         buffer = Buffer.from(base64Data, 'base64')
-        logger.info(
-          `Converted base64 string to Buffer for ${fileData.name} (${buffer.length} bytes)`
-        )
       } else if (fileData.url) {
-        logger.info(`Downloading file from URL: ${fileData.url}`)
         const response = await fetch(fileData.url)
 
         if (!response.ok) {
@@ -145,7 +136,6 @@ export class FileToolProcessor {
 
         const arrayBuffer = await response.arrayBuffer()
         buffer = Buffer.from(arrayBuffer)
-        logger.info(`Downloaded file from URL for ${fileData.name} (${buffer.length} bytes)`)
       } else {
         throw new Error(
           `File data for '${fileData.name}' must have either 'data' (Buffer/base64) or 'url' property`
@@ -167,9 +157,6 @@ export class FileToolProcessor {
         fileData.mimeType
       )
 
-      logger.info(
-        `Successfully stored file '${fileData.name}' in execution filesystem with key: ${userFile.key}`
-      )
       return userFile
     } catch (error) {
       logger.error(`Error processing file data for '${fileData.name}':`, error)

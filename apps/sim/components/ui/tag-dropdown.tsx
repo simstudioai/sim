@@ -507,20 +507,20 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
         } else if (sourceBlock.type === 'pause_resume') {
           // For pause_resume block, use dynamic outputs based on inputFormat
           const dynamicOutputs = getBlockOutputPaths(sourceBlock.type, mergedSubBlocks)
-          
+
           // If it's a self-reference, only show apiUrl and uiUrl (available immediately)
           const isSelfReference = activeSourceBlockId === blockId
-          
+
           if (dynamicOutputs.length > 0) {
             const allTags = dynamicOutputs.map((path) => `${normalizedBlockName}.${path}`)
-            blockTags = isSelfReference 
-              ? allTags.filter(tag => tag.endsWith('.apiUrl') || tag.endsWith('.uiUrl'))
+            blockTags = isSelfReference
+              ? allTags.filter((tag) => tag.endsWith('.apiUrl') || tag.endsWith('.uiUrl'))
               : allTags
           } else {
             const outputPaths = generateOutputPaths(blockConfig.outputs || {})
             const allTags = outputPaths.map((path) => `${normalizedBlockName}.${path}`)
             blockTags = isSelfReference
-              ? allTags.filter(tag => tag.endsWith('.apiUrl') || tag.endsWith('.uiUrl'))
+              ? allTags.filter((tag) => tag.endsWith('.apiUrl') || tag.endsWith('.uiUrl'))
               : allTags
           }
         } else {
@@ -839,20 +839,20 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
         } else if (accessibleBlock.type === 'pause_resume') {
           // For pause_resume block, use dynamic outputs based on inputFormat
           const dynamicOutputs = getBlockOutputPaths(accessibleBlock.type, mergedSubBlocks)
-          
+
           // If it's a self-reference, only show apiUrl and uiUrl (available immediately)
           const isSelfReference = accessibleBlockId === blockId
-          
+
           if (dynamicOutputs.length > 0) {
             const allTags = dynamicOutputs.map((path) => `${normalizedBlockName}.${path}`)
-            blockTags = isSelfReference 
-              ? allTags.filter(tag => tag.endsWith('.apiUrl') || tag.endsWith('.uiUrl'))
+            blockTags = isSelfReference
+              ? allTags.filter((tag) => tag.endsWith('.apiUrl') || tag.endsWith('.uiUrl'))
               : allTags
           } else {
             const outputPaths = generateOutputPaths(blockConfig.outputs || {})
             const allTags = outputPaths.map((path) => `${normalizedBlockName}.${path}`)
             blockTags = isSelfReference
-              ? allTags.filter(tag => tag.endsWith('.apiUrl') || tag.endsWith('.uiUrl'))
+              ? allTags.filter((tag) => tag.endsWith('.apiUrl') || tag.endsWith('.uiUrl'))
               : allTags
           }
         } else {
