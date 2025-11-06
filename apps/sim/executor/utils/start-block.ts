@@ -1,9 +1,11 @@
+import { isUserFile } from '@/lib/utils'
 import {
   classifyStartBlockType,
   getLegacyStarterMode,
   resolveStartCandidates,
   StartBlockPath,
 } from '@/lib/workflows/triggers'
+import type { InputFormatField } from '@/lib/workflows/types'
 import type { NormalizedBlockOutput, UserFile } from '@/executor/types'
 import type { SerializedBlock } from '@/serializer/types'
 
@@ -92,12 +94,6 @@ export function buildResolutionFromBlock(block: SerializedBlock): ExecutorStartR
     block,
     path,
   }
-}
-
-type InputFormatField = {
-  name?: string
-  type?: string | null
-  value?: unknown
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
@@ -231,20 +227,6 @@ function getRawInputCandidate(workflowInput: unknown): unknown {
     return workflowInput.input
   }
   return workflowInput
-}
-
-function isUserFile(candidate: unknown): candidate is UserFile {
-  if (!isPlainObject(candidate)) {
-    return false
-  }
-
-  return (
-    typeof candidate.id === 'string' &&
-    typeof candidate.name === 'string' &&
-    typeof candidate.url === 'string' &&
-    typeof candidate.size === 'number' &&
-    typeof candidate.type === 'string'
-  )
 }
 
 function getFilesFromWorkflowInput(workflowInput: unknown): UserFile[] | undefined {

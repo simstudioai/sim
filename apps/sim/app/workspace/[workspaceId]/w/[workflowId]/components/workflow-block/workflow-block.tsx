@@ -11,6 +11,7 @@ import { createLogger } from '@/lib/logs/console/logger'
 import { parseCronToHumanReadable } from '@/lib/schedules/utils'
 import { cn, validateName } from '@/lib/utils'
 import { type DiffStatus, hasDiffStatus } from '@/lib/workflows/diff/types'
+import { TRIGGER_TYPES } from '@/lib/workflows/triggers'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import type { BlockConfig, SubBlockConfig } from '@/blocks/types'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
@@ -228,9 +229,9 @@ export const WorkflowBlock = memo(
     const params = useParams()
     const currentWorkflowId = params.workflowId as string
 
-    // Check if this is a starter block or trigger block
-    const isStarterBlock = type === 'starter'
-    const isWebhookTriggerBlock = type === 'webhook' || type === 'generic_webhook'
+    const isStarterBlock = type === TRIGGER_TYPES.STARTER
+    const isWebhookTriggerBlock =
+      type === TRIGGER_TYPES.WEBHOOK || type === TRIGGER_TYPES.GENERIC_WEBHOOK
 
     const reactivateSchedule = async (scheduleId: string) => {
       try {
@@ -897,7 +898,9 @@ export const WorkflowBlock = memo(
                   </TooltipContent>
                 </Tooltip>
               )}
-              {config.subBlocks.some((block) => block.mode) && (
+              {config.subBlocks.some(
+                (block) => block.mode === 'basic' || block.mode === 'advanced'
+              ) && (
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Button

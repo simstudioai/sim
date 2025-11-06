@@ -39,21 +39,32 @@ Dans Sim, l'intégration YouTube permet à vos agents de rechercher et d'analyse
 
 ## Instructions d'utilisation
 
-Intégrez YouTube dans le flux de travail. Permet de rechercher des vidéos, obtenir les détails d'une vidéo, obtenir des informations sur une chaîne, obtenir les éléments d'une playlist et obtenir les commentaires d'une vidéo.
+Intégrez YouTube dans le flux de travail. Permet de rechercher des vidéos, obtenir les détails d'une vidéo, obtenir des informations sur une chaîne, récupérer toutes les vidéos d'une chaîne, obtenir les playlists d'une chaîne, récupérer les éléments d'une playlist, trouver des vidéos similaires et obtenir les commentaires d'une vidéo.
 
 ## Outils
 
 ### `youtube_search`
 
-Recherchez des vidéos sur YouTube en utilisant l'API YouTube Data.
+Recherchez des vidéos sur YouTube en utilisant l'API YouTube Data. Prend en charge le filtrage avancé par chaîne, plage de dates, durée, catégorie, qualité, sous-titres et plus encore.
 
 #### Entrée
 
 | Paramètre | Type | Obligatoire | Description |
 | --------- | ---- | ----------- | ----------- |
 | `query` | chaîne | Oui | Requête de recherche pour les vidéos YouTube |
-| `maxResults` | nombre | Non | Nombre maximum de vidéos à retourner |
+| `maxResults` | nombre | Non | Nombre maximum de vidéos à retourner (1-50) |
 | `apiKey` | chaîne | Oui | Clé API YouTube |
+| `channelId` | chaîne | Non | Filtrer les résultats pour un ID de chaîne YouTube spécifique |
+| `publishedAfter` | chaîne | Non | Ne renvoyer que les vidéos publiées après cette date (format RFC 3339 : "2024-01-01T00:00:00Z") |
+| `publishedBefore` | chaîne | Non | Ne renvoyer que les vidéos publiées avant cette date (format RFC 3339 : "2024-01-01T00:00:00Z") |
+| `videoDuration` | chaîne | Non | Filtrer par durée de vidéo : "short" (moins de 4 minutes), "medium" (4-20 minutes), "long" (plus de 20 minutes), "any" |
+| `order` | chaîne | Non | Trier les résultats par : "date", "rating", "relevance" (par défaut), "title", "videoCount", "viewCount" |
+| `videoCategoryId` | chaîne | Non | Filtrer par ID de catégorie YouTube (ex. : "10" pour Musique, "20" pour Jeux vidéo) |
+| `videoDefinition` | chaîne | Non | Filtrer par qualité vidéo : "high" (HD), "standard", "any" |
+| `videoCaption` | chaîne | Non | Filtrer par disponibilité des sous-titres : "closedCaption" (avec sous-titres), "none" (sans sous-titres), "any" |
+| `regionCode` | chaîne | Non | Renvoyer des résultats pertinents pour une région spécifique (code pays ISO 3166-1 alpha-2, ex. : "US", "FR") |
+| `relevanceLanguage` | chaîne | Non | Renvoyer les résultats les plus pertinents pour une langue (code ISO 639-1, ex. : "en", "fr") |
+| `safeSearch` | chaîne | Non | Niveau de filtrage du contenu : "moderate" (par défaut), "none", "strict" |
 
 #### Sortie
 
@@ -115,9 +126,48 @@ Obtenir des informations détaillées sur une chaîne YouTube.
 | `thumbnail` | chaîne | URL de la miniature de la chaîne |
 | `customUrl` | chaîne | URL personnalisée de la chaîne |
 
+### `youtube_channel_videos`
+
+Obtenir toutes les vidéos d'une chaîne YouTube spécifique, avec options de tri.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `channelId` | chaîne | Oui | ID de la chaîne YouTube dont il faut récupérer les vidéos |
+| `maxResults` | nombre | Non | Nombre maximum de vidéos à retourner \(1-50\) |
+| `order` | chaîne | Non | Ordre de tri : "date" \(plus récentes d'abord\), "rating", "relevance", "title", "viewCount" |
+| `pageToken` | chaîne | Non | Jeton de page pour la pagination |
+| `apiKey` | chaîne | Oui | Clé API YouTube |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | tableau | Tableau des vidéos de la chaîne |
+
+### `youtube_channel_playlists`
+
+Obtenir toutes les playlists d'une chaîne YouTube spécifique.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `channelId` | chaîne | Oui | ID de la chaîne YouTube dont il faut récupérer les playlists |
+| `maxResults` | nombre | Non | Nombre maximum de playlists à retourner \(1-50\) |
+| `pageToken` | chaîne | Non | Jeton de page pour la pagination |
+| `apiKey` | chaîne | Oui | Clé API YouTube |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | tableau | Tableau des playlists de la chaîne |
+
 ### `youtube_playlist_items`
 
-Obtenir des vidéos d'une playlist YouTube.
+Obtenir les vidéos d'une playlist YouTube.
 
 #### Entrée
 
@@ -133,6 +183,25 @@ Obtenir des vidéos d'une playlist YouTube.
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
 | `items` | tableau | Tableau de vidéos dans la playlist |
+
+### `youtube_related_videos`
+
+Trouver des vidéos liées à une vidéo YouTube spécifique.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `videoId` | chaîne | Oui | ID de la vidéo YouTube pour laquelle trouver des vidéos liées |
+| `maxResults` | nombre | Non | Nombre maximum de vidéos liées à retourner \(1-50\) |
+| `pageToken` | chaîne | Non | Jeton de page pour la pagination |
+| `apiKey` | chaîne | Oui | Clé API YouTube |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | tableau | Tableau de vidéos liées |
 
 ### `youtube_comments`
 

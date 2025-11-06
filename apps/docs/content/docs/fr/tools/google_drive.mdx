@@ -115,6 +115,24 @@ Créer un nouveau dossier dans Google Drive
 | --------- | ---- | ----------- |
 | `file` | json | Métadonnées du dossier créé incluant l'ID, le nom et les informations sur le parent |
 
+### `google_drive_download`
+
+Télécharger un fichier depuis Google Drive (exporte automatiquement les fichiers Google Workspace)
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `fileId` | string | Oui | L'ID du fichier à télécharger |
+| `mimeType` | string | Non | Le type MIME pour exporter les fichiers Google Workspace \(facultatif\) |
+| `fileName` | string | Non | Remplacement facultatif du nom de fichier |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `file` | file | Fichier téléchargé stocké dans les fichiers d'exécution |
+
 ### `google_drive_list`
 
 Lister les fichiers et dossiers dans Google Drive
@@ -123,8 +141,8 @@ Lister les fichiers et dossiers dans Google Drive
 
 | Paramètre | Type | Obligatoire | Description |
 | --------- | ---- | -------- | ----------- |
-| `folderSelector` | string | Non | Sélectionner le dossier dont on veut lister les fichiers |
-| `folderId` | string | Non | L'ID du dossier dont on veut lister les fichiers \(usage interne\) |
+| `folderSelector` | string | Non | Sélectionner le dossier à partir duquel lister les fichiers |
+| `folderId` | string | Non | L'ID du dossier à partir duquel lister les fichiers \(usage interne\) |
 | `query` | string | Non | Une requête pour filtrer les fichiers |
 | `pageSize` | number | Non | Le nombre de fichiers à retourner |
 | `pageToken` | string | Non | Le jeton de page à utiliser pour la pagination |

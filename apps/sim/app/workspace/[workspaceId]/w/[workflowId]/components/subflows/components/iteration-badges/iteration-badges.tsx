@@ -12,9 +12,9 @@ import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import 'prismjs/components/prism-javascript'
 import 'prismjs/themes/prism.css'
 
+import type { LoopType, ParallelType } from '@/lib/workflows/types'
+
 type IterationType = 'loop' | 'parallel'
-type LoopType = 'for' | 'forEach' | 'while' | 'doWhile'
-type ParallelType = 'count' | 'collection'
 
 interface IterationNodeData {
   width?: number

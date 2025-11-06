@@ -2,15 +2,21 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { checkServerSideUsageLimits } from '@/lib/billing'
+import { processInputFileFields } from '@/lib/execution/files'
 import { createLogger } from '@/lib/logs/console/logger'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { generateRequestId, SSE_HEADERS } from '@/lib/utils'
+import {
+  loadDeployedWorkflowState,
+  loadWorkflowFromNormalizedTables,
+} from '@/lib/workflows/db-helpers'
 import { executeWorkflowCore } from '@/lib/workflows/executor/execution-core'
 import { type ExecutionEvent, encodeSSEEvent } from '@/lib/workflows/executor/execution-events'
 import { PauseResumeManager } from '@/lib/workflows/executor/pause-resume-manager'
 import { validateWorkflowAccess } from '@/app/api/workflows/middleware'
 import { type ExecutionMetadata, ExecutionSnapshot } from '@/executor/execution/snapshot'
 import type { StreamingExecution } from '@/executor/types'
+import { Serializer } from '@/serializer'
 import type { SubflowType } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('WorkflowExecuteAPI')
@@ -298,6 +304,61 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       )
     }
 
+    // Process file fields in workflow input (base64/URL to UserFile conversion)
+    let processedInput = input
+    try {
+      const workflowData = shouldUseDraftState
+        ? await loadWorkflowFromNormalizedTables(workflowId)
+        : await loadDeployedWorkflowState(workflowId)
+
+      if (workflowData) {
+        const serializedWorkflow = new Serializer().serializeWorkflow(
+          workflowData.blocks,
+          workflowData.edges,
+          workflowData.loops,
+          workflowData.parallels,
+          false
+        )
+
+        const executionContext = {
+          workspaceId: workflow.workspaceId || '',
+          workflowId,
+          executionId,
+        }
+
+        processedInput = await processInputFileFields(
+          input,
+          serializedWorkflow.blocks,
+          executionContext,
+          requestId,
+          userId
+        )
+      }
+    } catch (fileError) {
+      logger.error(`[${requestId}] Failed to process input file fields:`, fileError)
+
+      await loggingSession.safeStart({
+        userId,
+        workspaceId: workflow.workspaceId || '',
+        variables: {},
+      })
+
+      await loggingSession.safeCompleteWithError({
+        error: {
+          message: `File processing failed: ${fileError instanceof Error ? fileError.message : 'Unable to process input files'}`,
+          stackTrace: fileError instanceof Error ? fileError.stack : undefined,
+        },
+        traceSpans: [],
+      })
+
+      return NextResponse.json(
+        {
+          error: `File processing failed: ${fileError instanceof Error ? fileError.message : 'Unable to process input files'}`,
+        },
+        { status: 400 }
+      )
+    }
+
     if (!enableSSE) {
       logger.info(`[${requestId}] Using non-SSE execution (direct JSON response)`)
       try {
@@ -315,7 +376,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         const snapshot = new ExecutionSnapshot(
           metadata,
           workflow,
-          input,
+          processedInput,
           {},
           workflow.variables || {},
           selectedOutputs
@@ -544,7 +605,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           const snapshot = new ExecutionSnapshot(
             metadata,
             workflow,
-            input,
+            processedInput,
             {},
             workflow.variables || {},
             selectedOutputs

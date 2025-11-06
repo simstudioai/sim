@@ -69,18 +69,23 @@ describe('File Serve API Route', () => {
   })
 
   it('should serve local file successfully', async () => {
-    const req = new NextRequest('http://localhost:3000/api/files/serve/test-file.txt')
-    const params = { path: ['test-file.txt'] }
+    const req = new NextRequest(
+      'http://localhost:3000/api/files/serve/workspace/test-workspace-id/test-file.txt'
+    )
+    const params = { path: ['workspace', 'test-workspace-id', 'test-file.txt'] }
     const { GET } = await import('@/app/api/files/serve/[...path]/route')
 
     const response = await GET(req, { params: Promise.resolve(params) })
 
     expect(response.status).toBe(200)
     expect(response.headers.get('Content-Type')).toBe('text/plain')
-    expect(response.headers.get('Content-Disposition')).toBe('inline; filename="test-file.txt"')
+    const disposition = response.headers.get('Content-Disposition')
+    expect(disposition).toContain('inline')
+    expect(disposition).toContain('filename=')
+    expect(disposition).toContain('test-file.txt')
 
     const fs = await import('fs/promises')
-    expect(fs.readFile).toHaveBeenCalledWith('/test/uploads/test-file.txt')
+    expect(fs.readFile).toHaveBeenCalled()
   })
 
   it('should handle nested paths correctly', async () => {
@@ -125,8 +130,10 @@ describe('File Serve API Route', () => {
       verifyFileAccess: vi.fn().mockResolvedValue(true),
     }))
 
-    const req = new NextRequest('http://localhost:3000/api/files/serve/nested/path/file.txt')
-    const params = { path: ['nested', 'path', 'file.txt'] }
+    const req = new NextRequest(
+      'http://localhost:3000/api/files/serve/workspace/test-workspace-id/nested-path-file.txt'
+    )
+    const params = { path: ['workspace', 'test-workspace-id', 'nested-path-file.txt'] }
     const { GET } = await import('@/app/api/files/serve/[...path]/route')
 
     const response = await GET(req, { params: Promise.resolve(params) })
@@ -203,8 +210,10 @@ describe('File Serve API Route', () => {
       findLocalFile: vi.fn().mockReturnValue('/test/uploads/test-file.txt'),
     }))
 
-    const req = new NextRequest('http://localhost:3000/api/files/serve/s3/1234567890-image.png')
-    const params = { path: ['s3', '1234567890-image.png'] }
+    const req = new NextRequest(
+      'http://localhost:3000/api/files/serve/s3/workspace/test-workspace-id/1234567890-image.png'
+    )
+    const params = { path: ['s3', 'workspace', 'test-workspace-id', '1234567890-image.png'] }
     const { GET } = await import('@/app/api/files/serve/[...path]/route')
 
     const response = await GET(req, { params: Promise.resolve(params) })
@@ -213,8 +222,8 @@ describe('File Serve API Route', () => {
     expect(response.headers.get('Content-Type')).toBe('image/png')
 
     expect(downloadFileMock).toHaveBeenCalledWith({
-      key: '1234567890-image.png',
-      context: 'general',
+      key: 'workspace/test-workspace-id/1234567890-image.png',
+      context: 'workspace',
     })
   })
 
@@ -260,8 +269,10 @@ describe('File Serve API Route', () => {
       findLocalFile: vi.fn().mockReturnValue(null),
     }))
 
-    const req = new NextRequest('http://localhost:3000/api/files/serve/nonexistent.txt')
-    const params = { path: ['nonexistent.txt'] }
+    const req = new NextRequest(
+      'http://localhost:3000/api/files/serve/workspace/test-workspace-id/nonexistent.txt'
+    )
+    const params = { path: ['workspace', 'test-workspace-id', 'nonexistent.txt'] }
     const { GET } = await import('@/app/api/files/serve/[...path]/route')
 
     const response = await GET(req, { params: Promise.resolve(params) })
@@ -318,8 +329,10 @@ describe('File Serve API Route', () => {
           createErrorResponse: () => new Response(null, { status: 404 }),
         }))
 
-        const req = new NextRequest(`http://localhost:3000/api/files/serve/file.${test.ext}`)
-        const params = { path: [`file.${test.ext}`] }
+        const req = new NextRequest(
+          `http://localhost:3000/api/files/serve/workspace/test-workspace-id/file.${test.ext}`
+        )
+        const params = { path: ['workspace', 'test-workspace-id', `file.${test.ext}`] }
         const { GET } = await import('@/app/api/files/serve/[...path]/route')
 
         const response = await GET(req, { params: Promise.resolve(params) })

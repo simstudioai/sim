@@ -52,6 +52,7 @@ interface MicrosoftFileSelectorProps {
   label?: string
   disabled?: boolean
   serviceId?: string
+  mimeType?: string // Filter type: 'file' for files only, 'application/vnd.microsoft.graph.folder' for folders only
   showPreview?: boolean
   onFileInfoChange?: (fileInfo: MicrosoftFileInfo | null) => void
   planId?: string
@@ -68,6 +69,7 @@ export function MicrosoftFileSelector({
   label = 'Select file',
   disabled = false,
   serviceId,
+  mimeType,
   showPreview = true,
   onFileInfoChange,
   planId,
@@ -157,10 +159,15 @@ export function MicrosoftFileSelector({
         queryParams.append('query', searchQuery.trim())
       }
 
-      // Route to correct endpoint based on service
+      // Route to correct endpoint based on service and mimeType
       let endpoint: string
       if (serviceId === 'onedrive') {
-        endpoint = `/api/tools/onedrive/folders?${queryParams.toString()}`
+        // Use files endpoint if mimeType is 'file', otherwise use folders endpoint
+        if (mimeType === 'file') {
+          endpoint = `/api/tools/onedrive/files?${queryParams.toString()}`
+        } else {
+          endpoint = `/api/tools/onedrive/folders?${queryParams.toString()}`
+        }
       } else if (serviceId === 'sharepoint') {
         endpoint = `/api/tools/sharepoint/sites?${queryParams.toString()}`
       } else {
@@ -188,7 +195,7 @@ export function MicrosoftFileSelector({
     } finally {
       setIsLoadingFiles(false)
     }
-  }, [selectedCredentialId, searchQuery, serviceId, isForeignCredential])
+  }, [selectedCredentialId, searchQuery, serviceId, mimeType, isForeignCredential])
 
   // Fetch a single file by ID when we have a selectedFileId but no metadata
   const fetchFileById = useCallback(
@@ -692,14 +699,18 @@ export function MicrosoftFileSelector({
   }
 
   const getFileTypeTitleCase = () => {
-    if (serviceId === 'onedrive') return 'Folders'
+    if (serviceId === 'onedrive') {
+      return mimeType === 'file' ? 'Files' : 'Folders'
+    }
     if (serviceId === 'sharepoint') return 'Sites'
     if (serviceId === 'microsoft-planner') return 'Tasks'
     return 'Excel Files'
   }
 
   const getSearchPlaceholder = () => {
-    if (serviceId === 'onedrive') return 'Search OneDrive folders...'
+    if (serviceId === 'onedrive') {
+      return mimeType === 'file' ? 'Search OneDrive files...' : 'Search OneDrive folders...'
+    }
     if (serviceId === 'sharepoint') return 'Search SharePoint sites...'
     if (serviceId === 'microsoft-planner') return 'Search tasks...'
     return 'Search Excel files...'
@@ -707,6 +718,12 @@ export function MicrosoftFileSelector({
 
   const getEmptyStateText = () => {
     if (serviceId === 'onedrive') {
+      if (mimeType === 'file') {
+        return {
+          title: 'No files found.',
+          description: 'No files were found in your OneDrive.',
+        }
+      }
       return {
         title: 'No folders found.',
         description: 'No folders were found in your OneDrive.',

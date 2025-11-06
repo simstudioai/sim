@@ -95,7 +95,7 @@
     "officeparser": "^5.2.0",
     "openai": "^4.91.1",
     "papaparse": "5.5.3",
-    "pdf-parse": "1.1.1",
+    "pdf-parse": "2.4.5",
     "posthog-js": "1.268.9",
     "posthog-node": "5.9.2",
     "prismjs": "^1.30.0",

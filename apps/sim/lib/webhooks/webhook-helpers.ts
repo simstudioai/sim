@@ -6,6 +6,7 @@ import { getOAuthToken, refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/
 const teamsLogger = createLogger('TeamsSubscription')
 const telegramLogger = createLogger('TelegramWebhook')
 const airtableLogger = createLogger('AirtableWebhook')
+const typeformLogger = createLogger('TypeformWebhook')
 
 function getProviderConfig(webhook: any): Record<string, any> {
   return (webhook.providerConfig as Record<string, any>) || {}
@@ -460,8 +461,159 @@ export async function deleteAirtableWebhook(
 }
 
 /**
+ * Create a Typeform webhook subscription
+ * Throws errors with friendly messages if webhook creation fails
+ */
+export async function createTypeformWebhook(
+  request: NextRequest,
+  webhook: any,
+  requestId: string
+): Promise<string> {
+  const config = getProviderConfig(webhook)
+  const formId = config.formId as string | undefined
+  const apiKey = config.apiKey as string | undefined
+  const webhookTag = config.webhookTag as string | undefined
+  const secret = config.secret as string | undefined
+
+  if (!formId) {
+    typeformLogger.warn(`[${requestId}] Missing formId for Typeform webhook ${webhook.id}`)
+    throw new Error(
+      'Form ID is required to create a Typeform webhook. Please provide a valid form ID.'
+    )
+  }
+
+  if (!apiKey) {
+    typeformLogger.warn(`[${requestId}] Missing apiKey for Typeform webhook ${webhook.id}`)
+    throw new Error(
+      'Personal Access Token is required to create a Typeform webhook. Please provide your Typeform API key.'
+    )
+  }
+
+  const tag = webhookTag || `sim-${webhook.id.substring(0, 8)}`
+  const notificationUrl = getNotificationUrl(webhook)
+
+  try {
+    const typeformApiUrl = `https://api.typeform.com/forms/${formId}/webhooks/${tag}`
+
+    const requestBody: Record<string, any> = {
+      url: notificationUrl,
+      enabled: true,
+      verify_ssl: true,
+      event_types: {
+        form_response: true,
+      },
+    }
+
+    if (secret) {
+      requestBody.secret = secret
+    }
+
+    const typeformResponse = await fetch(typeformApiUrl, {
+      method: 'PUT',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(requestBody),
+    })
+
+    if (!typeformResponse.ok) {
+      const responseBody = await typeformResponse.json().catch(() => ({}))
+      const errorMessage = responseBody.description || responseBody.message || 'Unknown error'
+
+      typeformLogger.error(`[${requestId}] Typeform API error: ${errorMessage}`, {
+        status: typeformResponse.status,
+        response: responseBody,
+      })
+
+      let userFriendlyMessage = 'Failed to create Typeform webhook'
+      if (typeformResponse.status === 401) {
+        userFriendlyMessage =
+          'Invalid Personal Access Token. Please verify your Typeform API key and try again.'
+      } else if (typeformResponse.status === 403) {
+        userFriendlyMessage =
+          'Access denied. Please ensure you have a Typeform PRO or PRO+ account and the API key has webhook permissions.'
+      } else if (typeformResponse.status === 404) {
+        userFriendlyMessage = 'Form not found. Please verify the form ID is correct.'
+      } else if (responseBody.description || responseBody.message) {
+        userFriendlyMessage = `Typeform error: ${errorMessage}`
+      }
+
+      throw new Error(userFriendlyMessage)
+    }
+
+    const responseBody = await typeformResponse.json()
+    typeformLogger.info(
+      `[${requestId}] Successfully created Typeform webhook for webhook ${webhook.id} with tag ${tag}`,
+      { webhookId: responseBody.id }
+    )
+
+    return tag
+  } catch (error: any) {
+    if (
+      error instanceof Error &&
+      (error.message.includes('Form ID') ||
+        error.message.includes('Personal Access Token') ||
+        error.message.includes('Typeform error'))
+    ) {
+      throw error
+    }
+
+    typeformLogger.error(
+      `[${requestId}] Error creating Typeform webhook for webhook ${webhook.id}`,
+      error
+    )
+    throw new Error(
+      error instanceof Error
+        ? error.message
+        : 'Failed to create Typeform webhook. Please try again.'
+    )
+  }
+}
+
+/**
+ * Delete a Typeform webhook
+ * Don't fail webhook deletion if cleanup fails
+ */
+export async function deleteTypeformWebhook(webhook: any, requestId: string): Promise<void> {
+  try {
+    const config = getProviderConfig(webhook)
+    const formId = config.formId as string | undefined
+    const apiKey = config.apiKey as string | undefined
+    const webhookTag = config.webhookTag as string | undefined
+
+    if (!formId || !apiKey) {
+      typeformLogger.warn(
+        `[${requestId}] Missing formId or apiKey for Typeform webhook deletion ${webhook.id}, skipping cleanup`
+      )
+      return
+    }
+
+    const tag = webhookTag || `sim-${webhook.id.substring(0, 8)}`
+    const typeformApiUrl = `https://api.typeform.com/forms/${formId}/webhooks/${tag}`
+
+    const typeformResponse = await fetch(typeformApiUrl, {
+      method: 'DELETE',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+      },
+    })
+
+    if (!typeformResponse.ok && typeformResponse.status !== 404) {
+      typeformLogger.warn(
+        `[${requestId}] Failed to delete Typeform webhook (non-fatal): ${typeformResponse.status}`
+      )
+    } else {
+      typeformLogger.info(`[${requestId}] Successfully deleted Typeform webhook with tag ${tag}`)
+    }
+  } catch (error) {
+    typeformLogger.warn(`[${requestId}] Error deleting Typeform webhook (non-fatal)`, error)
+  }
+}
+
+/**
  * Clean up external webhook subscriptions for a webhook
- * Handles Airtable, Teams, and Telegram cleanup
+ * Handles Airtable, Teams, Telegram, and Typeform cleanup
  * Don't fail deletion if cleanup fails
  */
 export async function cleanupExternalWebhook(
@@ -475,5 +627,7 @@ export async function cleanupExternalWebhook(
     await deleteTeamsSubscription(webhook, workflow, requestId)
   } else if (webhook.provider === 'telegram') {
     await deleteTelegramWebhook(webhook, requestId)
+  } else if (webhook.provider === 'typeform') {
+    await deleteTypeformWebhook(webhook, requestId)
   }
 }

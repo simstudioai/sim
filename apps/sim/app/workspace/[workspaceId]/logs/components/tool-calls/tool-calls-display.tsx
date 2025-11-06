@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { AlertCircle, CheckCircle2, ChevronDown, ChevronRight, Clock } from 'lucide-react'
 import { CopyButton } from '@/components/ui/copy-button'
 import { cn } from '@/lib/utils'
@@ -33,6 +33,15 @@ interface ToolCallItemProps {
 
 function ToolCallItem({ toolCall, index }: ToolCallItemProps) {
   const [expanded, setExpanded] = useState(false)
+
+  const inputString = useMemo(
+    () => (toolCall.input ? JSON.stringify(toolCall.input, null, 2) : null),
+    [toolCall.input]
+  )
+  const outputString = useMemo(
+    () => (toolCall.output ? JSON.stringify(toolCall.output, null, 2) : null),
+    [toolCall.output]
+  )
 
   // Always show exact milliseconds for duration
   const formattedDuration = toolCall.duration ? `${toolCall.duration}ms` : 'N/A'
@@ -108,23 +117,23 @@ function ToolCallItem({ toolCall, index }: ToolCallItemProps) {
             </div>
 
             {/* Input */}
-            {toolCall.input && (
+            {inputString && (
               <div>
                 <div className='mb-1 text-muted-foreground'>Input</div>
                 <pre className='group relative max-h-32 overflow-y-auto overflow-x-hidden whitespace-pre-wrap break-all rounded bg-background p-2'>
-                  <CopyButton text={JSON.stringify(toolCall.input, null, 2)} />
-                  <code>{JSON.stringify(toolCall.input, null, 2)}</code>
+                  <CopyButton text={inputString} />
+                  <code>{inputString}</code>
                 </pre>
               </div>
             )}
 
             {/* Output or Error */}
-            {toolCall.status === 'success' && toolCall.output && (
+            {toolCall.status === 'success' && outputString && (
               <div>
                 <div className='mb-1 text-muted-foreground'>Output</div>
                 <pre className='group relative max-h-32 overflow-y-auto overflow-x-hidden whitespace-pre-wrap break-all rounded bg-background p-2'>
-                  <CopyButton text={JSON.stringify(toolCall.output, null, 2)} />
-                  <code>{JSON.stringify(toolCall.output, null, 2)}</code>
+                  <CopyButton text={outputString} />
+                  <code>{outputString}</code>
                 </pre>
               </div>
             )}

@@ -245,7 +245,7 @@ export async function generatePresignedUploadUrl(
   const timestamp = Date.now()
   const uniqueId = Math.random().toString(36).substring(2, 9)
   const safeFileName = fileName.replace(/[^a-zA-Z0-9.-]/g, '_')
-  const key = `${timestamp}-${uniqueId}-${safeFileName}`
+  const key = `${context}/${timestamp}-${uniqueId}-${safeFileName}`
 
   if (USE_S3_STORAGE) {
     return generateS3PresignedUrl(

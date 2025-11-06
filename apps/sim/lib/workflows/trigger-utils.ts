@@ -1,3 +1,4 @@
+import { TRIGGER_TYPES } from '@/lib/workflows/triggers'
 import { getAllBlocks, getBlock } from '@/blocks'
 import type { BlockConfig } from '@/blocks/types'
 
@@ -99,8 +100,7 @@ export function getTriggerDisplayName(blockType: string): string {
   const block = getBlock(blockType)
   if (!block) return blockType
 
-  // Special case for generic_webhook - show as "Webhook" in UI
-  if (blockType === 'generic_webhook') {
+  if (blockType === TRIGGER_TYPES.GENERIC_WEBHOOK) {
     return 'Webhook'
   }
 

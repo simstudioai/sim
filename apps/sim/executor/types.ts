@@ -9,8 +9,6 @@ export interface UserFile {
   size: number
   type: string
   key: string
-  uploadedAt: string
-  expiresAt: string
   context?: string
 }
 
@@ -150,7 +148,7 @@ export interface ExecutionContext {
   workflowId: string
   workspaceId?: string
   executionId?: string
-
+  userId?: string
   isDeployedContext?: boolean
 
   blockStates: ReadonlyMap<string, BlockState>

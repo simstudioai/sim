@@ -4,6 +4,7 @@ import { shallow } from 'zustand/shallow'
 import { extractFieldsFromSchema, parseResponseFormatSafely } from '@/lib/response-format'
 import { cn } from '@/lib/utils'
 import { getBlockOutputPaths, getBlockOutputType } from '@/lib/workflows/block-outputs'
+import { TRIGGER_TYPES } from '@/lib/workflows/triggers'
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
 import { getBlock } from '@/blocks'
 import type { BlockConfig } from '@/blocks/types'
@@ -490,7 +491,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
             blockTags = dynamicOutputs.map((path) => `${normalizedBlockName}.${path}`)
           } else if (sourceBlock.type === 'starter') {
             blockTags = [normalizedBlockName]
-          } else if (sourceBlock.type === 'generic_webhook') {
+          } else if (sourceBlock.type === TRIGGER_TYPES.GENERIC_WEBHOOK) {
             blockTags = [normalizedBlockName]
           } else {
             blockTags = []
@@ -537,7 +538,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
       }
 
       blockTags = ensureRootTag(blockTags, normalizedBlockName)
-      const shouldShowRootTag = sourceBlock.type === 'generic_webhook'
+      const shouldShowRootTag = sourceBlock.type === TRIGGER_TYPES.GENERIC_WEBHOOK
       if (!shouldShowRootTag) {
         blockTags = blockTags.filter((tag) => tag !== normalizedBlockName)
       }
@@ -779,7 +780,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
           } else {
             blockTags = [normalizedBlockName]
           }
-        } else if (accessibleBlock.type === 'generic_webhook') {
+        } else if (accessibleBlock.type === TRIGGER_TYPES.GENERIC_WEBHOOK) {
           blockTags = [normalizedBlockName]
         } else {
           blockTags = []
@@ -865,7 +866,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
       }
 
       blockTags = ensureRootTag(blockTags, normalizedBlockName)
-      const shouldShowRootTag = accessibleBlock.type === 'generic_webhook'
+      const shouldShowRootTag = accessibleBlock.type === TRIGGER_TYPES.GENERIC_WEBHOOK
       if (!shouldShowRootTag) {
         blockTags = blockTags.filter((tag) => tag !== normalizedBlockName)
       }
@@ -1074,7 +1075,8 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
       let processedTag = tag
 
       // Check if this is a file property and add [0] automatically
-      const fileProperties = ['url', 'name', 'size', 'type', 'key', 'uploadedAt', 'expiresAt']
+      // Only include user-accessible fields (matches UserFile interface)
+      const fileProperties = ['id', 'name', 'url', 'size', 'type']
       const parts = tag.split('.')
       if (parts.length >= 2 && fileProperties.includes(parts[parts.length - 1])) {
         const fieldName = parts[parts.length - 2]

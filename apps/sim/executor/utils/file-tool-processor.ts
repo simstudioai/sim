@@ -1,5 +1,5 @@
 import { createLogger } from '@/lib/logs/console/logger'
-import { uploadExecutionFile } from '@/lib/uploads/contexts/execution'
+import { uploadExecutionFile, uploadFileFromRawData } from '@/lib/uploads/contexts/execution'
 import type { ExecutionContext, UserFile } from '@/executor/types'
 import type { ToolConfig, ToolFileData } from '@/tools/types'
 
@@ -72,7 +72,7 @@ export class FileToolProcessor {
     if (outputType === 'file[]') {
       return FileToolProcessor.processFileArray(fileData, outputKey, executionContext)
     }
-    return FileToolProcessor.processFileData(fileData, executionContext, outputKey)
+    return FileToolProcessor.processFileData(fileData, executionContext)
   }
 
   /**
@@ -88,9 +88,7 @@ export class FileToolProcessor {
     }
 
     return Promise.all(
-      fileData.map((file, index) =>
-        FileToolProcessor.processFileData(file, executionContext, `${outputKey}[${index}]`)
-      )
+      fileData.map((file, index) => FileToolProcessor.processFileData(file, executionContext))
     )
   }
 
@@ -99,11 +97,10 @@ export class FileToolProcessor {
    */
   private static async processFileData(
     fileData: ToolFileData,
-    context: ExecutionContext,
-    outputKey: string
+    context: ExecutionContext
   ): Promise<UserFile> {
     try {
-      let buffer: Buffer
+      let buffer: Buffer | null = null
 
       if (Buffer.isBuffer(fileData.data)) {
         buffer = fileData.data
@@ -122,12 +119,14 @@ export class FileToolProcessor {
       } else if (typeof fileData.data === 'string' && fileData.data) {
         let base64Data = fileData.data
 
-        if (base64Data && (base64Data.includes('-') || base64Data.includes('_'))) {
+        if (base64Data.includes('-') || base64Data.includes('_')) {
           base64Data = base64Data.replace(/-/g, '+').replace(/_/g, '/')
         }
 
         buffer = Buffer.from(base64Data, 'base64')
-      } else if (fileData.url) {
+      }
+
+      if (!buffer && fileData.url) {
         const response = await fetch(fileData.url)
 
         if (!response.ok) {
@@ -136,28 +135,45 @@ export class FileToolProcessor {
 
         const arrayBuffer = await response.arrayBuffer()
         buffer = Buffer.from(arrayBuffer)
-      } else {
+      }
+
+      if (buffer) {
+        if (buffer.length === 0) {
+          throw new Error(`File '${fileData.name}' has zero bytes`)
+        }
+
+        return await uploadExecutionFile(
+          {
+            workspaceId: context.workspaceId || '',
+            workflowId: context.workflowId,
+            executionId: context.executionId || '',
+          },
+          buffer,
+          fileData.name,
+          fileData.mimeType,
+          context.userId
+        )
+      }
+
+      if (!fileData.data) {
         throw new Error(
           `File data for '${fileData.name}' must have either 'data' (Buffer/base64) or 'url' property`
         )
       }
 
-      if (buffer.length === 0) {
-        throw new Error(`File '${fileData.name}' has zero bytes`)
-      }
-
-      const userFile = await uploadExecutionFile(
+      return uploadFileFromRawData(
+        {
+          name: fileData.name,
+          data: fileData.data,
+          mimeType: fileData.mimeType,
+        },
         {
           workspaceId: context.workspaceId || '',
           workflowId: context.workflowId,
           executionId: context.executionId || '',
         },
-        buffer,
-        fileData.name,
-        fileData.mimeType
+        context.userId
       )
-
-      return userFile
     } catch (error) {
       logger.error(`Error processing file data for '${fileData.name}':`, error)
       throw error

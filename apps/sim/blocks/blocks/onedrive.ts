@@ -1,7 +1,10 @@
 import { MicrosoftOneDriveIcon } from '@/components/icons'
+import { createLogger } from '@/lib/logs/console/logger'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
 import type { OneDriveResponse } from '@/tools/onedrive/types'
+
+const logger = createLogger('OneDriveBlock')
 
 export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
   type: 'onedrive',
@@ -25,6 +28,7 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
         { label: 'Create Folder', id: 'create_folder' },
         { label: 'Create File', id: 'create_file' },
         { label: 'Upload File', id: 'upload' },
+        { label: 'Download File', id: 'download' },
         { label: 'List Files', id: 'list' },
       ],
     },
@@ -259,9 +263,53 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
       placeholder: 'Number of results (default: 100, max: 1000)',
       condition: { field: 'operation', value: 'list' },
     },
+    // Download File Fields - File Selector (basic mode)
+    {
+      id: 'fileSelector',
+      title: 'Select File',
+      type: 'file-selector',
+      layout: 'full',
+      canonicalParamId: 'fileId',
+      provider: 'microsoft',
+      serviceId: 'onedrive',
+      requiredScopes: [
+        'openid',
+        'profile',
+        'email',
+        'Files.Read',
+        'Files.ReadWrite',
+        'offline_access',
+      ],
+      mimeType: 'file', // Exclude folders, show only files
+      placeholder: 'Select a file to download',
+      mode: 'basic',
+      dependsOn: ['credential'],
+      condition: { field: 'operation', value: 'download' },
+    },
+    // Manual File ID input (advanced mode)
+    {
+      id: 'manualFileId',
+      title: 'File ID',
+      type: 'short-input',
+      layout: 'full',
+      canonicalParamId: 'fileId',
+      placeholder: 'Enter file ID',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'download' },
+      required: true,
+    },
+    {
+      id: 'downloadFileName',
+      title: 'File Name Override',
+      type: 'short-input',
+      layout: 'full',
+      canonicalParamId: 'fileName',
+      placeholder: 'Optional: Override the filename',
+      condition: { field: 'operation', value: 'download' },
+    },
   ],
   tools: {
-    access: ['onedrive_upload', 'onedrive_create_folder', 'onedrive_list'],
+    access: ['onedrive_upload', 'onedrive_create_folder', 'onedrive_download', 'onedrive_list'],
     config: {
       tool: (params) => {
         switch (params.operation) {
@@ -270,6 +318,8 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
             return 'onedrive_upload'
           case 'create_folder':
             return 'onedrive_create_folder'
+          case 'download':
+            return 'onedrive_download'
           case 'list':
             return 'onedrive_list'
           default:
@@ -277,10 +327,7 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
         }
       },
       params: (params) => {
-        const { credential, folderSelector, manualFolderId, mimeType, values, ...rest } = params
-
-        // Use folderSelector if provided, otherwise use manualFolderId
-        const effectiveFolderId = (folderSelector || manualFolderId || '').trim()
+        const { credential, folderId, fileId, mimeType, values, ...rest } = params
 
         let parsedValues
         try {
@@ -293,7 +340,8 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
           credential,
           ...rest,
           values: parsedValues,
-          folderId: effectiveFolderId || undefined,
+          folderId: folderId || undefined,
+          fileId: fileId || undefined,
           pageSize: rest.pageSize ? Number.parseInt(rest.pageSize as string, 10) : undefined,
           mimeType: mimeType,
         }
@@ -310,11 +358,9 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
     content: { type: 'string', description: 'Text content to upload' },
     mimeType: { type: 'string', description: 'MIME type of file to create' },
     values: { type: 'string', description: 'Cell values for new Excel as JSON' },
-    // Get Content operation inputs
-    // fileId: { type: 'string', required: false },
-    // List operation inputs
-    folderSelector: { type: 'string', description: 'Folder selector' },
-    manualFolderId: { type: 'string', description: 'Manual folder ID' },
+    fileId: { type: 'string', description: 'File ID to download' },
+    downloadFileName: { type: 'string', description: 'File name override for download' },
+    folderId: { type: 'string', description: 'Folder ID' },
     query: { type: 'string', description: 'Search query' },
     pageSize: { type: 'number', description: 'Results per page' },
   },

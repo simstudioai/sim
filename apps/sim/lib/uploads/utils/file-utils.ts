@@ -234,47 +234,33 @@ export function isInternalFileUrl(fileUrl: string): boolean {
 }
 
 /**
- * Infer storage context from file key pattern
+ * Infer storage context from file key using explicit prefixes
+ * All files must use prefixed keys
  */
 export function inferContextFromKey(key: string): StorageContext {
-  // KB files always start with 'kb/' prefix
-  if (key.startsWith('kb/')) {
-    return 'knowledge-base'
+  if (!key) {
+    throw new Error('Cannot infer context from empty key')
   }
 
-  // Execution files: three or more UUID segments (workspace/workflow/execution/...)
-  // Pattern: {uuid}/{uuid}/{uuid}/{filename}
-  const segments = key.split('/')
-  if (segments.length >= 4 && segments[0].match(/^[a-f0-9-]{36}$/)) {
-    return 'execution'
-  }
+  if (key.startsWith('kb/')) return 'knowledge-base'
+  if (key.startsWith('chat/')) return 'chat'
+  if (key.startsWith('copilot/')) return 'copilot'
+  if (key.startsWith('execution/')) return 'execution'
+  if (key.startsWith('workspace/')) return 'workspace'
+  if (key.startsWith('profile-pictures/')) return 'profile-pictures'
+  if (key.startsWith('logs/')) return 'logs'
 
-  // Workspace files: UUID-like ID followed by timestamp pattern
-  // Pattern: {uuid}/{timestamp}-{random}-{filename}
-  if (key.match(/^[a-f0-9-]{36}\/\d+-[a-z0-9]+-/)) {
-    return 'workspace'
-  }
-
-  // Copilot/General files: timestamp-random-filename (no path segments)
-  // Pattern: {timestamp}-{random}-{filename}
-  // NOTE: This is ambiguous - prefer explicit context parameter
-  if (key.match(/^\d+-[a-z0-9]+-/)) {
-    return 'general'
-  }
-
-  return 'general'
+  throw new Error(
+    `File key must start with a context prefix (kb/, chat/, copilot/, execution/, workspace/, profile-pictures/, or logs/). Got: ${key}`
+  )
 }
 
 /**
  * Extract storage key and context from an internal file URL
  * @param fileUrl - Internal file URL (e.g., /api/files/serve/key?context=workspace)
- * @param defaultContext - Default context if not found in URL params
  * @returns Object with storage key and context
  */
-export function parseInternalFileUrl(
-  fileUrl: string,
-  defaultContext: StorageContext = 'general'
-): { key: string; context: StorageContext } {
+export function parseInternalFileUrl(fileUrl: string): { key: string; context: StorageContext } {
   const key = extractStorageKey(fileUrl)
 
   if (!key) {
@@ -284,7 +270,7 @@ export function parseInternalFileUrl(
   const url = new URL(fileUrl.startsWith('http') ? fileUrl : `http://localhost${fileUrl}`)
   const contextParam = url.searchParams.get('context')
 
-  const context = (contextParam as StorageContext) || inferContextFromKey(key) || defaultContext
+  const context = (contextParam as StorageContext) || inferContextFromKey(key)
 
   return { key, context }
 }
@@ -303,7 +289,23 @@ export interface RawFileInput {
   type?: string
   uploadedAt?: string | Date
   expiresAt?: string | Date
-  [key: string]: unknown // Allow additional properties for flexibility
+  context?: string
+}
+
+/**
+ * Type guard to check if a RawFileInput has all UserFile required properties
+ */
+function isCompleteUserFile(file: RawFileInput): file is UserFile {
+  return (
+    typeof file.id === 'string' &&
+    typeof file.name === 'string' &&
+    typeof file.url === 'string' &&
+    typeof file.size === 'number' &&
+    typeof file.type === 'string' &&
+    typeof file.key === 'string' &&
+    typeof file.uploadedAt === 'string' &&
+    typeof file.expiresAt === 'string'
+  )
 }
 
 /**
@@ -319,8 +321,8 @@ export function processSingleFileToUserFile(
   requestId: string,
   logger: Logger
 ): UserFile {
-  if (file.id && file.key && file.uploadedAt) {
-    return file as UserFile
+  if (isCompleteUserFile(file)) {
+    return file
   }
 
   const storageKey = file.key || (file.path ? extractStorageKey(file.path) : null)
@@ -337,16 +339,6 @@ export function processSingleFileToUserFile(
     size: file.size,
     type: file.type || 'application/octet-stream',
     key: storageKey,
-    uploadedAt: file.uploadedAt
-      ? typeof file.uploadedAt === 'string'
-        ? file.uploadedAt
-        : file.uploadedAt.toISOString()
-      : new Date().toISOString(),
-    expiresAt: file.expiresAt
-      ? typeof file.expiresAt === 'string'
-        ? file.expiresAt
-        : file.expiresAt.toISOString()
-      : new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
   }
 
   logger.info(`[${requestId}] Converted file to UserFile: ${userFile.name} (key: ${userFile.key})`)
@@ -460,18 +452,22 @@ export function extractCleanFilename(urlOrPath: string): string {
 
 /**
  * Extract workspaceId from execution file key pattern
- * Execution files have format: workspaceId/workflowId/executionId/filename
+ * Format: execution/workspaceId/workflowId/executionId/filename
  * @param key File storage key
  * @returns workspaceId if key matches execution file pattern, null otherwise
  */
 export function extractWorkspaceIdFromExecutionKey(key: string): string | null {
   const segments = key.split('/')
-  if (segments.length >= 4) {
-    const workspaceId = segments[0]
-    if (workspaceId && /^[a-f0-9-]{36}$/.test(workspaceId)) {
+
+  const UUID_PATTERN = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i
+
+  if (segments[0] === 'execution' && segments.length >= 5) {
+    const workspaceId = segments[1]
+    if (workspaceId && UUID_PATTERN.test(workspaceId)) {
       return workspaceId
     }
   }
+
   return null
 }
 

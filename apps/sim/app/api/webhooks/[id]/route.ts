@@ -97,6 +97,27 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const body = await request.json()
     const { path, provider, providerConfig, isActive } = body
 
+    let resolvedProviderConfig = providerConfig
+    if (providerConfig) {
+      const { resolveEnvVarsInObject } = await import('@/lib/webhooks/env-resolver')
+      const webhookDataForResolve = await db
+        .select({
+          workspaceId: workflow.workspaceId,
+        })
+        .from(webhook)
+        .innerJoin(workflow, eq(webhook.workflowId, workflow.id))
+        .where(eq(webhook.id, id))
+        .limit(1)
+
+      if (webhookDataForResolve.length > 0) {
+        resolvedProviderConfig = await resolveEnvVarsInObject(
+          providerConfig,
+          session.user.id,
+          webhookDataForResolve[0].workspaceId || undefined
+        )
+      }
+    }
+
     // Find the webhook and check permissions
     const webhooks = await db
       .select({
@@ -160,7 +181,9 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         path: path !== undefined ? path : webhooks[0].webhook.path,
         provider: provider !== undefined ? provider : webhooks[0].webhook.provider,
         providerConfig:
-          providerConfig !== undefined ? providerConfig : webhooks[0].webhook.providerConfig,
+          providerConfig !== undefined
+            ? resolvedProviderConfig
+            : webhooks[0].webhook.providerConfig,
         isActive: isActive !== undefined ? isActive : webhooks[0].webhook.isActive,
         updatedAt: new Date(),
       })

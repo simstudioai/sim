@@ -1,6 +1,6 @@
 ---
 title: Outlook
-description: Access Outlook
+description: Send, read, draft, forward, and move Outlook email messages
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -134,13 +134,21 @@ With Microsoft Outlook, you can:
 - **Access across devices**: Use Outlook on desktop, web, and mobile with real-time sync  
 - **Maintain privacy and security**: Leverage enterprise-grade encryption and compliance controls
 
-In Sim, the Microsoft Outlook integration enables your agents to interact directly with email and calendar data programmatically. This allows for powerful automation scenarios such as sending custom email updates, parsing incoming messages for workflow triggers, creating calendar events, and managing task reminders. By connecting Sim with Microsoft Outlook, you enable intelligent agents to automate communications, streamline scheduling, and maintain visibility into organizational correspondence — all within your workflow ecosystem.
+In Sim, the Microsoft Outlook integration enables your agents to interact directly with email and calendar data programmatically with full email management capabilities. This allows for powerful automation scenarios across your entire email workflow. Your agents can:
+
+- **Send and draft**: Compose professional emails with attachments and save drafts for later
+- **Read and forward**: Access inbox messages and forward important communications to team members
+- **Organize efficiently**: Mark emails as read or unread, move messages between folders, and copy emails for reference
+- **Clean up inbox**: Delete unwanted messages and maintain organized folder structures
+- **Trigger workflows**: React to new emails in real-time, enabling responsive automation based on incoming messages
+
+By connecting Sim with Microsoft Outlook, you enable intelligent agents to automate communications, streamline scheduling, maintain visibility into organizational correspondence, and keep inboxes organized — all within your workflow ecosystem. Whether you're managing customer communications, processing invoices, coordinating team updates, or automating follow-ups, the Outlook integration provides enterprise-grade email automation capabilities.
 {/* MANUAL-CONTENT-END */}
 
 
 ## Usage Instructions
 
-Integrate Outlook into the workflow. Can read, draft, and send email messages. Can be used in trigger mode to trigger a workflow when a new email is received.
+Integrate Outlook into the workflow. Can read, draft, send, forward, and move email messages. Can be used in trigger mode to trigger a workflow when a new email is received.
 
 
 
@@ -236,6 +244,104 @@ Forward an existing Outlook message to specified recipients
 | --------- | ---- | ----------- |
 | `message` | string | Success or error message |
 | `results` | object | Delivery result details |
+
+### `outlook_move`
+
+Move emails between Outlook folders
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `messageId` | string | Yes | ID of the message to move |
+| `destinationId` | string | Yes | ID of the destination folder |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Email move success status |
+| `message` | string | Success or error message |
+| `messageId` | string | ID of the moved message |
+| `newFolderId` | string | ID of the destination folder |
+
+### `outlook_mark_read`
+
+Mark an Outlook message as read
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `messageId` | string | Yes | ID of the message to mark as read |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation success status |
+| `message` | string | Success or error message |
+| `messageId` | string | ID of the message |
+| `isRead` | boolean | Read status of the message |
+
+### `outlook_mark_unread`
+
+Mark an Outlook message as unread
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `messageId` | string | Yes | ID of the message to mark as unread |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation success status |
+| `message` | string | Success or error message |
+| `messageId` | string | ID of the message |
+| `isRead` | boolean | Read status of the message |
+
+### `outlook_delete`
+
+Delete an Outlook message (move to Deleted Items)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `messageId` | string | Yes | ID of the message to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation success status |
+| `message` | string | Success or error message |
+| `messageId` | string | ID of the deleted message |
+| `status` | string | Deletion status |
+
+### `outlook_copy`
+
+Copy an Outlook message to another folder
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `messageId` | string | Yes | ID of the message to copy |
+| `destinationId` | string | Yes | ID of the destination folder |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Email copy success status |
+| `message` | string | Success or error message |
+| `originalMessageId` | string | ID of the original message |
+| `copiedMessageId` | string | ID of the copied message |
+| `destinationFolderId` | string | ID of the destination folder |
 
 
 

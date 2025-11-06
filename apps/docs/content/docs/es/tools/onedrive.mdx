@@ -95,6 +95,23 @@ Crear una nueva carpeta en OneDrive
 | `success` | boolean | Indica si la carpeta se creó correctamente |
 | `file` | object | El objeto de la carpeta creada con metadatos que incluyen id, nombre, webViewLink y marcas de tiempo |
 
+### `onedrive_download`
+
+Descargar un archivo de OneDrive
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `fileId` | string | Sí | El ID del archivo a descargar |
+| `fileName` | string | No | Anulación opcional del nombre del archivo |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `file` | file | Archivo descargado almacenado en los archivos de ejecución |
+
 ### `onedrive_list`
 
 Listar archivos y carpetas en OneDrive
@@ -102,9 +119,9 @@ Listar archivos y carpetas en OneDrive
 #### Entrada
 
 | Parámetro | Tipo | Obligatorio | Descripción |
-| --------- | ---- | ----------- | ----------- |
-| `folderSelector` | string | No | Seleccionar la carpeta para listar archivos |
-| `manualFolderId` | string | No | El ID de carpeta ingresado manualmente \(modo avanzado\) |
+| --------- | ---- | -------- | ----------- |
+| `folderSelector` | string | No | Seleccionar la carpeta de la que listar archivos |
+| `manualFolderId` | string | No | El ID de carpeta introducido manualmente (modo avanzado) |
 | `query` | string | No | Una consulta para filtrar los archivos |
 | `pageSize` | number | No | El número de archivos a devolver |
 
@@ -113,8 +130,8 @@ Listar archivos y carpetas en OneDrive
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
 | `success` | boolean | Si los archivos se listaron correctamente |
-| `files` | array | Array de objetos de archivos y carpetas con metadatos |
-| `nextPageToken` | string | Token para recuperar la siguiente página de resultados \(opcional\) |
+| `files` | array | Array de objetos de archivo y carpeta con metadatos |
+| `nextPageToken` | string | Token para recuperar la siguiente página de resultados (opcional) |
 
 ## Notas
 

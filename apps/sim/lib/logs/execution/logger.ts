@@ -26,6 +26,7 @@ import type {
   WorkflowExecutionSnapshot,
   WorkflowState,
 } from '@/lib/logs/types'
+import { filterForDisplay, redactApiKeys } from '@/lib/utils'
 
 export interface ToolCall {
   name: string
@@ -115,6 +116,39 @@ export class ExecutionLogger implements IExecutionLoggerService {
     const { workflowId, executionId, trigger, environment, workflowState } = params
 
     logger.debug(`Starting workflow execution ${executionId} for workflow ${workflowId}`)
+
+    // Check if execution log already exists (idempotency check)
+    const existingLog = await db
+      .select()
+      .from(workflowExecutionLogs)
+      .where(eq(workflowExecutionLogs.executionId, executionId))
+      .limit(1)
+
+    if (existingLog.length > 0) {
+      logger.debug(
+        `Execution log already exists for ${executionId}, skipping duplicate INSERT (idempotent)`
+      )
+      const snapshot = await snapshotService.getSnapshot(existingLog[0].stateSnapshotId)
+      if (!snapshot) {
+        throw new Error(`Snapshot ${existingLog[0].stateSnapshotId} not found for existing log`)
+      }
+      return {
+        workflowLog: {
+          id: existingLog[0].id,
+          workflowId: existingLog[0].workflowId,
+          executionId: existingLog[0].executionId,
+          stateSnapshotId: existingLog[0].stateSnapshotId,
+          level: existingLog[0].level as 'info' | 'error',
+          trigger: existingLog[0].trigger as ExecutionTrigger['type'],
+          startedAt: existingLog[0].startedAt.toISOString(),
+          endedAt: existingLog[0].endedAt?.toISOString() || existingLog[0].startedAt.toISOString(),
+          totalDurationMs: existingLog[0].totalDurationMs || 0,
+          executionData: existingLog[0].executionData as WorkflowExecutionLog['executionData'],
+          createdAt: existingLog[0].createdAt.toISOString(),
+        },
+        snapshot,
+      }
+    }
 
     const snapshotResult = await snapshotService.createSnapshotWithDeduplication(
       workflowId,
@@ -238,6 +272,11 @@ export class ExecutionLogger implements IExecutionLoggerService {
         : existingLog?.executionData?.traceSpans || []
       : traceSpans
 
+    const filteredTraceSpans = filterForDisplay(mergedTraceSpans)
+    const filteredFinalOutput = filterForDisplay(finalOutput)
+    const redactedTraceSpans = redactApiKeys(filteredTraceSpans)
+    const redactedFinalOutput = redactApiKeys(filteredFinalOutput)
+
     // Merge costs if resuming
     const existingCost = isResume && existingLog?.cost ? existingLog.cost : null
     const mergedCost = existingCost
@@ -283,8 +322,8 @@ export class ExecutionLogger implements IExecutionLoggerService {
         totalDurationMs: actualTotalDuration,
         files: mergedFiles.length > 0 ? mergedFiles : null,
         executionData: {
-          traceSpans: mergedTraceSpans,
-          finalOutput,
+          traceSpans: redactedTraceSpans,
+          finalOutput: redactedFinalOutput,
           tokenBreakdown: {
             prompt: mergedCost.tokens.prompt,
             completion: mergedCost.tokens.completion,
@@ -600,10 +639,6 @@ export class ExecutionLogger implements IExecutionLoggerService {
                 type: file.type,
                 url: file.url,
                 key: file.key,
-                uploadedAt: file.uploadedAt,
-                expiresAt: file.expiresAt,
-                storageProvider: file.storageProvider,
-                bucketName: file.bucketName,
               })
             }
           }
@@ -623,10 +658,6 @@ export class ExecutionLogger implements IExecutionLoggerService {
                 type: file.type,
                 url: file.url,
                 key: file.key,
-                uploadedAt: file.uploadedAt,
-                expiresAt: file.expiresAt,
-                storageProvider: file.storageProvider,
-                bucketName: file.bucketName,
               })
             }
           }

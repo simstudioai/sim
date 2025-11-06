@@ -95,6 +95,23 @@ Einen neuen Ordner in OneDrive erstellen
 | `success` | boolean | Ob der Ordner erfolgreich erstellt wurde |
 | `file` | object | Das erstellte Ordnerobjekt mit Metadaten einschließlich ID, Name, webViewLink und Zeitstempeln |
 
+### `onedrive_download`
+
+Eine Datei von OneDrive herunterladen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `fileId` | string | Ja | Die ID der herunterzuladenden Datei |
+| `fileName` | string | Nein | Optionale Überschreibung des Dateinamens |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `file` | file | Heruntergeladene Datei, gespeichert in Ausführungsdateien |
+
 ### `onedrive_list`
 
 Dateien und Ordner in OneDrive auflisten
@@ -103,7 +120,7 @@ Dateien und Ordner in OneDrive auflisten
 
 | Parameter | Typ | Erforderlich | Beschreibung |
 | --------- | ---- | -------- | ----------- |
-| `folderSelector` | string | Nein | Wählen Sie den Ordner aus, aus dem Dateien aufgelistet werden sollen |
+| `folderSelector` | string | Nein | Ordner auswählen, aus dem Dateien aufgelistet werden sollen |
 | `manualFolderId` | string | Nein | Die manuell eingegebene Ordner-ID (erweiterter Modus) |
 | `query` | string | Nein | Eine Abfrage zum Filtern der Dateien |
 | `pageSize` | number | Nein | Die Anzahl der zurückzugebenden Dateien |

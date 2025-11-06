@@ -1,6 +1,6 @@
 ---
 title: Perplexity
-description: Usa los modelos de chat de Perplexity AI
+description: Usa Perplexity AI para chat y búsqueda
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -36,7 +36,7 @@ En Sim, la integración de Perplexity permite a tus agentes aprovechar estas pot
 
 ## Instrucciones de uso
 
-Integra Perplexity en el flujo de trabajo. Puede generar completados utilizando los modelos de chat de Perplexity AI. Requiere clave API.
+Integra Perplexity en el flujo de trabajo. Puede generar completados utilizando modelos de chat de Perplexity AI o realizar búsquedas web con filtrado avanzado.
 
 ## Herramientas
 
@@ -61,6 +61,31 @@ Genera completados utilizando los modelos de chat de Perplexity AI
 | --------- | ---- | ----------- |
 | `success` | boolean | Estado de éxito de la operación |
 | `output` | object | Resultados del completado de chat |
+
+### `perplexity_search`
+
+Obtén resultados de búsqueda clasificados de Perplexity
+
+#### Entrada
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | Sí | Una consulta de búsqueda o array de consultas \(máximo 5 para búsqueda multi-consulta\) |
+| `max_results` | number | No | Número máximo de resultados de búsqueda a devolver \(1-20, predeterminado: 10\) |
+| `search_domain_filter` | array | No | Lista de dominios/URLs para limitar los resultados de búsqueda \(máximo 20\) |
+| `max_tokens_per_page` | number | No | Número máximo de tokens recuperados de cada página web \(predeterminado: 1024\) |
+| `country` | string | No | Código de país para filtrar resultados de búsqueda \(ej., US, GB, DE\) |
+| `search_recency_filter` | string | No | Filtrar resultados por actualidad: hora, día, semana, mes o año |
+| `search_after_date` | string | No | Incluir solo contenido publicado después de esta fecha \(formato: MM/DD/AAAA\) |
+| `search_before_date` | string | No | Incluir solo contenido publicado antes de esta fecha \(formato: MM/DD/AAAA\) |
+| `apiKey` | string | Sí | Clave API de Perplexity |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Resultados de búsqueda |
 
 ## Notas
 

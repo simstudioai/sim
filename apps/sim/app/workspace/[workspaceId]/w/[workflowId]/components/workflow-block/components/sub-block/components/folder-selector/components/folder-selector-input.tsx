@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import {
   type FolderInfo,
   FolderSelector,
@@ -33,6 +33,11 @@ export function FolderSelectorInput({
   const { activeWorkflowId } = useWorkflowRegistry()
   const [selectedFolderId, setSelectedFolderId] = useState<string>('')
   const [_folderInfo, setFolderInfo] = useState<FolderInfo | null>(null)
+  const provider = (subBlock.provider || subBlock.serviceId || 'google-email').toLowerCase()
+  const isCopyDestinationSelector =
+    subBlock.canonicalParamId === 'copyDestinationId' ||
+    subBlock.id === 'copyDestinationFolder' ||
+    subBlock.id === 'manualCopyDestinationFolder'
   const { isForeignCredential } = useForeignCredential(
     subBlock.provider || subBlock.serviceId || 'outlook',
     (connectedCredential as string) || ''
@@ -54,11 +59,15 @@ export function FolderSelectorInput({
       setSelectedFolderId(current)
       return
     }
-    // Set default INBOX if empty
-    const defaultValue = 'INBOX'
-    setSelectedFolderId(defaultValue)
-    if (!isPreview) {
-      collaborativeSetSubblockValue(blockId, subBlock.id, defaultValue)
+    const shouldDefaultInbox = provider !== 'outlook' && !isCopyDestinationSelector
+    if (shouldDefaultInbox) {
+      const defaultValue = 'INBOX'
+      setSelectedFolderId(defaultValue)
+      if (!isPreview) {
+        collaborativeSetSubblockValue(blockId, subBlock.id, defaultValue)
+      }
+    } else {
+      setSelectedFolderId('')
     }
   }, [
     blockId,
@@ -71,19 +80,22 @@ export function FolderSelectorInput({
   ])
 
   // Handle folder selection
-  const handleFolderChange = (folderId: string, info?: FolderInfo) => {
-    setSelectedFolderId(folderId)
-    setFolderInfo(info || null)
-    if (!isPreview) {
-      collaborativeSetSubblockValue(blockId, subBlock.id, folderId)
-    }
-  }
+  const handleFolderChange = useCallback(
+    (folderId: string, info?: FolderInfo) => {
+      setSelectedFolderId(folderId)
+      setFolderInfo(info || null)
+      if (!isPreview) {
+        collaborativeSetSubblockValue(blockId, subBlock.id, folderId)
+      }
+    },
+    [blockId, subBlock.id, collaborativeSetSubblockValue, isPreview]
+  )
 
   return (
     <FolderSelector
       value={selectedFolderId}
       onChange={handleFolderChange}
-      provider={subBlock.provider || 'google-email'}
+      provider={provider}
       requiredScopes={subBlock.requiredScopes || []}
       label={subBlock.placeholder || 'Select folder'}
       disabled={finalDisabled}

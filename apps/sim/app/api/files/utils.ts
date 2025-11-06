@@ -232,7 +232,10 @@ function getSecureFileHeaders(filename: string, originalContentType: string) {
   }
 }
 
-function encodeFilenameForHeader(filename: string): string {
+function encodeFilenameForHeader(storageKey: string): string {
+  // Extract just the filename from the storage key (last segment after /)
+  const filename = storageKey.split('/').pop() || storageKey
+
   const hasNonAscii = /[^\x00-\x7F]/.test(filename)
 
   if (!hasNonAscii) {

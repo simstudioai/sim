@@ -46,7 +46,7 @@ Simでは、Typeform統合によりエージェントがワークフローの一
 
 ## 使用方法
 
-Typeformをワークフローに統合します。回答の取得、ファイルのダウンロード、フォームの洞察を得ることができます。APIキーが必要です。
+Typeformをワークフローにインテグレーションします。回答の取得、ファイルのダウンロード、フォームのインサイトの取得が可能です。フォームが送信されたときにワークフローをトリガーするトリガーモードで使用できます。APIキーが必要です。
 
 ## ツール
 
@@ -69,9 +69,25 @@ Typeformからフォームの回答を取得する
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
-| `total_items` | number | 合計レスポンス数 |
-| `page_count` | number | 合計ページ数 |
-| `items` | json | レスポンスアイテム |
+| `total_items` | number | 回答/フォームの総数 |
+| `page_count` | number | 総ページ数 |
+| `items` | json | 回答/フォーム項目の配列 |
+| `id` | string | フォームの一意の識別子 |
+| `title` | string | フォームのタイトル |
+| `type` | string | フォームのタイプ |
+| `created_at` | string | フォーム作成のISOタイムスタンプ |
+| `last_updated_at` | string | 最終更新のISOタイムスタンプ |
+| `settings` | json | フォーム設定オブジェクト |
+| `theme` | json | テーマ設定オブジェクト |
+| `workspace` | json | ワークスペース情報 |
+| `fields` | json | フォームフィールド/質問の配列 |
+| `thankyou_screens` | json | サンキュースクリーンの配列 |
+| `_links` | json | 関連リソースリンク |
+| `deleted` | boolean | フォームが正常に削除されたかどうか |
+| `message` | string | 削除確認メッセージ |
+| `fileUrl` | string | ダウンロードされたファイルのURL |
+| `contentType` | string | ファイルのコンテンツタイプ |
+| `filename` | string | ファイル名 |
 
 ### `typeform_files`
 
@@ -112,6 +128,129 @@ Typeformフォームのインサイトと分析を取得する
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
 | `fields` | array | このフィールドで離脱したユーザー数 |
+
+### `typeform_list_forms`
+
+Typeformアカウント内のすべてのフォームのリストを取得する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | Typeformパーソナルアクセストークン |
+| `search` | string | いいえ | タイトルでフォームをフィルタリングする検索クエリ |
+| `page` | number | いいえ | ページ番号（デフォルト：1） |
+| `pageSize` | number | いいえ | ページあたりのフォーム数（デフォルト：10、最大：200） |
+| `workspaceId` | string | いいえ | ワークスペースIDでフォームをフィルタリング |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `total_items` | number | アカウント内のフォームの総数 |
+| `page_count` | number | 利用可能な総ページ数 |
+| `items` | array | フォームオブジェクトの配列 |
+
+### `typeform_get_form`
+
+特定のフォームの完全な詳細と構造を取得する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | Typeformパーソナルアクセストークン |
+| `formId` | string | はい | フォームの一意の識別子 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `id` | string | フォームの一意の識別子 |
+| `title` | string | フォームのタイトル |
+| `type` | string | フォームのタイプ（form、quizなど） |
+| `created_at` | string | フォーム作成のISOタイムスタンプ |
+| `last_updated_at` | string | 最終更新のISOタイムスタンプ |
+| `settings` | object | 言語、進捗バーなどを含むフォーム設定 |
+| `theme` | object | 色、フォント、デザイン設定を含むテーマ構成 |
+| `workspace` | object | ワークスペース情報 |
+
+### `typeform_create_form`
+
+フィールドと設定を含む新しいフォームを作成する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | Typeformパーソナルアクセストークン |
+| `title` | string | はい | フォームのタイトル |
+| `type` | string | いいえ | フォームのタイプ（デフォルト："form"）。オプション："form"、"quiz" |
+| `workspaceId` | string | いいえ | フォームを作成するワークスペースID |
+| `fields` | json | いいえ | フォーム構造を定義するフィールドオブジェクトの配列。各フィールドには、type、title、およびオプションのプロパティ/検証が必要 |
+| `settings` | json | いいえ | フォーム設定オブジェクト（言語、progress_barなど） |
+| `themeId` | string | いいえ | フォームに適用するテーマID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `id` | string | 作成されたフォームの一意の識別子 |
+| `title` | string | フォームのタイトル |
+| `type` | string | フォームのタイプ |
+| `created_at` | string | フォーム作成のISOタイムスタンプ |
+| `last_updated_at` | string | 最終更新のISOタイムスタンプ |
+| `settings` | object | フォーム設定 |
+| `theme` | object | 適用されたテーマ設定 |
+| `workspace` | object | ワークスペース情報 |
+| `fields` | array | 作成されたフォームフィールドの配列 |
+| `_links` | object | 関連リソースリンク |
+
+### `typeform_update_form`
+
+JSON Patchオペレーションを使用して既存のフォームを更新する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | Typeformパーソナルアクセストークン |
+| `formId` | string | はい | 更新するフォームの一意の識別子 |
+| `operations` | json | はい | JSON Patchオペレーションの配列（RFC 6902）。各オペレーションには：op（add/remove/replace）、path、および値（add/replaceの場合）が必要 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `id` | string | 更新されたフォームの一意の識別子 |
+| `title` | string | フォームのタイトル |
+| `type` | string | フォームのタイプ |
+| `created_at` | string | フォーム作成のISOタイムスタンプ |
+| `last_updated_at` | string | 最終更新のISOタイムスタンプ |
+| `settings` | object | フォーム設定 |
+| `theme` | object | テーマ設定 |
+| `workspace` | object | ワークスペース情報 |
+| `fields` | array | フォームフィールドの配列 |
+| `thankyou_screens` | array | サンキュー画面の配列 |
+| `_links` | object | 関連リソースリンク |
+
+### `typeform_delete_form`
+
+フォームとそのすべての回答を完全に削除する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | Typeformパーソナルアクセストークン |
+| `formId` | string | はい | 削除するフォームの一意の識別子 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | フォームが正常に削除されたかどうか |
+| `message` | string | 削除確認メッセージ |
 
 ## 注意事項
 
