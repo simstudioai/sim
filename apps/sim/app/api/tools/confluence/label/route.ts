@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server'
+import { createLogger } from '@/lib/logs/console/logger'
 import { validateAlphanumericId, validateJiraCloudId } from '@/lib/security/input-validation'
 import { getConfluenceCloudId } from '@/tools/confluence/utils'
+
+const logger = createLogger('ConfluenceLabelAPI')
 
 export const dynamic = 'force-dynamic'
 
@@ -75,7 +78,7 @@ export async function DELETE(request: Request) {
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => null)
-      console.error('Confluence API error response:', {
+      logger.error('Confluence API error response:', {
         status: response.status,
         statusText: response.statusText,
         error: JSON.stringify(errorData, null, 2),
@@ -87,7 +90,7 @@ export async function DELETE(request: Request) {
 
     return NextResponse.json({ pageId, labelName, removed: true })
   } catch (error) {
-    console.error('Error removing Confluence label:', error)
+    logger.error('Error removing Confluence label:', error)
     return NextResponse.json(
       { error: (error as Error).message || 'Internal server error' },
       { status: 500 }

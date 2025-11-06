@@ -4,6 +4,9 @@ import { useState } from 'react'
 import { Check, Copy, LibraryBig } from 'lucide-react'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
+import { createLogger } from '@/lib/logs/console/logger'
+
+const logger = createLogger('BaseOverviewComponent')
 
 interface BaseOverviewProps {
   id?: string
@@ -84,7 +87,7 @@ export function BaseOverview({
         setIsCopied(true)
         setTimeout(() => setIsCopied(false), 2000)
       } catch (err) {
-        console.error('Failed to copy ID:', err)
+        logger.error('Failed to copy ID:', err)
       }
     }
   }

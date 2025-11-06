@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server'
+import { createLogger } from '@/lib/logs/console/logger'
 import { validateAlphanumericId, validateJiraCloudId } from '@/lib/security/input-validation'
 import { getConfluenceCloudId } from '@/tools/confluence/utils'
+
+const logger = createLogger('ConfluenceAttachmentsAPI')
 
 export const dynamic = 'force-dynamic'
 
@@ -50,7 +53,7 @@ export async function GET(request: Request) {
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => null)
-      console.error('Confluence API error response:', {
+      logger.error('Confluence API error response:', {
         status: response.status,
         statusText: response.statusText,
         error: JSON.stringify(errorData, null, 2),
@@ -72,7 +75,7 @@ export async function GET(request: Request) {
 
     return NextResponse.json({ attachments })
   } catch (error) {
-    console.error('Error listing Confluence attachments:', error)
+    logger.error('Error listing Confluence attachments:', error)
     return NextResponse.json(
       { error: (error as Error).message || 'Internal server error' },
       { status: 500 }

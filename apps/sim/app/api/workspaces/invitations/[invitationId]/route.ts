@@ -14,8 +14,11 @@ import { WorkspaceInvitationEmail } from '@/components/emails/workspace-invitati
 import { getSession } from '@/lib/auth'
 import { sendEmail } from '@/lib/email/mailer'
 import { getFromEmailAddress } from '@/lib/email/utils'
+import { createLogger } from '@/lib/logs/console/logger'
 import { hasWorkspaceAdminAccess } from '@/lib/permissions/utils'
 import { getBaseUrl } from '@/lib/urls/utils'
+
+const logger = createLogger('WorkspaceInvitationAPI')
 
 // GET /api/workspaces/invitations/[invitationId] - Get invitation details OR accept via token
 export async function GET(
@@ -163,7 +166,7 @@ export async function GET(
       workspaceName: workspaceDetails.name,
     })
   } catch (error) {
-    console.error('Error fetching workspace invitation:', error)
+    logger.error('Error fetching workspace invitation:', error)
     return NextResponse.json({ error: 'Failed to fetch invitation details' }, { status: 500 })
   }
 }
@@ -211,7 +214,7 @@ export async function DELETE(
 
     return NextResponse.json({ success: true })
   } catch (error) {
-    console.error('Error deleting workspace invitation:', error)
+    logger.error('Error deleting workspace invitation:', error)
     return NextResponse.json({ error: 'Failed to delete invitation' }, { status: 500 })
   }
 }
@@ -295,7 +298,7 @@ export async function POST(
 
     return NextResponse.json({ success: true })
   } catch (error) {
-    console.error('Error resending workspace invitation:', error)
+    logger.error('Error resending workspace invitation:', error)
     return NextResponse.json({ error: 'Failed to resend invitation' }, { status: 500 })
   }
 }

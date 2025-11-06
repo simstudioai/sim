@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server'
+import { createLogger } from '@/lib/logs/console/logger'
 import { validateAlphanumericId, validateJiraCloudId } from '@/lib/security/input-validation'
 import { getConfluenceCloudId } from '@/tools/confluence/utils'
+
+const logger = createLogger('ConfluencePageAPI')
 
 export const dynamic = 'force-dynamic'
 
@@ -43,15 +46,15 @@ export async function POST(request: Request) {
     })
 
     if (!response.ok) {
-      console.error(`Confluence API error: ${response.status} ${response.statusText}`)
+      logger.error(`Confluence API error: ${response.status} ${response.statusText}`)
       let errorMessage
 
       try {
         const errorData = await response.json()
-        console.error('Error details:', JSON.stringify(errorData, null, 2))
+        logger.error('Error details:', JSON.stringify(errorData, null, 2))
         errorMessage = errorData.message || `Failed to fetch Confluence page (${response.status})`
       } catch (e) {
-        console.error('Could not parse error response as JSON:', e)
+        logger.error('Could not parse error response as JSON:', e)
         errorMessage = `Failed to fetch Confluence page: ${response.status} ${response.statusText}`
       }
 
@@ -76,7 +79,7 @@ export async function POST(request: Request) {
       },
     })
   } catch (error) {
-    console.error('Error fetching Confluence page:', error)
+    logger.error('Error fetching Confluence page:', error)
     return NextResponse.json(
       { error: (error as Error).message || 'Internal server error' },
       { status: 500 }
@@ -163,7 +166,7 @@ export async function PUT(request: Request) {
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => null)
-      console.error('Confluence API error response:', {
+      logger.error('Confluence API error response:', {
         status: response.status,
         statusText: response.statusText,
         error: JSON.stringify(errorData, null, 2),
@@ -178,7 +181,7 @@ export async function PUT(request: Request) {
     const data = await response.json()
     return NextResponse.json(data)
   } catch (error) {
-    console.error('Error updating Confluence page:', error)
+    logger.error('Error updating Confluence page:', error)
     return NextResponse.json(
       { error: (error as Error).message || 'Internal server error' },
       { status: 500 }
@@ -226,7 +229,7 @@ export async function DELETE(request: Request) {
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => null)
-      console.error('Confluence API error response:', {
+      logger.error('Confluence API error response:', {
         status: response.status,
         statusText: response.statusText,
         error: JSON.stringify(errorData, null, 2),
@@ -238,7 +241,7 @@ export async function DELETE(request: Request) {
 
     return NextResponse.json({ pageId, deleted: true })
   } catch (error) {
-    console.error('Error deleting Confluence page:', error)
+    logger.error('Error deleting Confluence page:', error)
     return NextResponse.json(
       { error: (error as Error).message || 'Internal server error' },
       { status: 500 }

@@ -523,7 +523,7 @@ export function ToolInput({
           label: toolParams?.toolConfig?.name || toolId,
         }
       } catch (error) {
-        console.error(`Error getting tool config for ${toolId}:`, error)
+        logger.error(`Error getting tool config for ${toolId}:`, error)
         return {
           id: toolId,
           label: toolId,
