@@ -359,10 +359,9 @@ export async function verifyProviderAuth(
 
   if (foundWebhook.provider === 'typeform') {
     const secret = providerConfig.secret as string | undefined
-    const verifySignature = providerConfig.verifySignature !== false // Default to true
 
-    if (secret && verifySignature) {
-      const signature = request.headers.get('typeform-signature')
+    if (secret) {
+      const signature = request.headers.get('Typeform-Signature')
 
       if (!signature) {
         logger.warn(`[${requestId}] Typeform webhook missing signature header`)

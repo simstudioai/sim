@@ -499,6 +499,9 @@ export async function createTypeformWebhook(
       url: notificationUrl,
       enabled: true,
       verify_ssl: true,
+      event_types: {
+        form_response: true,
+      },
     }
 
     if (secret) {

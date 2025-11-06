@@ -897,7 +897,9 @@ export const WorkflowBlock = memo(
                   </TooltipContent>
                 </Tooltip>
               )}
-              {config.subBlocks.some((block) => block.mode) && (
+              {config.subBlocks.some(
+                (block) => block.mode === 'basic' || block.mode === 'advanced'
+              ) && (
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Button

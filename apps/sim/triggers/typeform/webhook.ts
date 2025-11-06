@@ -42,32 +42,14 @@ export const typeformWebhookTrigger: TriggerConfig = {
       mode: 'trigger',
     },
     {
-      id: 'webhookTag',
-      title: 'Webhook Tag',
-      type: 'short-input',
-      placeholder: 'sim-webhook',
-      description:
-        'A unique identifier for this webhook in Typeform. Leave empty to auto-generate.',
-      required: false,
-      mode: 'trigger',
-    },
-    {
       id: 'secret',
       title: 'Webhook Secret',
       type: 'short-input',
-      placeholder: 'Enter a secret for webhook signature verification',
+      placeholder: 'Enter a secret for webhook signature verification (optional)',
       description:
-        'A secret string used to verify webhook authenticity. Generate a secure random string (min 20 characters recommended).',
+        'A secret string used to verify webhook authenticity. Highly recommended for security. Generate a secure random string (min 20 characters recommended).',
       password: true,
-      required: true,
-      mode: 'trigger',
-    },
-    {
-      id: 'verifySignature',
-      title: 'Verify Webhook Signature',
-      type: 'switch',
-      description: 'Enable to verify webhook authenticity using HMAC SHA-256 signature validation.',
-      defaultValue: true,
+      required: false,
       mode: 'trigger',
     },
     {
@@ -86,8 +68,8 @@ export const typeformWebhookTrigger: TriggerConfig = {
       defaultValue: [
         'Get your Typeform Personal Access Token from <a href="https://admin.typeform.com/account#/section/tokens" target="_blank" rel="noopener noreferrer">https://admin.typeform.com/account#/section/tokens</a>',
         'Find your Form ID in the URL when editing your form (e.g., <code>https://admin.typeform.com/form/ABC123/create</code> → Form ID is <code>ABC123</code>)',
-        'Generate a secure webhook secret (e.g., using: <code>openssl rand -hex 32</code>)',
-        'Fill in the form above with your Form ID, Personal Access Token, and Secret',
+        'Fill in the form above with your Form ID and Personal Access Token',
+        'Optionally add a Webhook Secret for enhanced security - Sim will verify all incoming webhooks match this secret',
         'Click "Save" below - Sim will automatically register the webhook with Typeform',
         '<strong>Note:</strong> Requires a Typeform PRO or PRO+ account to use webhooks',
       ]
