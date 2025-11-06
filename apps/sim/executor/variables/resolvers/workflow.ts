@@ -1,5 +1,6 @@
 import { createLogger } from '@/lib/logs/console/logger'
 import { isReference, parseReferencePath, REFERENCE } from '@/executor/consts'
+import { VariableManager } from '@/lib/variables/variable-manager'
 import type { ResolutionContext, Resolver } from '@/executor/variables/resolvers/reference'
 
 const logger = createLogger('WorkflowResolver')
@@ -32,23 +33,17 @@ export class WorkflowResolver implements Resolver {
 
     for (const varObj of Object.values(workflowVars)) {
       const v = varObj as any
-      if (v.name === variableName || v.id === variableName) {
-        let value = v.value
-
-        logger.debug('Resolving workflow variable', {
-          variableName,
-          originalType: typeof value,
-          declaredType: v.type,
-          originalValue: value,
-        })
-
-        if (v.type === 'boolean' && typeof value === 'string') {
-          const lower = value.toLowerCase().trim()
-          if (lower === 'true') value = true
-          else if (lower === 'false') value = false
+      if (v && (v.name === variableName || v.id === variableName)) {
+        const normalizedType = (v.type === 'string' ? 'plain' : v.type) || 'plain'
+        try {
+          return VariableManager.resolveForExecution(v.value, normalizedType)
+        } catch (error) {
+          logger.warn('Failed to resolve workflow variable, returning raw value', {
+            variableName,
+            error: (error as Error).message,
+          })
+          return v.value
         }
-
-        return value
       }
     }
 

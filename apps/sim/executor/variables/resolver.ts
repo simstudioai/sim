@@ -93,6 +93,20 @@ export class VariableResolver {
     reference: string,
     loopScope?: LoopScope
   ): any {
+    if (typeof reference === 'string') {
+      const trimmed = reference.trim()
+      if (/^<[^<>]+>$/.test(trimmed)) {
+        const resolutionContext: ResolutionContext = {
+          executionContext: ctx,
+          executionState: this.state,
+          currentNodeId,
+          loopScope,
+        }
+
+        return this.resolveReference(trimmed, resolutionContext)
+      }
+    }
+
     return this.resolveValue(ctx, currentNodeId, reference, loopScope)
   }
 
