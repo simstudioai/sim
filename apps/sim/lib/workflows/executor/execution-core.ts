@@ -22,6 +22,7 @@ import type { ExecutionCallbacks, ExecutionSnapshot } from '@/executor/execution
 import type { ExecutionResult } from '@/executor/types'
 import { Serializer } from '@/serializer'
 import { mergeSubblockState } from '@/stores/workflows/server-utils'
+import { PauseResumeManager } from '@/lib/workflows/executor/pause-resume-manager'
 
 const logger = createLogger('ExecutionCore')
 
@@ -363,6 +364,12 @@ export async function executeWorkflowCore(
     // Extract execution result from error if available
     const executionResult = (error as any)?.executionResult
     const { traceSpans } = executionResult ? buildTraceSpans(executionResult) : { traceSpans: [] }
+
+    // Clean up paused executions if execution errored
+    const executionId = metadata.executionId
+    if (executionId) {
+      await PauseResumeManager.cleanupPausedExecutionOnError(executionId)
+    }
 
     await loggingSession.safeCompleteWithError({
       endedAt: new Date().toISOString(),

@@ -161,6 +161,24 @@ export class PauseResumeManager {
     await this.processQueuedResumes(executionId)
   }
 
+  static async cleanupPausedExecutionOnError(executionId: string): Promise<void> {
+    try {
+      logger.info('Cleaning up paused execution due to error', { executionId })
+      
+      await db
+        .delete(pausedExecutions)
+        .where(eq(pausedExecutions.executionId, executionId))
+      
+      logger.info('Successfully cleaned up paused execution', { executionId })
+    } catch (error) {
+      logger.error('Failed to clean up paused execution on error', {
+        executionId,
+        error: error instanceof Error ? error.message : String(error),
+      })
+      // Don't throw - cleanup failure shouldn't prevent error handling
+    }
+  }
+
   static async enqueueOrStartResume(args: EnqueueResumeArgs): Promise<EnqueueResumeResult> {
     const { executionId, contextId, resumeInput, userId } = args
 
