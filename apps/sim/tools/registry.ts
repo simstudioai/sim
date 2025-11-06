@@ -5,6 +5,14 @@ import {
   airtableUpdateRecordTool,
 } from '@/tools/airtable'
 import { arxivGetAuthorPapersTool, arxivGetPaperTool, arxivSearchTool } from '@/tools/arxiv'
+import {
+  asanaAddCommentTool,
+  asanaCreateTaskTool,
+  asanaGetProjectsTool,
+  asanaGetTaskTool,
+  asanaSearchTasksTool,
+  asanaUpdateTaskTool,
+} from '@/tools/asana'
 import { browserUseRunTaskTool } from '@/tools/browser_use'
 import { clayPopulateTool } from '@/tools/clay'
 import {
@@ -596,6 +604,12 @@ export const tools: Record<string, ToolConfig> = {
   arxiv_search: arxivSearchTool,
   arxiv_get_paper: arxivGetPaperTool,
   arxiv_get_author_papers: arxivGetAuthorPapersTool,
+  asana_get_task: asanaGetTaskTool,
+  asana_create_task: asanaCreateTaskTool,
+  asana_update_task: asanaUpdateTaskTool,
+  asana_get_projects: asanaGetProjectsTool,
+  asana_search_tasks: asanaSearchTasksTool,
+  asana_add_comment: asanaAddCommentTool,
   browser_use_run_task: browserUseRunTaskTool,
   openai_embeddings: openAIEmbeddings,
   http_request: httpRequest,
