@@ -1,16 +1,20 @@
-import { ResponseIcon } from '@/components/icons'
+import type { SVGProps } from 'react'
+import { createElement } from 'react'
+import { UserCheck } from 'lucide-react'
 import type { BlockConfig } from '@/blocks/types'
 import type { ResponseBlockOutput } from '@/tools/response/types'
 
+const ApprovalIcon = (props: SVGProps<SVGSVGElement>) => createElement(UserCheck, props)
+
 export const PauseResumeBlock: BlockConfig<ResponseBlockOutput> = {
-  type: 'pause_resume',
-  name: 'Pause Resume',
+  type: 'approval',
+  name: 'Approval',
   description: 'Pause workflow execution and send structured API response',
   longDescription:
     'Combines response and start functionality. Sends structured responses and allows workflow to resume from this point.',
   category: 'blocks',
-  bgColor: '#2F55FF',
-  icon: ResponseIcon,
+  bgColor: '#10B981',
+  icon: ApprovalIcon,
   subBlocks: [
     {
       id: 'operation',

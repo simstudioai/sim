@@ -15,7 +15,7 @@ export enum BlockType {
   VARIABLES = 'variables',
 
   RESPONSE = 'response',
-  PAUSE_RESUME = 'pause_resume',
+  APPROVAL = 'approval',
   WORKFLOW = 'workflow',
   WORKFLOW_INPUT = 'workflow_input',
 

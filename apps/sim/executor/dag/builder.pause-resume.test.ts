@@ -36,7 +36,7 @@ describe('DAGBuilder pause-resume transformation', () => {
       version: '1',
       blocks: [
         createBlock('start', BlockType.STARTER),
-        createBlock('pause', BlockType.PAUSE_RESUME),
+        createBlock('pause', BlockType.APPROVAL),
         createBlock('finish', BlockType.FUNCTION),
       ],
       connections: [

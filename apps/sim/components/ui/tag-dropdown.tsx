@@ -504,8 +504,8 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
             const outputPaths = generateOutputPaths(blockConfig.outputs || {})
             blockTags = outputPaths.map((path) => `${normalizedBlockName}.${path}`)
           }
-        } else if (sourceBlock.type === 'pause_resume') {
-          // For pause_resume block, use dynamic outputs based on inputFormat
+        } else if (sourceBlock.type === 'approval') {
+          // For approval block, use dynamic outputs based on inputFormat
           const dynamicOutputs = getBlockOutputPaths(sourceBlock.type, mergedSubBlocks)
 
           // If it's a self-reference, only show apiUrl and uiUrl (available immediately)
@@ -716,8 +716,8 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
       if (!accessibleBlock) continue
 
       // Skip the current block - blocks cannot reference their own outputs
-      // Exception: pause_resume blocks can reference their own outputs
-      if (accessibleBlockId === blockId && accessibleBlock.type !== 'pause_resume') continue
+      // Exception: approval blocks can reference their own outputs
+      if (accessibleBlockId === blockId && accessibleBlock.type !== 'approval') continue
 
       const blockConfig = getBlock(accessibleBlock.type)
 
@@ -836,8 +836,8 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
             const outputPaths = generateOutputPaths(blockConfig.outputs || {})
             blockTags = outputPaths.map((path) => `${normalizedBlockName}.${path}`)
           }
-        } else if (accessibleBlock.type === 'pause_resume') {
-          // For pause_resume block, use dynamic outputs based on inputFormat
+        } else if (accessibleBlock.type === 'approval') {
+          // For approval block, use dynamic outputs based on inputFormat
           const dynamicOutputs = getBlockOutputPaths(accessibleBlock.type, mergedSubBlocks)
 
           // If it's a self-reference, only show apiUrl and uiUrl (available immediately)

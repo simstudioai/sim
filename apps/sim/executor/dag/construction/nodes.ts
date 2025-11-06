@@ -147,7 +147,7 @@ export class NodeConstructor {
         branchIndex,
         branchTotal: expansion.branchCount,
         distributionItem: expansion.distributionItems[branchIndex],
-        isPauseResponse: baseBlock.metadata?.id === BlockType.PAUSE_RESUME,
+        isPauseResponse: baseBlock.metadata?.id === BlockType.APPROVAL,
         originalBlockId: baseBlock.id,
       },
     }
@@ -160,7 +160,7 @@ export class NodeConstructor {
   ): void {
     const isLoopNode = blocksInLoops.has(block.id)
     const loopId = isLoopNode ? this.findLoopIdForBlock(block.id, dag) : undefined
-    const isPauseBlock = block.metadata?.id === BlockType.PAUSE_RESUME
+    const isPauseBlock = block.metadata?.id === BlockType.APPROVAL
 
     dag.nodes.set(block.id, {
       id: block.id,

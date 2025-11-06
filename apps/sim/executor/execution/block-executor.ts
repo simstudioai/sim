@@ -65,7 +65,7 @@ export class BlockExecutor {
     const nodeMetadata = this.buildNodeMetadata(node)
     let cleanupSelfReference: (() => void) | undefined
 
-    if (block.metadata?.id === BlockType.PAUSE_RESUME) {
+    if (block.metadata?.id === BlockType.APPROVAL) {
       cleanupSelfReference = this.preparePauseResumeSelfReference(ctx, node, block, nodeMetadata)
     }
 
@@ -263,7 +263,7 @@ export class BlockExecutor {
     block: SerializedBlock,
     output: NormalizedBlockOutput
   ): NormalizedBlockOutput {
-    if (block.metadata?.id === BlockType.PAUSE_RESUME) {
+    if (block.metadata?.id === BlockType.APPROVAL) {
       const filtered: NormalizedBlockOutput = {}
       for (const [key, value] of Object.entries(output)) {
         if (key.startsWith('_')) continue

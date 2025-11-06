@@ -57,7 +57,7 @@ interface NotificationToolResult {
 
 export class PauseResumeBlockHandler implements BlockHandler {
   canHandle(block: SerializedBlock): boolean {
-    return block.metadata?.id === BlockType.PAUSE_RESUME
+    return block.metadata?.id === BlockType.APPROVAL
   }
 
   async execute(

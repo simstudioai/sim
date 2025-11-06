@@ -94,7 +94,7 @@ export function getBlockOutputs(
     return outputs
   }
 
-  if (blockType === 'pause_resume') {
+  if (blockType === 'approval') {
     // Start with only uiUrl and apiUrl (from base outputs)
     const pauseResumeOutputs: Record<string, any> = {
       uiUrl: { type: 'string', description: 'Resume UI URL' },
