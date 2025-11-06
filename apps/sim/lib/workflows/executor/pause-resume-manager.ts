@@ -448,7 +448,12 @@ export class PauseResumeManager {
       const existingBlockState =
         stateCopy.blockStates[pauseBlockId] ?? stateCopy.blockStates[contextId]
 
-      const pauseBlockState = existingBlockState ?? {
+      const stateBlockKey = rawPauseBlockId
+
+      const existingBlockStateWithRaw =
+        stateCopy.blockStates[stateBlockKey] ?? existingBlockState
+
+      const pauseBlockState = existingBlockStateWithRaw ?? {
         output: {},
         executed: true,
         executionTime: 0,
@@ -465,10 +470,23 @@ export class PauseResumeManager {
       }
       pauseBlockState.executed = true
       pauseBlockState.executionTime = pauseDurationMs
-      if (!stateCopy.blockStates[pauseBlockId] && stateCopy.blockStates[contextId]) {
+      if (stateBlockKey !== pauseBlockId && stateCopy.blockStates[pauseBlockId]) {
+        delete stateCopy.blockStates[pauseBlockId]
+      }
+
+      if (stateBlockKey !== contextId && stateCopy.blockStates[contextId]) {
         delete stateCopy.blockStates[contextId]
       }
-      stateCopy.blockStates[pauseBlockId] = pauseBlockState
+
+      stateCopy.blockStates[stateBlockKey] = pauseBlockState
+
+      if (Array.isArray(stateCopy.executedBlocks)) {
+        const filtered = stateCopy.executedBlocks.filter((id: string) => id !== pauseBlockId && id !== contextId)
+        if (!filtered.includes(stateBlockKey)) {
+          filtered.push(stateBlockKey)
+        }
+        stateCopy.executedBlocks = filtered
+      }
 
       // Track all pause contexts that have already been resumed
       const completedPauseContexts = new Set<string>(

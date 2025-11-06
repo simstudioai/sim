@@ -1,4 +1,10 @@
 import type { NormalizedBlockOutput } from '@/executor/types'
+
+function normalizeLookupId(id: string): string {
+  return id
+    .replace(/₍\d+₎/gu, '')
+    .replace(/_loop\d+/g, '')
+}
 export interface LoopScope {
   iteration: number
   currentIterationOutputs: Map<string, NormalizedBlockOutput>
@@ -37,8 +43,42 @@ export class ExecutionState {
     this.executedBlocks = executedBlocks
   }
 
-  getBlockOutput(blockId: string): NormalizedBlockOutput | undefined {
-    return this.blockStates.get(blockId)?.output
+  getBlockOutput(blockId: string, currentNodeId?: string): NormalizedBlockOutput | undefined {
+    // First try direct lookup
+    const direct = this.blockStates.get(blockId)?.output
+    if (direct !== undefined) {
+      return direct
+    }
+
+    // If the blockId is already suffixed, no fallback needed
+    const normalizedId = normalizeLookupId(blockId)
+    if (normalizedId !== blockId) {
+      return undefined
+    }
+
+    // blockId has no suffix - need to find the right suffixed version
+    // If we're in a parallel/loop context (currentNodeId has suffix), match that suffix
+    if (currentNodeId) {
+      // Extract suffix from current node
+      const currentSuffix = currentNodeId.replace(normalizedId, '').match(/₍\d+₎/g)?.[0] || ''
+      const loopSuffix = currentNodeId.match(/_loop\d+/)?.[0] || ''
+      
+      // Try with matching suffix
+      const withSuffix = `${blockId}${currentSuffix}${loopSuffix}`
+      const suffixedOutput = this.blockStates.get(withSuffix)?.output
+      if (suffixedOutput !== undefined) {
+        return suffixedOutput
+      }
+    }
+
+    // Fall back to first match with same base ID
+    for (const [storedId, state] of this.blockStates.entries()) {
+      if (normalizeLookupId(storedId) === blockId) {
+        return state.output
+      }
+    }
+
+    return undefined
   }
 
   setBlockOutput(blockId: string, output: NormalizedBlockOutput): void {

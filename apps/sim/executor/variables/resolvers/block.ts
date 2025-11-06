@@ -83,7 +83,7 @@ export class BlockResolver implements Resolver {
   }
 
   private getBlockOutput(blockId: string, context: ResolutionContext): any {
-    const stateOutput = context.executionState.getBlockOutput(blockId)
+    const stateOutput = context.executionState.getBlockOutput(blockId, context.currentNodeId)
     if (stateOutput !== undefined) {
       return stateOutput
     }
