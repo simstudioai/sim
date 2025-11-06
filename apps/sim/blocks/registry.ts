@@ -3,6 +3,7 @@ import { AirtableBlock } from '@/blocks/blocks/airtable'
 import { ApiBlock } from '@/blocks/blocks/api'
 import { ApiTriggerBlock } from '@/blocks/blocks/api_trigger'
 import { ArxivBlock } from '@/blocks/blocks/arxiv'
+import { AsanaBlock } from '@/blocks/blocks/asana'
 import { BrowserUseBlock } from '@/blocks/blocks/browser_use'
 import { ChatTriggerBlock } from '@/blocks/blocks/chat_trigger'
 import { ClayBlock } from '@/blocks/blocks/clay'
@@ -97,6 +98,7 @@ export const registry: Record<string, BlockConfig> = {
   airtable: AirtableBlock,
   api: ApiBlock,
   arxiv: ArxivBlock,
+  asana: AsanaBlock,
   browser_use: BrowserUseBlock,
   clay: ClayBlock,
   condition: ConditionBlock,

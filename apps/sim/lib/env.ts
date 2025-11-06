@@ -181,6 +181,8 @@ export const env = createEnv({
     CONFLUENCE_CLIENT_SECRET:              z.string().optional(),                  // Atlassian Confluence OAuth client secret
     JIRA_CLIENT_ID:                        z.string().optional(),                  // Atlassian Jira OAuth client ID
     JIRA_CLIENT_SECRET:                    z.string().optional(),                  // Atlassian Jira OAuth client secret
+    ASANA_CLIENT_ID:                       z.string().optional(),                  // Asana OAuth client ID
+    ASANA_CLIENT_SECRET:                   z.string().optional(),                  // Asana OAuth client secret
     AIRTABLE_CLIENT_ID:                    z.string().optional(),                  // Airtable OAuth client ID
     AIRTABLE_CLIENT_SECRET:                z.string().optional(),                  // Airtable OAuth client secret
     SUPABASE_CLIENT_ID:                    z.string().optional(),                  // Supabase OAuth client ID

@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import {
   AirtableIcon,
+  AsanaIcon,
   ConfluenceIcon,
   DiscordIcon,
   GithubIcon,
@@ -51,6 +52,7 @@ export type OAuthProvider =
   | 'trello'
   | 'wealthbox'
   | 'webflow'
+  | 'asana'
   | string
 
 export type OAuthService =
@@ -82,6 +84,7 @@ export type OAuthService =
   | 'onedrive'
   | 'webflow'
   | 'trello'
+  | 'asana'
 export interface OAuthProviderConfig {
   id: OAuthProvider
   name: string
@@ -550,6 +553,23 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     },
     defaultService: 'trello',
   },
+  asana: {
+    id: 'asana',
+    name: 'Asana',
+    icon: (props) => AsanaIcon(props),
+    services: {
+      asana: {
+        id: 'asana',
+        name: 'Asana',
+        description: 'Manage Asana projects, tasks, and workflows.',
+        providerId: 'asana',
+        icon: (props) => AsanaIcon(props),
+        baseProviderIcon: (props) => AsanaIcon(props),
+        scopes: ['default'],
+      },
+    },
+    defaultService: 'asana',
+  },
 }
 
 // Helper function to get a service by provider and service ID
@@ -636,6 +656,8 @@ export function getServiceIdFromScopes(provider: OAuthProvider, scopes: string[]
     return 'wealthbox'
   } else if (provider === 'webflow') {
     return 'webflow'
+  } else if (provider === 'asana') {
+    return 'asana'
   }
 
   return providerConfig.defaultService
@@ -949,6 +971,19 @@ function getProviderAuthConfig(provider: string): ProviderAuthConfig {
         clientSecret,
         useBasicAuth: false,
         supportsRefreshTokenRotation: false,
+      }
+    }
+    case 'asana': {
+      const { clientId, clientSecret } = getCredentials(
+        env.ASANA_CLIENT_ID,
+        env.ASANA_CLIENT_SECRET
+      )
+      return {
+        tokenEndpoint: 'https://app.asana.com/-/oauth_token',
+        clientId,
+        clientSecret,
+        useBasicAuth: true,
+        supportsRefreshTokenRotation: true,
       }
     }
     default:

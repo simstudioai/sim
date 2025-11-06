@@ -153,6 +153,7 @@ export const auth = betterAuth({
         'slack',
         'reddit',
         'webflow',
+        'asana',
 
         // Common SSO provider patterns
         ...SSO_TRUSTED_PROVIDERS,
@@ -1155,6 +1156,57 @@ export const auth = betterAuth({
             } catch (error) {
               logger.error('Error in getUserInfo:', error)
               throw error
+            }
+          },
+        },
+
+        {
+          providerId: 'asana',
+          clientId: env.ASANA_CLIENT_ID as string,
+          clientSecret: env.ASANA_CLIENT_SECRET as string,
+          authorizationUrl: 'https://app.asana.com/-/oauth_authorize',
+          tokenUrl: 'https://app.asana.com/-/oauth_token',
+          userInfoUrl: 'https://app.asana.com/api/1.0/users/me',
+          scopes: ['default'],
+          responseType: 'code',
+          pkce: false,
+          accessType: 'offline',
+          authentication: 'basic',
+          prompt: 'consent',
+          redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/asana`,
+          getUserInfo: async (tokens) => {
+            try {
+              const response = await fetch('https://app.asana.com/api/1.0/users/me', {
+                headers: {
+                  Authorization: `Bearer ${tokens.accessToken}`,
+                },
+              })
+
+              if (!response.ok) {
+                logger.error('Error fetching Asana user info:', {
+                  status: response.status,
+                  statusText: response.statusText,
+                })
+                return null
+              }
+
+              const result = await response.json()
+              const profile = result.data
+
+              const now = new Date()
+
+              return {
+                id: profile.gid,
+                name: profile.name || 'Asana User',
+                email: profile.email || `${profile.gid}@asana.user`,
+                image: profile.photo?.image_128x128 || undefined,
+                emailVerified: !!profile.email,
+                createdAt: now,
+                updatedAt: now,
+              }
+            } catch (error) {
+              logger.error('Error in Asana getUserInfo:', { error })
+              return null
             }
           },
         },
