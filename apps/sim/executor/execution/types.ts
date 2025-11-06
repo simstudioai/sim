@@ -1,4 +1,4 @@
-import type { NormalizedBlockOutput } from '@/executor/types'
+import type { BlockState, NormalizedBlockOutput } from '@/executor/types'
 import type { SubflowType } from '@/stores/workflows/workflow/types'
 
 export interface ContextExtensions {
@@ -41,3 +41,17 @@ export interface ContextExtensions {
 export interface WorkflowInput {
   [key: string]: unknown
 }
+
+export interface BlockStateReader {
+  getBlockOutput(blockId: string, currentNodeId?: string): NormalizedBlockOutput | undefined
+  hasExecuted(blockId: string): boolean
+}
+
+export interface BlockStateWriter {
+  setBlockOutput(blockId: string, output: NormalizedBlockOutput, executionTime?: number): void
+  setBlockState(blockId: string, state: BlockState): void
+  deleteBlockState(blockId: string): void
+  unmarkExecuted(blockId: string): void
+}
+
+export type BlockStateController = BlockStateReader & BlockStateWriter

@@ -4,7 +4,7 @@ import type { ExecutionContext, NormalizedBlockOutput } from '@/executor/types'
 import { extractBaseBlockId } from '@/executor/utils/subflow-utils'
 import type { DAG, DAGNode } from '../dag/builder'
 import type { BlockExecutor } from '../execution/block-executor'
-import type { ExecutionState } from '../execution/state'
+import type { BlockStateController } from '../execution/types'
 import type { LoopOrchestrator } from './loop'
 import type { ParallelOrchestrator } from './parallel'
 
@@ -19,7 +19,7 @@ export interface NodeExecutionResult {
 export class NodeExecutionOrchestrator {
   constructor(
     private dag: DAG,
-    private state: ExecutionState,
+    private state: BlockStateController,
     private blockExecutor: BlockExecutor,
     private loopOrchestrator: LoopOrchestrator,
     private parallelOrchestrator: ParallelOrchestrator
@@ -216,7 +216,7 @@ export class NodeExecutionOrchestrator {
       const loopId = node.metadata.loopId
       if (loopId) {
         logger.debug('Preparing loop for next iteration', { loopId })
-        this.loopOrchestrator.clearLoopExecutionState(loopId, this.state.executedBlocks)
+        this.loopOrchestrator.clearLoopExecutionState(loopId)
         this.loopOrchestrator.restoreLoopEdges(loopId)
       }
     }

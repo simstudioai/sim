@@ -1,4 +1,5 @@
-import type { NormalizedBlockOutput } from '@/executor/types'
+import type { BlockState, NormalizedBlockOutput } from '@/executor/types'
+import type { BlockStateController } from './types'
 
 function normalizeLookupId(id: string): string {
   return id
@@ -24,22 +25,24 @@ export interface ParallelScope {
   totalExpectedNodes: number
 }
 
-export class ExecutionState {
-  readonly blockStates: Map<
-    string,
-    { output: NormalizedBlockOutput; executed: boolean; executionTime: number }
-  >
-  readonly executedBlocks: Set<string>
+export class ExecutionState implements BlockStateController {
+  private readonly blockStates: Map<string, BlockState>
+  private readonly executedBlocks: Set<string>
 
   constructor(
-    blockStates: Map<
-      string,
-      { output: NormalizedBlockOutput; executed: boolean; executionTime: number }
-    >,
-    executedBlocks: Set<string>
+    blockStates?: Map<string, BlockState>,
+    executedBlocks?: Set<string>
   ) {
-    this.blockStates = blockStates
-    this.executedBlocks = executedBlocks
+    this.blockStates = blockStates ?? new Map()
+    this.executedBlocks = executedBlocks ?? new Set()
+  }
+
+  getBlockStates(): ReadonlyMap<string, BlockState> {
+    return this.blockStates
+  }
+
+  getExecutedBlocks(): ReadonlySet<string> {
+    return this.executedBlocks
   }
 
   getBlockOutput(blockId: string, currentNodeId?: string): NormalizedBlockOutput | undefined {
@@ -72,9 +75,27 @@ export class ExecutionState {
     return undefined
   }
 
-  setBlockOutput(blockId: string, output: NormalizedBlockOutput): void {
-    this.blockStates.set(blockId, { output, executed: true, executionTime: 0 })
+  setBlockOutput(blockId: string, output: NormalizedBlockOutput, executionTime = 0): void {
+    this.blockStates.set(blockId, { output, executed: true, executionTime })
     this.executedBlocks.add(blockId)
+  }
+
+  setBlockState(blockId: string, state: BlockState): void {
+    this.blockStates.set(blockId, state)
+    if (state.executed) {
+      this.executedBlocks.add(blockId)
+    } else {
+      this.executedBlocks.delete(blockId)
+    }
+  }
+
+  deleteBlockState(blockId: string): void {
+    this.blockStates.delete(blockId)
+    this.executedBlocks.delete(blockId)
+  }
+
+  unmarkExecuted(blockId: string): void {
+    this.executedBlocks.delete(blockId)
   }
 
   hasExecuted(blockId: string): boolean {

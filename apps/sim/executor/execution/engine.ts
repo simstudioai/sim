@@ -1,5 +1,6 @@
 import { createLogger } from '@/lib/logs/console/logger'
 import { BlockType } from '@/executor/consts'
+import { normalizeError } from '@/executor/utils/errors'
 import type {
   ExecutionContext,
   ExecutionResult,
@@ -71,7 +72,7 @@ export class ExecutionEngine {
       this.context.metadata.endTime = new Date(endTime).toISOString()
       this.context.metadata.duration = endTime - startTime
 
-      const errorMessage = error instanceof Error ? error.message : String(error)
+      const errorMessage = normalizeError(error)
       logger.error('Execution failed', { error: errorMessage })
 
       const executionResult: ExecutionResult = {
@@ -271,7 +272,7 @@ export class ExecutionEngine {
         })
       }
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error)
+      const errorMessage = normalizeError(error)
       logger.error('Node execution failed', { nodeId, error: errorMessage })
       throw error
     }

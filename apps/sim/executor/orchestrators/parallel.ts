@@ -9,7 +9,8 @@ import {
 } from '@/executor/utils/subflow-utils'
 import type { SerializedParallel } from '@/serializer/types'
 import type { DAG } from '../dag/builder'
-import type { ExecutionState, ParallelScope } from '../execution/state'
+import type { ParallelScope } from '../execution/state'
+import type { BlockStateWriter } from '../execution/types'
 
 const logger = createLogger('ParallelOrchestrator')
 
@@ -30,7 +31,7 @@ export interface ParallelAggregationResult {
 export class ParallelOrchestrator {
   constructor(
     private dag: DAG,
-    private state: ExecutionState
+    private state: BlockStateWriter
   ) {}
 
   initializeParallelScope(

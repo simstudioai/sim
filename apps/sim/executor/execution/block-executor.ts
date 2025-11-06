@@ -4,6 +4,7 @@ import {
   generatePauseContextId,
   mapNodeMetadataToPauseScopes,
 } from '@/executor/pause-resume/utils.ts'
+import { buildBlockExecutionError, normalizeError } from '@/executor/utils/errors'
 import type {
   BlockHandler,
   BlockLog,
@@ -15,8 +16,7 @@ import type { SerializedBlock } from '@/serializer/types'
 import type { SubflowType } from '@/stores/workflows/workflow/types'
 import type { DAGNode } from '../dag/builder'
 import type { VariableResolver } from '../variables/resolver'
-import type { ExecutionState } from './state'
-import type { ContextExtensions } from './types'
+import type { BlockStateWriter, ContextExtensions } from './types'
 import { getBaseUrl } from '@/lib/urls/utils'
 
 const logger = createLogger('BlockExecutor')
@@ -26,7 +26,7 @@ export class BlockExecutor {
     private blockHandlers: BlockHandler[],
     private resolver: VariableResolver,
     private contextExtensions: ContextExtensions,
-    private state?: ExecutionState
+    private state: BlockStateWriter
   ) {}
 
   async execute(
@@ -36,7 +36,11 @@ export class BlockExecutor {
   ): Promise<NormalizedBlockOutput> {
     const handler = this.findHandler(block)
     if (!handler) {
-      throw new Error(`No handler found for block type: ${block.metadata?.id}`)
+      throw buildBlockExecutionError({
+        block,
+        context: ctx,
+        error: `No handler found for block type: ${block.metadata?.id ?? 'unknown'}`,
+      })
     }
 
     const isSentinel = isSentinelBlockType(block.metadata?.id ?? '')
@@ -100,11 +104,7 @@ export class BlockExecutor {
         blockLog.output = this.filterOutputForLog(block, normalizedOutput)
       }
 
-      ctx.blockStates.set(node.id, {
-        output: normalizedOutput,
-        executed: true,
-        executionTime: duration,
-      })
+      this.state.setBlockOutput(node.id, normalizedOutput, duration)
 
       if (!isSentinel) {
         const filteredOutput = this.filterOutputForLog(block, normalizedOutput)
@@ -114,7 +114,7 @@ export class BlockExecutor {
       return normalizedOutput
     } catch (error) {
       const duration = Date.now() - startTime
-      const errorMessage = error instanceof Error ? error.message : String(error)
+      const errorMessage = normalizeError(error)
 
       if (blockLog) {
         blockLog.endedAt = new Date().toISOString()
@@ -127,11 +127,7 @@ export class BlockExecutor {
         error: errorMessage,
       }
 
-      ctx.blockStates.set(node.id, {
-        output: errorOutput,
-        executed: true,
-        executionTime: duration,
-      })
+      this.state.setBlockOutput(node.id, errorOutput, duration)
 
       logger.error('Block execution failed', {
         blockId: node.id,
@@ -153,7 +149,15 @@ export class BlockExecutor {
         return errorOutput
       }
 
-      throw error
+      throw buildBlockExecutionError({
+        block,
+        error: error instanceof Error ? error : errorMessage,
+        context: ctx,
+        additionalInfo: {
+          nodeId: node.id,
+          executionTime: duration,
+        },
+      })
     }
   }
 
@@ -391,22 +395,13 @@ export class BlockExecutor {
       executionTime: existingState?.executionTime ?? 0,
     }
 
-    ctx.blockStates.set(blockId, placeholderState)
-    if (this.state && this.state.blockStates !== ctx.blockStates) {
-      this.state.blockStates.set(blockId, placeholderState)
-    }
+    this.state.setBlockState(blockId, placeholderState)
 
     return () => {
       if (hadPrevious && previousState) {
-        ctx.blockStates.set(blockId, previousState)
-        if (this.state && this.state.blockStates !== ctx.blockStates) {
-          this.state.blockStates.set(blockId, previousState)
-        }
+        this.state.setBlockState(blockId, previousState)
       } else {
-        ctx.blockStates.delete(blockId)
-        if (this.state && this.state.blockStates !== ctx.blockStates) {
-          this.state.blockStates.delete(blockId)
-        }
+        this.state.deleteBlockState(blockId)
       }
     }
   }

@@ -180,8 +180,8 @@ export interface ExecutionContext {
 
   // CONSOLIDATED STATE - Single source of truth for execution state
   // Uses shared references with ExecutionState class
-  blockStates: Map<string, BlockState>
-  executedBlocks: Set<string> // Set of block IDs that have been executed
+  blockStates: ReadonlyMap<string, BlockState>
+  executedBlocks: ReadonlySet<string> // Set of block IDs that have been executed
 
   blockLogs: BlockLog[] // Chronological log of block executions
   metadata: ExecutionMetadata // Timing metadata for the execution

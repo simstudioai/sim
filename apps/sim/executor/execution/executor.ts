@@ -1,7 +1,7 @@
 import { createLogger } from '@/lib/logs/console/logger'
 import type { BlockOutput } from '@/blocks/types'
 import { createBlockHandlers } from '@/executor/handlers/registry'
-import type { ExecutionContext, ExecutionResult } from '@/executor/types'
+import type { BlockState, ExecutionContext, ExecutionResult } from '@/executor/types'
 import {
   buildResolutionFromBlock,
   buildStartBlockOutput,
@@ -54,8 +54,7 @@ export class DAGExecutor {
   async execute(workflowId: string, triggerBlockId?: string): Promise<ExecutionResult> {
     const savedIncomingEdges = this.contextExtensions.dagIncomingEdges
     const dag = this.dagBuilder.build(this.workflow, triggerBlockId, savedIncomingEdges)
-    const context = this.createExecutionContext(workflowId, triggerBlockId)
-    const state = new ExecutionState(context.blockStates, context.executedBlocks)
+    const { context, state } = this.createExecutionContext(workflowId, triggerBlockId)
     const resolver = new VariableResolver(this.workflow, this.workflowVariables, state)
     const loopOrchestrator = new LoopOrchestrator(dag, state, resolver)
     const parallelOrchestrator = new ParallelOrchestrator(dag, state)
@@ -94,16 +93,25 @@ export class DAGExecutor {
     }
   }
 
-  private createExecutionContext(workflowId: string, triggerBlockId?: string): ExecutionContext {
+  private createExecutionContext(
+    workflowId: string,
+    triggerBlockId?: string
+  ): { context: ExecutionContext; state: ExecutionState } {
     const snapshotState = this.contextExtensions.snapshotState
+    const blockStates = snapshotState?.blockStates
+      ? new Map(Object.entries(snapshotState.blockStates))
+      : new Map<string, BlockState>()
+    const executedBlocks = snapshotState?.executedBlocks
+      ? new Set(snapshotState.executedBlocks)
+      : new Set<string>()
+    const state = new ExecutionState(blockStates, executedBlocks)
+
     const context: ExecutionContext = {
       workflowId,
       workspaceId: this.contextExtensions.workspaceId,
       executionId: this.contextExtensions.executionId,
       isDeployedContext: this.contextExtensions.isDeployedContext,
-      blockStates: snapshotState?.blockStates
-        ? new Map(Object.entries(snapshotState.blockStates))
-        : new Map(),
+      blockStates: state.getBlockStates(),
       blockLogs: snapshotState?.blockLogs ?? [],
       metadata: {
         startTime: new Date().toISOString(),
@@ -151,9 +159,7 @@ export class DAGExecutor {
             ])
           )
         : new Map(),
-      executedBlocks: snapshotState?.executedBlocks
-        ? new Set(snapshotState.executedBlocks)
-        : new Set(),
+      executedBlocks: state.getExecutedBlocks(),
       activeExecutionPath: snapshotState?.activeExecutionPath
         ? new Set(snapshotState.activeExecutionPath)
         : new Set(),
@@ -192,13 +198,17 @@ export class DAGExecutor {
       logger.debug('No resume pending queue, initializing starter block', {
         triggerBlockId,
       })
-      this.initializeStarterBlock(context, triggerBlockId)
+      this.initializeStarterBlock(context, state, triggerBlockId)
     }
 
-    return context
+    return { context, state }
   }
 
-  private initializeStarterBlock(context: ExecutionContext, triggerBlockId?: string): void {
+  private initializeStarterBlock(
+    context: ExecutionContext,
+    state: ExecutionState,
+    triggerBlockId?: string
+  ): void {
     let startResolution: ReturnType<typeof resolveExecutorStartBlock> | null = null
 
     if (triggerBlockId) {
@@ -235,7 +245,7 @@ export class DAGExecutor {
       }
     }
 
-    if (context.blockStates.has(startResolution.block.id)) {
+    if (state.getBlockStates().has(startResolution.block.id)) {
       logger.debug('Start block already initialized from snapshot, skipping re-initialization', {
         blockId: startResolution.block.id,
         blockType: startResolution.block.metadata?.id,
@@ -249,9 +259,9 @@ export class DAGExecutor {
       isDeployedExecution: this.contextExtensions?.isDeployedContext === true,
     })
 
-    context.blockStates.set(startResolution.block.id, {
+    state.setBlockState(startResolution.block.id, {
       output: blockOutput,
-      executed: true,
+      executed: false,
       executionTime: 0,
     })
 

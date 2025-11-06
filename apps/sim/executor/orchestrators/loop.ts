@@ -9,7 +9,8 @@ import {
 } from '@/executor/utils/subflow-utils'
 import type { SerializedLoop } from '@/serializer/types'
 import type { DAG } from '../dag/builder'
-import type { ExecutionState, LoopScope } from '../execution/state'
+import type { LoopScope } from '../execution/state'
+import type { BlockStateController } from '../execution/types'
 import type { VariableResolver } from '../variables/resolver'
 
 const logger = createLogger('LoopOrchestrator')
@@ -27,7 +28,7 @@ export interface LoopContinuationResult {
 export class LoopOrchestrator {
   constructor(
     private dag: DAG,
-    private state: ExecutionState,
+    private state: BlockStateController,
     private resolver: VariableResolver
   ) {}
 
@@ -177,11 +178,7 @@ export class LoopOrchestrator {
     scope: LoopScope
   ): LoopContinuationResult {
     const results = scope.allIterationOutputs
-    ctx.blockStates?.set(loopId, {
-      output: { results },
-      executed: true,
-      executionTime: DEFAULTS.EXECUTION_TIME,
-    })
+    this.state.setBlockOutput(loopId, { results }, DEFAULTS.EXECUTION_TIME)
 
     logger.debug('Loop exiting', { loopId, totalIterations: scope.iteration })
 
@@ -214,7 +211,7 @@ export class LoopOrchestrator {
     return result
   }
 
-  clearLoopExecutionState(loopId: string, executedBlocks: Set<string>): void {
+  clearLoopExecutionState(loopId: string): void {
     const loopConfig = this.dag.loopConfigs.get(loopId) as LoopConfigWithNodes | undefined
     if (!loopConfig) {
       logger.warn('Loop config not found for state clearing', { loopId })
@@ -225,10 +222,10 @@ export class LoopOrchestrator {
     const sentinelEndId = buildSentinelEndId(loopId)
     const loopNodes = loopConfig.nodes
 
-    executedBlocks.delete(sentinelStartId)
-    executedBlocks.delete(sentinelEndId)
+    this.state.unmarkExecuted(sentinelStartId)
+    this.state.unmarkExecuted(sentinelEndId)
     for (const loopNodeId of loopNodes) {
-      executedBlocks.delete(loopNodeId)
+      this.state.unmarkExecuted(loopNodeId)
     }
 
     logger.debug('Cleared loop execution state', {
