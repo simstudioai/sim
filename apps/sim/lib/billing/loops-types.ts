@@ -57,3 +57,10 @@ export interface LoopsInvoice {
   status: string
   metadata?: Record<string, string>
 }
+
+export interface LoopsPortalSession {
+  id: string
+  url: string
+  externalCustomerId: string
+  returnUrl?: string
+}

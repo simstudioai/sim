@@ -7,6 +7,7 @@ import { getLoopsClient } from '@/lib/billing/loops-client'
 import { getStripeClient } from '@/lib/billing/stripe-client'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getBaseUrl } from '@/lib/urls/utils'
+import type { LoopsPortalSession } from '@/lib/billing/loops-types'
 
 const logger = createLogger('BillingPortal')
 
@@ -87,26 +88,20 @@ export async function POST(request: NextRequest) {
     // Use Loops portal if Loops customer exists and client is available
     if (customerIdField === 'loopsCustomerId' && loopsClient) {
       try {
-        // Loops SDK does not currently support a customer portal like Stripe does
-        // Redirect to internal billing management page
-        //
-        // NOTE: The internal billing page should provide:
-        // 1. View current subscription details (plan, status, renewal date)
-        // 2. View and download past invoices (managed by Loops)
-        // 3. Update payment method (via Loops)
-        // 4. View current usage and limits
-        // 5. Upgrade/downgrade subscription plans
-        // 6. Cancel subscription (when Loops API supports it)
-        // 7. Update billing information (address, tax ID, etc.)
+        // Create Loops customer portal session using SDK
+        const portalSession = (await loopsClient.customerPortal.postApiV3CustomerPortalSessions({
+          externalCustomerId: customerId,
+          returnUrl: returnUrl,
+        })) as LoopsPortalSession
 
-        logger.info('Redirecting Loops customer to internal billing page', {
+        logger.info('Created Loops portal session', {
           customerId,
           userId: session.user.id,
+          sessionId: portalSession.id,
         })
 
-        // Redirect to the internal billing settings page
         return NextResponse.json({
-          url: `${getBaseUrl()}/workspace/settings/billing?return=${encodeURIComponent(returnUrl)}`,
+          url: portalSession.url,
         })
       } catch (error) {
         logger.error('Failed to create Loops portal session', { error })
