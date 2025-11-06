@@ -1,10 +1,7 @@
-import { createLogger } from '@/lib/logs/console/logger'
 import { isReference, parseReferencePath, SPECIAL_REFERENCE_PREFIXES } from '@/executor/consts'
+import type { ResolutionContext, Resolver } from '@/executor/variables/resolvers/reference'
 import type { SerializedWorkflow } from '@/serializer/types'
 import { normalizeBlockName } from '@/stores/workflows/utils'
-import type { ResolutionContext, Resolver } from './reference'
-
-const logger = createLogger('BlockResolver')
 
 export class BlockResolver implements Resolver {
   private blockByNormalizedName: Map<string, string>
@@ -38,25 +35,13 @@ export class BlockResolver implements Resolver {
       return undefined
     }
     const [blockName, ...pathParts] = parts
-    logger.debug('Resolving block reference', {
-      reference,
-      blockName,
-      pathParts,
-    })
 
     const blockId = this.findBlockIdByName(blockName)
     if (!blockId) {
-      logger.debug('Block not found by name, skipping resolution', { blockName, reference })
       return undefined
     }
 
     const output = this.getBlockOutput(blockId, context)
-    logger.debug('Block output retrieved', {
-      blockName,
-      blockId,
-      hasOutput: !!output,
-      outputKeys: output ? Object.keys(output) : [],
-    })
 
     if (!output) {
       throw new Error(`No state found for block "${blockName}"`)
@@ -74,16 +59,11 @@ export class BlockResolver implements Resolver {
       )
     }
 
-    logger.debug('Navigated path result', {
-      blockName,
-      pathParts,
-      result,
-    })
     return result
   }
 
   private getBlockOutput(blockId: string, context: ResolutionContext): any {
-    const stateOutput = context.executionState.getBlockOutput(blockId)
+    const stateOutput = context.executionState.getBlockOutput(blockId, context.currentNodeId)
     if (stateOutput !== undefined) {
       return stateOutput
     }
@@ -164,7 +144,7 @@ export class BlockResolver implements Resolver {
     return value
   }
 
-  formatValueForBlock(
+  public formatValueForBlock(
     value: any,
     blockType: string | undefined,
     isInTemplateLiteral = false

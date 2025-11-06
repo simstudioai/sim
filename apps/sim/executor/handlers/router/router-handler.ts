@@ -58,16 +58,13 @@ export class RouterBlockHandler implements BlockHandler {
       })
 
       if (!response.ok) {
-        // Try to extract a helpful error message
         let errorMessage = `Provider API request failed with status ${response.status}`
         try {
           const errorData = await response.json()
           if (errorData.error) {
             errorMessage = errorData.error
           }
-        } catch (_e) {
-          // If JSON parsing fails, use the original error message
-        }
+        } catch (_e) {}
         throw new Error(errorMessage)
       }
 
@@ -90,7 +87,6 @@ export class RouterBlockHandler implements BlockHandler {
         total: DEFAULTS.TOKENS.TOTAL,
       }
 
-      // Calculate cost based on token usage, similar to how providers do it
       const cost = calculateCost(
         result.model,
         tokens.prompt || DEFAULTS.TOKENS.PROMPT,
@@ -116,7 +112,7 @@ export class RouterBlockHandler implements BlockHandler {
           blockType: chosenBlock.type || DEFAULTS.BLOCK_TYPE,
           blockTitle: chosenBlock.title || DEFAULTS.BLOCK_TITLE,
         },
-        selectedRoute: String(chosenBlock.id), // Used by ExecutionEngine to activate the correct edge
+        selectedRoute: String(chosenBlock.id),
       } as BlockOutput
     } catch (error) {
       logger.error('Router execution failed:', error)

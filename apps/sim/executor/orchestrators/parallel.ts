@@ -1,5 +1,8 @@
 import { createLogger } from '@/lib/logs/console/logger'
-import type { NormalizedBlockOutput } from '@/executor/types'
+import type { DAG } from '@/executor/dag/builder'
+import type { ParallelScope } from '@/executor/execution/state'
+import type { BlockStateWriter } from '@/executor/execution/types'
+import type { ExecutionContext, NormalizedBlockOutput } from '@/executor/types'
 import type { ParallelConfigWithNodes } from '@/executor/types/parallel'
 import {
   calculateBranchCount,
@@ -8,8 +11,6 @@ import {
   parseDistributionItems,
 } from '@/executor/utils/subflow-utils'
 import type { SerializedParallel } from '@/serializer/types'
-import type { DAG } from '../dag/builder'
-import type { ExecutionState, ParallelScope } from '../execution/state'
 
 const logger = createLogger('ParallelOrchestrator')
 
@@ -30,10 +31,11 @@ export interface ParallelAggregationResult {
 export class ParallelOrchestrator {
   constructor(
     private dag: DAG,
-    private state: ExecutionState
+    private state: BlockStateWriter
   ) {}
 
   initializeParallelScope(
+    ctx: ExecutionContext,
     parallelId: string,
     totalBranches: number,
     terminalNodesCount = 1
@@ -45,22 +47,20 @@ export class ParallelOrchestrator {
       completedCount: 0,
       totalExpectedNodes: totalBranches * terminalNodesCount,
     }
-    this.state.setParallelScope(parallelId, scope)
-    logger.debug('Initialized parallel scope', {
-      parallelId,
-      totalBranches,
-      terminalNodesCount,
-      totalExpectedNodes: scope.totalExpectedNodes,
-    })
+    if (!ctx.parallelExecutions) {
+      ctx.parallelExecutions = new Map()
+    }
+    ctx.parallelExecutions.set(parallelId, scope)
     return scope
   }
 
   handleParallelBranchCompletion(
+    ctx: ExecutionContext,
     parallelId: string,
     nodeId: string,
     output: NormalizedBlockOutput
   ): boolean {
-    const scope = this.state.getParallelScope(parallelId)
+    const scope = ctx.parallelExecutions?.get(parallelId)
     if (!scope) {
       logger.warn('Parallel scope not found for branch completion', { parallelId, nodeId })
       return false
@@ -77,27 +77,13 @@ export class ParallelOrchestrator {
     }
     scope.branchOutputs.get(branchIndex)!.push(output)
     scope.completedCount++
-    logger.debug('Recorded parallel branch output', {
-      parallelId,
-      branchIndex,
-      nodeId,
-      completedCount: scope.completedCount,
-      totalExpected: scope.totalExpectedNodes,
-    })
 
     const allComplete = scope.completedCount >= scope.totalExpectedNodes
-    if (allComplete) {
-      logger.debug('All parallel branches completed', {
-        parallelId,
-        totalBranches: scope.totalBranches,
-        completedNodes: scope.completedCount,
-      })
-    }
     return allComplete
   }
 
-  aggregateParallelResults(parallelId: string): ParallelAggregationResult {
-    const scope = this.state.getParallelScope(parallelId)
+  aggregateParallelResults(ctx: ExecutionContext, parallelId: string): ParallelAggregationResult {
+    const scope = ctx.parallelExecutions?.get(parallelId)
     if (!scope) {
       logger.error('Parallel scope not found for aggregation', { parallelId })
       return { allBranchesComplete: false }
@@ -110,12 +96,6 @@ export class ParallelOrchestrator {
     }
     this.state.setBlockOutput(parallelId, {
       results,
-    })
-    logger.debug('Aggregated parallel results', {
-      parallelId,
-      totalBranches: scope.totalBranches,
-      nodesPerBranch: results[0]?.length || 0,
-      totalOutputs: scope.completedCount,
     })
     return {
       allBranchesComplete: true,
@@ -151,8 +131,8 @@ export class ParallelOrchestrator {
     }
   }
 
-  getParallelScope(parallelId: string): ParallelScope | undefined {
-    return this.state.getParallelScope(parallelId)
+  getParallelScope(ctx: ExecutionContext, parallelId: string): ParallelScope | undefined {
+    return ctx.parallelExecutions?.get(parallelId)
   }
 
   findParallelIdForNode(baseNodeId: string): string | undefined {

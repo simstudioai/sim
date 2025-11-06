@@ -7,7 +7,7 @@ export interface DAGEdge {
 
 export interface NodeMetadata {
   isParallelBranch?: boolean
-  parallelId?: string // Which parallel this branch belongs to
+  parallelId?: string
   branchIndex?: number
   branchTotal?: number
   distributionItem?: unknown
@@ -15,4 +15,7 @@ export interface NodeMetadata {
   loopId?: string
   isSentinel?: boolean
   sentinelType?: 'start' | 'end'
+  isPauseResponse?: boolean
+  isResumeTrigger?: boolean
+  originalBlockId?: string
 }

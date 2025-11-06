@@ -118,6 +118,7 @@ export interface WorkflowLog {
     bucketName?: string
   }>
   cost?: CostMetadata
+  hasPendingPause?: boolean
   executionData?: ToolCallMetadata & {
     traceSpans?: TraceSpan[]
     totalDuration?: number

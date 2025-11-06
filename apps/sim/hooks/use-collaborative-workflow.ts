@@ -4,7 +4,6 @@ import { useSession } from '@/lib/auth-client'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getBlockOutputs } from '@/lib/workflows/block-outputs'
 import { getBlock } from '@/blocks'
-import { resolveOutputType } from '@/blocks/utils'
 import { useSocket } from '@/contexts/socket-context'
 import { useUndoRedo } from '@/hooks/use-undo-redo'
 import { registerEmitFunctions, useOperationQueue } from '@/stores/operation-queue/store'
@@ -778,9 +777,7 @@ export function useCollaborativeWorkflow() {
 
       // Get outputs based on trigger mode
       const isTriggerMode = triggerMode || false
-      const outputs = isTriggerMode
-        ? getBlockOutputs(type, subBlocks, isTriggerMode)
-        : resolveOutputType(blockConfig.outputs)
+      const outputs = getBlockOutputs(type, subBlocks, isTriggerMode)
 
       const completeBlockData = {
         id,

@@ -11,6 +11,8 @@ export interface ExecutionMetadata {
   triggerBlockId?: string
   useDraftState: boolean
   startTime: string
+  pendingBlocks?: string[]
+  resumeFromSnapshot?: boolean
 }
 
 export interface ExecutionCallbacks {
@@ -33,8 +35,6 @@ export interface SerializableExecutionState {
     router: Record<string, string>
     condition: Record<string, string>
   }
-  loopIterations: Record<string, number>
-  loopItems: Record<string, any>
   completedLoops: string[]
   loopExecutions?: Record<string, any>
   parallelExecutions?: Record<string, any>
@@ -42,6 +42,8 @@ export interface SerializableExecutionState {
   activeExecutionPath: string[]
   pendingQueue?: string[]
   remainingEdges?: Edge[]
+  dagIncomingEdges?: Record<string, string[]>
+  completedPauseContexts?: string[]
 }
 
 export class ExecutionSnapshot {
@@ -80,19 +82,3 @@ export class ExecutionSnapshot {
     )
   }
 }
-
-// TODO: Implement pause/resume functionality
-//
-// Future implementation should include:
-// 1. executor.pause() - Captures current state mid-execution
-//    - Serialize ExecutionContext (blockStates, decisions, loops, etc) to state property
-//    - Save snapshot.toJSON() to database
-// 2. executor.resume(snapshot) - Reconstructs execution from saved state
-//    - Load snapshot from database
-//    - Restore ExecutionContext from state property
-//    - Continue execution from pendingQueue
-// 3. API endpoints:
-//    - POST /api/executions/[id]/pause
-//    - POST /api/executions/[id]/resume
-// 4. Database schema:
-//    - execution_snapshots table with snapshot JSON column

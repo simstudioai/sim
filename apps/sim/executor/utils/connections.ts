@@ -57,7 +57,6 @@ export class ConnectionUtils {
       scopeNodes.includes(conn.source)
     )
 
-    // Has external connections if total incoming > internal connections
     return incomingConnections.length > internalConnections.length
   }
 
@@ -74,10 +73,9 @@ export class ConnectionUtils {
       ConnectionUtils.getInternalConnections(nodeId, scopeNodes, connections).length > 0
 
     if (hasInternalConnections) {
-      return false // Has internal connections, not an entry point
+      return false
     }
 
-    // Only entry point if it has external connections (not completely unconnected)
     return ConnectionUtils.hasExternalConnections(nodeId, scopeNodes, connections)
   }
 }

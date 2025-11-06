@@ -11,9 +11,6 @@ export function parseJSON<T>(value: unknown, fallback: T): T {
   try {
     return JSON.parse(value.trim())
   } catch (error) {
-    logger.debug('Failed to parse JSON, using fallback', {
-      error: error instanceof Error ? error.message : String(error),
-    })
     return fallback
   }
 }

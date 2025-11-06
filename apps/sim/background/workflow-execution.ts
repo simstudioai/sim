@@ -7,6 +7,7 @@ import { checkServerSideUsageLimits } from '@/lib/billing'
 import { createLogger } from '@/lib/logs/console/logger'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { executeWorkflowCore } from '@/lib/workflows/executor/execution-core'
+import { PauseResumeManager } from '@/lib/workflows/executor/pause-resume-manager'
 import { getWorkflowById } from '@/lib/workflows/utils'
 import { type ExecutionMetadata, ExecutionSnapshot } from '@/executor/execution/snapshot'
 
@@ -118,6 +119,24 @@ export async function executeWorkflowJob(payload: WorkflowExecutionPayload) {
       callbacks: {},
       loggingSession,
     })
+
+    if (result.status === 'paused') {
+      if (!result.snapshotSeed) {
+        logger.error(`[${requestId}] Missing snapshot seed for paused execution`, {
+          executionId,
+        })
+      } else {
+        await PauseResumeManager.persistPauseResult({
+          workflowId,
+          executionId,
+          pausePoints: result.pausePoints || [],
+          snapshotSeed: result.snapshotSeed,
+          executorUserId: result.metadata?.userId,
+        })
+      }
+    } else {
+      await PauseResumeManager.processQueuedResumes(executionId)
+    }
 
     logger.info(`[${requestId}] Workflow execution completed: ${workflowId}`, {
       success: result.success,

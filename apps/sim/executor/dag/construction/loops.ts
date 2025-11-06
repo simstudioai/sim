@@ -1,7 +1,7 @@
 import { createLogger } from '@/lib/logs/console/logger'
 import { BlockType, LOOP, type SentinelType } from '@/executor/consts'
+import type { DAG, DAGNode } from '@/executor/dag/builder'
 import { buildSentinelEndId, buildSentinelStartId } from '@/executor/utils/subflow-utils'
-import type { DAG, DAGNode } from '../builder'
 
 const logger = createLogger('LoopConstructor')
 
@@ -9,16 +9,19 @@ export class LoopConstructor {
   execute(dag: DAG, reachableBlocks: Set<string>): void {
     for (const [loopId, loopConfig] of dag.loopConfigs) {
       const loopNodes = loopConfig.nodes
+
       if (loopNodes.length === 0) {
         continue
       }
+
       if (!this.hasReachableNodes(loopNodes, reachableBlocks)) {
-        logger.debug('Skipping sentinel creation for unreachable loop', { loopId })
         continue
       }
+
       this.createSentinelPair(dag, loopId)
     }
   }
+
   private hasReachableNodes(loopNodes: string[], reachableBlocks: Set<string>): boolean {
     return loopNodes.some((nodeId) => reachableBlocks.has(nodeId))
   }
@@ -26,6 +29,7 @@ export class LoopConstructor {
   private createSentinelPair(dag: DAG, loopId: string): void {
     const startId = buildSentinelStartId(loopId)
     const endId = buildSentinelEndId(loopId)
+
     dag.nodes.set(
       startId,
       this.createSentinelNode({
@@ -33,9 +37,10 @@ export class LoopConstructor {
         loopId,
         sentinelType: LOOP.SENTINEL.START_TYPE,
         blockType: BlockType.SENTINEL_START,
-        name: `Loop Start (${loopId})`,
+        name: `${LOOP.SENTINEL.START_NAME_PREFIX} (${loopId})`,
       })
     )
+
     dag.nodes.set(
       endId,
       this.createSentinelNode({
@@ -43,15 +48,9 @@ export class LoopConstructor {
         loopId,
         sentinelType: LOOP.SENTINEL.END_TYPE,
         blockType: BlockType.SENTINEL_END,
-        name: `Loop End (${loopId})`,
+        name: `${LOOP.SENTINEL.END_NAME_PREFIX} (${loopId})`,
       })
     )
-
-    logger.debug('Created sentinel pair for loop', {
-      loopId,
-      startId,
-      endId,
-    })
   }
 
   private createSentinelNode(config: {

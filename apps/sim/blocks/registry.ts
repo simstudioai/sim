@@ -50,6 +50,7 @@ import { OneDriveBlock } from '@/blocks/blocks/onedrive'
 import { OpenAIBlock } from '@/blocks/blocks/openai'
 import { OutlookBlock } from '@/blocks/blocks/outlook'
 import { ParallelBlock } from '@/blocks/blocks/parallel'
+import { PauseResumeBlock } from '@/blocks/blocks/pause_resume'
 import { PerplexityBlock } from '@/blocks/blocks/perplexity'
 import { PineconeBlock } from '@/blocks/blocks/pinecone'
 import { PostgreSQLBlock } from '@/blocks/blocks/postgresql'
@@ -95,6 +96,7 @@ export const registry: Record<string, BlockConfig> = {
   agent: AgentBlock,
   airtable: AirtableBlock,
   api: ApiBlock,
+  approval: PauseResumeBlock,
   arxiv: ArxivBlock,
   browser_use: BrowserUseBlock,
   clay: ClayBlock,

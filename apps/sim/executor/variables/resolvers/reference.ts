@@ -1,5 +1,5 @@
+import type { ExecutionState, LoopScope } from '@/executor/execution/state'
 import type { ExecutionContext } from '@/executor/types'
-import type { ExecutionState, LoopScope } from '../../execution/state'
 export interface ResolutionContext {
   executionContext: ExecutionContext
   executionState: ExecutionState

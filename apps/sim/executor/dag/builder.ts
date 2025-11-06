@@ -1,15 +1,15 @@
 import { createLogger } from '@/lib/logs/console/logger'
+import { EdgeConstructor } from '@/executor/dag/construction/edges'
+import { LoopConstructor } from '@/executor/dag/construction/loops'
+import { NodeConstructor } from '@/executor/dag/construction/nodes'
+import { PathConstructor } from '@/executor/dag/construction/paths'
+import type { DAGEdge, NodeMetadata } from '@/executor/dag/types'
 import type {
   SerializedBlock,
   SerializedLoop,
   SerializedParallel,
   SerializedWorkflow,
 } from '@/serializer/types'
-import { EdgeConstructor } from './construction/edges'
-import { LoopConstructor } from './construction/loops'
-import { NodeConstructor } from './construction/nodes'
-import { PathConstructor } from './construction/paths'
-import type { DAGEdge, NodeMetadata } from './types'
 
 const logger = createLogger('DAGBuilder')
 
@@ -33,7 +33,11 @@ export class DAGBuilder {
   private nodeConstructor = new NodeConstructor()
   private edgeConstructor = new EdgeConstructor()
 
-  build(workflow: SerializedWorkflow, triggerBlockId?: string): DAG {
+  build(
+    workflow: SerializedWorkflow,
+    triggerBlockId?: string,
+    savedIncomingEdges?: Record<string, string[]>
+  ): DAG {
     const dag: DAG = {
       nodes: new Map(),
       loopConfigs: new Map(),
@@ -43,26 +47,46 @@ export class DAGBuilder {
     this.initializeConfigs(workflow, dag)
 
     const reachableBlocks = this.pathConstructor.execute(workflow, triggerBlockId)
-    logger.debug('Reachable blocks from trigger:', {
-      triggerBlockId,
-      reachableCount: reachableBlocks.size,
-      totalBlocks: workflow.blocks.length,
-    })
 
     this.loopConstructor.execute(dag, reachableBlocks)
 
-    const { blocksInLoops, blocksInParallels } = this.nodeConstructor.execute(
+    const { blocksInLoops, blocksInParallels, pauseTriggerMapping } = this.nodeConstructor.execute(
       workflow,
       dag,
       reachableBlocks
     )
 
-    this.edgeConstructor.execute(workflow, dag, blocksInParallels, blocksInLoops, reachableBlocks)
+    this.edgeConstructor.execute(
+      workflow,
+      dag,
+      blocksInParallels,
+      blocksInLoops,
+      reachableBlocks,
+      pauseTriggerMapping
+    )
+
+    if (savedIncomingEdges) {
+      logger.info('Restoring DAG incoming edges from snapshot', {
+        nodeCount: Object.keys(savedIncomingEdges).length,
+      })
+
+      for (const [nodeId, incomingEdgeArray] of Object.entries(savedIncomingEdges)) {
+        const node = dag.nodes.get(nodeId)
+
+        if (node) {
+          node.incomingEdges = new Set(incomingEdgeArray)
+        }
+      }
+    }
 
     logger.info('DAG built', {
       totalNodes: dag.nodes.size,
       loopCount: dag.loopConfigs.size,
       parallelCount: dag.parallelConfigs.size,
+      allNodeIds: Array.from(dag.nodes.keys()),
+      triggerNodes: Array.from(dag.nodes.values())
+        .filter((n) => n.metadata?.isResumeTrigger)
+        .map((n) => ({ id: n.id, originalBlockId: n.metadata?.originalBlockId })),
     })
 
     return dag

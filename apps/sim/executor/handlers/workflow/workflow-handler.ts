@@ -72,7 +72,6 @@ export class WorkflowBlockHandler implements BlockHandler {
         throw new Error(`Child workflow ${workflowId} not found`)
       }
 
-      // Get workflow metadata for logging
       const { workflows } = useWorkflowRegistry.getState()
       const workflowMetadata = workflows[workflowId]
       const childWorkflowName = workflowMetadata?.name || childWorkflow.name || 'Unknown Workflow'
@@ -204,8 +203,6 @@ export class WorkflowBlockHandler implements BlockHandler {
       logger.info(
         `Loaded ${Object.keys(workflowVariables).length} variables for child workflow: ${workflowId}`
       )
-    } else {
-      logger.debug(`No workflow variables found for child workflow: ${workflowId}`)
     }
 
     return {

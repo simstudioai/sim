@@ -1,14 +1,14 @@
 import { createLogger } from '@/lib/logs/console/logger'
 import { BlockType, REFERENCE } from '@/executor/consts'
+import type { ExecutionState, LoopScope } from '@/executor/execution/state'
 import type { ExecutionContext } from '@/executor/types'
+import { BlockResolver } from '@/executor/variables/resolvers/block'
+import { EnvResolver } from '@/executor/variables/resolvers/env'
+import { LoopResolver } from '@/executor/variables/resolvers/loop'
+import { ParallelResolver } from '@/executor/variables/resolvers/parallel'
+import type { ResolutionContext, Resolver } from '@/executor/variables/resolvers/reference'
+import { WorkflowResolver } from '@/executor/variables/resolvers/workflow'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
-import type { ExecutionState, LoopScope } from '../execution/state'
-import { BlockResolver } from './resolvers/block'
-import { EnvResolver } from './resolvers/env'
-import { LoopResolver } from './resolvers/loop'
-import { ParallelResolver } from './resolvers/parallel'
-import type { ResolutionContext, Resolver } from './resolvers/reference'
-import { WorkflowResolver } from './resolvers/workflow'
 
 const logger = createLogger('VariableResolver')
 
@@ -17,8 +17,8 @@ export class VariableResolver {
   private blockResolver: BlockResolver
 
   constructor(
-    private workflow: SerializedWorkflow,
-    private workflowVariables: Record<string, any>,
+    workflow: SerializedWorkflow,
+    workflowVariables: Record<string, any>,
     private state: ExecutionState
   ) {
     this.blockResolver = new BlockResolver(workflow)
@@ -93,6 +93,20 @@ export class VariableResolver {
     reference: string,
     loopScope?: LoopScope
   ): any {
+    if (typeof reference === 'string') {
+      const trimmed = reference.trim()
+      if (/^<[^<>]+>$/.test(trimmed)) {
+        const resolutionContext: ResolutionContext = {
+          executionContext: ctx,
+          executionState: this.state,
+          currentNodeId,
+          loopScope,
+        }
+
+        return this.resolveReference(trimmed, resolutionContext)
+      }
+    }
+
     return this.resolveValue(ctx, currentNodeId, reference, loopScope)
   }
 
@@ -182,10 +196,6 @@ export class VariableResolver {
     return result
   }
 
-  /**
-   * Resolves template string but without condition-specific formatting.
-   * Used when resolving condition values that are already parsed from JSON.
-   */
   private resolveTemplateWithoutConditionFormatting(
     ctx: ExecutionContext,
     currentNodeId: string,
@@ -215,17 +225,13 @@ export class VariableResolver {
           return match
         }
 
-        // Format value for JavaScript evaluation
-        // Strings need to be quoted, objects need JSON.stringify
         if (typeof resolved === 'string') {
-          // Escape backslashes first, then single quotes, then wrap in single quotes
           const escaped = resolved.replace(/\\/g, '\\\\').replace(/'/g, "\\'")
           return `'${escaped}'`
         }
         if (typeof resolved === 'object' && resolved !== null) {
           return JSON.stringify(resolved)
         }
-        // For numbers, booleans, null, undefined - use as-is
         return String(resolved)
       } catch (error) {
         replacementError = error instanceof Error ? error : new Error(String(error))
@@ -249,11 +255,6 @@ export class VariableResolver {
     for (const resolver of this.resolvers) {
       if (resolver.canResolve(reference)) {
         const result = resolver.resolve(reference, context)
-        logger.debug('Reference resolved', {
-          reference,
-          resolver: resolver.constructor.name,
-          result,
-        })
         return result
       }
     }

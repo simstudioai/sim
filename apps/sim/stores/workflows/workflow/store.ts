@@ -4,7 +4,6 @@ import { devtools } from 'zustand/middleware'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getBlockOutputs } from '@/lib/workflows/block-outputs'
 import { getBlock } from '@/blocks'
-import { resolveOutputType } from '@/blocks/utils'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import {
@@ -120,9 +119,7 @@ export const useWorkflowStore = create<WorkflowStore>()(
 
         // Get outputs based on trigger mode
         const triggerMode = blockProperties?.triggerMode ?? false
-        const outputs = triggerMode
-          ? getBlockOutputs(type, subBlocks, triggerMode)
-          : resolveOutputType(blockConfig.outputs)
+        const outputs = getBlockOutputs(type, subBlocks, triggerMode)
 
         const newState = {
           blocks: {

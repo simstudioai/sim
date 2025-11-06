@@ -1,17 +1,30 @@
 import { createLogger } from '@/lib/logs/console/logger'
-import { DEFAULTS, EDGE, isSentinelBlockType } from '@/executor/consts'
+import { getBaseUrl } from '@/lib/urls/utils'
+import {
+  BlockType,
+  buildResumeApiUrl,
+  buildResumeUiUrl,
+  DEFAULTS,
+  EDGE,
+  isSentinelBlockType,
+} from '@/executor/consts'
+import type { DAGNode } from '@/executor/dag/builder'
+import type { BlockStateWriter, ContextExtensions } from '@/executor/execution/types'
+import {
+  generatePauseContextId,
+  mapNodeMetadataToPauseScopes,
+} from '@/executor/pause-resume/utils.ts'
 import type {
   BlockHandler,
   BlockLog,
+  BlockState,
   ExecutionContext,
   NormalizedBlockOutput,
 } from '@/executor/types'
+import { buildBlockExecutionError, normalizeError } from '@/executor/utils/errors'
+import type { VariableResolver } from '@/executor/variables/resolver'
 import type { SerializedBlock } from '@/serializer/types'
 import type { SubflowType } from '@/stores/workflows/workflow/types'
-import type { DAGNode } from '../dag/builder'
-import type { VariableResolver } from '../variables/resolver'
-import type { ExecutionState } from './state'
-import type { ContextExtensions } from './types'
 
 const logger = createLogger('BlockExecutor')
 
@@ -20,7 +33,7 @@ export class BlockExecutor {
     private blockHandlers: BlockHandler[],
     private resolver: VariableResolver,
     private contextExtensions: ContextExtensions,
-    private state?: ExecutionState
+    private state: BlockStateWriter
   ) {}
 
   async execute(
@@ -30,7 +43,11 @@ export class BlockExecutor {
   ): Promise<NormalizedBlockOutput> {
     const handler = this.findHandler(block)
     if (!handler) {
-      throw new Error(`No handler found for block type: ${block.metadata?.id}`)
+      throw buildBlockExecutionError({
+        block,
+        context: ctx,
+        error: `No handler found for block type: ${block.metadata?.id ?? 'unknown'}`,
+      })
     }
 
     const isSentinel = isSentinelBlockType(block.metadata?.id ?? '')
@@ -45,9 +62,23 @@ export class BlockExecutor {
     const startTime = Date.now()
     let resolvedInputs: Record<string, any> = {}
 
+    const nodeMetadata = this.buildNodeMetadata(node)
+    let cleanupSelfReference: (() => void) | undefined
+
+    if (block.metadata?.id === BlockType.APPROVAL) {
+      cleanupSelfReference = this.preparePauseResumeSelfReference(ctx, node, block, nodeMetadata)
+    }
+
     try {
       resolvedInputs = this.resolver.resolveInputs(ctx, node.id, block.config.params, block)
-      const output = await handler.execute(ctx, block, resolvedInputs)
+    } finally {
+      cleanupSelfReference?.()
+    }
+
+    try {
+      const output = handler.executeWithNode
+        ? await handler.executeWithNode(ctx, block, resolvedInputs, nodeMetadata)
+        : await handler.execute(ctx, block, resolvedInputs)
 
       const isStreamingExecution =
         output && typeof output === 'object' && 'stream' in output && 'execution' in output
@@ -65,7 +96,7 @@ export class BlockExecutor {
         }
 
         normalizedOutput = this.normalizeOutput(
-          streamingExec.execution.output || streamingExec.execution
+          streamingExec.execution.output ?? streamingExec.execution
         )
       } else {
         normalizedOutput = this.normalizeOutput(output)
@@ -77,23 +108,20 @@ export class BlockExecutor {
         blockLog.endedAt = new Date().toISOString()
         blockLog.durationMs = duration
         blockLog.success = true
-        blockLog.output = normalizedOutput
+        blockLog.output = this.filterOutputForLog(block, normalizedOutput)
       }
 
-      ctx.blockStates.set(node.id, {
-        output: normalizedOutput,
-        executed: true,
-        executionTime: duration,
-      })
+      this.state.setBlockOutput(node.id, normalizedOutput, duration)
 
       if (!isSentinel) {
-        this.callOnBlockComplete(ctx, node, block, resolvedInputs, normalizedOutput, duration)
+        const filteredOutput = this.filterOutputForLog(block, normalizedOutput)
+        this.callOnBlockComplete(ctx, node, block, resolvedInputs, filteredOutput, duration)
       }
 
       return normalizedOutput
     } catch (error) {
       const duration = Date.now() - startTime
-      const errorMessage = error instanceof Error ? error.message : String(error)
+      const errorMessage = normalizeError(error)
 
       if (blockLog) {
         blockLog.endedAt = new Date().toISOString()
@@ -106,11 +134,7 @@ export class BlockExecutor {
         error: errorMessage,
       }
 
-      ctx.blockStates.set(node.id, {
-        output: errorOutput,
-        executed: true,
-        executionTime: duration,
-      })
+      this.state.setBlockOutput(node.id, errorOutput, duration)
 
       logger.error('Block execution failed', {
         blockId: node.id,
@@ -132,7 +156,39 @@ export class BlockExecutor {
         return errorOutput
       }
 
-      throw error
+      let errorToThrow: Error | string
+      if (error instanceof Error) {
+        errorToThrow = error
+      } else {
+        errorToThrow = errorMessage
+      }
+
+      throw buildBlockExecutionError({
+        block,
+        error: errorToThrow,
+        context: ctx,
+        additionalInfo: {
+          nodeId: node.id,
+          executionTime: duration,
+        },
+      })
+    }
+  }
+
+  private buildNodeMetadata(node: DAGNode): {
+    nodeId: string
+    loopId?: string
+    parallelId?: string
+    branchIndex?: number
+    branchTotal?: number
+  } {
+    const metadata = node?.metadata ?? {}
+    return {
+      nodeId: node.id,
+      loopId: metadata.loopId,
+      parallelId: metadata.parallelId,
+      branchIndex: metadata.branchIndex,
+      branchTotal: metadata.branchTotal,
     }
   }
 
@@ -155,7 +211,7 @@ export class BlockExecutor {
     block: SerializedBlock,
     node: DAGNode
   ): BlockLog {
-    let blockName = block.metadata?.name || blockId
+    let blockName = block.metadata?.name ?? blockId
     let loopId: string | undefined
     let parallelId: string | undefined
     let iterationIndex: number | undefined
@@ -165,24 +221,12 @@ export class BlockExecutor {
         blockName = `${blockName} (iteration ${node.metadata.branchIndex})`
         iterationIndex = node.metadata.branchIndex
         parallelId = node.metadata.parallelId
-        logger.debug('Added parallel iteration suffix', {
-          blockId,
-          parallelId,
-          branchIndex: node.metadata.branchIndex,
-          blockName,
-        })
-      } else if (node.metadata.isLoopNode && node.metadata.loopId && this.state) {
+      } else if (node.metadata.isLoopNode && node.metadata.loopId) {
         loopId = node.metadata.loopId
-        const loopScope = this.state.getLoopScope(loopId)
+        const loopScope = ctx.loopExecutions?.get(loopId)
         if (loopScope && loopScope.iteration !== undefined) {
           blockName = `${blockName} (iteration ${loopScope.iteration})`
           iterationIndex = loopScope.iteration
-          logger.debug('Added loop iteration suffix', {
-            blockId,
-            loopId,
-            iteration: loopScope.iteration,
-            blockName,
-          })
         } else {
           logger.warn('Loop scope not found for block', { blockId, loopId })
         }
@@ -192,7 +236,7 @@ export class BlockExecutor {
     return {
       blockId,
       blockName,
-      blockType: block.metadata?.id || DEFAULTS.BLOCK_TYPE,
+      blockType: block.metadata?.id ?? DEFAULTS.BLOCK_TYPE,
       startedAt: new Date().toISOString(),
       endedAt: '',
       durationMs: 0,
@@ -215,12 +259,28 @@ export class BlockExecutor {
     return { result: output }
   }
 
+  private filterOutputForLog(
+    block: SerializedBlock,
+    output: NormalizedBlockOutput
+  ): NormalizedBlockOutput {
+    if (block.metadata?.id === BlockType.APPROVAL) {
+      const filtered: NormalizedBlockOutput = {}
+      for (const [key, value] of Object.entries(output)) {
+        if (key.startsWith('_')) continue
+        if (key === 'response') continue
+        filtered[key] = value
+      }
+      return filtered
+    }
+    return output
+  }
+
   private callOnBlockStart(ctx: ExecutionContext, node: DAGNode, block: SerializedBlock): void {
     const blockId = node.id
-    const blockName = block.metadata?.name || blockId
-    const blockType = block.metadata?.id || DEFAULTS.BLOCK_TYPE
+    const blockName = block.metadata?.name ?? blockId
+    const blockType = block.metadata?.id ?? DEFAULTS.BLOCK_TYPE
 
-    const iterationContext = this.getIterationContext(node)
+    const iterationContext = this.getIterationContext(ctx, node)
 
     if (this.contextExtensions.onBlockStart) {
       this.contextExtensions.onBlockStart(blockId, blockName, blockType, iterationContext)
@@ -236,10 +296,10 @@ export class BlockExecutor {
     duration: number
   ): void {
     const blockId = node.id
-    const blockName = block.metadata?.name || blockId
-    const blockType = block.metadata?.id || DEFAULTS.BLOCK_TYPE
+    const blockName = block.metadata?.name ?? blockId
+    const blockType = block.metadata?.id ?? DEFAULTS.BLOCK_TYPE
 
-    const iterationContext = this.getIterationContext(node)
+    const iterationContext = this.getIterationContext(ctx, node)
 
     if (this.contextExtensions.onBlockComplete) {
       this.contextExtensions.onBlockComplete(
@@ -257,6 +317,7 @@ export class BlockExecutor {
   }
 
   private getIterationContext(
+    ctx: ExecutionContext,
     node: DAGNode
   ): { iterationCurrent: number; iterationTotal: number; iterationType: SubflowType } | undefined {
     if (!node?.metadata) return undefined
@@ -269,8 +330,8 @@ export class BlockExecutor {
       }
     }
 
-    if (node.metadata.isLoopNode && node.metadata.loopId && this.state) {
-      const loopScope = this.state.getLoopScope(node.metadata.loopId)
+    if (node.metadata.isLoopNode && node.metadata.loopId) {
+      const loopScope = ctx.loopExecutions?.get(node.metadata.loopId)
       if (loopScope && loopScope.iteration !== undefined && loopScope.maxIterations) {
         return {
           iterationCurrent: loopScope.iteration,
@@ -281,5 +342,75 @@ export class BlockExecutor {
     }
 
     return undefined
+  }
+
+  private preparePauseResumeSelfReference(
+    ctx: ExecutionContext,
+    node: DAGNode,
+    block: SerializedBlock,
+    nodeMetadata: {
+      nodeId: string
+      loopId?: string
+      parallelId?: string
+      branchIndex?: number
+      branchTotal?: number
+    }
+  ): (() => void) | undefined {
+    const blockId = node.id
+
+    const existingState = ctx.blockStates.get(blockId)
+    if (existingState?.executed) {
+      return undefined
+    }
+
+    const executionId = ctx.executionId ?? ctx.metadata?.executionId
+    const workflowId = ctx.workflowId
+
+    if (!executionId || !workflowId) {
+      return undefined
+    }
+
+    const { loopScope } = mapNodeMetadataToPauseScopes(ctx, nodeMetadata)
+    const contextId = generatePauseContextId(block.id, nodeMetadata, loopScope)
+
+    let resumeLinks: { apiUrl: string; uiUrl: string }
+
+    try {
+      const baseUrl = getBaseUrl()
+      resumeLinks = {
+        apiUrl: buildResumeApiUrl(baseUrl, workflowId, executionId, contextId),
+        uiUrl: buildResumeUiUrl(baseUrl, workflowId, executionId),
+      }
+    } catch {
+      resumeLinks = {
+        apiUrl: buildResumeApiUrl(undefined, workflowId, executionId, contextId),
+        uiUrl: buildResumeUiUrl(undefined, workflowId, executionId),
+      }
+    }
+
+    let previousState: BlockState | undefined
+    if (existingState) {
+      previousState = { ...existingState }
+    }
+    const hadPrevious = existingState !== undefined
+
+    const placeholderState: BlockState = {
+      output: {
+        uiUrl: resumeLinks.uiUrl,
+        apiUrl: resumeLinks.apiUrl,
+      },
+      executed: false,
+      executionTime: existingState?.executionTime ?? 0,
+    }
+
+    this.state.setBlockState(blockId, placeholderState)
+
+    return () => {
+      if (hadPrevious && previousState) {
+        this.state.setBlockState(blockId, previousState)
+      } else {
+        this.state.deleteBlockState(blockId)
+      }
+    }
   }
 }

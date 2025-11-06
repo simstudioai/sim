@@ -9,11 +9,6 @@ const logger = createLogger('VariablesBlockHandler')
 export class VariablesBlockHandler implements BlockHandler {
   canHandle(block: SerializedBlock): boolean {
     const canHandle = block.metadata?.id === BlockType.VARIABLES
-    logger.info(`VariablesBlockHandler.canHandle: ${canHandle}`, {
-      blockId: block.id,
-      metadataId: block.metadata?.id,
-      expectedType: BlockType.VARIABLES,
-    })
     return canHandle
   }
 
@@ -22,12 +17,6 @@ export class VariablesBlockHandler implements BlockHandler {
     block: SerializedBlock,
     inputs: Record<string, any>
   ): Promise<BlockOutput> {
-    logger.info(`Executing variables block: ${block.id}`, {
-      blockName: block.metadata?.name,
-      inputsKeys: Object.keys(inputs),
-      variablesInput: inputs.variables,
-    })
-
     try {
       if (!ctx.workflowVariables) {
         ctx.workflowVariables = {}
@@ -52,16 +41,6 @@ export class VariablesBlockHandler implements BlockHandler {
           logger.warn(`Variable "${assignment.variableName}" not found in workflow variables`)
         }
       }
-
-      logger.info('Variables updated', {
-        updatedVariables: assignments.map((a) => a.variableName),
-        allVariables: Object.values(ctx.workflowVariables).map((v: any) => v.name),
-        updatedValues: Object.entries(ctx.workflowVariables).map(([id, v]: [string, any]) => ({
-          id,
-          name: v.name,
-          value: v.value,
-        })),
-      })
 
       const output: Record<string, any> = {}
       for (const assignment of assignments) {

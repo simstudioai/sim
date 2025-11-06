@@ -3,4 +3,4 @@
  * Exports the DAG executor as the default executor
  */
 
-export { DAGExecutor as Executor } from './execution/executor'
+export { DAGExecutor as Executor } from '@/executor/execution/executor'

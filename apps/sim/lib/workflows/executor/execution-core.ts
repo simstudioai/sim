@@ -31,6 +31,7 @@ export interface ExecuteWorkflowCoreOptions {
   snapshot: ExecutionSnapshot
   callbacks: ExecutionCallbacks
   loggingSession: LoggingSession
+  skipLogCreation?: boolean // For resume executions - reuse existing log entry
 }
 
 function parseVariableValueByType(value: any, type: string): any {
@@ -97,7 +98,7 @@ function parseVariableValueByType(value: any, type: string): any {
 export async function executeWorkflowCore(
   options: ExecuteWorkflowCoreOptions
 ): Promise<ExecutionResult> {
-  const { snapshot, callbacks, loggingSession } = options
+  const { snapshot, callbacks, loggingSession, skipLogCreation } = options
   const { metadata, workflow, input, environmentVariables, workflowVariables, selectedOutputs } =
     snapshot
   const { requestId, workflowId, userId, triggerType, executionId, triggerBlockId, useDraftState } =
@@ -153,6 +154,7 @@ export async function executeWorkflowCore(
       userId,
       workspaceId: providedWorkspaceId,
       variables,
+      skipLogCreation, // Skip if resuming an existing execution
     })
 
     // Process block states with env var substitution
@@ -225,8 +227,19 @@ export async function executeWorkflowCore(
 
     const filteredEdges = filterEdgesFromTriggerBlocks(mergedStates, edges)
 
+    // Check if this is a resume execution before trigger resolution
+    const resumeFromSnapshot = (metadata as any).resumeFromSnapshot === true
+    const resumePendingQueue = snapshot.state?.pendingQueue
+
     let resolvedTriggerBlockId = triggerBlockId
-    if (!triggerBlockId) {
+
+    // For resume executions, skip trigger resolution since we have a pending queue
+    if (resumeFromSnapshot && resumePendingQueue?.length) {
+      resolvedTriggerBlockId = undefined
+      logger.info(`[${requestId}] Skipping trigger resolution for resume execution`, {
+        pendingQueueLength: resumePendingQueue.length,
+      })
+    } else if (!triggerBlockId) {
       const executionKind =
         triggerType === 'api' || triggerType === 'chat' ? (triggerType as 'api' | 'chat') : 'manual'
 
@@ -263,6 +276,18 @@ export async function executeWorkflowCore(
     processedInput = input || {}
 
     // Create and execute workflow with callbacks
+    if (resumeFromSnapshot) {
+      logger.info(`[${requestId}] Resume execution detected`, {
+        resumePendingQueue,
+        hasState: !!snapshot.state,
+        stateBlockStatesCount: snapshot.state
+          ? Object.keys(snapshot.state.blockStates || {}).length
+          : 0,
+        executedBlocksCount: snapshot.state?.executedBlocks?.length ?? 0,
+        useDraftState,
+      })
+    }
+
     const contextExtensions: any = {
       stream: !!onStream,
       selectedOutputs,
@@ -273,6 +298,11 @@ export async function executeWorkflowCore(
       onBlockStart,
       onBlockComplete,
       onStream,
+      resumeFromSnapshot,
+      resumePendingQueue,
+      remainingEdges: snapshot.state?.remainingEdges,
+      dagIncomingEdges: snapshot.state?.dagIncomingEdges,
+      snapshotState: snapshot.state,
     }
 
     const executorInstance = new Executor({
@@ -305,11 +335,11 @@ export async function executeWorkflowCore(
       resolvedTriggerBlockId
     )) as ExecutionResult
 
-    // Build trace spans for logging
+    // Build trace spans for logging from the full execution result
     const { traceSpans, totalDuration } = buildTraceSpans(result)
 
     // Update workflow run counts
-    if (result.success) {
+    if (result.success && result.status !== 'paused') {
       await updateWorkflowRunCounts(workflowId)
     }
 

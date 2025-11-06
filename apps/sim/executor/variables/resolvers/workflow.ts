@@ -1,6 +1,7 @@
 import { createLogger } from '@/lib/logs/console/logger'
+import { VariableManager } from '@/lib/variables/variable-manager'
 import { isReference, parseReferencePath, REFERENCE } from '@/executor/consts'
-import type { ResolutionContext, Resolver } from './reference'
+import type { ResolutionContext, Resolver } from '@/executor/variables/resolvers/reference'
 
 const logger = createLogger('WorkflowResolver')
 
@@ -28,22 +29,24 @@ export class WorkflowResolver implements Resolver {
 
     const [_, variableName] = parts
 
-    if (context.executionContext.workflowVariables) {
-      for (const varObj of Object.values(context.executionContext.workflowVariables)) {
-        const v = varObj as any
-        if (v.name === variableName || v.id === variableName) {
+    const workflowVars = context.executionContext.workflowVariables || this.workflowVariables
+
+    for (const varObj of Object.values(workflowVars)) {
+      const v = varObj as any
+      if (v && (v.name === variableName || v.id === variableName)) {
+        const normalizedType = (v.type === 'string' ? 'plain' : v.type) || 'plain'
+        try {
+          return VariableManager.resolveForExecution(v.value, normalizedType)
+        } catch (error) {
+          logger.warn('Failed to resolve workflow variable, returning raw value', {
+            variableName,
+            error: (error as Error).message,
+          })
           return v.value
         }
       }
     }
 
-    for (const varObj of Object.values(this.workflowVariables)) {
-      const v = varObj as any
-      if (v.name === variableName || v.id === variableName) {
-        return v.value
-      }
-    }
-    logger.debug('Workflow variable not found', { variableName })
     return undefined
   }
 }

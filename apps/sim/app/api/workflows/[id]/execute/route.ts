@@ -12,6 +12,7 @@ import {
 } from '@/lib/workflows/db-helpers'
 import { executeWorkflowCore } from '@/lib/workflows/executor/execution-core'
 import { type ExecutionEvent, encodeSSEEvent } from '@/lib/workflows/executor/execution-events'
+import { PauseResumeManager } from '@/lib/workflows/executor/pause-resume-manager'
 import { validateWorkflowAccess } from '@/app/api/workflows/middleware'
 import { type ExecutionMetadata, ExecutionSnapshot } from '@/executor/execution/snapshot'
 import type { StreamingExecution } from '@/executor/types'
@@ -134,6 +135,24 @@ export async function executeWorkflow(
       },
       loggingSession,
     })
+
+    if (result.status === 'paused') {
+      if (!result.snapshotSeed) {
+        logger.error(`[${requestId}] Missing snapshot seed for paused execution`, {
+          executionId,
+        })
+      } else {
+        await PauseResumeManager.persistPauseResult({
+          workflowId,
+          executionId,
+          pausePoints: result.pausePoints || [],
+          snapshotSeed: result.snapshotSeed,
+          executorUserId: result.metadata?.userId,
+        })
+      }
+    } else {
+      await PauseResumeManager.processQueuedResumes(executionId)
+    }
 
     if (streamConfig?.skipLoggingComplete) {
       return {
@@ -604,6 +623,24 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
             },
             loggingSession,
           })
+
+          if (result.status === 'paused') {
+            if (!result.snapshotSeed) {
+              logger.error(`[${requestId}] Missing snapshot seed for paused execution`, {
+                executionId,
+              })
+            } else {
+              await PauseResumeManager.persistPauseResult({
+                workflowId,
+                executionId,
+                pausePoints: result.pausePoints || [],
+                snapshotSeed: result.snapshotSeed,
+                executorUserId: result.metadata?.userId,
+              })
+            }
+          } else {
+            await PauseResumeManager.processQueuedResumes(executionId)
+          }
 
           if (result.error === 'Workflow execution was cancelled') {
             logger.info(`[${requestId}] Workflow execution was cancelled`)
