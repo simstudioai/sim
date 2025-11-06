@@ -20,7 +20,6 @@ export const RedditBlock: BlockConfig<RedditResponse> = {
       id: 'operation',
       title: 'Operation',
       type: 'dropdown',
-      layout: 'full',
       options: [
         { label: 'Get Posts', id: 'get_posts' },
         { label: 'Get Comments', id: 'get_comments' },
@@ -44,7 +43,6 @@ export const RedditBlock: BlockConfig<RedditResponse> = {
       id: 'credential',
       title: 'Reddit Account',
       type: 'oauth-input',
-      layout: 'full',
       provider: 'reddit',
       serviceId: 'reddit',
       requiredScopes: [
@@ -74,7 +72,6 @@ export const RedditBlock: BlockConfig<RedditResponse> = {
       id: 'subreddit',
       title: 'Subreddit',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter subreddit name (without r/)',
       condition: {
         field: 'operation',
@@ -88,7 +85,6 @@ export const RedditBlock: BlockConfig<RedditResponse> = {
       id: 'sort',
       title: 'Sort By',
       type: 'dropdown',
-      layout: 'full',
       options: [
         { label: 'Hot', id: 'hot' },
         { label: 'New', id: 'new' },
@@ -105,7 +101,6 @@ export const RedditBlock: BlockConfig<RedditResponse> = {
       id: 'time',
       title: 'Time Filter (for Top sort)',
       type: 'dropdown',
-      layout: 'full',
       options: [
         { label: 'Day', id: 'day' },
         { label: 'Week', id: 'week' },
@@ -126,7 +121,6 @@ export const RedditBlock: BlockConfig<RedditResponse> = {
       id: 'limit',
       title: 'Max Posts',
       type: 'short-input',
-      layout: 'full',
       placeholder: '10',
       condition: {
         field: 'operation',
@@ -139,7 +133,6 @@ export const RedditBlock: BlockConfig<RedditResponse> = {
       id: 'postId',
       title: 'Post ID',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter post ID',
       condition: {
         field: 'operation',
@@ -151,7 +144,6 @@ export const RedditBlock: BlockConfig<RedditResponse> = {
       id: 'commentSort',
       title: 'Sort Comments By',
       type: 'dropdown',
-      layout: 'full',
       options: [
         { label: 'Confidence', id: 'confidence' },
         { label: 'Top', id: 'top' },
@@ -170,7 +162,6 @@ export const RedditBlock: BlockConfig<RedditResponse> = {
       id: 'commentLimit',
       title: 'Number of Comments',
       type: 'short-input',
-      layout: 'full',
       placeholder: '50',
       condition: {
         field: 'operation',
@@ -183,7 +174,6 @@ export const RedditBlock: BlockConfig<RedditResponse> = {
       id: 'controversialTime',
       title: 'Time Filter',
       type: 'dropdown',
-      layout: 'full',
       options: [
         { label: 'Hour', id: 'hour' },
         { label: 'Day', id: 'day' },
@@ -201,7 +191,6 @@ export const RedditBlock: BlockConfig<RedditResponse> = {
       id: 'controversialLimit',
       title: 'Max Posts',
       type: 'short-input',
-      layout: 'full',
       placeholder: '10',
       condition: {
         field: 'operation',
@@ -214,7 +203,6 @@ export const RedditBlock: BlockConfig<RedditResponse> = {
       id: 'gildedLimit',
       title: 'Max Posts',
       type: 'short-input',
-      layout: 'full',
       placeholder: '10',
       condition: {
         field: 'operation',
@@ -227,7 +215,6 @@ export const RedditBlock: BlockConfig<RedditResponse> = {
       id: 'searchQuery',
       title: 'Search Query',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter search query',
       condition: {
         field: 'operation',
@@ -239,7 +226,6 @@ export const RedditBlock: BlockConfig<RedditResponse> = {
       id: 'searchSort',
       title: 'Sort By',
       type: 'dropdown',
-      layout: 'full',
       options: [
         { label: 'Relevance', id: 'relevance' },
         { label: 'Hot', id: 'hot' },
@@ -256,7 +242,6 @@ export const RedditBlock: BlockConfig<RedditResponse> = {
       id: 'searchTime',
       title: 'Time Filter',
       type: 'dropdown',
-      layout: 'full',
       options: [
         { label: 'Hour', id: 'hour' },
         { label: 'Day', id: 'day' },
@@ -274,7 +259,6 @@ export const RedditBlock: BlockConfig<RedditResponse> = {
       id: 'searchLimit',
       title: 'Max Results',
       type: 'short-input',
-      layout: 'full',
       placeholder: '10',
       condition: {
         field: 'operation',
@@ -287,7 +271,6 @@ export const RedditBlock: BlockConfig<RedditResponse> = {
       id: 'submitSubreddit',
       title: 'Subreddit',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter subreddit name (without r/)',
       condition: {
         field: 'operation',
@@ -299,7 +282,6 @@ export const RedditBlock: BlockConfig<RedditResponse> = {
       id: 'title',
       title: 'Post Title',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter post title',
       condition: {
         field: 'operation',
@@ -311,7 +293,6 @@ export const RedditBlock: BlockConfig<RedditResponse> = {
       id: 'postType',
       title: 'Post Type',
       type: 'dropdown',
-      layout: 'full',
       options: [
         { label: 'Text Post', id: 'text' },
         { label: 'Link Post', id: 'link' },
@@ -327,7 +308,6 @@ export const RedditBlock: BlockConfig<RedditResponse> = {
       id: 'text',
       title: 'Post Text (Markdown)',
       type: 'long-input',
-      layout: 'full',
       placeholder: 'Enter post text in markdown format',
       condition: {
         field: 'operation',
@@ -342,7 +322,6 @@ export const RedditBlock: BlockConfig<RedditResponse> = {
       id: 'url',
       title: 'URL',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter URL to share',
       condition: {
         field: 'operation',
@@ -357,7 +336,6 @@ export const RedditBlock: BlockConfig<RedditResponse> = {
       id: 'nsfw',
       title: 'Mark as NSFW',
       type: 'dropdown',
-      layout: 'full',
       options: [
         { label: 'No', id: 'false' },
         { label: 'Yes', id: 'true' },
@@ -372,7 +350,6 @@ export const RedditBlock: BlockConfig<RedditResponse> = {
       id: 'spoiler',
       title: 'Mark as Spoiler',
       type: 'dropdown',
-      layout: 'full',
       options: [
         { label: 'No', id: 'false' },
         { label: 'Yes', id: 'true' },
@@ -389,7 +366,6 @@ export const RedditBlock: BlockConfig<RedditResponse> = {
       id: 'voteId',
       title: 'Post/Comment ID',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter thing ID (e.g., t3_xxxxx for post, t1_xxxxx for comment)',
       condition: {
         field: 'operation',
@@ -401,7 +377,6 @@ export const RedditBlock: BlockConfig<RedditResponse> = {
       id: 'voteDirection',
       title: 'Vote Direction',
       type: 'dropdown',
-      layout: 'full',
       options: [
         { label: 'Upvote', id: '1' },
         { label: 'Unvote', id: '0' },
@@ -420,7 +395,6 @@ export const RedditBlock: BlockConfig<RedditResponse> = {
       id: 'saveId',
       title: 'Post/Comment ID',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter thing ID (e.g., t3_xxxxx for post, t1_xxxxx for comment)',
       condition: {
         field: 'operation',
@@ -432,7 +406,6 @@ export const RedditBlock: BlockConfig<RedditResponse> = {
       id: 'saveCategory',
       title: 'Category (optional)',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter category name',
       condition: {
         field: 'operation',
@@ -445,7 +418,6 @@ export const RedditBlock: BlockConfig<RedditResponse> = {
       id: 'replyParentId',
       title: 'Parent Post/Comment ID',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter thing ID to reply to (e.g., t3_xxxxx for post, t1_xxxxx for comment)',
       condition: {
         field: 'operation',
@@ -457,7 +429,6 @@ export const RedditBlock: BlockConfig<RedditResponse> = {
       id: 'replyText',
       title: 'Reply Text (Markdown)',
       type: 'long-input',
-      layout: 'full',
       placeholder: 'Enter reply text in markdown format',
       condition: {
         field: 'operation',
@@ -471,7 +442,6 @@ export const RedditBlock: BlockConfig<RedditResponse> = {
       id: 'editThingId',
       title: 'Post/Comment ID',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter thing ID to edit (e.g., t3_xxxxx for post, t1_xxxxx for comment)',
       condition: {
         field: 'operation',
@@ -483,7 +453,6 @@ export const RedditBlock: BlockConfig<RedditResponse> = {
       id: 'editText',
       title: 'New Text (Markdown)',
       type: 'long-input',
-      layout: 'full',
       placeholder: 'Enter new text in markdown format',
       condition: {
         field: 'operation',
@@ -497,7 +466,6 @@ export const RedditBlock: BlockConfig<RedditResponse> = {
       id: 'deleteId',
       title: 'Post/Comment ID',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter thing ID to delete (e.g., t3_xxxxx for post, t1_xxxxx for comment)',
       condition: {
         field: 'operation',
@@ -511,7 +479,6 @@ export const RedditBlock: BlockConfig<RedditResponse> = {
       id: 'subscribeSubreddit',
       title: 'Subreddit',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter subreddit name (without r/)',
       condition: {
         field: 'operation',
@@ -523,7 +490,6 @@ export const RedditBlock: BlockConfig<RedditResponse> = {
       id: 'subscribeAction',
       title: 'Action',
       type: 'dropdown',
-      layout: 'full',
       options: [
         { label: 'Subscribe', id: 'sub' },
         { label: 'Unsubscribe', id: 'unsub' },

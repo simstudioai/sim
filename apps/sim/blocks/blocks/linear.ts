@@ -19,7 +19,6 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
       id: 'operation',
       title: 'Operation',
       type: 'dropdown',
-      layout: 'full',
       options: [
         // Issue Operations
         { label: 'Read Issues', id: 'linear_read_issues' },
@@ -87,7 +86,6 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
       id: 'credential',
       title: 'Linear Account',
       type: 'oauth-input',
-      layout: 'full',
       provider: 'linear',
       serviceId: 'linear',
       requiredScopes: ['read', 'write'],
@@ -99,7 +97,6 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
       id: 'teamId',
       title: 'Team',
       type: 'project-selector',
-      layout: 'full',
       canonicalParamId: 'teamId',
       provider: 'linear',
       serviceId: 'linear',
@@ -128,7 +125,6 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
       id: 'manualTeamId',
       title: 'Team ID',
       type: 'short-input',
-      layout: 'full',
       canonicalParamId: 'teamId',
       placeholder: 'Enter Linear team ID',
       mode: 'advanced',
@@ -154,7 +150,6 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
       id: 'projectId',
       title: 'Project',
       type: 'project-selector',
-      layout: 'full',
       canonicalParamId: 'projectId',
       provider: 'linear',
       serviceId: 'linear',
@@ -171,7 +166,6 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
       id: 'manualProjectId',
       title: 'Project ID',
       type: 'short-input',
-      layout: 'full',
       canonicalParamId: 'projectId',
       placeholder: 'Enter Linear project ID',
       mode: 'advanced',
@@ -194,7 +188,6 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
       id: 'issueId',
       title: 'Issue ID',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter Linear issue ID',
       required: true,
       condition: {
@@ -221,7 +214,6 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
       id: 'title',
       title: 'Title',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter issue title',
       required: true,
       condition: {
@@ -234,7 +226,6 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
       id: 'description',
       title: 'Description',
       type: 'long-input',
-      layout: 'full',
       placeholder: 'Enter description',
       condition: {
         field: 'operation',
@@ -251,7 +242,6 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
       id: 'body',
       title: 'Comment',
       type: 'long-input',
-      layout: 'full',
       placeholder: 'Enter comment text',
       required: true,
       condition: {
@@ -264,7 +254,6 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
       id: 'commentId',
       title: 'Comment ID',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter comment ID',
       required: true,
       condition: {
@@ -277,7 +266,6 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
       id: 'labelId',
       title: 'Label ID',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter label ID',
       required: true,
       condition: {
@@ -295,7 +283,6 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
       id: 'name',
       title: 'Name',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter name',
       required: true,
       condition: {
@@ -316,7 +303,6 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
       id: 'color',
       title: 'Color (hex)',
       type: 'short-input',
-      layout: 'full',
       placeholder: '#5E6AD2',
       condition: {
         field: 'operation',
@@ -333,7 +319,6 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
       id: 'stateId',
       title: 'State ID',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter workflow state ID',
       condition: {
         field: 'operation',
@@ -345,7 +330,6 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
       id: 'assigneeId',
       title: 'Assignee ID',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter user ID to assign',
       condition: {
         field: 'operation',
@@ -357,7 +341,6 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
       id: 'priority',
       title: 'Priority',
       type: 'dropdown',
-      layout: 'full',
       options: [
         { label: 'No Priority', id: '0' },
         { label: 'Urgent', id: '1' },
@@ -376,7 +359,6 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
       id: 'estimate',
       title: 'Estimate',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter estimate points',
       condition: {
         field: 'operation',
@@ -388,7 +370,6 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
       id: 'query',
       title: 'Search Query',
       type: 'long-input',
-      layout: 'full',
       placeholder: 'Enter search query',
       required: true,
       condition: {
@@ -401,7 +382,6 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
       id: 'includeArchived',
       title: 'Include Archived',
       type: 'switch',
-      layout: 'full',
       condition: {
         field: 'operation',
         value: ['linear_read_issues', 'linear_search_issues', 'linear_list_projects'],
@@ -412,7 +392,6 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
       id: 'cycleId',
       title: 'Cycle ID',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter cycle ID',
       required: true,
       condition: {
@@ -425,7 +404,6 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
       id: 'startDate',
       title: 'Start Date',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'YYYY-MM-DD',
       condition: {
         field: 'operation',
@@ -436,7 +414,6 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
       id: 'endDate',
       title: 'End Date',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'YYYY-MM-DD',
       condition: {
         field: 'operation',
@@ -448,7 +425,6 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
       id: 'targetDate',
       title: 'Target Date',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'YYYY-MM-DD',
       condition: {
         field: 'operation',
@@ -460,7 +436,6 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
       id: 'url',
       title: 'URL',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter URL',
       required: true,
       condition: {
@@ -473,7 +448,6 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
       id: 'attachmentTitle',
       title: 'Title',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter attachment title',
       condition: {
         field: 'operation',
@@ -485,7 +459,6 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
       id: 'attachmentId',
       title: 'Attachment ID',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter attachment ID',
       required: true,
       condition: {
@@ -498,7 +471,6 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
       id: 'relationType',
       title: 'Relation Type',
       type: 'dropdown',
-      layout: 'full',
       options: [
         { label: 'Blocks', id: 'blocks' },
         { label: 'Blocked by', id: 'blocked' },
@@ -516,7 +488,6 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
       id: 'relatedIssueId',
       title: 'Related Issue ID',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter related issue ID',
       required: true,
       condition: {
@@ -529,7 +500,6 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
       id: 'relationId',
       title: 'Relation ID',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter relation ID',
       required: true,
       condition: {
@@ -542,7 +512,6 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
       id: 'favoriteType',
       title: 'Favorite Type',
       type: 'dropdown',
-      layout: 'full',
       options: [
         { label: 'Issue', id: 'issue' },
         { label: 'Project', id: 'project' },
@@ -560,7 +529,6 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
       id: 'favoriteTargetId',
       title: 'Target ID',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter ID to favorite',
       required: true,
       condition: {
@@ -573,7 +541,6 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
       id: 'health',
       title: 'Project Health',
       type: 'dropdown',
-      layout: 'full',
       options: [
         { label: 'On Track', id: 'onTrack' },
         { label: 'At Risk', id: 'atRisk' },
@@ -590,7 +557,6 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
       id: 'notificationId',
       title: 'Notification ID',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter notification ID',
       required: true,
       condition: {
@@ -603,7 +569,6 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
       id: 'markAsRead',
       title: 'Mark as Read',
       type: 'switch',
-      layout: 'full',
       condition: {
         field: 'operation',
         value: ['linear_update_notification'],
@@ -614,7 +579,6 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
       id: 'workflowType',
       title: 'Workflow Type',
       type: 'dropdown',
-      layout: 'full',
       options: [
         { label: 'Backlog', id: 'backlog' },
         { label: 'Unstarted', id: 'unstarted' },
@@ -633,7 +597,6 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
       id: 'leadId',
       title: 'Lead ID',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter user ID for project lead',
       condition: {
         field: 'operation',
@@ -645,7 +608,6 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
       id: 'projectState',
       title: 'Project State',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter project state',
       condition: {
         field: 'operation',

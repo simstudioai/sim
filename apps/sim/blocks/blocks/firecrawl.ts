@@ -19,7 +19,6 @@ export const FirecrawlBlock: BlockConfig<FirecrawlResponse> = {
       id: 'operation',
       title: 'Operation',
       type: 'dropdown',
-      layout: 'full',
       options: [
         { label: 'Scrape', id: 'scrape' },
         { label: 'Search', id: 'search' },
@@ -33,7 +32,6 @@ export const FirecrawlBlock: BlockConfig<FirecrawlResponse> = {
       id: 'url',
       title: 'Website URL',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter the website URL',
       condition: {
         field: 'operation',
@@ -45,7 +43,6 @@ export const FirecrawlBlock: BlockConfig<FirecrawlResponse> = {
       id: 'urls',
       title: 'URLs',
       type: 'long-input',
-      layout: 'full',
       placeholder:
         'Enter URLs as JSON array (e.g., ["https://example.com", "https://example.com/about"])',
       condition: {
@@ -58,7 +55,6 @@ export const FirecrawlBlock: BlockConfig<FirecrawlResponse> = {
       id: 'query',
       title: 'Search Query',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter the search query',
       condition: {
         field: 'operation',
@@ -70,7 +66,6 @@ export const FirecrawlBlock: BlockConfig<FirecrawlResponse> = {
       id: 'prompt',
       title: 'Prompt',
       type: 'long-input',
-      layout: 'full',
       placeholder: 'Natural language instruction for extraction or crawling',
       condition: {
         field: 'operation',
@@ -81,7 +76,6 @@ export const FirecrawlBlock: BlockConfig<FirecrawlResponse> = {
       id: 'schema',
       title: 'Schema',
       type: 'long-input',
-      layout: 'full',
       placeholder: 'JSON Schema for data extraction',
       condition: {
         field: 'operation',
@@ -92,7 +86,6 @@ export const FirecrawlBlock: BlockConfig<FirecrawlResponse> = {
       id: 'onlyMainContent',
       title: 'Only Main Content',
       type: 'switch',
-      layout: 'half',
       condition: {
         field: 'operation',
         value: 'scrape',
@@ -102,7 +95,6 @@ export const FirecrawlBlock: BlockConfig<FirecrawlResponse> = {
       id: 'formats',
       title: 'Output Formats',
       type: 'long-input',
-      layout: 'half',
       placeholder: '["markdown", "html"]',
       condition: {
         field: 'operation',
@@ -113,7 +105,6 @@ export const FirecrawlBlock: BlockConfig<FirecrawlResponse> = {
       id: 'limit',
       title: 'Limit',
       type: 'short-input',
-      layout: 'half',
       placeholder: '100',
       condition: {
         field: 'operation',
@@ -124,7 +115,6 @@ export const FirecrawlBlock: BlockConfig<FirecrawlResponse> = {
       id: 'timeout',
       title: 'Timeout (ms)',
       type: 'short-input',
-      layout: 'half',
       placeholder: '60000',
       condition: {
         field: 'operation',
@@ -135,7 +125,6 @@ export const FirecrawlBlock: BlockConfig<FirecrawlResponse> = {
       id: 'mobile',
       title: 'Mobile Mode',
       type: 'switch',
-      layout: 'half',
       condition: {
         field: 'operation',
         value: 'scrape',
@@ -145,7 +134,6 @@ export const FirecrawlBlock: BlockConfig<FirecrawlResponse> = {
       id: 'blockAds',
       title: 'Block Ads',
       type: 'switch',
-      layout: 'half',
       condition: {
         field: 'operation',
         value: 'scrape',
@@ -155,7 +143,6 @@ export const FirecrawlBlock: BlockConfig<FirecrawlResponse> = {
       id: 'waitFor',
       title: 'Wait For (ms)',
       type: 'short-input',
-      layout: 'half',
       placeholder: '0',
       condition: {
         field: 'operation',
@@ -166,7 +153,6 @@ export const FirecrawlBlock: BlockConfig<FirecrawlResponse> = {
       id: 'excludePaths',
       title: 'Exclude Paths',
       type: 'long-input',
-      layout: 'full',
       placeholder: '["^/admin", "^/private"]',
       condition: {
         field: 'operation',
@@ -177,7 +163,6 @@ export const FirecrawlBlock: BlockConfig<FirecrawlResponse> = {
       id: 'includePaths',
       title: 'Include Paths',
       type: 'long-input',
-      layout: 'full',
       placeholder: '["^/blog", "^/docs"]',
       condition: {
         field: 'operation',
@@ -188,7 +173,6 @@ export const FirecrawlBlock: BlockConfig<FirecrawlResponse> = {
       id: 'allowSubdomains',
       title: 'Allow Subdomains',
       type: 'switch',
-      layout: 'half',
       condition: {
         field: 'operation',
         value: 'crawl',
@@ -198,7 +182,6 @@ export const FirecrawlBlock: BlockConfig<FirecrawlResponse> = {
       id: 'allowExternalLinks',
       title: 'Allow External Links',
       type: 'switch',
-      layout: 'half',
       condition: {
         field: 'operation',
         value: 'crawl',
@@ -208,7 +191,6 @@ export const FirecrawlBlock: BlockConfig<FirecrawlResponse> = {
       id: 'search',
       title: 'Search Filter',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Filter results by relevance (e.g., "blog")',
       condition: {
         field: 'operation',
@@ -219,7 +201,6 @@ export const FirecrawlBlock: BlockConfig<FirecrawlResponse> = {
       id: 'includeSubdomains',
       title: 'Include Subdomains',
       type: 'switch',
-      layout: 'half',
       condition: {
         field: 'operation',
         value: ['map', 'extract'],
@@ -229,7 +210,6 @@ export const FirecrawlBlock: BlockConfig<FirecrawlResponse> = {
       id: 'showSources',
       title: 'Show Sources',
       type: 'switch',
-      layout: 'half',
       condition: {
         field: 'operation',
         value: 'extract',
@@ -239,7 +219,6 @@ export const FirecrawlBlock: BlockConfig<FirecrawlResponse> = {
       id: 'apiKey',
       title: 'API Key',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter your Firecrawl API key',
       password: true,
       required: true,
