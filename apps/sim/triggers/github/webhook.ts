@@ -19,6 +19,10 @@ export const githubWebhookTrigger: TriggerConfig = {
       useWebhookUrl: true,
       placeholder: 'Webhook URL will be generated',
       mode: 'trigger',
+      condition: {
+        field: 'selectedTriggerId',
+        value: 'github_webhook',
+      },
     },
     {
       id: 'contentType',
@@ -32,16 +36,24 @@ export const githubWebhookTrigger: TriggerConfig = {
       description: 'Format GitHub will use when sending the webhook payload.',
       required: true,
       mode: 'trigger',
+      condition: {
+        field: 'selectedTriggerId',
+        value: 'github_webhook',
+      },
     },
     {
       id: 'webhookSecret',
-      title: 'Webhook Secret (Recommended)',
+      title: 'Webhook Secret',
       type: 'short-input',
       placeholder: 'Generate or enter a strong secret',
       description: 'Validates that webhook deliveries originate from GitHub.',
       password: true,
       required: false,
       mode: 'trigger',
+      condition: {
+        field: 'selectedTriggerId',
+        value: 'github_webhook',
+      },
     },
     {
       id: 'sslVerification',
@@ -55,6 +67,10 @@ export const githubWebhookTrigger: TriggerConfig = {
       description: 'GitHub verifies SSL certificates when delivering webhooks.',
       required: true,
       mode: 'trigger',
+      condition: {
+        field: 'selectedTriggerId',
+        value: 'github_webhook',
+      },
     },
     {
       id: 'triggerInstructions',
@@ -76,6 +92,10 @@ export const githubWebhookTrigger: TriggerConfig = {
         )
         .join(''),
       mode: 'trigger',
+      condition: {
+        field: 'selectedTriggerId',
+        value: 'github_webhook',
+      },
     },
     {
       id: 'triggerSave',
@@ -83,6 +103,10 @@ export const githubWebhookTrigger: TriggerConfig = {
       type: 'trigger-save',
       mode: 'trigger',
       triggerId: 'github_webhook',
+      condition: {
+        field: 'selectedTriggerId',
+        value: 'github_webhook',
+      },
     },
     {
       id: 'samplePayload',
@@ -133,6 +157,10 @@ export const githubWebhookTrigger: TriggerConfig = {
       collapsible: true,
       defaultCollapsed: true,
       mode: 'trigger',
+      condition: {
+        field: 'selectedTriggerId',
+        value: 'github_webhook',
+      },
     },
   ],
 

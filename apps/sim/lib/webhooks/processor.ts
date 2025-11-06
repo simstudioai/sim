@@ -590,6 +590,37 @@ export async function queueWebhookExecution(
       return NextResponse.json({ error: 'Workspace billing account required' }, { status: 402 })
     }
 
+    // GitHub event filtering for event-specific triggers
+    if (foundWebhook.provider === 'github') {
+      const providerConfig = (foundWebhook.providerConfig as Record<string, any>) || {}
+      const triggerId = providerConfig.triggerId as string | undefined
+
+      if (triggerId && triggerId !== 'github_webhook') {
+        const eventType = request.headers.get('x-github-event')
+        const action = body.action
+
+        const { isGitHubEventMatch } = await import('@/triggers/github/utils')
+
+        if (!isGitHubEventMatch(triggerId, eventType || '', action, body)) {
+          logger.debug(
+            `[${options.requestId}] GitHub event mismatch for trigger ${triggerId}. Event: ${eventType}, Action: ${action}. Skipping execution.`,
+            {
+              webhookId: foundWebhook.id,
+              workflowId: foundWorkflow.id,
+              triggerId,
+              receivedEvent: eventType,
+              receivedAction: action,
+            }
+          )
+
+          // Return 200 OK to prevent GitHub from retrying
+          return NextResponse.json({
+            message: 'Event type does not match trigger configuration. Ignoring.',
+          })
+        }
+      }
+    }
+
     const headers = Object.fromEntries(request.headers.entries())
 
     // For Microsoft Teams Graph notifications, extract unique identifiers for idempotency

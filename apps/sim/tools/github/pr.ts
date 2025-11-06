@@ -47,17 +47,14 @@ export const prTool: ToolConfig<PROperationParams, PullRequestResponse> = {
   transformResponse: async (response) => {
     const pr = await response.json()
 
-    // Fetch the PR diff
     const diffResponse = await fetch(pr.diff_url)
     const _diff = await diffResponse.text()
 
-    // Fetch files changed
     const filesResponse = await fetch(
       `https://api.github.com/repos/${pr.base.repo.owner.login}/${pr.base.repo.name}/pulls/${pr.number}/files`
     )
     const files = await filesResponse.json()
 
-    // Create a human-readable content string
     const content = `PR #${pr.number}: "${pr.title}" (${pr.state}) - Created: ${pr.created_at}, Updated: ${pr.updated_at}
 Description: ${pr.body || 'No description'}
 Files changed: ${files.length}
