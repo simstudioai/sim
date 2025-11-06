@@ -375,10 +375,9 @@ export async function GET(request: NextRequest) {
               ? (costSummary as any)
               : { total: (costSummary as any)?.total || 0 },
           hasPendingPause:
-            log.level !== 'error' &&
-            ((Number(log.pausedTotalPauseCount ?? 0) > 0 &&
+            (Number(log.pausedTotalPauseCount ?? 0) > 0 &&
               Number(log.pausedResumedCount ?? 0) < Number(log.pausedTotalPauseCount ?? 0)) ||
-              (log.pausedStatus && log.pausedStatus !== 'fully_resumed')),
+            (log.pausedStatus && log.pausedStatus !== 'fully_resumed'),
         }
       })
       return NextResponse.json(

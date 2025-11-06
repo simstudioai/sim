@@ -777,8 +777,9 @@ export default function Logs() {
                     const formattedDate = formatDate(log.createdAt)
                     const isSelected = selectedLog?.id === log.id
                     const baseLevel = (log.level || 'info').toLowerCase()
-                    const isPending = log.hasPendingPause === true
                     const isError = baseLevel === 'error'
+                    // If it's an error, don't treat it as pending even if hasPendingPause is true
+                    const isPending = !isError && log.hasPendingPause === true
                     const statusLabel = isPending
                       ? 'Pending'
                       : `${baseLevel.charAt(0).toUpperCase()}${baseLevel.slice(1)}`
@@ -872,7 +873,7 @@ export default function Logs() {
 
                           {/* Resume Link */}
                           <div className='flex justify-end'>
-                            {isPending && !isError && log.executionId && (log.workflow?.id || log.workflowId) ? (
+                            {isPending && log.executionId && (log.workflow?.id || log.workflowId) ? (
                               <Link
                                 href={`/resume/${log.workflow?.id || log.workflowId}/${log.executionId}`}
                                 className='inline-flex h-7 w-7 items-center justify-center rounded-md border border-dashed border-primary/60 text-primary hover:bg-primary/10'
