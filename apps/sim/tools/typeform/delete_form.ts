@@ -33,7 +33,6 @@ export const deleteFormTool: ToolConfig<TypeformDeleteFormParams, TypeformDelete
   },
 
   transformResponse: async (response: Response) => {
-    // DELETE returns 204 No Content on success
     if (response.status === 204) {
       return {
         success: true,
@@ -44,7 +43,6 @@ export const deleteFormTool: ToolConfig<TypeformDeleteFormParams, TypeformDelete
       }
     }
 
-    // If there's a body, parse it
     const data = await response.json().catch(() => ({}))
 
     return {

@@ -255,7 +255,6 @@ export async function POST(request: NextRequest) {
     // Use the original provider config - Gmail/Outlook configuration functions will inject userId automatically
     const finalProviderConfig = providerConfig || {}
 
-    // Resolve environment variables in provider config
     const { resolveEnvVarsInObject } = await import('@/lib/webhooks/env-resolver')
     const resolvedProviderConfig = await resolveEnvVarsInObject(
       finalProviderConfig,

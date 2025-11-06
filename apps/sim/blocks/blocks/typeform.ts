@@ -163,7 +163,6 @@ export const TypeformBlock: BlockConfig<TypeformResponse> = {
       placeholder: 'Forms per page (default: 10, max: 200)',
       condition: { field: 'operation', value: 'typeform_list_forms' },
     },
-    // Get form operation - uses formId already defined
     // Create form operation fields
     {
       id: 'title',
@@ -227,7 +226,6 @@ export const TypeformBlock: BlockConfig<TypeformResponse> = {
       condition: { field: 'operation', value: 'typeform_update_form' },
       required: true,
     },
-    // Delete form operation - uses formId already defined
     ...getTrigger('typeform_webhook').subBlocks,
   ],
   tools: {
@@ -275,7 +273,6 @@ export const TypeformBlock: BlockConfig<TypeformResponse> = {
           ...rest
         } = params
 
-        // Parse JSON fields
         let parsedFields: any | undefined
         let parsedSettings: any | undefined
         let parsedOperations: any | undefined
@@ -288,10 +285,8 @@ export const TypeformBlock: BlockConfig<TypeformResponse> = {
           throw new Error(`Invalid JSON input: ${error.message}`)
         }
 
-        // Map listPageSize to pageSize for list_forms tool
         const pageSize = listPageSize !== undefined ? listPageSize : params.pageSize
 
-        // Map workspaceIdCreate to workspaceId for create_form tool
         const workspaceId = workspaceIdCreate || params.workspaceId
 
         return {

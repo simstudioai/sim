@@ -1171,7 +1171,6 @@ export async function formatWebhookInput(
   }
 
   if (foundWebhook.provider === 'typeform') {
-    // Extract key fields from Typeform webhook payload
     const eventId = body?.event_id || ''
     const eventType = body?.event_type || 'form_response'
     const formResponse = body?.form_response || {}
@@ -1186,12 +1185,10 @@ export async function formatWebhookInput(
     const definition = formResponse.definition || {}
     const ending = formResponse.ending || {}
 
-    // Check if form definition should be included
     const providerConfig = (foundWebhook.providerConfig as Record<string, any>) || {}
     const includeDefinition = providerConfig.includeDefinition === true
 
     return {
-      // Top-level properties matching trigger outputs for easy access
       event_id: eventId,
       event_type: eventType,
       form_id: formId,
@@ -1205,7 +1202,6 @@ export async function formatWebhookInput(
       ...(includeDefinition ? { definition } : {}),
       ending,
 
-      // Nested structure for typeform.* references
       typeform: {
         event_id: eventId,
         event_type: eventType,
@@ -1221,7 +1217,6 @@ export async function formatWebhookInput(
         ending,
       },
 
-      // Always include complete raw payload
       raw: body,
 
       webhook: {

@@ -97,11 +97,9 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const body = await request.json()
     const { path, provider, providerConfig, isActive } = body
 
-    // Resolve environment variables in provider config if present
     let resolvedProviderConfig = providerConfig
     if (providerConfig) {
       const { resolveEnvVarsInObject } = await import('@/lib/webhooks/env-resolver')
-      // We need to get the workspaceId - will fetch it after permission check
       const webhookDataForResolve = await db
         .select({
           workspaceId: workflow.workspaceId,
