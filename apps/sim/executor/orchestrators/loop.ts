@@ -83,7 +83,6 @@ export class LoopOrchestrator {
         throw new Error(`Unknown loop type: ${loopType}`)
     }
 
-    // Store in context - single source of truth
     if (!ctx.loopExecutions) {
       ctx.loopExecutions = new Map()
     }

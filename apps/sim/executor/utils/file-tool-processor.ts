@@ -25,7 +25,6 @@ export class FileToolProcessor {
 
     const processedOutput = { ...toolOutput }
 
-    // Process each output that's marked as file or file[]
     for (const [outputKey, outputDef] of Object.entries(toolConfig.outputs)) {
       if (!FileToolProcessor.isFileOutput(outputDef.type)) {
         continue
@@ -105,7 +104,6 @@ export class FileToolProcessor {
   ): Promise<UserFile> {
     logger.info(`Processing file data for output '${outputKey}': ${fileData.name}`)
     try {
-      // Convert various formats to Buffer
       let buffer: Buffer
 
       if (Buffer.isBuffer(fileData.data)) {
@@ -117,7 +115,6 @@ export class FileToolProcessor {
         'type' in fileData.data &&
         'data' in fileData.data
       ) {
-        // Handle serialized Buffer objects (from JSON serialization)
         const serializedBuffer = fileData.data as { type: string; data: number[] }
         if (serializedBuffer.type === 'Buffer' && Array.isArray(serializedBuffer.data)) {
           buffer = Buffer.from(serializedBuffer.data)
@@ -128,10 +125,8 @@ export class FileToolProcessor {
           `Converted serialized Buffer to Buffer for ${fileData.name} (${buffer.length} bytes)`
         )
       } else if (typeof fileData.data === 'string' && fileData.data) {
-        // Assume base64 or base64url
         let base64Data = fileData.data
 
-        // Convert base64url to base64 if needed (Gmail API format)
         if (base64Data && (base64Data.includes('-') || base64Data.includes('_'))) {
           base64Data = base64Data.replace(/-/g, '+').replace(/_/g, '/')
         }
@@ -141,7 +136,6 @@ export class FileToolProcessor {
           `Converted base64 string to Buffer for ${fileData.name} (${buffer.length} bytes)`
         )
       } else if (fileData.url) {
-        // Download from URL
         logger.info(`Downloading file from URL: ${fileData.url}`)
         const response = await fetch(fileData.url)
 
@@ -158,12 +152,10 @@ export class FileToolProcessor {
         )
       }
 
-      // Validate buffer
       if (buffer.length === 0) {
         throw new Error(`File '${fileData.name}' has zero bytes`)
       }
 
-      // Store in execution filesystem
       const userFile = await uploadExecutionFile(
         {
           workspaceId: context.workspaceId || '',

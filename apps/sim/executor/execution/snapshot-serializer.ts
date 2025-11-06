@@ -21,9 +21,9 @@ function serializeLoopExecutions(
   for (const [loopId, scope] of loopExecutions.entries()) {
     result[loopId] = {
       ...scope,
-      currentIterationOutputs: scope.currentIterationOutputs instanceof Map
+        currentIterationOutputs: scope.currentIterationOutputs instanceof Map
         ? Object.fromEntries(scope.currentIterationOutputs)
-        : scope.currentIterationOutputs || {},
+        : scope.currentIterationOutputs ?? {},
     }
   }
   return result
@@ -37,9 +37,9 @@ function serializeParallelExecutions(
   for (const [parallelId, scope] of parallelExecutions.entries()) {
     result[parallelId] = {
       ...scope,
-      branchOutputs: scope.branchOutputs instanceof Map
+        branchOutputs: scope.branchOutputs instanceof Map
         ? Object.fromEntries(scope.branchOutputs)
-        : scope.branchOutputs || {},
+        : scope.branchOutputs ?? {},
     }
   }
   return result
@@ -97,9 +97,9 @@ export function serializePauseSnapshot(
     executionMetadata,
     context.workflow,
     {},
-    context.environmentVariables || {},
-    context.workflowVariables || {},
-    context.selectedOutputs || [],
+    context.environmentVariables ?? {},
+    context.workflowVariables ?? {},
+    context.selectedOutputs ?? [],
     state
   )
 

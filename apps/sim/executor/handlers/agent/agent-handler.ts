@@ -163,10 +163,8 @@ export class AgentBlockHandler implements BlockHandler {
 
     if (tool.code) {
       base.executeFunction = async (callParams: Record<string, any>) => {
-        // Merge user-provided parameters with LLM-generated parameters
         const mergedParams = mergeToolParameters(userProvidedParams, callParams)
 
-        // Collect block outputs for tag resolution
         const { blockData, blockNameMapping } = collectBlockData(ctx)
 
         const result = await executeTool(
@@ -589,7 +587,6 @@ export class AgentBlockHandler implements BlockHandler {
       'HTTP response'
     )
 
-    // Check if this is a streaming response
     const contentType = response.headers.get('Content-Type')
     if (contentType?.includes(HTTP.CONTENT_TYPE.EVENT_STREAM)) {
       logger.info('Received streaming response')

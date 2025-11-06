@@ -63,7 +63,6 @@ export class ResponseBlockHandler implements BlockHandler {
     const dataMode = inputs.dataMode || 'structured'
 
     if (dataMode === 'json' && inputs.data) {
-      // Handle JSON mode - data comes from code editor
       if (typeof inputs.data === 'string') {
         try {
           return JSON.parse(inputs.data)
@@ -72,19 +71,16 @@ export class ResponseBlockHandler implements BlockHandler {
           return inputs.data
         }
       } else if (typeof inputs.data === 'object' && inputs.data !== null) {
-        // Data is already an object, return as-is
         return inputs.data
       }
       return inputs.data
     }
 
     if (dataMode === 'structured' && inputs.builderData) {
-      // Handle structured mode - convert builderData to JSON
       const convertedData = this.convertBuilderDataToJson(inputs.builderData)
       return this.parseObjectStrings(convertedData)
     }
 
-    // Fallback to inputs.data for backward compatibility
     return inputs.data || {}
   }
 
@@ -107,7 +103,6 @@ export class ResponseBlockHandler implements BlockHandler {
     return result
   }
 
-  // Static method for UI conversion from Builder to Editor mode
   static convertBuilderDataToJsonString(builderData: JSONProperty[]): string {
     if (!Array.isArray(builderData) || builderData.length === 0) {
       return '{\n  \n}'
@@ -145,7 +140,6 @@ export class ResponseBlockHandler implements BlockHandler {
       case 'boolean':
         return this.convertBooleanValue(prop.value)
       case 'files':
-        // File values should be passed through as-is (UserFile objects)
         return prop.value
       default:
         return prop.value
@@ -161,7 +155,6 @@ export class ResponseBlockHandler implements BlockHandler {
       return this.tryParseJson(value, value)
     }
 
-    // Keep variable references or other values as-is (they'll be resolved later)
     return value
   }
 
@@ -175,7 +168,6 @@ export class ResponseBlockHandler implements BlockHandler {
       return Array.isArray(parsed) ? parsed : value
     }
 
-    // Keep variable references or other values as-is
     return value
   }
 
@@ -228,15 +220,14 @@ export class ResponseBlockHandler implements BlockHandler {
 
   private parseObjectStrings(data: any): any {
     if (typeof data === 'string') {
-      // Try to parse strings that might be JSON objects
       try {
         const parsed = JSON.parse(data)
         if (typeof parsed === 'object' && parsed !== null) {
-          return this.parseObjectStrings(parsed) // Recursively parse nested objects
+          return this.parseObjectStrings(parsed)
         }
         return parsed
       } catch {
-        return data // Return as string if not valid JSON
+        return data
       }
     } else if (Array.isArray(data)) {
       return data.map((item) => this.parseObjectStrings(item))

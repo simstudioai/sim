@@ -1,6 +1,6 @@
 import { createLogger } from '@/lib/logs/console/logger'
 import type { BlockOutput } from '@/blocks/types'
-import { BlockType, HTTP } from '@/executor/consts'
+import { BlockType, FieldType, HTTP, PAUSE_RESUME, buildResumeApiUrl, buildResumeUiUrl } from '@/executor/consts'
 import type { BlockHandler, ExecutionContext, PauseMetadata } from '@/executor/types'
 import type { SerializedBlock } from '@/serializer/types'
 import {
@@ -18,7 +18,7 @@ const logger = createLogger('PauseResumeBlockHandler')
 interface JSONProperty {
   id: string
   name: string
-  type: 'string' | 'number' | 'boolean' | 'object' | 'array' | 'files'
+  type: FieldType
   value: any
   collapsed?: boolean
 }
@@ -79,13 +79,13 @@ export class PauseResumeBlockHandler implements BlockHandler {
     logger.info(`Executing pause resume block: ${block.id}`)
 
     try {
-      const operation = inputs.operation || 'human'
+      const operation = inputs.operation ?? PAUSE_RESUME.OPERATION.HUMAN
       
       const { parallelScope, loopScope } = mapNodeMetadataToPauseScopes(ctx, nodeMetadata)
       const contextId = generatePauseContextId(block.id, nodeMetadata, loopScope)
       const timestamp = new Date().toISOString()
 
-      const executionId = ctx.executionId || ctx.metadata?.executionId
+      const executionId = ctx.executionId ?? ctx.metadata?.executionId
       const workflowId = ctx.workflowId
       
       let resumeLinks: typeof pauseMetadata.resumeLinks | undefined
@@ -93,8 +93,8 @@ export class PauseResumeBlockHandler implements BlockHandler {
         try {
           const baseUrl = getBaseUrl()
           resumeLinks = {
-            apiUrl: `${baseUrl}/api/resume/${workflowId}/${executionId}/${contextId}`,
-            uiUrl: `${baseUrl}/resume/${workflowId}/${executionId}`,
+            apiUrl: buildResumeApiUrl(baseUrl, workflowId, executionId, contextId),
+            uiUrl: buildResumeUiUrl(baseUrl, workflowId, executionId),
             contextId,
             executionId,
             workflowId,
@@ -102,8 +102,8 @@ export class PauseResumeBlockHandler implements BlockHandler {
         } catch (error) {
           logger.warn('Failed to get base URL, using relative paths', { error })
           resumeLinks = {
-            apiUrl: `/api/resume/${workflowId}/${executionId}/${contextId}`,
-            uiUrl: `/resume/${workflowId}/${executionId}`,
+            apiUrl: buildResumeApiUrl(undefined, workflowId, executionId, contextId),
+            uiUrl: buildResumeUiUrl(undefined, workflowId, executionId),
             contextId,
             executionId,
             workflowId,
@@ -118,7 +118,7 @@ export class PauseResumeBlockHandler implements BlockHandler {
       let statusCode: number
       let responseHeaders: Record<string, string>
 
-      if (operation === 'api') {
+      if (operation === PAUSE_RESUME.OPERATION.API) {
         const parsed = this.parseResponseData(inputs)
         if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
           responseData = {
@@ -145,10 +145,9 @@ export class PauseResumeBlockHandler implements BlockHandler {
         responseHeaders = { 'Content-Type': HTTP.CONTENT_TYPE.JSON }
       }
 
-      // Execute notification tools if in human mode
       let notificationResults: NotificationToolResult[] | undefined
 
-      if (operation === 'human' && inputs.notification && Array.isArray(inputs.notification)) {
+      if (operation === PAUSE_RESUME.OPERATION.HUMAN && inputs.notification && Array.isArray(inputs.notification)) {
         notificationResults = await this.executeNotificationTools(ctx, block, inputs.notification, {
           resumeLinks,
           executionId,
@@ -185,7 +184,7 @@ export class PauseResumeBlockHandler implements BlockHandler {
         operation,
       }
 
-      if (operation === 'human') {
+      if (operation === PAUSE_RESUME.OPERATION.HUMAN) {
         responseOutput.responseStructure = responseStructure
         responseOutput.inputFormat = normalizedInputFormat
         responseOutput.submission = null
@@ -203,9 +202,8 @@ export class PauseResumeBlockHandler implements BlockHandler {
         loopScope,
       })
 
-      // Extract input format fields into a structured object (like start block does)
       const structuredFields: Record<string, any> = {}
-      if (operation === 'human') {
+      if (operation === PAUSE_RESUME.OPERATION.HUMAN) {
         for (const field of normalizedInputFormat) {
           if (field.name) {
             structuredFields[field.name] = field.value !== undefined ? field.value : null
@@ -213,9 +211,8 @@ export class PauseResumeBlockHandler implements BlockHandler {
         }
       }
 
-      // Build the final output with top-level fields spread (like start block)
       const output: Record<string, any> = {
-        ...structuredFields, // Spread input format fields at top level
+        ...structuredFields,
         response: responseOutput,
         _pauseMetadata: pauseMetadata,
       }
@@ -224,7 +221,6 @@ export class PauseResumeBlockHandler implements BlockHandler {
         output.notificationResults = notificationResults
       }
 
-      // Add uiUrl and apiUrl as top-level outputs for downstream access
       if (resumeLinks) {
         output.uiUrl = resumeLinks.uiUrl
         output.apiUrl = resumeLinks.apiUrl
@@ -613,7 +609,6 @@ export class PauseResumeBlockHandler implements BlockHandler {
           operation: toolConfig.operation,
         })
 
-        // Merge the pause context into the tool params
         const toolParams = {
           ...toolConfig.params,
           _pauseContext: {

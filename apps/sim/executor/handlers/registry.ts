@@ -28,7 +28,6 @@ import { WorkflowBlockHandler } from './workflow/workflow-handler'
  */
 export function createBlockHandlers(): BlockHandler[] {
   return [
-    // Core block handlers
     new TriggerBlockHandler(),
     new FunctionBlockHandler(),
     new ApiBlockHandler(),
@@ -42,7 +41,6 @@ export function createBlockHandlers(): BlockHandler[] {
     new WaitBlockHandler(),
     new EvaluatorBlockHandler(),
 
-    // Generic handler must be last (fallback)
     new GenericBlockHandler(),
   ]
 }

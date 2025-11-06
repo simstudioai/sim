@@ -218,6 +218,6 @@ export class EdgeManager {
   }
 
   private createEdgeKey(sourceId: string, targetId: string, sourceHandle?: string): string {
-    return `${sourceId}-${targetId}-${sourceHandle || EDGE.DEFAULT}`
+    return `${sourceId}-${targetId}-${sourceHandle ?? EDGE.DEFAULT}`
   }
 }

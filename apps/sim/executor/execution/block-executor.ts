@@ -1,5 +1,5 @@
 import { createLogger } from '@/lib/logs/console/logger'
-import { DEFAULTS, EDGE, isSentinelBlockType } from '@/executor/consts'
+import { DEFAULTS, EDGE, BlockType, isSentinelBlockType, PAUSE_RESUME, buildResumeApiUrl, buildResumeUiUrl } from '@/executor/consts'
 import {
   generatePauseContextId,
   mapNodeMetadataToPauseScopes,
@@ -54,7 +54,7 @@ export class BlockExecutor {
     const nodeMetadata = this.buildNodeMetadata(node)
     let cleanupSelfReference: (() => void) | undefined
 
-    if (block.metadata?.id === 'pause_resume') {
+    if (block.metadata?.id === BlockType.PAUSE_RESUME) {
       cleanupSelfReference = this.preparePauseResumeSelfReference(ctx, node, block, nodeMetadata)
     }
 
@@ -85,7 +85,7 @@ export class BlockExecutor {
         }
 
         normalizedOutput = this.normalizeOutput(
-          streamingExec.execution.output || streamingExec.execution
+          streamingExec.execution.output ?? streamingExec.execution
         )
       } else {
         normalizedOutput = this.normalizeOutput(output)
@@ -107,7 +107,6 @@ export class BlockExecutor {
       })
 
       if (!isSentinel) {
-        // Filter output for callbacks/logs but keep full output in blockStates for variable resolution
         const filteredOutput = this.filterOutputForLog(block, normalizedOutput)
         this.callOnBlockComplete(ctx, node, block, resolvedInputs, filteredOutput, duration)
       }
@@ -165,7 +164,7 @@ export class BlockExecutor {
     branchIndex?: number
     branchTotal?: number
   } {
-    const metadata = node?.metadata || {}
+    const metadata = node?.metadata ?? {}
     return {
       nodeId: node.id,
       loopId: metadata.loopId,
@@ -194,7 +193,7 @@ export class BlockExecutor {
     block: SerializedBlock,
     node: DAGNode
   ): BlockLog {
-    let blockName = block.metadata?.name || blockId
+    let blockName = block.metadata?.name ?? blockId
     let loopId: string | undefined
     let parallelId: string | undefined
     let iterationIndex: number | undefined
@@ -231,7 +230,7 @@ export class BlockExecutor {
     return {
       blockId,
       blockName,
-      blockType: block.metadata?.id || DEFAULTS.BLOCK_TYPE,
+      blockType: block.metadata?.id ?? DEFAULTS.BLOCK_TYPE,
       startedAt: new Date().toISOString(),
       endedAt: '',
       durationMs: 0,
@@ -255,29 +254,22 @@ export class BlockExecutor {
   }
 
   private filterOutputForLog(block: SerializedBlock, output: NormalizedBlockOutput): NormalizedBlockOutput {
-    // For pause_resume blocks, only show fields accessible as variables downstream
-    if (block.metadata?.id === 'pause_resume') {
+    if (block.metadata?.id === BlockType.PAUSE_RESUME) {
       const filtered: NormalizedBlockOutput = {}
-      
-      // Only include fields that don't start with _ and aren't internal fields
       for (const [key, value] of Object.entries(output)) {
         if (key.startsWith('_')) continue
         if (key === 'response') continue
-        
-        // Include uiUrl, apiUrl, and any input format fields
         filtered[key] = value
       }
-      
       return filtered
     }
-    
     return output
   }
 
   private callOnBlockStart(ctx: ExecutionContext, node: DAGNode, block: SerializedBlock): void {
     const blockId = node.id
-    const blockName = block.metadata?.name || blockId
-    const blockType = block.metadata?.id || DEFAULTS.BLOCK_TYPE
+    const blockName = block.metadata?.name ?? blockId
+    const blockType = block.metadata?.id ?? DEFAULTS.BLOCK_TYPE
 
     const iterationContext = this.getIterationContext(ctx, node)
 
@@ -295,8 +287,8 @@ export class BlockExecutor {
     duration: number
   ): void {
     const blockId = node.id
-    const blockName = block.metadata?.name || blockId
-    const blockType = block.metadata?.id || DEFAULTS.BLOCK_TYPE
+    const blockName = block.metadata?.name ?? blockId
+    const blockType = block.metadata?.id ?? DEFAULTS.BLOCK_TYPE
 
     const iterationContext = this.getIterationContext(ctx, node)
 
@@ -362,7 +354,7 @@ export class BlockExecutor {
       return undefined
     }
 
-    const executionId = ctx.executionId || ctx.metadata?.executionId
+    const executionId = ctx.executionId ?? ctx.metadata?.executionId
     const workflowId = ctx.workflowId
 
     if (!executionId || !workflowId) {
@@ -377,13 +369,13 @@ export class BlockExecutor {
     try {
       const baseUrl = getBaseUrl()
       resumeLinks = {
-        apiUrl: `${baseUrl}/api/resume/${workflowId}/${executionId}/${contextId}`,
-        uiUrl: `${baseUrl}/resume/${workflowId}/${executionId}`,
+        apiUrl: buildResumeApiUrl(baseUrl, workflowId, executionId, contextId),
+        uiUrl: buildResumeUiUrl(baseUrl, workflowId, executionId),
       }
     } catch {
       resumeLinks = {
-        apiUrl: `/api/resume/${workflowId}/${executionId}/${contextId}`,
-        uiUrl: `/resume/${workflowId}/${executionId}`,
+        apiUrl: buildResumeApiUrl(undefined, workflowId, executionId, contextId),
+        uiUrl: buildResumeUiUrl(undefined, workflowId, executionId),
       }
     }
 

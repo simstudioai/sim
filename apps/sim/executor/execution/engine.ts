@@ -149,7 +149,6 @@ export class ExecutionEngine {
     const pendingBlocks = this.context.metadata.pendingBlocks
     const remainingEdges = (this.context.metadata as any).remainingEdges
     
-    // If we have remaining edges to remove (from resume), remove them first
     if (remainingEdges && Array.isArray(remainingEdges) && remainingEdges.length > 0) {
       logger.info('Removing edges from resumed pause blocks', {
         edgeCount: remainingEdges.length,
@@ -168,7 +167,6 @@ export class ExecutionEngine {
             remainingIncomingEdges: targetNode.incomingEdges.size,
           })
           
-          // If this node is now ready (no more incoming edges), add it to queue
           if (this.edgeManager.isNodeReady(targetNode)) {
             logger.info('Node became ready after edge removal', { nodeId: targetNode.id })
             this.addToQueue(targetNode.id)

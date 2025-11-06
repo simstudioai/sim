@@ -224,11 +224,46 @@ export const CONDITION = {
   ELSE_TITLE: 'else',
 } as const
 
+export const PAUSE_RESUME = {
+  OPERATION: {
+    HUMAN: 'human',
+    API: 'api',
+  },
+  PATH: {
+    API_RESUME: '/api/resume',
+    UI_RESUME: '/resume',
+  },
+} as const
+
+export function buildResumeApiUrl(
+  baseUrl: string | undefined,
+  workflowId: string,
+  executionId: string,
+  contextId: string
+): string {
+  const prefix = baseUrl ?? ''
+  return `${prefix}${PAUSE_RESUME.PATH.API_RESUME}/${workflowId}/${executionId}/${contextId}`
+}
+
+export function buildResumeUiUrl(
+  baseUrl: string | undefined,
+  workflowId: string,
+  executionId: string
+): string {
+  const prefix = baseUrl ?? ''
+  return `${prefix}${PAUSE_RESUME.PATH.UI_RESUME}/${workflowId}/${executionId}`
+}
+
 export const PARSING = {
   JSON_RADIX: 10,
   PREVIEW_LENGTH: 200,
   PREVIEW_SUFFIX: '...',
 } as const
+
+/**
+ * Field type definitions for input/output formats
+ */
+export type FieldType = 'string' | 'number' | 'boolean' | 'object' | 'array' | 'files' | 'plain'
 
 /**
  * Condition configuration

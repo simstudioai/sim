@@ -1,5 +1,5 @@
 import { PauseResumeManager } from '@/lib/workflows/executor/pause-resume-manager'
-import ResumeExecutionPage from './resume-page-client.js'
+import ResumeExecutionPage from './resume-page-client'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'

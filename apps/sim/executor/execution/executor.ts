@@ -7,6 +7,7 @@ import {
   buildStartBlockOutput,
   resolveExecutorStartBlock,
 } from '@/executor/utils/start-block'
+import { StartBlockPath } from '@/lib/workflows/triggers'
 import type { SerializedWorkflow } from '@/serializer/types'
 import { DAGBuilder } from '../dag/builder'
 import { LoopOrchestrator } from '../orchestrators/loop'
@@ -42,11 +43,11 @@ export class DAGExecutor {
 
   constructor(options: DAGExecutorOptions) {
     this.workflow = options.workflow
-    this.initialBlockStates = options.currentBlockStates || {}
-    this.environmentVariables = options.envVarValues || {}
-    this.workflowInput = options.workflowInput || {}
-    this.workflowVariables = options.workflowVariables || {}
-    this.contextExtensions = options.contextExtensions || {}
+    this.initialBlockStates = options.currentBlockStates ?? {}
+    this.environmentVariables = options.envVarValues ?? {}
+    this.workflowInput = options.workflowInput ?? {}
+    this.workflowVariables = options.workflowVariables ?? {}
+    this.contextExtensions = options.contextExtensions ?? {}
     this.dagBuilder = new DAGBuilder()
   }
 
@@ -54,7 +55,6 @@ export class DAGExecutor {
     const savedIncomingEdges = this.contextExtensions.dagIncomingEdges
     const dag = this.dagBuilder.build(this.workflow, triggerBlockId, savedIncomingEdges)
     const context = this.createExecutionContext(workflowId, triggerBlockId)
-    
     const state = new ExecutionState(context.blockStates, context.executedBlocks)
     const resolver = new VariableResolver(this.workflow, this.workflowVariables, state)
     const loopOrchestrator = new LoopOrchestrator(dag, state, resolver)
@@ -85,7 +85,7 @@ export class DAGExecutor {
     return {
       success: false,
       output: {},
-      logs: context.blockLogs || [],
+      logs: context.blockLogs ?? [],
       error: 'Debug mode is not yet supported in the refactored executor',
       metadata: {
         duration: 0,
@@ -96,7 +96,6 @@ export class DAGExecutor {
 
   private createExecutionContext(workflowId: string, triggerBlockId?: string): ExecutionContext {
     const snapshotState = this.contextExtensions.snapshotState
-    
     const context: ExecutionContext = {
       workflowId,
       workspaceId: this.contextExtensions.workspaceId,
@@ -105,11 +104,11 @@ export class DAGExecutor {
       blockStates: snapshotState?.blockStates
         ? new Map(Object.entries(snapshotState.blockStates))
         : new Map(),
-      blockLogs: snapshotState?.blockLogs || [],
+      blockLogs: snapshotState?.blockLogs ?? [],
       metadata: {
         startTime: new Date().toISOString(),
         duration: 0,
-        useDraftState: this.contextExtensions.isDeployedContext === true ? false : true,
+        useDraftState: this.contextExtensions.isDeployedContext !== true,
       },
       environmentVariables: this.environmentVariables,
       workflowVariables: this.workflowVariables,
@@ -159,9 +158,9 @@ export class DAGExecutor {
         ? new Set(snapshotState.activeExecutionPath)
         : new Set(),
       workflow: this.workflow,
-      stream: this.contextExtensions.stream || false,
-      selectedOutputs: this.contextExtensions.selectedOutputs || [],
-      edges: this.contextExtensions.edges || [],
+      stream: this.contextExtensions.stream ?? false,
+      selectedOutputs: this.contextExtensions.selectedOutputs ?? [],
+      edges: this.contextExtensions.edges ?? [],
       onStream: this.contextExtensions.onStream,
       onBlockStart: this.contextExtensions.onBlockStart,
       onBlockComplete: this.contextExtensions.onBlockComplete,
@@ -221,7 +220,7 @@ export class DAGExecutor {
         startResolution = {
           blockId: triggerBlock.id,
           block: triggerBlock,
-          path: 'split_manual' as any,
+          path: StartBlockPath.SPLIT_MANUAL,
         }
       }
     } else {
@@ -236,7 +235,6 @@ export class DAGExecutor {
       }
     }
 
-    // Skip initialization if the start block already exists (e.g., from snapshot during resume)
     if (context.blockStates.has(startResolution.block.id)) {
       logger.debug('Start block already initialized from snapshot, skipping re-initialization', {
         blockId: startResolution.block.id,

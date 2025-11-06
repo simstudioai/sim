@@ -30,7 +30,6 @@ export class EvaluatorBlockHandler implements BlockHandler {
 
     const processedContent = this.processContent(inputs.content)
 
-    // Parse system prompt object with robust error handling
     let systemPromptObj: { systemPrompt: string; responseFormat: any } = {
       systemPrompt: '',
       responseFormat: null,
@@ -40,16 +39,14 @@ export class EvaluatorBlockHandler implements BlockHandler {
     const metrics = Array.isArray(inputs.metrics) ? inputs.metrics : []
     logger.info('Metrics for evaluator:', metrics)
     const metricDescriptions = metrics
-      .filter((m: any) => m?.name && m.range) // Filter out invalid/incomplete metrics
+      .filter((m: any) => m?.name && m.range)
       .map((m: any) => `"${m.name}" (${m.range.min}-${m.range.max}): ${m.description || ''}`)
       .join('\n')
 
-    // Create a response format structure
     const responseProperties: Record<string, any> = {}
     metrics.forEach((m: any) => {
-      // Ensure metric and name are valid before using them
       if (m?.name) {
-        responseProperties[m.name.toLowerCase()] = { type: 'number' } // Use lowercase for consistency
+        responseProperties[m.name.toLowerCase()] = { type: 'number' }
       } else {
         logger.warn('Skipping invalid metric entry during response format generation:', m)
       }
@@ -77,7 +74,6 @@ export class EvaluatorBlockHandler implements BlockHandler {
       },
     }
 
-    // Ensure we have a system prompt
     if (!systemPromptObj.systemPrompt) {
       systemPromptObj.systemPrompt =
         'Evaluate the content and provide scores for each metric as JSON.'
