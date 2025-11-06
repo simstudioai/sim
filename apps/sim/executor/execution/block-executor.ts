@@ -214,24 +214,12 @@ export class BlockExecutor {
         blockName = `${blockName} (iteration ${node.metadata.branchIndex})`
         iterationIndex = node.metadata.branchIndex
         parallelId = node.metadata.parallelId
-        logger.debug('Added parallel iteration suffix', {
-          blockId,
-          parallelId,
-          branchIndex: node.metadata.branchIndex,
-          blockName,
-        })
       } else if (node.metadata.isLoopNode && node.metadata.loopId) {
         loopId = node.metadata.loopId
         const loopScope = ctx.loopExecutions?.get(loopId)
         if (loopScope && loopScope.iteration !== undefined) {
           blockName = `${blockName} (iteration ${loopScope.iteration})`
           iterationIndex = loopScope.iteration
-          logger.debug('Added loop iteration suffix', {
-            blockId,
-            loopId,
-            iteration: loopScope.iteration,
-            blockName,
-          })
         } else {
           logger.warn('Loop scope not found for block', { blockId, loopId })
         }

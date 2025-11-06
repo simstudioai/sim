@@ -1,4 +1,3 @@
-import { createLogger } from '@/lib/logs/console/logger'
 import { BlockType, isMetadataOnlyBlockType } from '@/executor/consts'
 import {
   buildBranchNodeId,
@@ -7,8 +6,6 @@ import {
 } from '@/executor/utils/subflow-utils'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 import type { DAG, DAGNode } from '../builder'
-
-const logger = createLogger('NodeConstructor')
 interface ParallelExpansion {
   parallelId: string
   branchCount: number
@@ -48,14 +45,9 @@ export class NodeConstructor {
       return false
     }
     if (!reachableBlocks.has(block.id)) {
-      logger.debug('Skipping unreachable block', { blockId: block.id })
       return false
     }
     if (isMetadataOnlyBlockType(block.metadata?.id)) {
-      logger.debug('Skipping metadata-only block', {
-        blockId: block.id,
-        blockType: block.metadata?.id,
-      })
       return false
     }
     return true
@@ -106,11 +98,6 @@ export class NodeConstructor {
     pauseTriggerMapping: Map<string, string>
   ): void {
     const expansion = this.calculateParallelExpansion(parallelId, dag)
-    logger.debug('Creating parallel branches', {
-      blockId: block.id,
-      parallelId: expansion.parallelId,
-      branchCount: expansion.branchCount,
-    })
     for (let branchIndex = 0; branchIndex < expansion.branchCount; branchIndex++) {
       const branchNode = this.createParallelBranchNode(block, branchIndex, expansion)
       dag.nodes.set(branchNode.id, branchNode)

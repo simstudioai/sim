@@ -43,11 +43,6 @@ export class DAGBuilder {
     this.initializeConfigs(workflow, dag)
 
     const reachableBlocks = this.pathConstructor.execute(workflow, triggerBlockId)
-    logger.debug('Reachable blocks from trigger:', {
-      triggerBlockId,
-      reachableCount: reachableBlocks.size,
-      totalBlocks: workflow.blocks.length,
-    })
 
     this.loopConstructor.execute(dag, reachableBlocks)
 
@@ -56,14 +51,6 @@ export class DAGBuilder {
       dag,
       reachableBlocks
     )
-
-    logger.debug('Pause trigger mapping created', {
-      pauseTriggerMappingSize: pauseTriggerMapping.size,
-      pauseTriggerMappings: Array.from(pauseTriggerMapping.entries()).map(([pause, trigger]) => ({
-        pauseBlock: pause,
-        triggerBlock: trigger,
-      })),
-    })
 
     this.edgeConstructor.execute(
       workflow,
@@ -83,10 +70,6 @@ export class DAGBuilder {
         const node = dag.nodes.get(nodeId)
         if (node) {
           node.incomingEdges = new Set(incomingEdgeArray)
-          logger.debug('Restored incoming edges for node', {
-            nodeId,
-            edgeCount: incomingEdgeArray.length,
-          })
         }
       }
     }

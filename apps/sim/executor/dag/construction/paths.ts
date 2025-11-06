@@ -12,14 +12,8 @@ export class PathConstructor {
       logger.warn('No trigger block found, including all enabled blocks as fallback')
       return this.getAllEnabledBlocks(workflow)
     }
-    logger.debug('Starting reachability traversal', { triggerBlockId: resolvedTriggerId })
     const adjacency = this.buildAdjacencyMap(workflow)
     const reachable = this.performBFS(resolvedTriggerId, adjacency)
-    logger.debug('Reachability analysis complete', {
-      triggerBlockId: resolvedTriggerId,
-      reachableCount: reachable.size,
-      totalBlocks: workflow.blocks.length,
-    })
     return reachable
   }
 
@@ -30,10 +24,6 @@ export class PathConstructor {
     if (triggerBlockId) {
       const block = workflow.blocks.find((b) => b.id === triggerBlockId)
       if (block) {
-        logger.debug('Using explicitly provided trigger block', {
-          triggerBlockId,
-          blockType: block.metadata?.id,
-        })
         return triggerBlockId
       }
 
@@ -63,10 +53,6 @@ export class PathConstructor {
   private findExplicitTrigger(workflow: SerializedWorkflow): string | undefined {
     for (const block of workflow.blocks) {
       if (block.enabled && this.isTriggerBlock(block)) {
-        logger.debug('Found explicit trigger block', {
-          blockId: block.id,
-          blockType: block.metadata?.id,
-        })
         return block.id
       }
     }
@@ -81,10 +67,6 @@ export class PathConstructor {
         block.enabled &&
         !isMetadataOnlyBlockType(block.metadata?.id)
       ) {
-        logger.debug('Found root block (no incoming connections)', {
-          blockId: block.id,
-          blockType: block.metadata?.id,
-        })
         return block.id
       }
     }
@@ -105,10 +87,6 @@ export class PathConstructor {
       neighbors.push(connection.target)
       adjacency.set(connection.source, neighbors)
     }
-    logger.debug('Built adjacency map', {
-      nodeCount: adjacency.size,
-      connectionCount: workflow.connections.length,
-    })
     return adjacency
   }
 
@@ -116,43 +94,20 @@ export class PathConstructor {
     const reachable = new Set<string>([triggerBlockId])
     const queue = [triggerBlockId]
 
-    logger.debug('Starting BFS traversal', {
-      triggerBlockId,
-      adjacencyMapSize: adjacency.size,
-      adjacencyEntries: Array.from(adjacency.entries()).map(([source, targets]) => ({
-        source,
-        targets,
-      })),
-    })
-
     while (queue.length > 0) {
       const currentBlockId = queue.shift()
       if (!currentBlockId) break
 
       const neighbors = adjacency.get(currentBlockId) ?? []
-      logger.debug('BFS processing node', {
-        currentBlockId,
-        neighbors,
-        neighborCount: neighbors.length,
-      })
 
       for (const neighborId of neighbors) {
         if (!reachable.has(neighborId)) {
-          logger.debug('BFS found new reachable node', {
-            from: currentBlockId,
-            to: neighborId,
-          })
           reachable.add(neighborId)
           queue.push(neighborId)
         }
       }
     }
 
-    logger.debug('BFS traversal complete', {
-      triggerBlockId,
-      reachableCount: reachable.size,
-      reachableBlocks: Array.from(reachable),
-    })
     return reachable
   }
 
@@ -171,11 +126,6 @@ export class PathConstructor {
     for (const candidate of candidates) {
       const block = workflow.blocks.find((b) => b.id === candidate)
       if (block) {
-        logger.debug('Resolved resume trigger to base block', {
-          originalTriggerId: triggerBlockId,
-          resolvedBlockId: candidate,
-          blockType: block.metadata?.id,
-        })
         return candidate
       }
     }

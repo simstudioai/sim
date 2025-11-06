@@ -34,7 +34,6 @@ export class LoopResolver implements Resolver {
     if (!loopScope) {
       const loopId = this.findLoopForBlock(context.currentNodeId)
       if (!loopId) {
-        logger.debug('Block not in a loop', { nodeId: context.currentNodeId })
         return undefined
       }
       loopScope = context.executionContext.loopExecutions?.get(loopId)

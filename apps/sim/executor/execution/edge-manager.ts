@@ -17,15 +17,9 @@ export class EdgeManager {
     skipBackwardsEdge = false
   ): string[] {
     const readyNodes: string[] = []
-    logger.debug('Processing outgoing edges', {
-      nodeId: node.id,
-      edgeCount: node.outgoingEdges.size,
-      skipBackwardsEdge,
-    })
 
     for (const [edgeId, edge] of node.outgoingEdges) {
       if (skipBackwardsEdge && this.isBackwardsEdge(edge.sourceHandle)) {
-        logger.debug('Skipping backwards edge', { edgeId })
         continue
       }
 
@@ -40,14 +34,6 @@ export class EdgeManager {
           this.deactivateEdgeAndDescendants(node.id, edge.target, edge.sourceHandle)
         }
 
-        logger.debug('Edge not activated', {
-          edgeId,
-          sourceHandle: edge.sourceHandle,
-          from: node.id,
-          to: edge.target,
-          isLoopEdge,
-          deactivatedDescendants: !isLoopEdge,
-        })
         continue
       }
 
@@ -58,14 +44,8 @@ export class EdgeManager {
       }
 
       targetNode.incomingEdges.delete(node.id)
-      logger.debug('Removed incoming edge', {
-        from: node.id,
-        target: edge.target,
-        remainingIncomingEdges: targetNode.incomingEdges.size,
-      })
 
       if (this.isNodeReady(targetNode)) {
-        logger.debug('Node ready', { nodeId: targetNode.id })
         readyNodes.push(targetNode.id)
       }
     }
@@ -80,18 +60,9 @@ export class EdgeManager {
 
     const activeIncomingCount = this.countActiveIncomingEdges(node)
     if (activeIncomingCount > 0) {
-      logger.debug('Node not ready - waiting for active incoming edges', {
-        nodeId: node.id,
-        totalIncoming: node.incomingEdges.size,
-        activeIncoming: activeIncomingCount,
-      })
       return false
     }
 
-    logger.debug('Node ready - all remaining edges are deactivated', {
-      nodeId: node.id,
-      totalIncoming: node.incomingEdges.size,
-    })
     return true
   }
 
@@ -103,10 +74,6 @@ export class EdgeManager {
     }
 
     targetNode.incomingEdges.add(sourceNodeId)
-    logger.debug('Restored incoming edge', {
-      from: sourceNodeId,
-      to: targetNodeId,
-    })
   }
 
   clearDeactivatedEdges(): void {
@@ -169,7 +136,6 @@ export class EdgeManager {
 
     const hasOtherActiveIncoming = this.hasActiveIncomingEdges(targetNode, sourceId)
     if (!hasOtherActiveIncoming) {
-      logger.debug('Deactivating descendants of unreachable node', { nodeId: targetId })
       for (const [_, outgoingEdge] of targetNode.outgoingEdges) {
         this.deactivateEdgeAndDescendants(targetId, outgoingEdge.target, outgoingEdge.sourceHandle)
       }

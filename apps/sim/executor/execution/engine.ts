@@ -37,18 +37,10 @@ export class ExecutionEngine {
     const startTime = Date.now()
     try {
       this.initializeQueue(triggerBlockId)
-      logger.debug('Starting execution loop', {
-        initialQueueSize: this.readyQueue.length,
-        startNodeId: triggerBlockId,
-      })
 
       while (this.hasWork()) {
         await this.processQueue()
       }
-
-      logger.debug('Execution loop completed', {
-        finalOutputKeys: Object.keys(this.finalOutput),
-      })
       await this.waitForAllExecutions()
 
       if (this.pausedBlocks.size > 0) {
@@ -93,13 +85,11 @@ export class ExecutionEngine {
   private addToQueue(nodeId: string): void {
     const node = this.dag.nodes.get(nodeId)
     if (node?.metadata?.isResumeTrigger && !this.allowResumeTriggers) {
-      logger.debug('Skipping enqueue for resume trigger node', { nodeId })
       return
     }
 
     if (!this.readyQueue.includes(nodeId)) {
       this.readyQueue.push(nodeId)
-      logger.debug('Added to queue', { nodeId, queueLength: this.readyQueue.length })
     }
   }
 
@@ -159,12 +149,6 @@ export class ExecutionEngine {
         if (targetNode) {
           const hadEdge = targetNode.incomingEdges.has(edge.source)
           targetNode.incomingEdges.delete(edge.source)
-          logger.debug('Removed edge from pause block', {
-            source: edge.source,
-            target: edge.target,
-            hadEdge,
-            remainingIncomingEdges: targetNode.incomingEdges.size,
-          })
           
           if (this.edgeManager.isNodeReady(targetNode)) {
             logger.info('Node became ready after edge removal', { nodeId: targetNode.id })
@@ -189,11 +173,6 @@ export class ExecutionEngine {
       })
       
       for (const nodeId of pendingBlocks) {
-        logger.debug('Processing pending block', {
-          nodeId,
-          existsInDag: this.dag.nodes.has(nodeId),
-          nodeMetadata: this.dag.nodes.get(nodeId)?.metadata,
-        })
         this.addToQueue(nodeId)
       }
       
@@ -207,7 +186,6 @@ export class ExecutionEngine {
     }
 
     if (triggerBlockId) {
-      logger.debug('Initializing queue with explicit trigger', { triggerBlockId })
       this.addToQueue(triggerBlockId)
       return
     }
@@ -218,7 +196,6 @@ export class ExecutionEngine {
         node.block.metadata?.id === BlockType.STARTER
     )
     if (startNode) {
-      logger.debug('Initializing queue with start node', { startNodeId: startNode.id })
       this.addToQueue(startNode.id)
     } else {
       logger.warn('No start node found in DAG')
@@ -243,30 +220,11 @@ export class ExecutionEngine {
       const wasAlreadyExecuted = this.context.executedBlocks.has(nodeId)
       const node = this.dag.nodes.get(nodeId)
       
-      logger.debug('Executing node', {
-        nodeId,
-        blockType: node?.block.metadata?.id,
-        wasAlreadyExecuted,
-        isResumeTrigger: node?.metadata?.isResumeTrigger,
-        allowResumeTriggers: this.allowResumeTriggers,
-      })
-      
       const result = await this.nodeOrchestrator.executeNode(this.context, nodeId)
-      
-      logger.debug('Node execution completed', {
-        nodeId,
-        hasOutput: !!result.output,
-        isFinalOutput: result.isFinalOutput,
-        hasPauseMetadata: !!(result.output as any)?._pauseMetadata,
-      })
       
       if (!wasAlreadyExecuted) {
         await this.withQueueLock(async () => {
           await this.handleNodeCompletion(nodeId, result.output, result.isFinalOutput)
-        })
-      } else {
-        logger.debug('Node was already executed, skipping edge processing to avoid loops', {
-          nodeId,
         })
       }
     } catch (error) {
@@ -287,25 +245,11 @@ export class ExecutionEngine {
       return
     }
 
-    logger.debug('Handling node completion', {
-      nodeId,
-      blockType: node.block.metadata?.id,
-      isResumeTrigger: node.metadata?.isResumeTrigger,
-      hasPauseMetadata: !!output._pauseMetadata,
-      isFinalOutput,
-      outgoingEdgesCount: node.outgoingEdges.size,
-    })
-
     if (output._pauseMetadata) {
       const pauseMetadata = output._pauseMetadata
       this.pausedBlocks.set(pauseMetadata.contextId, pauseMetadata)
       this.context.metadata.status = 'paused'
       this.context.metadata.pausePoints = Array.from(this.pausedBlocks.keys())
-
-      logger.debug('Registered pause metadata', {
-        nodeId,
-        contextId: pauseMetadata.contextId,
-      })
 
       return
     }
@@ -326,12 +270,6 @@ export class ExecutionEngine {
     })
     
     this.addMultipleToQueue(readyNodes)
-
-    logger.debug('Node completion handled', {
-      nodeId,
-      readyNodesCount: readyNodes.length,
-      queueSize: this.readyQueue.length,
-    })
   }
 
   private buildPausedResult(startTime: number): ExecutionResult {

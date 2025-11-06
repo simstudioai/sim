@@ -47,11 +47,6 @@ export class TriggerBlockHandler implements BlockHandler {
           const webhookData = starterOutput.webhook?.data || {}
           const provider = webhookData.provider
 
-          logger.debug(`Processing webhook trigger for block ${block.id}`, {
-            provider,
-            blockType: block.metadata?.id,
-          })
-
           if (provider === 'github') {
             const payloadSource = webhookData.payload || {}
             return {
@@ -133,21 +128,14 @@ export class TriggerBlockHandler implements BlockHandler {
           return result
         }
 
-        logger.debug(`Returning starter block output for trigger block ${block.id}`, {
-          starterOutputKeys: Object.keys(starterOutput),
-        })
         return starterOutput
       }
     }
 
     if (inputs && Object.keys(inputs).length > 0) {
-      logger.debug(`Returning trigger inputs for block ${block.id}`, {
-        inputKeys: Object.keys(inputs),
-      })
       return inputs
     }
 
-    logger.debug(`No inputs provided for trigger block ${block.id}, returning empty object`)
     return {}
   }
 
@@ -162,10 +150,6 @@ export class TriggerBlockHandler implements BlockHandler {
 
     const existingState = ctx.blockStates.get(block.id)
     if (existingState?.output && Object.keys(existingState.output).length > 0) {
-      logger.debug('Returning pre-initialized starter block output', {
-        blockId: block.id,
-        outputKeys: Object.keys(existingState.output),
-      })
       return existingState.output
     }
 

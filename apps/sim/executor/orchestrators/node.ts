@@ -32,7 +32,6 @@ export class NodeExecutionOrchestrator {
     }
 
     if (this.state.hasExecuted(nodeId)) {
-      logger.debug('Node already executed, skipping', { nodeId })
       const output = this.state.getBlockOutput(nodeId) || {}
       return {
         nodeId,
@@ -43,12 +42,10 @@ export class NodeExecutionOrchestrator {
 
     const loopId = node.metadata.loopId
     if (loopId && !this.loopOrchestrator.getLoopScope(ctx, loopId)) {
-      logger.debug('Initializing loop scope before first execution', { loopId, nodeId })
       this.loopOrchestrator.initializeLoopScope(ctx, loopId)
     }
 
     if (loopId && !this.loopOrchestrator.shouldExecuteLoopNode(ctx, nodeId, loopId)) {
-      logger.debug('Loop node should not execute', { nodeId, loopId })
       return {
         nodeId,
         output: {},
@@ -57,11 +54,6 @@ export class NodeExecutionOrchestrator {
     }
 
     if (node.metadata.isSentinel) {
-      logger.debug('Executing sentinel node', {
-        nodeId,
-        sentinelType: node.metadata.sentinelType,
-        loopId,
-      })
       const output = this.handleSentinel(ctx, node)
       const isFinalOutput = node.outgoingEdges.size === 0
       return {
@@ -71,7 +63,6 @@ export class NodeExecutionOrchestrator {
       }
     }
 
-    logger.debug('Executing node', { nodeId, blockType: node.block.metadata?.id })
     const output = await this.blockExecutor.execute(ctx, node, node.block)
     const isFinalOutput = node.outgoingEdges.size === 0
     return {
@@ -87,24 +78,16 @@ export class NodeExecutionOrchestrator {
 
     switch (sentinelType) {
       case 'start': {
-        logger.debug('Sentinel start - loop entry', { nodeId: node.id, loopId })
         return { sentinelStart: true }
       }
 
       case 'end': {
-        logger.debug('Sentinel end - evaluating loop continuation', { nodeId: node.id, loopId })
         if (!loopId) {
           logger.warn('Sentinel end called without loopId')
           return { shouldExit: true, selectedRoute: EDGE.LOOP_EXIT }
         }
 
         const continuationResult = this.loopOrchestrator.evaluateLoopContinuation(ctx, loopId)
-        logger.debug('Loop continuation evaluated', {
-          loopId,
-          shouldContinue: continuationResult.shouldContinue,
-          shouldExit: continuationResult.shouldExit,
-          iteration: continuationResult.currentIteration,
-        })
 
         if (continuationResult.shouldContinue) {
           return {
@@ -141,32 +124,21 @@ export class NodeExecutionOrchestrator {
       return
     }
 
-    logger.debug('Handling node completion', {
-      nodeId: node.id,
-      hasLoopId: !!node.metadata.loopId,
-      isParallelBranch: !!node.metadata.isParallelBranch,
-      isSentinel: !!node.metadata.isSentinel,
-    })
-
     const loopId = node.metadata.loopId
     const isParallelBranch = node.metadata.isParallelBranch
     const isSentinel = node.metadata.isSentinel
     if (isSentinel) {
-      logger.debug('Handling sentinel node', { nodeId: node.id, loopId })
       this.handleRegularNodeCompletion(ctx, node, output)
     } else if (loopId) {
-      logger.debug('Handling loop node', { nodeId: node.id, loopId })
       this.handleLoopNodeCompletion(ctx, node, output, loopId)
     } else if (isParallelBranch) {
       const parallelId = this.findParallelIdForNode(node.id)
       if (parallelId) {
-        logger.debug('Handling parallel node', { nodeId: node.id, parallelId })
         this.handleParallelNodeCompletion(ctx, node, output, parallelId)
       } else {
         this.handleRegularNodeCompletion(ctx, node, output)
       }
     } else {
-      logger.debug('Handling regular node', { nodeId: node.id })
       this.handleRegularNodeCompletion(ctx, node, output)
     }
   }
@@ -221,7 +193,6 @@ export class NodeExecutionOrchestrator {
     ) {
       const loopId = node.metadata.loopId
       if (loopId) {
-        logger.debug('Preparing loop for next iteration', { loopId })
         this.loopOrchestrator.clearLoopExecutionState(loopId)
         this.loopOrchestrator.restoreLoopEdges(loopId)
       }

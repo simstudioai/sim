@@ -241,11 +241,6 @@ export class VariableResolver {
     for (const resolver of this.resolvers) {
       if (resolver.canResolve(reference)) {
         const result = resolver.resolve(reference, context)
-        logger.debug('Reference resolved', {
-          reference,
-          resolver: resolver.constructor.name,
-          result,
-        })
         return result
       }
     }

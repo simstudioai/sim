@@ -111,7 +111,6 @@ export class EdgeConstructor {
     }
     if (metadata.routerBlockIds.has(source)) {
       handle = `${EDGE.ROUTER_PREFIX}${target}`
-      logger.debug('Set router sourceHandle', { source, target, sourceHandle: handle })
     }
     return handle
   }
@@ -151,32 +150,26 @@ export class EdgeConstructor {
         if (sourceIsLoopBlock) {
           const sentinelEndId = buildSentinelEndId(source)
           if (!dag.nodes.has(sentinelEndId)) {
-            logger.debug('Skipping loop exit edge - sentinel not found', { source, target })
             continue
           }
           source = sentinelEndId
           sourceHandle = EDGE.LOOP_EXIT
-          logger.debug('Redirected loop exit edge', { from: sentinelEndId, to: target })
         }
         if (targetIsLoopBlock) {
           const sentinelStartId = buildSentinelStartId(target)
           if (!dag.nodes.has(sentinelStartId)) {
-            logger.debug('Skipping loop entry edge - sentinel not found', { source, target })
             continue
           }
           target = sentinelStartId
-          logger.debug('Redirected loop entry edge', { from: source, to: sentinelStartId })
         }
         if (sourceIsParallelBlock || targetIsParallelBlock) {
           continue
         }
       }
       if (this.edgeCrossesLoopBoundary(source, target, blocksInLoops, dag)) {
-        logger.debug('Skipping edge that crosses loop boundary', { source, target })
         continue
       }
       if (!this.isEdgeReachable(source, target, reachableBlocks, dag)) {
-        logger.debug('Skipping edge - not reachable', { source, target })
         continue
       }
       if (blocksInParallels.has(source) && blocksInParallels.has(target)) {
@@ -196,10 +189,6 @@ export class EdgeConstructor {
           logger.warn('Edge between different parallels - invalid workflow', { source, target })
         }
       } else if (blocksInParallels.has(source) || blocksInParallels.has(target)) {
-        logger.debug('Skipping internal-to-external edge (handled by parallel wiring)', {
-          source,
-          target,
-        })
       } else {
         const resolvedSource = pauseTriggerMapping.get(originalSource) ?? source
         this.addEdge(dag, resolvedSource, target, sourceHandle, targetHandle)
@@ -214,15 +203,9 @@ export class EdgeConstructor {
       const sentinelStartId = buildSentinelStartId(loopId)
       const sentinelEndId = buildSentinelEndId(loopId)
       if (!dag.nodes.has(sentinelStartId) || !dag.nodes.has(sentinelEndId)) {
-        logger.debug('Skipping sentinel wiring for unreachable loop', { loopId })
         continue
       }
       const { startNodes, terminalNodes } = this.findLoopBoundaryNodes(nodes, dag, reachableBlocks)
-      logger.debug('Wiring sentinel nodes for loop', {
-        loopId,
-        startNodes,
-        terminalNodes,
-      })
       for (const startNodeId of startNodes) {
         this.addEdge(dag, sentinelStartId, startNodeId)
       }
@@ -230,7 +213,6 @@ export class EdgeConstructor {
         this.addEdge(dag, terminalNodeId, sentinelEndId)
       }
       this.addEdge(dag, sentinelEndId, sentinelStartId, EDGE.LOOP_CONTINUE, undefined, true)
-      logger.debug('Added backward edge for loop', { loopId })
     }
   }
 
@@ -508,12 +490,6 @@ export class EdgeConstructor {
     })
     if (!isLoopBackEdge) {
       targetNode.incomingEdges.add(sourceId)
-      logger.debug('Added incoming edge', { from: sourceId, to: targetId })
-    } else {
-      logger.debug('Skipped adding backwards-edge to incomingEdges', {
-        from: sourceId,
-        to: targetId,
-      })
     }
   }
 }

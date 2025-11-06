@@ -203,8 +203,6 @@ export class WorkflowBlockHandler implements BlockHandler {
       logger.info(
         `Loaded ${Object.keys(workflowVariables).length} variables for child workflow: ${workflowId}`
       )
-    } else {
-      logger.debug(`No workflow variables found for child workflow: ${workflowId}`)
     }
 
     return {

@@ -51,12 +51,6 @@ export class ParallelOrchestrator {
       ctx.parallelExecutions = new Map()
     }
     ctx.parallelExecutions.set(parallelId, scope)
-    logger.debug('Initialized parallel scope', {
-      parallelId,
-      totalBranches,
-      terminalNodesCount,
-      totalExpectedNodes: scope.totalExpectedNodes,
-    })
     return scope
   }
 
@@ -83,22 +77,8 @@ export class ParallelOrchestrator {
     }
     scope.branchOutputs.get(branchIndex)!.push(output)
     scope.completedCount++
-    logger.debug('Recorded parallel branch output', {
-      parallelId,
-      branchIndex,
-      nodeId,
-      completedCount: scope.completedCount,
-      totalExpected: scope.totalExpectedNodes,
-    })
 
     const allComplete = scope.completedCount >= scope.totalExpectedNodes
-    if (allComplete) {
-      logger.debug('All parallel branches completed', {
-        parallelId,
-        totalBranches: scope.totalBranches,
-        completedNodes: scope.completedCount,
-      })
-    }
     return allComplete
   }
 
@@ -116,12 +96,6 @@ export class ParallelOrchestrator {
     }
     this.state.setBlockOutput(parallelId, {
       results,
-    })
-    logger.debug('Aggregated parallel results', {
-      parallelId,
-      totalBranches: scope.totalBranches,
-      nodesPerBranch: results[0]?.length || 0,
-      totalOutputs: scope.completedCount,
     })
     return {
       allBranchesComplete: true,

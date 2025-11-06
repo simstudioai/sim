@@ -193,9 +193,6 @@ export class DAGExecutor {
         skipStarterBlockInit: true,
       })
     } else {
-      logger.debug('No resume pending queue, initializing starter block', {
-        triggerBlockId,
-      })
       this.initializeStarterBlock(context, state, triggerBlockId)
     }
 
@@ -221,10 +218,6 @@ export class DAGExecutor {
       startResolution = buildResolutionFromBlock(triggerBlock)
 
       if (!startResolution) {
-        logger.debug('Creating generic resolution for trigger block', {
-          triggerBlockId,
-          blockType: triggerBlock.metadata?.id,
-        })
         startResolution = {
           blockId: triggerBlock.id,
           block: triggerBlock,
@@ -244,10 +237,6 @@ export class DAGExecutor {
     }
 
     if (state.getBlockStates().has(startResolution.block.id)) {
-      logger.debug('Start block already initialized from snapshot, skipping re-initialization', {
-        blockId: startResolution.block.id,
-        blockType: startResolution.block.metadata?.id,
-      })
       return
     }
 
@@ -261,11 +250,6 @@ export class DAGExecutor {
       output: blockOutput,
       executed: false,
       executionTime: 0,
-    })
-
-    logger.debug('Initialized start block', {
-      blockId: startResolution.block.id,
-      blockType: startResolution.block.metadata?.id,
     })
   }
 }

@@ -13,7 +13,6 @@ export class LoopConstructor {
         continue
       }
       if (!this.hasReachableNodes(loopNodes, reachableBlocks)) {
-        logger.debug('Skipping sentinel creation for unreachable loop', { loopId })
         continue
       }
       this.createSentinelPair(dag, loopId)
@@ -46,12 +45,6 @@ export class LoopConstructor {
         name: `Loop End (${loopId})`,
       })
     )
-
-    logger.debug('Created sentinel pair for loop', {
-      loopId,
-      startId,
-      endId,
-    })
   }
 
   private createSentinelNode(config: {

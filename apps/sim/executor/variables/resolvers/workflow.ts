@@ -43,7 +43,6 @@ export class WorkflowResolver implements Resolver {
         return v.value
       }
     }
-    logger.debug('Workflow variable not found', { variableName })
     return undefined
   }
 }

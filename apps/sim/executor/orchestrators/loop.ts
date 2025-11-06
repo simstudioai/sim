@@ -45,13 +45,11 @@ export class LoopOrchestrator {
     }
 
     const loopType = loopConfig.loopType
-    logger.debug('Initializing loop scope', { loopId, loopType })
 
     switch (loopType) {
       case 'for':
         scope.maxIterations = loopConfig.iterations || DEFAULTS.MAX_LOOP_ITERATIONS
         scope.condition = buildLoopIndexCondition(scope.maxIterations)
-        logger.debug('For loop initialized', { loopId, maxIterations: scope.maxIterations })
         break
 
       case 'forEach': {
@@ -60,13 +58,11 @@ export class LoopOrchestrator {
         scope.maxIterations = items.length
         scope.item = items[0]
         scope.condition = buildLoopIndexCondition(scope.maxIterations)
-        logger.debug('ForEach loop initialized', { loopId, itemCount: items.length })
         break
       }
 
       case 'while':
         scope.condition = loopConfig.whileCondition
-        logger.debug('While loop initialized', { loopId, condition: scope.condition })
         break
 
       case 'doWhile':
@@ -77,7 +73,6 @@ export class LoopOrchestrator {
           scope.condition = buildLoopIndexCondition(scope.maxIterations)
         }
         scope.skipFirstConditionCheck = true
-        logger.debug('DoWhile loop initialized', { loopId, condition: scope.condition })
         break
 
       default:
@@ -105,12 +100,6 @@ export class LoopOrchestrator {
 
     const baseId = extractBaseBlockId(nodeId)
     scope.currentIterationOutputs.set(baseId, output)
-    logger.debug('Stored loop node output', {
-      loopId,
-      nodeId: baseId,
-      iteration: scope.iteration,
-      outputsCount: scope.currentIterationOutputs.size,
-    })
   }
 
   evaluateLoopContinuation(ctx: ExecutionContext, loopId: string): LoopContinuationResult {
@@ -131,11 +120,6 @@ export class LoopOrchestrator {
 
     if (iterationResults.length > 0) {
       scope.allIterationOutputs.push(iterationResults)
-      logger.debug('Collected iteration results', {
-        loopId,
-        iteration: scope.iteration,
-        resultsCount: iterationResults.length,
-      })
     }
 
     scope.currentIterationOutputs.clear()
@@ -144,11 +128,6 @@ export class LoopOrchestrator {
     const shouldSkipFirstCheck = scope.skipFirstConditionCheck && isFirstIteration
     if (!shouldSkipFirstCheck) {
       if (!this.evaluateCondition(ctx, scope, scope.iteration + 1)) {
-        logger.debug('Loop condition false for next iteration - exiting', {
-          loopId,
-          currentIteration: scope.iteration,
-          nextIteration: scope.iteration + 1,
-        })
         return this.createExitResult(ctx, loopId, scope)
       }
     }
@@ -158,11 +137,6 @@ export class LoopOrchestrator {
     if (scope.items && scope.iteration < scope.items.length) {
       scope.item = scope.items[scope.iteration]
     }
-
-    logger.debug('Loop will continue', {
-      loopId,
-      nextIteration: scope.iteration,
-    })
 
     return {
       shouldContinue: true,
@@ -179,8 +153,6 @@ export class LoopOrchestrator {
   ): LoopContinuationResult {
     const results = scope.allIterationOutputs
     this.state.setBlockOutput(loopId, { results }, DEFAULTS.EXECUTION_TIME)
-
-    logger.debug('Loop exiting', { loopId, totalIterations: scope.iteration })
 
     return {
       shouldContinue: false,
@@ -227,11 +199,6 @@ export class LoopOrchestrator {
     for (const loopNodeId of loopNodes) {
       this.state.unmarkExecuted(loopNodeId)
     }
-
-    logger.debug('Cleared loop execution state', {
-      loopId,
-      nodesCleared: loopNodes.length + 2,
-    })
   }
 
   restoreLoopEdges(loopId: string): void {
@@ -268,8 +235,6 @@ export class LoopOrchestrator {
         }
       }
     }
-
-    logger.debug('Restored loop edges', { loopId, edgesRestored: restoredCount })
   }
 
   getLoopScope(ctx: ExecutionContext, loopId: string): LoopScope | undefined {
@@ -315,13 +280,6 @@ export class LoopOrchestrator {
       })
 
       const result = Boolean(new Function(`return (${evaluatedCondition})`)())
-
-      logger.debug('Evaluated loop condition', {
-        condition,
-        evaluatedCondition,
-        result,
-        iteration: scope.iteration,
-      })
 
       return result
     } catch (error) {

@@ -31,7 +31,6 @@ export class ParallelResolver implements Resolver {
     const [_, property] = parts
     const parallelId = this.findParallelForBlock(context.currentNodeId)
     if (!parallelId) {
-      logger.debug('Block not in a parallel', { nodeId: context.currentNodeId })
       return undefined
     }
 
@@ -43,7 +42,6 @@ export class ParallelResolver implements Resolver {
 
     const branchIndex = extractBranchIndex(context.currentNodeId)
     if (branchIndex === null) {
-      logger.debug('Node ID does not have branch index', { nodeId: context.currentNodeId })
       return undefined
     }
 

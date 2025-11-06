@@ -14,7 +14,6 @@ export class EnvResolver implements Resolver {
 
     const value = context.executionContext.environmentVariables?.[varName]
     if (value === undefined) {
-      logger.debug('Environment variable not found, returning original reference', { varName })
       return reference
     }
     return value
