@@ -80,7 +80,7 @@ export class BlockExecutor {
         blockLog.endedAt = new Date().toISOString()
         blockLog.durationMs = duration
         blockLog.success = true
-        blockLog.output = normalizedOutput
+        blockLog.output = this.filterOutputForLog(block, normalizedOutput)
       }
 
       ctx.blockStates.set(node.id, {
@@ -90,7 +90,9 @@ export class BlockExecutor {
       })
 
       if (!isSentinel) {
-        this.callOnBlockComplete(ctx, node, block, resolvedInputs, normalizedOutput, duration)
+        // Filter output for callbacks/logs but keep full output in blockStates for variable resolution
+        const filteredOutput = this.filterOutputForLog(block, normalizedOutput)
+        this.callOnBlockComplete(ctx, node, block, resolvedInputs, filteredOutput, duration)
       }
 
       return normalizedOutput
@@ -233,6 +235,26 @@ export class BlockExecutor {
     }
 
     return { result: output }
+  }
+
+  private filterOutputForLog(block: SerializedBlock, output: NormalizedBlockOutput): NormalizedBlockOutput {
+    // For pause_resume blocks, only show fields accessible as variables downstream
+    if (block.metadata?.id === 'pause_resume') {
+      const filtered: NormalizedBlockOutput = {}
+      
+      // Only include fields that don't start with _ and aren't internal fields
+      for (const [key, value] of Object.entries(output)) {
+        if (key.startsWith('_')) continue
+        if (key === 'response') continue
+        
+        // Include uiUrl, apiUrl, and any input format fields
+        filtered[key] = value
+      }
+      
+      return filtered
+    }
+    
+    return output
   }
 
   private callOnBlockStart(ctx: ExecutionContext, node: DAGNode, block: SerializedBlock): void {
