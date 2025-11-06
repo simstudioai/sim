@@ -9,6 +9,10 @@ import { createLogger } from '@/lib/logs/console/logger'
 import { executeWorkflowCore } from './execution-core'
 import type { Edge } from 'reactflow'
 
+function isPlainObject(value: unknown): value is Record<string, any> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
 const logger = createLogger('PauseResumeManager')
 
 interface ResumeQueueEntrySummary {
@@ -295,12 +299,6 @@ export class PauseResumeManager {
         userId,
       })
 
-      console.log('[RESUME] Resume execution result:', {
-        status: result.status,
-        logsCount: result.logs?.length || 0,
-        logs: result.logs?.map(log => ({ blockId: log.blockId, blockName: log.blockName, iterationIndex: log.iterationIndex })),
-      })
-
       if (result.status === 'paused') {
         if (!result.snapshotSeed) {
           logger.error('Missing snapshot seed for paused resume execution', {
@@ -458,16 +456,83 @@ export class PauseResumeManager {
         executed: true,
         executionTime: 0,
       }
-      pauseBlockState.output = {
-        response: {
-          data: resumeInput ?? {},
-          status: 200,
-          headers: { 'Content-Type': 'application/json' },
-        },
+      const normalizedResumeInputRaw = (() => {
+        if (!resumeInput) return {}
+        if (typeof resumeInput === 'string') {
+          try {
+            return JSON.parse(resumeInput)
+          } catch {
+            return { value: resumeInput }
+          }
+        }
+        if (typeof resumeInput === 'object' && !Array.isArray(resumeInput)) {
+          return resumeInput
+        }
+        return { value: resumeInput }
+      })()
+
+      const submissionPayload =
+        normalizedResumeInputRaw &&
+        typeof normalizedResumeInputRaw === 'object' &&
+        !Array.isArray(normalizedResumeInputRaw) &&
+        normalizedResumeInputRaw.submission &&
+        typeof normalizedResumeInputRaw.submission === 'object' &&
+        !Array.isArray(normalizedResumeInputRaw.submission)
+          ? (normalizedResumeInputRaw.submission as Record<string, any>)
+          : (normalizedResumeInputRaw as Record<string, any>)
+
+      const existingOutput = pauseBlockState.output || {}
+      const existingResponse = existingOutput.response || {}
+      const existingResponseData =
+        existingResponse && typeof existingResponse.data === 'object' && !Array.isArray(existingResponse.data)
+          ? existingResponse.data
+          : {}
+
+      const submittedAt = new Date().toISOString()
+
+      const mergedResponseData = {
+        ...existingResponseData,
+        submission: submissionPayload,
+        submittedAt,
+      }
+
+      const mergedResponse = {
+        ...existingResponse,
+        data: mergedResponseData,
+        status: existingResponse.status ?? 200,
+        headers: existingResponse.headers ?? { 'Content-Type': 'application/json' },
+        resume: existingResponse.resume ?? existingOutput.resume,
+      }
+
+      const mergedOutput: Record<string, any> = {
+        ...existingOutput,
+        response: mergedResponse,
+        submission: submissionPayload,
+        resumeInput: normalizedResumeInputRaw,
+        submittedAt,
         _resumed: true,
         _resumedFrom: pausedExecution.executionId,
         _pauseDurationMs: pauseDurationMs,
       }
+
+      mergedOutput.resume = mergedOutput.resume ?? mergedResponse.resume
+
+      // Preserve uiUrl and apiUrl from resume links
+      const resumeLinks = mergedOutput.resume ?? mergedResponse.resume
+      if (resumeLinks && typeof resumeLinks === 'object') {
+        if (resumeLinks.uiUrl) {
+          mergedOutput.uiUrl = resumeLinks.uiUrl
+        }
+        if (resumeLinks.apiUrl) {
+          mergedOutput.apiUrl = resumeLinks.apiUrl
+        }
+      }
+
+      for (const [key, value] of Object.entries(submissionPayload)) {
+        mergedOutput[key] = value
+      }
+
+      pauseBlockState.output = mergedOutput
       pauseBlockState.executed = true
       pauseBlockState.executionTime = pauseDurationMs
       if (stateBlockKey !== pauseBlockId && stateCopy.blockStates[pauseBlockId]) {

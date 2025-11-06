@@ -94,6 +94,29 @@ export function getBlockOutputs(
     return outputs
   }
 
+  if (blockType === 'pause_resume') {
+    // Start with only uiUrl and apiUrl (from base outputs)
+    const pauseResumeOutputs: Record<string, any> = {
+      uiUrl: { type: 'string', description: 'Resume UI URL' },
+      apiUrl: { type: 'string', description: 'Resume API URL' },
+    }
+    
+    const normalizedInputFormat = normalizeInputFormatValue(subBlocks?.inputFormat?.value)
+    
+    // Add each input format field as a top-level output
+    for (const field of normalizedInputFormat) {
+      const fieldName = field?.name?.trim()
+      if (!fieldName) continue
+
+      pauseResumeOutputs[fieldName] = {
+        type: (field?.type || 'any') as any,
+        description: `Field from input format`,
+      }
+    }
+    
+    return pauseResumeOutputs
+  }
+
   // Special handling for starter block (legacy)
   if (startPath === StartBlockPath.LEGACY_STARTER) {
     const startWorkflowValue = subBlocks?.startWorkflow?.value

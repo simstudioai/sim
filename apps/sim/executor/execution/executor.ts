@@ -97,17 +97,6 @@ export class DAGExecutor {
   private createExecutionContext(workflowId: string, triggerBlockId?: string): ExecutionContext {
     const snapshotState = this.contextExtensions.snapshotState
     
-    if (snapshotState?.blockLogs) {
-      logger.info('[EXECUTOR] Restoring context from snapshot', {
-        restoredLogsCount: snapshotState.blockLogs.length,
-        restoredLogs: snapshotState.blockLogs.map(l => ({ 
-          blockId: l.blockId, 
-          blockName: l.blockName,
-          iterationIndex: l.iterationIndex 
-        })),
-      })
-    }
-    
     const context: ExecutionContext = {
       workflowId,
       workspaceId: this.contextExtensions.workspaceId,
@@ -245,6 +234,15 @@ export class DAGExecutor {
         logger.warn('No start block found in workflow')
         return
       }
+    }
+
+    // Skip initialization if the start block already exists (e.g., from snapshot during resume)
+    if (context.blockStates.has(startResolution.block.id)) {
+      logger.debug('Start block already initialized from snapshot, skipping re-initialization', {
+        blockId: startResolution.block.id,
+        blockType: startResolution.block.metadata?.id,
+      })
+      return
     }
 
     const blockOutput = buildStartBlockOutput({

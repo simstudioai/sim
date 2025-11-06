@@ -9,6 +9,7 @@ import {
   mapNodeMetadataToPauseScopes,
 } from '@/executor/pause-resume/utils.ts'
 import { getBaseUrl } from '@/lib/urls/utils'
+import { executeTool } from '@/tools'
 
 const logger = createLogger('PauseResumeBlockHandler')
 
@@ -18,6 +19,24 @@ interface JSONProperty {
   type: 'string' | 'number' | 'boolean' | 'object' | 'array' | 'files'
   value: any
   collapsed?: boolean
+}
+
+interface ResponseStructureEntry {
+  name: string
+  type: string
+  value: any
+}
+
+interface NormalizedInputField {
+  id: string
+  name: string
+  label: string
+  type: string
+  description?: string
+  placeholder?: string
+  value?: any
+  required?: boolean
+  options?: any[]
 }
 
 export class PauseResumeBlockHandler implements BlockHandler {
@@ -50,13 +69,11 @@ export class PauseResumeBlockHandler implements BlockHandler {
     logger.info(`Executing pause resume block: ${block.id}`)
 
     try {
-      const responseData = this.parseResponseData(inputs)
-      const statusCode = this.parseStatus(inputs.status)
-      const responseHeaders = this.parseHeaders(inputs.headers)
-      const timestamp = new Date().toISOString()
-
+      const operation = inputs.operation || 'human'
+      
       const { parallelScope, loopScope } = mapNodeMetadataToPauseScopes(ctx, nodeMetadata)
       const contextId = generatePauseContextId(block.id, nodeMetadata, loopScope)
+      const timestamp = new Date().toISOString()
 
       const executionId = ctx.executionId || ctx.metadata?.executionId
       const workflowId = ctx.workflowId
@@ -84,11 +101,62 @@ export class PauseResumeBlockHandler implements BlockHandler {
         }
       }
 
+      const normalizedInputFormat = this.normalizeInputFormat(inputs.inputFormat)
+      const responseStructure = this.normalizeResponseStructure(inputs.builderData)
+
+      let responseData: any
+      let statusCode: number
+      let responseHeaders: Record<string, string>
+
+      if (operation === 'api') {
+        const parsed = this.parseResponseData(inputs)
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+          responseData = {
+            ...parsed,
+            operation,
+            responseStructure:
+              parsed.responseStructure && Array.isArray(parsed.responseStructure)
+                ? parsed.responseStructure
+                : responseStructure,
+          }
+        } else {
+          responseData = parsed
+        }
+        statusCode = this.parseStatus(inputs.status)
+        responseHeaders = this.parseHeaders(inputs.headers)
+      } else {
+        responseData = {
+          operation,
+          responseStructure,
+          inputFormat: normalizedInputFormat,
+          submission: null,
+        }
+        statusCode = HTTP.STATUS.OK
+        responseHeaders = { 'Content-Type': HTTP.CONTENT_TYPE.JSON }
+      }
+
+      // Execute notification tools if in human mode
+      if (operation === 'human' && inputs.notification && Array.isArray(inputs.notification)) {
+        await this.executeNotificationTools(ctx, inputs.notification, {
+          resumeLinks,
+          executionId,
+          workflowId,
+          inputFormat: normalizedInputFormat,
+          responseStructure,
+          operation,
+        })
+      }
+
+      const responseDataWithResume =
+        resumeLinks && responseData && typeof responseData === 'object' && !Array.isArray(responseData)
+          ? { ...responseData, _resume: resumeLinks }
+          : responseData
+
       const pauseMetadata: PauseMetadata = {
         contextId,
         blockId: nodeMetadata.nodeId,
         response: {
-          data: responseData,
+          data: responseDataWithResume,
           status: statusCode,
           headers: responseHeaders,
         },
@@ -98,44 +166,55 @@ export class PauseResumeBlockHandler implements BlockHandler {
         resumeLinks,
       }
 
-      const responseOutput: {
-        data: any
-        status: number
-        headers: Record<string, string>
-        resume?: {
-          apiUrl: string
-          uiUrl: string
-          contextId: string
-          executionId: string
-          workflowId: string
-        }
-      } = {
-        data: responseData,
+      const responseOutput: Record<string, any> = {
+        data: responseDataWithResume,
         status: statusCode,
         headers: responseHeaders,
+        operation,
+      }
+
+      if (operation === 'human') {
+        responseOutput.responseStructure = responseStructure
+        responseOutput.inputFormat = normalizedInputFormat
+        responseOutput.submission = null
       }
 
       if (resumeLinks) {
         responseOutput.resume = resumeLinks
-        if (responseData && typeof responseData === 'object' && !Array.isArray(responseData)) {
-          responseOutput.data = {
-            ...responseData,
-            _resume: resumeLinks,
-          }
-        }
       }
 
       logger.info('Pause resume prepared', {
         status: statusCode,
         contextId,
+        operation,
         parallelScope,
         loopScope,
       })
 
-      return {
+      // Extract input format fields into a structured object (like start block does)
+      const structuredFields: Record<string, any> = {}
+      if (operation === 'human') {
+        for (const field of normalizedInputFormat) {
+          if (field.name) {
+            structuredFields[field.name] = field.value !== undefined ? field.value : null
+          }
+        }
+      }
+
+      // Build the final output with top-level fields spread (like start block)
+      const output: Record<string, any> = {
+        ...structuredFields, // Spread input format fields at top level
         response: responseOutput,
         _pauseMetadata: pauseMetadata,
       }
+
+      // Add uiUrl and apiUrl as top-level outputs for downstream access
+      if (resumeLinks) {
+        output.uiUrl = resumeLinks.uiUrl
+        output.apiUrl = resumeLinks.apiUrl
+      }
+
+      return output
     } catch (error: any) {
       logger.error('Pause resume block execution failed:', error)
       return {
@@ -174,6 +253,82 @@ export class PauseResumeBlockHandler implements BlockHandler {
     }
 
     return inputs.data || {}
+  }
+
+  private normalizeResponseStructure(
+    builderData?: JSONProperty[],
+    prefix = ''
+  ): ResponseStructureEntry[] {
+    if (!Array.isArray(builderData)) {
+      return []
+    }
+
+    const entries: ResponseStructureEntry[] = []
+
+    for (const prop of builderData) {
+      const fieldName = typeof prop.name === 'string' ? prop.name.trim() : ''
+      if (!fieldName) continue
+
+      const path = prefix ? `${prefix}.${fieldName}` : fieldName
+
+      if (prop.type === 'object' && Array.isArray(prop.value)) {
+        const nested = this.normalizeResponseStructure(prop.value, path)
+        if (nested.length > 0) {
+          entries.push(...nested)
+          continue
+        }
+      }
+
+      const value = this.convertPropertyValue(prop)
+
+      entries.push({
+        name: path,
+        type: prop.type,
+        value,
+      })
+    }
+
+    return entries
+  }
+
+  private normalizeInputFormat(inputFormat: any): NormalizedInputField[] {
+    if (!Array.isArray(inputFormat)) {
+      return []
+    }
+
+    return inputFormat
+      .map((field: any, index: number) => {
+        const name = typeof field?.name === 'string' ? field.name.trim() : ''
+        if (!name) return null
+
+        const id = typeof field?.id === 'string' && field.id.length > 0 ? field.id : `field_${index}`
+        const label =
+          typeof field?.label === 'string' && field.label.trim().length > 0 ? field.label.trim() : name
+        const type = typeof field?.type === 'string' && field.type.trim().length > 0 ? field.type : 'string'
+        const description =
+          typeof field?.description === 'string' && field.description.trim().length > 0
+            ? field.description.trim()
+            : undefined
+        const placeholder =
+          typeof field?.placeholder === 'string' && field.placeholder.trim().length > 0
+            ? field.placeholder.trim()
+            : undefined
+        const required = field?.required === true
+        const options = Array.isArray(field?.options) ? field.options : undefined
+
+        return {
+          id,
+          name,
+          label,
+          type,
+          description,
+          placeholder,
+          value: field?.value,
+          required,
+          options,
+        } as NormalizedInputField
+      })
+      .filter((field): field is NormalizedInputField => field !== null)
   }
 
   private convertBuilderDataToJson(builderData: JSONProperty[]): any {
@@ -355,5 +510,77 @@ export class PauseResumeBlockHandler implements BlockHandler {
     }, {})
 
     return { ...defaultHeaders, ...headerObj }
+  }
+
+  private async executeNotificationTools(
+    ctx: ExecutionContext,
+    tools: any[],
+    context: {
+      resumeLinks?: {
+        apiUrl: string
+        uiUrl: string
+        contextId: string
+        executionId: string
+        workflowId: string
+      }
+      executionId?: string
+      workflowId?: string
+      inputFormat?: NormalizedInputField[]
+      responseStructure?: ResponseStructureEntry[]
+      operation?: string
+    }
+  ): Promise<void> {
+    if (!tools || tools.length === 0) {
+      return
+    }
+
+    logger.info('Executing notification tools', { toolCount: tools.length })
+
+    const notificationPromises = tools.map(async (toolConfig) => {
+      try {
+        const toolId = toolConfig.blockType || toolConfig.type
+        if (!toolId) {
+          logger.warn('Notification tool missing type', { toolConfig })
+          return
+        }
+
+        // Merge the pause context into the tool params
+        const toolParams = {
+          ...toolConfig.params,
+          _pauseContext: {
+            resumeApiUrl: context.resumeLinks?.apiUrl,
+            resumeUiUrl: context.resumeLinks?.uiUrl,
+            executionId: context.executionId,
+            workflowId: context.workflowId,
+            contextId: context.resumeLinks?.contextId,
+            inputFormat: context.inputFormat,
+            responseStructure: context.responseStructure,
+            operation: context.operation,
+          },
+          _context: {
+            workflowId: ctx.workflowId,
+            workspaceId: ctx.workspaceId,
+          },
+        }
+
+        const result = await executeTool(toolId, toolParams, false, false, ctx)
+
+        if (!result.success) {
+          logger.warn('Notification tool execution failed', {
+            toolId,
+            error: result.error,
+          })
+        } else {
+          logger.info('Notification tool executed successfully', { toolId })
+        }
+
+        return result
+      } catch (error) {
+        logger.error('Error executing notification tool', { error, toolConfig })
+        return null
+      }
+    })
+
+    await Promise.allSettled(notificationPromises)
   }
 }

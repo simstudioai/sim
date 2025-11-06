@@ -53,30 +53,12 @@ export class ExecutionEngine {
       await this.waitForAllExecutions()
 
       if (this.pausedBlocks.size > 0) {
-        logger.info('[ENGINE] Execution paused', {
-          pausedBlocksCount: this.pausedBlocks.size,
-          totalLogs: this.context.blockLogs.length,
-          logBlocks: this.context.blockLogs.map(l => ({ 
-            blockId: l.blockId, 
-            blockName: l.blockName,
-            iterationIndex: l.iterationIndex 
-          })),
-        })
         return this.buildPausedResult(startTime)
       }
 
       const endTime = Date.now()
       this.context.metadata.endTime = new Date(endTime).toISOString()
       this.context.metadata.duration = endTime - startTime
-
-      logger.info('[ENGINE] Execution completed successfully', {
-        totalLogs: this.context.blockLogs.length,
-        logBlocks: this.context.blockLogs.map(l => ({ 
-          blockId: l.blockId, 
-          blockName: l.blockName,
-          iterationIndex: l.iterationIndex 
-        })),
-      })
 
       return {
         success: true,

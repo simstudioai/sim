@@ -5,6 +5,15 @@ import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import Nav from '@/app/(landing)/components/nav/nav'
 import { inter } from '@/app/fonts/inter'
 import { soehne } from '@/app/fonts/soehne/soehne'
@@ -16,6 +25,26 @@ interface ResumeLinks {
   contextId: string
   executionId: string
   workflowId: string
+}
+
+interface NormalizedInputField {
+  id: string
+  name: string
+  label: string
+  type: string
+  description?: string
+  placeholder?: string
+  value?: any
+  required?: boolean
+  options?: any[]
+  rows?: number
+}
+
+interface ResponseStructureRow {
+  id: string
+  name: string
+  type: string
+  value: any
 }
 
 interface ResumeQueueEntrySummary {
@@ -148,11 +177,297 @@ export default function ResumeExecutionPage({
   const [queuePosition, setQueuePosition] = useState<number | null | undefined>(undefined)
   const [resumeInputs, setResumeInputs] = useState<Record<string, string>>({})
   const [resumeInput, setResumeInput] = useState('')
+  const [formValuesByContext, setFormValuesByContext] = useState<Record<string, Record<string, string>>>({})
+  const [formValues, setFormValues] = useState<Record<string, string>>({})
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({})
   const [loadingDetail, setLoadingDetail] = useState(false)
   const [loadingAction, setLoadingAction] = useState(false)
   const [refreshingExecution, setRefreshingExecution] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
+
+  const normalizeInputFormatFields = useCallback(
+    (raw: any): NormalizedInputField[] => {
+      if (!Array.isArray(raw)) return []
+
+      return raw
+        .map((field: any, index: number) => {
+          if (!field || typeof field !== 'object') return null
+
+          const name = typeof field.name === 'string' ? field.name.trim() : ''
+          if (!name) return null
+
+          const id = typeof field.id === 'string' && field.id.length > 0 ? field.id : `field_${index}`
+          const label =
+            typeof field.label === 'string' && field.label.trim().length > 0 ? field.label.trim() : name
+          const type = typeof field.type === 'string' && field.type.trim().length > 0 ? field.type : 'string'
+          const description =
+            typeof field.description === 'string' && field.description.trim().length > 0
+              ? field.description.trim()
+              : undefined
+          const placeholder =
+            typeof field.placeholder === 'string' && field.placeholder.trim().length > 0
+              ? field.placeholder.trim()
+              : undefined
+          const required = field.required === true
+          const options = Array.isArray(field.options) ? field.options : undefined
+          const rows = typeof field.rows === 'number' ? field.rows : undefined
+
+          return {
+            id,
+            name,
+            label,
+            type,
+            description,
+            placeholder,
+            value: field.value,
+            required,
+            options,
+            rows,
+          } as NormalizedInputField
+        })
+        .filter((field): field is NormalizedInputField => field !== null)
+    },
+    []
+  )
+
+  const formatValueForInputField = useCallback((field: NormalizedInputField, value: any): string => {
+    if (value === undefined || value === null) {
+      return ''
+    }
+
+    switch (field.type) {
+      case 'boolean':
+        if (typeof value === 'boolean') {
+          return value ? 'true' : 'false'
+        }
+        if (typeof value === 'string') {
+          const normalized = value.trim().toLowerCase()
+          if (normalized === 'true' || normalized === 'false') {
+            return normalized
+          }
+        }
+        return ''
+      case 'number':
+        if (typeof value === 'number') {
+          return Number.isFinite(value) ? String(value) : ''
+        }
+        if (typeof value === 'string') {
+          return value
+        }
+        return ''
+      case 'array':
+      case 'object':
+      case 'files':
+        if (typeof value === 'string') {
+          return value
+        }
+        try {
+          return JSON.stringify(value, null, 2)
+        } catch {
+          return ''
+        }
+      default:
+        return typeof value === 'string' ? value : JSON.stringify(value)
+    }
+  }, [])
+
+  const buildInitialFormValues = useCallback(
+    (fields: NormalizedInputField[], submission?: Record<string, any>) => {
+      const initial: Record<string, string> = {}
+
+      for (const field of fields) {
+        const candidate =
+          submission && Object.prototype.hasOwnProperty.call(submission, field.name)
+            ? submission[field.name]
+            : field.value
+
+        initial[field.name] = formatValueForInputField(field, candidate)
+      }
+
+      return initial
+    },
+    [formatValueForInputField]
+  )
+
+  const formatStructureValue = useCallback((value: any): string => {
+    if (value === null || value === undefined) return '—'
+    if (typeof value === 'string') return value
+    if (typeof value === 'number' || typeof value === 'boolean') return String(value)
+    try {
+      return JSON.stringify(value, null, 2)
+    } catch {
+      return String(value)
+    }
+  }, [])
+
+  const parseFormValue = useCallback(
+    (field: NormalizedInputField, rawValue: string): { value: any; error?: string } => {
+      const value = rawValue ?? ''
+
+      switch (field.type) {
+        case 'number': {
+          if (!value.trim()) {
+            return { value: null }
+          }
+          const numericValue = Number(value)
+          if (Number.isNaN(numericValue)) {
+            return { value: null, error: 'Enter a valid number.' }
+          }
+          return { value: numericValue }
+        }
+        case 'boolean': {
+          if (value === 'true') return { value: true }
+          if (value === 'false') return { value: false }
+          if (!value) return { value: null }
+          return { value: null, error: 'Select true or false.' }
+        }
+        case 'array':
+        case 'object':
+        case 'files': {
+          if (!value.trim()) {
+            if (field.type === 'array') return { value: [] }
+            return { value: {} }
+          }
+          try {
+            return { value: JSON.parse(value) }
+          } catch {
+            return { value: null, error: 'Enter valid JSON.' }
+          }
+        }
+        default:
+          return { value }
+      }
+    },
+    []
+  )
+
+  const handleFormFieldChange = useCallback(
+    (fieldName: string, newValue: string) => {
+      if (!selectedContextId) return
+
+      setFormValues((prev) => {
+        const updated = { ...prev, [fieldName]: newValue }
+        setFormValuesByContext((map) => ({ ...map, [selectedContextId]: updated }))
+        return updated
+      })
+
+      setFormErrors((prev) => {
+        if (!prev[fieldName]) {
+          return prev
+        }
+        const { [fieldName]: _, ...rest } = prev
+        return rest
+      })
+    },
+    [selectedContextId]
+  )
+
+  const renderFieldInput = useCallback(
+    (field: NormalizedInputField) => {
+      const value = formValues[field.name] ?? ''
+
+      switch (field.type) {
+        case 'boolean': {
+          const selectValue = value === 'true' || value === 'false' ? value : ''
+          return (
+            <Select value={selectValue} onValueChange={(val) => handleFormFieldChange(field.name, val)}>
+              <SelectTrigger className='w-full rounded-[12px] border-slate-200'>
+                <SelectValue placeholder={field.required ? 'Select true or false' : 'Select true, false, or leave blank'} />
+              </SelectTrigger>
+              <SelectContent>
+                {!field.required && <SelectItem value=''>Not set</SelectItem>}
+                <SelectItem value='true'>True</SelectItem>
+                <SelectItem value='false'>False</SelectItem>
+              </SelectContent>
+            </Select>
+          )
+        }
+        case 'number':
+          return (
+            <Input
+              type='number'
+              value={value}
+              onChange={(event) => handleFormFieldChange(field.name, event.target.value)}
+              placeholder={field.placeholder ?? 'Enter a number...'}
+              className='rounded-[12px] border-slate-200'
+            />
+          )
+        case 'array':
+        case 'object':
+        case 'files':
+          return (
+            <Textarea
+              value={value}
+              onChange={(event) => handleFormFieldChange(field.name, event.target.value)}
+              placeholder={field.placeholder ?? (field.type === 'array' ? '[...]' : '{...}')}
+              className='min-h-[120px] rounded-[12px] border-slate-200 font-mono text-sm'
+            />
+          )
+        default: {
+          const useTextarea = field.rows !== undefined && field.rows > 3
+          if (useTextarea) {
+            return (
+              <Textarea
+                value={value}
+                onChange={(event) => handleFormFieldChange(field.name, event.target.value)}
+                placeholder={field.placeholder ?? 'Enter value...'}
+                className='min-h-[120px] rounded-[12px] border-slate-200'
+              />
+            )
+          }
+          return (
+            <Input
+              value={value}
+              onChange={(event) => handleFormFieldChange(field.name, event.target.value)}
+              placeholder={field.placeholder ?? 'Enter value...'}
+              className='rounded-[12px] border-slate-200'
+            />
+          )
+        }
+      }
+    },
+    [formValues, handleFormFieldChange]
+  )
+
+  const selectedOperation = useMemo(
+    () => selectedDetail?.pausePoint.response?.data?.operation || 'human',
+    [selectedDetail]
+  )
+  const isHumanMode = selectedOperation === 'human'
+
+  const inputFormatFields = useMemo(
+    () =>
+      normalizeInputFormatFields(selectedDetail?.pausePoint.response?.data?.inputFormat),
+    [normalizeInputFormatFields, selectedDetail]
+  )
+  const hasInputFormat = inputFormatFields.length > 0
+
+  const responseStructureRows = useMemo<ResponseStructureRow[]>(() => {
+    const raw = selectedDetail?.pausePoint.response?.data?.responseStructure
+    if (!Array.isArray(raw)) return []
+
+    return raw
+      .map((entry: any, index: number) => {
+        if (!entry || typeof entry !== 'object') return null
+        const name =
+          typeof entry.name === 'string' && entry.name.length > 0 ? entry.name : `field_${index}`
+        const type =
+          typeof entry.type === 'string' && entry.type.length > 0
+            ? entry.type
+            : Array.isArray(entry.value)
+            ? 'array'
+            : typeof entry.value
+
+        return {
+          id: entry.id ?? `${name}_${index}`,
+          name,
+          type,
+          value: entry.value,
+        } as ResponseStructureRow
+      })
+      .filter((row): row is ResponseStructureRow => row !== null)
+  }, [selectedDetail])
 
   useEffect(() => {
     const root = document.documentElement
@@ -195,19 +510,51 @@ export default function ResumeExecutionPage({
         setSelectedDetail(data)
         setSelectedStatus(data.pausePoint.resumeStatus)
         setQueuePosition(data.pausePoint.queuePosition)
+        const responseData = data.pausePoint.response?.data ?? {}
+        const operation = responseData.operation || 'human'
+        const fetchedInputFields = normalizeInputFormatFields(responseData.inputFormat)
+        const submission =
+          responseData && typeof responseData.submission === 'object' && !Array.isArray(responseData.submission)
+            ? (responseData.submission as Record<string, any>)
+            : undefined
 
-        setResumeInputs((prev) => {
-          if (prev[data.pausePoint.contextId] !== undefined) {
-            setResumeInput(prev[data.pausePoint.contextId])
+        if (operation === 'human' && fetchedInputFields.length > 0) {
+          const baseValues = buildInitialFormValues(fetchedInputFields, submission)
+          let mergedValues = baseValues
+          setFormValuesByContext((prev) => {
+            const existingValues = prev[data.pausePoint.contextId]
+            if (existingValues) {
+              mergedValues = { ...baseValues, ...existingValues }
+            }
+            return { ...prev, [data.pausePoint.contextId]: mergedValues }
+          })
+          setFormValues(mergedValues)
+          setFormErrors({})
+          setResumeInputs((prev) => {
+            if (prev[data.pausePoint.contextId] !== undefined) {
+              const next = { ...prev }
+              delete next[data.pausePoint.contextId]
+              return next
+            }
             return prev
-          }
-
-          const initialValue = data.pausePoint.response?.data
-            ? JSON.stringify(data.pausePoint.response.data, null, 2)
-            : ''
-          setResumeInput(initialValue)
-          return { ...prev, [data.pausePoint.contextId]: initialValue }
-        })
+          })
+          setResumeInput('')
+        } else {
+          const initialValue =
+            typeof responseData === 'string'
+              ? responseData
+              : JSON.stringify(responseData ?? {}, null, 2)
+          setResumeInputs((prev) => {
+            if (prev[data.pausePoint.contextId] !== undefined) {
+              setResumeInput(prev[data.pausePoint.contextId])
+              return prev
+            }
+            setResumeInput(initialValue)
+            return { ...prev, [data.pausePoint.contextId]: initialValue }
+          })
+          setFormValues({})
+          setFormErrors({})
+        }
       } catch (err) {
         if ((err as any)?.name !== 'AbortError') {
           console.error('Failed to load pause context detail', err)
@@ -219,7 +566,7 @@ export default function ResumeExecutionPage({
 
     loadDetail()
     return () => controller.abort()
-  }, [workflowId, executionId, selectedContextId])
+  }, [workflowId, executionId, selectedContextId, normalizeInputFormatFields, buildInitialFormValues])
 
   const refreshExecutionDetail = useCallback(async () => {
     setRefreshingExecution(true)
@@ -268,6 +615,52 @@ export default function ResumeExecutionPage({
         setSelectedDetail(data)
         setSelectedStatus(data.pausePoint.resumeStatus)
         setQueuePosition(data.pausePoint.queuePosition)
+
+        const responseData = data.pausePoint.response?.data ?? {}
+        const operation = responseData.operation || 'human'
+        const fetchedInputFields = normalizeInputFormatFields(responseData.inputFormat)
+        const submission =
+          responseData && typeof responseData.submission === 'object' && !Array.isArray(responseData.submission)
+            ? (responseData.submission as Record<string, any>)
+            : undefined
+
+        if (operation === 'human' && fetchedInputFields.length > 0) {
+          const baseValues = buildInitialFormValues(fetchedInputFields, submission)
+          let mergedValues = baseValues
+          setFormValuesByContext((prev) => {
+            const existingValues = prev[data.pausePoint.contextId]
+            if (existingValues) {
+              mergedValues = { ...baseValues, ...existingValues }
+            }
+            return { ...prev, [data.pausePoint.contextId]: mergedValues }
+          })
+          setFormValues(mergedValues)
+          setFormErrors({})
+          setResumeInputs((prev) => {
+            if (prev[data.pausePoint.contextId] !== undefined) {
+              const next = { ...prev }
+              delete next[data.pausePoint.contextId]
+              return next
+            }
+            return prev
+          })
+          setResumeInput('')
+        } else {
+          const initialValue =
+            typeof responseData === 'string'
+              ? responseData
+              : JSON.stringify(responseData ?? {}, null, 2)
+          setResumeInputs((prev) => {
+            if (prev[data.pausePoint.contextId] !== undefined) {
+              setResumeInput(prev[data.pausePoint.contextId])
+              return prev
+            }
+            setResumeInput(initialValue)
+            return { ...prev, [data.pausePoint.contextId]: initialValue }
+          })
+          setFormValues({})
+          setFormErrors({})
+        }
       } catch (err) {
         console.error('Failed to refresh pause context detail', err)
       } finally {
@@ -276,7 +669,7 @@ export default function ResumeExecutionPage({
         }
       }
     },
-    [workflowId, executionId]
+    [workflowId, executionId, normalizeInputFormatFields, buildInitialFormValues]
   )
 
   const handleResume = useCallback(async () => {
@@ -286,16 +679,59 @@ export default function ResumeExecutionPage({
     setError(null)
     setMessage(null)
 
-    let parsedInput: any = undefined
+    let resumePayload: any = undefined
 
-    if (resumeInput && resumeInput.trim().length > 0) {
-      try {
-        parsedInput = JSON.parse(resumeInput)
-      } catch (err: any) {
-        setError('Resume input must be valid JSON.')
+    if (isHumanMode && hasInputFormat) {
+      const errors: Record<string, string> = {}
+      const submission: Record<string, any> = {}
+
+      for (const field of inputFormatFields) {
+        const rawValue = formValues[field.name] ?? ''
+        const hasValue =
+          field.type === 'boolean'
+            ? rawValue === 'true' || rawValue === 'false'
+            : rawValue.trim().length > 0
+
+        if (!hasValue) {
+          if (field.required) {
+            errors[field.name] = 'This field is required.'
+          }
+          continue
+        }
+
+        const { value, error: parseError } = parseFormValue(field, rawValue)
+        if (parseError) {
+          errors[field.name] = parseError
+          continue
+        }
+
+        if (value !== undefined) {
+          submission[field.name] = value
+        }
+      }
+
+      if (Object.keys(errors).length > 0) {
+        setFormErrors(errors)
         setLoadingAction(false)
         return
       }
+
+      setFormErrors({})
+      resumePayload = { submission }
+    } else {
+      let parsedInput: any = undefined
+
+      if (resumeInput && resumeInput.trim().length > 0) {
+        try {
+          parsedInput = JSON.parse(resumeInput)
+        } catch (err: any) {
+          setError('Resume input must be valid JSON.')
+          setLoadingAction(false)
+          return
+        }
+      }
+
+      resumePayload = parsedInput
     }
 
     try {
@@ -305,7 +741,7 @@ export default function ResumeExecutionPage({
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(parsedInput ? { input: parsedInput } : {}),
+        body: JSON.stringify(resumePayload ? { input: resumePayload } : {}),
       })
 
       const payload = await response.json()
@@ -383,6 +819,11 @@ export default function ResumeExecutionPage({
     workflowId,
     executionId,
     selectedContextId,
+    isHumanMode,
+    hasInputFormat,
+    inputFormatFields,
+    formValues,
+    parseFormValue,
     resumeInput,
     selectedDetail,
     executionDetail,
@@ -460,12 +901,34 @@ export default function ResumeExecutionPage({
     [selectedContextId]
   )
 
+  const isFormComplete = useMemo(() => {
+    if (!isHumanMode || !hasInputFormat) return true
+
+    return inputFormatFields.every((field) => {
+      const rawValue = formValues[field.name] ?? ''
+
+      if (field.type === 'boolean') {
+        if (field.required) {
+          return rawValue === 'true' || rawValue === 'false'
+        }
+        return rawValue === '' || rawValue === 'true' || rawValue === 'false'
+      }
+
+      if (!field.required) {
+        return true
+      }
+
+      return rawValue.trim().length > 0
+    })
+  }, [isHumanMode, hasInputFormat, inputFormatFields, formValues])
+
   const resumeDisabled =
     loadingAction ||
     selectedStatus === 'resumed' ||
     selectedStatus === 'failed' ||
     selectedStatus === 'resuming' ||
-    selectedStatus === 'queued'
+    selectedStatus === 'queued' ||
+    (isHumanMode && hasInputFormat && (!isFormComplete || Object.keys(formErrors).length > 0))
 
   if (!executionDetail) {
     return (
@@ -651,33 +1114,94 @@ export default function ResumeExecutionPage({
                   </div>
                 )}
 
-                <div className='space-y-3 text-left'>
-                  <h2 className={`${soehne.className} text-sm font-semibold text-slate-700`}>
-                    Pause Response Preview
-                  </h2>
-                  <pre className='max-h-60 overflow-auto rounded-xl bg-slate-900 p-4 text-sm text-slate-100'>
-                    {pauseResponsePreview}
-                  </pre>
-                </div>
+                {responseStructureRows.length > 0 && (
+                  <div className='space-y-3 text-left'>
+                    <h2 className={`${soehne.className} text-sm font-semibold text-slate-700`}>
+                      Response Structure
+                    </h2>
+                    <div className='overflow-hidden rounded-xl border border-slate-200'>
+                      <table className='min-w-full divide-y divide-slate-200 text-sm'>
+                        <thead className='bg-slate-50'>
+                          <tr>
+                            <th className='px-3 py-2 text-left font-semibold text-slate-600'>Field</th>
+                            <th className='px-3 py-2 text-left font-semibold text-slate-600'>Type</th>
+                            <th className='px-3 py-2 text-left font-semibold text-slate-600'>Value</th>
+                          </tr>
+                        </thead>
+                        <tbody className='divide-y divide-slate-200 bg-white'>
+                          {responseStructureRows.map((row) => (
+                            <tr key={row.id}>
+                              <td className='px-3 py-2 font-medium text-slate-800'>{row.name}</td>
+                              <td className='px-3 py-2 text-slate-500'>{row.type}</td>
+                              <td className='px-3 py-2'>
+                                <pre className='max-h-40 overflow-auto whitespace-pre-wrap break-words font-mono text-xs text-slate-800'>
+                                  {formatStructureValue(row.value)}
+                                </pre>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
 
-                <div className='space-y-2 text-left'>
-                  <label className={`${soehne.className} text-sm font-semibold text-slate-700`}>
-                    Resume Input (JSON, optional)
-                  </label>
-                  <Textarea
-                    value={resumeInput}
-                    onChange={(event) => {
-                      setResumeInput(event.target.value)
-                      if (selectedContextId) {
-                        setResumeInputs((prev) => ({ ...prev, [selectedContextId]: event.target.value }))
-                      }
-                    }}
-                    placeholder='{
+                {(!isHumanMode || responseStructureRows.length === 0) && (
+                  <div className='space-y-3 text-left'>
+                    <h2 className={`${soehne.className} text-sm font-semibold text-slate-700`}>
+                      Pause Response Preview
+                    </h2>
+                    <pre className='max-h-60 overflow-auto rounded-xl bg-slate-900 p-4 text-sm text-slate-100'>
+                      {pauseResponsePreview}
+                    </pre>
+                  </div>
+                )}
+
+                {isHumanMode && hasInputFormat ? (
+                  <div className='space-y-3 text-left'>
+                    <h2 className={`${soehne.className} text-sm font-semibold text-slate-700`}>
+                      Approval Response
+                    </h2>
+                    <div className='space-y-4'>
+                      {inputFormatFields.map((field) => (
+                        <div key={field.id} className='space-y-2'>
+                          <Label className={`${soehne.className} text-sm font-semibold text-slate-700`}>
+                            {field.label}
+                            {field.required && <span className='ml-1 text-red-500'>*</span>}
+                          </Label>
+                          {field.description && (
+                            <p className={`${inter.className} text-xs text-slate-600`}>{field.description}</p>
+                          )}
+                          {renderFieldInput(field)}
+                          {formErrors[field.name] && (
+                            <p className={`${inter.className} text-xs text-red-600`}>
+                              {formErrors[field.name]}
+                            </p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <div className='space-y-2 text-left'>
+                    <label className={`${soehne.className} text-sm font-semibold text-slate-700`}>
+                      Resume Input (JSON, optional)
+                    </label>
+                    <Textarea
+                      value={resumeInput}
+                      onChange={(event) => {
+                        setResumeInput(event.target.value)
+                        if (selectedContextId) {
+                          setResumeInputs((prev) => ({ ...prev, [selectedContextId]: event.target.value }))
+                        }
+                      }}
+                      placeholder='{
   "example": "value"
 }'
-                    className='min-h-[160px] resize-y rounded-xl border-slate-200 bg-white'
-                  />
-                </div>
+                      className='min-h-[160px] resize-y rounded-xl border-slate-200 bg-white font-mono text-sm'
+                    />
+                  </div>
+                )}
 
                 {error && (
                   <div className='rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700'>

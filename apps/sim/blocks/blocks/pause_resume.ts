@@ -13,6 +13,35 @@ export const PauseResumeBlock: BlockConfig<ResponseBlockOutput> = {
   icon: ResponseIcon,
   subBlocks: [
     {
+      id: 'operation',
+      title: 'Operation',
+      type: 'dropdown',
+      layout: 'full',
+      options: [
+        { label: 'Human Approval', id: 'human' },
+        { label: 'API Response', id: 'api' },
+      ],
+      value: () => 'human',
+      description: 'Choose whether to wait for human approval or send an API response',
+    },
+    {
+      id: 'inputFormat',
+      title: 'Input Format',
+      type: 'input-format',
+      layout: 'full',
+      condition: { field: 'operation', value: 'human' },
+      description: 'Define the fields the approver can fill in when resuming',
+    },
+    {
+      id: 'notification',
+      title: 'Notification',
+      type: 'tool-input',
+      layout: 'full',
+      condition: { field: 'operation', value: 'human' },
+      description: 'Configure notification tools to alert approvers (e.g., Slack, Email)',
+      defaultValue: [],
+    },
+    {
       id: 'dataMode',
       title: 'Response Data Mode',
       type: 'dropdown',
@@ -22,6 +51,7 @@ export const PauseResumeBlock: BlockConfig<ResponseBlockOutput> = {
         { label: 'Editor', id: 'json' },
       ],
       value: () => 'structured',
+      condition: { field: 'operation', value: 'api' },
       description: 'Choose how to define your response data structure',
     },
     {
@@ -29,7 +59,15 @@ export const PauseResumeBlock: BlockConfig<ResponseBlockOutput> = {
       title: 'Response Structure',
       type: 'response-format',
       layout: 'full',
-      condition: { field: 'dataMode', value: 'structured' },
+      condition: () => ({
+        field: 'operation',
+        value: 'human',
+        or: {
+          field: 'operation',
+          value: 'api',
+          and: { field: 'dataMode', value: 'structured' },
+        },
+      }),
       description:
         'Define the structure of your response data. Use <variable.name> in field names to reference workflow variables.',
     },
@@ -40,7 +78,11 @@ export const PauseResumeBlock: BlockConfig<ResponseBlockOutput> = {
       layout: 'full',
       placeholder: '{\n  "message": "Hello world",\n  "userId": "<variable.userId>"\n}',
       language: 'json',
-      condition: { field: 'dataMode', value: 'json' },
+      condition: {
+        field: 'operation',
+        value: 'api',
+        and: { field: 'dataMode', value: 'json' },
+      },
       description:
         'Data that will be sent as the response body on API calls. Use <variable.name> to reference workflow variables.',
       wandConfig: {
@@ -74,6 +116,7 @@ Example:
       type: 'short-input',
       layout: 'half',
       placeholder: '200',
+      condition: { field: 'operation', value: 'api' },
       description: 'HTTP status code (default: 200)',
     },
     {
@@ -82,18 +125,24 @@ Example:
       type: 'table',
       layout: 'full',
       columns: ['Key', 'Value'],
+      condition: { field: 'operation', value: 'api' },
       description: 'Additional HTTP headers to include in the response',
-    },
-    {
-      id: 'inputFormat',
-      title: 'Input Format',
-      type: 'input-format',
-      layout: 'full',
-      description: 'Add custom fields beyond the built-in input, conversationId, and files fields.',
     },
   ],
   tools: { access: [] },
   inputs: {
+    operation: {
+      type: 'string',
+      description: 'Operation mode: human or api',
+    },
+    inputFormat: {
+      type: 'json',
+      description: 'Input fields for resume',
+    },
+    notification: {
+      type: 'json',
+      description: 'Notification tools configuration',
+    },
     dataMode: {
       type: 'string',
       description: 'Response data definition mode',
@@ -116,8 +165,7 @@ Example:
     },
   },
   outputs: {
-    data: { type: 'json', description: 'Response data' },
-    status: { type: 'number', description: 'HTTP status code' },
-    headers: { type: 'json', description: 'Response headers' },
+    uiUrl: { type: 'string', description: 'Resume UI URL' },
+    apiUrl: { type: 'string', description: 'Resume API URL' },
   },
 }

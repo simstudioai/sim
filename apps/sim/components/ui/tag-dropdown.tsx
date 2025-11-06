@@ -504,6 +504,15 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
             const outputPaths = generateOutputPaths(blockConfig.outputs || {})
             blockTags = outputPaths.map((path) => `${normalizedBlockName}.${path}`)
           }
+        } else if (sourceBlock.type === 'pause_resume') {
+          // For pause_resume block, use dynamic outputs based on inputFormat
+          const dynamicOutputs = getBlockOutputPaths(sourceBlock.type, mergedSubBlocks)
+          if (dynamicOutputs.length > 0) {
+            blockTags = dynamicOutputs.map((path) => `${normalizedBlockName}.${path}`)
+          } else {
+            const outputPaths = generateOutputPaths(blockConfig.outputs || {})
+            blockTags = outputPaths.map((path) => `${normalizedBlockName}.${path}`)
+          }
         } else {
           // Check for tool-specific outputs first
           const operationValue =
@@ -810,6 +819,15 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
         if (blockState?.triggerMode && blockConfig.triggers?.enabled) {
           // Use selected trigger (from subblocks) rather than defaulting to the first one
           const dynamicOutputs = getBlockOutputPaths(accessibleBlock.type, mergedSubBlocks, true)
+          if (dynamicOutputs.length > 0) {
+            blockTags = dynamicOutputs.map((path) => `${normalizedBlockName}.${path}`)
+          } else {
+            const outputPaths = generateOutputPaths(blockConfig.outputs || {})
+            blockTags = outputPaths.map((path) => `${normalizedBlockName}.${path}`)
+          }
+        } else if (accessibleBlock.type === 'pause_resume') {
+          // For pause_resume block, use dynamic outputs based on inputFormat
+          const dynamicOutputs = getBlockOutputPaths(accessibleBlock.type, mergedSubBlocks)
           if (dynamicOutputs.length > 0) {
             blockTags = dynamicOutputs.map((path) => `${normalizedBlockName}.${path}`)
           } else {
