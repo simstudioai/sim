@@ -86,15 +86,6 @@ export function useFileAttachments(props: UseFileAttachmentsProps) {
   }, [])
 
   /**
-   * Checks if a file is an image based on media type
-   * @param type - MIME type of the file
-   * @returns True if file is an image
-   */
-  const isImageFile = useCallback((type: string) => {
-    return type.startsWith('image/')
-  }, [])
-
-  /**
    * Determines file icon type based on media type
    * Returns a string identifier for icon type
    * @param mediaType - MIME type of the file
@@ -306,27 +297,6 @@ export function useFileAttachments(props: UseFileAttachmentsProps) {
     setAttachedFiles([])
   }, [attachedFiles])
 
-  /**
-   * Gets message file attachments in API format
-   * Only includes successfully uploaded files
-   */
-  const getMessageFileAttachments = useCallback((): MessageFileAttachment[] => {
-    const failed = attachedFiles.filter((f) => !f.uploading && !f.key)
-    if (failed.length > 0) {
-      logger.error(`Some files failed to upload: ${failed.map((f) => f.name).join(', ')}`)
-    }
-
-    return attachedFiles
-      .filter((f) => !f.uploading && f.key)
-      .map((f) => ({
-        id: f.id,
-        key: f.key!,
-        filename: f.name,
-        media_type: f.type,
-        size: f.size,
-      }))
-  }, [attachedFiles])
-
   return {
     // State
     attachedFiles,
@@ -337,7 +307,6 @@ export function useFileAttachments(props: UseFileAttachmentsProps) {
 
     // Operations
     formatFileSize,
-    isImageFile,
     getFileIconType,
     handleFileSelect,
     handleFileChange,
@@ -348,6 +317,5 @@ export function useFileAttachments(props: UseFileAttachmentsProps) {
     handleDragOver,
     handleDrop,
     clearAttachedFiles,
-    getMessageFileAttachments,
   }
 }

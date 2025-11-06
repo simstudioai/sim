@@ -1287,7 +1287,7 @@ async function* parseSSEStream(
 
 // Initial state (subset required for UI/streaming)
 const initialState = {
-  mode: 'agent' as const,
+  mode: 'build' as const,
   selectedModel: 'claude-4.5-sonnet' as CopilotStore['selectedModel'],
   agentPrefetch: false,
   enabledModels: null as string[] | null, // Null means not loaded yet, empty array means all disabled

@@ -1,14 +1,18 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useMemo, useRef } from 'react'
 import { Trash2 } from 'lucide-react'
 import { useParams } from 'next/navigation'
-import { Button } from '@/components/ui/button'
-import { checkEnvVarTrigger, EnvVarDropdown } from '@/components/ui/env-var-dropdown'
+import { Button } from '@/components/emcn/components/button/button'
+import { EnvVarDropdown } from '@/components/ui/env-var-dropdown'
 import { formatDisplayText } from '@/components/ui/formatted-text'
 import { Input } from '@/components/ui/input'
-import { checkTagTrigger, TagDropdown } from '@/components/ui/tag-dropdown'
+import { TagDropdown } from '@/components/ui/tag-dropdown'
+import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
+import { useSubBlockInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/components/sub-block/hooks/use-sub-block-input'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/components/sub-block/hooks/use-sub-block-value'
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
+
+const logger = createLogger('Table')
 
 interface TableProps {
   blockId: string
@@ -37,6 +41,19 @@ export function Table({
   const [storeValue, setStoreValue] = useSubBlockValue<TableRow[]>(blockId, subBlockId)
   const accessiblePrefixes = useAccessibleReferencePrefixes(blockId)
 
+  // Use the extended hook for field-level management
+  const inputController = useSubBlockInput({
+    blockId,
+    subBlockId,
+    config: {
+      id: subBlockId,
+      type: 'table',
+      connectionDroppable: true,
+    },
+    isPreview,
+    disabled,
+  })
+
   // Use preview value when in preview mode, otherwise use store value
   const value = isPreview ? previewValue : storeValue
 
@@ -63,7 +80,7 @@ export function Table({
 
       // Ensure row has cells object with proper structure
       if (!row.cells || typeof row.cells !== 'object') {
-        console.warn('Fixing malformed table row:', row)
+        logger.warn('Fixing malformed table row:', row)
         row.cells = Object.fromEntries(columns.map((col) => [col, '']))
       } else {
         // Ensure all required columns exist in cells
@@ -80,58 +97,27 @@ export function Table({
     return validatedRows as TableRow[]
   }, [value, columns])
 
-  // Add state for managing dropdowns
-  const [activeCell, setActiveCell] = useState<{
-    rowIndex: number
-    column: string
-    showEnvVars: boolean
-    showTags: boolean
-    cursorPosition: number
-    searchTerm: string
-    activeSourceBlockId: string | null
-    element?: HTMLElement | null
-  } | null>(null)
-
-  // Sync overlay scroll with input scroll
-  useEffect(() => {
-    if (activeCell) {
-      const cellKey = `${activeCell.rowIndex}-${activeCell.column}`
-      const input = inputRefs.current.get(cellKey)
-      const overlay = document.querySelector(`[data-overlay="${cellKey}"]`) as HTMLElement
-
-      if (input && overlay) {
-        const handleScroll = () => {
-          overlay.scrollLeft = input.scrollLeft
-        }
-
-        input.addEventListener('scroll', handleScroll)
-        return () => {
-          input.removeEventListener('scroll', handleScroll)
-        }
-      }
-    }
-  }, [activeCell])
-
-  const handleCellChange = (rowIndex: number, column: string, value: string) => {
+  // Helper to update a cell value
+  const updateCellValue = (rowIndex: number, column: string, newValue: string) => {
     if (isPreview || disabled) return
 
     const updatedRows = [...rows].map((row, idx) => {
       if (idx === rowIndex) {
         // Ensure the row has a proper cells object
         if (!row.cells || typeof row.cells !== 'object') {
-          console.warn('Fixing malformed row cells during cell change:', row)
+          logger.warn('Fixing malformed row cells during cell change:', row)
           row.cells = Object.fromEntries(columns.map((col) => [col, '']))
         }
 
         return {
           ...row,
-          cells: { ...row.cells, [column]: value },
+          cells: { ...row.cells, [column]: newValue },
         }
       }
       return row
     })
 
-    if (rowIndex === rows.length - 1 && value !== '') {
+    if (rowIndex === rows.length - 1 && newValue !== '') {
       updatedRows.push({
         id: crypto.randomUUID(),
         cells: Object.fromEntries(columns.map((col) => [col, ''])),
@@ -147,14 +133,14 @@ export function Table({
   }
 
   const renderHeader = () => (
-    <thead>
-      <tr className='border-b'>
+    <thead className='bg-transparent'>
+      <tr className='border-[#303030] border-b bg-transparent'>
         {columns.map((column, index) => (
           <th
             key={column}
             className={cn(
-              'px-4 py-2 text-left font-medium text-sm',
-              index < columns.length - 1 && 'border-r'
+              'bg-transparent px-[10px] py-[5px] text-left font-medium text-[#AEAEAE] text-[14px]',
+              index < columns.length - 1 && 'border-[#303030] border-r'
             )}
           >
             {column}
@@ -167,7 +153,7 @@ export function Table({
   const renderCell = (row: TableRow, rowIndex: number, column: string, cellIndex: number) => {
     // Defensive programming: ensure row.cells exists and has the expected structure
     if (!row.cells || typeof row.cells !== 'object') {
-      console.warn('Table row has malformed cells data:', row)
+      logger.warn('Table row has malformed cells data:', row)
       // Create a fallback cells object
       row = {
         ...row,
@@ -178,10 +164,31 @@ export function Table({
     const cellValue = row.cells[column] || ''
     const cellKey = `${rowIndex}-${column}`
 
+    // Get field state and handlers for this cell
+    const fieldState = inputController.fieldHelpers.getFieldState(cellKey)
+    const handlers = inputController.fieldHelpers.createFieldHandlers(
+      cellKey,
+      cellValue,
+      (newValue) => updateCellValue(rowIndex, column, newValue)
+    )
+    const tagSelectHandler = inputController.fieldHelpers.createTagSelectHandler(
+      cellKey,
+      cellValue,
+      (newValue) => updateCellValue(rowIndex, column, newValue)
+    )
+    const envVarSelectHandler = inputController.fieldHelpers.createEnvVarSelectHandler(
+      cellKey,
+      cellValue,
+      (newValue) => updateCellValue(rowIndex, column, newValue)
+    )
+
     return (
       <td
         key={`${row.id}-${column}`}
-        className={cn('relative p-1', cellIndex < columns.length - 1 && 'border-r')}
+        className={cn(
+          'relative bg-transparent p-0',
+          cellIndex < columns.length - 1 && 'border-[#303030] border-r'
+        )}
       >
         <div className='relative w-full'>
           <Input
@@ -190,65 +197,56 @@ export function Table({
             }}
             value={cellValue}
             placeholder={column}
-            onChange={(e) => {
-              const newValue = e.target.value
-              const cursorPosition = e.target.selectionStart ?? 0
-
-              handleCellChange(rowIndex, column, newValue)
-
-              // Check for triggers
-              const envVarTrigger = checkEnvVarTrigger(newValue, cursorPosition)
-              const tagTrigger = checkTagTrigger(newValue, cursorPosition)
-
-              setActiveCell({
-                rowIndex,
-                column,
-                showEnvVars: envVarTrigger.show,
-                showTags: tagTrigger.show,
-                cursorPosition,
-                searchTerm: envVarTrigger.show ? envVarTrigger.searchTerm : '',
-                activeSourceBlockId: null,
-                element: e.target,
-              })
-            }}
-            onFocus={(e) => {
-              if (!disabled) {
-                setActiveCell({
-                  rowIndex,
-                  column,
-                  showEnvVars: false,
-                  showTags: false,
-                  cursorPosition: 0,
-                  searchTerm: '',
-                  activeSourceBlockId: null,
-                  element: e.target,
-                })
-              }
-            }}
-            onBlur={() => {
-              setTimeout(() => {
-                setActiveCell(null)
-              }, 200)
-            }}
-            onKeyDown={(e) => {
-              if (e.key === 'Escape') {
-                setActiveCell(null)
-              }
-            }}
+            onChange={handlers.onChange}
+            onKeyDown={handlers.onKeyDown}
+            onDrop={handlers.onDrop}
+            onDragOver={handlers.onDragOver}
             disabled={isPreview || disabled}
-            className='w-full border-0 text-transparent caret-foreground placeholder:text-muted-foreground/50 focus-visible:ring-0 focus-visible:ring-offset-0'
+            className='w-full border-0 bg-transparent px-[10px] py-[8px] text-transparent caret-white placeholder:text-[#787878] focus-visible:ring-0 focus-visible:ring-offset-0'
           />
           <div
             data-overlay={cellKey}
-            className='pointer-events-none absolute inset-0 flex items-center overflow-hidden bg-transparent px-3 text-sm'
+            className='pointer-events-none absolute inset-0 flex items-center overflow-hidden bg-transparent px-[10px] font-medium text-[#eeeeee] text-sm'
           >
-            <div className='whitespace-pre'>
+            <div className='whitespace-pre leading-[21px]'>
               {formatDisplayText(cellValue, {
                 accessiblePrefixes,
                 highlightAll: !accessiblePrefixes,
               })}
             </div>
           </div>
+          {fieldState.showEnvVars && (
+            <EnvVarDropdown
+              visible={fieldState.showEnvVars}
+              onSelect={envVarSelectHandler}
+              searchTerm={fieldState.searchTerm}
+              inputValue={cellValue}
+              cursorPosition={fieldState.cursorPosition}
+              workspaceId={workspaceId}
+              onClose={() => inputController.fieldHelpers.hideFieldDropdowns(cellKey)}
+              inputRef={
+                {
+                  current: inputRefs.current.get(cellKey) || null,
+                } as React.RefObject<HTMLInputElement>
+              }
+            />
+          )}
+          {fieldState.showTags && (
+            <TagDropdown
+              visible={fieldState.showTags}
+              onSelect={tagSelectHandler}
+              blockId={blockId}
+              activeSourceBlockId={fieldState.activeSourceBlockId}
+              inputValue={cellValue}
+              cursorPosition={fieldState.cursorPosition}
+              onClose={() => inputController.fieldHelpers.hideFieldDropdowns(cellKey)}
+              inputRef={
+                {
+                  current: inputRefs.current.get(cellKey) || null,
+                } as React.RefObject<HTMLInputElement>
+              }
+            />
+          )}
         </div>
       </td>
     )
@@ -261,23 +259,22 @@ export function Table({
       <td className='w-0 p-0'>
         <Button
           variant='ghost'
-          size='icon'
-          className='-translate-y-1/2 absolute top-1/2 right-2 h-8 w-8 opacity-0 group-hover:opacity-100'
+          className='-translate-y-1/2 absolute top-1/2 right-[8px] opacity-0 transition-opacity group-hover:opacity-100'
           onClick={() => handleDeleteRow(rowIndex)}
         >
-          <Trash2 className='h-4 w-4 text-muted-foreground' />
+          <Trash2 className='h-[14px] w-[14px]' />
         </Button>
       </td>
     )
 
   return (
     <div className='relative'>
-      <div className='overflow-visible rounded-md border'>
-        <table className='w-full'>
+      <div className='overflow-visible rounded-[4px] border border-[#303030] bg-[#1F1F1F]'>
+        <table className='w-full bg-transparent'>
           {renderHeader()}
-          <tbody>
+          <tbody className='bg-transparent'>
             {rows.map((row, rowIndex) => (
-              <tr key={row.id} className='group relative border-t'>
+              <tr key={row.id} className='group relative border-[#303030] border-t bg-transparent'>
                 {columns.map((column, cellIndex) => renderCell(row, rowIndex, column, cellIndex))}
                 {renderDeleteButton(rowIndex)}
               </tr>
@@ -285,43 +282,6 @@ export function Table({
           </tbody>
         </table>
       </div>
-
-      {activeCell?.element && (
-        <>
-          <EnvVarDropdown
-            visible={activeCell.showEnvVars}
-            onSelect={(newValue) => {
-              handleCellChange(activeCell.rowIndex, activeCell.column, newValue)
-              setActiveCell(null)
-            }}
-            searchTerm={activeCell.searchTerm}
-            inputValue={rows[activeCell.rowIndex].cells[activeCell.column] || ''}
-            cursorPosition={activeCell.cursorPosition}
-            workspaceId={workspaceId}
-            onClose={() => {
-              setActiveCell((prev) => (prev ? { ...prev, showEnvVars: false } : null))
-            }}
-            className='absolute w-[200px]'
-          />
-          <TagDropdown
-            visible={activeCell.showTags}
-            onSelect={(newValue) => {
-              handleCellChange(activeCell.rowIndex, activeCell.column, newValue)
-              setActiveCell(null)
-            }}
-            blockId={blockId}
-            activeSourceBlockId={activeCell.activeSourceBlockId}
-            inputValue={rows[activeCell.rowIndex].cells[activeCell.column] || ''}
-            cursorPosition={activeCell.cursorPosition}
-            onClose={() => {
-              setActiveCell((prev) =>
-                prev ? { ...prev, showTags: false, activeSourceBlockId: null } : null
-              )
-            }}
-            className='absolute'
-          />
-        </>
-      )}
     </div>
   )
 }

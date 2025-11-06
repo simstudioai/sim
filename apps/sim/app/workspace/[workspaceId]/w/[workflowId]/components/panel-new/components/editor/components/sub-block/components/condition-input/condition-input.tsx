@@ -1,19 +1,20 @@
 import type { ReactElement } from 'react'
 import { useEffect, useRef, useState } from 'react'
-import { ChevronDown, ChevronUp, Plus, Trash } from 'lucide-react'
+import { ChevronDown, ChevronUp, Plus } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { highlight, languages } from 'prismjs'
 import 'prismjs/components/prism-javascript'
 
 import Editor from 'react-simple-code-editor'
-import { Handle, Position, useUpdateNodeInternals } from 'reactflow'
+import { useUpdateNodeInternals } from 'reactflow'
 import { Tooltip } from '@/components/emcn'
+import { Button } from '@/components/emcn/components/button/button'
 import {
   Code,
   calculateGutterWidth,
   getCodeEditorProps,
 } from '@/components/emcn/components/code/code'
-import { Button } from '@/components/ui/button'
+import { Trash } from '@/components/emcn/icons/trash'
 import { checkEnvVarTrigger, EnvVarDropdown } from '@/components/ui/env-var-dropdown'
 import { checkTagTrigger, TagDropdown } from '@/components/ui/tag-dropdown'
 import { createLogger } from '@/lib/logs/console/logger'
@@ -27,35 +28,66 @@ import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 const logger = createLogger('ConditionInput')
 
+/**
+ * Represents a single conditional block (if/else if/else).
+ */
 interface ConditionalBlock {
+  /** Unique identifier for the block */
   id: string
+  /** Block title (if/else if/else) */
   title: string
+  /** Code content of the condition */
   value: string
+  /** Whether tag dropdown is visible */
   showTags: boolean
+  /** Whether environment variable dropdown is visible */
   showEnvVars: boolean
+  /** Current search term for env var dropdown */
   searchTerm: string
+  /** Current cursor position in the editor */
   cursorPosition: number
+  /** ID of the active source block for connections */
   activeSourceBlockId: string | null
 }
 
+/**
+ * Props for the ConditionInput component.
+ */
 interface ConditionInputProps {
+  /** ID of the parent workflow block */
   blockId: string
+  /** ID of this subblock */
   subBlockId: string
-  isConnecting: boolean
+  /** Whether component is in preview mode */
   isPreview?: boolean
+  /** Preview value to display instead of store value */
   previewValue?: string | null
+  /** Whether the component is disabled */
   disabled?: boolean
 }
 
-// Generate a stable ID based on the blockId and a suffix
+/**
+ * Generates a stable ID for conditional blocks.
+ *
+ * @param blockId - The parent block ID
+ * @param suffix - Suffix to append (e.g., 'if', 'else', 'else-if-timestamp')
+ * @returns A stable composite ID
+ */
 const generateStableId = (blockId: string, suffix: string): string => {
   return `${blockId}-${suffix}`
 }
 
+/**
+ * Condition input component for creating if/else if/else conditional logic blocks.
+ * Provides a code editor interface with syntax highlighting, tag completion,
+ * and environment variable support for each condition branch.
+ *
+ * @param props - Component props
+ * @returns Rendered condition input component
+ */
 export function ConditionInput({
   blockId,
   subBlockId,
-  isConnecting,
   isPreview = false,
   previewValue,
   disabled = false,
@@ -69,6 +101,12 @@ export function ConditionInput({
 
   const containerRef = useRef<HTMLDivElement>(null)
 
+  /**
+   * Determines if a reference string should be highlighted in the editor.
+   *
+   * @param part - String segment to check (e.g., '<blockName.field>')
+   * @returns True if the reference should be highlighted
+   */
   const shouldHighlightReference = (part: string): boolean => {
     if (!part.startsWith('<') || !part.endsWith('>')) {
       return false
@@ -116,7 +154,11 @@ export function ConditionInput({
   const previousBlockIdRef = useRef<string>(blockId)
   const shouldPersistRef = useRef<boolean>(false)
 
-  // Create default blocks with stable IDs
+  /**
+   * Creates default if/else conditional blocks with stable IDs.
+   *
+   * @returns Array of two default blocks (if and else)
+   */
   const createDefaultBlocks = (): ConditionalBlock[] => [
     {
       id: generateStableId(blockId, 'if'),
@@ -157,7 +199,12 @@ export function ConditionInput({
     }
   }, [blockId])
 
-  // Safely parse JSON with fallback
+  /**
+   * Safely parses JSON string into conditional blocks array.
+   *
+   * @param jsonString - JSON string to parse
+   * @returns Parsed blocks array or null if invalid
+   */
   const safeParseJSON = (jsonString: string | null): ConditionalBlock[] | null => {
     if (!jsonString) return null
     try {
@@ -346,7 +393,12 @@ export function ConditionInput({
     return () => resizeObserver.disconnect()
   }, [conditionalBlocks])
 
-  // Modify the line numbers rendering to be block-specific
+  /**
+   * Renders line numbers for a specific conditional block.
+   *
+   * @param blockId - ID of the block to render line numbers for
+   * @returns Array of line number elements
+   */
   const renderLineNumbers = (blockId: string) => {
     const numbers: ReactElement[] = []
     let lineNumber = 1
@@ -369,7 +421,12 @@ export function ConditionInput({
     return numbers
   }
 
-  // Handle drops from connection blocks - updated for individual blocks
+  /**
+   * Handles dropping a connection block onto a condition editor.
+   *
+   * @param blockId - ID of the conditional block receiving the drop
+   * @param e - Drag event
+   */
   const handleDrop = (blockId: string, e: React.DragEvent) => {
     if (isPreview || disabled) return
     e.preventDefault()
@@ -508,7 +565,13 @@ export function ConditionInput({
     emitTagSelection(JSON.stringify(updatedBlocks))
   }
 
-  // Update block titles based on position
+  /**
+   * Updates block titles based on their position in the array.
+   * First block is always 'if', last is 'else', middle ones are 'else if'.
+   *
+   * @param blocks - Array of conditional blocks
+   * @returns Updated blocks with correct titles
+   */
   const updateBlockTitles = (blocks: ConditionalBlock[]): ConditionalBlock[] => {
     return blocks.map((block, index) => ({
       ...block,
@@ -632,119 +695,82 @@ export function ConditionInput({
   }
 
   return (
-    <div className='space-y-4' ref={containerRef}>
+    <div className='space-y-[8px]' ref={containerRef}>
       {conditionalBlocks.map((block, index) => (
         <div
           key={block.id}
-          className='group relative overflow-visible rounded-lg border bg-background'
+          className='group relative overflow-visible rounded-[4px] border border-[#303030] bg-[#1F1F1F]'
         >
           <div
             className={cn(
-              'flex h-10 items-center justify-between overflow-hidden bg-card px-3',
-              block.title === 'else' ? 'rounded-lg border-0' : 'rounded-t-lg border-b'
+              'flex items-center justify-between overflow-hidden bg-transparent px-[10px] py-[5px]',
+              block.title === 'else'
+                ? 'rounded-[4px] border-0'
+                : 'rounded-t-[4px] border-[#303030] border-b'
             )}
           >
-            <span className='font-medium text-sm'>{block.title}</span>
-            <Handle
-              type='source'
-              position={Position.Right}
-              id={`condition-${block.id}`}
-              key={`${block.id}-${index}`}
-              className={cn(
-                '!w-[7px] !h-5',
-                '!bg-slate-300 dark:!bg-slate-500 !rounded-[2px] !border-none',
-                '!z-[30]',
-                'group-hover:!shadow-[0_0_0_3px_rgba(156,163,175,0.15)]',
-                'hover:!w-[10px] hover:!right-[-28px] hover:!rounded-r-full hover:!rounded-l-none',
-                '!cursor-crosshair',
-                'transition-all duration-150',
-                '!right-[-25px]'
-              )}
-              data-nodeid={`${blockId}-${subBlockId}`}
-              data-handleid={`condition-${block.id}`}
-              style={{
-                top: '50%',
-                transform: 'translateY(-50%)',
-              }}
-              isConnectableStart={true}
-              isConnectableEnd={false}
-              isValidConnection={(connection) => {
-                // Prevent self-connections
-                if (connection.source === connection.target) return false
-
-                // Existing validation to prevent connections within the same parent node
-                const sourceNodeId = connection.source?.split('-')[0]
-                const targetNodeId = connection.target?.split('-')[0]
-                return sourceNodeId !== targetNodeId
-              }}
-            />
-            <div className='flex items-center gap-1'>
+            <span className='font-medium text-[#AEAEAE] text-[14px]'>{block.title}</span>
+            <div className='flex items-center gap-[8px]'>
               <Tooltip.Root>
                 <Tooltip.Trigger asChild>
                   <Button
                     variant='ghost'
-                    size='sm'
                     onClick={() => addBlock(block.id)}
                     disabled={isPreview || disabled || block.title === 'else'}
-                    className='h-8 w-8'
+                    className='h-auto p-0'
                   >
-                    <Plus className='h-4 w-4' />
+                    <Plus className='h-[14px] w-[14px]' />
                     <span className='sr-only'>Add Block</span>
                   </Button>
                 </Tooltip.Trigger>
                 <Tooltip.Content>Add Block</Tooltip.Content>
               </Tooltip.Root>
 
-              <div className='flex items-center'>
-                <Tooltip.Root>
-                  <Tooltip.Trigger asChild>
-                    <Button
-                      variant='ghost'
-                      size='sm'
-                      onClick={() => moveBlock(block.id, 'up')}
-                      disabled={isPreview || index === 0 || disabled || block.title === 'else'}
-                      className='h-8 w-8'
-                    >
-                      <ChevronUp className='h-4 w-4' />
-                      <span className='sr-only'>Move Up</span>
-                    </Button>
-                  </Tooltip.Trigger>
-                  <Tooltip.Content>Move Up</Tooltip.Content>
-                </Tooltip.Root>
-
-                <Tooltip.Root>
-                  <Tooltip.Trigger asChild>
-                    <Button
-                      variant='ghost'
-                      size='sm'
-                      onClick={() => moveBlock(block.id, 'down')}
-                      disabled={
-                        isPreview ||
-                        disabled ||
-                        index === conditionalBlocks.length - 1 ||
-                        conditionalBlocks[index + 1]?.title === 'else' ||
-                        block.title === 'else'
-                      }
-                      className='h-8 w-8'
-                    >
-                      <ChevronDown className='h-4 w-4' />
-                      <span className='sr-only'>Move Down</span>
-                    </Button>
-                  </Tooltip.Trigger>
-                  <Tooltip.Content>Move Down</Tooltip.Content>
-                </Tooltip.Root>
-              </div>
+              <Tooltip.Root>
+                <Tooltip.Trigger asChild>
+                  <Button
+                    variant='ghost'
+                    onClick={() => moveBlock(block.id, 'up')}
+                    disabled={isPreview || index === 0 || disabled || block.title === 'else'}
+                    className='h-auto p-0'
+                  >
+                    <ChevronUp className='h-[14px] w-[14px]' />
+                    <span className='sr-only'>Move Up</span>
+                  </Button>
+                </Tooltip.Trigger>
+                <Tooltip.Content>Move Up</Tooltip.Content>
+              </Tooltip.Root>
 
               <Tooltip.Root>
                 <Tooltip.Trigger asChild>
                   <Button
                     variant='ghost'
-                    size='sm'
+                    onClick={() => moveBlock(block.id, 'down')}
+                    disabled={
+                      isPreview ||
+                      disabled ||
+                      index === conditionalBlocks.length - 1 ||
+                      conditionalBlocks[index + 1]?.title === 'else' ||
+                      block.title === 'else'
+                    }
+                    className='h-auto p-0'
+                  >
+                    <ChevronDown className='h-[14px] w-[14px]' />
+                    <span className='sr-only'>Move Down</span>
+                  </Button>
+                </Tooltip.Trigger>
+                <Tooltip.Content>Move Down</Tooltip.Content>
+              </Tooltip.Root>
+
+              <Tooltip.Root>
+                <Tooltip.Trigger asChild>
+                  <Button
+                    variant='ghost'
                     onClick={() => removeBlock(block.id)}
                     disabled={isPreview || conditionalBlocks.length === 1 || disabled}
-                    className='h-8 w-8 text-destructive hover:text-destructive'
+                    className='h-auto p-0 text-[#EF4444] hover:text-[#EF4444]'
                   >
-                    <Trash className='h-4 w-4' />
+                    <Trash className='h-[14px] w-[14px]' />
                     <span className='sr-only'>Delete Block</span>
                   </Button>
                 </Tooltip.Trigger>
@@ -759,9 +785,9 @@ export function ConditionInput({
 
               return (
                 <Code.Container
-                  isConnecting={isConnecting}
                   onDragOver={(e) => e.preventDefault()}
                   onDrop={(e) => handleDrop(block.id, e)}
+                  className='rounded-t-none border-0'
                 >
                   <Code.Gutter width={blockGutterWidth}>{renderLineNumbers(block.id)}</Code.Gutter>
 

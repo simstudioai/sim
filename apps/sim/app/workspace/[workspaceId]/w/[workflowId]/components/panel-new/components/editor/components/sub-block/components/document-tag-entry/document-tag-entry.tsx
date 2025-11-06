@@ -1,13 +1,14 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { Plus, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { formatDisplayText } from '@/components/ui/formatted-text'
 import { Input } from '@/components/ui/input'
-import { checkTagTrigger, TagDropdown } from '@/components/ui/tag-dropdown'
+import { TagDropdown } from '@/components/ui/tag-dropdown'
 import { MAX_TAG_SLOTS } from '@/lib/knowledge/consts'
 import { cn } from '@/lib/utils'
+import { useSubBlockInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/components/sub-block/hooks/use-sub-block-input'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/components/sub-block/hooks/use-sub-block-value'
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
 import type { SubBlockConfig } from '@/blocks/types'
@@ -29,7 +30,6 @@ interface DocumentTagEntryProps {
   disabled?: boolean
   isPreview?: boolean
   previewValue?: any
-  isConnecting?: boolean
 }
 
 export function DocumentTagEntry({
@@ -38,10 +38,23 @@ export function DocumentTagEntry({
   disabled = false,
   isPreview = false,
   previewValue,
-  isConnecting = false,
 }: DocumentTagEntryProps) {
   const [storeValue, setStoreValue] = useSubBlockValue<string>(blockId, subBlock.id)
   const accessiblePrefixes = useAccessibleReferencePrefixes(blockId)
+  const valueInputRefs = useRef<Record<number, HTMLInputElement>>({})
+
+  // Use the extended hook for field-level management
+  const inputController = useSubBlockInput({
+    blockId,
+    subBlockId: subBlock.id,
+    config: {
+      id: subBlock.id,
+      type: 'document-tag-entry',
+      connectionDroppable: true,
+    },
+    isPreview,
+    disabled,
+  })
 
   // Get the knowledge base ID from other sub-blocks
   const [knowledgeBaseIdValue] = useSubBlockValue(blockId, 'knowledgeBaseId')
@@ -56,15 +69,6 @@ export function DocumentTagEntry({
   const [dropdownStates, setDropdownStates] = useState<Record<number, boolean>>({})
   // State for type dropdown visibility - one for each row
   const [typeDropdownStates, setTypeDropdownStates] = useState<Record<number, boolean>>({})
-
-  // State for managing tag dropdown
-  const [activeTagDropdown, setActiveTagDropdown] = useState<{
-    rowIndex: number
-    showTags: boolean
-    cursorPosition: number
-    activeSourceBlockId: string | null
-    element?: HTMLElement | null
-  } | null>(null)
 
   // Use preview value when in preview mode, otherwise use store value
   const currentValue = isPreview ? previewValue : storeValue
@@ -270,7 +274,7 @@ export function DocumentTagEntry({
     const handleDropdownClick = (e: React.MouseEvent) => {
       e.preventDefault()
       e.stopPropagation()
-      if (!disabled && !isConnecting) {
+      if (!disabled) {
         if (!showDropdown) {
           setShowDropdown(true)
         }
@@ -278,7 +282,7 @@ export function DocumentTagEntry({
     }
 
     const handleFocus = () => {
-      if (!disabled && !isConnecting) {
+      if (!disabled) {
         setShowDropdown(true)
       }
     }
@@ -296,7 +300,7 @@ export function DocumentTagEntry({
             onChange={(e) => handleCellChange(rowIndex, 'tagName', e.target.value)}
             onFocus={handleFocus}
             onBlur={handleBlur}
-            disabled={disabled || isConnecting}
+            disabled={disabled}
             className={cn(
               'w-full border-0 text-transparent caret-foreground placeholder:text-muted-foreground/50 focus-visible:ring-0 focus-visible:ring-offset-0',
               isDuplicate && 'border-red-500 bg-red-50'
@@ -362,7 +366,7 @@ export function DocumentTagEntry({
     const handleTypeDropdownClick = (e: React.MouseEvent) => {
       e.preventDefault()
       e.stopPropagation()
-      if (!disabled && !isConnecting && !isReadOnly) {
+      if (!disabled && !isReadOnly) {
         if (!showTypeDropdown) {
           setShowTypeDropdown(true)
         }
@@ -370,7 +374,7 @@ export function DocumentTagEntry({
     }
 
     const handleTypeFocus = () => {
-      if (!disabled && !isConnecting && !isReadOnly) {
+      if (!disabled && !isReadOnly) {
         setShowTypeDropdown(true)
       }
     }
@@ -388,7 +392,7 @@ export function DocumentTagEntry({
           <Input
             value={cellValue}
             readOnly
-            disabled={disabled || isConnecting || isReadOnly}
+            disabled={disabled || isReadOnly}
             className='w-full cursor-pointer border-0 text-transparent caret-foreground placeholder:text-muted-foreground/50 focus-visible:ring-0 focus-visible:ring-offset-0'
             onClick={handleTypeDropdownClick}
             onFocus={handleTypeFocus}
@@ -433,49 +437,33 @@ export function DocumentTagEntry({
 
   const renderValueCell = (row: DocumentTagRow, rowIndex: number) => {
     const cellValue = row.cells.value || ''
+    const cellKey = `value-${rowIndex}`
+
+    const fieldState = inputController.fieldHelpers.getFieldState(cellKey)
+    const handlers = inputController.fieldHelpers.createFieldHandlers(
+      cellKey,
+      cellValue,
+      (newValue) => handleCellChange(rowIndex, 'value', newValue)
+    )
+    const tagSelectHandler = inputController.fieldHelpers.createTagSelectHandler(
+      cellKey,
+      cellValue,
+      (newValue) => handleTagDropdownSelection(rowIndex, 'value', newValue)
+    )
 
     return (
       <td className='p-1'>
         <div className='relative w-full'>
           <Input
+            ref={(el) => {
+              if (el) valueInputRefs.current[rowIndex] = el
+            }}
             value={cellValue}
-            onChange={(e) => {
-              const newValue = e.target.value
-              const cursorPosition = e.target.selectionStart ?? 0
-
-              handleCellChange(rowIndex, 'value', newValue)
-
-              // Check for tag trigger
-              const tagTrigger = checkTagTrigger(newValue, cursorPosition)
-
-              setActiveTagDropdown({
-                rowIndex,
-                showTags: tagTrigger.show,
-                cursorPosition,
-                activeSourceBlockId: null,
-                element: e.target,
-              })
-            }}
-            onFocus={(e) => {
-              if (!disabled && !isConnecting) {
-                setActiveTagDropdown({
-                  rowIndex,
-                  showTags: false,
-                  cursorPosition: 0,
-                  activeSourceBlockId: null,
-                  element: e.target,
-                })
-              }
-            }}
-            onBlur={() => {
-              setTimeout(() => setActiveTagDropdown(null), 200)
-            }}
-            onKeyDown={(e) => {
-              if (e.key === 'Escape') {
-                setActiveTagDropdown(null)
-              }
-            }}
-            disabled={disabled || isConnecting}
+            onChange={handlers.onChange}
+            onKeyDown={handlers.onKeyDown}
+            onDrop={handlers.onDrop}
+            onDragOver={handlers.onDragOver}
+            disabled={disabled}
             className='w-full border-0 text-transparent caret-foreground placeholder:text-muted-foreground/50 focus-visible:ring-0 focus-visible:ring-offset-0'
           />
           <div className='pointer-events-none absolute inset-0 flex items-center overflow-hidden bg-transparent px-3 text-sm'>
@@ -486,6 +474,22 @@ export function DocumentTagEntry({
               })}
             </div>
           </div>
+          {fieldState.showTags && (
+            <TagDropdown
+              visible={fieldState.showTags}
+              onSelect={tagSelectHandler}
+              blockId={blockId}
+              activeSourceBlockId={fieldState.activeSourceBlockId}
+              inputValue={cellValue}
+              cursorPosition={fieldState.cursorPosition}
+              onClose={() => inputController.fieldHelpers.hideFieldDropdowns(cellKey)}
+              inputRef={
+                {
+                  current: valueInputRefs.current[rowIndex] || null,
+                } as React.RefObject<HTMLInputElement>
+              }
+            />
+          )}
         </div>
       </td>
     )
@@ -542,26 +546,6 @@ export function DocumentTagEntry({
           </tbody>
         </table>
       </div>
-
-      {/* Tag Dropdown */}
-      {activeTagDropdown?.element && (
-        <TagDropdown
-          visible={activeTagDropdown.showTags}
-          onSelect={(newValue) => {
-            // Use immediate emission for tag dropdown selections
-            handleTagDropdownSelection(activeTagDropdown.rowIndex, 'value', newValue)
-            setActiveTagDropdown(null)
-          }}
-          blockId={blockId}
-          activeSourceBlockId={activeTagDropdown.activeSourceBlockId}
-          inputValue={rows[activeTagDropdown.rowIndex]?.cells.value || ''}
-          cursorPosition={activeTagDropdown.cursorPosition}
-          onClose={() => {
-            setActiveTagDropdown((prev) => (prev ? { ...prev, showTags: false } : null))
-          }}
-          className='absolute z-[9999] mt-0'
-        />
-      )}
 
       {/* Add Row Button and Tag slots usage indicator */}
       {!isPreview && !disabled && (

@@ -1,7 +1,8 @@
 'use client'
 
 import { memo, useEffect, useState } from 'react'
-import { Check, ChevronDown, ChevronRight, ListTodo, Loader2, X } from 'lucide-react'
+import { Check, ChevronDown, ChevronRight, Loader2, X } from 'lucide-react'
+import { Button } from '@/components/emcn'
 import { cn } from '@/lib/utils'
 
 /**
@@ -65,73 +66,74 @@ export const TodoList = memo(function TodoList({
   return (
     <div
       className={cn(
-        'border-gray-200 border-t bg-white dark:border-gray-700 dark:bg-gray-900',
+        'w-full rounded-t-[4px] rounded-b-none border-[#3D3D3D] border-x border-t bg-[#282828] dark:border-[#3D3D3D] dark:bg-[#363636]',
         className
       )}
     >
-      {/* Header */}
-      <div className='flex items-center justify-between border-gray-100 border-b px-3 py-2 dark:border-gray-800'>
-        <div className='flex items-center gap-2'>
-          <button
+      {/* Header - always visible */}
+      <div className='flex items-center justify-between px-[5.5px] py-[5px]'>
+        <div className='flex items-center gap-[8px]'>
+          <Button
+            variant='ghost'
             onClick={() => setIsCollapsed(!isCollapsed)}
-            className='rounded p-0.5 transition-colors hover:bg-gray-100 dark:hover:bg-gray-800'
+            className='!h-[14px] !w-[14px] !p-0'
           >
             {isCollapsed ? (
-              <ChevronRight className='h-4 w-4 text-gray-500' />
+              <ChevronRight className='h-[14px] w-[14px]' />
             ) : (
-              <ChevronDown className='h-4 w-4 text-gray-500' />
+              <ChevronDown className='h-[14px] w-[14px]' />
             )}
-          </button>
-          <ListTodo className='h-4 w-4 text-gray-500' />
-          <span className='font-medium text-gray-700 text-xs dark:text-gray-300'>Todo List</span>
-          <span className='text-gray-500 text-xs dark:text-gray-400'>
+          </Button>
+          <span className='font-medium text-[#E6E6E6] text-xs dark:text-[#E6E6E6]'>Todo:</span>
+          <span className='font-medium text-[#E6E6E6] text-xs dark:text-[#E6E6E6]'>
             {completedCount}/{totalCount}
           </span>
         </div>
 
-        <div className='flex items-center gap-2'>
+        <div className='flex flex-1 items-center gap-[8px] pl-[10px]'>
           {/* Progress bar */}
-          <div className='h-1.5 w-24 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700'>
+          <div className='h-1.5 flex-1 overflow-hidden rounded-full bg-[#3D3D3D] dark:bg-[#3D3D3D]'>
             <div
-              className='h-full bg-blue-500 transition-all duration-300 ease-out'
+              className='h-full bg-[#8E4CFB] transition-all duration-300 ease-out dark:bg-[#8E4CFB]'
               style={{ width: `${progress}%` }}
             />
           </div>
 
           {onClose && (
-            <button
+            <Button
+              variant='ghost'
               onClick={onClose}
-              className='rounded p-1 transition-colors hover:bg-gray-100 dark:hover:bg-gray-800'
+              className='!h-[14px] !w-[14px] !p-0'
               aria-label='Close todo list'
             >
-              <X className='h-3.5 w-3.5 text-gray-400' />
-            </button>
+              <X className='h-[14px] w-[14px]' />
+            </Button>
           )}
         </div>
       </div>
 
-      {/* Todo items */}
+      {/* Todo items - only show when not collapsed */}
       {!isCollapsed && (
         <div className='max-h-48 overflow-y-auto'>
           {todos.map((todo, index) => (
             <div
               key={todo.id}
               className={cn(
-                'flex items-start gap-2 px-3 py-1.5 transition-colors hover:bg-gray-50 dark:hover:bg-gray-800/50',
-                index !== todos.length - 1 && 'border-gray-50 border-b dark:border-gray-800'
+                'flex items-start gap-2 px-3 py-1.5 transition-colors hover:bg-[#363636]/50 dark:hover:bg-[#3D3D3D]/50',
+                index !== todos.length - 1 && 'border-[#3D3D3D] border-b dark:border-[#3D3D3D]'
               )}
             >
               {todo.executing ? (
                 <div className='mt-0.5 flex h-4 w-4 flex-shrink-0 items-center justify-center'>
-                  <Loader2 className='h-3 w-3 animate-spin text-blue-500' />
+                  <Loader2 className='h-3 w-3 animate-spin text-[#E6E6E6] dark:text-[#E6E6E6]' />
                 </div>
               ) : (
                 <div
                   className={cn(
                     'mt-0.5 flex h-4 w-4 flex-shrink-0 items-center justify-center rounded border transition-all',
                     todo.completed
-                      ? 'border-blue-500 bg-blue-500'
-                      : 'border-gray-300 dark:border-gray-600'
+                      ? 'border-[#8E4CFB] bg-[#8E4CFB] dark:border-[#8E4CFB] dark:bg-[#8E4CFB]'
+                      : 'border-[#707070] dark:border-[#707070]'
                   )}
                 >
                   {todo.completed ? <Check className='h-3 w-3 text-white' strokeWidth={3} /> : null}
@@ -140,8 +142,10 @@ export const TodoList = memo(function TodoList({
 
               <span
                 className={cn(
-                  'flex-1 text-xs leading-relaxed',
-                  todo.completed ? 'text-gray-400 line-through' : 'text-gray-700 dark:text-gray-300'
+                  'flex-1 font-base text-[12px] leading-relaxed',
+                  todo.completed
+                    ? 'text-[#787878] line-through dark:text-[#787878]'
+                    : 'text-[#FFFFFF] dark:text-[#FFFFFF]'
                 )}
               >
                 {todo.content}

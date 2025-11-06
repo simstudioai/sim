@@ -1,7 +1,7 @@
 'use client'
 
 import { type FC, memo, useMemo, useState } from 'react'
-import { Check, Copy, RotateCcw, Square, ThumbsDown, ThumbsUp } from 'lucide-react'
+import { Check, Copy, RotateCcw, ThumbsDown, ThumbsUp } from 'lucide-react'
 import { Button } from '@/components/emcn'
 import { createLogger } from '@/lib/logs/console/logger'
 import { InlineToolCall } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/copilot/components'
@@ -73,6 +73,7 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
       abortMessage,
       mode,
       setMode,
+      isAborting,
     } = useCopilotStore()
 
     // Get checkpoints for this message if it's a user message
@@ -135,11 +136,9 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
       messageContentRef,
       userInputRef,
       setEditedContent,
-      handleEditMessage,
       handleCancelEdit,
       handleMessageClick,
       handleSubmitEdit,
-      performEdit,
     } = useMessageEditing({
       message,
       messages,
@@ -248,8 +247,13 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
               <UserInput
                 ref={userInputRef}
                 onSubmit={handleSubmitEdit}
-                onAbort={handleCancelEdit}
+                onAbort={() => {
+                  if (isSendingMessage && isLastUserMessage) {
+                    abortMessage()
+                  }
+                }}
                 isLoading={isSendingMessage && isLastUserMessage}
+                isAborting={isAborting}
                 disabled={showCheckpointDiscardModal}
                 value={editedContent}
                 onChange={setEditedContent}
@@ -257,13 +261,12 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
                 mode={mode}
                 onModeChange={setMode}
                 panelWidth={panelWidth}
-                hideContextUsage={true}
                 clearOnSubmit={false}
               />
 
               {/* Inline Checkpoint Discard Confirmation - shown below input in edit mode */}
               {showCheckpointDiscardModal && (
-                <div className='mt-[8px] rounded-[4px] border border-[#3D3D3D] bg-[#282828] p-[10px] dark:border-[#3D3D3D] dark:bg-[#353535]'>
+                <div className='mt-[8px] rounded-[4px] border border-[#3D3D3D] bg-[#282828] p-[10px] dark:border-[#3D3D3D] dark:bg-[#363636]'>
                   <p className='mb-[8px] text-[#E6E6E6] text-sm'>
                     Continue from a previous message?
                   </p>
@@ -277,18 +280,18 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
                       <span className='text-[#787878] text-[10px]'>(Esc)</span>
                     </Button>
                     <Button
-                      onClick={handleContinueWithoutRevert}
-                      variant='outline'
-                      className='flex-1 px-[8px] py-[4px] text-xs'
-                    >
-                      Continue
-                    </Button>
-                    <Button
                       onClick={handleContinueAndRevert}
                       variant='outline'
                       className='flex-1 px-[8px] py-[4px] text-xs'
                     >
                       Revert
+                    </Button>
+                    <Button
+                      onClick={handleContinueWithoutRevert}
+                      variant='outline'
+                      className='flex-1 px-[8px] py-[4px] text-xs'
+                    >
+                      Continue
                     </Button>
                   </div>
                 </div>
@@ -310,7 +313,7 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
                 onClick={handleMessageClick}
                 onMouseEnter={() => setIsHoveringMessage(true)}
                 onMouseLeave={() => setIsHoveringMessage(false)}
-                className='group relative cursor-pointer rounded-[4px] border border-[#3D3D3D] bg-[#282828] px-[6px] py-[6px] transition-all duration-200 hover:border-[#4A4A4A] hover:bg-[#353535] dark:border-[#3D3D3D] dark:bg-[#353535] dark:hover:border-[#454545] dark:hover:bg-[#3D3D3D]'
+                className='group relative cursor-pointer rounded-[4px] border border-[#3D3D3D] bg-[#282828] px-[6px] py-[6px] transition-all duration-200 hover:border-[#4A4A4A] hover:bg-[#363636] dark:border-[#3D3D3D] dark:bg-[#363636] dark:hover:border-[#454545] dark:hover:bg-[#3D3D3D]'
               >
                 <div
                   ref={messageContentRef}
@@ -356,7 +359,7 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
 
                 {/* Gradient fade when truncated - applies to entire message box */}
                 {!isExpanded && needsExpansion && (
-                  <div className='pointer-events-none absolute right-0 bottom-0 left-0 h-6 bg-gradient-to-t from-0% from-[#282828] via-40% via-[#282828]/70 to-100% to-transparent group-hover:from-[#353535] group-hover:via-[#353535]/70 dark:from-[#353535] dark:via-[#353535]/70 dark:group-hover:from-[#3D3D3D] dark:group-hover:via-[#3D3D3D]/70' />
+                  <div className='pointer-events-none absolute right-0 bottom-0 left-0 h-6 bg-gradient-to-t from-0% from-[#282828] via-40% via-[#282828]/70 to-100% to-transparent group-hover:from-[#363636] group-hover:via-[#363636]/70 dark:from-[#363636] dark:via-[#363636]/70 dark:group-hover:from-[#3D3D3D] dark:group-hover:via-[#3D3D3D]/70' />
                 )}
 
                 {/* Abort button when hovering and response is generating (only on last user message) */}
@@ -367,11 +370,17 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
                         e.stopPropagation()
                         abortMessage()
                       }}
-                      variant='primary'
-                      className='h-[22px] w-[22px] rounded-full p-0 ring-2 ring-[#8E4CFB]/60 ring-offset-[#282828] ring-offset-[1.25px] dark:ring-offset-[#353535]'
+                      className='h-[20px] w-[20px] rounded-full bg-[#C0C0C0] p-0 transition-colors hover:bg-[#D0D0D0] dark:bg-[#C0C0C0] dark:hover:bg-[#D0D0D0]'
                       title='Stop generation'
                     >
-                      <Square className='h-3.5 w-3.5' fill='currentColor' />
+                      <svg
+                        className='h-[13px] w-[13px]'
+                        viewBox='0 0 24 24'
+                        fill='black'
+                        xmlns='http://www.w3.org/2000/svg'
+                      >
+                        <rect x='4' y='4' width='16' height='16' rx='3' ry='3' />
+                      </svg>
                     </Button>
                   </div>
                 )}
@@ -398,7 +407,7 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
 
           {/* Inline Restore Checkpoint Confirmation */}
           {showRestoreConfirmation && (
-            <div className='mt-[8px] rounded-[4px] border border-[#3D3D3D] bg-[#282828] p-[10px] dark:border-[#3D3D3D] dark:bg-[#353535]'>
+            <div className='mt-[8px] rounded-[4px] border border-[#3D3D3D] bg-[#282828] p-[10px] dark:border-[#3D3D3D] dark:bg-[#363636]'>
               <p className='mb-[8px] text-[#E6E6E6] text-sm'>
                 Revert to checkpoint? This will restore your workflow to the state saved at this
                 checkpoint.{' '}

@@ -31,7 +31,6 @@ interface McpInputWithTagsProps {
   isPassword?: boolean
   blockId: string
   accessiblePrefixes?: Set<string>
-  isConnecting?: boolean
 }
 
 function McpInputWithTags({
@@ -42,7 +41,6 @@ function McpInputWithTags({
   isPassword,
   blockId,
   accessiblePrefixes,
-  isConnecting = false,
 }: McpInputWithTagsProps) {
   const [showTags, setShowTags] = useState(false)
   const [cursorPosition, setCursorPosition] = useState(0)
@@ -112,10 +110,7 @@ function McpInputWithTags({
           onDragOver={handleDragOver}
           placeholder={placeholder}
           disabled={disabled}
-          className={cn(
-            !isPassword && 'text-transparent caret-foreground',
-            isConnecting && 'ring-2 ring-blue-500 ring-offset-2 focus-visible:ring-blue-500'
-          )}
+          className={cn(!isPassword && 'text-transparent caret-foreground')}
         />
         {!isPassword && (
           <div className='pointer-events-none absolute inset-0 flex items-center overflow-hidden bg-transparent px-3 text-sm'>
@@ -152,7 +147,6 @@ interface McpTextareaWithTagsProps {
   blockId: string
   accessiblePrefixes?: Set<string>
   rows?: number
-  isConnecting?: boolean
 }
 
 function McpTextareaWithTags({
@@ -163,7 +157,6 @@ function McpTextareaWithTags({
   blockId,
   accessiblePrefixes,
   rows = 4,
-  isConnecting = false,
 }: McpTextareaWithTagsProps) {
   const [showTags, setShowTags] = useState(false)
   const [cursorPosition, setCursorPosition] = useState(0)
@@ -233,10 +226,7 @@ function McpTextareaWithTags({
         placeholder={placeholder}
         disabled={disabled}
         rows={rows}
-        className={cn(
-          'min-h-[80px] resize-none text-transparent caret-foreground',
-          isConnecting && 'ring-2 ring-blue-500 ring-offset-2 focus-visible:ring-blue-500'
-        )}
+        className={cn('min-h-[80px] resize-none text-transparent caret-foreground')}
       />
       <div className='pointer-events-none absolute inset-0 overflow-auto whitespace-pre-wrap break-words p-3 text-sm'>
         {formatDisplayText(value || '', {
@@ -266,7 +256,6 @@ interface McpDynamicArgsProps {
   disabled?: boolean
   isPreview?: boolean
   previewValue?: any
-  isConnecting?: boolean
 }
 
 export function McpDynamicArgs({
@@ -275,7 +264,6 @@ export function McpDynamicArgs({
   disabled = false,
   isPreview = false,
   previewValue,
-  isConnecting = false,
 }: McpDynamicArgsProps) {
   const params = useParams()
   const workspaceId = params.workspaceId as string
@@ -443,7 +431,6 @@ export function McpDynamicArgs({
             blockId={blockId}
             accessiblePrefixes={accessiblePrefixes}
             rows={4}
-            isConnecting={isConnecting}
           />
         )
 
@@ -484,7 +471,6 @@ export function McpDynamicArgs({
             isPassword={isPassword}
             blockId={blockId}
             accessiblePrefixes={accessiblePrefixes}
-            isConnecting={isConnecting}
           />
         )
       }

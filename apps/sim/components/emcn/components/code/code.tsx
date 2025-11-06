@@ -34,8 +34,6 @@ interface CodeContainerProps {
   className?: string
   /** Inline styles for the container */
   style?: React.CSSProperties
-  /** Whether to show connection ring */
-  isConnecting?: boolean
   /** Whether editor is in streaming/AI generation state */
   isStreaming?: boolean
   /** Drag and drop handler */
@@ -61,7 +59,6 @@ function Container({
   children,
   className,
   style,
-  isConnecting = false,
   isStreaming = false,
   onDragOver,
   onDrop,
@@ -73,8 +70,6 @@ function Container({
         'group relative min-h-[100px] rounded-[4px] border border-[#303030]',
         'bg-[#1F1F1F] font-medium font-mono text-sm transition-colors',
         'dark:border-[#303030]',
-        // Connection state
-        isConnecting && 'ring-2 ring-blue-500 ring-offset-2',
         // Streaming state
         isStreaming && 'streaming-effect',
         className

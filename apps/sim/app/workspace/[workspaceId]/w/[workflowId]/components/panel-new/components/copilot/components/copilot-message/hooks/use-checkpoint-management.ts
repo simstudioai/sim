@@ -32,7 +32,7 @@ export function useCheckpointManagement(
     contexts?: any[]
   } | null>(null)
 
-  const { revertToCheckpoint, currentChat, sendMessage } = useCopilotStore()
+  const { revertToCheckpoint, currentChat } = useCopilotStore()
 
   /**
    * Handles initiating checkpoint revert

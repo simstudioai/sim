@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createLogger } from '@/lib/logs/console/logger'
 import type { ChatContext } from '@/stores/panel-new/copilot/types'
-import { MENTION_MENU_MARGINS } from '../constants'
+import { SCROLL_TOLERANCE } from '../constants'
 
 const logger = createLogger('useMentionMenu')
 
@@ -43,14 +43,6 @@ export function useMentionMenu({
   const [submenuActiveIndex, setSubmenuActiveIndex] = useState(0)
   const [submenuQueryStart, setSubmenuQueryStart] = useState<number | null>(null)
   const [inAggregated, setInAggregated] = useState(false)
-  const [aggregatedActive, setAggregatedActive] = useState(false)
-  const [mentionPortalStyle, setMentionPortalStyle] = useState<{
-    top: number
-    left: number
-    width: number
-    maxHeight: number
-    showBelow: boolean
-  } | null>(null)
 
   /**
    * Gets the current caret position in the textarea
@@ -236,7 +228,7 @@ export function useMentionMenu({
     const item = container.querySelector(`[data-idx="${index}"]`) as HTMLElement | null
     if (!item) return
 
-    const tolerance = MENTION_MENU_MARGINS.SCROLL_TOLERANCE
+    const tolerance = SCROLL_TOLERANCE
     const itemTop = item.offsetTop
     const itemBottom = itemTop + item.offsetHeight
     const viewTop = container.scrollTop
@@ -291,8 +283,6 @@ export function useMentionMenu({
     // Refs
     textareaRef,
     mentionMenuRef,
-    mentionPortalRef,
-    submenuRef,
     menuListRef,
 
     // State
@@ -302,8 +292,6 @@ export function useMentionMenu({
     submenuActiveIndex,
     submenuQueryStart,
     inAggregated,
-    aggregatedActive,
-    mentionPortalStyle,
 
     // Setters
     setShowMentionMenu,
@@ -312,8 +300,6 @@ export function useMentionMenu({
     setSubmenuActiveIndex,
     setSubmenuQueryStart,
     setInAggregated,
-    setAggregatedActive,
-    setMentionPortalStyle,
 
     // Operations
     getCaretPos,

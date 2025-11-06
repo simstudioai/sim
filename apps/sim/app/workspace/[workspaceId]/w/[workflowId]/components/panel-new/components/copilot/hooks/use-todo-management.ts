@@ -22,19 +22,14 @@ export function useTodoManagement(props: UseTodoManagementProps) {
   const wasSendingRef = useRef(false)
 
   /**
-   * Auto-collapse todos and remove uncompleted ones when stream completes
+   * Auto-collapse todos when stream completes. Do not prune items.
    */
   useEffect(() => {
     if (wasSendingRef.current && !isSendingMessage && showPlanTodos) {
       setTodosCollapsed(true)
-
-      const completedTodos = planTodos.filter((todo) => todo.completed === true)
-      if (completedTodos.length !== planTodos.length) {
-        setPlanTodos(completedTodos)
-      }
     }
     wasSendingRef.current = isSendingMessage
-  }, [isSendingMessage, showPlanTodos, planTodos, setPlanTodos])
+  }, [isSendingMessage, showPlanTodos])
 
   /**
    * Reset collapsed state when todos first appear

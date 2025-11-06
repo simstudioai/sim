@@ -1,6 +1,6 @@
 import { memo, useCallback } from 'react'
 import { Eye, EyeOff } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { Button } from '@/components/emcn'
 import { createLogger } from '@/lib/logs/console/logger'
 import { useCopilotStore } from '@/stores/panel-new/copilot/store'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff'
@@ -303,35 +303,36 @@ export const DiffControls = memo(function DiffControls() {
 
   return (
     <div className='-translate-x-1/2 fixed bottom-20 left-1/2 z-30'>
-      <div className='flex items-center gap-2'>
-        {/* Toggle (left, icon-only, no background) */}
+      <div className='flex items-center gap-[6px] rounded-[10px] bg-[#242424] p-[6px]'>
+        {/* Toggle (left, icon-only) */}
         <Button
           variant='ghost'
-          size='sm'
           onClick={handleToggleDiff}
-          className='h-8 rounded-full px-2 text-muted-foreground hover:bg-transparent'
+          className='h-[30px] w-[30px] rounded-[8px] bg-[#363636] p-0 text-[#868686] hover:bg-[#8E4CFB] hover:text-[#E6E6E6]'
           title={isShowingDiff ? 'View original' : 'Preview changes'}
         >
-          {isShowingDiff ? <Eye className='h-5 w-5' /> : <EyeOff className='h-5 w-5' />}
+          {isShowingDiff ? (
+            <Eye className='h-[14px] w-[14px]' />
+          ) : (
+            <EyeOff className='h-[14px] w-[14px]' />
+          )}
         </Button>
 
-        {/* Reject (middle, light gray, icon-only) */}
+        {/* Reject */}
         <Button
-          variant='outline'
-          size='sm'
+          variant='ghost'
           onClick={handleReject}
-          className='h-8 rounded-[6px] border-gray-200 bg-gray-100 px-3 text-gray-700 hover:bg-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700'
+          className='h-[30px] rounded-[8px] bg-[#363636] px-3 text-[#868686] hover:bg-[#8E4CFB] hover:text-[#E6E6E6]'
           title='Reject changes'
         >
           Reject
         </Button>
 
-        {/* Accept (right, brand purple, icon-only) */}
+        {/* Accept (primary) */}
         <Button
-          variant='default'
-          size='sm'
+          variant='primary'
           onClick={handleAccept}
-          className='h-8 rounded-[6px] bg-[var(--brand-primary-hover-hex)] px-3 text-white hover:bg-[var(--brand-primary-hover-hex)]/90 hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)]'
+          className='h-[30px] rounded-[8px] px-3'
           title='Accept changes'
         >
           Accept

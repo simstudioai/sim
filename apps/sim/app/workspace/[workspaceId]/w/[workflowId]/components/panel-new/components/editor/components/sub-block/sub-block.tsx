@@ -49,7 +49,6 @@ import {
 interface SubBlockProps {
   blockId: string
   config: SubBlockConfig
-  isConnecting: boolean
   isPreview?: boolean
   subBlockValues?: Record<string, any>
   disabled?: boolean
@@ -124,7 +123,6 @@ const arePropsEqual = (prevProps: SubBlockProps, nextProps: SubBlockProps): bool
   return (
     prevProps.blockId === nextProps.blockId &&
     prevProps.config === nextProps.config &&
-    prevProps.isConnecting === nextProps.isConnecting &&
     prevProps.isPreview === nextProps.isPreview &&
     prevProps.subBlockValues === nextProps.subBlockValues &&
     prevProps.disabled === nextProps.disabled &&
@@ -139,7 +137,6 @@ const arePropsEqual = (prevProps: SubBlockProps, nextProps: SubBlockProps): bool
 function SubBlockComponent({
   blockId,
   config,
-  isConnecting,
   isPreview = false,
   subBlockValues,
   disabled = false,
@@ -178,7 +175,6 @@ function SubBlockComponent({
             readOnly={config.readOnly}
             showCopyButton={config.showCopyButton}
             useWebhookUrl={config.useWebhookUrl}
-            isConnecting={isConnecting}
             config={config}
             isPreview={isPreview}
             previewValue={previewValue as string | null | undefined}
@@ -192,7 +188,6 @@ function SubBlockComponent({
             blockId={blockId}
             subBlockId={config.id}
             placeholder={config.placeholder}
-            isConnecting={isConnecting}
             rows={config.rows}
             config={config}
             isPreview={isPreview}
@@ -231,7 +226,6 @@ function SubBlockComponent({
               isPreview={isPreview}
               previewValue={previewValue as any}
               disabled={isDisabled}
-              isConnecting={isConnecting}
               config={config}
             />
           </div>
@@ -324,7 +318,6 @@ function SubBlockComponent({
           <ToolInput
             blockId={blockId}
             subBlockId={config.id}
-            isConnecting={isConnecting}
             isPreview={isPreview}
             previewValue={previewValue}
             disabled={allowExpandInPreview ? false : isDisabled}
@@ -364,7 +357,6 @@ function SubBlockComponent({
           <ConditionInput
             blockId={blockId}
             subBlockId={config.id}
-            isConnecting={isConnecting}
             isPreview={isPreview}
             previewValue={previewValue as any}
             disabled={isDisabled}
@@ -379,7 +371,6 @@ function SubBlockComponent({
             isPreview={isPreview}
             previewValue={previewValue as any}
             disabled={isDisabled}
-            isConnecting={isConnecting}
           />
         )
 
@@ -423,7 +414,6 @@ function SubBlockComponent({
           <WebhookConfig
             blockId={blockId}
             subBlockId={config.id}
-            isConnecting={isConnecting}
             isPreview={isPreview}
             value={webhookValue as any}
             disabled={isDisabled}
@@ -498,7 +488,6 @@ function SubBlockComponent({
             disabled={isDisabled}
             isPreview={isPreview}
             previewValue={previewValue as any}
-            isConnecting={isConnecting}
           />
         )
 
@@ -510,7 +499,6 @@ function SubBlockComponent({
             disabled={isDisabled}
             isPreview={isPreview}
             previewValue={previewValue as any}
-            isConnecting={isConnecting}
           />
         )
 
@@ -533,7 +521,6 @@ function SubBlockComponent({
             isPreview={isPreview}
             previewValue={previewValue as any}
             disabled={isDisabled}
-            isConnecting={isConnecting}
             config={config}
             showValue={true}
           />
@@ -547,7 +534,6 @@ function SubBlockComponent({
             isPreview={isPreview}
             previewValue={previewValue as any}
             disabled={isDisabled}
-            isConnecting={isConnecting}
           />
         )
 
@@ -559,7 +545,6 @@ function SubBlockComponent({
             isPreview={isPreview}
             previewValue={previewValue as any}
             disabled={isDisabled}
-            isConnecting={isConnecting}
           />
         )
 
@@ -570,7 +555,6 @@ function SubBlockComponent({
             subBlockId={config.id}
             isPreview={isPreview}
             previewValue={previewValue}
-            isConnecting={isConnecting}
             config={config}
             disabled={isDisabled}
           />
@@ -617,7 +601,6 @@ function SubBlockComponent({
             disabled={isDisabled}
             isPreview={isPreview}
             previewValue={previewValue}
-            isConnecting={isConnecting}
           />
         )
 

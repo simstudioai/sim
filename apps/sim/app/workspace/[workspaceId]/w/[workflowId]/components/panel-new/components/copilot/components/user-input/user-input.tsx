@@ -8,7 +8,7 @@ import {
   useImperativeHandle,
   useState,
 } from 'react'
-import { ArrowUp, AtSign, Image, Loader2, Square } from 'lucide-react'
+import { ArrowUp, AtSign, Image, Loader2 } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { createPortal } from 'react-dom'
 import { Badge, Button } from '@/components/emcn'
@@ -25,13 +25,7 @@ import {
   ModelSelector,
   ModeSelector,
 } from './components'
-import {
-  MENTION_MENU_MARGINS,
-  MENTION_MENU_MAX_HEIGHT,
-  MENTION_MENU_WIDTHS,
-  MENTION_OPTIONS,
-  NEAR_TOP_THRESHOLD,
-} from './constants'
+import { NEAR_TOP_THRESHOLD } from './constants'
 import {
   useContextManagement,
   useFileAttachments,
@@ -40,7 +34,6 @@ import {
   useMentionKeyboard,
   useMentionMenu,
   useMentionTokens,
-  useModelSelection,
   useTextareaAutoResize,
 } from './hooks'
 import type { MessageFileAttachment } from './hooks/use-file-attachments'
@@ -59,12 +52,11 @@ interface UserInputProps {
   isAborting?: boolean
   placeholder?: string
   className?: string
-  mode?: 'ask' | 'agent'
-  onModeChange?: (mode: 'ask' | 'agent') => void
+  mode?: 'ask' | 'build'
+  onModeChange?: (mode: 'ask' | 'build') => void
   value?: string
   onChange?: (value: string) => void
   panelWidth?: number
-  hideContextUsage?: boolean
   clearOnSubmit?: boolean
 }
 
@@ -90,12 +82,11 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
       isAborting = false,
       placeholder,
       className,
-      mode = 'agent',
+      mode = 'build',
       onModeChange,
       value: controlledValue,
       onChange: onControlledChange,
       panelWidth = 308,
-      hideContextUsage = false,
       clearOnSubmit = true,
     },
     ref
@@ -106,7 +97,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
     const workspaceId = params.workspaceId as string
 
     // Store hooks
-    const { workflowId, contextUsage, createNewChat } = useCopilotStore()
+    const { workflowId, selectedModel, setSelectedModel } = useCopilotStore()
 
     // Internal state
     const [internalMessage, setInternalMessage] = useState('')
@@ -162,8 +153,6 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
       disabled,
       isLoading,
     })
-
-    const modelSelection = useModelSelection()
 
     // Insert mention handlers
     const insertHandlers = useMentionInsertHandlers({
@@ -243,11 +232,9 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
       }
     }, [mentionMenu.showMentionMenu, containerRef])
 
-    // Manage aggregated mode and preload mention data when query is active
+    // Preload mention data when query is active
     useEffect(() => {
       if (!mentionMenu.showMentionMenu || mentionMenu.openSubmenuFor) {
-        mentionMenu.setAggregatedActive(false)
-        mentionMenu.setInAggregated(false)
         return
       }
 
@@ -257,11 +244,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
         .toLowerCase()
 
       if (q && q.length > 0) {
-        const filteredMain = MENTION_OPTIONS.filter((o) => o.toLowerCase().includes(q))
-        const needAggregate = filteredMain.length === 0
-        mentionMenu.setAggregatedActive(needAggregate)
-
-        // Prefetch all lists when there's any query
+        // Prefetch all lists when there's any query for instant filtering
         void mentionData.ensurePastChatsLoaded()
         void mentionData.ensureWorkflowsLoaded()
         void mentionData.ensureWorkflowBlocksLoaded()
@@ -270,10 +253,9 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
         void mentionData.ensureTemplatesLoaded()
         void mentionData.ensureLogsLoaded()
 
-        if (needAggregate) {
-          mentionMenu.setSubmenuActiveIndex(0)
-          requestAnimationFrame(() => mentionMenu.scrollActiveItemIntoView(0))
-        }
+        // Reset to first item when query changes
+        mentionMenu.setSubmenuActiveIndex(0)
+        requestAnimationFrame(() => mentionMenu.scrollActiveItemIntoView(0))
       }
       // Only depend on values that trigger data loading, not the entire objects
       // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -282,127 +264,11 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
     // When switching into a submenu, select the first item and scroll to it
     useEffect(() => {
       if (mentionMenu.openSubmenuFor) {
-        mentionMenu.setInAggregated(false)
         mentionMenu.setSubmenuActiveIndex(0)
         requestAnimationFrame(() => mentionMenu.scrollActiveItemIntoView(0))
       }
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [mentionMenu.openSubmenuFor])
-
-    // Position the mention menu portal dynamically
-    useEffect(() => {
-      if (!mentionMenu.showMentionMenu) {
-        mentionMenu.setMentionPortalStyle(null)
-        return
-      }
-
-      const updatePosition = () => {
-        if (!containerRef || !mentionMenu.textareaRef.current) {
-          return
-        }
-
-        const rect = containerRef.getBoundingClientRect()
-        const margin = MENTION_MENU_MARGINS.VIEWPORT
-        const textarea = mentionMenu.textareaRef.current
-        const caretPos = mentionMenu.getCaretPos()
-
-        // Create a mirror div to calculate caret position
-        const div = document.createElement('div')
-        const style = window.getComputedStyle(textarea)
-
-        div.style.position = 'absolute'
-        div.style.visibility = 'hidden'
-        div.style.whiteSpace = 'pre-wrap'
-        div.style.wordWrap = 'break-word'
-        div.style.font = style.font
-        div.style.padding = style.padding
-        div.style.border = style.border
-        div.style.width = style.width
-        div.style.lineHeight = style.lineHeight
-
-        const textBeforeCaret = message.substring(0, caretPos)
-        div.textContent = textBeforeCaret
-
-        const span = document.createElement('span')
-        span.textContent = '|'
-        div.appendChild(span)
-
-        document.body.appendChild(div)
-        const spanRect = span.getBoundingClientRect()
-        const divRect = div.getBoundingClientRect()
-        document.body.removeChild(div)
-
-        const caretLeftOffset = spanRect.left - divRect.left
-
-        const spaceAbove = rect.top - margin
-        const spaceBelow = window.innerHeight - rect.bottom - margin
-
-        const maxMenuHeight = MENTION_MENU_MAX_HEIGHT
-        const showBelow = rect.top < NEAR_TOP_THRESHOLD || spaceBelow > spaceAbove
-        const maxHeight = Math.min(
-          Math.max(showBelow ? spaceBelow : spaceAbove, 120),
-          maxMenuHeight
-        )
-
-        const menuWidth =
-          mentionMenu.openSubmenuFor === 'Blocks'
-            ? MENTION_MENU_WIDTHS.BLOCKS
-            : mentionMenu.openSubmenuFor === 'Templates' ||
-                mentionMenu.openSubmenuFor === 'Logs' ||
-                mentionMenu.aggregatedActive
-              ? MENTION_MENU_WIDTHS.EXPANDED
-              : MENTION_MENU_WIDTHS.DEFAULT
-
-        const idealLeft = rect.left + caretLeftOffset
-        const maxLeft = window.innerWidth - menuWidth - margin
-        const finalLeft = Math.min(idealLeft, maxLeft)
-
-        mentionMenu.setMentionPortalStyle({
-          top: showBelow
-            ? rect.bottom + MENTION_MENU_MARGINS.PORTAL_OFFSET
-            : rect.top - MENTION_MENU_MARGINS.PORTAL_OFFSET,
-          left: Math.max(rect.left, finalLeft),
-          width: menuWidth,
-          maxHeight: maxHeight,
-          showBelow,
-        })
-
-        setIsNearTop(showBelow)
-      }
-
-      // Initial position
-      updatePosition()
-
-      // Listen to events
-      window.addEventListener('resize', updatePosition)
-      const scrollContainer = containerRef?.closest('[data-radix-scroll-area-viewport]')
-      if (scrollContainer) {
-        scrollContainer.addEventListener('scroll', updatePosition, { passive: true })
-      }
-
-      // Continuous updates for smooth tracking
-      let rafId: number
-      const loop = () => {
-        updatePosition()
-        rafId = requestAnimationFrame(loop)
-      }
-      rafId = requestAnimationFrame(loop)
-
-      return () => {
-        window.removeEventListener('resize', updatePosition)
-        if (scrollContainer) {
-          scrollContainer.removeEventListener('scroll', updatePosition)
-        }
-        cancelAnimationFrame(rafId)
-      }
-      // Only depend on values that should trigger repositioning, not the entire mentionMenu object
-    }, [
-      mentionMenu.showMentionMenu,
-      mentionMenu.openSubmenuFor,
-      mentionMenu.aggregatedActive,
-      message,
-      containerRef,
-    ])
 
     // Handlers
     const handleSubmit = useCallback(async () => {
@@ -702,7 +568,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
         <div
           ref={setInputContainerRef}
           className={cn(
-            'relative rounded-[4px] border border-[#3D3D3D] bg-[#282828] px-[6px] py-[6px] transition-colors dark:bg-[#353535]',
+            'relative rounded-[4px] border border-[#3D3D3D] bg-[#282828] px-[6px] py-[6px] transition-colors dark:bg-[#363636]',
             fileAttachments.isDragging &&
               'border-[var(--brand-primary-hover-hex)] bg-purple-50/50 dark:border-[var(--brand-primary-hover-hex)] dark:bg-purple-950/20'
           )}
@@ -730,16 +596,6 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
               contexts={contextManagement.selectedContexts}
               onRemoveContext={contextManagement.removeContext}
             />
-
-            {/* Context Usage Pill - pushes to the right */}
-            {/* {!hideContextUsage && contextUsage && contextUsage.percentage > 0 && (
-              <div className='ml-auto'>
-                <ContextUsagePill
-                  percentage={contextUsage.percentage}
-                  onCreateNewChat={createNewChat}
-                />
-              </div>
-            )} */}
           </div>
 
           {/* Attached Files Display */}
@@ -785,16 +641,11 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
 
             {/* Mention Menu Portal */}
             {mentionMenu.showMentionMenu &&
-              mentionMenu.mentionPortalStyle &&
               createPortal(
                 <MentionMenuPortal
                   mentionMenu={mentionMenu}
                   mentionData={mentionData}
-                  selectedContexts={contextManagement.selectedContexts}
-                  onContextSelect={contextManagement.addContext}
-                  onMessageChange={setMessage}
                   message={message}
-                  workflowId={workflowId}
                   insertHandlers={insertHandlers}
                 />,
                 document.body
@@ -813,14 +664,9 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
               />
 
               <ModelSelector
-                selectedModel={modelSelection.selectedModel}
-                agentPrefetch={modelSelection.agentPrefetch}
-                enabledModels={modelSelection.enabledModels}
-                panelWidth={panelWidth}
+                selectedModel={selectedModel}
                 isNearTop={isNearTop}
-                onModelSelect={(model: string) => modelSelection.setSelectedModel(model as any)}
-                onAgentPrefetchChange={modelSelection.setAgentPrefetch}
-                onFirstOpen={modelSelection.fetchEnabledModelsOnce}
+                onModelSelect={(model: string) => setSelectedModel(model as any)}
               />
             </div>
 
@@ -839,37 +685,44 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
 
               {showAbortButton ? (
                 <Button
-                  variant='primary'
                   onClick={handleAbort}
                   disabled={isAborting}
                   className={cn(
-                    'h-[22px] w-[22px] rounded-full p-0',
-                    !isAborting &&
-                      'ring-2 ring-[#8E4CFB]/60 ring-offset-[#282828] ring-offset-[1.25px] dark:ring-offset-[#353535]'
+                    'h-[20px] w-[20px] rounded-full p-0 transition-colors',
+                    !isAborting
+                      ? 'bg-[#C0C0C0] hover:bg-[#D0D0D0] dark:bg-[#C0C0C0] dark:hover:bg-[#D0D0D0]'
+                      : 'bg-[#C0C0C0] dark:bg-[#C0C0C0]'
                   )}
                   title='Stop generation'
                 >
                   {isAborting ? (
-                    <Loader2 className='h-3.5 w-3.5 animate-spin' />
+                    <Loader2 className='h-[13px] w-[13px] animate-spin text-black' />
                   ) : (
-                    <Square className='h-3.5 w-3.5' fill='currentColor' />
+                    <svg
+                      className='h-[13px] w-[13px]'
+                      viewBox='0 0 24 24'
+                      fill='black'
+                      xmlns='http://www.w3.org/2000/svg'
+                    >
+                      <rect x='4' y='4' width='16' height='16' rx='3' ry='3' />
+                    </svg>
                   )}
                 </Button>
               ) : (
                 <Button
-                  variant='primary'
                   onClick={handleSubmit}
                   disabled={!canSubmit}
                   className={cn(
-                    'h-[22px] w-[22px] rounded-full p-0',
-                    canSubmit &&
-                      'ring-2 ring-[#8E4CFB]/60 ring-offset-[#282828] ring-offset-[1.25px] dark:ring-offset-[#353535]'
+                    'h-[22px] w-[22px] rounded-full p-0 transition-colors',
+                    canSubmit
+                      ? 'bg-[#C0C0C0] hover:bg-[#D0D0D0] dark:bg-[#C0C0C0] dark:hover:bg-[#D0D0D0]'
+                      : 'bg-[#C0C0C0] dark:bg-[#C0C0C0]'
                   )}
                 >
                   {isLoading ? (
-                    <Loader2 className='h-3.5 w-3.5 animate-spin' />
+                    <Loader2 className='h-3.5 w-3.5 animate-spin text-black' />
                   ) : (
-                    <ArrowUp className='h-3.5 w-3.5' />
+                    <ArrowUp className='h-3.5 w-3.5 text-black' strokeWidth={2.25} />
                   )}
                 </Button>
               )}

@@ -94,6 +94,15 @@ export function Editor() {
     }
   }, [currentBlockId, focusOnBlock])
 
+  /**
+   * Handles opening documentation link in a new secure tab.
+   */
+  const handleOpenDocs = () => {
+    if (blockConfig?.docsLink) {
+      window.open(blockConfig.docsLink, '_blank', 'noopener,noreferrer')
+    }
+  }
+
   // Check if block has advanced mode or trigger mode available
   const hasAdvancedMode = blockConfig?.subBlocks?.some((sb) => sb.mode === 'advanced')
 
@@ -119,7 +128,7 @@ export function Editor() {
         </div>
         <div className='flex shrink-0 items-center gap-[8px]'>
           {/* Focus on block button */}
-          {currentBlockId && (
+          {currentBlock && (
             <Tooltip.Root>
               <Tooltip.Trigger asChild>
                 <Button
@@ -137,7 +146,7 @@ export function Editor() {
             </Tooltip.Root>
           )}
           {/* Mode toggles */}
-          {currentBlockId && hasAdvancedMode && (
+          {currentBlock && hasAdvancedMode && (
             <Tooltip.Root>
               <Tooltip.Trigger asChild>
                 <Button
@@ -155,32 +164,39 @@ export function Editor() {
               </Tooltip.Content>
             </Tooltip.Root>
           )}
-          <Tooltip.Root>
-            <Tooltip.Trigger asChild>
-              <Button variant='ghost' className='p-0' aria-label='Open documentation'>
-                <BookOpen className='h-[14px] w-[14px]' />
-              </Button>
-            </Tooltip.Trigger>
-            <Tooltip.Content side='top'>
-              <p>Open docs</p>
-            </Tooltip.Content>
-          </Tooltip.Root>
+          {currentBlock && blockConfig?.docsLink && (
+            <Tooltip.Root>
+              <Tooltip.Trigger asChild>
+                <Button
+                  variant='ghost'
+                  className='p-0'
+                  onClick={handleOpenDocs}
+                  aria-label='Open documentation'
+                >
+                  <BookOpen className='h-[14px] w-[14px]' />
+                </Button>
+              </Tooltip.Trigger>
+              <Tooltip.Content side='top'>
+                <p>Open docs</p>
+              </Tooltip.Content>
+            </Tooltip.Root>
+          )}
         </div>
       </div>
 
       {/* Connection Blocks Section */}
-      {currentBlockId && hasIncomingConnections && (
-        <ConnectionBlocks connections={incomingConnections} currentBlockId={currentBlockId} />
+      {currentBlock && hasIncomingConnections && (
+        <ConnectionBlocks connections={incomingConnections} currentBlockId={currentBlock.id} />
       )}
 
       {/* Content area - Subblocks */}
       <div
         className={clsx(
           'flex-1 overflow-y-auto overflow-x-hidden px-[8px] pb-[8px]',
-          currentBlockId && hasIncomingConnections ? 'pt-[4px]' : 'pt-[8px]'
+          currentBlock && hasIncomingConnections ? 'pt-[4px]' : 'pt-[8px]'
         )}
       >
-        {!currentBlockId ? (
+        {!currentBlockId || !currentBlock ? (
           <div className='flex h-full items-center justify-center text-muted-foreground text-sm'>
             Select a block to edit
           </div>
@@ -198,7 +214,6 @@ export function Editor() {
                   <SubBlock
                     blockId={currentBlockId}
                     config={subBlock}
-                    isConnecting={false}
                     isPreview={false}
                     subBlockValues={undefined}
                     disabled={!userPermissions.canEdit}

@@ -5,7 +5,7 @@ import {
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/hooks/use-block-connections'
 import { getBlock } from '@/blocks'
 
-interface ConnectionBlocksProps {
+interface ConnectionsProps {
   blockId: string
   horizontalHandles: boolean
   isDisabled?: boolean
@@ -37,11 +37,7 @@ function getConnectionIcon(connection: ConnectedBlock) {
 /**
  * Displays incoming connections as compact floating text above the workflow block
  */
-export function ConnectionBlocks({
-  blockId,
-  horizontalHandles,
-  isDisabled = false,
-}: ConnectionBlocksProps) {
+export function Connections({ blockId, horizontalHandles, isDisabled = false }: ConnectionsProps) {
   const { incomingConnections, hasIncomingConnections } = useBlockConnections(blockId)
 
   if (!hasIncomingConnections) return null

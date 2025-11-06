@@ -328,7 +328,6 @@ export const WEBHOOK_PROVIDERS: { [key: string]: WebhookProvider } = {
 interface WebhookConfigProps {
   blockId: string
   subBlockId?: string
-  isConnecting: boolean
   isPreview?: boolean
   value?: {
     webhookProvider?: string
@@ -341,7 +340,6 @@ interface WebhookConfigProps {
 export function WebhookConfig({
   blockId,
   subBlockId,
-  isConnecting,
   isPreview = false,
   value: propValue,
   disabled = false,
@@ -746,9 +744,7 @@ export function WebhookConfig({
             size='sm'
             className='flex h-10 w-full items-center bg-background font-normal text-sm'
             onClick={handleOpenModal}
-            disabled={
-              isConnecting || isSaving || isDeleting || !gmailCredentialId || isPreview || disabled
-            }
+            disabled={isSaving || isDeleting || !gmailCredentialId || isPreview || disabled}
           >
             {isLoading ? (
               <div className='mr-2 h-4 w-4 animate-spin rounded-full border-[1.5px] border-current border-t-transparent' />
@@ -786,14 +782,7 @@ export function WebhookConfig({
             size='sm'
             className='flex h-10 w-full items-center bg-background font-normal text-sm'
             onClick={handleOpenModal}
-            disabled={
-              isConnecting ||
-              isSaving ||
-              isDeleting ||
-              !outlookCredentialId ||
-              isPreview ||
-              disabled
-            }
+            disabled={isSaving || isDeleting || !outlookCredentialId || isPreview || disabled}
           >
             {isLoading ? (
               <div className='mr-2 h-4 w-4 animate-spin rounded-full border-[1.5px] border-current border-t-transparent' />
@@ -845,7 +834,7 @@ export function WebhookConfig({
           size='sm'
           className='flex h-10 w-full items-center bg-background font-normal text-sm'
           onClick={handleOpenModal}
-          disabled={isConnecting || isSaving || isDeleting || isPreview || disabled}
+          disabled={isSaving || isDeleting || isPreview || disabled}
         >
           {isLoading ? (
             <div className='mr-2 h-4 w-4 animate-spin rounded-full border-[1.5px] border-current border-t-transparent' />

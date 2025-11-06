@@ -1,2 +1,2 @@
 export { ActionBar } from './action-bar/action-bar'
-export { ConnectionBlocks } from './connection-blocks/connection-blocks'
+export { Connections } from './connections/connections'

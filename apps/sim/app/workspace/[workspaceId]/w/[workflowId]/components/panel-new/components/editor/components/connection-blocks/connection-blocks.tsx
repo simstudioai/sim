@@ -1,14 +1,17 @@
 'use client'
 
-import { useCallback, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import clsx from 'clsx'
 import { ChevronDown, RepeatIcon, SplitIcon } from 'lucide-react'
-import { Label } from '@/components/emcn'
+import { buttonVariants, Label } from '@/components/emcn'
+import { createLogger } from '@/lib/logs/console/logger'
 import { extractFieldsFromSchema } from '@/lib/response-format'
 import type { ConnectedBlock } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/hooks/use-block-connections'
 import { getBlock } from '@/blocks/registry'
 import { getTool } from '@/tools/utils'
 import { FieldItem, type SchemaField, TREE_SPACING } from './components/field-item/field-item'
+
+const logger = createLogger('ConnectionBlocks')
 
 interface ConnectionBlocksProps {
   connections: ConnectedBlock[]
@@ -195,15 +198,38 @@ const calculateFieldsHeight = (
 export function ConnectionBlocks({ connections, currentBlockId }: ConnectionBlocksProps) {
   const [expandedConnections, setExpandedConnections] = useState<Set<string>>(new Set())
   const [expandedFieldPaths, setExpandedFieldPaths] = useState<Set<string>>(new Set())
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
+  const connectionRefs = useRef<Map<string, HTMLDivElement>>(new Map())
 
   const toggleConnectionExpansion = useCallback((connectionId: string) => {
     setExpandedConnections((prev) => {
       const newSet = new Set(prev)
+      const isExpanding = !newSet.has(connectionId)
+
       if (newSet.has(connectionId)) {
         newSet.delete(connectionId)
       } else {
         newSet.add(connectionId)
       }
+
+      if (isExpanding) {
+        setTimeout(() => {
+          const connectionElement = connectionRefs.current.get(connectionId)
+          const scrollContainer = scrollContainerRef.current
+
+          if (connectionElement && scrollContainer) {
+            const containerRect = scrollContainer.getBoundingClientRect()
+            const elementRect = connectionElement.getBoundingClientRect()
+            const scrollOffset = elementRect.top - containerRect.top + scrollContainer.scrollTop
+
+            scrollContainer.scrollTo({
+              top: scrollOffset,
+              behavior: 'smooth',
+            })
+          }
+        }, 0)
+      }
+
       return newSet
     })
   }, [])
@@ -225,6 +251,33 @@ export function ConnectionBlocks({ connections, currentBlockId }: ConnectionBloc
     (connectionId: string, fieldPath: string) =>
       expandedFieldPaths.has(`${connectionId}|${fieldPath}`),
     [expandedFieldPaths]
+  )
+
+  const handleConnectionDragStart = useCallback(
+    (e: React.DragEvent, connection: ConnectedBlock) => {
+      const normalizedBlockName = connection.name.replace(/\s+/g, '').toLowerCase()
+
+      e.dataTransfer.setData(
+        'application/json',
+        JSON.stringify({
+          type: 'connectionBlock',
+          connectionData: {
+            sourceBlockId: connection.id,
+            tag: normalizedBlockName,
+            blockName: connection.name,
+            fieldName: null,
+            fieldType: 'connection',
+          },
+        })
+      )
+      e.dataTransfer.effectAllowed = 'copy'
+
+      logger.info('Connection block drag started', {
+        tag: normalizedBlockName,
+        blockName: connection.name,
+      })
+    },
+    []
   )
 
   const renderFieldTree = useCallback(
@@ -274,13 +327,17 @@ export function ConnectionBlocks({ connections, currentBlockId }: ConnectionBloc
   }
 
   return (
-    <div className='rounded-[4px] px-[8px] pt-[1.5px] pb-[4px]'>
-      <Label className='pb-[8px] pl-[2px]'>Connection blocks</Label>
-      <div className='-mr-[8px] max-h-[120px] space-y-[4px] overflow-y-auto pr-[8px]'>
+    <div className='rounded-[4px] px-[8px] pt-[1.5px] pb-[5px]'>
+      <Label className='pb-[8px] pl-[2px]'>Connections</Label>
+      <div
+        ref={scrollContainerRef}
+        className='-mr-[8px] max-h-[146px] space-y-[4px] overflow-y-auto pr-[8px]'
+      >
         {connections.map((connection) => {
           const blockConfig = getBlock(connection.type)
           const isExpanded = expandedConnections.has(connection.id)
           const fields = buildConnectionFields(connection)
+          const hasFields = fields.length > 0
 
           let Icon = blockConfig?.icon
           let bgColor = blockConfig?.bgColor || '#6B7280'
@@ -296,13 +353,26 @@ export function ConnectionBlocks({ connections, currentBlockId }: ConnectionBloc
           }
 
           return (
-            <div key={connection.id}>
+            <div
+              key={connection.id}
+              ref={(el) => {
+                if (el) {
+                  connectionRefs.current.set(connection.id, el)
+                } else {
+                  connectionRefs.current.delete(connection.id)
+                }
+              }}
+            >
               <div
+                draggable
+                onDragStart={(e) => handleConnectionDragStart(e, connection)}
                 className={clsx(
-                  'group flex h-[26px] items-center gap-[8px] rounded-[4px] px-[5px] text-[14px]',
-                  'cursor-pointer border border-[#3D3D3D] bg-[#282828] font-medium transition-colors hover:border-[#4A4A4A] hover:bg-[#353535] dark:border-[#3D3D3D] dark:bg-[#353535] dark:hover:border-[#454545] dark:hover:bg-[#3D3D3D]'
+                  buttonVariants({ variant: 'active' }),
+                  'group !px-[5.5px] flex h-[26px] w-full gap-[8px] rounded-[6px] text-[14px]',
+                  'cursor-grab active:cursor-grabbing',
+                  hasFields && 'cursor-pointer'
                 )}
-                onClick={() => toggleConnectionExpansion(connection.id)}
+                onClick={() => hasFields && toggleConnectionExpansion(connection.id)}
               >
                 <div
                   className='relative flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center overflow-hidden rounded-[4px]'
@@ -312,44 +382,36 @@ export function ConnectionBlocks({ connections, currentBlockId }: ConnectionBloc
                     <Icon
                       className={clsx(
                         'text-white transition-transform duration-200',
-                        'group-hover:scale-110',
+                        hasFields && 'group-hover:scale-110',
                         '!h-[10px] !w-[10px]'
                       )}
                     />
                   )}
                 </div>
-                <span className='flex-1 truncate text-[#E6E6E6] dark:text-[#E6E6E6]'>
-                  {connection.name}
-                </span>
-                <ChevronDown
-                  className={clsx(
-                    'h-4 w-4 flex-shrink-0 opacity-50 transition-transform',
-                    isExpanded && 'rotate-180'
-                  )}
-                />
+                <span className='flex-1 truncate'>{connection.name}</span>
+                {hasFields && (
+                  <ChevronDown
+                    className={clsx(
+                      'h-4 w-4 flex-shrink-0 opacity-50 transition-transform',
+                      isExpanded && 'rotate-180'
+                    )}
+                  />
+                )}
               </div>
 
-              {isExpanded && (
+              {isExpanded && hasFields && (
                 <div className='relative space-y-[4px]'>
-                  {fields.length === 0 ? (
-                    <div className='rounded-[4px] border border-[#3D3D3D] bg-[#282828] p-[8px] text-[#787878] text-xs dark:border-[#3D3D3D] dark:bg-[#353535]'>
-                      No schema available
-                    </div>
-                  ) : (
-                    <>
-                      <div
-                        className='pointer-events-none absolute'
-                        style={{
-                          left: `${TREE_SPACING.VERTICAL_LINE_LEFT_OFFSET}px`,
-                          top: '0px',
-                          width: '1px',
-                          height: `${calculateFieldsHeight(fields, '', connection.id, isFieldExpanded)}px`,
-                          background: TREE_STYLES.LINE_COLOR,
-                        }}
-                      />
-                      {renderFieldTree(fields, '', 0, connection)}
-                    </>
-                  )}
+                  <div
+                    className='pointer-events-none absolute'
+                    style={{
+                      left: `${TREE_SPACING.VERTICAL_LINE_LEFT_OFFSET}px`,
+                      top: '0px',
+                      width: '1px',
+                      height: `${calculateFieldsHeight(fields, '', connection.id, isFieldExpanded)}px`,
+                      background: TREE_STYLES.LINE_COLOR,
+                    }}
+                  />
+                  {renderFieldTree(fields, '', 0, connection)}
                 </div>
               )}
             </div>

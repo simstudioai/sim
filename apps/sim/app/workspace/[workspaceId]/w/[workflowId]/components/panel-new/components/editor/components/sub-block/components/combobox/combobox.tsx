@@ -2,15 +2,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { useReactFlow } from 'reactflow'
 import { Combobox, type ComboboxOption } from '@/components/emcn/components'
-import { checkEnvVarTrigger, EnvVarDropdown } from '@/components/ui/env-var-dropdown'
 import { formatDisplayText } from '@/components/ui/formatted-text'
-import { checkTagTrigger, TagDropdown } from '@/components/ui/tag-dropdown'
 import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
+import { SubBlockInputController } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/components/sub-block/components/sub-block-input-controller'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/components/sub-block/hooks/use-sub-block-value'
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
 import type { SubBlockConfig } from '@/blocks/types'
-import { useTagSelection } from '@/hooks/use-tag-selection'
 
 const logger = createLogger('ComboBox')
 
@@ -55,8 +53,6 @@ interface ComboBoxProps {
   disabled?: boolean
   /** Placeholder text when no value is entered */
   placeholder?: string
-  /** Whether a connection is being made (shows visual feedback) */
-  isConnecting: boolean
   /** Configuration for the sub-block */
   config: SubBlockConfig
 }
@@ -82,25 +78,17 @@ export function ComboBox({
   previewValue,
   disabled,
   placeholder = 'Type or select an option...',
-  isConnecting,
   config,
 }: ComboBoxProps) {
   // Hooks and context
   const params = useParams()
-  const workspaceId = params.workspaceId as string
   const [storeValue, setStoreValue] = useSubBlockValue<string>(blockId, subBlockId)
-  const emitTagSelection = useTagSelection(blockId, subBlockId)
   const accessiblePrefixes = useAccessibleReferencePrefixes(blockId)
   const reactFlowInstance = useReactFlow()
 
   // State management
   const [storeInitialized, setStoreInitialized] = useState(false)
   const [open, setOpen] = useState(false)
-  const [showEnvVars, setShowEnvVars] = useState(false)
-  const [showTags, setShowTags] = useState(false)
-  const [searchTerm, setSearchTerm] = useState('')
-  const [cursorPosition, setCursorPosition] = useState(0)
-  const [activeSourceBlockId, setActiveSourceBlockId] = useState<string | null>(null)
   const [highlightedIndex, setHighlightedIndex] = useState(-1)
 
   // Refs
@@ -214,39 +202,6 @@ export function ComboBox({
   }, [storeInitialized, value, defaultOptionValue, setStoreValue])
 
   /**
-   * Handles input changes, updating value and checking for special triggers
-   * @param e - Change event from input element
-   */
-  const handleChange = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      if (disabled) {
-        e.preventDefault()
-        return
-      }
-
-      const newValue = e.target.value
-      const newCursorPosition = e.target.selectionStart ?? 0
-
-      // Update store value immediately (allow free text)
-      if (!isPreview) {
-        setStoreValue(newValue)
-      }
-
-      setCursorPosition(newCursorPosition)
-
-      // Check for environment variables trigger
-      const envVarTrigger = checkEnvVarTrigger(newValue, newCursorPosition)
-      setShowEnvVars(envVarTrigger.show)
-      setSearchTerm(envVarTrigger.show ? envVarTrigger.searchTerm : '')
-
-      // Check for tag trigger
-      const tagTrigger = checkTagTrigger(newValue, newCursorPosition)
-      setShowTags(tagTrigger.show)
-    },
-    [disabled, isPreview, setStoreValue]
-  )
-
-  /**
    * Handles selection of an option from the dropdown
    * @param selectedValue - The value of the selected option
    */
@@ -296,9 +251,6 @@ export function ComboBox({
    * Delays closing to allow for dropdown interactions
    */
   const handleBlur = useCallback(() => {
-    setShowEnvVars(false)
-    setShowTags(false)
-
     // Delay closing to allow dropdown selection
     setTimeout(() => {
       const activeElement = document.activeElement
@@ -316,8 +268,6 @@ export function ComboBox({
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLInputElement>) => {
       if (e.key === 'Escape') {
-        setShowEnvVars(false)
-        setShowTags(false)
         setOpen(false)
         setHighlightedIndex(-1)
         return
@@ -349,61 +299,6 @@ export function ComboBox({
       }
     },
     [open, filteredOptions, highlightedIndex, handleSelect, getOptionValue]
-  )
-
-  /**
-   * Handles drag over event to enable drop functionality
-   * @param e - Drag event
-   */
-  const handleDragOver = useCallback(
-    (e: React.DragEvent<HTMLInputElement>) => {
-      if (config?.connectionDroppable === false) return
-      e.preventDefault()
-    },
-    [config?.connectionDroppable]
-  )
-
-  /**
-   * Handles drop event for block connections
-   * Inserts a tag trigger '<' at the drop position
-   * @param e - Drag event
-   */
-  const handleDrop = useCallback(
-    (e: React.DragEvent<HTMLInputElement>) => {
-      if (config?.connectionDroppable === false) return
-      e.preventDefault()
-
-      try {
-        const data = JSON.parse(e.dataTransfer.getData('application/json'))
-        if (data.type !== 'connectionBlock') return
-
-        const dropPosition = inputRef.current?.selectionStart ?? value?.toString().length ?? 0
-        const currentValue = value?.toString() ?? ''
-        const newValue = `${currentValue.slice(0, dropPosition)}<${currentValue.slice(dropPosition)}`
-
-        inputRef.current?.focus()
-
-        Promise.resolve().then(() => {
-          setStoreValue(newValue)
-          setCursorPosition(dropPosition + 1)
-          setShowTags(true)
-
-          if (data.connectionData?.sourceBlockId) {
-            setActiveSourceBlockId(data.connectionData.sourceBlockId)
-          }
-
-          setTimeout(() => {
-            if (inputRef.current) {
-              inputRef.current.selectionStart = dropPosition + 1
-              inputRef.current.selectionEnd = dropPosition + 1
-            }
-          }, CURSOR_POSITION_DELAY)
-        })
-      } catch (error) {
-        logger.error('Failed to parse drop data:', { error })
-      }
-    },
-    [config?.connectionDroppable, value, setStoreValue]
   )
 
   /**
@@ -465,19 +360,6 @@ export function ComboBox({
       return true
     },
     [reactFlowInstance]
-  )
-
-  /**
-   * Handles selection of environment variables or tags
-   * @param newValue - The selected value to insert
-   */
-  const handleEnvVarSelect = useCallback(
-    (newValue: string) => {
-      if (!isPreview) {
-        emitTagSelection(newValue)
-      }
-    },
-    [isPreview, emitTagSelection]
   )
 
   // Synchronize overlay scroll position with input when value changes
@@ -545,16 +427,6 @@ export function ComboBox({
       if (!isPreview) {
         setStoreValue(newValue)
       }
-      // Check for special triggers after value update
-      const cursorPos = inputRef.current?.selectionStart ?? newValue.length
-      setCursorPosition(cursorPos)
-
-      const envVarTrigger = checkEnvVarTrigger(newValue, cursorPos)
-      setShowEnvVars(envVarTrigger.show)
-      setSearchTerm(envVarTrigger.show ? envVarTrigger.searchTerm : '')
-
-      const tagTrigger = checkTagTrigger(newValue, cursorPos)
-      setShowTags(tagTrigger.show)
     },
     [isPreview, setStoreValue]
   )
@@ -586,22 +458,6 @@ export function ComboBox({
   }, [displayValue, accessiblePrefixes, selectedOptionIcon])
 
   /**
-   * Closes environment variable dropdown
-   */
-  const handleEnvVarClose = useCallback(() => {
-    setShowEnvVars(false)
-    setSearchTerm('')
-  }, [])
-
-  /**
-   * Closes tag dropdown
-   */
-  const handleTagClose = useCallback(() => {
-    setShowTags(false)
-    setActiveSourceBlockId(null)
-  }, [])
-
-  /**
    * Handles mouse enter on dropdown option
    * @param index - Index of the option
    */
@@ -624,51 +480,49 @@ export function ComboBox({
 
   return (
     <div className='relative w-full'>
-      <Combobox
-        options={comboboxOptions}
-        value={displayValue}
-        onChange={handleComboboxChange}
-        placeholder={placeholder}
-        disabled={disabled}
-        editable
-        overlayContent={overlayContent}
-        inputRef={inputRef}
-        filterOptions
-        className={cn(
-          'allow-scroll overflow-x-auto',
-          selectedOptionIcon && 'pl-[28px]',
-          isConnecting &&
-            config?.connectionDroppable !== false &&
-            'ring-2 ring-blue-500 ring-offset-2 focus-visible:ring-blue-500'
-        )}
-        inputProps={{
-          onDrop: handleDrop,
-          onDragOver: handleDragOver,
-          onScroll: handleScroll,
-          onPaste: handlePaste,
-          onWheel: handleWheel,
-          autoComplete: 'off',
-        }}
-      />
-
-      <EnvVarDropdown
-        visible={showEnvVars}
-        onSelect={handleEnvVarSelect}
-        searchTerm={searchTerm}
-        inputValue={displayValue}
-        cursorPosition={cursorPosition}
-        workspaceId={workspaceId}
-        onClose={handleEnvVarClose}
-      />
-      <TagDropdown
-        visible={showTags}
-        onSelect={handleEnvVarSelect}
+      <SubBlockInputController
         blockId={blockId}
-        activeSourceBlockId={activeSourceBlockId}
-        inputValue={displayValue}
-        cursorPosition={cursorPosition}
-        onClose={handleTagClose}
-      />
+        subBlockId={subBlockId}
+        config={config}
+        value={propValue}
+        onChange={(newValue) => {
+          if (!isPreview) {
+            setStoreValue(newValue)
+          }
+        }}
+        isPreview={isPreview}
+        disabled={disabled}
+        previewValue={previewValue}
+      >
+        {({ ref, onChange: ctrlOnChange, onDrop, onDragOver }) => (
+          <Combobox
+            options={comboboxOptions}
+            value={displayValue}
+            onChange={(newValue) => {
+              // Use controller's handler for consistency
+              const syntheticEvent = {
+                target: { value: newValue, selectionStart: newValue.length },
+              } as React.ChangeEvent<HTMLInputElement>
+              ctrlOnChange(syntheticEvent)
+            }}
+            placeholder={placeholder}
+            disabled={disabled}
+            editable
+            overlayContent={overlayContent}
+            inputRef={ref as React.RefObject<HTMLInputElement>}
+            filterOptions
+            className={cn('allow-scroll overflow-x-auto', selectedOptionIcon && 'pl-[28px]')}
+            inputProps={{
+              onDrop: onDrop as (e: React.DragEvent<HTMLInputElement>) => void,
+              onDragOver: onDragOver as (e: React.DragEvent<HTMLInputElement>) => void,
+              onScroll: handleScroll,
+              onPaste: handlePaste,
+              onWheel: handleWheel,
+              autoComplete: 'off',
+            }}
+          />
+        )}
+      </SubBlockInputController>
     </div>
   )
 }

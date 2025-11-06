@@ -5,40 +5,19 @@ import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('useCopilotInitialization')
 
-/**
- * Default enabled/disabled state for all models (must match API)
- */
-const DEFAULT_ENABLED_MODELS: Record<string, boolean> = {
-  'gpt-4o': false,
-  'gpt-4.1': false,
-  'gpt-5-fast': false,
-  'gpt-5': true,
-  'gpt-5-medium': true,
-  'gpt-5-high': false,
-  o3: true,
-  'claude-4-sonnet': false,
-  'claude-4.5-haiku': true,
-  'claude-4.5-sonnet': true,
-  'claude-4.1-opus': true,
-}
-
 interface UseCopilotInitializationProps {
   activeWorkflowId: string | null
   isLoadingChats: boolean
   chatsLoadedForWorkflow: string | null
   setCopilotWorkflowId: (workflowId: string | null) => Promise<void>
   loadChats: (forceRefresh?: boolean) => Promise<void>
-  setEnabledModels: (models: string[]) => void
-  enabledModels: string[] | null
-  selectedModel: string
-  setSelectedModel: (model: any) => Promise<void>
   fetchContextUsage: () => Promise<void>
   currentChat: any
   isSendingMessage: boolean
 }
 
 /**
- * Custom hook to handle copilot initialization including model loading and workflow setup
+ * Custom hook to handle copilot initialization and workflow setup
  *
  * @param props - Configuration for copilot initialization
  * @returns Initialization state
@@ -50,10 +29,6 @@ export function useCopilotInitialization(props: UseCopilotInitializationProps) {
     chatsLoadedForWorkflow,
     setCopilotWorkflowId,
     loadChats,
-    setEnabledModels,
-    enabledModels,
-    selectedModel,
-    setSelectedModel,
     fetchContextUsage,
     currentChat,
     isSendingMessage,
@@ -62,73 +37,6 @@ export function useCopilotInitialization(props: UseCopilotInitializationProps) {
   const [isInitialized, setIsInitialized] = useState(false)
   const lastWorkflowIdRef = useRef<string | null>(null)
   const hasMountedRef = useRef(false)
-  const hasLoadedModelsRef = useRef(false)
-
-  /**
-   * Load user's enabled models from the API
-   */
-  useEffect(() => {
-    const loadEnabledModels = async () => {
-      if (hasLoadedModelsRef.current) return
-      hasLoadedModelsRef.current = true
-
-      try {
-        const res = await fetch('/api/copilot/user-models')
-        if (!res.ok) {
-          logger.warn('Failed to fetch user models, using defaults')
-          const enabledArray = Object.keys(DEFAULT_ENABLED_MODELS).filter(
-            (key) => DEFAULT_ENABLED_MODELS[key]
-          )
-          setEnabledModels(enabledArray)
-          return
-        }
-
-        const data = await res.json()
-        const modelsMap = data.enabledModels || DEFAULT_ENABLED_MODELS
-
-        const enabledArray = Object.entries(modelsMap)
-          .filter(([_, enabled]) => enabled)
-          .map(([modelId]) => modelId)
-
-        setEnabledModels(enabledArray)
-        logger.info('Loaded user enabled models', { count: enabledArray.length })
-      } catch (error) {
-        logger.error('Failed to load enabled models', { error })
-        const enabledArray = Object.keys(DEFAULT_ENABLED_MODELS).filter(
-          (key) => DEFAULT_ENABLED_MODELS[key]
-        )
-        setEnabledModels(enabledArray)
-      }
-    }
-
-    loadEnabledModels()
-  }, [setEnabledModels])
-
-  /**
-   * Ensure selected model is in the enabled models list
-   */
-  useEffect(() => {
-    if (!enabledModels || enabledModels.length === 0) return
-
-    if (selectedModel && !enabledModels.includes(selectedModel)) {
-      const preferredModel = 'claude-4.5-sonnet'
-      const fallbackModel = enabledModels[0] as typeof selectedModel
-
-      if (enabledModels.includes(preferredModel)) {
-        setSelectedModel(preferredModel)
-        logger.info('Selected model not enabled, switching to preferred model', {
-          from: selectedModel,
-          to: preferredModel,
-        })
-      } else if (fallbackModel) {
-        setSelectedModel(fallbackModel)
-        logger.info('Selected model not enabled, switching to first available', {
-          from: selectedModel,
-          to: fallbackModel,
-        })
-      }
-    }
-  }, [enabledModels, selectedModel, setSelectedModel])
 
   /**
    * Initialize on mount - only load chats if needed, don't force refresh

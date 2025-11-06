@@ -1,0 +1,537 @@
+/**
+ * Popover component system with built-in folder navigation and automatic viewport positioning.
+ * Uses Radix UI primitives for collision detection and smart placement.
+ *
+ * @example
+ * Basic usage with folders:
+ * ```tsx
+ * import { Popover, PopoverAnchor, PopoverBackButton, PopoverContent, PopoverFolder, PopoverItem } from '@/components/emcn'
+ * import { Workflow, Bot } from 'lucide-react'
+ *
+ * function MyMenu() {
+ *   const [workflows, setWorkflows] = useState([])
+ *   const [open, setOpen] = useState(false)
+ *
+ *   return (
+ *     <Popover open={open} onOpenChange={setOpen}>
+ *       <PopoverAnchor>
+ *         <button>Open Menu</button>
+ *       </PopoverAnchor>
+ *       <PopoverContent>
+ *         <PopoverBackButton />
+ *         <PopoverItem rootOnly onClick={() => console.log('Docs')}>
+ *           <BookOpen className="h-3 w-3" />
+ *           <span>Docs</span>
+ *         </PopoverItem>
+ *
+ *         <PopoverFolder
+ *           id="workflows"
+ *           title="All workflows"
+ *           icon={<Workflow className="h-3 w-3" />}
+ *           onOpen={async () => {
+ *             const data = await fetchWorkflows()
+ *             setWorkflows(data)
+ *           }}
+ *         >
+ *           {workflows.map(wf => (
+ *             <PopoverItem key={wf.id} onClick={() => selectWorkflow(wf)}>
+ *               <div className="h-3 w-3 rounded" style={{ backgroundColor: wf.color }} />
+ *               <span>{wf.name}</span>
+ *             </PopoverItem>
+ *           ))}
+ *         </PopoverFolder>
+ *       </PopoverContent>
+ *     </Popover>
+ *   )
+ * }
+ * ```
+ */
+
+'use client'
+
+import * as React from 'react'
+import * as PopoverPrimitive from '@radix-ui/react-popover'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { cn } from '@/lib/utils'
+
+/**
+ * Shared base styles for all popover interactive items.
+ * Ensures consistent height and styling across items, folders, and back button.
+ */
+const POPOVER_ITEM_BASE_CLASSES =
+  'flex h-[25px] cursor-pointer items-center gap-[8px] rounded-[6px] px-[6px] font-base text-[#FFFFFF] text-[12px] transition-colors dark:text-[#FFFFFF] [&_svg]:transition-colors'
+
+/**
+ * Variant-specific active state styles for popover items.
+ */
+const POPOVER_ITEM_ACTIVE_CLASSES = {
+  primary:
+    'bg-[#33B4FF] text-[#1B1B1B] dark:bg-[#33B4FF] dark:text-[#1B1B1B] [&_svg]:text-[#1B1B1B] dark:[&_svg]:text-[#1B1B1B]',
+  default:
+    'bg-[#363636] text-[#FFFFFF] dark:bg-[#363636] dark:text-[#FFFFFF] [&_svg]:text-[#FFFFFF] dark:[&_svg]:text-[#FFFFFF]',
+}
+
+/**
+ * Variant-specific hover state styles for popover items.
+ */
+const POPOVER_ITEM_HOVER_CLASSES = {
+  primary:
+    'hover:bg-[#33B4FF] hover:text-[#1B1B1B] dark:hover:bg-[#33B4FF] dark:hover:text-[#1B1B1B] hover:[&_svg]:text-[#1B1B1B] dark:hover:[&_svg]:text-[#1B1B1B]',
+  default:
+    'hover:bg-[#363636] hover:text-[#FFFFFF] dark:hover:bg-[#363636] dark:hover:text-[#FFFFFF] hover:[&_svg]:text-[#FFFFFF] dark:hover:[&_svg]:text-[#FFFFFF]',
+}
+
+type PopoverVariant = 'default' | 'primary'
+
+interface PopoverContextValue {
+  openFolder: (id: string, title: string, onLoad?: () => void | Promise<void>) => void
+  closeFolder: () => void
+  currentFolder: string | null
+  isInFolder: boolean
+  folderTitle: string | null
+  variant: PopoverVariant
+}
+
+const PopoverContext = React.createContext<PopoverContextValue | null>(null)
+
+const usePopoverContext = () => {
+  const context = React.useContext(PopoverContext)
+  if (!context) {
+    throw new Error('Popover components must be used within a Popover')
+  }
+  return context
+}
+
+export interface PopoverProps extends PopoverPrimitive.PopoverProps {
+  /**
+   * Visual variant of the popover
+   * @default 'default'
+   */
+  variant?: PopoverVariant
+}
+
+/**
+ * Root popover component. Manages open state and folder navigation context.
+ *
+ * @example
+ * ```tsx
+ * <Popover open={open} onOpenChange={setOpen} variant="default">
+ *   <PopoverAnchor>...</PopoverAnchor>
+ *   <PopoverContent>...</PopoverContent>
+ * </Popover>
+ * ```
+ */
+const Popover: React.FC<PopoverProps> = ({ children, variant = 'default', ...props }) => {
+  const [currentFolder, setCurrentFolder] = React.useState<string | null>(null)
+  const [folderTitle, setFolderTitle] = React.useState<string | null>(null)
+
+  const openFolder = React.useCallback(
+    (id: string, title: string, onLoad?: () => void | Promise<void>) => {
+      setCurrentFolder(id)
+      setFolderTitle(title)
+      if (onLoad) {
+        void Promise.resolve(onLoad())
+      }
+    },
+    []
+  )
+
+  const closeFolder = React.useCallback(() => {
+    setCurrentFolder(null)
+    setFolderTitle(null)
+  }, [])
+
+  const contextValue: PopoverContextValue = React.useMemo(
+    () => ({
+      openFolder,
+      closeFolder,
+      currentFolder,
+      isInFolder: currentFolder !== null,
+      folderTitle,
+      variant,
+    }),
+    [openFolder, closeFolder, currentFolder, folderTitle, variant]
+  )
+
+  return (
+    <PopoverContext.Provider value={contextValue}>
+      <PopoverPrimitive.Root {...props}>{children}</PopoverPrimitive.Root>
+    </PopoverContext.Provider>
+  )
+}
+
+Popover.displayName = 'Popover'
+
+/**
+ * Trigger element that opens/closes the popover when clicked.
+ * Use asChild to render as a custom component.
+ *
+ * @example
+ * ```tsx
+ * <PopoverTrigger asChild>
+ *   <Button>Open Menu</Button>
+ * </PopoverTrigger>
+ * ```
+ */
+const PopoverTrigger = PopoverPrimitive.Trigger
+
+/**
+ * Anchor element for the popover. Can be a virtual element or React element.
+ * For positioning popovers relative to cursor/caret, use asChild with a positioned element.
+ */
+const PopoverAnchor = PopoverPrimitive.Anchor
+
+export interface PopoverContentProps
+  extends Omit<
+    React.ComponentPropsWithoutRef<typeof PopoverPrimitive.Content>,
+    'side' | 'align' | 'sideOffset' | 'alignOffset' | 'collisionPadding'
+  > {
+  /**
+   * Maximum height for the popover content in pixels
+   */
+  maxHeight?: number
+  /**
+   * Preferred side to display the popover
+   * @default 'bottom'
+   */
+  side?: 'top' | 'right' | 'bottom' | 'left'
+  /**
+   * Alignment of the popover relative to anchor
+   * @default 'start'
+   */
+  align?: 'start' | 'center' | 'end'
+  /**
+   * Offset from the anchor in pixels.
+   * Defaults to 22px for top side (to avoid covering cursor) and 10px for other sides.
+   */
+  sideOffset?: number
+  /**
+   * Padding from viewport edges in pixels
+   * @default 8
+   */
+  collisionPadding?: number
+}
+
+/**
+ * Popover content component with automatic positioning and collision detection.
+ * Wraps children in a styled container with scrollable area.
+ *
+ * @example
+ * ```tsx
+ * <PopoverContent maxHeight={300}>
+ *   <PopoverItem>Item 1</PopoverItem>
+ *   <PopoverItem>Item 2</PopoverItem>
+ * </PopoverContent>
+ * ```
+ */
+const PopoverContent = React.forwardRef<
+  React.ElementRef<typeof PopoverPrimitive.Content>,
+  PopoverContentProps
+>(
+  (
+    {
+      className,
+      style,
+      children,
+      maxHeight,
+      side = 'bottom',
+      align = 'start',
+      sideOffset,
+      collisionPadding = 8,
+      ...restProps
+    },
+    ref
+  ) => {
+    // Smart default offset: larger offset when rendering above to avoid covering cursor
+    const effectiveSideOffset = sideOffset ?? (side === 'top' ? 20 : 14)
+
+    return (
+      <PopoverPrimitive.Portal>
+        <PopoverPrimitive.Content
+          ref={ref}
+          side={side}
+          align={align}
+          sideOffset={effectiveSideOffset}
+          collisionPadding={collisionPadding}
+          avoidCollisions={true}
+          sticky='partial'
+          {...restProps}
+          className={cn(
+            'z-[9999999] flex flex-col overflow-hidden rounded-[8px] bg-[#242424] px-[5.5px] py-[5px] text-foreground outline-none dark:bg-[#242424]',
+            className
+          )}
+          style={{
+            ...style,
+            maxHeight: `${maxHeight || 400}px`,
+            maxWidth: 'calc(100vw - 16px)',
+            minWidth: '160px',
+          }}
+        >
+          {children}
+        </PopoverPrimitive.Content>
+      </PopoverPrimitive.Portal>
+    )
+  }
+)
+
+PopoverContent.displayName = 'PopoverContent'
+
+export interface PopoverScrollAreaProps extends React.HTMLAttributes<HTMLDivElement> {}
+
+/**
+ * Scrollable area container for popover items.
+ * Use this to wrap items that should scroll within the popover.
+ *
+ * @example
+ * ```tsx
+ * <PopoverContent>
+ *   <PopoverScrollArea>
+ *     <PopoverItem>Item 1</PopoverItem>
+ *     <PopoverItem>Item 2</PopoverItem>
+ *   </PopoverScrollArea>
+ * </PopoverContent>
+ * ```
+ */
+const PopoverScrollArea = React.forwardRef<HTMLDivElement, PopoverScrollAreaProps>(
+  ({ className, ...props }, ref) => {
+    return (
+      <div
+        className={cn('min-h-0 flex-1 overflow-auto overscroll-contain', className)}
+        ref={ref}
+        {...props}
+      />
+    )
+  }
+)
+
+PopoverScrollArea.displayName = 'PopoverScrollArea'
+
+export interface PopoverItemProps extends React.HTMLAttributes<HTMLDivElement> {
+  /**
+   * Whether this item is currently active/selected
+   */
+  active?: boolean
+  /**
+   * If true, this item will only show when not inside any folder
+   */
+  rootOnly?: boolean
+}
+
+/**
+ * Popover item component for individual items within a popover.
+ *
+ * @example
+ * ```tsx
+ * <PopoverItem active={isActive} onClick={() => handleClick()}>
+ *   <Icon className="h-4 w-4" />
+ *   <span>Item label</span>
+ * </PopoverItem>
+ * ```
+ */
+const PopoverItem = React.forwardRef<HTMLDivElement, PopoverItemProps>(
+  ({ className, active, rootOnly, ...props }, ref) => {
+    // Try to get context - if not available, we're outside Popover (shouldn't happen)
+    const context = React.useContext(PopoverContext)
+    const variant = context?.variant || 'default'
+
+    // If rootOnly is true and we're in a folder, don't render
+    if (rootOnly && context?.isInFolder) {
+      return null
+    }
+
+    return (
+      <div
+        className={cn(
+          POPOVER_ITEM_BASE_CLASSES,
+          active ? POPOVER_ITEM_ACTIVE_CLASSES[variant] : POPOVER_ITEM_HOVER_CLASSES[variant],
+          className
+        )}
+        ref={ref}
+        role='menuitem'
+        aria-selected={active}
+        {...props}
+      />
+    )
+  }
+)
+
+PopoverItem.displayName = 'PopoverItem'
+
+export interface PopoverSectionProps extends React.HTMLAttributes<HTMLDivElement> {
+  /**
+   * If true, this section will only show when not inside any folder
+   */
+  rootOnly?: boolean
+}
+
+/**
+ * Popover section header component for grouping items with a title.
+ *
+ * @example
+ * ```tsx
+ * <PopoverSection>
+ *   Section Title
+ * </PopoverSection>
+ * ```
+ */
+const PopoverSection = React.forwardRef<HTMLDivElement, PopoverSectionProps>(
+  ({ className, rootOnly, ...props }, ref) => {
+    const context = React.useContext(PopoverContext)
+
+    // If rootOnly is true and we're in a folder, don't render
+    if (rootOnly && context?.isInFolder) {
+      return null
+    }
+
+    return (
+      <div
+        className={cn(
+          'px-[6px] py-[4px] font-base text-[#AEAEAE] text-[12px] dark:text-[#AEAEAE]',
+          className
+        )}
+        ref={ref}
+        {...props}
+      />
+    )
+  }
+)
+
+PopoverSection.displayName = 'PopoverSection'
+
+export interface PopoverFolderProps extends Omit<React.HTMLAttributes<HTMLDivElement>, 'children'> {
+  /**
+   * Unique identifier for the folder
+   */
+  id: string
+  /**
+   * Display title for the folder
+   */
+  title: string
+  /**
+   * Icon to display before the title
+   */
+  icon?: React.ReactNode
+  /**
+   * Function to call when folder is opened (for lazy loading)
+   */
+  onOpen?: () => void | Promise<void>
+  /**
+   * Children to render when folder is open
+   */
+  children?: React.ReactNode
+  /**
+   * Whether this item is currently active/selected
+   */
+  active?: boolean
+}
+
+/**
+ * Popover folder component that expands to show nested content.
+ * Automatically handles navigation and back button rendering.
+ *
+ * @example
+ * ```tsx
+ * <PopoverFolder id="workflows" title="Workflows" icon={<Icon />}>
+ *   <PopoverItem>Workflow 1</PopoverItem>
+ *   <PopoverItem>Workflow 2</PopoverItem>
+ * </PopoverFolder>
+ * ```
+ */
+const PopoverFolder = React.forwardRef<HTMLDivElement, PopoverFolderProps>(
+  ({ className, id, title, icon, onOpen, children, active, ...props }, ref) => {
+    const { openFolder, currentFolder, isInFolder, variant } = usePopoverContext()
+
+    // Don't render if we're in a different folder
+    if (isInFolder && currentFolder !== id) {
+      return null
+    }
+
+    // If we're in this folder, render its children
+    if (currentFolder === id) {
+      return <>{children}</>
+    }
+
+    // Otherwise, render as a clickable folder item
+    return (
+      <div
+        ref={ref}
+        className={cn(
+          POPOVER_ITEM_BASE_CLASSES,
+          active ? POPOVER_ITEM_ACTIVE_CLASSES[variant] : POPOVER_ITEM_HOVER_CLASSES[variant],
+          className
+        )}
+        role='menuitem'
+        aria-haspopup='true'
+        aria-expanded={false}
+        onClick={() => openFolder(id, title, onOpen)}
+        {...props}
+      >
+        {icon}
+        <span className='flex-1'>{title}</span>
+        <ChevronRight className='h-3 w-3' />
+      </div>
+    )
+  }
+)
+
+PopoverFolder.displayName = 'PopoverFolder'
+
+export interface PopoverBackButtonProps extends React.HTMLAttributes<HTMLDivElement> {}
+
+/**
+ * Back button component that appears when inside a folder.
+ * Automatically hidden when at root level.
+ *
+ * @example
+ * ```tsx
+ * <Popover>
+ *   <PopoverBackButton />
+ *   <PopoverContent>
+ *     // content
+ *   </PopoverContent>
+ * </Popover>
+ * ```
+ */
+const PopoverBackButton = React.forwardRef<HTMLDivElement, PopoverBackButtonProps>(
+  ({ className, ...props }, ref) => {
+    const { isInFolder, closeFolder, folderTitle, variant } = usePopoverContext()
+
+    if (!isInFolder) {
+      return null
+    }
+
+    return (
+      <div className='flex flex-col'>
+        <div
+          ref={ref}
+          className={cn(POPOVER_ITEM_BASE_CLASSES, POPOVER_ITEM_HOVER_CLASSES[variant], className)}
+          role='button'
+          onClick={closeFolder}
+          {...props}
+        >
+          <ChevronLeft className='h-3 w-3' />
+          <span>Back</span>
+        </div>
+        {folderTitle && (
+          <div className='px-[6px] py-[4px] font-base text-[#AEAEAE] text-[12px] dark:text-[#AEAEAE]'>
+            {folderTitle}
+          </div>
+        )}
+      </div>
+    )
+  }
+)
+
+PopoverBackButton.displayName = 'PopoverBackButton'
+
+export {
+  Popover,
+  PopoverTrigger,
+  PopoverAnchor,
+  PopoverContent,
+  PopoverScrollArea,
+  PopoverItem,
+  PopoverSection,
+  PopoverFolder,
+  PopoverBackButton,
+}

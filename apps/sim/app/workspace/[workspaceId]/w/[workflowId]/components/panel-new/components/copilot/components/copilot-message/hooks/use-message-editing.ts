@@ -13,11 +13,6 @@ const logger = createLogger('useMessageEditing')
 const MESSAGE_TRUNCATION_HEIGHT = 60
 
 /**
- * Delay before focusing input after edit mode activation
- */
-const FOCUS_DELAY = 100
-
-/**
  * Delay before attaching click-outside listener to avoid immediate trigger
  */
 const CLICK_OUTSIDE_DELAY = 100
@@ -264,10 +259,8 @@ export function useMessageEditing(props: UseMessageEditingProps) {
 
     // Operations
     setEditedContent,
-    handleEditMessage,
     handleCancelEdit,
     handleMessageClick,
     handleSubmitEdit,
-    performEdit,
   }
 }

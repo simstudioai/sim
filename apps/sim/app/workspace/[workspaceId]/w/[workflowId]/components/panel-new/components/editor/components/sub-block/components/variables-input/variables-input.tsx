@@ -35,7 +35,6 @@ interface VariablesInputProps {
   isPreview?: boolean
   previewValue?: VariableAssignment[] | null
   disabled?: boolean
-  isConnecting?: boolean
 }
 
 const DEFAULT_ASSIGNMENT: Omit<VariableAssignment, 'id'> = {
@@ -51,7 +50,6 @@ export function VariablesInput({
   isPreview = false,
   previewValue,
   disabled = false,
-  isConnecting = false,
 }: VariablesInputProps) {
   const params = useParams()
   const workflowId = params.workflowId as string
@@ -360,8 +358,7 @@ export function VariablesInput({
                           disabled={isPreview || disabled}
                           className={cn(
                             'min-h-[120px] border border-input bg-white font-mono text-sm text-transparent caret-foreground placeholder:text-muted-foreground/50 dark:border-input/60 dark:bg-background',
-                            dragHighlight[assignment.id] && 'ring-2 ring-blue-500 ring-offset-2',
-                            isConnecting && 'ring-2 ring-blue-500 ring-offset-2'
+                            dragHighlight[assignment.id] && 'ring-2 ring-blue-500 ring-offset-2'
                           )}
                           style={{
                             fontFamily: 'inherit',
@@ -409,8 +406,7 @@ export function VariablesInput({
                           disabled={isPreview || disabled}
                           className={cn(
                             'h-9 border border-input bg-white text-transparent caret-foreground placeholder:text-muted-foreground/50 dark:border-input/60 dark:bg-background',
-                            dragHighlight[assignment.id] && 'ring-2 ring-blue-500 ring-offset-2',
-                            isConnecting && 'ring-2 ring-blue-500 ring-offset-2'
+                            dragHighlight[assignment.id] && 'ring-2 ring-blue-500 ring-offset-2'
                           )}
                           onDrop={(e) => handleDrop(e, assignment.id)}
                           onDragOver={(e) => handleDragOver(e, assignment.id)}

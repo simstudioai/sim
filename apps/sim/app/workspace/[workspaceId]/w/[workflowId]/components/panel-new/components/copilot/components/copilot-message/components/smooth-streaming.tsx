@@ -7,11 +7,6 @@ import CopilotMarkdownRenderer from './markdown-renderer'
 const CHARACTER_DELAY = 3
 
 /**
- * Maximum word length before breaking
- */
-const MAX_WORD_LENGTH = 25
-
-/**
  * StreamingIndicator shows animated dots during message streaming
  * Uses CSS classes for animations to follow best practices
  *
@@ -132,50 +127,3 @@ export const SmoothStreamingText = memo(
 )
 
 SmoothStreamingText.displayName = 'SmoothStreamingText'
-
-/**
- * Props for the WordWrap component
- */
-interface WordWrapProps {
-  /** Text content to wrap */
-  text: string
-}
-
-/**
- * WordWrap component breaks up long words to prevent overflow
- * Splits words longer than MAX_WORD_LENGTH into smaller chunks
- *
- * @param props - Component props
- * @returns Wrapped text with break-all applied to long words
- */
-export const WordWrap = ({ text }: WordWrapProps) => {
-  if (!text) return null
-
-  // Split text into words, keeping spaces and punctuation
-  const parts = text.split(/(\s+)/g)
-
-  return (
-    <>
-      {parts.map((part, index) => {
-        // If the part is whitespace or shorter than the max length, render it as is
-        if (part.match(/\s+/) || part.length <= MAX_WORD_LENGTH) {
-          return <span key={index}>{part}</span>
-        }
-
-        // For long words, break them up into chunks
-        const chunks = []
-        for (let i = 0; i < part.length; i += MAX_WORD_LENGTH) {
-          chunks.push(part.substring(i, i + MAX_WORD_LENGTH))
-        }
-
-        return (
-          <span key={index} className='break-all'>
-            {chunks.map((chunk, chunkIndex) => (
-              <span key={chunkIndex}>{chunk}</span>
-            ))}
-          </span>
-        )
-      })}
-    </>
-  )
-}

@@ -1,11 +1,11 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef } from 'react'
 import { useParams } from 'next/navigation'
 import { Handle, type NodeProps, Position, useUpdateNodeInternals } from 'reactflow'
 import { Badge } from '@/components/emcn/components/badge/badge'
 import { Tooltip } from '@/components/emcn/components/tooltip/tooltip'
 import { getEnv, isTruthy } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
-import { cn, validateName } from '@/lib/utils'
+import { cn } from '@/lib/utils'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import type { SubBlockConfig } from '@/blocks/types'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
@@ -14,8 +14,7 @@ import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import { useCurrentWorkflow } from '../../hooks'
-import { ActionBar, ConnectionBlocks } from './components'
-import { MAX_BLOCK_NAME_LENGTH } from './constants'
+import { ActionBar, Connections } from './components'
 import {
   useBlockProperties,
   useBlockState,
@@ -29,11 +28,134 @@ import { debounce, getProviderName, shouldSkipBlockRender } from './utils'
 const logger = createLogger('WorkflowBlock')
 
 /**
- * Formats a subblock value for display, showing '-' for empty/null values.
+ * Type guard for table row structure
+ */
+interface TableRow {
+  id: string
+  cells: Record<string, string>
+}
+
+/**
+ * Type guard for field format structure (input format, response format)
+ */
+interface FieldFormat {
+  id: string
+  name: string
+  type?: string
+  value?: string
+  collapsed?: boolean
+}
+
+/**
+ * Checks if a value is a table row array
+ */
+const isTableRowArray = (value: unknown): value is TableRow[] => {
+  if (!Array.isArray(value) || value.length === 0) return false
+  const firstItem = value[0]
+  return (
+    typeof firstItem === 'object' &&
+    firstItem !== null &&
+    'id' in firstItem &&
+    'cells' in firstItem &&
+    typeof firstItem.cells === 'object'
+  )
+}
+
+/**
+ * Checks if a value is a field format array
+ */
+const isFieldFormatArray = (value: unknown): value is FieldFormat[] => {
+  if (!Array.isArray(value) || value.length === 0) return false
+  const firstItem = value[0]
+  return (
+    typeof firstItem === 'object' && firstItem !== null && 'id' in firstItem && 'name' in firstItem
+  )
+}
+
+/**
+ * Checks if a value is a plain object (not array, not null)
+ */
+const isPlainObject = (value: unknown): value is Record<string, unknown> => {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+/**
+ * Formats a subblock value for display, intelligently handling nested objects and arrays.
  */
 const getDisplayValue = (value: unknown): string => {
   if (value == null || value === '') return '-'
+
+  // Handle table row arrays (from table component)
+  if (isTableRowArray(value)) {
+    const nonEmptyRows = value.filter((row) => {
+      const cellValues = Object.values(row.cells)
+      return cellValues.some((cell) => cell && cell.trim() !== '')
+    })
+
+    if (nonEmptyRows.length === 0) return '-'
+    if (nonEmptyRows.length === 1) {
+      const firstRow = nonEmptyRows[0]
+      const cellEntries = Object.entries(firstRow.cells).filter(([, val]) => val?.trim())
+      if (cellEntries.length === 0) return '-'
+      const preview = cellEntries
+        .slice(0, 2)
+        .map(([key, val]) => `${key}: ${val}`)
+        .join(', ')
+      return cellEntries.length > 2 ? `${preview}...` : preview
+    }
+    return `${nonEmptyRows.length} rows`
+  }
+
+  // Handle field format arrays (from input-format, response-format)
+  if (isFieldFormatArray(value)) {
+    const namedFields = value.filter((field) => field.name && field.name.trim() !== '')
+    if (namedFields.length === 0) return '-'
+    if (namedFields.length === 1) return namedFields[0].name
+    if (namedFields.length === 2) return `${namedFields[0].name}, ${namedFields[1].name}`
+    return `${namedFields[0].name}, ${namedFields[1].name} +${namedFields.length - 2}`
+  }
+
+  // Handle input mapping objects (from input-mapping component)
+  if (isPlainObject(value)) {
+    const entries = Object.entries(value).filter(
+      ([, val]) => val !== null && val !== undefined && val !== ''
+    )
+
+    if (entries.length === 0) return '-'
+    if (entries.length === 1) {
+      const [key, val] = entries[0]
+      const valStr = String(val).slice(0, 30)
+      return `${key}: ${valStr}${String(val).length > 30 ? '...' : ''}`
+    }
+    const preview = entries
+      .slice(0, 2)
+      .map(([key]) => key)
+      .join(', ')
+    return entries.length > 2 ? `${preview} +${entries.length - 2}` : preview
+  }
+
+  // Handle arrays of primitives
+  if (Array.isArray(value)) {
+    const nonEmptyItems = value.filter((item) => item !== null && item !== undefined && item !== '')
+    if (nonEmptyItems.length === 0) return '-'
+    if (nonEmptyItems.length === 1) return String(nonEmptyItems[0])
+    if (nonEmptyItems.length === 2) return `${nonEmptyItems[0]}, ${nonEmptyItems[1]}`
+    return `${nonEmptyItems[0]}, ${nonEmptyItems[1]} +${nonEmptyItems.length - 2}`
+  }
+
+  // Handle primitive values
   const stringValue = String(value)
+  if (stringValue === '[object Object]') {
+    // Fallback for unhandled object types - try to show something useful
+    try {
+      const json = JSON.stringify(value)
+      if (json.length <= 40) return json
+      return `${json.slice(0, 37)}...`
+    } catch {
+      return '-'
+    }
+  }
+
   return stringValue.trim().length > 0 ? stringValue : '-'
 }
 
@@ -57,11 +179,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
 }: NodeProps<WorkflowBlockProps>) {
   const { type, config, name, isPending } = data
 
-  const [isEditing, setIsEditing] = useState(false)
-  const [editedName, setEditedName] = useState('')
-
   const contentRef = useRef<HTMLDivElement>(null)
-  const nameInputRef = useRef<HTMLInputElement>(null)
   const updateNodeInternals = useUpdateNodeInternals()
 
   const params = useParams()
@@ -97,12 +215,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
   const { childWorkflowId, childActiveVersion, childIsDeployed, isLoadingChildVersion } =
     useChildWorkflow(id, type, data.isPreview ?? false, data.subBlockValues)
 
-  const {
-    collaborativeUpdateBlockName,
-    collaborativeToggleBlockAdvancedMode,
-    collaborativeToggleBlockTriggerMode,
-    collaborativeSetSubblockValue,
-  } = useCollaborativeWorkflow()
+  const { collaborativeSetSubblockValue } = useCollaborativeWorkflow()
 
   /**
    * Clear credential-dependent fields when credential changes to prevent
@@ -231,12 +344,11 @@ export const WorkflowBlock = memo(function WorkflowBlock({
 
     const effectiveAdvanced = displayAdvancedMode
     const effectiveTrigger = displayTriggerMode
-    const e2bClientEnabled = isTruthy(getEnv('NEXT_PUBLIC_E2B_ENABLED'))
 
     const visibleSubBlocks = config.subBlocks.filter((block) => {
       if (block.hidden) return false
 
-      if (!e2bClientEnabled && (block.id === 'remoteExecution' || block.id === 'language')) {
+      if (block.requiresFeature && !isTruthy(getEnv(block.requiresFeature))) {
         return false
       }
 
@@ -397,64 +509,6 @@ export const WorkflowBlock = memo(function WorkflowBlock({
     ]
   }, [type, subBlockState, id])
 
-  /**
-   * Handles click on block name to enter edit mode.
-   * Prevents drag handler from interfering with name editing.
-   */
-  const handleNameClick = (e: React.MouseEvent) => {
-    e.stopPropagation()
-    setEditedName(name)
-    setIsEditing(true)
-  }
-
-  /**
-   * Auto-focus the input when edit mode is activated for immediate typing.
-   */
-  useEffect(() => {
-    if (isEditing && nameInputRef.current) {
-      nameInputRef.current.focus()
-    }
-  }, [isEditing])
-
-  /**
-   * Handles node name change with validation and length constraints.
-   * @param newName - The new name entered by the user
-   */
-  const handleNodeNameChange = (newName: string) => {
-    const validatedName = validateName(newName)
-    setEditedName(validatedName.slice(0, MAX_BLOCK_NAME_LENGTH))
-  }
-
-  /**
-   * Submits the edited name if it's valid and different from the current name.
-   */
-  const handleNameSubmit = () => {
-    const trimmedName = editedName.trim().slice(0, MAX_BLOCK_NAME_LENGTH)
-    if (trimmedName && trimmedName !== name) {
-      collaborativeUpdateBlockName(id, trimmedName)
-    }
-    setIsEditing(false)
-  }
-
-  /**
-   * Handles keyboard events for name editing (Enter to submit, Escape to cancel).
-   * @param e - The keyboard event
-   */
-  const handleNameKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      handleNameSubmit()
-    } else if (e.key === 'Escape') {
-      setIsEditing(false)
-    }
-  }
-
-  /**
-   * Handles block click to focus it in the editor panel.
-   */
-  const handleBlockClick = useCallback(() => {
-    setCurrentBlockId(id)
-  }, [id, setCurrentBlockId])
-
   const showWebhookIndicator = (isStarterBlock || isWebhookTriggerBlock) && isWebhookConfigured
   const shouldShowScheduleBadge =
     type === 'schedule' && !isLoadingScheduleInfo && scheduleInfo !== null
@@ -489,7 +543,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
     <div className='group relative'>
       <div
         ref={contentRef}
-        onClick={handleBlockClick}
+        onClick={() => setCurrentBlockId(id)}
         className={cn(
           'relative z-[20] w-[250px] cursor-default select-none rounded-[8px] bg-[#232323]'
         )}
@@ -503,7 +557,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
         <ActionBar blockId={id} blockType={type} disabled={!userPermissions.canEdit} />
 
         {shouldShowDefaultHandles && (
-          <ConnectionBlocks
+          <Connections
             blockId={id}
             isDisabled={!userPermissions.canEdit}
             horizontalHandles={horizontalHandles}
@@ -543,7 +597,6 @@ export const WorkflowBlock = memo(function WorkflowBlock({
             </div>
             <span
               className={cn('font-medium text-[16px]', !isEnabled && 'truncate text-[#808080]')}
-              onClick={handleNameClick}
               title={name}
             >
               {name}
@@ -551,29 +604,15 @@ export const WorkflowBlock = memo(function WorkflowBlock({
           </div>
           <div className='flex flex-shrink-0 items-center gap-2'>
             {isWorkflowSelector && childWorkflowId && (
-              <Tooltip.Root>
-                <Tooltip.Trigger asChild>
-                  <div className='relative mr-1 flex items-center justify-center'>
-                    <div
-                      className={cn(
-                        'h-2.5 w-2.5 rounded-full',
-                        childIsDeployed ? 'bg-green-500' : 'bg-red-500'
-                      )}
-                    />
-                  </div>
-                </Tooltip.Trigger>
-                <Tooltip.Content side='top' className='px-3 py-2'>
-                  <span className='text-sm'>
-                    {childIsDeployed
-                      ? isLoadingChildVersion
-                        ? 'Deployed'
-                        : childActiveVersion != null
-                          ? `Deployed (v${childActiveVersion})`
-                          : 'Deployed'
-                      : 'Not Deployed'}
-                  </span>
-                </Tooltip.Content>
-              </Tooltip.Root>
+              <Badge
+                variant='outline'
+                style={{
+                  borderColor: childIsDeployed ? '#22C55E' : '#EF4444',
+                  color: childIsDeployed ? '#22C55E' : '#EF4444',
+                }}
+              >
+                {childIsDeployed ? 'deployed' : 'undeployed'}
+              </Badge>
             )}
             {!isEnabled && <Badge>Disabled</Badge>}
 

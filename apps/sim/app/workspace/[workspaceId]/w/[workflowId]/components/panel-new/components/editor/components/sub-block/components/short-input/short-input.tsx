@@ -1,23 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Check, Copy, Wand2 } from 'lucide-react'
-import { useParams } from 'next/navigation'
 import { useReactFlow } from 'reactflow'
 import { Input } from '@/components/emcn/components/input/input'
 import { Button } from '@/components/ui/button'
-import { checkEnvVarTrigger, EnvVarDropdown } from '@/components/ui/env-var-dropdown'
 import { formatDisplayText } from '@/components/ui/formatted-text'
-import { checkTagTrigger, TagDropdown } from '@/components/ui/tag-dropdown'
-import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
-import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/components/sub-block/hooks/use-sub-block-value'
+import { SubBlockInputController } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/components/sub-block/components/sub-block-input-controller'
 import { WandPromptBar } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/wand-prompt-bar/wand-prompt-bar'
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
 import { useWand } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-wand'
 import type { SubBlockConfig } from '@/blocks/types'
-import { useTagSelection } from '@/hooks/use-tag-selection'
 import { useWebhookManagement } from '@/hooks/use-webhook-management'
-
-const logger = createLogger('ShortInput')
 
 /**
  * Props for the ShortInput component
@@ -31,8 +24,6 @@ interface ShortInputProps {
   blockId: string
   /** Unique identifier for the sub-block */
   subBlockId: string
-  /** Whether a connection is being dragged */
-  isConnecting: boolean
   /** Configuration object for the sub-block */
   config: SubBlockConfig
   /** Controlled value from parent */
@@ -70,7 +61,6 @@ export function ShortInput({
   subBlockId,
   placeholder,
   password,
-  isConnecting,
   config,
   onChange,
   value: propValue,
@@ -84,8 +74,6 @@ export function ShortInput({
   // Local state for immediate UI updates during streaming
   const [localContent, setLocalContent] = useState<string>('')
   const [isFocused, setIsFocused] = useState(false)
-  const [showEnvVars, setShowEnvVars] = useState(false)
-  const [showTags, setShowTags] = useState(false)
   const [copied, setCopied] = useState(false)
 
   // Always call the hook - hooks must be called unconditionally
@@ -116,58 +104,13 @@ export function ShortInput({
   // Check if wand is actually enabled
   const isWandEnabled = config.wandConfig?.enabled ?? false
 
-  // State management - useSubBlockValue with explicit streaming control
-  const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlockId, false, {
-    isStreaming: wandHook.isStreaming,
-    onStreamingEnd: () => {
-      logger.debug('Wand streaming ended, value persisted', {
-        blockId,
-        subBlockId,
-      })
-    },
-  })
-
-  const [searchTerm, setSearchTerm] = useState('')
-  const [cursorPosition, setCursorPosition] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
   const overlayRef = useRef<HTMLDivElement>(null)
-  const [activeSourceBlockId, setActiveSourceBlockId] = useState<string | null>(null)
-
-  const emitTagSelection = useTagSelection(blockId, subBlockId)
-
-  const params = useParams()
-  const workspaceId = params.workspaceId as string
 
   // Get ReactFlow instance for zoom control
   const reactFlowInstance = useReactFlow()
 
-  // Use preview value when in preview mode, otherwise use store value or prop value
-  const baseValue = isPreview ? previewValue : propValue !== undefined ? propValue : storeValue
-
-  // During streaming, use local content; otherwise use base value
-  const effectiveValue =
-    useWebhookUrl && webhookManagement?.webhookUrl ? webhookManagement.webhookUrl : baseValue
-
-  const value = wandHook?.isStreaming ? localContent : effectiveValue
-
-  // Sync local content with base value when not streaming
-  useEffect(() => {
-    if (!wandHook.isStreaming) {
-      const baseValueString = baseValue?.toString() ?? ''
-      if (baseValueString !== localContent) {
-        setLocalContent(baseValueString)
-      }
-    }
-  }, [baseValue, wandHook.isStreaming, localContent])
-
-  // Update store value during streaming (but won't persist until streaming ends)
-  useEffect(() => {
-    if (wandHook.isStreaming && localContent !== '') {
-      if (!isPreview && !disabled) {
-        setStoreValue(localContent)
-      }
-    }
-  }, [localContent, wandHook.isStreaming, isPreview, disabled, setStoreValue])
+  const accessiblePrefixes = useAccessibleReferencePrefixes(blockId)
 
   // Check if this input is API key related - memoized to prevent recalculation
   const isApiKeyField = useMemo(() => {
@@ -198,50 +141,95 @@ export function ShortInput({
     )
   }, [config?.id, config?.title])
 
-  // Handle input changes
-  const handleChange = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      // Don't allow changes if disabled
-      if (disabled || readOnly) {
-        e.preventDefault()
-        return
+  const shouldForceEnvDropdown = useCallback(
+    ({
+      value,
+      event,
+    }: {
+      value: string
+      cursor: number
+      event: 'change' | 'focus' | 'deleteAll'
+    }) => {
+      if (!isApiKeyField || isPreview || disabled || readOnly) return { show: false }
+      if (event === 'focus') {
+        return { show: true, searchTerm: '' }
       }
-
-      const newValue = e.target.value
-      const newCursorPosition = e.target.selectionStart ?? 0
-
-      if (onChange) {
-        onChange(newValue)
-      } else if (!isPreview) {
-        // Only update store when not in preview mode
-        setStoreValue(newValue)
+      if (event === 'change') {
+        // For API key fields, show env vars while typing without requiring '{{'
+        return { show: true, searchTerm: value }
       }
-
-      setCursorPosition(newCursorPosition)
-
-      // Check for environment variables trigger
-      const envVarTrigger = checkEnvVarTrigger(newValue, newCursorPosition)
-
-      // For API key fields, always show dropdown when typing (without requiring {{ trigger)
-      if (isApiKeyField && isFocused) {
-        // Only show dropdown if there's text to filter by or the field is empty
-        const shouldShowDropdown = newValue.trim() !== '' || newValue === ''
-        setShowEnvVars(shouldShowDropdown)
-        // Use the entire input value as search term for API key fields,
-        // but if {{ is detected, use the standard search term extraction
-        setSearchTerm(envVarTrigger.show ? envVarTrigger.searchTerm : newValue)
-      } else {
-        // Normal behavior for non-API key fields
-        setShowEnvVars(envVarTrigger.show)
-        setSearchTerm(envVarTrigger.show ? envVarTrigger.searchTerm : '')
+      if (event === 'deleteAll') {
+        return { show: true, searchTerm: '' }
       }
-
-      // Check for tag trigger
-      const tagTrigger = checkTagTrigger(newValue, newCursorPosition)
-      setShowTags(tagTrigger.show)
+      return { show: false }
     },
-    [disabled, onChange, isPreview, setStoreValue, isApiKeyField, isFocused]
+    [isApiKeyField, isPreview, disabled, readOnly]
   )
+
+  // Use preview value when in preview mode, otherwise use store value or prop value
+  const baseValue = isPreview ? previewValue : propValue !== undefined ? propValue : undefined
+
+  // During streaming, use local content; otherwise use base value
+  // Only use webhook URL when useWebhookUrl flag is true
+  const effectiveValue =
+    useWebhookUrl && webhookManagement.webhookUrl ? webhookManagement.webhookUrl : baseValue
+
+  const value = wandHook?.isStreaming ? localContent : effectiveValue
+
+  // Sync local content with base value when not streaming
+  useEffect(() => {
+    if (!wandHook.isStreaming) {
+      const baseValueString = baseValue?.toString() ?? ''
+      if (baseValueString !== localContent) {
+        setLocalContent(baseValueString)
+      }
+    }
+  }, [baseValue, wandHook.isStreaming, localContent])
+
+  /**
+   * Scrolls the input to show the cursor position
+   * Uses canvas for efficient text width measurement instead of DOM manipulation
+   */
+  const scrollToCursor = useCallback(() => {
+    if (!inputRef.current) return
+
+    // Use requestAnimationFrame to ensure DOM has updated
+    requestAnimationFrame(() => {
+      if (!inputRef.current) return
+
+      const cursorPos = inputRef.current.selectionStart ?? 0
+      const inputWidth = inputRef.current.offsetWidth
+      const scrollWidth = inputRef.current.scrollWidth
+
+      // Get approximate cursor position in pixels using canvas (more efficient)
+      const textBeforeCursor = inputRef.current.value.substring(0, cursorPos)
+      const computedStyle = window.getComputedStyle(inputRef.current)
+
+      // Use canvas context for text measurement (more efficient than creating DOM elements)
+      const canvas = document.createElement('canvas')
+      const context = canvas.getContext('2d')
+      if (context) {
+        context.font = computedStyle.font
+        const cursorPixelPos = context.measureText(textBeforeCursor).width
+
+        // Calculate optimal scroll position to center the cursor
+        const targetScroll = Math.max(0, cursorPixelPos - inputWidth / 2)
+
+        // Only scroll if cursor is not visible
+        if (
+          cursorPixelPos < inputRef.current.scrollLeft ||
+          cursorPixelPos > inputRef.current.scrollLeft + inputWidth
+        ) {
+          inputRef.current.scrollLeft = Math.min(targetScroll, scrollWidth - inputWidth)
+        }
+
+        // Sync overlay scroll
+        if (overlayRef.current) {
+          overlayRef.current.scrollLeft = inputRef.current.scrollLeft
+        }
+      }
+    })
+  }, [])
 
   // Sync scroll position between input and overlay
   const handleScroll = useCallback((e: React.UIEvent<HTMLInputElement>) => {
@@ -320,112 +308,6 @@ export function ShortInput({
   )
 
   /**
-   * Scrolls the input to show the cursor position
-   * Uses canvas for efficient text width measurement instead of DOM manipulation
-   */
-  const scrollToCursor = useCallback(() => {
-    if (!inputRef.current) return
-
-    // Use requestAnimationFrame to ensure DOM has updated
-    requestAnimationFrame(() => {
-      if (!inputRef.current) return
-
-      const cursorPos = inputRef.current.selectionStart ?? 0
-      const inputWidth = inputRef.current.offsetWidth
-      const scrollWidth = inputRef.current.scrollWidth
-
-      // Get approximate cursor position in pixels using canvas (more efficient)
-      const textBeforeCursor = inputRef.current.value.substring(0, cursorPos)
-      const computedStyle = window.getComputedStyle(inputRef.current)
-
-      // Use canvas context for text measurement (more efficient than creating DOM elements)
-      const canvas = document.createElement('canvas')
-      const context = canvas.getContext('2d')
-      if (context) {
-        context.font = computedStyle.font
-        const cursorPixelPos = context.measureText(textBeforeCursor).width
-
-        // Calculate optimal scroll position to center the cursor
-        const targetScroll = Math.max(0, cursorPixelPos - inputWidth / 2)
-
-        // Only scroll if cursor is not visible
-        if (
-          cursorPixelPos < inputRef.current.scrollLeft ||
-          cursorPixelPos > inputRef.current.scrollLeft + inputWidth
-        ) {
-          inputRef.current.scrollLeft = Math.min(targetScroll, scrollWidth - inputWidth)
-        }
-
-        // Sync overlay scroll
-        if (overlayRef.current) {
-          overlayRef.current.scrollLeft = inputRef.current.scrollLeft
-        }
-      }
-    })
-  }, [])
-
-  // Drag and Drop handlers
-  const handleDragOver = useCallback(
-    (e: React.DragEvent<HTMLInputElement>) => {
-      if (config?.connectionDroppable === false) return
-      e.preventDefault()
-    },
-    [config?.connectionDroppable]
-  )
-
-  const handleDrop = useCallback(
-    (e: React.DragEvent<HTMLInputElement>) => {
-      if (config?.connectionDroppable === false) return
-      e.preventDefault()
-
-      try {
-        const data = JSON.parse(e.dataTransfer.getData('application/json'))
-        if (data.type !== 'connectionBlock') return
-
-        // Get current cursor position or append to end
-        const dropPosition = inputRef.current?.selectionStart ?? value?.toString().length ?? 0
-
-        // Insert '<' at drop position to trigger the dropdown
-        const currentValue = value?.toString() ?? ''
-        const newValue = `${currentValue.slice(0, dropPosition)}<${currentValue.slice(dropPosition)}`
-
-        // Focus the input first
-        inputRef.current?.focus()
-
-        // Update all state in a single batch
-        Promise.resolve().then(() => {
-          // Update value through onChange if provided, otherwise use store
-          if (onChange) {
-            onChange(newValue)
-          } else if (!isPreview) {
-            setStoreValue(newValue)
-          }
-
-          setCursorPosition(dropPosition + 1)
-          setShowTags(true)
-
-          // Pass the source block ID from the dropped connection
-          if (data.connectionData?.sourceBlockId) {
-            setActiveSourceBlockId(data.connectionData.sourceBlockId)
-          }
-
-          // Set cursor position after state updates
-          setTimeout(() => {
-            if (inputRef.current) {
-              inputRef.current.selectionStart = dropPosition + 1
-              inputRef.current.selectionEnd = dropPosition + 1
-              scrollToCursor()
-            }
-          }, 0)
-        })
-      } catch (error) {
-        logger.error('Failed to parse drop data:', { error })
-      }
-    },
-    [config?.connectionDroppable, value, onChange, isPreview, setStoreValue, scrollToCursor]
-  )
-
-  /**
    * Handles copying the value to the clipboard.
    */
   const handleCopy = useCallback(() => {
@@ -437,28 +319,6 @@ export function ShortInput({
     }
   }, [useWebhookUrl, webhookManagement?.webhookUrl, value])
 
-  // Handle key combinations
-  const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent<HTMLInputElement>) => {
-      if (e.key === 'Escape') {
-        setShowEnvVars(false)
-        setShowTags(false)
-        return
-      }
-
-      // For API key fields, show env vars when clearing with keyboard shortcuts
-      if (
-        isApiKeyField &&
-        (e.key === 'Delete' || e.key === 'Backspace') &&
-        inputRef.current?.selectionStart === 0 &&
-        inputRef.current?.selectionEnd === value?.toString().length
-      ) {
-        setTimeout(() => setShowEnvVars(true), 0)
-      }
-    },
-    [isApiKeyField, value]
-  )
-
   // Value display logic - memoize to avoid unnecessary string operations
   const displayValue = useMemo(
     () =>
@@ -467,30 +327,6 @@ export function ShortInput({
         : (value?.toString() ?? ''),
     [password, isFocused, value]
   )
-
-  /**
-   * Explicitly mark environment variable references with '{{' and '}}' when inserting
-   */
-  const handleEnvVarSelect = useCallback(
-    (newValue: string) => {
-      // For API keys, ensure we're using the full value with {{ }} format
-      if (isApiKeyField && !newValue.startsWith('{{')) {
-        newValue = `{{${newValue}}}`
-      }
-
-      if (onChange) {
-        onChange(newValue)
-      } else if (!isPreview) {
-        emitTagSelection(newValue)
-      }
-
-      // Scroll to show the cursor position after tag insertion
-      setTimeout(() => scrollToCursor(), 0)
-    },
-    [isApiKeyField, onChange, isPreview, emitTagSelection, scrollToCursor]
-  )
-
-  const accessiblePrefixes = useAccessibleReferencePrefixes(blockId)
 
   // Memoize formatted text to avoid recalculation on every render
   const formattedText = useMemo(() => {
@@ -507,26 +343,11 @@ export function ShortInput({
   // Memoize focus handler to prevent unnecessary re-renders
   const handleFocus = useCallback(() => {
     setIsFocused(true)
-
-    // If this is an API key field, automatically show env vars dropdown
-    if (isApiKeyField) {
-      setShowEnvVars(true)
-      setSearchTerm('')
-
-      // Set cursor position to the end of the input
-      const inputLength = value?.toString().length ?? 0
-      setCursorPosition(inputLength)
-    } else {
-      setShowEnvVars(false)
-      setShowTags(false)
-      setSearchTerm('')
-    }
-  }, [isApiKeyField, value])
+  }, [])
 
   // Memoize blur handler to prevent unnecessary re-renders
   const handleBlur = useCallback(() => {
     setIsFocused(false)
-    setShowEnvVars(false)
   }, [])
 
   return (
@@ -539,46 +360,91 @@ export function ShortInput({
           promptValue={wandHook.promptInputValue}
           onSubmit={(prompt: string) => wandHook.generateStream({ prompt })}
           onCancel={wandHook.isStreaming ? wandHook.cancelGeneration : wandHook.hidePromptInline}
-          onChange={(value: string) => wandHook.updatePromptValue(value)}
+          onChange={(newValue: string) => wandHook.updatePromptValue(newValue)}
           placeholder={config.wandConfig?.placeholder || 'Describe what you want to generate...'}
         />
       )}
 
       <div className='group relative w-full'>
-        <Input
-          ref={inputRef}
-          className={cn(
-            'allow-scroll w-full overflow-auto text-transparent caret-foreground [-ms-overflow-style:none] [scrollbar-width:none] placeholder:text-muted-foreground/50 [&::-webkit-scrollbar]:hidden',
-            isConnecting &&
-              config?.connectionDroppable !== false &&
-              'ring-2 ring-blue-500 ring-offset-2 focus-visible:ring-blue-500',
-            showCopyButton && 'pr-14'
-          )}
-          readOnly={readOnly}
-          placeholder={placeholder ?? ''}
-          type='text'
-          value={displayValue}
-          onChange={handleChange}
-          onFocus={handleFocus}
-          onBlur={handleBlur}
-          onDrop={handleDrop}
-          onDragOver={handleDragOver}
-          onScroll={handleScroll}
-          onPaste={handlePaste}
-          onWheel={handleWheel}
-          onKeyDown={handleKeyDown}
-          autoComplete='off'
+        <SubBlockInputController
+          blockId={blockId}
+          subBlockId={subBlockId}
+          config={config}
+          value={propValue}
+          onChange={onChange}
+          isPreview={isPreview}
           disabled={disabled}
-        />
-        <div
-          ref={overlayRef}
-          className={cn(
-            'pointer-events-none absolute inset-0 flex items-center overflow-x-auto bg-transparent px-[8px] py-[7px] font-medium font-sans text-foreground text-sm [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
-            showCopyButton ? 'pr-14' : 'pr-3'
-          )}
+          isStreaming={wandHook.isStreaming}
+          previewValue={previewValue}
+          shouldForceEnvDropdown={shouldForceEnvDropdown}
         >
-          <div className='min-w-fit whitespace-pre'>{formattedText}</div>
-        </div>
+          {({
+            ref,
+            value: ctrlValue,
+            onChange: handleChange,
+            onKeyDown,
+            onDrop,
+            onDragOver,
+            onFocus,
+          }) => {
+            // Use controller's value for input, but apply local transformations
+            const actualValue = wandHook.isStreaming
+              ? localContent
+              : useWebhookUrl && webhookManagement.webhookUrl
+                ? webhookManagement.webhookUrl
+                : ctrlValue
+
+            const displayValue =
+              password && !isFocused ? '•'.repeat(actualValue?.length ?? 0) : actualValue
+
+            const formattedText =
+              password && !isFocused
+                ? '•'.repeat(actualValue?.length ?? 0)
+                : formatDisplayText(actualValue, {
+                    accessiblePrefixes,
+                    highlightAll: !accessiblePrefixes,
+                  })
+
+            return (
+              <>
+                <Input
+                  ref={ref as React.RefObject<HTMLInputElement>}
+                  className={cn(
+                    'allow-scroll w-full overflow-auto text-transparent caret-foreground [-ms-overflow-style:none] [scrollbar-width:none] placeholder:text-muted-foreground/50 [&::-webkit-scrollbar]:hidden',
+                    showCopyButton && 'pr-14'
+                  )}
+                  readOnly={readOnly}
+                  placeholder={placeholder ?? ''}
+                  type='text'
+                  value={displayValue}
+                  onChange={handleChange as (e: React.ChangeEvent<HTMLInputElement>) => void}
+                  onFocus={() => {
+                    setIsFocused(true)
+                    onFocus()
+                  }}
+                  onBlur={handleBlur}
+                  onDrop={onDrop as (e: React.DragEvent<HTMLInputElement>) => void}
+                  onDragOver={onDragOver as (e: React.DragEvent<HTMLInputElement>) => void}
+                  onScroll={handleScroll}
+                  onPaste={handlePaste}
+                  onWheel={handleWheel}
+                  onKeyDown={onKeyDown as (e: React.KeyboardEvent<HTMLInputElement>) => void}
+                  autoComplete='off'
+                  disabled={disabled}
+                />
+                <div
+                  ref={overlayRef}
+                  className={cn(
+                    'pointer-events-none absolute inset-0 flex items-center overflow-x-auto bg-transparent px-[8px] py-[7px] font-medium font-sans text-foreground text-sm [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
+                    showCopyButton ? 'pr-14' : 'pr-3'
+                  )}
+                >
+                  <div className='min-w-fit whitespace-pre'>{formattedText}</div>
+                </div>
+              </>
+            )
+          }}
+        </SubBlockInputController>
 
         {/* Copy Button */}
         {showCopyButton && value && (
@@ -617,35 +483,6 @@ export function ShortInput({
               <Wand2 className='h-4 w-4' />
             </Button>
           </div>
-        )}
-
-        {!wandHook.isStreaming && (
-          <>
-            <EnvVarDropdown
-              visible={showEnvVars}
-              onSelect={handleEnvVarSelect}
-              searchTerm={searchTerm}
-              inputValue={value?.toString() ?? ''}
-              cursorPosition={cursorPosition}
-              workspaceId={workspaceId}
-              onClose={() => {
-                setShowEnvVars(false)
-                setSearchTerm('')
-              }}
-            />
-            <TagDropdown
-              visible={showTags}
-              onSelect={handleEnvVarSelect}
-              blockId={blockId}
-              activeSourceBlockId={activeSourceBlockId}
-              inputValue={value?.toString() ?? ''}
-              cursorPosition={cursorPosition}
-              onClose={() => {
-                setShowTags(false)
-                setActiveSourceBlockId(null)
-              }}
-            />
-          </>
         )}
       </div>
     </>

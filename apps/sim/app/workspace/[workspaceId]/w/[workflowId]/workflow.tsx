@@ -727,6 +727,23 @@ const WorkflowContent = React.memo(() => {
     setTriggerWarning,
   ])
 
+  /**
+   * Recenter canvas when diff appears
+   * Tracks when diff becomes ready to automatically fit the view with smooth animation
+   */
+  const prevDiffReadyRef = useRef(false)
+  useEffect(() => {
+    // Only recenter when diff transitions from not ready to ready
+    if (isDiffReady && !prevDiffReadyRef.current && diffAnalysis) {
+      logger.info('Diff ready - recentering canvas to show changes')
+      // Use a small delay to ensure the diff has fully rendered
+      setTimeout(() => {
+        fitView({ padding: 0.3, duration: 600 })
+      }, 100)
+    }
+    prevDiffReadyRef.current = isDiffReady
+  }, [isDiffReady, diffAnalysis, fitView])
+
   // Handler for trigger selection from list
   const handleTriggerSelect = useCallback(
     (triggerId: string, enableTriggerMode?: boolean) => {

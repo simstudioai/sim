@@ -1,19 +1,10 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Check, ChevronDown, RefreshCw, X } from 'lucide-react'
+import { X } from 'lucide-react'
 import { useParams } from 'next/navigation'
+import { Combobox, type ComboboxOption } from '@/components/emcn/components/combobox/combobox'
 import { PackageSearchIcon } from '@/components/icons'
-import { Button } from '@/components/ui/button'
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from '@/components/ui/command'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/components/sub-block/hooks/use-sub-block-value'
 import type { SubBlockConfig } from '@/blocks/types'
 import { type KnowledgeBaseData, useKnowledgeStore } from '@/stores/knowledge/store'
@@ -43,7 +34,6 @@ export function KnowledgeBaseSelector({
   const [knowledgeBases, setKnowledgeBases] = useState<KnowledgeBaseData[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [open, setOpen] = useState(false)
   const [initialFetchDone, setInitialFetchDone] = useState(false)
 
   // Use the proper hook to get the current value and setter - this prevents infinite loops
@@ -54,25 +44,46 @@ export function KnowledgeBaseSelector({
 
   const isMultiSelect = subBlock.multiSelect === true
 
-  // Compute selected knowledge bases directly from value - no local state to avoid loops
-  const selectedKnowledgeBases = useMemo(() => {
-    if (value && knowledgeBases.length > 0) {
-      const selectedIds =
-        typeof value === 'string'
-          ? value.includes(',')
-            ? value
-                .split(',')
-                .map((id) => id.trim())
-                .filter((id) => id.length > 0)
-            : [value]
-          : []
+  /**
+   * Convert knowledge bases to combobox options format
+   */
+  const options = useMemo<ComboboxOption[]>(() => {
+    return knowledgeBases.map((kb) => ({
+      label: kb.name,
+      value: kb.id,
+      icon: PackageSearchIcon,
+    }))
+  }, [knowledgeBases])
 
+  /**
+   * Parse value into array of selected IDs
+   */
+  const selectedIds = useMemo(() => {
+    if (!value) return []
+    if (typeof value === 'string') {
+      return value.includes(',')
+        ? value
+            .split(',')
+            .map((id) => id.trim())
+            .filter((id) => id.length > 0)
+        : [value]
+    }
+    return []
+  }, [value])
+
+  /**
+   * Compute selected knowledge bases for tag display
+   */
+  const selectedKnowledgeBases = useMemo(() => {
+    if (selectedIds.length > 0 && knowledgeBases.length > 0) {
       return knowledgeBases.filter((kb) => selectedIds.includes(kb.id))
     }
     return []
-  }, [value, knowledgeBases])
+  }, [selectedIds, knowledgeBases])
 
-  // Fetch knowledge bases directly from API
+  /**
+   * Fetch knowledge bases directly from API
+   */
   const fetchKnowledgeBases = useCallback(async () => {
     setLoading(true)
     setError(null)
@@ -109,104 +120,58 @@ export function KnowledgeBaseSelector({
     }
   }, [workspaceId])
 
-  // Handle dropdown open/close - fetch knowledge bases when opening
-  const handleOpenChange = (isOpen: boolean) => {
-    if (isPreview) return
+  /**
+   * Handle single selection
+   */
+  const handleChange = useCallback(
+    (selectedValue: string) => {
+      if (isPreview) return
 
-    setOpen(isOpen)
+      setStoreValue(selectedValue)
+      onKnowledgeBaseSelect?.(selectedValue)
+    },
+    [isPreview, setStoreValue, onKnowledgeBaseSelect]
+  )
 
-    // Always fetch fresh knowledge bases when opening the dropdown
-    if (isOpen) {
-      fetchKnowledgeBases()
-    }
-  }
+  /**
+   * Handle multi-select changes
+   */
+  const handleMultiSelectChange = useCallback(
+    (values: string[]) => {
+      if (isPreview) return
 
-  // Handle single knowledge base selection (for backward compatibility)
-  const handleSelectSingleKnowledgeBase = (knowledgeBase: KnowledgeBaseData) => {
-    if (isPreview) return
+      const valueToStore = values.length === 1 ? values[0] : values.join(',')
+      setStoreValue(valueToStore)
+      onKnowledgeBaseSelect?.(values)
+    },
+    [isPreview, setStoreValue, onKnowledgeBaseSelect]
+  )
 
-    // Use the hook's setter which handles collaborative updates
-    setStoreValue(knowledgeBase.id)
+  /**
+   * Remove selected knowledge base from multi-select tags
+   */
+  const handleRemoveKnowledgeBase = useCallback(
+    (knowledgeBaseId: string) => {
+      if (isPreview) return
 
-    onKnowledgeBaseSelect?.(knowledgeBase.id)
-    setOpen(false)
-  }
+      const newSelectedIds = selectedIds.filter((id) => id !== knowledgeBaseId)
+      const valueToStore =
+        newSelectedIds.length === 1 ? newSelectedIds[0] : newSelectedIds.join(',')
 
-  // Handle multi-select knowledge base selection
-  const handleToggleKnowledgeBase = (knowledgeBase: KnowledgeBaseData) => {
-    if (isPreview) return
+      setStoreValue(valueToStore)
+      onKnowledgeBaseSelect?.(newSelectedIds)
+    },
+    [isPreview, selectedIds, setStoreValue, onKnowledgeBaseSelect]
+  )
 
-    const isCurrentlySelected = selectedKnowledgeBases.some((kb) => kb.id === knowledgeBase.id)
-    let newSelected: KnowledgeBaseData[]
-
-    if (isCurrentlySelected) {
-      // Remove from selection
-      newSelected = selectedKnowledgeBases.filter((kb) => kb.id !== knowledgeBase.id)
-    } else {
-      // Add to selection
-      newSelected = [...selectedKnowledgeBases, knowledgeBase]
-    }
-
-    const selectedIds = newSelected.map((kb) => kb.id)
-    const valueToStore = selectedIds.length === 1 ? selectedIds[0] : selectedIds.join(',')
-
-    // Use the hook's setter which handles collaborative updates
-    setStoreValue(valueToStore)
-
-    onKnowledgeBaseSelect?.(selectedIds)
-  }
-
-  // Remove selected knowledge base (for multi-select tags)
-  const handleRemoveKnowledgeBase = (knowledgeBaseId: string) => {
-    if (isPreview) return
-
-    const newSelected = selectedKnowledgeBases.filter((kb) => kb.id !== knowledgeBaseId)
-    const selectedIds = newSelected.map((kb) => kb.id)
-    const valueToStore = selectedIds.length === 1 ? selectedIds[0] : selectedIds.join(',')
-
-    // Use the hook's setter which handles collaborative updates
-    setStoreValue(valueToStore)
-
-    onKnowledgeBaseSelect?.(selectedIds)
-  }
-
-  // If we have a value but no knowledge base info and haven't fetched yet, fetch
+  /**
+   * Fetch knowledge bases on initial mount
+   */
   useEffect(() => {
-    if (
-      value &&
-      selectedKnowledgeBases.length === 0 &&
-      knowledgeBases.length === 0 &&
-      !loading &&
-      !initialFetchDone &&
-      !isPreview
-    ) {
+    if (!initialFetchDone && !loading && !isPreview) {
       fetchKnowledgeBases()
     }
-  }, [
-    value,
-    selectedKnowledgeBases.length,
-    knowledgeBases.length,
-    loading,
-    initialFetchDone,
-    fetchKnowledgeBases,
-    isPreview,
-  ])
-
-  const formatKnowledgeBaseName = (knowledgeBase: KnowledgeBaseData) => {
-    return knowledgeBase.name
-  }
-
-  const getKnowledgeBaseDescription = (knowledgeBase: KnowledgeBaseData) => {
-    const docCount = (knowledgeBase as any).docCount
-    if (docCount !== undefined) {
-      return `${docCount} document${docCount !== 1 ? 's' : ''}`
-    }
-    return knowledgeBase.description || 'No description'
-  }
-
-  const isKnowledgeBaseSelected = (knowledgeBaseId: string) => {
-    return selectedKnowledgeBases.some((kb) => kb.id === knowledgeBaseId)
-  }
+  }, [initialFetchDone, loading, isPreview, fetchKnowledgeBases])
 
   const label =
     subBlock.placeholder || (isMultiSelect ? 'Select knowledge bases' : 'Select knowledge base')
@@ -222,11 +187,13 @@ export function KnowledgeBaseSelector({
               className='inline-flex items-center rounded-md border border-[#00B0B0]/20 bg-[#00B0B0]/10 px-2 py-1 text-xs'
             >
               <PackageSearchIcon className='mr-1 h-3 w-3 text-[#00B0B0]' />
-              <span className='font-medium text-[#00B0B0]'>{formatKnowledgeBaseName(kb)}</span>
+              <span className='font-medium text-[#00B0B0]'>{kb.name}</span>
               {!disabled && !isPreview && (
                 <button
+                  type='button'
                   onClick={() => handleRemoveKnowledgeBase(kb.id)}
                   className='ml-1 text-[#00B0B0]/60 hover:text-[#00B0B0]'
+                  aria-label={`Remove ${kb.name}`}
                 >
                   <X className='h-3 w-3' />
                 </button>
@@ -236,96 +203,18 @@ export function KnowledgeBaseSelector({
         </div>
       )}
 
-      <Popover open={open} onOpenChange={handleOpenChange}>
-        <PopoverTrigger asChild>
-          <Button
-            variant='outline'
-            role='combobox'
-            aria-expanded={open}
-            className='relative w-full justify-between'
-            disabled={disabled || isPreview}
-          >
-            <div className='flex max-w-[calc(100%-20px)] items-center gap-2 overflow-hidden'>
-              <PackageSearchIcon className='h-4 w-4 text-[#00B0B0]' />
-              {selectedKnowledgeBases.length > 0 ? (
-                <span className='truncate font-normal'>
-                  {isMultiSelect
-                    ? `${selectedKnowledgeBases.length} selected`
-                    : formatKnowledgeBaseName(selectedKnowledgeBases[0])}
-                </span>
-              ) : (
-                <span className='truncate text-muted-foreground'>{label}</span>
-              )}
-            </div>
-            <ChevronDown className='absolute right-3 h-4 w-4 shrink-0 opacity-50' />
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent className='w-[300px] p-0' align='start'>
-          <Command>
-            <CommandInput placeholder='Search knowledge bases...' />
-            <CommandList>
-              <CommandEmpty>
-                {loading || loadingKnowledgeBasesList ? (
-                  <div className='flex items-center justify-center p-4'>
-                    <RefreshCw className='h-4 w-4 animate-spin' />
-                    <span className='ml-2'>Loading knowledge bases...</span>
-                  </div>
-                ) : error ? (
-                  <div className='p-4 text-center'>
-                    <p className='text-destructive text-sm'>{error}</p>
-                  </div>
-                ) : (
-                  <div className='p-4 text-center'>
-                    <p className='font-medium text-sm'>No knowledge bases found</p>
-                    <p className='text-muted-foreground text-xs'>
-                      Create a knowledge base to get started.
-                    </p>
-                  </div>
-                )}
-              </CommandEmpty>
-
-              {knowledgeBases.length > 0 && (
-                <CommandGroup>
-                  <div className='px-2 py-1.5 font-medium text-muted-foreground text-xs'>
-                    Knowledge Bases
-                  </div>
-                  {knowledgeBases.map((knowledgeBase) => {
-                    const isSelected = isKnowledgeBaseSelected(knowledgeBase.id)
-
-                    return (
-                      <CommandItem
-                        key={knowledgeBase.id}
-                        value={`kb-${knowledgeBase.id}-${knowledgeBase.name}`}
-                        onSelect={() => {
-                          if (isMultiSelect) {
-                            handleToggleKnowledgeBase(knowledgeBase)
-                          } else {
-                            handleSelectSingleKnowledgeBase(knowledgeBase)
-                          }
-                        }}
-                        className='cursor-pointer'
-                      >
-                        <div className='flex items-center gap-2 overflow-hidden'>
-                          <PackageSearchIcon className='h-4 w-4 text-[#00B0B0]' />
-                          <div className='min-w-0 flex-1 overflow-hidden'>
-                            <div className='truncate font-normal'>
-                              {formatKnowledgeBaseName(knowledgeBase)}
-                            </div>
-                            <div className='truncate text-muted-foreground text-xs'>
-                              {getKnowledgeBaseDescription(knowledgeBase)}
-                            </div>
-                          </div>
-                        </div>
-                        {isSelected && <Check className='ml-auto h-4 w-4' />}
-                      </CommandItem>
-                    )
-                  })}
-                </CommandGroup>
-              )}
-            </CommandList>
-          </Command>
-        </PopoverContent>
-      </Popover>
+      <Combobox
+        options={options}
+        value={isMultiSelect ? undefined : (selectedIds[0] ?? '')}
+        multiSelect={isMultiSelect}
+        multiSelectValues={isMultiSelect ? selectedIds : undefined}
+        onChange={handleChange}
+        onMultiSelectChange={handleMultiSelectChange}
+        placeholder={label}
+        disabled={disabled || isPreview}
+        isLoading={loading || loadingKnowledgeBasesList}
+        error={error}
+      />
     </div>
   )
 }

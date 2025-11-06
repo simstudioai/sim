@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import clsx from 'clsx'
 import { Search } from 'lucide-react'
 import { Button } from '@/components/emcn'
@@ -112,6 +112,11 @@ export function Toolbar() {
   const containerRef = useRef<HTMLDivElement>(null)
   const triggersContentRef = useRef<HTMLDivElement>(null)
   const triggersHeaderRef = useRef<HTMLDivElement>(null)
+  const searchInputRef = useRef<HTMLInputElement>(null)
+
+  // Search state
+  const [isSearchActive, setIsSearchActive] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
 
   // Toolbar item interactions hook
   const { handleDragStart, handleItemClick } = useToolbarItemInteractions({ disabled: false })
@@ -127,15 +132,65 @@ export function Toolbar() {
   const triggers = getTriggers()
   const blocks = getBlocks()
 
+  /**
+   * Filter items based on search query
+   */
+  const filteredTriggers = useMemo(() => {
+    if (!searchQuery.trim()) return triggers
+    const query = searchQuery.toLowerCase()
+    return triggers.filter((trigger) => trigger.name.toLowerCase().includes(query))
+  }, [triggers, searchQuery])
+
+  const filteredBlocks = useMemo(() => {
+    if (!searchQuery.trim()) return blocks
+    const query = searchQuery.toLowerCase()
+    return blocks.filter((block) => block.name.toLowerCase().includes(query))
+  }, [blocks, searchQuery])
+
+  /**
+   * Handle search icon click to activate search mode
+   */
+  const handleSearchClick = () => {
+    setIsSearchActive(true)
+    setTimeout(() => {
+      searchInputRef.current?.focus()
+    }, 0)
+  }
+
+  /**
+   * Handle search input blur - deactivate search mode if empty
+   */
+  const handleSearchBlur = () => {
+    if (!searchQuery.trim()) {
+      setIsSearchActive(false)
+    }
+  }
+
   return (
     <div className='flex h-full flex-col'>
       {/* Header */}
       <div className='flex flex-shrink-0 items-center justify-between rounded-[4px] bg-[#2A2A2A] px-[12px] py-[8px] dark:bg-[#2A2A2A]'>
         <h2 className='font-medium text-[#FFFFFF] text-[14px] dark:text-[#FFFFFF]'>Toolbar</h2>
         <div className='flex shrink-0 items-center gap-[8px]'>
-          <Button variant='ghost' className='p-0' aria-label='Open documentation'>
-            <Search className='h-[14px] w-[14px]' />
-          </Button>
+          {!isSearchActive ? (
+            <Button
+              variant='ghost'
+              className='p-0'
+              aria-label='Search toolbar'
+              onClick={handleSearchClick}
+            >
+              <Search className='h-[14px] w-[14px]' />
+            </Button>
+          ) : (
+            <input
+              ref={searchInputRef}
+              type='text'
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onBlur={handleSearchBlur}
+              className='w-full border-none bg-transparent pr-[2px] text-right font-medium text-[#E6E6E6] text-[13px] placeholder:text-[#737373] focus:outline-none dark:text-[#E6E6E6]'
+            />
+          )}
         </div>
       </div>
 
@@ -151,9 +206,9 @@ export function Toolbar() {
           >
             Triggers
           </div>
-          <div className='flex-1 overflow-y-auto overflow-x-hidden px-[8px]'>
+          <div className='flex-1 overflow-y-auto overflow-x-hidden px-[6px]'>
             <div ref={triggersContentRef} className='space-y-[4px] pb-[8px]'>
-              {triggers.map((trigger) => {
+              {filteredTriggers.map((trigger) => {
                 const Icon = trigger.icon
                 return (
                   <div
@@ -210,9 +265,9 @@ export function Toolbar() {
           <div className='px-[10px] pt-[5px] pb-[5px] font-medium text-[#E6E6E6] text-[13px] dark:text-[#E6E6E6]'>
             Blocks
           </div>
-          <div className='flex-1 overflow-y-auto overflow-x-hidden px-[8px]'>
+          <div className='flex-1 overflow-y-auto overflow-x-hidden px-[6px]'>
             <div className='space-y-[4px] pb-[8px]'>
-              {blocks.map((block) => {
+              {filteredBlocks.map((block) => {
                 const Icon = block.icon
                 return (
                   <div
@@ -221,7 +276,7 @@ export function Toolbar() {
                     onDragStart={(e) => handleDragStart(e, block.type, false)}
                     onClick={() => handleItemClick(block.type, false)}
                     className={clsx(
-                      'group flex h-[25px] items-center gap-[8px] rounded-[8px] px-[5px] text-[14px]',
+                      'group flex h-[25px] items-center gap-[8px] rounded-[8px] px-[5.5px] text-[14px]',
                       'cursor-pointer hover:bg-[#2C2C2C] active:cursor-grabbing dark:hover:bg-[#2C2C2C]'
                     )}
                   >

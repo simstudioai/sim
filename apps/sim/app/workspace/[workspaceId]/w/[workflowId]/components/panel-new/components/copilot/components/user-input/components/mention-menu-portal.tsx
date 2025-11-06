@@ -1,33 +1,59 @@
 'use client'
 
+import { useMemo } from 'react'
 import {
-  Blocks,
-  BookOpen,
-  Bot,
-  Box,
-  Check,
-  ChevronRight,
-  LibraryBig,
-  Shapes,
-  SquareChevronRight,
-  Workflow,
-  X,
-} from 'lucide-react'
-import { cn } from '@/lib/utils'
-import type { ChatContext } from '@/stores/panel-new/copilot/types'
-import { MENTION_OPTIONS } from '../constants'
+  Popover,
+  PopoverAnchor,
+  PopoverBackButton,
+  PopoverContent,
+  PopoverFolder,
+  PopoverItem,
+  PopoverScrollArea,
+} from '@/components/emcn'
 import type { useMentionData } from '../hooks/use-mention-data'
 import type { useMentionMenu } from '../hooks/use-mention-menu'
 import { formatTimestamp } from '../utils'
 
+/**
+ * Common text styling for loading and empty states
+ */
+const STATE_TEXT_CLASSES = 'px-[8px] py-[8px] text-[#868686] text-[12px] dark:text-[#868686]'
+
+/**
+ * Loading state component for mention folders
+ */
+const LoadingState = () => <div className={STATE_TEXT_CLASSES}>Loading...</div>
+
+/**
+ * Empty state component for mention folders
+ */
+const EmptyState = ({ message }: { message: string }) => (
+  <div className={STATE_TEXT_CLASSES}>{message}</div>
+)
+
+/**
+ * Aggregated item type for filtered results
+ */
+interface AggregatedItem {
+  id: string
+  label: string
+  category:
+    | 'chats'
+    | 'workflows'
+    | 'knowledge'
+    | 'blocks'
+    | 'workflow-blocks'
+    | 'templates'
+    | 'logs'
+    | 'docs'
+  data: any
+  icon?: React.ReactNode
+}
+
 interface MentionMenuPortalProps {
   mentionMenu: ReturnType<typeof useMentionMenu>
   mentionData: ReturnType<typeof useMentionData>
-  selectedContexts: ChatContext[]
-  onContextSelect: (context: ChatContext) => void
-  onMessageChange: (message: string) => void
   message: string
-  workflowId?: string | null
   insertHandlers: {
     insertPastChatMention: (chat: any) => void
     insertWorkflowMention: (wf: any) => void
@@ -51,31 +77,15 @@ interface MentionMenuPortalProps {
 export function MentionMenuPortal({
   mentionMenu,
   mentionData,
-  selectedContexts,
-  onContextSelect,
-  onMessageChange,
   message,
-  workflowId,
   insertHandlers,
 }: MentionMenuPortalProps) {
   const {
     mentionMenuRef,
-    mentionPortalRef,
     menuListRef,
-    mentionPortalStyle,
-    openSubmenuFor,
-    mentionActiveIndex,
-    submenuActiveIndex,
-    inAggregated,
-    setSubmenuActiveIndex,
-    setMentionActiveIndex,
-    setInAggregated,
-    setOpenSubmenuFor,
-    setSubmenuQueryStart,
-    getCaretPos,
     getActiveMentionQueryAtPosition,
-    getSubmenuQuery,
-    resetActiveMentionQuery,
+    getCaretPos,
+    submenuActiveIndex,
   } = mentionMenu
 
   const {
@@ -89,599 +99,471 @@ export function MentionMenuPortal({
     insertDocsMention,
   } = insertHandlers
 
-  if (!mentionPortalStyle) return null
+  /**
+   * Get the current query string after @
+   */
+  const currentQuery = useMemo(() => {
+    const caretPos = getCaretPos()
+    const active = getActiveMentionQueryAtPosition(caretPos, message)
+    return active?.query.trim().toLowerCase() || ''
+  }, [message, getCaretPos, getActiveMentionQueryAtPosition])
+
+  /**
+   * Collect and filter all available items based on query
+   */
+  const filteredAggregatedItems = useMemo(() => {
+    if (!currentQuery) return []
+
+    const items: AggregatedItem[] = []
+
+    // Chats
+    mentionData.pastChats.forEach((chat) => {
+      const label = chat.title || 'New Chat'
+      if (label.toLowerCase().includes(currentQuery)) {
+        items.push({
+          id: `chat-${chat.id}`,
+          label,
+          category: 'chats',
+          data: chat,
+        })
+      }
+    })
+
+    // Workflows
+    mentionData.workflows.forEach((wf) => {
+      const label = wf.name || 'Untitled Workflow'
+      if (label.toLowerCase().includes(currentQuery)) {
+        items.push({
+          id: `workflow-${wf.id}`,
+          label,
+          category: 'workflows',
+          data: wf,
+          icon: (
+            <div
+              className='relative flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center overflow-hidden rounded-[4px]'
+              style={{ backgroundColor: wf.color || '#3972F6' }}
+            />
+          ),
+        })
+      }
+    })
+
+    // Knowledge bases
+    mentionData.knowledgeBases.forEach((kb) => {
+      const label = kb.name || 'Untitled'
+      if (label.toLowerCase().includes(currentQuery)) {
+        items.push({
+          id: `knowledge-${kb.id}`,
+          label,
+          category: 'knowledge',
+          data: kb,
+        })
+      }
+    })
+
+    // Blocks
+    mentionData.blocksList.forEach((blk) => {
+      const label = blk.name || blk.id
+      if (label.toLowerCase().includes(currentQuery)) {
+        const Icon = blk.iconComponent
+        items.push({
+          id: `block-${blk.id}`,
+          label,
+          category: 'blocks',
+          data: blk,
+          icon: (
+            <div
+              className='relative flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center overflow-hidden rounded-[4px]'
+              style={{ backgroundColor: blk.bgColor || '#6B7280' }}
+            >
+              {Icon && <Icon className='!h-[10px] !w-[10px] text-white' />}
+            </div>
+          ),
+        })
+      }
+    })
+
+    // Workflow blocks
+    mentionData.workflowBlocks.forEach((blk) => {
+      const label = blk.name || blk.id
+      if (label.toLowerCase().includes(currentQuery)) {
+        const Icon = blk.iconComponent
+        items.push({
+          id: `workflow-block-${blk.id}`,
+          label,
+          category: 'workflow-blocks',
+          data: blk,
+          icon: (
+            <div
+              className='relative flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center overflow-hidden rounded-[4px]'
+              style={{ backgroundColor: blk.bgColor || '#6B7280' }}
+            >
+              {Icon && <Icon className='!h-[10px] !w-[10px] text-white' />}
+            </div>
+          ),
+        })
+      }
+    })
+
+    // Templates
+    mentionData.templatesList.forEach((tpl) => {
+      const label = tpl.name
+      if (label.toLowerCase().includes(currentQuery)) {
+        items.push({
+          id: `template-${tpl.id}`,
+          label,
+          category: 'templates',
+          data: tpl,
+        })
+      }
+    })
+
+    // Logs
+    mentionData.logsList.forEach((log) => {
+      const label = log.workflowName
+      if (label.toLowerCase().includes(currentQuery)) {
+        items.push({
+          id: `log-${log.id}`,
+          label,
+          category: 'logs',
+          data: log,
+        })
+      }
+    })
+
+    // Docs
+    if ('docs'.includes(currentQuery)) {
+      items.push({
+        id: 'docs',
+        label: 'Docs',
+        category: 'docs',
+        data: null,
+      })
+    }
+
+    return items
+  }, [currentQuery, mentionData])
+
+  /**
+   * Handle click on aggregated item
+   */
+  const handleAggregatedItemClick = (item: AggregatedItem) => {
+    switch (item.category) {
+      case 'chats':
+        insertPastChatMention(item.data)
+        break
+      case 'workflows':
+        insertWorkflowMention(item.data)
+        break
+      case 'knowledge':
+        insertKnowledgeMention(item.data)
+        break
+      case 'blocks':
+        insertBlockMention(item.data)
+        break
+      case 'workflow-blocks':
+        insertWorkflowBlockMention(item.data)
+        break
+      case 'templates':
+        insertTemplateMention(item.data)
+        break
+      case 'logs':
+        insertLogMention(item.data)
+        break
+      case 'docs':
+        insertDocsMention()
+        break
+    }
+  }
+
+  // Open state derived directly from mention menu
+  const open = !!mentionMenu.showMentionMenu
+
+  // Show filtered aggregated view when there's a query
+  const showAggregatedView = currentQuery.length > 0
+
+  // Compute caret viewport position via mirror technique for precise anchoring
+  const textareaEl = mentionMenu.textareaRef.current
+  if (!textareaEl) return null
+
+  const getCaretViewport = (textarea: HTMLTextAreaElement, caretPosition: number, text: string) => {
+    const textareaRect = textarea.getBoundingClientRect()
+    const style = window.getComputedStyle(textarea)
+
+    const mirrorDiv = document.createElement('div')
+    mirrorDiv.style.position = 'absolute'
+    mirrorDiv.style.visibility = 'hidden'
+    mirrorDiv.style.whiteSpace = 'pre-wrap'
+    mirrorDiv.style.wordWrap = 'break-word'
+    mirrorDiv.style.font = style.font
+    mirrorDiv.style.padding = style.padding
+    mirrorDiv.style.border = style.border
+    mirrorDiv.style.width = style.width
+    mirrorDiv.style.lineHeight = style.lineHeight
+    mirrorDiv.style.boxSizing = style.boxSizing
+    mirrorDiv.style.letterSpacing = style.letterSpacing
+    mirrorDiv.style.textTransform = style.textTransform
+    mirrorDiv.style.textIndent = style.textIndent
+    mirrorDiv.style.textAlign = style.textAlign
+
+    mirrorDiv.textContent = text.substring(0, caretPosition)
+
+    const caretMarker = document.createElement('span')
+    caretMarker.style.display = 'inline-block'
+    caretMarker.style.width = '0px'
+    caretMarker.style.padding = '0'
+    caretMarker.style.border = '0'
+    mirrorDiv.appendChild(caretMarker)
+
+    document.body.appendChild(mirrorDiv)
+    const markerRect = caretMarker.getBoundingClientRect()
+    const mirrorRect = mirrorDiv.getBoundingClientRect()
+    document.body.removeChild(mirrorDiv)
+
+    const leftOffset = markerRect.left - mirrorRect.left - textarea.scrollLeft
+    const topOffset = markerRect.top - mirrorRect.top - textarea.scrollTop
+
+    return {
+      left: textareaRect.left + leftOffset,
+      top: textareaRect.top + topOffset,
+    }
+  }
+
+  const caretPos = getCaretPos()
+  const caretViewport = getCaretViewport(textareaEl, caretPos, message)
+
+  // Decide preferred side based on available space
+  const margin = 8
+  const spaceAbove = caretViewport.top - margin
+  const spaceBelow = window.innerHeight - caretViewport.top - margin
+  const side: 'top' | 'bottom' = spaceBelow >= spaceAbove ? 'bottom' : 'top'
 
   return (
-    <div
-      ref={mentionPortalRef}
-      style={{
-        position: 'fixed',
-        top: mentionPortalStyle.top,
-        left: mentionPortalStyle.left,
-        width: mentionPortalStyle.width,
-        maxHeight: mentionPortalStyle.maxHeight,
-        zIndex: 9999999,
-        pointerEvents: 'auto',
-        isolation: 'isolate',
-        transform: mentionPortalStyle.showBelow ? 'none' : 'translateY(-100%)',
-        display: 'flex',
-        flexDirection: 'column',
+    <Popover
+      open={open}
+      onOpenChange={() => {
+        /* controlled by mentionMenu */
       }}
     >
-      <div
+      <PopoverAnchor asChild>
+        <div
+          style={{
+            position: 'fixed',
+            top: `${caretViewport.top}px`,
+            left: `${caretViewport.left}px`,
+            width: '1px',
+            height: '1px',
+            pointerEvents: 'none',
+          }}
+        />
+      </PopoverAnchor>
+      <PopoverContent
         ref={mentionMenuRef}
-        className='flex flex-col overflow-hidden rounded-[8px] border bg-popover p-1 text-foreground shadow-md'
+        side={side}
+        align='start'
+        collisionPadding={6}
+        maxHeight={360}
+        className='pointer-events-auto'
         style={{
-          maxHeight: mentionPortalStyle.maxHeight,
-          height: '100%',
-          position: 'relative',
-          zIndex: 9999999,
+          width: `224px`,
         }}
+        onOpenAutoFocus={(e) => e.preventDefault()}
+        onCloseAutoFocus={(e) => e.preventDefault()}
       >
-        {openSubmenuFor ? (
-          /* Submenu View */
-          <>
-            <div className='px-2 py-1.5 text-muted-foreground text-xs'>
-              {openSubmenuFor === 'Chats'
-                ? 'Chats'
-                : openSubmenuFor === 'Workflows'
-                  ? 'All workflows'
-                  : openSubmenuFor === 'Knowledge'
-                    ? 'Knowledge Bases'
-                    : openSubmenuFor === 'Blocks'
-                      ? 'Blocks'
-                      : openSubmenuFor === 'Workflow Blocks'
-                        ? 'Workflow Blocks'
-                        : openSubmenuFor === 'Templates'
-                          ? 'Templates'
-                          : 'Logs'}
-            </div>
-            <div ref={menuListRef} className='flex-1 overflow-auto overscroll-contain'>
-              {openSubmenuFor === 'Chats' && (
-                <>
-                  {mentionData.isLoadingPastChats ? (
-                    <div className='px-2 py-2 text-muted-foreground text-sm'>Loading...</div>
-                  ) : mentionData.pastChats.length === 0 ? (
-                    <div className='px-2 py-2 text-muted-foreground text-sm'>No past chats</div>
-                  ) : (
-                    mentionData.pastChats
-                      .filter((c) =>
-                        (c.title || 'New Chat')
-                          .toLowerCase()
-                          .includes(getSubmenuQuery().toLowerCase())
-                      )
-                      .map((chat, idx) => (
-                        <div
-                          key={chat.id}
-                          data-idx={idx}
-                          className={cn(
-                            'flex items-center gap-2 rounded-[6px] px-2 py-1.5 text-sm hover:bg-muted/60',
-                            submenuActiveIndex === idx && 'bg-muted'
-                          )}
-                          role='menuitem'
-                          aria-selected={submenuActiveIndex === idx}
-                          onMouseEnter={() => setSubmenuActiveIndex(idx)}
-                          onClick={() => {
-                            insertPastChatMention(chat)
-                            setSubmenuQueryStart(null)
-                          }}
-                        >
-                          <div className='flex h-4 w-4 flex-shrink-0 items-center justify-center'>
-                            <Bot className='h-3.5 w-3.5 text-muted-foreground' strokeWidth={1.5} />
-                          </div>
-                          <span className='truncate'>{chat.title || 'New Chat'}</span>
-                        </div>
-                      ))
-                  )}
-                </>
-              )}
-
-              {openSubmenuFor === 'Workflows' && (
-                <>
-                  {mentionData.isLoadingWorkflows ? (
-                    <div className='px-2 py-2 text-muted-foreground text-sm'>Loading...</div>
-                  ) : mentionData.workflows.length === 0 ? (
-                    <div className='px-2 py-2 text-muted-foreground text-sm'>No workflows</div>
-                  ) : (
-                    mentionData.workflows
-                      .filter((w) =>
-                        (w.name || 'Untitled Workflow')
-                          .toLowerCase()
-                          .includes(getSubmenuQuery().toLowerCase())
-                      )
-                      .map((wf, idx) => (
-                        <div
-                          key={wf.id}
-                          data-idx={idx}
-                          className={cn(
-                            'flex items-center gap-2 rounded-[6px] px-2 py-1.5 text-sm hover:bg-muted/60',
-                            submenuActiveIndex === idx && 'bg-muted'
-                          )}
-                          role='menuitem'
-                          aria-selected={submenuActiveIndex === idx}
-                          onMouseEnter={() => setSubmenuActiveIndex(idx)}
-                          onClick={() => {
-                            insertWorkflowMention(wf)
-                            setSubmenuQueryStart(null)
-                          }}
-                        >
-                          <div
-                            className='h-3.5 w-3.5 flex-shrink-0 rounded'
-                            style={{ backgroundColor: wf.color || '#3972F6' }}
-                          />
-                          <span className='truncate'>{wf.name || 'Untitled Workflow'}</span>
-                        </div>
-                      ))
-                  )}
-                </>
-              )}
-
-              {openSubmenuFor === 'Knowledge' && (
-                <>
-                  {mentionData.isLoadingKnowledge ? (
-                    <div className='px-2 py-2 text-muted-foreground text-sm'>Loading...</div>
-                  ) : mentionData.knowledgeBases.length === 0 ? (
-                    <div className='px-2 py-2 text-muted-foreground text-sm'>
-                      No knowledge bases
-                    </div>
-                  ) : (
-                    mentionData.knowledgeBases
-                      .filter((k) =>
-                        (k.name || 'Untitled')
-                          .toLowerCase()
-                          .includes(getSubmenuQuery().toLowerCase())
-                      )
-                      .map((kb, idx) => (
-                        <div
-                          key={kb.id}
-                          data-idx={idx}
-                          className={cn(
-                            'flex items-center gap-2 rounded-[6px] px-2 py-1.5 text-sm hover:bg-muted/60',
-                            submenuActiveIndex === idx && 'bg-muted'
-                          )}
-                          role='menuitem'
-                          aria-selected={submenuActiveIndex === idx}
-                          onMouseEnter={() => setSubmenuActiveIndex(idx)}
-                          onClick={() => {
-                            insertKnowledgeMention(kb)
-                            setSubmenuQueryStart(null)
-                          }}
-                        >
-                          <LibraryBig className='h-3.5 w-3.5 text-muted-foreground' />
-                          <span className='truncate'>{kb.name || 'Untitled'}</span>
-                        </div>
-                      ))
-                  )}
-                </>
-              )}
-
-              {openSubmenuFor === 'Blocks' && (
-                <>
-                  {mentionData.isLoadingBlocks ? (
-                    <div className='px-2 py-2 text-muted-foreground text-sm'>Loading...</div>
-                  ) : mentionData.blocksList.length === 0 ? (
-                    <div className='px-2 py-2 text-muted-foreground text-sm'>No blocks found</div>
-                  ) : (
-                    mentionData.blocksList
-                      .filter((b) =>
-                        (b.name || b.id).toLowerCase().includes(getSubmenuQuery().toLowerCase())
-                      )
-                      .map((blk, idx) => (
-                        <div
-                          key={blk.id}
-                          data-idx={idx}
-                          className={cn(
-                            'flex items-center gap-2 rounded-[6px] px-2 py-1.5 text-sm hover:bg-muted/60',
-                            submenuActiveIndex === idx && 'bg-muted'
-                          )}
-                          role='menuitem'
-                          aria-selected={submenuActiveIndex === idx}
-                          onMouseEnter={() => setSubmenuActiveIndex(idx)}
-                          onClick={() => {
-                            insertBlockMention(blk)
-                            setSubmenuQueryStart(null)
-                          }}
-                        >
-                          <div
-                            className='relative flex h-4 w-4 items-center justify-center rounded-[3px]'
-                            style={{ backgroundColor: blk.bgColor || '#6B7280' }}
-                          >
-                            {blk.iconComponent && (
-                              <blk.iconComponent className='!h-3 !w-3 text-white' />
-                            )}
-                          </div>
-                          <span className='truncate'>{blk.name || blk.id}</span>
-                        </div>
-                      ))
-                  )}
-                </>
-              )}
-
-              {openSubmenuFor === 'Workflow Blocks' && (
-                <>
-                  {mentionData.isLoadingWorkflowBlocks ? (
-                    <div className='px-2 py-2 text-muted-foreground text-sm'>Loading...</div>
-                  ) : mentionData.workflowBlocks.length === 0 ? (
-                    <div className='px-2 py-2 text-muted-foreground text-sm'>
-                      No blocks in this workflow
-                    </div>
-                  ) : (
-                    mentionData.workflowBlocks
-                      .filter((b) =>
-                        (b.name || b.id).toLowerCase().includes(getSubmenuQuery().toLowerCase())
-                      )
-                      .map((blk, idx) => (
-                        <div
-                          key={blk.id}
-                          data-idx={idx}
-                          className={cn(
-                            'flex items-center gap-2 rounded-[6px] px-2 py-1.5 text-sm hover:bg-muted/60',
-                            submenuActiveIndex === idx && 'bg-muted'
-                          )}
-                          role='menuitem'
-                          aria-selected={submenuActiveIndex === idx}
-                          onMouseEnter={() => setSubmenuActiveIndex(idx)}
-                          onClick={() => {
-                            insertWorkflowBlockMention(blk)
-                            setSubmenuQueryStart(null)
-                          }}
-                        >
-                          <div
-                            className='relative flex h-4 w-4 items-center justify-center rounded-[3px]'
-                            style={{ backgroundColor: blk.bgColor || '#6B7280' }}
-                          >
-                            {blk.iconComponent && (
-                              <blk.iconComponent className='!h-3 !w-3 text-white' />
-                            )}
-                          </div>
-                          <span className='truncate'>{blk.name || blk.id}</span>
-                        </div>
-                      ))
-                  )}
-                </>
-              )}
-
-              {openSubmenuFor === 'Templates' && (
-                <>
-                  {mentionData.isLoadingTemplates ? (
-                    <div className='px-2 py-2 text-muted-foreground text-sm'>Loading...</div>
-                  ) : mentionData.templatesList.length === 0 ? (
-                    <div className='px-2 py-2 text-muted-foreground text-sm'>
-                      No templates found
-                    </div>
-                  ) : (
-                    mentionData.templatesList
-                      .filter((t) =>
-                        (t.name || 'Untitled Template')
-                          .toLowerCase()
-                          .includes(getSubmenuQuery().toLowerCase())
-                      )
-                      .map((tpl, idx) => (
-                        <div
-                          key={tpl.id}
-                          data-idx={idx}
-                          className={cn(
-                            'flex items-center gap-2 rounded-[6px] px-2 py-1.5 text-sm hover:bg-muted/60',
-                            submenuActiveIndex === idx && 'bg-muted'
-                          )}
-                          role='menuitem'
-                          aria-selected={submenuActiveIndex === idx}
-                          onMouseEnter={() => setSubmenuActiveIndex(idx)}
-                          onClick={() => {
-                            insertTemplateMention(tpl)
-                            setSubmenuQueryStart(null)
-                          }}
-                        >
-                          <div className='flex h-4 w-4 items-center justify-center'>★</div>
-                          <span className='truncate'>{tpl.name}</span>
-                          <span className='ml-auto text-muted-foreground text-xs'>{tpl.stars}</span>
-                        </div>
-                      ))
-                  )}
-                </>
-              )}
-
-              {openSubmenuFor === 'Logs' && (
-                <>
-                  {mentionData.isLoadingLogs ? (
-                    <div className='px-2 py-2 text-muted-foreground text-sm'>Loading...</div>
-                  ) : mentionData.logsList.length === 0 ? (
-                    <div className='px-2 py-2 text-muted-foreground text-sm'>
-                      No executions found
-                    </div>
-                  ) : (
-                    mentionData.logsList
-                      .filter((l) =>
-                        [l.workflowName, l.trigger || '']
-                          .join(' ')
-                          .toLowerCase()
-                          .includes(getSubmenuQuery().toLowerCase())
-                      )
-                      .map((log, idx) => (
-                        <div
-                          key={log.id}
-                          data-idx={idx}
-                          className={cn(
-                            'flex items-center gap-2 rounded-[6px] px-2 py-1.5 text-sm hover:bg-muted/60',
-                            submenuActiveIndex === idx && 'bg-muted'
-                          )}
-                          role='menuitem'
-                          aria-selected={submenuActiveIndex === idx}
-                          onMouseEnter={() => setSubmenuActiveIndex(idx)}
-                          onClick={() => {
-                            insertLogMention(log)
-                            setSubmenuQueryStart(null)
-                          }}
-                        >
-                          {log.level === 'error' ? (
-                            <X className='h-4 w-4 text-red-500' />
-                          ) : (
-                            <Check className='h-4 w-4 text-green-500' />
-                          )}
-                          <span className='min-w-0 truncate'>{log.workflowName}</span>
-                          <span className='text-muted-foreground'>·</span>
-                          <span className='whitespace-nowrap'>
-                            {formatTimestamp(log.createdAt)}
-                          </span>
-                          <span className='text-muted-foreground'>·</span>
-                          <span className='capitalize'>
-                            {(log.trigger || 'manual').toLowerCase()}
-                          </span>
-                        </div>
-                      ))
-                  )}
-                </>
-              )}
-            </div>
-          </>
-        ) : (
-          /* Main Menu View */
-          <>
-            {(() => {
-              const q = (getActiveMentionQueryAtPosition(getCaretPos())?.query || '').toLowerCase()
-              const filtered = MENTION_OPTIONS.filter((label) => label.toLowerCase().includes(q))
-
-              if (q.length > 0 && filtered.length === 0) {
-                // Aggregated search view
-                const aggregated = [
-                  ...mentionData.workflowBlocks
-                    .filter((b) => (b.name || b.id).toLowerCase().includes(q))
-                    .map((b) => ({ type: 'Workflow Blocks', id: b.id, value: b })),
-                  ...mentionData.workflows
-                    .filter((w) => (w.name || 'Untitled Workflow').toLowerCase().includes(q))
-                    .map((w) => ({ type: 'Workflows', id: w.id, value: w })),
-                  ...mentionData.blocksList
-                    .filter((b) => (b.name || b.id).toLowerCase().includes(q))
-                    .map((b) => ({ type: 'Blocks', id: b.id, value: b })),
-                  ...mentionData.knowledgeBases
-                    .filter((k) => (k.name || 'Untitled').toLowerCase().includes(q))
-                    .map((k) => ({ type: 'Knowledge', id: k.id, value: k })),
-                  ...mentionData.templatesList
-                    .filter((t) => (t.name || 'Untitled Template').toLowerCase().includes(q))
-                    .map((t) => ({ type: 'Templates', id: t.id, value: t })),
-                  ...mentionData.pastChats
-                    .filter((c) => (c.title || 'New Chat').toLowerCase().includes(q))
-                    .map((c) => ({ type: 'Chats', id: c.id, value: c })),
-                  ...mentionData.logsList
-                    .filter((l) =>
-                      (l.workflowName || 'Untitled Workflow').toLowerCase().includes(q)
-                    )
-                    .map((l) => ({ type: 'Logs', id: l.id, value: l })),
-                ]
-
-                return (
-                  <div ref={menuListRef} className='flex-1 overflow-auto overscroll-contain'>
-                    {aggregated.length === 0 ? (
-                      <div className='px-2 py-2 text-muted-foreground text-sm'>No matches</div>
-                    ) : (
-                      aggregated.map((item, idx) => (
-                        <div
-                          key={`${item.type}-${item.id}`}
-                          data-idx={idx}
-                          className={cn(
-                            'flex cursor-default items-center gap-2 rounded-[6px] px-2 py-1.5 text-sm hover:bg-muted/60',
-                            submenuActiveIndex === idx && 'bg-muted'
-                          )}
-                          role='menuitem'
-                          aria-selected={submenuActiveIndex === idx}
-                          onMouseEnter={() => setSubmenuActiveIndex(idx)}
-                          onClick={() => {
-                            if (item.type === 'Chats') insertPastChatMention(item.value as any)
-                            else if (item.type === 'Workflows')
-                              insertWorkflowMention(item.value as any)
-                            else if (item.type === 'Knowledge')
-                              insertKnowledgeMention(item.value as any)
-                            else if (item.type === 'Workflow Blocks')
-                              insertWorkflowBlockMention(item.value as any)
-                            else if (item.type === 'Blocks') insertBlockMention(item.value as any)
-                            else if (item.type === 'Templates')
-                              insertTemplateMention(item.value as any)
-                            else if (item.type === 'Logs') insertLogMention(item.value as any)
-                          }}
-                        >
-                          {/* Render appropriate icon and content based on type */}
-                          {item.type === 'Chats' && (
-                            <>
-                              <Bot
-                                className='h-3.5 w-3.5 text-muted-foreground'
-                                strokeWidth={1.5}
-                              />
-                              <span className='truncate'>
-                                {(item.value as any).title || 'New Chat'}
-                              </span>
-                            </>
-                          )}
-                          {item.type === 'Workflows' && (
-                            <>
-                              <div
-                                className='h-3.5 w-3.5 flex-shrink-0 rounded'
-                                style={{ backgroundColor: (item.value as any).color || '#3972F6' }}
-                              />
-                              <span className='truncate'>
-                                {(item.value as any).name || 'Untitled Workflow'}
-                              </span>
-                            </>
-                          )}
-                          {item.type === 'Knowledge' && (
-                            <>
-                              <LibraryBig className='h-3.5 w-3.5 text-muted-foreground' />
-                              <span className='truncate'>
-                                {(item.value as any).name || 'Untitled'}
-                              </span>
-                            </>
-                          )}
-                          {(item.type === 'Blocks' || item.type === 'Workflow Blocks') && (
-                            <>
-                              <div
-                                className='relative flex h-4 w-4 items-center justify-center rounded-[3px]'
-                                style={{
-                                  backgroundColor: (item.value as any).bgColor || '#6B7280',
-                                }}
-                              >
-                                {(() => {
-                                  const Icon = (item.value as any).iconComponent
-                                  return Icon ? <Icon className='!h-3 !w-3 text-white' /> : null
-                                })()}
-                              </div>
-                              <span className='truncate'>
-                                {(item.value as any).name || (item.value as any).id}
-                              </span>
-                            </>
-                          )}
-                          {item.type === 'Templates' && (
-                            <>
-                              <div className='flex h-4 w-4 items-center justify-center'>★</div>
-                              <span className='truncate'>
-                                {(item.value as any).name || 'Untitled Template'}
-                              </span>
-                              {typeof (item.value as any).stars === 'number' && (
-                                <span className='ml-auto text-muted-foreground text-xs'>
-                                  {(item.value as any).stars}
-                                </span>
-                              )}
-                            </>
-                          )}
-                          {item.type === 'Logs' && (
-                            <>
-                              {(item.value as any).level === 'error' ? (
-                                <X className='h-3.5 w-3.5 text-red-500' />
-                              ) : (
-                                <Check className='h-3.5 w-3.5 text-green-500' />
-                              )}
-                              <span className='min-w-0 truncate'>
-                                {(item.value as any).workflowName}
-                              </span>
-                              <span className='text-muted-foreground'>·</span>
-                              <span className='whitespace-nowrap'>
-                                {formatTimestamp((item.value as any).createdAt)}
-                              </span>
-                            </>
-                          )}
-                        </div>
-                      ))
+        <PopoverBackButton />
+        <PopoverScrollArea ref={menuListRef} className='space-y-[2px]'>
+          {showAggregatedView ? (
+            // Aggregated filtered view
+            <>
+              {filteredAggregatedItems.length === 0 ? (
+                <EmptyState message='No results found' />
+              ) : (
+                filteredAggregatedItems.map((item, index) => (
+                  <PopoverItem
+                    key={item.id}
+                    onClick={() => handleAggregatedItemClick(item)}
+                    data-idx={index}
+                    active={index === submenuActiveIndex}
+                  >
+                    {item.icon}
+                    <span className='flex-1 truncate'>{item.label}</span>
+                    {item.category === 'logs' && (
+                      <>
+                        <span className='text-[#AEAEAE] text-[10px] dark:text-[#AEAEAE]'>·</span>
+                        <span className='whitespace-nowrap text-[10px]'>
+                          {formatTimestamp(item.data.createdAt)}
+                        </span>
+                      </>
                     )}
-                  </div>
-                )
-              }
+                  </PopoverItem>
+                ))
+              )}
+            </>
+          ) : (
+            // Folder navigation view
+            <>
+              <PopoverFolder
+                id='chats'
+                title='Chats'
+                onOpen={() => mentionData.ensurePastChatsLoaded()}
+              >
+                {mentionData.isLoadingPastChats ? (
+                  <LoadingState />
+                ) : mentionData.pastChats.length === 0 ? (
+                  <EmptyState message='No past chats' />
+                ) : (
+                  mentionData.pastChats.map((chat) => (
+                    <PopoverItem key={chat.id} onClick={() => insertPastChatMention(chat)}>
+                      <span className='truncate'>{chat.title || 'New Chat'}</span>
+                    </PopoverItem>
+                  ))
+                )}
+              </PopoverFolder>
 
-              // Filtered top-level options view
-              return (
-                <div ref={menuListRef} className='flex-1 overflow-auto overscroll-contain'>
-                  {filtered.map((label, idx) => (
-                    <div
-                      key={label}
-                      data-idx={idx}
-                      className={cn(
-                        'flex cursor-default items-center justify-between gap-2 rounded-[6px] px-2 py-1.5 text-sm hover:bg-muted/60',
-                        !inAggregated && mentionActiveIndex === idx && 'bg-muted'
-                      )}
-                      role='menuitem'
-                      aria-selected={!inAggregated && mentionActiveIndex === idx}
-                      onMouseEnter={() => {
-                        setInAggregated(false)
-                        setMentionActiveIndex(idx)
-                      }}
-                      onClick={() => {
-                        if (label === 'Chats') {
-                          resetActiveMentionQuery()
-                          setOpenSubmenuFor('Chats')
-                          setSubmenuActiveIndex(0)
-                          setSubmenuQueryStart(getCaretPos())
-                          mentionData.ensurePastChatsLoaded()
-                        } else if (label === 'Workflows') {
-                          resetActiveMentionQuery()
-                          setOpenSubmenuFor('Workflows')
-                          setSubmenuActiveIndex(0)
-                          setSubmenuQueryStart(getCaretPos())
-                          mentionData.ensureWorkflowsLoaded()
-                        } else if (label === 'Knowledge') {
-                          resetActiveMentionQuery()
-                          setOpenSubmenuFor('Knowledge')
-                          setSubmenuActiveIndex(0)
-                          setSubmenuQueryStart(getCaretPos())
-                          mentionData.ensureKnowledgeLoaded()
-                        } else if (label === 'Blocks') {
-                          resetActiveMentionQuery()
-                          setOpenSubmenuFor('Blocks')
-                          setSubmenuActiveIndex(0)
-                          setSubmenuQueryStart(getCaretPos())
-                          mentionData.ensureBlocksLoaded()
-                        } else if (label === 'Workflow Blocks') {
-                          resetActiveMentionQuery()
-                          setOpenSubmenuFor('Workflow Blocks')
-                          setSubmenuActiveIndex(0)
-                          setSubmenuQueryStart(getCaretPos())
-                          mentionData.ensureWorkflowBlocksLoaded()
-                        } else if (label === 'Docs') {
-                          insertDocsMention()
-                        } else if (label === 'Templates') {
-                          resetActiveMentionQuery()
-                          setOpenSubmenuFor('Templates')
-                          setSubmenuActiveIndex(0)
-                          setSubmenuQueryStart(getCaretPos())
-                          mentionData.ensureTemplatesLoaded()
-                        } else if (label === 'Logs') {
-                          resetActiveMentionQuery()
-                          setOpenSubmenuFor('Logs')
-                          setSubmenuActiveIndex(0)
-                          setSubmenuQueryStart(getCaretPos())
-                          mentionData.ensureLogsLoaded()
-                        }
-                      }}
-                    >
-                      <div className='flex items-center gap-2'>
-                        {label === 'Chats' ? (
-                          <Bot className='h-3.5 w-3.5 text-muted-foreground' />
-                        ) : label === 'Workflows' ? (
-                          <Workflow className='h-3.5 w-3.5 text-muted-foreground' />
-                        ) : label === 'Blocks' ? (
-                          <Blocks className='h-3.5 w-3.5 text-muted-foreground' />
-                        ) : label === 'Workflow Blocks' ? (
-                          <Box className='h-3.5 w-3.5 text-muted-foreground' />
-                        ) : label === 'Knowledge' ? (
-                          <LibraryBig className='h-3.5 w-3.5 text-muted-foreground' />
-                        ) : label === 'Docs' ? (
-                          <BookOpen className='h-3.5 w-3.5 text-muted-foreground' />
-                        ) : label === 'Templates' ? (
-                          <Shapes className='h-3.5 w-3.5 text-muted-foreground' />
-                        ) : label === 'Logs' ? (
-                          <SquareChevronRight className='h-3.5 w-3.5 text-muted-foreground' />
-                        ) : (
-                          <div className='h-3.5 w-3.5' />
-                        )}
-                        <span>{label === 'Workflows' ? 'All workflows' : label}</span>
-                      </div>
-                      {label !== 'Docs' && (
-                        <ChevronRight className='h-3.5 w-3.5 text-muted-foreground' />
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )
-            })()}
-          </>
-        )}
-      </div>
-    </div>
+              <PopoverFolder
+                id='workflows'
+                title='All workflows'
+                onOpen={() => mentionData.ensureWorkflowsLoaded()}
+              >
+                {mentionData.isLoadingWorkflows ? (
+                  <LoadingState />
+                ) : mentionData.workflows.length === 0 ? (
+                  <EmptyState message='No workflows' />
+                ) : (
+                  mentionData.workflows.map((wf) => (
+                    <PopoverItem key={wf.id} onClick={() => insertWorkflowMention(wf)}>
+                      <div
+                        className='relative flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center overflow-hidden rounded-[4px]'
+                        style={{ backgroundColor: wf.color || '#3972F6' }}
+                      />
+                      <span className='truncate'>{wf.name || 'Untitled Workflow'}</span>
+                    </PopoverItem>
+                  ))
+                )}
+              </PopoverFolder>
+
+              <PopoverFolder
+                id='knowledge'
+                title='Knowledge Bases'
+                onOpen={() => mentionData.ensureKnowledgeLoaded()}
+              >
+                {mentionData.isLoadingKnowledge ? (
+                  <LoadingState />
+                ) : mentionData.knowledgeBases.length === 0 ? (
+                  <EmptyState message='No knowledge bases' />
+                ) : (
+                  mentionData.knowledgeBases.map((kb) => (
+                    <PopoverItem key={kb.id} onClick={() => insertKnowledgeMention(kb)}>
+                      <span className='truncate'>{kb.name || 'Untitled'}</span>
+                    </PopoverItem>
+                  ))
+                )}
+              </PopoverFolder>
+
+              <PopoverFolder
+                id='blocks'
+                title='Blocks'
+                onOpen={() => mentionData.ensureBlocksLoaded()}
+              >
+                {mentionData.isLoadingBlocks ? (
+                  <LoadingState />
+                ) : mentionData.blocksList.length === 0 ? (
+                  <EmptyState message='No blocks found' />
+                ) : (
+                  mentionData.blocksList.map((blk) => {
+                    const Icon = blk.iconComponent
+                    return (
+                      <PopoverItem key={blk.id} onClick={() => insertBlockMention(blk)}>
+                        <div
+                          className='relative flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center overflow-hidden rounded-[4px]'
+                          style={{ backgroundColor: blk.bgColor || '#6B7280' }}
+                        >
+                          {Icon && <Icon className='!h-[10px] !w-[10px] text-white' />}
+                        </div>
+                        <span className='truncate'>{blk.name || blk.id}</span>
+                      </PopoverItem>
+                    )
+                  })
+                )}
+              </PopoverFolder>
+
+              <PopoverFolder
+                id='workflow-blocks'
+                title='Workflow Blocks'
+                onOpen={() => mentionData.ensureWorkflowBlocksLoaded()}
+              >
+                {mentionData.isLoadingWorkflowBlocks ? (
+                  <LoadingState />
+                ) : mentionData.workflowBlocks.length === 0 ? (
+                  <EmptyState message='No blocks in this workflow' />
+                ) : (
+                  mentionData.workflowBlocks.map((blk) => {
+                    const Icon = blk.iconComponent
+                    return (
+                      <PopoverItem key={blk.id} onClick={() => insertWorkflowBlockMention(blk)}>
+                        <div
+                          className='relative flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center overflow-hidden rounded-[4px]'
+                          style={{ backgroundColor: blk.bgColor || '#6B7280' }}
+                        >
+                          {Icon && <Icon className='!h-[10px] !w-[10px] text-white' />}
+                        </div>
+                        <span className='truncate'>{blk.name || blk.id}</span>
+                      </PopoverItem>
+                    )
+                  })
+                )}
+              </PopoverFolder>
+
+              <PopoverFolder
+                id='templates'
+                title='Templates'
+                onOpen={() => mentionData.ensureTemplatesLoaded()}
+              >
+                {mentionData.isLoadingTemplates ? (
+                  <LoadingState />
+                ) : mentionData.templatesList.length === 0 ? (
+                  <EmptyState message='No templates found' />
+                ) : (
+                  mentionData.templatesList.map((tpl) => (
+                    <PopoverItem key={tpl.id} onClick={() => insertTemplateMention(tpl)}>
+                      <span className='flex-1 truncate'>{tpl.name}</span>
+                      <span className='text-[#868686] text-[10px] dark:text-[#868686]'>
+                        {tpl.stars}
+                      </span>
+                    </PopoverItem>
+                  ))
+                )}
+              </PopoverFolder>
+
+              <PopoverFolder id='logs' title='Logs' onOpen={() => mentionData.ensureLogsLoaded()}>
+                {mentionData.isLoadingLogs ? (
+                  <LoadingState />
+                ) : mentionData.logsList.length === 0 ? (
+                  <EmptyState message='No executions found' />
+                ) : (
+                  mentionData.logsList.map((log) => (
+                    <PopoverItem key={log.id} onClick={() => insertLogMention(log)}>
+                      <span className='min-w-0 flex-1 truncate'>{log.workflowName}</span>
+                      <span className='text-[#AEAEAE] text-[10px] dark:text-[#AEAEAE]'>·</span>
+                      <span className='whitespace-nowrap text-[10px]'>
+                        {formatTimestamp(log.createdAt)}
+                      </span>
+                      <span className='text-[#AEAEAE] text-[10px] dark:text-[#AEAEAE]'>·</span>
+                      <span className='text-[10px] capitalize'>
+                        {(log.trigger || 'manual').toLowerCase()}
+                      </span>
+                    </PopoverItem>
+                  ))
+                )}
+              </PopoverFolder>
+
+              <PopoverItem rootOnly onClick={() => insertDocsMention()}>
+                <span>Docs</span>
+              </PopoverItem>
+            </>
+          )}
+        </PopoverScrollArea>
+      </PopoverContent>
+    </Popover>
   )
 }

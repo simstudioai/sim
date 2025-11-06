@@ -1,33 +1,24 @@
 'use client'
 
-import { Badge } from '@/components/emcn'
+import { useEffect, useRef, useState } from 'react'
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui'
-import { cn } from '@/lib/utils'
+  Badge,
+  Popover,
+  PopoverAnchor,
+  PopoverContent,
+  PopoverItem,
+  PopoverScrollArea,
+} from '@/components/emcn'
 import { getProviderIcon } from '@/providers/utils'
-import { MODEL_CATEGORIES, MODEL_OPTIONS } from '../constants'
+import { MODEL_OPTIONS } from '../constants'
 
 interface ModelSelectorProps {
   /** Currently selected model */
   selectedModel: string
-  /** Whether agent prefetch (Lite mode) is enabled */
-  agentPrefetch: boolean
-  /** Available models filtered by user preferences */
-  enabledModels: string[] | null
-  /** Panel width to adjust truncation */
-  panelWidth: number
   /** Whether the input is near the top of viewport (affects dropdown direction) */
   isNearTop: boolean
   /** Callback when model is selected */
   onModelSelect: (model: string) => void
-  /** Callback when agent prefetch is toggled */
-  onAgentPrefetchChange: (enabled: boolean) => void
-  /** Callback to fetch enabled models on first open */
-  onFirstOpen: () => void
 }
 
 /**
@@ -38,34 +29,23 @@ function getModelIconComponent(modelValue: string) {
   if (!IconComponent) {
     return null
   }
-  return <IconComponent className='h-3 w-3' />
+  return <IconComponent className='h-3.5 w-3.5' />
 }
 
 /**
- * Model selector dropdown for choosing AI model and Lite mode.
- * Displays model icon and label, with purple styling for certain models.
+ * Model selector dropdown for choosing AI model.
+ * Displays model icon and label.
  *
  * @param props - Component props
  * @returns Rendered model selector dropdown
  */
-export function ModelSelector({
-  selectedModel,
-  agentPrefetch,
-  enabledModels,
-  panelWidth,
-  isNearTop,
-  onModelSelect,
-  onAgentPrefetchChange,
-  onFirstOpen,
-}: ModelSelectorProps) {
-  // Filter models based on user preferences
-  const modelOptions =
-    enabledModels !== null
-      ? MODEL_OPTIONS.filter((model) => enabledModels.includes(model.value))
-      : MODEL_OPTIONS
+export function ModelSelector({ selectedModel, isNearTop, onModelSelect }: ModelSelectorProps) {
+  const [open, setOpen] = useState(false)
+  const triggerRef = useRef<HTMLDivElement>(null)
+  const popoverRef = useRef<HTMLDivElement>(null)
 
   const getCollapsedModeLabel = () => {
-    const model = modelOptions.find((m) => m.value === selectedModel)
+    const model = MODEL_OPTIONS.find((m) => m.value === selectedModel)
     return model ? model.label : 'claude-4.5-sonnet'
   }
 
@@ -81,145 +61,82 @@ export function ModelSelector({
     )
   }
 
+  const handleSelect = (modelValue: string) => {
+    onModelSelect(modelValue)
+    setOpen(false)
+  }
+
+  useEffect(() => {
+    if (!open) return
+
+    const handleClickOutside = (event: MouseEvent) => {
+      // Keep popover open while resizing the panel (mousedown on resize handle)
+      const target = event.target as Element | null
+      if (
+        target &&
+        (target.closest('[aria-label="Resize panel"]') ||
+          target.closest('[role="separator"]') ||
+          target.closest('.cursor-ew-resize'))
+      ) {
+        return
+      }
+
+      if (
+        popoverRef.current &&
+        !popoverRef.current.contains(event.target as Node) &&
+        triggerRef.current &&
+        !triggerRef.current.contains(event.target as Node)
+      ) {
+        setOpen(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [open])
+
   return (
-    <DropdownMenu
-      onOpenChange={(open) => {
-        if (open) {
-          onFirstOpen()
-        }
-      }}
-    >
-      <DropdownMenuTrigger asChild>
-        <Badge
-          variant='outline'
-          className='min-w-0 max-w-full cursor-pointer rounded-[6px]'
-          title='Choose model'
-        >
-          {getModelIcon()}
-          <span className='min-w-0 truncate'>
-            {getCollapsedModeLabel()}
-            {agentPrefetch && !MODEL_CATEGORIES.ZAP.includes(selectedModel as any) && (
-              <span className='ml-1 font-semibold'>Lite</span>
-            )}
-          </span>
-        </Badge>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent
-        align='start'
-        side={isNearTop ? 'bottom' : 'top'}
-        className='max-h-[400px] p-0'
-      >
-        <div className='w-[220px]'>
-          <div className='max-h-[280px] overflow-y-auto p-2'>
-            <div>
-              <div className='mb-1'>
-                <span className='font-medium text-xs'>Model</span>
-              </div>
-              <div className='space-y-2'>
-                {/* Anthropic Models */}
-                <div>
-                  <div className='px-2 py-1 font-medium text-[10px] text-muted-foreground uppercase'>
-                    Anthropic
-                  </div>
-                  <div className='space-y-0.5'>
-                    {modelOptions
-                      .filter((option) =>
-                        [
-                          'claude-4-sonnet',
-                          'claude-4.5-haiku',
-                          'claude-4.5-sonnet',
-                          'claude-4.1-opus',
-                        ].includes(option.value)
-                      )
-                      .map((option) => (
-                        <DropdownMenuItem
-                          key={option.value}
-                          onSelect={() => {
-                            onModelSelect(option.value)
-                            // Automatically turn off Lite mode for fast models
-                            if (
-                              MODEL_CATEGORIES.ZAP.includes(option.value as any) &&
-                              agentPrefetch
-                            ) {
-                              onAgentPrefetchChange(false)
-                            }
-                          }}
-                          className={cn(
-                            'flex h-7 items-center gap-1.5 px-2 py-1 text-left text-xs',
-                            selectedModel === option.value ? 'bg-muted/50' : ''
-                          )}
-                        >
-                          {getModelIconComponent(option.value)}
-                          <span>{option.label}</span>
-                        </DropdownMenuItem>
-                      ))}
-                  </div>
-                </div>
-
-                {/* OpenAI Models */}
-                <div>
-                  <div className='px-2 py-1 font-medium text-[10px] text-muted-foreground uppercase'>
-                    OpenAI
-                  </div>
-                  <div className='space-y-0.5'>
-                    {modelOptions
-                      .filter((option) =>
-                        [
-                          'gpt-5-fast',
-                          'gpt-5',
-                          'gpt-5-medium',
-                          'gpt-5-high',
-                          'gpt-4o',
-                          'gpt-4.1',
-                          'o3',
-                        ].includes(option.value)
-                      )
-                      .map((option) => (
-                        <DropdownMenuItem
-                          key={option.value}
-                          onSelect={() => {
-                            onModelSelect(option.value)
-                            // Automatically turn off Lite mode for fast models
-                            if (
-                              MODEL_CATEGORIES.ZAP.includes(option.value as any) &&
-                              agentPrefetch
-                            ) {
-                              onAgentPrefetchChange(false)
-                            }
-                          }}
-                          className={cn(
-                            'flex h-7 items-center gap-1.5 px-2 py-1 text-left text-xs',
-                            selectedModel === option.value ? 'bg-muted/50' : ''
-                          )}
-                        >
-                          {getModelIconComponent(option.value)}
-                          <span>{option.label}</span>
-                        </DropdownMenuItem>
-                      ))}
-                  </div>
-                </div>
-
-                {/* More Models Button */}
-                <div className='mt-1 border-t pt-1'>
-                  <button
-                    type='button'
-                    onClick={() => {
-                      window.dispatchEvent(
-                        new CustomEvent('open-settings', {
-                          detail: { tab: 'copilot' },
-                        })
-                      )
-                    }}
-                    className='w-full rounded-sm px-2 py-1.5 text-left text-muted-foreground text-xs transition-colors hover:bg-muted/50'
-                  >
-                    More Models...
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
+    <Popover open={open} variant='default'>
+      <PopoverAnchor asChild>
+        <div ref={triggerRef} className='min-w-0 max-w-full'>
+          <Badge
+            variant='outline'
+            className='min-w-0 max-w-full cursor-pointer rounded-[6px]'
+            title='Choose model'
+            aria-expanded={open}
+            onMouseDown={(e) => {
+              e.stopPropagation()
+              setOpen((prev) => !prev)
+            }}
+          >
+            {getModelIcon()}
+            <span className='min-w-0 flex-1 truncate'>{getCollapsedModeLabel()}</span>
+          </Badge>
         </div>
-      </DropdownMenuContent>
-    </DropdownMenu>
+      </PopoverAnchor>
+      <PopoverContent
+        ref={popoverRef}
+        side={isNearTop ? 'bottom' : 'top'}
+        align='start'
+        sideOffset={4}
+        maxHeight={280}
+        className='w-[220px]'
+        onOpenAutoFocus={(e) => e.preventDefault()}
+        onCloseAutoFocus={(e) => e.preventDefault()}
+      >
+        <PopoverScrollArea className='space-y-[2px]'>
+          {MODEL_OPTIONS.map((option) => (
+            <PopoverItem
+              key={option.value}
+              active={selectedModel === option.value}
+              onClick={() => handleSelect(option.value)}
+            >
+              {getModelIconComponent(option.value)}
+              <span>{option.label}</span>
+            </PopoverItem>
+          ))}
+        </PopoverScrollArea>
+      </PopoverContent>
+    </Popover>
   )
 }

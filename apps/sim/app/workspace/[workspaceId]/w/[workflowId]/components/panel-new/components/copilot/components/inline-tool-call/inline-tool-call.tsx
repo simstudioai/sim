@@ -5,7 +5,6 @@ import { Loader2 } from 'lucide-react'
 import useDrivePicker from 'react-google-drive-picker'
 import { Button } from '@/components/emcn'
 import { GoogleDriveIcon } from '@/components/icons'
-import { Card, CardContent } from '@/components/ui/card'
 import { ClientToolCallState } from '@/lib/copilot/tools/client/base-tool'
 import { getClientTool } from '@/lib/copilot/tools/client/manager'
 import { getRegisteredTools } from '@/lib/copilot/tools/client/registry'
@@ -17,7 +16,6 @@ interface InlineToolCallProps {
   toolCall?: CopilotToolCall
   toolCallId?: string
   onStateChange?: (state: any) => void
-  context?: Record<string, any>
 }
 
 /**
@@ -288,48 +286,48 @@ function RunSkipButtons({
     }
   }
 
-  const handleOpenDriveAccess = async () => {
-    try {
-      const providerId = 'google-drive'
-      const credsRes = await fetch(`/api/auth/oauth/credentials?provider=${providerId}`)
-      if (!credsRes.ok) return
-      const credsData = await credsRes.json()
-      const creds = Array.isArray(credsData.credentials) ? credsData.credentials : []
-      if (creds.length === 0) return
-      const defaultCred = creds.find((c: any) => c.isDefault) || creds[0]
+  // const handleOpenDriveAccess = async () => {
+  //   try {
+  //     const providerId = 'google-drive'
+  //     const credsRes = await fetch(`/api/auth/oauth/credentials?provider=${providerId}`)
+  //     if (!credsRes.ok) return
+  //     const credsData = await credsRes.json()
+  //     const creds = Array.isArray(credsData.credentials) ? credsData.credentials : []
+  //     if (creds.length === 0) return
+  //     const defaultCred = creds.find((c: any) => c.isDefault) || creds[0]
 
-      const tokenRes = await fetch('/api/auth/oauth/token', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ credentialId: defaultCred.id }),
-      })
-      if (!tokenRes.ok) return
-      const { accessToken } = await tokenRes.json()
-      if (!accessToken) return
+  //     const tokenRes = await fetch('/api/auth/oauth/token', {
+  //       method: 'POST',
+  //       headers: { 'Content-Type': 'application/json' },
+  //       body: JSON.stringify({ credentialId: defaultCred.id }),
+  //     })
+  //     if (!tokenRes.ok) return
+  //     const { accessToken } = await tokenRes.json()
+  //     if (!accessToken) return
 
-      const clientId = getEnv('NEXT_PUBLIC_GOOGLE_CLIENT_ID') || ''
-      const apiKey = getEnv('NEXT_PUBLIC_GOOGLE_API_KEY') || ''
-      const projectNumber = getEnv('NEXT_PUBLIC_GOOGLE_PROJECT_NUMBER') || ''
+  //     const clientId = getEnv('NEXT_PUBLIC_GOOGLE_CLIENT_ID') || ''
+  //     const apiKey = getEnv('NEXT_PUBLIC_GOOGLE_API_KEY') || ''
+  //     const projectNumber = getEnv('NEXT_PUBLIC_GOOGLE_PROJECT_NUMBER') || ''
 
-      openPicker({
-        clientId,
-        developerKey: apiKey,
-        viewId: 'DOCS',
-        token: accessToken,
-        showUploadView: true,
-        showUploadFolders: true,
-        supportDrives: true,
-        multiselect: false,
-        appId: projectNumber,
-        setSelectFolderEnabled: false,
-        callbackFunction: async (data) => {
-          if (data.action === 'picked') {
-            await onRun()
-          }
-        },
-      })
-    } catch {}
-  }
+  //     openPicker({
+  //       clientId,
+  //       developerKey: apiKey,
+  //       viewId: 'DOCS',
+  //       token: accessToken,
+  //       showUploadView: true,
+  //       showUploadFolders: true,
+  //       supportDrives: true,
+  //       multiselect: false,
+  //       appId: projectNumber,
+  //       setSelectFolderEnabled: false,
+  //       callbackFunction: async (data) => {
+  //         if (data.action === 'picked') {
+  //           await onRun()
+  //         }
+  //       },
+  //     })
+  //   } catch {}
+  // }
 
   if (buttonsHidden) return null
 
@@ -413,7 +411,6 @@ export function InlineToolCall({
   toolCall: toolCallProp,
   toolCallId,
   onStateChange,
-  context,
 }: InlineToolCallProps) {
   const [, forceUpdate] = useState({})
   const liveToolCall = useCopilotStore((s) =>
@@ -460,17 +457,6 @@ export function InlineToolCall({
     toolCall.state === ClientToolCallState.executing
 
   const isSpecial = isSpecialToolCall(toolCall)
-
-  const Section = ({ title, children }: { title: string; children: any }) => (
-    <Card className='mt-1.5'>
-      <CardContent className='p-3'>
-        <div className='mb-1 font-medium font-season text-[#858585] text-[11px] uppercase tracking-wide dark:text-[#E0E0E0]'>
-          {title}
-        </div>
-        {children}
-      </CardContent>
-    </Card>
-  )
 
   const renderPendingDetails = () => {
     if (toolCall.name === 'make_api_request') {

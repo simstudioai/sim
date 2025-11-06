@@ -33,7 +33,6 @@ interface KnowledgeTagFiltersProps {
   disabled?: boolean
   isPreview?: boolean
   previewValue?: string | null
-  isConnecting?: boolean
 }
 
 export function KnowledgeTagFilters({
@@ -42,7 +41,6 @@ export function KnowledgeTagFilters({
   disabled = false,
   isPreview = false,
   previewValue,
-  isConnecting = false,
 }: KnowledgeTagFiltersProps) {
   const [storeValue, setStoreValue] = useSubBlockValue<string | null>(blockId, subBlock.id)
 
@@ -208,7 +206,7 @@ export function KnowledgeTagFilters({
     const handleDropdownClick = (e: React.MouseEvent) => {
       e.preventDefault()
       e.stopPropagation()
-      if (!disabled && !isConnecting && !isLoading) {
+      if (!disabled && !isLoading) {
         if (!showDropdown) {
           setShowDropdown(true)
         }
@@ -216,7 +214,7 @@ export function KnowledgeTagFilters({
     }
 
     const handleFocus = () => {
-      if (!disabled && !isConnecting && !isLoading) {
+      if (!disabled && !isLoading) {
         setShowDropdown(true)
       }
     }
@@ -232,7 +230,7 @@ export function KnowledgeTagFilters({
           <Input
             value={cellValue}
             readOnly
-            disabled={disabled || isConnecting || isLoading}
+            disabled={disabled || isLoading}
             className='w-full cursor-pointer border-0 text-transparent caret-foreground placeholder:text-muted-foreground/50 focus-visible:ring-0 focus-visible:ring-offset-0'
             onClick={handleDropdownClick}
             onFocus={handleFocus}
@@ -301,7 +299,7 @@ export function KnowledgeTagFilters({
               })
             }}
             onFocus={(e) => {
-              if (!disabled && !isConnecting) {
+              if (!disabled) {
                 setActiveTagDropdown({
                   rowIndex,
                   showTags: false,
@@ -319,7 +317,7 @@ export function KnowledgeTagFilters({
                 setActiveTagDropdown(null)
               }
             }}
-            disabled={disabled || isConnecting}
+            disabled={disabled}
             className='w-full border-0 text-transparent caret-foreground placeholder:text-muted-foreground/50 focus-visible:ring-0 focus-visible:ring-offset-0'
           />
           <div className='pointer-events-none absolute inset-0 flex items-center overflow-hidden bg-transparent px-3 text-sm'>

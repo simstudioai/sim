@@ -8,8 +8,8 @@ import { Button } from '@/components/emcn'
 interface WelcomeProps {
   /** Callback when a suggested question is clicked */
   onQuestionClick?: (question: string) => void
-  /** Current copilot mode ('ask' for Q&A, 'agent' for workflow building) */
-  mode?: 'ask' | 'agent'
+  /** Current copilot mode ('ask' for Q&A, 'build' for workflow building) */
+  mode?: 'ask' | 'build'
 }
 
 /**
@@ -20,16 +20,8 @@ interface WelcomeProps {
  * @returns Welcome screen UI
  */
 export function Welcome({ onQuestionClick, mode = 'ask' }: WelcomeProps) {
-  /**
-   * Handles click on a suggested question
-   * @param question - The question text to submit
-   */
-  const handleQuestionClick = (question: string) => {
-    onQuestionClick?.(question)
-  }
-
   const capabilities =
-    mode === 'agent'
+    mode === 'build'
       ? [
           {
             title: 'Build',
@@ -67,7 +59,7 @@ export function Welcome({ onQuestionClick, mode = 'ask' }: WelcomeProps) {
           <Button
             key={idx}
             variant='active'
-            onClick={() => handleQuestionClick(question)}
+            onClick={() => onQuestionClick?.(question)}
             className='w-full justify-start'
           >
             <div className='flex flex-col items-start'>

@@ -61,8 +61,6 @@ interface ToolInputProps {
   blockId: string
   /** Unique identifier for the sub-block */
   subBlockId: string
-  /** Whether a connection is being dragged */
-  isConnecting: boolean
   /** Whether component is in preview mode */
   isPreview?: boolean
   /** Value to display in preview mode */
@@ -309,7 +307,6 @@ function CodeSyncWrapper({
   onChange,
   uiComponent,
   disabled,
-  isConnecting,
 }: {
   blockId: string
   paramId: string
@@ -317,14 +314,12 @@ function CodeSyncWrapper({
   onChange: (value: string) => void
   uiComponent: any
   disabled: boolean
-  isConnecting: boolean
 }) {
   return (
     <GenericSyncWrapper blockId={blockId} paramId={paramId} value={value} onChange={onChange}>
       <Code
         blockId={blockId}
         subBlockId={paramId}
-        isConnecting={isConnecting}
         language={uiComponent.language}
         generationType={uiComponent.generationType}
         disabled={disabled}
@@ -344,7 +339,6 @@ function ComboboxSyncWrapper({
   onChange,
   uiComponent,
   disabled,
-  isConnecting,
 }: {
   blockId: string
   paramId: string
@@ -352,7 +346,6 @@ function ComboboxSyncWrapper({
   onChange: (value: string) => void
   uiComponent: any
   disabled: boolean
-  isConnecting: boolean
 }) {
   return (
     <GenericSyncWrapper blockId={blockId} paramId={paramId} value={value} onChange={onChange}>
@@ -361,7 +354,6 @@ function ComboboxSyncWrapper({
         subBlockId={paramId}
         options={uiComponent.options || []}
         placeholder={uiComponent.placeholder}
-        isConnecting={isConnecting}
         config={{
           id: paramId,
           type: 'combobox' as const,
@@ -458,7 +450,6 @@ function ChannelSelectorSyncWrapper({
 export function ToolInput({
   blockId,
   subBlockId,
-  isConnecting,
   isPreview = false,
   previewValue,
   disabled = false,
@@ -1076,7 +1067,6 @@ export function ToolInput({
           subBlockId={uniqueSubBlockId}
           placeholder={param.description}
           password={isPasswordParameter(param.id)}
-          isConnecting={isConnecting}
           config={{
             id: uniqueSubBlockId,
             type: 'short-input',
@@ -1093,7 +1083,7 @@ export function ToolInput({
       case 'dropdown':
         return (
           <Select value={value} onValueChange={onChange}>
-            <SelectTrigger className='w-full rounded-[4px] border border-[#3D3D3D] bg-[#282828] px-[8px] py-[7px] text-left font-medium font-sans text-sm dark:bg-[#353535]'>
+            <SelectTrigger className='w-full rounded-[4px] border border-[#3D3D3D] bg-[#282828] px-[8px] py-[7px] text-left font-medium font-sans text-sm dark:bg-[#363636]'>
               <SelectValue
                 placeholder={uiComponent.placeholder || 'Select option'}
                 className='truncate'
@@ -1125,7 +1115,6 @@ export function ToolInput({
             blockId={blockId}
             subBlockId={uniqueSubBlockId}
             placeholder={uiComponent.placeholder || param.description}
-            isConnecting={isConnecting}
             config={{
               id: uniqueSubBlockId,
               type: 'long-input',
@@ -1143,7 +1132,6 @@ export function ToolInput({
             subBlockId={uniqueSubBlockId}
             placeholder={uiComponent.placeholder || param.description}
             password={uiComponent.password || isPasswordParameter(param.id)}
-            isConnecting={isConnecting}
             config={{
               id: uniqueSubBlockId,
               type: 'short-input',
@@ -1232,7 +1220,6 @@ export function ToolInput({
             onChange={onChange}
             uiComponent={uiComponent}
             disabled={disabled}
-            isConnecting={isConnecting}
           />
         )
 
@@ -1257,7 +1244,6 @@ export function ToolInput({
             onChange={onChange}
             uiComponent={uiComponent}
             disabled={disabled}
-            isConnecting={isConnecting}
           />
         )
 
@@ -1304,7 +1290,6 @@ export function ToolInput({
             subBlockId={uniqueSubBlockId}
             placeholder={uiComponent.placeholder || param.description}
             password={uiComponent.password || isPasswordParameter(param.id)}
-            isConnecting={isConnecting}
             config={{
               id: uniqueSubBlockId,
               type: 'short-input',
@@ -1322,7 +1307,7 @@ export function ToolInput({
       {selectedTools.length === 0 ? (
         <Popover open={open} onOpenChange={setOpen}>
           <PopoverTrigger asChild>
-            <div className='flex w-full cursor-pointer items-center justify-center rounded-[4px] border border-[#3D3D3D] bg-[#282828] px-[8px] py-[7px] font-medium font-sans text-sm transition-colors hover:bg-accent hover:text-accent-foreground dark:bg-[#353535]'>
+            <div className='flex w-full cursor-pointer items-center justify-center rounded-[4px] border border-[#3D3D3D] bg-[#282828] px-[8px] py-[7px] font-medium font-sans text-sm transition-colors hover:bg-accent hover:text-accent-foreground dark:bg-[#363636]'>
               <div className='flex items-center text-muted-foreground/50 text-sm'>
                 <PlusIcon className='mr-2 h-4 w-4' />
                 Add Tool
@@ -1330,12 +1315,12 @@ export function ToolInput({
             </div>
           </PopoverTrigger>
           <PopoverContent
-            className='h-[300px] w-full border-[#3D3D3D] bg-[#282828] p-0 dark:bg-[#353535]'
+            className='h-[300px] w-full border-[#3D3D3D] bg-[#282828] p-0 dark:bg-[#363636]'
             align='start'
             sideOffset={6}
             avoidCollisions={false}
           >
-            <ToolCommand.Root filter={customFilter} className='bg-[#282828] dark:bg-[#353535]'>
+            <ToolCommand.Root filter={customFilter} className='bg-[#282828] dark:bg-[#363636]'>
               <ToolCommand.Input placeholder='Search tools...' onValueChange={setSearchQuery} />
               <ToolCommand.List>
                 <ToolCommand.Empty>No tools found</ToolCommand.Empty>
@@ -1463,7 +1448,7 @@ export function ToolInput({
           </PopoverContent>
         </Popover>
       ) : (
-        <div className='flex min-h-[2.5rem] w-full flex-wrap gap-2 rounded-[4px] border border-[#3D3D3D] bg-[#282828] px-[8px] py-[7px] font-medium font-sans text-sm dark:bg-[#353535]'>
+        <div className='flex min-h-[2.5rem] w-full flex-wrap gap-2 rounded-[4px] border border-[#3D3D3D] bg-[#282828] px-[8px] py-[7px] font-medium font-sans text-sm dark:bg-[#363636]'>
           {selectedTools.map((tool, toolIndex) => {
             // Handle custom tools and MCP tools differently
             const isCustomTool = tool.type === 'custom-tool'
@@ -1694,7 +1679,7 @@ export function ToolInput({
                                 value={tool.operation || operationOptions[0].id}
                                 onValueChange={(value) => handleOperationChange(toolIndex, value)}
                               >
-                                <SelectTrigger className='w-full min-w-0 rounded-[4px] border border-[#3D3D3D] bg-[#282828] px-[8px] py-[7px] text-left font-medium font-sans text-sm dark:bg-[#353535]'>
+                                <SelectTrigger className='w-full min-w-0 rounded-[4px] border border-[#3D3D3D] bg-[#282828] px-[8px] py-[7px] text-left font-medium font-sans text-sm dark:bg-[#363636]'>
                                   <SelectValue
                                     placeholder='Select operation'
                                     className='truncate'
@@ -1837,7 +1822,6 @@ export function ToolInput({
                                     subBlockId={`${subBlockId}-tool-${toolIndex}-${param.id}`}
                                     placeholder={param.description}
                                     password={isPasswordParameter(param.id)}
-                                    isConnecting={isConnecting}
                                     config={{
                                       id: `${subBlockId}-tool-${toolIndex}-${param.id}`,
                                       type: 'short-input',
@@ -1889,12 +1873,12 @@ export function ToolInput({
               </Button>
             </PopoverTrigger>
             <PopoverContent
-              className='h-[300px] w-full border-[#3D3D3D] bg-[#282828] p-0 dark:bg-[#353535]'
+              className='h-[300px] w-full border-[#3D3D3D] bg-[#282828] p-0 dark:bg-[#363636]'
               align='start'
               sideOffset={6}
               avoidCollisions={false}
             >
-              <ToolCommand.Root filter={customFilter} className='bg-[#282828] dark:bg-[#353535]'>
+              <ToolCommand.Root filter={customFilter} className='bg-[#282828] dark:bg-[#363636]'>
                 <ToolCommand.Input placeholder='Search tools...' onValueChange={setSearchQuery} />
                 <ToolCommand.List>
                   <ToolCommand.Empty>No tools found.</ToolCommand.Empty>

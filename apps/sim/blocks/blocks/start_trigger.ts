@@ -14,15 +14,14 @@ export const StartTriggerBlock: BlockConfig = {
   - Test manual runs by pre-filling default values inside the input format fields.
   `,
   category: 'triggers',
-  bgColor: '#2563EB',
+  bgColor: '#34B5FF',
   icon: StartIcon,
   hideFromToolbar: false,
   subBlocks: [
     {
       id: 'inputFormat',
-      title: 'Input Format',
+      title: 'Inputs',
       type: 'input-format',
-      layout: 'full',
       description: 'Add custom fields beyond the built-in input, conversationId, and files fields.',
     },
   ],

@@ -2,13 +2,16 @@
 
 import type { MouseEvent as ReactMouseEvent } from 'react'
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react'
-import { History, Pencil, Plus, Trash2 } from 'lucide-react'
-import { Button } from '@/components/emcn'
+import { History, Plus, Trash2 } from 'lucide-react'
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
+  Button,
+  Popover,
+  PopoverContent,
+  PopoverItem,
+  PopoverScrollArea,
+  PopoverSection,
+  PopoverTrigger,
+} from '@/components/emcn'
 import { createLogger } from '@/lib/logs/console/logger'
 import {
   CopilotMessage,
@@ -18,7 +21,6 @@ import {
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/copilot/components'
 import type { MessageFileAttachment } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/copilot/components/user-input/hooks/use-file-attachments'
 import type { UserInputRef } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/copilot/components/user-input/user-input'
-import { usePreviewStore } from '@/stores/panel-new/copilot/preview-store'
 import { useCopilotStore } from '@/stores/panel-new/copilot/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import {
@@ -60,11 +62,8 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
   const [isEditingMessage, setIsEditingMessage] = useState(false)
   const [revertingMessageId, setRevertingMessageId] = useState<string | null>(null)
   const [isHistoryDropdownOpen, setIsHistoryDropdownOpen] = useState(false)
-  const [editingChatId, setEditingChatId] = useState<string | null>(null)
-  const [editingChatTitle, setEditingChatTitle] = useState<string>('')
 
   const { activeWorkflowId } = useWorkflowRegistry()
-  const { isToolCallSeen, markToolCallAsSeen } = usePreviewStore()
 
   const {
     messages,
@@ -84,10 +83,6 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
     chatsLoadedForWorkflow,
     setWorkflowId: setCopilotWorkflowId,
     loadChats,
-    enabledModels,
-    setEnabledModels,
-    selectedModel,
-    setSelectedModel,
     messageCheckpoints,
     currentChat,
     fetchContextUsage,
@@ -98,17 +93,13 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
     setPlanTodos,
   } = useCopilotStore()
 
-  // Initialize copilot and load models
+  // Initialize copilot
   const { isInitialized } = useCopilotInitialization({
     activeWorkflowId,
     isLoadingChats,
     chatsLoadedForWorkflow,
     setCopilotWorkflowId,
     loadChats,
-    setEnabledModels,
-    enabledModels,
-    selectedModel,
-    setSelectedModel,
     fetchContextUsage,
     currentChat,
     isSendingMessage,
@@ -323,18 +314,18 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
    * Skeleton loading component for chat history
    */
   const ChatHistorySkeleton = () => (
-    <div className='px-1 py-1'>
-      <div className='border-[#E5E5E5] border-t-0 px-1 pt-1 pb-0.5 dark:border-[#414141]'>
+    <>
+      <PopoverSection>
         <div className='h-3 w-12 animate-pulse rounded bg-muted/40' />
-      </div>
-      <div className='mt-1 flex flex-col gap-1'>
+      </PopoverSection>
+      <div className='flex flex-col gap-0.5'>
         {[1, 2, 3].map((i) => (
-          <div key={i} className='mx-1 flex h-8 items-center rounded-lg px-2 py-1.5'>
+          <div key={i} className='flex h-[25px] items-center px-[6px]'>
             <div className='h-3 w-full animate-pulse rounded bg-muted/40' />
           </div>
         ))}
       </div>
-    </div>
+    </>
   )
 
   return (
@@ -353,137 +344,66 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
             <Button variant='ghost' className='p-0' onClick={handleStartNewChat}>
               <Plus className='h-[14px] w-[14px]' />
             </Button>
-            <DropdownMenu open={isHistoryDropdownOpen} onOpenChange={handleHistoryDropdownOpen}>
-              <DropdownMenuTrigger asChild>
+            <Popover open={isHistoryDropdownOpen} onOpenChange={handleHistoryDropdownOpen}>
+              <PopoverTrigger asChild>
                 <Button variant='ghost' className='p-0'>
                   <History className='h-[14px] w-[14px]' />
                 </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent
-                align='end'
-                className='z-[200] w-96 rounded-lg border bg-background p-2 shadow-lg dark:border-[#414141] dark:bg-[var(--surface-elevated)]'
-                sideOffset={8}
-                side='bottom'
-                avoidCollisions={true}
-                collisionPadding={8}
-              >
+              </PopoverTrigger>
+              <PopoverContent align='end' side='bottom' sideOffset={8} maxHeight={280}>
                 {isLoadingChats ? (
-                  <div className='max-h-[280px] overflow-y-auto'>
+                  <PopoverScrollArea>
                     <ChatHistorySkeleton />
-                  </div>
+                  </PopoverScrollArea>
                 ) : groupedChats.length === 0 ? (
-                  <div className='px-2 py-6 text-center text-muted-foreground text-sm'>
+                  <div className='px-[6px] py-[16px] text-center text-[#FFFFFF] text-[12px] dark:text-[#FFFFFF]'>
                     No chats yet
                   </div>
                 ) : (
-                  <div className='max-h-[280px] overflow-y-auto'>
+                  <PopoverScrollArea>
                     {groupedChats.map(([groupName, chatsInGroup], groupIndex) => (
                       <div key={groupName}>
-                        <div
-                          className={`px-2 pt-2 pb-1 font-medium text-muted-foreground text-xs uppercase tracking-wide ${groupIndex === 0 ? 'pt-0' : ''}`}
-                        >
+                        <PopoverSection className={groupIndex === 0 ? 'pt-0' : ''}>
                           {groupName}
-                        </div>
+                        </PopoverSection>
                         <div className='flex flex-col gap-0.5'>
                           {chatsInGroup.map((chat) => (
-                            <div
-                              key={chat.id}
-                              className={`group relative flex items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors ${
-                                currentChat?.id === chat.id
-                                  ? 'bg-accent text-accent-foreground'
-                                  : 'text-foreground hover:bg-accent/50'
-                              }`}
-                            >
-                              {editingChatId === chat.id ? (
-                                <input
-                                  type='text'
-                                  value={editingChatTitle}
-                                  onChange={(e) => setEditingChatTitle(e.target.value)}
-                                  onKeyDown={async (e) => {
-                                    if (e.key === 'Enter') {
-                                      e.preventDefault()
-                                      const newTitle = editingChatTitle.trim() || 'New Chat'
-
-                                      const updatedChats = chats.map((c) =>
-                                        c.id === chat.id ? { ...c, title: newTitle } : c
-                                      )
-                                      useCopilotStore.setState({ chats: updatedChats })
-                                      setEditingChatId(null)
-
-                                      try {
-                                        await fetch('/api/copilot/chat/update-title', {
-                                          method: 'POST',
-                                          headers: { 'Content-Type': 'application/json' },
-                                          body: JSON.stringify({
-                                            chatId: chat.id,
-                                            title: newTitle,
-                                          }),
-                                        })
-                                      } catch (error) {
-                                        logger.error('Failed to update chat title:', error)
-                                        await loadChats(true)
-                                      }
-                                    } else if (e.key === 'Escape') {
-                                      setEditingChatId(null)
-                                    }
-                                  }}
-                                  onBlur={() => setEditingChatId(null)}
-                                  className='min-w-0 flex-1 rounded border-none bg-transparent px-0 text-sm outline-none focus:outline-none'
-                                />
-                              ) : (
-                                <>
-                                  <span
-                                    onClick={() => {
-                                      if (currentChat?.id !== chat.id) {
-                                        selectChat(chat)
-                                      }
-                                      setIsHistoryDropdownOpen(false)
+                            <div key={chat.id} className='group'>
+                              <PopoverItem
+                                active={currentChat?.id === chat.id}
+                                onClick={() => {
+                                  if (currentChat?.id !== chat.id) {
+                                    selectChat(chat)
+                                  }
+                                  setIsHistoryDropdownOpen(false)
+                                }}
+                              >
+                                <span className='min-w-0 flex-1 truncate'>
+                                  {chat.title || 'New Chat'}
+                                </span>
+                                <div className='flex flex-shrink-0 items-center gap-[4px] opacity-0 transition-opacity group-hover:opacity-100'>
+                                  <Button
+                                    variant='ghost'
+                                    className='h-[16px] w-[16px] p-0'
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      handleDeleteChat(chat.id)
                                     }}
-                                    className='min-w-0 cursor-pointer truncate text-sm'
-                                    style={{ maxWidth: 'calc(100% - 60px)' }}
+                                    aria-label='Delete chat'
                                   >
-                                    {chat.title || 'New Chat'}
-                                  </span>
-                                  <div className='ml-auto flex flex-shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100'>
-                                    <button
-                                      onClick={(e) => {
-                                        e.stopPropagation()
-                                        setEditingChatId(chat.id)
-                                        setEditingChatTitle(chat.title || 'New Chat')
-                                      }}
-                                      className='flex h-5 w-5 items-center justify-center rounded hover:bg-muted'
-                                      aria-label='Edit chat title'
-                                    >
-                                      <Pencil className='h-3 w-3' />
-                                    </button>
-                                    <button
-                                      onClick={(e) => {
-                                        e.stopPropagation()
-                                        if (
-                                          window.confirm(
-                                            'Are you sure you want to delete this chat?'
-                                          )
-                                        ) {
-                                          handleDeleteChat(chat.id)
-                                        }
-                                      }}
-                                      className='flex h-5 w-5 items-center justify-center rounded hover:bg-muted'
-                                      aria-label='Delete chat'
-                                    >
-                                      <Trash2 className='h-3 w-3' />
-                                    </button>
-                                  </div>
-                                </>
-                              )}
+                                    <Trash2 className='h-[10px] w-[10px]' />
+                                  </Button>
+                                </div>
+                              </PopoverItem>
                             </div>
                           ))}
                         </div>
                       </div>
                     ))}
-                  </div>
+                  </PopoverScrollArea>
                 )}
-              </DropdownMenuContent>
-            </DropdownMenu>
+              </PopoverContent>
+            </Popover>
           </div>
         </div>
 
@@ -516,7 +436,7 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
                   />
                 </div>
                 <div className='flex-shrink-0 pt-[8px]'>
-                  <Welcome onQuestionClick={handleSubmit} mode={mode === 'ask' ? 'ask' : 'agent'} />
+                  <Welcome onQuestionClick={handleSubmit} mode={mode === 'ask' ? 'ask' : 'build'} />
                 </div>
               </div>
             ) : (
@@ -527,7 +447,11 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
                     ref={scrollAreaRef}
                     className='copilot-scrollable h-full overflow-y-auto overflow-x-hidden px-[8px]'
                   >
-                    <div className='w-full max-w-full space-y-4 overflow-hidden py-[8px] pb-10'>
+                    <div
+                      className={`w-full max-w-full space-y-4 overflow-hidden py-[8px] ${
+                        showPlanTodos && planTodos.length > 0 ? 'pb-14' : 'pb-10'
+                      }`}
+                    >
                       {messages.map((message, index) => {
                         // Determine if this message should be dimmed
                         let isDimmed = false
@@ -571,16 +495,22 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
                     </div>
                   </div>
 
-                  {/* Todo list from plan tool */}
-                  {showPlanTodos && (
-                    <TodoList
-                      todos={planTodos}
-                      collapsed={todosCollapsed}
-                      onClose={() => {
-                        const store = useCopilotStore.getState()
-                        store.setPlanTodos([])
-                      }}
-                    />
+                  {/* Todo list from plan tool - overlay at bottom so it's not clipped by scroll area */}
+                  {showPlanTodos && planTodos.length > 0 && (
+                    <div
+                      className='-translate-x-1/2 absolute bottom-0 left-1/2 z-[2] w-full max-w-full px-[8px]'
+                      style={{ maxWidth: `${panelWidth - 18}px` } as React.CSSProperties}
+                    >
+                      <TodoList
+                        todos={planTodos}
+                        collapsed={todosCollapsed}
+                        onClose={() => {
+                          const store = useCopilotStore.getState()
+                          store.closePlanTodos?.()
+                          useCopilotStore.setState({ planTodos: [] })
+                        }}
+                      />
+                    </div>
                   )}
                 </div>
 

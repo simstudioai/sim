@@ -14,9 +14,10 @@ import { cva, type VariantProps } from 'class-variance-authority'
 import { Check, ChevronDown, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Input } from '../input/input'
+import { Popover, PopoverAnchor, PopoverContent, PopoverScrollArea } from '../popover/popover'
 
 const comboboxVariants = cva(
-  'flex w-full rounded-[4px] border border-[#3D3D3D] bg-[#282828] dark:bg-[#353535] px-[8px] py-[7px] font-sans font-medium text-sm text-[#E6E6E6] placeholder:text-[#787878] dark:placeholder:text-[#787878] outline-none focus:outline-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 disabled:cursor-not-allowed disabled:opacity-50 hover:border-[#4A4A4A] hover:bg-[#353535] dark:hover:border-[#454545] dark:hover:bg-[#3D3D3D]',
+  'flex w-full rounded-[4px] border border-[#3D3D3D] bg-[#282828] dark:bg-[#363636] px-[8px] py-[7px] font-sans font-medium text-sm text-[#E6E6E6] placeholder:text-[#787878] dark:placeholder:text-[#787878] outline-none focus:outline-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 disabled:cursor-not-allowed disabled:opacity-50 hover:border-[#4A4A4A] hover:bg-[#363636] dark:hover:border-[#454545] dark:hover:bg-[#3D3D3D]',
   {
     variants: {
       variant: {
@@ -316,104 +317,108 @@ const Combobox = forwardRef<HTMLDivElement, ComboboxProps>(
       })
     }, [filteredOptions])
 
-    /**
-     * Handle clicks outside to close dropdown
-     */
-    useEffect(() => {
-      const handleClickOutside = (event: MouseEvent) => {
-        const target = event.target as Element
-        if (containerRef.current && !containerRef.current.contains(target)) {
-          setOpen(false)
-          setHighlightedIndex(-1)
-        }
-      }
-
-      if (open) {
-        document.addEventListener('mousedown', handleClickOutside)
-        return () => {
-          document.removeEventListener('mousedown', handleClickOutside)
-        }
-      }
-    }, [open])
-
     const SelectedIcon = selectedOption?.icon
 
     return (
-      <div ref={containerRef} className='relative w-full' {...props}>
-        {editable ? (
-          <div className='group relative'>
-            <Input
-              ref={inputRef}
-              className={cn(
-                'w-full pr-[40px] font-medium transition-colors hover:border-[#4A4A4A] hover:bg-[#353535] dark:hover:border-[#454545] dark:hover:bg-[#3D3D3D]',
-                (overlayContent || SelectedIcon) && 'text-transparent caret-foreground',
-                SelectedIcon && !overlayContent && 'pl-[28px]',
-                className
-              )}
-              placeholder={placeholder}
-              value={value ?? ''}
-              onChange={handleInputChange}
-              onFocus={handleFocus}
-              onBlur={handleBlur}
-              onKeyDown={handleKeyDown}
-              disabled={disabled}
-              {...inputProps}
-            />
-            {(overlayContent || SelectedIcon) && (
-              <div className='pointer-events-none absolute top-0 right-[42px] bottom-0 left-0 flex items-center bg-transparent px-[8px] py-[7px] font-medium font-sans text-sm'>
-                {overlayContent ? (
-                  overlayContent
-                ) : (
-                  <>
-                    {SelectedIcon && (
-                      <SelectedIcon className='mr-[8px] h-3 w-3 flex-shrink-0 opacity-60' />
+      <Popover open={open} onOpenChange={setOpen}>
+        <div ref={containerRef} className='relative w-full' {...props}>
+          <PopoverAnchor asChild>
+            <div className='w-full'>
+              {editable ? (
+                <div className='group relative'>
+                  <Input
+                    ref={inputRef}
+                    className={cn(
+                      'w-full pr-[40px] font-medium transition-colors hover:border-[#4A4A4A] hover:bg-[#363636] dark:hover:border-[#454545] dark:hover:bg-[#3D3D3D]',
+                      (overlayContent || SelectedIcon) && 'text-transparent caret-foreground',
+                      SelectedIcon && !overlayContent && 'pl-[28px]',
+                      className
                     )}
-                    <span className='truncate text-[#E6E6E6]'>{selectedOption?.label}</span>
-                  </>
-                )}
-              </div>
-            )}
-            <div
-              className='-translate-y-1/2 absolute top-1/2 right-[4px] z-10 flex h-6 w-6 cursor-pointer items-center justify-center'
-              onMouseDown={handleChevronClick}
-            >
-              <ChevronDown
-                className={cn('h-4 w-4 opacity-50 transition-transform', open && 'rotate-180')}
-              />
-            </div>
-          </div>
-        ) : (
-          <div
-            ref={ref}
-            role='combobox'
-            aria-expanded={open}
-            aria-haspopup='listbox'
-            aria-disabled={disabled}
-            tabIndex={disabled ? -1 : 0}
-            className={cn(
-              comboboxVariants({ variant }),
-              'relative cursor-pointer items-center justify-between',
-              className
-            )}
-            onClick={handleToggle}
-            onKeyDown={handleKeyDown}
-          >
-            <span className={cn('flex-1 truncate', !selectedOption && 'text-[#787878]')}>
-              {selectedOption ? selectedOption.label : placeholder}
-            </span>
-            <ChevronDown
-              className={cn(
-                'ml-[8px] h-4 w-4 flex-shrink-0 opacity-50 transition-transform',
-                open && 'rotate-180'
+                    placeholder={placeholder}
+                    value={value ?? ''}
+                    onChange={handleInputChange}
+                    onFocus={handleFocus}
+                    onBlur={handleBlur}
+                    onKeyDown={handleKeyDown}
+                    disabled={disabled}
+                    {...inputProps}
+                  />
+                  {(overlayContent || SelectedIcon) && (
+                    <div className='pointer-events-none absolute top-0 right-[42px] bottom-0 left-0 flex items-center bg-transparent px-[8px] py-[7px] font-medium font-sans text-sm'>
+                      {overlayContent ? (
+                        overlayContent
+                      ) : (
+                        <>
+                          {SelectedIcon && (
+                            <SelectedIcon className='mr-[8px] h-3 w-3 flex-shrink-0 opacity-60' />
+                          )}
+                          <span className='truncate text-[#E6E6E6]'>{selectedOption?.label}</span>
+                        </>
+                      )}
+                    </div>
+                  )}
+                  <div
+                    className='-translate-y-1/2 absolute top-1/2 right-[4px] z-10 flex h-6 w-6 cursor-pointer items-center justify-center'
+                    onMouseDown={handleChevronClick}
+                  >
+                    <ChevronDown
+                      className={cn(
+                        'h-4 w-4 opacity-50 transition-transform',
+                        open && 'rotate-180'
+                      )}
+                    />
+                  </div>
+                </div>
+              ) : (
+                <div
+                  ref={ref}
+                  role='combobox'
+                  aria-expanded={open}
+                  aria-haspopup='listbox'
+                  aria-disabled={disabled}
+                  tabIndex={disabled ? -1 : 0}
+                  className={cn(
+                    comboboxVariants({ variant }),
+                    'relative cursor-pointer items-center justify-between',
+                    className
+                  )}
+                  onClick={handleToggle}
+                  onKeyDown={handleKeyDown}
+                >
+                  <span className={cn('flex-1 truncate', !selectedOption && 'text-[#787878]')}>
+                    {selectedOption ? selectedOption.label : placeholder}
+                  </span>
+                  <ChevronDown
+                    className={cn(
+                      'ml-[8px] h-4 w-4 flex-shrink-0 opacity-50 transition-transform',
+                      open && 'rotate-180'
+                    )}
+                  />
+                </div>
               )}
-            />
-          </div>
-        )}
+            </div>
+          </PopoverAnchor>
 
-        {open && (
-          <div className='absolute top-full left-0 z-[100] mt-[4px] w-full'>
-            <div className='fade-in-0 zoom-in-95 animate-in rounded-[4px] border border-[#3D3D3D] bg-[#282828] shadow-lg dark:bg-[#353535]'>
-              <div ref={dropdownRef} role='listbox' className='max-h-48 overflow-y-auto p-[4px]'>
+          <PopoverContent
+            side='bottom'
+            align='start'
+            sideOffset={4}
+            className='w-[var(--radix-popover-trigger-width)] rounded-[4px] p-0'
+            onOpenAutoFocus={(e) => {
+              e.preventDefault()
+            }}
+            onInteractOutside={(e) => {
+              // If the user clicks the anchor/trigger while the popover is open,
+              // prevent Radix from auto-closing on mousedown. Our own toggle handler
+              // on the anchor will close it explicitly, avoiding close→reopen races.
+              const target = e.target as Node
+              if (containerRef.current?.contains(target)) {
+                e.preventDefault()
+              }
+            }}
+          >
+            <PopoverScrollArea className='max-h-48 p-[4px]'>
+              <div ref={dropdownRef} role='listbox'>
                 {isLoading ? (
                   <div className='flex items-center justify-center py-[14px]'>
                     <Loader2 className='h-[16px] w-[16px] animate-spin text-[#787878]' />
@@ -427,7 +432,7 @@ const Combobox = forwardRef<HTMLDivElement, ComboboxProps>(
                   </div>
                 ) : filteredOptions.length === 0 ? (
                   <div className='py-[14px] text-center font-medium font-sans text-[#787878] text-sm'>
-                    {editable && value ? 'No matching options found.' : 'No options available.'}
+                    {editable && value ? 'No matching options found' : 'No options available'}
                   </div>
                 ) : (
                   filteredOptions.map((option, index) => {
@@ -453,7 +458,7 @@ const Combobox = forwardRef<HTMLDivElement, ComboboxProps>(
                         }}
                         onMouseEnter={() => setHighlightedIndex(index)}
                         className={cn(
-                          'relative flex cursor-pointer select-none items-center rounded-[4px] px-[8px] py-[7px] font-medium font-sans text-sm outline-none transition-colors',
+                          'relative flex cursor-pointer select-none items-center rounded-[4px] px-[8px] py-[6px] font-medium font-sans text-sm',
                           isHighlighted && 'bg-[#3D3D3D]',
                           !isHighlighted && 'hover:bg-[#3D3D3D]'
                         )}
@@ -466,10 +471,10 @@ const Combobox = forwardRef<HTMLDivElement, ComboboxProps>(
                   })
                 )}
               </div>
-            </div>
-          </div>
-        )}
-      </div>
+            </PopoverScrollArea>
+          </PopoverContent>
+        </div>
+      </Popover>
     )
   }
 )
