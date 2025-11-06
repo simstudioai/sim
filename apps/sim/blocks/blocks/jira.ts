@@ -80,7 +80,6 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
         'read:user:jira',
         'read:field-configuration:jira',
         'read:issue-details:jira',
-        // New scopes for expanded Jira operations
         'delete:issue:jira',
         'write:comment:jira',
         'read:comment:jira',

@@ -913,7 +913,6 @@ export const auth = betterAuth({
             'read:field-configuration:jira',
             'read:issue-details:jira',
             'read:issue-event:jira',
-            // New scopes for expanded Jira operations
             'delete:issue:jira',
             'write:comment:jira',
             'read:comment:jira',

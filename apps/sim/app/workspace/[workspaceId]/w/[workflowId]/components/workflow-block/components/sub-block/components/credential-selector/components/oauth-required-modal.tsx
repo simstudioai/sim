@@ -94,7 +94,6 @@ const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'read:user:jira': 'Read your Jira user',
   'read:field-configuration:jira': 'Read your Jira field configuration',
   'read:issue-details:jira': 'Read your Jira issue details',
-  // New scopes for expanded Jira operations
   'delete:issue:jira': 'Delete Jira issues',
   'write:comment:jira': 'Add and update comments on Jira issues',
   'read:comment:jira': 'Read comments on Jira issues',
