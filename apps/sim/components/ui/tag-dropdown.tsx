@@ -507,11 +507,21 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
         } else if (sourceBlock.type === 'pause_resume') {
           // For pause_resume block, use dynamic outputs based on inputFormat
           const dynamicOutputs = getBlockOutputPaths(sourceBlock.type, mergedSubBlocks)
+          
+          // If it's a self-reference, only show apiUrl and uiUrl (available immediately)
+          const isSelfReference = activeSourceBlockId === blockId
+          
           if (dynamicOutputs.length > 0) {
-            blockTags = dynamicOutputs.map((path) => `${normalizedBlockName}.${path}`)
+            const allTags = dynamicOutputs.map((path) => `${normalizedBlockName}.${path}`)
+            blockTags = isSelfReference 
+              ? allTags.filter(tag => tag.endsWith('.apiUrl') || tag.endsWith('.uiUrl'))
+              : allTags
           } else {
             const outputPaths = generateOutputPaths(blockConfig.outputs || {})
-            blockTags = outputPaths.map((path) => `${normalizedBlockName}.${path}`)
+            const allTags = outputPaths.map((path) => `${normalizedBlockName}.${path}`)
+            blockTags = isSelfReference
+              ? allTags.filter(tag => tag.endsWith('.apiUrl') || tag.endsWith('.uiUrl'))
+              : allTags
           }
         } else {
           // Check for tool-specific outputs first
@@ -706,7 +716,8 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
       if (!accessibleBlock) continue
 
       // Skip the current block - blocks cannot reference their own outputs
-      if (accessibleBlockId === blockId) continue
+      // Exception: pause_resume blocks can reference their own outputs
+      if (accessibleBlockId === blockId && accessibleBlock.type !== 'pause_resume') continue
 
       const blockConfig = getBlock(accessibleBlock.type)
 
@@ -828,11 +839,21 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
         } else if (accessibleBlock.type === 'pause_resume') {
           // For pause_resume block, use dynamic outputs based on inputFormat
           const dynamicOutputs = getBlockOutputPaths(accessibleBlock.type, mergedSubBlocks)
+          
+          // If it's a self-reference, only show apiUrl and uiUrl (available immediately)
+          const isSelfReference = accessibleBlockId === blockId
+          
           if (dynamicOutputs.length > 0) {
-            blockTags = dynamicOutputs.map((path) => `${normalizedBlockName}.${path}`)
+            const allTags = dynamicOutputs.map((path) => `${normalizedBlockName}.${path}`)
+            blockTags = isSelfReference 
+              ? allTags.filter(tag => tag.endsWith('.apiUrl') || tag.endsWith('.uiUrl'))
+              : allTags
           } else {
             const outputPaths = generateOutputPaths(blockConfig.outputs || {})
-            blockTags = outputPaths.map((path) => `${normalizedBlockName}.${path}`)
+            const allTags = outputPaths.map((path) => `${normalizedBlockName}.${path}`)
+            blockTags = isSelfReference
+              ? allTags.filter(tag => tag.endsWith('.apiUrl') || tag.endsWith('.uiUrl'))
+              : allTags
           }
         } else {
           // Check for tool-specific outputs first

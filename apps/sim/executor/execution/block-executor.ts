@@ -1,8 +1,13 @@
 import { createLogger } from '@/lib/logs/console/logger'
 import { DEFAULTS, EDGE, isSentinelBlockType } from '@/executor/consts'
+import {
+  generatePauseContextId,
+  mapNodeMetadataToPauseScopes,
+} from '@/executor/pause-resume/utils.ts'
 import type {
   BlockHandler,
   BlockLog,
+  BlockState,
   ExecutionContext,
   NormalizedBlockOutput,
 } from '@/executor/types'
@@ -12,6 +17,7 @@ import type { DAGNode } from '../dag/builder'
 import type { VariableResolver } from '../variables/resolver'
 import type { ExecutionState } from './state'
 import type { ContextExtensions } from './types'
+import { getBaseUrl } from '@/lib/urls/utils'
 
 const logger = createLogger('BlockExecutor')
 
@@ -45,9 +51,20 @@ export class BlockExecutor {
     const startTime = Date.now()
     let resolvedInputs: Record<string, any> = {}
 
+    const nodeMetadata = this.buildNodeMetadata(node)
+    let cleanupSelfReference: (() => void) | undefined
+
+    if (block.metadata?.id === 'pause_resume') {
+      cleanupSelfReference = this.preparePauseResumeSelfReference(ctx, node, block, nodeMetadata)
+    }
+
     try {
       resolvedInputs = this.resolver.resolveInputs(ctx, node.id, block.config.params, block)
-      const nodeMetadata = this.buildNodeMetadata(node)
+    } finally {
+      cleanupSelfReference?.()
+    }
+
+    try {
       const output = handler.executeWithNode
         ? await handler.executeWithNode(ctx, block, resolvedInputs, nodeMetadata)
         : await handler.execute(ctx, block, resolvedInputs)
@@ -324,5 +341,81 @@ export class BlockExecutor {
     }
 
     return undefined
+  }
+
+  private preparePauseResumeSelfReference(
+    ctx: ExecutionContext,
+    node: DAGNode,
+    block: SerializedBlock,
+    nodeMetadata: {
+      nodeId: string
+      loopId?: string
+      parallelId?: string
+      branchIndex?: number
+      branchTotal?: number
+    }
+  ): (() => void) | undefined {
+    const blockId = node.id
+
+    const existingState = ctx.blockStates.get(blockId)
+    if (existingState?.executed) {
+      return undefined
+    }
+
+    const executionId = ctx.executionId || ctx.metadata?.executionId
+    const workflowId = ctx.workflowId
+
+    if (!executionId || !workflowId) {
+      return undefined
+    }
+
+    const { loopScope } = mapNodeMetadataToPauseScopes(ctx, nodeMetadata)
+    const contextId = generatePauseContextId(block.id, nodeMetadata, loopScope)
+
+    let resumeLinks: { apiUrl: string; uiUrl: string }
+
+    try {
+      const baseUrl = getBaseUrl()
+      resumeLinks = {
+        apiUrl: `${baseUrl}/api/resume/${workflowId}/${executionId}/${contextId}`,
+        uiUrl: `${baseUrl}/resume/${workflowId}/${executionId}`,
+      }
+    } catch {
+      resumeLinks = {
+        apiUrl: `/api/resume/${workflowId}/${executionId}/${contextId}`,
+        uiUrl: `/resume/${workflowId}/${executionId}`,
+      }
+    }
+
+    const previousState = existingState ? { ...existingState } : undefined
+    const hadPrevious = existingState !== undefined
+
+    const placeholderState: BlockState = {
+      output: {
+        uiUrl: resumeLinks.uiUrl,
+        apiUrl: resumeLinks.apiUrl,
+      },
+      executed: false,
+      executionTime: existingState?.executionTime ?? 0,
+    }
+
+    ctx.blockStates.set(blockId, placeholderState)
+    if (this.state && this.state.blockStates !== ctx.blockStates) {
+      this.state.blockStates.set(blockId, placeholderState)
+    }
+
+    return () => {
+      if (hadPrevious && previousState) {
+        ctx.blockStates.set(blockId, previousState)
+        if (this.state && this.state.blockStates !== ctx.blockStates) {
+          this.state.blockStates.set(blockId, previousState)
+        }
+      } else {
+        ctx.blockStates.delete(blockId)
+        if (this.state && this.state.blockStates !== ctx.blockStates) {
+          this.state.blockStates.delete(blockId)
+        }
+      }
+    }
   }
 }

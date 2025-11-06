@@ -10,6 +10,8 @@ import {
 } from '@/executor/pause-resume/utils.ts'
 import { getBaseUrl } from '@/lib/urls/utils'
 import { executeTool } from '@/tools'
+import { collectBlockData } from '@/executor/utils/block-data'
+import { normalizeBlockName } from '@/stores/workflows/utils'
 
 const logger = createLogger('PauseResumeBlockHandler')
 
@@ -37,6 +39,14 @@ interface NormalizedInputField {
   value?: any
   required?: boolean
   options?: any[]
+}
+
+interface NotificationToolResult {
+  toolId: string
+  title?: string
+  operation?: string
+  success: boolean
+  durationMs?: number
 }
 
 export class PauseResumeBlockHandler implements BlockHandler {
@@ -136,8 +146,10 @@ export class PauseResumeBlockHandler implements BlockHandler {
       }
 
       // Execute notification tools if in human mode
+      let notificationResults: NotificationToolResult[] | undefined
+
       if (operation === 'human' && inputs.notification && Array.isArray(inputs.notification)) {
-        await this.executeNotificationTools(ctx, inputs.notification, {
+        notificationResults = await this.executeNotificationTools(ctx, block, inputs.notification, {
           resumeLinks,
           executionId,
           workflowId,
@@ -206,6 +218,10 @@ export class PauseResumeBlockHandler implements BlockHandler {
         ...structuredFields, // Spread input format fields at top level
         response: responseOutput,
         _pauseMetadata: pauseMetadata,
+      }
+
+      if (notificationResults && notificationResults.length > 0) {
+        output.notificationResults = notificationResults
       }
 
       // Add uiUrl and apiUrl as top-level outputs for downstream access
@@ -514,6 +530,7 @@ export class PauseResumeBlockHandler implements BlockHandler {
 
   private async executeNotificationTools(
     ctx: ExecutionContext,
+    block: SerializedBlock,
     tools: any[],
     context: {
       resumeLinks?: {
@@ -529,20 +546,72 @@ export class PauseResumeBlockHandler implements BlockHandler {
       responseStructure?: ResponseStructureEntry[]
       operation?: string
     }
-  ): Promise<void> {
+  ): Promise<NotificationToolResult[]> {
     if (!tools || tools.length === 0) {
-      return
+      return []
     }
 
     logger.info('Executing notification tools', { toolCount: tools.length })
 
-    const notificationPromises = tools.map(async (toolConfig) => {
-      try {
-        const toolId = toolConfig.blockType || toolConfig.type
-        if (!toolId) {
-          logger.warn('Notification tool missing type', { toolConfig })
-          return
+    const { blockData: collectedBlockData, blockNameMapping: collectedBlockNameMapping } =
+      collectBlockData(ctx)
+
+    const blockDataWithPause: Record<string, any> = { ...collectedBlockData }
+    const blockNameMappingWithPause: Record<string, string> = { ...collectedBlockNameMapping }
+
+    const pauseBlockId = block.id
+    const pauseBlockName = block.metadata?.name
+
+    const pauseOutput: Record<string, any> = {
+      ...(blockDataWithPause[pauseBlockId] || {}),
+    }
+
+    if (context.resumeLinks) {
+      if (context.resumeLinks.uiUrl) {
+        pauseOutput.uiUrl = context.resumeLinks.uiUrl
+      }
+      if (context.resumeLinks.apiUrl) {
+        pauseOutput.apiUrl = context.resumeLinks.apiUrl
+      }
+    }
+
+    if (Array.isArray(context.inputFormat)) {
+      for (const field of context.inputFormat) {
+        if (field?.name) {
+          const fieldName = field.name.trim()
+          if (fieldName.length > 0 && !(fieldName in pauseOutput)) {
+            pauseOutput[fieldName] = field.value !== undefined ? field.value : null
+          }
         }
+      }
+    }
+
+    blockDataWithPause[pauseBlockId] = pauseOutput
+
+    if (pauseBlockName) {
+      blockNameMappingWithPause[pauseBlockName] = pauseBlockId
+      blockNameMappingWithPause[normalizeBlockName(pauseBlockName)] = pauseBlockId
+    }
+
+    const notificationPromises = tools.map<Promise<NotificationToolResult>>(async (toolConfig) => {
+      const startTime = Date.now()
+      try {
+        const toolId = toolConfig.toolId
+        if (!toolId) {
+          logger.warn('Notification tool missing toolId', { toolConfig })
+          return {
+            toolId: 'unknown',
+            title: toolConfig.title,
+            operation: toolConfig.operation,
+            success: false,
+          }
+        }
+
+        logger.info('Executing notification tool', {
+          toolId,
+          title: toolConfig.title,
+          operation: toolConfig.operation,
+        })
 
         // Merge the pause context into the tool params
         const toolParams = {
@@ -561,26 +630,50 @@ export class PauseResumeBlockHandler implements BlockHandler {
             workflowId: ctx.workflowId,
             workspaceId: ctx.workspaceId,
           },
+          blockData: blockDataWithPause,
+          blockNameMapping: blockNameMappingWithPause,
         }
 
         const result = await executeTool(toolId, toolParams, false, false, ctx)
+        const durationMs = Date.now() - startTime
 
         if (!result.success) {
           logger.warn('Notification tool execution failed', {
             toolId,
             error: result.error,
           })
-        } else {
-          logger.info('Notification tool executed successfully', { toolId })
+          return {
+            toolId,
+            title: toolConfig.title,
+            operation: toolConfig.operation,
+            success: false,
+            durationMs,
+          }
         }
 
-        return result
+        logger.info('Notification tool executed successfully', {
+          toolId,
+          output: result.output,
+        })
+
+        return {
+          toolId,
+          title: toolConfig.title,
+          operation: toolConfig.operation,
+          success: true,
+          durationMs,
+        }
       } catch (error) {
         logger.error('Error executing notification tool', { error, toolConfig })
-        return null
+        return {
+          toolId: toolConfig.toolId || 'unknown',
+          title: toolConfig.title,
+          operation: toolConfig.operation,
+          success: false,
+        }
       }
     })
 
-    await Promise.allSettled(notificationPromises)
+    return Promise.all(notificationPromises)
   }
 }
