@@ -364,8 +364,8 @@ export async function POST(request: NextRequest) {
       try {
         const usedTag = await createTypeformWebhook(request, createTempWebhookData(), requestId)
 
-        if (!finalProviderConfig.webhookTag) {
-          finalProviderConfig.webhookTag = usedTag
+        if (!resolvedProviderConfig.webhookTag) {
+          resolvedProviderConfig.webhookTag = usedTag
           logger.info(`[${requestId}] Stored auto-generated webhook tag: ${usedTag}`)
         }
 
