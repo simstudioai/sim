@@ -603,7 +603,14 @@ export async function queueWebhookExecution(
 
         if (!isGitHubEventMatch(triggerId, eventType || '', action, body)) {
           logger.debug(
-            `[${options.requestId}] GitHub event mismatch for trigger ${triggerId}. Event: ${eventType}, Action: ${action}. Skipping execution.`
+            `[${options.requestId}] GitHub event mismatch for trigger ${triggerId}. Event: ${eventType}, Action: ${action}. Skipping execution.`,
+            {
+              webhookId: foundWebhook.id,
+              workflowId: foundWorkflow.id,
+              triggerId,
+              receivedEvent: eventType,
+              receivedAction: action,
+            }
           )
 
           // Return 200 OK to prevent GitHub from retrying
@@ -611,10 +618,6 @@ export async function queueWebhookExecution(
             message: 'Event type does not match trigger configuration. Ignoring.',
           })
         }
-
-        logger.debug(
-          `[${options.requestId}] GitHub event matched trigger ${triggerId}. Event: ${eventType}, Action: ${action}`
-        )
       }
     }
 

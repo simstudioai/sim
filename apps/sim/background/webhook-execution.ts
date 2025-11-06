@@ -133,16 +133,6 @@ async function executeWebhookJobInternal(
   const loggingSession = new LoggingSession(payload.workflowId, executionId, 'webhook', requestId)
 
   try {
-    await loggingSession.safeStart({
-      userId: payload.userId,
-      workspaceId: '', // Will be resolved below
-      variables: {},
-      triggerData: {
-        isTest: payload.testMode === true,
-        executionTarget: payload.executionTarget || 'deployed',
-      },
-    })
-
     const workflowData =
       payload.executionTarget === 'live'
         ? await loadWorkflowFromNormalizedTables(payload.workflowId)
@@ -478,6 +468,17 @@ async function executeWebhookJobInternal(
     })
 
     try {
+      // Ensure logging session is started (safe to call multiple times)
+      await loggingSession.safeStart({
+        userId: payload.userId,
+        workspaceId: '', // May not be available for early errors
+        variables: {},
+        triggerData: {
+          isTest: payload.testMode === true,
+          executionTarget: payload.executionTarget || 'deployed',
+        },
+      })
+
       const executionResult = (error?.executionResult as ExecutionResult | undefined) || {
         success: false,
         output: {},
