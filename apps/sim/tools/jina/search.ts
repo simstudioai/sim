@@ -220,10 +220,17 @@ export const searchTool: ToolConfig<SearchParams, SearchResponse> = {
 
       // Pagination headers
       if (params.num) {
+<<<<<<< HEAD
         headers['X-Num'] = Number(params.num).toString()
       }
       if (params.page) {
         headers['X-Page'] = Number(params.page).toString()
+=======
+        headers['X-Num'] = params.num.toString()
+      }
+      if (params.page) {
+        headers['X-Page'] = params.page.toString()
+>>>>>>> 942ef43a6 (feat(tools): added 150+ new tools across confluence, discord, exa, firecrawl, jina, jira, linear, linkup, MS suite, parallel, reddit, supabase, & tavily)
       }
 
       return headers

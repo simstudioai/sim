@@ -80,8 +80,13 @@ export const jiraSearchIssuesTool: ToolConfig<JiraSearchIssuesParams, JiraSearch
     body: (params: JiraSearchIssuesParams) => {
       return {
         jql: params.jql,
+<<<<<<< HEAD
         startAt: params.startAt ? Number(params.startAt) : 0,
         maxResults: params.maxResults ? Number(params.maxResults) : 50,
+=======
+        startAt: params.startAt || 0,
+        maxResults: params.maxResults || 50,
+>>>>>>> 942ef43a6 (feat(tools): added 150+ new tools across confluence, discord, exa, firecrawl, jina, jira, linear, linkup, MS suite, parallel, reddit, supabase, & tavily)
         fields: params.fields || ['summary', 'status', 'assignee', 'created', 'updated'],
       }
     },
@@ -100,8 +105,13 @@ export const jiraSearchIssuesTool: ToolConfig<JiraSearchIssuesParams, JiraSearch
         },
         body: JSON.stringify({
           jql: params?.jql,
+<<<<<<< HEAD
           startAt: params?.startAt ? Number(params.startAt) : 0,
           maxResults: params?.maxResults ? Number(params.maxResults) : 50,
+=======
+          startAt: params?.startAt || 0,
+          maxResults: params?.maxResults || 50,
+>>>>>>> 942ef43a6 (feat(tools): added 150+ new tools across confluence, discord, exa, firecrawl, jina, jira, linear, linkup, MS suite, parallel, reddit, supabase, & tavily)
           fields: params?.fields || ['summary', 'status', 'assignee', 'created', 'updated'],
         }),
       })

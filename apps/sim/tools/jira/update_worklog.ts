@@ -84,7 +84,11 @@ export const jiraUpdateWorklogTool: ToolConfig<JiraUpdateWorklogParams, JiraUpda
       },
       body: (params: JiraUpdateWorklogParams) => {
         return {
+<<<<<<< HEAD
           timeSpentSeconds: Number(params.timeSpentSeconds),
+=======
+          timeSpentSeconds: params.timeSpentSeconds,
+>>>>>>> 942ef43a6 (feat(tools): added 150+ new tools across confluence, discord, exa, firecrawl, jina, jira, linear, linkup, MS suite, parallel, reddit, supabase, & tavily)
           comment: params.comment
             ? {
                 type: 'doc',
@@ -120,7 +124,11 @@ export const jiraUpdateWorklogTool: ToolConfig<JiraUpdateWorklogParams, JiraUpda
             Authorization: `Bearer ${params?.accessToken}`,
           },
           body: JSON.stringify({
+<<<<<<< HEAD
             timeSpentSeconds: params?.timeSpentSeconds ? Number(params.timeSpentSeconds) : 0,
+=======
+            timeSpentSeconds: params?.timeSpentSeconds,
+>>>>>>> 942ef43a6 (feat(tools): added 150+ new tools across confluence, discord, exa, firecrawl, jina, jira, linear, linkup, MS suite, parallel, reddit, supabase, & tavily)
             comment: params?.comment
               ? {
                   type: 'doc',

@@ -242,13 +242,21 @@ export const readUrlTool: ToolConfig<ReadUrlParams, ReadUrlResponse> = {
         headers['X-Engine'] = params.engine
       }
       if (params.tokenBudget) {
+<<<<<<< HEAD
         headers['X-Token-Budget'] = Number(params.tokenBudget).toString()
+=======
+        headers['X-Token-Budget'] = params.tokenBudget.toString()
+>>>>>>> 942ef43a6 (feat(tools): added 150+ new tools across confluence, discord, exa, firecrawl, jina, jira, linear, linkup, MS suite, parallel, reddit, supabase, & tavily)
       }
       if (params.noCache === true) {
         headers['X-No-Cache'] = 'true'
       }
       if (params.cacheTolerance) {
+<<<<<<< HEAD
         headers['X-Cache-Tolerance'] = Number(params.cacheTolerance).toString()
+=======
+        headers['X-Cache-Tolerance'] = params.cacheTolerance.toString()
+>>>>>>> 942ef43a6 (feat(tools): added 150+ new tools across confluence, discord, exa, firecrawl, jina, jira, linear, linkup, MS suite, parallel, reddit, supabase, & tavily)
       }
 
       // Advanced options
