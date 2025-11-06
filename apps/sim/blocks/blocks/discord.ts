@@ -200,12 +200,21 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
         field: 'operation',
         value: [
           'discord_create_thread',
-          'discord_create_channel',
-          'discord_update_channel',
-          'discord_create_role',
-          'discord_update_role',
+          'discord_create_channel',          'discord_create_role',
           'discord_create_webhook',
         ],
+      },
+    },
+    // Name (optional for updates)
+    {
+      id: 'name',
+      title: 'Name',
+      type: 'short-input',
+      layout: 'full',
+      placeholder: 'Enter new name (optional)',
+      condition: {
+        field: 'operation',
+        value: ['discord_update_channel', 'discord_update_role'],
       },
     },
     // Role ID
