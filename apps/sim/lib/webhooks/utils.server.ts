@@ -1170,6 +1170,69 @@ export async function formatWebhookInput(
     }
   }
 
+  if (foundWebhook.provider === 'typeform') {
+    const eventId = body?.event_id || ''
+    const eventType = body?.event_type || 'form_response'
+    const formResponse = body?.form_response || {}
+    const formId = formResponse.form_id || ''
+    const token = formResponse.token || ''
+    const submittedAt = formResponse.submitted_at || ''
+    const landedAt = formResponse.landed_at || ''
+    const calculated = formResponse.calculated || {}
+    const variables = formResponse.variables || []
+    const hidden = formResponse.hidden || {}
+    const answers = formResponse.answers || []
+    const definition = formResponse.definition || {}
+    const ending = formResponse.ending || {}
+
+    const providerConfig = (foundWebhook.providerConfig as Record<string, any>) || {}
+    const includeDefinition = providerConfig.includeDefinition === true
+
+    return {
+      event_id: eventId,
+      event_type: eventType,
+      form_id: formId,
+      token,
+      submitted_at: submittedAt,
+      landed_at: landedAt,
+      calculated,
+      variables,
+      hidden,
+      answers,
+      ...(includeDefinition ? { definition } : {}),
+      ending,
+
+      typeform: {
+        event_id: eventId,
+        event_type: eventType,
+        form_id: formId,
+        token,
+        submitted_at: submittedAt,
+        landed_at: landedAt,
+        calculated,
+        variables,
+        hidden,
+        answers,
+        ...(includeDefinition ? { definition } : {}),
+        ending,
+      },
+
+      raw: body,
+
+      webhook: {
+        data: {
+          provider: 'typeform',
+          path: foundWebhook.path,
+          providerConfig: foundWebhook.providerConfig,
+          payload: body,
+          headers: Object.fromEntries(request.headers.entries()),
+          method: request.method,
+        },
+      },
+      workflowId: foundWorkflow.id,
+    }
+  }
+
   // Generic format for other providers
   return {
     webhook: {
@@ -1230,6 +1293,48 @@ export function validateMicrosoftTeamsSignature(
     return result === 0
   } catch (error) {
     logger.error('Error validating Microsoft Teams signature:', error)
+    return false
+  }
+}
+
+/**
+ * Validates a Typeform webhook request signature using HMAC SHA-256
+ * @param secret - Typeform webhook secret (plain text)
+ * @param signature - Typeform-Signature header value (should be in format 'sha256=<signature>')
+ * @param body - Raw request body string
+ * @returns Whether the signature is valid
+ */
+export function validateTypeformSignature(
+  secret: string,
+  signature: string,
+  body: string
+): boolean {
+  try {
+    if (!secret || !signature || !body) {
+      return false
+    }
+
+    if (!signature.startsWith('sha256=')) {
+      return false
+    }
+
+    const providedSignature = signature.substring(7)
+
+    const crypto = require('crypto')
+    const computedHash = crypto.createHmac('sha256', secret).update(body, 'utf8').digest('base64')
+
+    if (computedHash.length !== providedSignature.length) {
+      return false
+    }
+
+    let result = 0
+    for (let i = 0; i < computedHash.length; i++) {
+      result |= computedHash.charCodeAt(i) ^ providedSignature.charCodeAt(i)
+    }
+
+    return result === 0
+  } catch (error) {
+    logger.error('Error validating Typeform signature:', error)
     return false
   }
 }

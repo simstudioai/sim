@@ -25,7 +25,6 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Get query parameters
     const { searchParams } = new URL(request.url)
     const workflowId = searchParams.get('workflowId')
     const blockId = searchParams.get('blockId')
@@ -256,6 +255,13 @@ export async function POST(request: NextRequest) {
     // Use the original provider config - Gmail/Outlook configuration functions will inject userId automatically
     const finalProviderConfig = providerConfig || {}
 
+    const { resolveEnvVarsInObject } = await import('@/lib/webhooks/env-resolver')
+    const resolvedProviderConfig = await resolveEnvVarsInObject(
+      finalProviderConfig,
+      userId,
+      workflowRecord.workspaceId || undefined
+    )
+
     // Create external subscriptions before saving to DB to prevent orphaned records
     let externalSubscriptionId: string | undefined
     let externalSubscriptionCreated = false
@@ -263,7 +269,7 @@ export async function POST(request: NextRequest) {
     const createTempWebhookData = () => ({
       id: targetWebhookId || nanoid(),
       path: finalPath,
-      providerConfig: finalProviderConfig,
+      providerConfig: resolvedProviderConfig,
     })
 
     if (provider === 'airtable') {
@@ -276,7 +282,7 @@ export async function POST(request: NextRequest) {
           requestId
         )
         if (externalSubscriptionId) {
-          finalProviderConfig.externalId = externalSubscriptionId
+          resolvedProviderConfig.externalId = externalSubscriptionId
           externalSubscriptionCreated = true
         }
       } catch (err) {
@@ -337,7 +343,7 @@ export async function POST(request: NextRequest) {
           requestId
         )
         if (externalSubscriptionId) {
-          finalProviderConfig.externalId = externalSubscriptionId
+          resolvedProviderConfig.externalId = externalSubscriptionId
           externalSubscriptionCreated = true
         }
       } catch (err) {
@@ -352,21 +358,45 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    if (provider === 'typeform') {
+      const { createTypeformWebhook } = await import('@/lib/webhooks/webhook-helpers')
+      logger.info(`[${requestId}] Creating Typeform webhook before saving to database`)
+      try {
+        const usedTag = await createTypeformWebhook(request, createTempWebhookData(), requestId)
+
+        if (!resolvedProviderConfig.webhookTag) {
+          resolvedProviderConfig.webhookTag = usedTag
+          logger.info(`[${requestId}] Stored auto-generated webhook tag: ${usedTag}`)
+        }
+
+        externalSubscriptionCreated = true
+      } catch (err) {
+        logger.error(`[${requestId}] Error creating Typeform webhook`, err)
+        return NextResponse.json(
+          {
+            error: 'Failed to create webhook in Typeform',
+            details: err instanceof Error ? err.message : 'Unknown error',
+          },
+          { status: 500 }
+        )
+      }
+    }
+
     // Now save to database (only if subscription succeeded or provider doesn't need external subscription)
     try {
       if (targetWebhookId) {
         logger.info(`[${requestId}] Updating existing webhook for path: ${finalPath}`, {
           webhookId: targetWebhookId,
           provider,
-          hasCredentialId: !!(finalProviderConfig as any)?.credentialId,
-          credentialId: (finalProviderConfig as any)?.credentialId,
+          hasCredentialId: !!(resolvedProviderConfig as any)?.credentialId,
+          credentialId: (resolvedProviderConfig as any)?.credentialId,
         })
         const updatedResult = await db
           .update(webhook)
           .set({
             blockId,
             provider,
-            providerConfig: finalProviderConfig,
+            providerConfig: resolvedProviderConfig,
             isActive: true,
             updatedAt: new Date(),
           })
@@ -389,7 +419,7 @@ export async function POST(request: NextRequest) {
             blockId,
             path: finalPath,
             provider,
-            providerConfig: finalProviderConfig,
+            providerConfig: resolvedProviderConfig,
             isActive: true,
             createdAt: new Date(),
             updatedAt: new Date(),

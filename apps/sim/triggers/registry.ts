@@ -12,6 +12,7 @@ import { slackWebhookTrigger } from '@/triggers/slack'
 import { stripeWebhookTrigger } from '@/triggers/stripe'
 import { telegramWebhookTrigger } from '@/triggers/telegram'
 import { twilioVoiceWebhookTrigger } from '@/triggers/twilio_voice'
+import { typeformWebhookTrigger } from '@/triggers/typeform'
 import type { TriggerRegistry } from '@/triggers/types'
 import {
   webflowCollectionItemChangedTrigger,
@@ -32,6 +33,7 @@ export const TRIGGER_REGISTRY: TriggerRegistry = {
   outlook_poller: outlookPollingTrigger,
   stripe_webhook: stripeWebhookTrigger,
   telegram_webhook: telegramWebhookTrigger,
+  typeform_webhook: typeformWebhookTrigger,
   whatsapp_webhook: whatsappWebhookTrigger,
   google_forms_webhook: googleFormsWebhookTrigger,
   twilio_voice_webhook: twilioVoiceWebhookTrigger,
