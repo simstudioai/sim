@@ -1,9 +1,20 @@
 'use client'
 
-import { Fragment, type ReactNode, useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import {
+  AlertCircle,
+  Calendar,
+  CheckCircle2,
+  Clock,
+  FileText,
+  Play,
+  RefreshCw,
+  XCircle,
+} from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
@@ -13,31 +24,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Textarea } from '@/components/ui/textarea'
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
+import { Textarea } from '@/components/ui/textarea'
 import { useBrandConfig } from '@/lib/branding/branding'
 import Nav from '@/app/(landing)/components/nav/nav'
 import { inter } from '@/app/fonts/inter'
 import { soehne } from '@/app/fonts/soehne/soehne'
 import type { ResumeStatus } from '@/executor/types'
-import { 
-  CheckCircle2, 
-  Clock, 
-  Play, 
-  XCircle, 
-  RefreshCw, 
-  AlertCircle,
-  FileText,
-  Link as LinkIcon,
-  Calendar
-} from 'lucide-react'
 
 interface ResumeLinks {
   apiUrl: string
@@ -129,23 +122,23 @@ interface ResumeExecutionPageProps {
 const RESUME_STATUS_STYLES: Record<string, { style: string; icon: React.ReactNode }> = {
   paused: {
     style: 'border-amber-200 bg-amber-50 text-amber-700',
-    icon: <Clock className="h-3 w-3" />,
+    icon: <Clock className='h-3 w-3' />,
   },
   queued: {
     style: 'border-blue-200 bg-blue-50 text-blue-700',
-    icon: <Clock className="h-3 w-3" />,
+    icon: <Clock className='h-3 w-3' />,
   },
   resuming: {
     style: 'border-indigo-200 bg-indigo-50 text-indigo-700',
-    icon: <Play className="h-3 w-3" />,
+    icon: <Play className='h-3 w-3' />,
   },
   resumed: {
     style: 'border-emerald-200 bg-emerald-50 text-emerald-700',
-    icon: <CheckCircle2 className="h-3 w-3" />,
+    icon: <CheckCircle2 className='h-3 w-3' />,
   },
   failed: {
     style: 'border-red-200 bg-red-50 text-red-700',
-    icon: <XCircle className="h-3 w-3" />,
+    icon: <XCircle className='h-3 w-3' />,
   },
 }
 
@@ -166,7 +159,7 @@ function getStatusLabel(status: string): string {
 function ResumeStatusBadge({ status }: { status: string }) {
   const config = RESUME_STATUS_STYLES[status] ?? {
     style: 'border-slate-200 bg-slate-100 text-slate-700',
-    icon: <AlertCircle className="h-3 w-3" />,
+    icon: <AlertCircle className='h-3 w-3' />,
   }
   return (
     <Badge variant='outline' className={`${config.style} flex items-center gap-1.5`}>
@@ -928,7 +921,7 @@ export default function ResumeExecutionPage({
   const renderPausePointCard = useCallback(
     (pause: PausePointWithQueue, subdued = false) => {
       const isSelected = pause.contextId === selectedContextId
-      
+
       return (
         <button
           key={pause.contextId}
@@ -949,16 +942,14 @@ export default function ResumeExecutionPage({
           <div className='flex items-start justify-between gap-2'>
             <div className='min-w-0 flex-1'>
               <div className='flex items-center gap-2'>
-                <p className='truncate font-medium text-sm text-slate-900'>
-                  {pause.contextId}
-                </p>
+                <p className='truncate font-medium text-slate-900 text-sm'>{pause.contextId}</p>
               </div>
-              <div className='mt-1.5 flex items-center gap-1 text-xs text-slate-500'>
+              <div className='mt-1.5 flex items-center gap-1 text-slate-500 text-xs'>
                 <Calendar className='h-3 w-3' />
                 <span>{formatDate(pause.registeredAt)}</span>
               </div>
               {pause.queuePosition != null && pause.queuePosition > 0 && (
-                <div className='mt-1 flex items-center gap-1 text-xs text-amber-600'>
+                <div className='mt-1 flex items-center gap-1 text-amber-600 text-xs'>
                   <Clock className='h-3 w-3' />
                   <span>Position {pause.queuePosition}</span>
                 </div>
@@ -1058,10 +1049,12 @@ export default function ResumeExecutionPage({
         <div className='mb-6'>
           <div className='flex items-center justify-between'>
             <div>
-              <h1 className={`${soehne.className} text-3xl font-semibold tracking-tight text-slate-900`}>
+              <h1
+                className={`${soehne.className} font-semibold text-3xl text-slate-900 tracking-tight`}
+              >
                 Paused Execution
               </h1>
-              <p className={`${inter.className} mt-1 text-sm text-slate-600`}>
+              <p className={`${inter.className} mt-1 text-slate-600 text-sm`}>
                 Review and manage execution pause points
               </p>
             </div>
@@ -1084,8 +1077,8 @@ export default function ResumeExecutionPage({
             <CardContent className='p-6'>
               <div className='flex items-center justify-between'>
                 <div>
-                  <p className='text-sm font-medium text-slate-600'>Total Pauses</p>
-                  <p className='mt-2 text-3xl font-semibold text-slate-900'>{totalPauses}</p>
+                  <p className='font-medium text-slate-600 text-sm'>Total Pauses</p>
+                  <p className='mt-2 font-semibold text-3xl text-slate-900'>{totalPauses}</p>
                 </div>
                 <div className='rounded-full bg-blue-100 p-3'>
                   <Clock className='h-6 w-6 text-blue-600' />
@@ -1093,13 +1086,13 @@ export default function ResumeExecutionPage({
               </div>
             </CardContent>
           </Card>
-          
+
           <Card>
             <CardContent className='p-6'>
               <div className='flex items-center justify-between'>
                 <div>
-                  <p className='text-sm font-medium text-slate-600'>Resumed</p>
-                  <p className='mt-2 text-3xl font-semibold text-emerald-600'>{resumedCount}</p>
+                  <p className='font-medium text-slate-600 text-sm'>Resumed</p>
+                  <p className='mt-2 font-semibold text-3xl text-emerald-600'>{resumedCount}</p>
                 </div>
                 <div className='rounded-full bg-emerald-100 p-3'>
                   <CheckCircle2 className='h-6 w-6 text-emerald-600' />
@@ -1107,13 +1100,13 @@ export default function ResumeExecutionPage({
               </div>
             </CardContent>
           </Card>
-          
+
           <Card>
             <CardContent className='p-6'>
               <div className='flex items-center justify-between'>
                 <div>
-                  <p className='text-sm font-medium text-slate-600'>Pending</p>
-                  <p className='mt-2 text-3xl font-semibold text-amber-600'>{pendingCount}</p>
+                  <p className='font-medium text-slate-600 text-sm'>Pending</p>
+                  <p className='mt-2 font-semibold text-3xl text-amber-600'>{pendingCount}</p>
                 </div>
                 <div className='rounded-full bg-amber-100 p-3'>
                   <AlertCircle className='h-6 w-6 text-amber-600' />
@@ -1134,16 +1127,17 @@ export default function ResumeExecutionPage({
                 <CardDescription>Select a pause point to view details</CardDescription>
               </CardHeader>
               <CardContent className='space-y-4'>
-                {groupedPausePoints.active.length === 0 && groupedPausePoints.resolved.length === 0 ? (
+                {groupedPausePoints.active.length === 0 &&
+                groupedPausePoints.resolved.length === 0 ? (
                   <div className='flex flex-col items-center justify-center py-8 text-center'>
                     <Clock className='mb-3 h-12 w-12 text-slate-300' />
-                    <p className='text-sm text-slate-500'>No pause points found</p>
+                    <p className='text-slate-500 text-sm'>No pause points found</p>
                   </div>
                 ) : (
                   <>
                     {groupedPausePoints.active.length > 0 && (
                       <div className='space-y-3'>
-                        <h3 className='text-xs font-semibold uppercase tracking-wider text-slate-500'>
+                        <h3 className='font-semibold text-slate-500 text-xs uppercase tracking-wider'>
                           Active
                         </h3>
                         <div className='space-y-2'>
@@ -1154,15 +1148,15 @@ export default function ResumeExecutionPage({
 
                     {groupedPausePoints.resolved.length > 0 && (
                       <>
-                        {groupedPausePoints.active.length > 0 && (
-                          <Separator className='my-4' />
-                        )}
+                        {groupedPausePoints.active.length > 0 && <Separator className='my-4' />}
                         <div className='space-y-3'>
-                          <h3 className='text-xs font-semibold uppercase tracking-wider text-slate-500'>
+                          <h3 className='font-semibold text-slate-500 text-xs uppercase tracking-wider'>
                             Completed
                           </h3>
                           <div className='space-y-2'>
-                            {groupedPausePoints.resolved.map((pause) => renderPausePointCard(pause, true))}
+                            {groupedPausePoints.resolved.map((pause) =>
+                              renderPausePointCard(pause, true)
+                            )}
                           </div>
                         </div>
                       </>
@@ -1189,27 +1183,25 @@ export default function ResumeExecutionPage({
                             <div className='flex items-start justify-between gap-2'>
                               <div className='space-y-2'>
                                 <ResumeStatusBadge status={normalizedStatus} />
-                                <div className='space-y-1 text-xs text-slate-600'>
+                                <div className='space-y-1 text-slate-600 text-xs'>
                                   <p>
                                     ID:{' '}
                                     <span className='font-medium text-slate-900'>
                                       {entry.newExecutionId}
                                     </span>
                                   </p>
-                                  {entry.claimedAt && (
-                                    <p>Started: {formatDate(entry.claimedAt)}</p>
-                                  )}
+                                  {entry.claimedAt && <p>Started: {formatDate(entry.claimedAt)}</p>}
                                   {entry.completedAt && (
                                     <p>Completed: {formatDate(entry.completedAt)}</p>
                                   )}
                                 </div>
                                 {entry.failureReason && (
-                                  <div className='mt-2 rounded border border-red-200 bg-red-50 p-2 text-xs text-red-700'>
+                                  <div className='mt-2 rounded border border-red-200 bg-red-50 p-2 text-red-700 text-xs'>
                                     {entry.failureReason}
                                   </div>
                                 )}
                               </div>
-                              <span className='text-xs text-slate-400'>
+                              <span className='text-slate-400 text-xs'>
                                 {formatDate(entry.queuedAt)}
                               </span>
                             </div>
@@ -1220,7 +1212,7 @@ export default function ResumeExecutionPage({
                   ) : (
                     <div className='flex flex-col items-center justify-center py-8 text-center'>
                       <Clock className='mb-3 h-8 w-8 text-slate-300' />
-                      <p className='text-sm text-slate-500'>No resume attempts yet</p>
+                      <p className='text-slate-500 text-sm'>No resume attempts yet</p>
                     </div>
                   )}
                 </CardContent>
@@ -1235,7 +1227,7 @@ export default function ResumeExecutionPage({
                 <CardContent className='flex h-64 items-center justify-center p-6'>
                   <div className='text-center'>
                     <RefreshCw className='mx-auto mb-3 h-8 w-8 animate-spin text-slate-400' />
-                    <p className='text-sm text-slate-500'>Loading pause details...</p>
+                    <p className='text-slate-500 text-sm'>Loading pause details...</p>
                   </div>
                 </CardContent>
               </Card>
@@ -1244,7 +1236,7 @@ export default function ResumeExecutionPage({
                 <CardContent className='flex h-64 items-center justify-center p-6'>
                   <div className='text-center'>
                     <FileText className='mx-auto mb-3 h-12 w-12 text-slate-300' />
-                    <p className='text-sm text-slate-500'>Select a pause point to view details</p>
+                    <p className='text-slate-500 text-sm'>Select a pause point to view details</p>
                   </div>
                 </CardContent>
               </Card>
@@ -1253,7 +1245,7 @@ export default function ResumeExecutionPage({
                 <CardContent className='flex h-64 items-center justify-center p-6'>
                   <div className='text-center'>
                     <XCircle className='mx-auto mb-3 h-12 w-12 text-red-300' />
-                    <p className='text-sm text-slate-500'>Pause details could not be loaded</p>
+                    <p className='text-slate-500 text-sm'>Pause details could not be loaded</p>
                   </div>
                 </CardContent>
               </Card>
@@ -1262,8 +1254,8 @@ export default function ResumeExecutionPage({
                 {/* Header with Status */}
                 <div className='flex items-center justify-between'>
                   <div>
-                    <h2 className='text-2xl font-semibold text-slate-900'>Pause Details</h2>
-                    <p className='mt-1 text-sm text-slate-600'>
+                    <h2 className='font-semibold text-2xl text-slate-900'>Pause Details</h2>
+                    <p className='mt-1 text-slate-600 text-sm'>
                       Review content and provide input to resume
                     </p>
                   </div>
@@ -1275,7 +1267,7 @@ export default function ResumeExecutionPage({
                   <Card className='border-blue-200 bg-blue-50/50'>
                     <CardHeader>
                       <div className='flex items-center justify-between'>
-                        <CardTitle className='text-sm text-blue-900'>
+                        <CardTitle className='text-blue-900 text-sm'>
                           Current Resume Attempt
                         </CardTitle>
                         <ResumeStatusBadge
@@ -1286,7 +1278,7 @@ export default function ResumeExecutionPage({
                         />
                       </div>
                     </CardHeader>
-                    <CardContent className='space-y-2 text-sm text-blue-800'>
+                    <CardContent className='space-y-2 text-blue-800 text-sm'>
                       <p>
                         Resume execution ID:{' '}
                         <span className='font-medium'>
@@ -1297,18 +1289,18 @@ export default function ResumeExecutionPage({
                         <p>Started at {formatDate(selectedDetail.activeResumeEntry.claimedAt)}</p>
                       )}
                       {selectedDetail.activeResumeEntry.completedAt && (
-                        <p>Completed at {formatDate(selectedDetail.activeResumeEntry.completedAt)}</p>
+                        <p>
+                          Completed at {formatDate(selectedDetail.activeResumeEntry.completedAt)}
+                        </p>
                       )}
                       {selectedDetail.activeResumeEntry.failureReason && (
-                        <div className='mt-2 rounded border border-red-300 bg-red-100 p-3 text-sm text-red-800'>
+                        <div className='mt-2 rounded border border-red-300 bg-red-100 p-3 text-red-800 text-sm'>
                           {selectedDetail.activeResumeEntry.failureReason}
                         </div>
                       )}
                     </CardContent>
                   </Card>
                 )}
-
-
 
                 {/* Content Section */}
                 {responseStructureRows.length > 0 ? (
@@ -1321,13 +1313,13 @@ export default function ResumeExecutionPage({
                         <table className='min-w-full divide-y divide-slate-200'>
                           <thead className='bg-slate-50'>
                             <tr>
-                              <th className='px-4 py-2 text-left text-xs font-medium text-slate-600'>
+                              <th className='px-4 py-2 text-left font-medium text-slate-600 text-xs'>
                                 Field
                               </th>
-                              <th className='px-4 py-2 text-left text-xs font-medium text-slate-600'>
+                              <th className='px-4 py-2 text-left font-medium text-slate-600 text-xs'>
                                 Type
                               </th>
-                              <th className='px-4 py-2 text-left text-xs font-medium text-slate-600'>
+                              <th className='px-4 py-2 text-left font-medium text-slate-600 text-xs'>
                                 Value
                               </th>
                             </tr>
@@ -1335,12 +1327,12 @@ export default function ResumeExecutionPage({
                           <tbody className='divide-y divide-slate-200 bg-white'>
                             {responseStructureRows.map((row) => (
                               <tr key={row.id}>
-                                <td className='px-4 py-2 text-sm font-medium text-slate-800'>
+                                <td className='px-4 py-2 font-medium text-slate-800 text-sm'>
                                   {row.name}
                                 </td>
-                                <td className='px-4 py-2 text-sm text-slate-500'>{row.type}</td>
+                                <td className='px-4 py-2 text-slate-500 text-sm'>{row.type}</td>
                                 <td className='px-4 py-2'>
-                                  <pre className='max-h-32 overflow-auto whitespace-pre-wrap break-words font-mono text-xs text-slate-700'>
+                                  <pre className='max-h-32 overflow-auto whitespace-pre-wrap break-words font-mono text-slate-700 text-xs'>
                                     {formatStructureValue(row.value)}
                                   </pre>
                                 </td>
@@ -1357,7 +1349,7 @@ export default function ResumeExecutionPage({
                       <CardTitle className='text-sm'>Pause Response Data</CardTitle>
                     </CardHeader>
                     <CardContent>
-                      <pre className='max-h-60 overflow-auto rounded-lg bg-slate-900 p-4 font-mono text-xs text-slate-100'>
+                      <pre className='max-h-60 overflow-auto rounded-lg bg-slate-900 p-4 font-mono text-slate-100 text-xs'>
                         {pauseResponsePreview}
                       </pre>
                     </CardContent>
@@ -1369,21 +1361,23 @@ export default function ResumeExecutionPage({
                   <Card>
                     <CardHeader>
                       <CardTitle className='text-sm'>Resume Form</CardTitle>
-                      <CardDescription>Fill out the required fields to resume execution</CardDescription>
+                      <CardDescription>
+                        Fill out the required fields to resume execution
+                      </CardDescription>
                     </CardHeader>
                     <CardContent className='space-y-4'>
                       {inputFormatFields.map((field) => (
                         <div key={field.id} className='space-y-2'>
-                          <Label className='text-sm font-medium text-slate-700'>
+                          <Label className='font-medium text-slate-700 text-sm'>
                             {field.label}
                             {field.required && <span className='ml-1 text-red-500'>*</span>}
                           </Label>
                           {field.description && (
-                            <p className='text-xs text-slate-500'>{field.description}</p>
+                            <p className='text-slate-500 text-xs'>{field.description}</p>
                           )}
                           {renderFieldInput(field)}
                           {formErrors[field.name] && (
-                            <p className='text-xs text-red-600'>{formErrors[field.name]}</p>
+                            <p className='text-red-600 text-xs'>{formErrors[field.name]}</p>
                           )}
                         </div>
                       ))}
@@ -1422,7 +1416,7 @@ export default function ResumeExecutionPage({
                   <Card className='border-red-200 bg-red-50'>
                     <CardContent className='flex items-start gap-3 p-4'>
                       <XCircle className='mt-0.5 h-5 w-5 flex-shrink-0 text-red-600' />
-                      <div className='text-sm text-red-700'>{error}</div>
+                      <div className='text-red-700 text-sm'>{error}</div>
                     </CardContent>
                   </Card>
                 )}
@@ -1431,7 +1425,7 @@ export default function ResumeExecutionPage({
                   <Card className='border-emerald-200 bg-emerald-50'>
                     <CardContent className='flex items-start gap-3 p-4'>
                       <CheckCircle2 className='mt-0.5 h-5 w-5 flex-shrink-0 text-emerald-600' />
-                      <div className='text-sm text-emerald-700'>{message}</div>
+                      <div className='text-emerald-700 text-sm'>{message}</div>
                     </CardContent>
                   </Card>
                 )}
@@ -1455,7 +1449,7 @@ export default function ResumeExecutionPage({
         </div>
       </div>
 
-      <div className='border-t bg-white py-4 text-center text-sm text-slate-600'>
+      <div className='border-t bg-white py-4 text-center text-slate-600 text-sm'>
         Need help?{' '}
         <a
           href={`mailto:${brandConfig.supportEmail}`}
@@ -1467,4 +1461,3 @@ export default function ResumeExecutionPage({
     </div>
   )
 }
-

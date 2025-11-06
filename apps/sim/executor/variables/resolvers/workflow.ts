@@ -1,6 +1,6 @@
 import { createLogger } from '@/lib/logs/console/logger'
-import { isReference, parseReferencePath, REFERENCE } from '@/executor/consts'
 import { VariableManager } from '@/lib/variables/variable-manager'
+import { isReference, parseReferencePath, REFERENCE } from '@/executor/consts'
 import type { ResolutionContext, Resolver } from '@/executor/variables/resolvers/reference'
 
 const logger = createLogger('WorkflowResolver')

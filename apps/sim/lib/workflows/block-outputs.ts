@@ -95,10 +95,10 @@ export function getBlockOutputs(
   }
 
   if (blockType === 'approval') {
-    // Start with only uiUrl and apiUrl (from base outputs)
+    // Start with only uiUrl (apiUrl commented out - not accessible as output)
     const pauseResumeOutputs: Record<string, any> = {
       uiUrl: { type: 'string', description: 'Resume UI URL' },
-      apiUrl: { type: 'string', description: 'Resume API URL' },
+      // apiUrl: { type: 'string', description: 'Resume API URL' }, // Commented out - not accessible as output
     }
 
     const normalizedInputFormat = normalizeInputFormatValue(subBlocks?.inputFormat?.value)
