@@ -46,7 +46,13 @@ const TYPE_CONFIG: Record<VariableType, { icon: string; placeholder: string }> =
   string: { icon: 'Abc', placeholder: 'Plain text value' },
 }
 
-const VARIABLE_TYPES: VariableType[] = ['plain', 'number', 'boolean', 'object', 'array']
+const VARIABLE_TYPES: Exclude<VariableType, 'string'>[] = [
+  'plain',
+  'number',
+  'boolean',
+  'object',
+  'array',
+]
 
 export function Variables() {
   const { activeWorkflowId } = useWorkflowRegistry()

@@ -4,13 +4,9 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { checkTagTrigger, TagDropdown } from '@/components/ui/tag-dropdown'
 import { cn } from '@/lib/utils'
+import type { InputFormatField } from '@/lib/workflows/types'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/hooks/use-sub-block-value'
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
-
-interface InputFormatField {
-  name: string
-  type?: string
-}
 
 interface InputTriggerBlock {
   type: 'input_trigger' | 'start_trigger'
@@ -42,7 +38,10 @@ function isStarterBlock(value: unknown): value is StarterBlockLegacy {
   return !!value && typeof value === 'object' && (value as { type?: unknown }).type === 'starter'
 }
 
-function isInputFormatField(value: unknown): value is InputFormatField {
+type ValidatedInputFormatField = Required<Pick<InputFormatField, 'name'>> &
+  Pick<InputFormatField, 'type'>
+
+function isInputFormatField(value: unknown): value is ValidatedInputFormatField {
   if (typeof value !== 'object' || value === null) return false
   if (!('name' in value)) return false
   const { name, type } = value as { name: unknown; type?: unknown }

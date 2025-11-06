@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { LoopType, ParallelType } from '@/lib/workflows/types'
 
 // Mock hooks
 const mockCollaborativeUpdates = {
@@ -170,8 +171,6 @@ describe('IterationBadges', () => {
   describe('Count Mode Detection', () => {
     it.concurrent('should be in count mode for loop + for combination', () => {
       type IterationType = 'loop' | 'parallel'
-      type LoopType = 'for' | 'forEach'
-      type ParallelType = 'count' | 'collection'
 
       const iterationType: IterationType = 'loop'
       const currentType: LoopType = 'for'
@@ -182,7 +181,6 @@ describe('IterationBadges', () => {
 
     it.concurrent('should be in count mode for parallel + count combination', () => {
       type IterationType = 'loop' | 'parallel'
-      type ParallelType = 'count' | 'collection'
 
       const iterationType: IterationType = 'parallel'
       const currentType: ParallelType = 'count'

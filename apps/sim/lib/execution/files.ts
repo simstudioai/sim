@@ -1,17 +1,14 @@
 import { v4 as uuidv4 } from 'uuid'
 import { createLogger } from '@/lib/logs/console/logger'
 import { uploadExecutionFile } from '@/lib/uploads/contexts/execution'
+import { TRIGGER_TYPES } from '@/lib/workflows/triggers'
+import type { InputFormatField } from '@/lib/workflows/types'
 import type { UserFile } from '@/executor/types'
 import type { SerializedBlock } from '@/serializer/types'
 
 const logger = createLogger('ExecutionFiles')
 
 const MAX_FILE_SIZE = 20 * 1024 * 1024 // 20MB
-
-interface InputFormatField {
-  name: string
-  type: 'string' | 'number' | 'boolean' | 'object' | 'array' | 'files'
-}
 
 /**
  * Process a single file for workflow execution - handles both base64 ('file' type) and URL pass-through ('url' type)
@@ -112,7 +109,9 @@ export async function processExecutionFiles(
 /**
  * Extract inputFormat fields from a start block or trigger block
  */
-function extractInputFormatFromBlock(block: SerializedBlock): InputFormatField[] {
+type ValidatedInputFormatField = Required<Pick<InputFormatField, 'name' | 'type'>>
+
+function extractInputFormatFromBlock(block: SerializedBlock): ValidatedInputFormatField[] {
   const inputFormatValue = block.config?.params?.inputFormat
 
   if (!Array.isArray(inputFormatValue) || inputFormatValue.length === 0) {
@@ -120,7 +119,7 @@ function extractInputFormatFromBlock(block: SerializedBlock): InputFormatField[]
   }
 
   return inputFormatValue.filter(
-    (field): field is InputFormatField =>
+    (field): field is ValidatedInputFormatField =>
       field &&
       typeof field === 'object' &&
       'name' in field &&
@@ -148,11 +147,11 @@ export async function processInputFileFields(
   const startBlock = blocks.find((block) => {
     const blockType = block.metadata?.id
     return (
-      blockType === 'start_trigger' ||
-      blockType === 'api_trigger' ||
-      blockType === 'input_trigger' ||
-      blockType === 'generic_webhook' ||
-      blockType === 'starter'
+      blockType === TRIGGER_TYPES.START ||
+      blockType === TRIGGER_TYPES.API ||
+      blockType === TRIGGER_TYPES.INPUT ||
+      blockType === TRIGGER_TYPES.GENERIC_WEBHOOK ||
+      blockType === TRIGGER_TYPES.STARTER
     )
   })
 
