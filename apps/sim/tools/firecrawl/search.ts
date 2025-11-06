@@ -14,62 +14,6 @@ export const searchTool: ToolConfig<SearchParams, SearchResponse> = {
       visibility: 'user-or-llm',
       description: 'The search query to use',
     },
-    limit: {
-      type: 'number',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'Maximum number of results to return (1-100, default: 5)',
-    },
-    sources: {
-      type: 'json',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'Search sources: ["web"], ["images"], or ["news"] (default: ["web"])',
-    },
-    categories: {
-      type: 'json',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'Filter by categories: ["github"], ["research"], or ["pdf"]',
-    },
-    tbs: {
-      type: 'string',
-      required: false,
-      visibility: 'user-only',
-      description:
-        'Time-based search: qdr:h (hour), qdr:d (day), qdr:w (week), qdr:m (month), qdr:y (year)',
-    },
-    location: {
-      type: 'string',
-      required: false,
-      visibility: 'user-only',
-      description:
-        'Geographic location for results (e.g., "San Francisco, California, United States")',
-    },
-    country: {
-      type: 'string',
-      required: false,
-      visibility: 'user-only',
-      description: 'ISO country code for geo-targeting (default: US)',
-    },
-    timeout: {
-      type: 'number',
-      required: false,
-      visibility: 'user-only',
-      description: 'Timeout in milliseconds (default: 60000)',
-    },
-    ignoreInvalidURLs: {
-      type: 'boolean',
-      required: false,
-      visibility: 'hidden',
-      description: 'Exclude invalid URLs from results (default: false)',
-    },
-    scrapeOptions: {
-      type: 'json',
-      required: false,
-      visibility: 'hidden',
-      description: 'Advanced scraping configuration for search results',
-    },
     apiKey: {
       type: 'string',
       required: true,
@@ -80,7 +24,7 @@ export const searchTool: ToolConfig<SearchParams, SearchResponse> = {
 
   request: {
     method: 'POST',
-    url: 'https://api.firecrawl.dev/v1/search',
+    url: 'https://api.firecrawl.dev/v2/search',
     headers: (params) => ({
       'Content-Type': 'application/json',
       Authorization: `Bearer ${params.apiKey}`,

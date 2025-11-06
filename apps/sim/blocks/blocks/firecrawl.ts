@@ -9,7 +9,7 @@ export const FirecrawlBlock: BlockConfig<FirecrawlResponse> = {
   description: 'Scrape, search, crawl, map, and extract web data',
   authMode: AuthMode.ApiKey,
   longDescription:
-    'Integrate Firecrawl into the workflow. Can scrape pages, search the web, crawl entire websites, map URL structures, and extract structured data using AI.',
+    'Integrate Firecrawl into the workflow. Scrape pages, search the web, crawl entire sites, map URL structures, and extract structured data with AI.',
   docsLink: 'https://docs.sim.ai/tools/firecrawl',
   category: 'tools',
   bgColor: '#181C1E',
@@ -43,8 +43,7 @@ export const FirecrawlBlock: BlockConfig<FirecrawlResponse> = {
       id: 'urls',
       title: 'URLs',
       type: 'long-input',
-      placeholder:
-        'Enter URLs as JSON array (e.g., ["https://example.com", "https://example.com/about"])',
+      placeholder: '["https://example.com/page1", "https://example.com/page2"]',
       condition: {
         field: 'operation',
         value: 'extract',
@@ -52,31 +51,11 @@ export const FirecrawlBlock: BlockConfig<FirecrawlResponse> = {
       required: true,
     },
     {
-      id: 'query',
-      title: 'Search Query',
-      type: 'short-input',
-      placeholder: 'Enter the search query',
-      condition: {
-        field: 'operation',
-        value: 'search',
-      },
-      required: true,
-    },
-    {
       id: 'prompt',
-      title: 'Prompt',
+      title: 'Extraction Prompt',
       type: 'long-input',
-      placeholder: 'Natural language instruction for extraction or crawling',
-      condition: {
-        field: 'operation',
-        value: ['extract', 'crawl'],
-      },
-    },
-    {
-      id: 'schema',
-      title: 'Schema',
-      type: 'long-input',
-      placeholder: 'JSON Schema for data extraction',
+      placeholder:
+        'Describe what data to extract (e.g., "Extract product names, prices, and descriptions")',
       condition: {
         field: 'operation',
         value: 'extract',
@@ -102,23 +81,13 @@ export const FirecrawlBlock: BlockConfig<FirecrawlResponse> = {
       },
     },
     {
-      id: 'limit',
-      title: 'Limit',
+      id: 'waitFor',
+      title: 'Wait For (ms)',
       type: 'short-input',
-      placeholder: '100',
+      placeholder: '0',
       condition: {
         field: 'operation',
-        value: ['crawl', 'search', 'map'],
-      },
-    },
-    {
-      id: 'timeout',
-      title: 'Timeout (ms)',
-      type: 'short-input',
-      placeholder: '60000',
-      condition: {
-        field: 'operation',
-        value: ['scrape', 'search', 'map'],
+        value: 'scrape',
       },
     },
     {
@@ -131,89 +100,35 @@ export const FirecrawlBlock: BlockConfig<FirecrawlResponse> = {
       },
     },
     {
-      id: 'blockAds',
-      title: 'Block Ads',
-      type: 'switch',
-      condition: {
-        field: 'operation',
-        value: 'scrape',
-      },
-    },
-    {
-      id: 'waitFor',
-      title: 'Wait For (ms)',
+      id: 'timeout',
+      title: 'Timeout (ms)',
       type: 'short-input',
-      placeholder: '0',
+      placeholder: '60000',
       condition: {
         field: 'operation',
-        value: 'scrape',
+        value: ['scrape', 'search'],
       },
     },
     {
-      id: 'excludePaths',
-      title: 'Exclude Paths',
-      type: 'long-input',
-      placeholder: '["^/admin", "^/private"]',
-      condition: {
-        field: 'operation',
-        value: 'crawl',
-      },
-    },
-    {
-      id: 'includePaths',
-      title: 'Include Paths',
-      type: 'long-input',
-      placeholder: '["^/blog", "^/docs"]',
-      condition: {
-        field: 'operation',
-        value: 'crawl',
-      },
-    },
-    {
-      id: 'allowSubdomains',
-      title: 'Allow Subdomains',
-      type: 'switch',
-      condition: {
-        field: 'operation',
-        value: 'crawl',
-      },
-    },
-    {
-      id: 'allowExternalLinks',
-      title: 'Allow External Links',
-      type: 'switch',
-      condition: {
-        field: 'operation',
-        value: 'crawl',
-      },
-    },
-    {
-      id: 'search',
-      title: 'Search Filter',
+      id: 'limit',
+      title: 'Limit',
       type: 'short-input',
-      placeholder: 'Filter results by relevance (e.g., "blog")',
+      placeholder: '100',
       condition: {
         field: 'operation',
-        value: 'map',
+        value: ['crawl', 'map', 'search'],
       },
     },
     {
-      id: 'includeSubdomains',
-      title: 'Include Subdomains',
-      type: 'switch',
+      id: 'query',
+      title: 'Search Query',
+      type: 'short-input',
+      placeholder: 'Enter the search query',
       condition: {
         field: 'operation',
-        value: ['map', 'extract'],
+        value: 'search',
       },
-    },
-    {
-      id: 'showSources',
-      title: 'Show Sources',
-      type: 'switch',
-      condition: {
-        field: 'operation',
-        value: 'extract',
-      },
+      required: true,
     },
     {
       id: 'apiKey',
@@ -250,49 +165,70 @@ export const FirecrawlBlock: BlockConfig<FirecrawlResponse> = {
         }
       },
       params: (params) => {
-        const { operation, limit, urls, formats, schema, ...rest } = params
+        const {
+          operation,
+          limit,
+          urls,
+          formats,
+          timeout,
+          waitFor,
+          url,
+          query,
+          onlyMainContent,
+          mobile,
+          prompt,
+          apiKey,
+        } = params
 
-        // Parse JSON fields if provided as strings
-        const parsedParams: Record<string, any> = { ...rest }
+        const result: Record<string, any> = { apiKey }
 
-        // Handle limit as number
-        if (limit) {
-          parsedParams.limit = Number.parseInt(limit)
+        // Handle operation-specific fields
+        switch (operation) {
+          case 'scrape':
+            if (url) result.url = url
+            if (formats) {
+              try {
+                result.formats = typeof formats === 'string' ? JSON.parse(formats) : formats
+              } catch {
+                result.formats = ['markdown']
+              }
+            }
+            if (timeout) result.timeout = Number.parseInt(timeout)
+            if (waitFor) result.waitFor = Number.parseInt(waitFor)
+            if (onlyMainContent != null) result.onlyMainContent = onlyMainContent
+            if (mobile != null) result.mobile = mobile
+            break
+
+          case 'search':
+            if (query) result.query = query
+            if (timeout) result.timeout = Number.parseInt(timeout)
+            if (limit) result.limit = Number.parseInt(limit)
+            break
+
+          case 'crawl':
+            if (url) result.url = url
+            if (limit) result.limit = Number.parseInt(limit)
+            if (onlyMainContent != null) result.onlyMainContent = onlyMainContent
+            break
+
+          case 'map':
+            if (url) result.url = url
+            if (limit) result.limit = Number.parseInt(limit)
+            break
+
+          case 'extract':
+            if (urls) {
+              try {
+                result.urls = typeof urls === 'string' ? JSON.parse(urls) : urls
+              } catch {
+                result.urls = [urls]
+              }
+            }
+            if (prompt) result.prompt = prompt
+            break
         }
 
-        // Handle JSON array fields
-        if (urls && typeof urls === 'string') {
-          try {
-            parsedParams.urls = JSON.parse(urls)
-          } catch {
-            parsedParams.urls = [urls]
-          }
-        } else if (urls) {
-          parsedParams.urls = urls
-        }
-
-        if (formats && typeof formats === 'string') {
-          try {
-            parsedParams.formats = JSON.parse(formats)
-          } catch {
-            parsedParams.formats = ['markdown']
-          }
-        } else if (formats) {
-          parsedParams.formats = formats
-        }
-
-        if (schema && typeof schema === 'string') {
-          try {
-            parsedParams.schema = JSON.parse(schema)
-          } catch {
-            // Keep as string if not valid JSON
-            parsedParams.schema = schema
-          }
-        } else if (schema) {
-          parsedParams.schema = schema
-        }
-
-        return parsedParams
+        return result
       },
     },
   },
@@ -302,40 +238,31 @@ export const FirecrawlBlock: BlockConfig<FirecrawlResponse> = {
     url: { type: 'string', description: 'Target website URL' },
     urls: { type: 'json', description: 'Array of URLs for extraction' },
     query: { type: 'string', description: 'Search query terms' },
-    prompt: { type: 'string', description: 'Natural language instruction' },
-    schema: { type: 'json', description: 'JSON Schema for extraction' },
+    prompt: { type: 'string', description: 'Extraction prompt' },
     limit: { type: 'string', description: 'Result/page limit' },
     formats: { type: 'json', description: 'Output formats array' },
-    onlyMainContent: { type: 'boolean', description: 'Extract only main content' },
     timeout: { type: 'number', description: 'Request timeout in ms' },
+    waitFor: { type: 'number', description: 'Wait time before scraping in ms' },
     mobile: { type: 'boolean', description: 'Use mobile emulation' },
-    blockAds: { type: 'boolean', description: 'Block ads and popups' },
-    waitFor: { type: 'number', description: 'Wait time before scraping' },
-    excludePaths: { type: 'json', description: 'Paths to exclude from crawl' },
-    includePaths: { type: 'json', description: 'Paths to include in crawl' },
-    allowSubdomains: { type: 'boolean', description: 'Allow subdomain crawling' },
-    allowExternalLinks: { type: 'boolean', description: 'Allow external links' },
-    search: { type: 'string', description: 'Search filter for map' },
-    includeSubdomains: { type: 'boolean', description: 'Include subdomains' },
-    showSources: { type: 'boolean', description: 'Show data sources' },
+    onlyMainContent: { type: 'boolean', description: 'Extract only main content' },
     scrapeOptions: { type: 'json', description: 'Advanced scraping options' },
   },
   outputs: {
-    // Scrape outputs
+    // Scrape output
     markdown: { type: 'string', description: 'Page content markdown' },
     html: { type: 'string', description: 'Raw HTML content' },
     metadata: { type: 'json', description: 'Page metadata' },
-    // Search outputs
+    // Search output
     data: { type: 'json', description: 'Search results or extracted data' },
     warning: { type: 'string', description: 'Warning messages' },
-    // Crawl outputs
+    // Crawl output
     pages: { type: 'json', description: 'Crawled pages data' },
     total: { type: 'number', description: 'Total pages found' },
     creditsUsed: { type: 'number', description: 'Credits consumed' },
-    // Map outputs
+    // Map output
     success: { type: 'boolean', description: 'Operation success status' },
-    links: { type: 'json', description: 'Array of discovered URLs' },
-    // Extract outputs
+    links: { type: 'json', description: 'Discovered URLs array' },
+    // Extract output
     sources: { type: 'json', description: 'Data sources array' },
   },
 }

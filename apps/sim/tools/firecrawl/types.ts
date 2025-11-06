@@ -195,6 +195,7 @@ export interface MapResponse extends ToolResponse {
 
 export interface ExtractResponse extends ToolResponse {
   output: {
+    jobId: string
     success: boolean
     data: Record<string, any>
     sources?: Array<{

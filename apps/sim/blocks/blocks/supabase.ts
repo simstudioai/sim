@@ -628,6 +628,13 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
       condition: { field: 'operation', value: 'storage_download' },
       required: true,
     },
+    {
+      id: 'fileName',
+      title: 'File Name Override (optional)',
+      type: 'short-input',
+      placeholder: 'my-file.jpg',
+      condition: { field: 'operation', value: 'storage_download' },
+    },
     // Storage List fields
     {
       id: 'path',
@@ -1050,6 +1057,7 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
     path: { type: 'string', description: 'File path in storage' },
     fileContent: { type: 'string', description: 'File content (base64 for binary)' },
     contentType: { type: 'string', description: 'MIME type of the file' },
+    fileName: { type: 'string', description: 'Optional filename override for downloaded file' },
     upsert: { type: 'boolean', description: 'Whether to overwrite existing file' },
     download: { type: 'boolean', description: 'Whether to force download' },
     paths: { type: 'array', description: 'Array of file paths' },
@@ -1077,17 +1085,9 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
       type: 'number',
       description: 'Row count for count operations',
     },
-    fileContent: {
-      type: 'string',
-      description: 'Downloaded file content (base64 for binary files)',
-    },
-    contentType: {
-      type: 'string',
-      description: 'MIME type of downloaded file',
-    },
-    isBase64: {
-      type: 'boolean',
-      description: 'Whether file content is base64 encoded',
+    file: {
+      type: 'files',
+      description: 'Downloaded file stored in execution files',
     },
     publicUrl: {
       type: 'string',

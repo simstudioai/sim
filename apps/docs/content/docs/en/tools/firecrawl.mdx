@@ -59,7 +59,7 @@ This allows your agents to gather information from websites, extract structured 
 
 ## Usage Instructions
 
-Integrate Firecrawl into the workflow. Can scrape pages, search the web, crawl entire websites, map URL structures, and extract structured data using AI.
+Integrate Firecrawl into the workflow. Scrape pages, search the web, crawl entire sites, map URL structures, and extract structured data with AI.
 
 
 
@@ -74,25 +74,7 @@ Extract structured content from web pages with comprehensive metadata support. C
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `url` | string | Yes | The URL to scrape content from |
-| `formats` | json | No | Output formats \(markdown, html, rawHtml, links, images, screenshot\). Default: \["markdown"\] |
-| `onlyMainContent` | boolean | No | Extract only main content, excluding headers, navs, footers \(default: true\) |
-| `includeTags` | json | No | HTML tags to retain in the output |
-| `excludeTags` | json | No | HTML tags to remove from the output |
-| `maxAge` | number | No | Return cached version if younger than this age in ms \(default: 172800000\) |
-| `headers` | json | No | Custom request headers \(cookies, user-agent, etc.\) |
-| `waitFor` | number | No | Delay in milliseconds before fetching \(default: 0\) |
-| `mobile` | boolean | No | Emulate mobile device \(default: false\) |
-| `skipTlsVerification` | boolean | No | Skip TLS certificate verification \(default: true\) |
-| `timeout` | number | No | Request timeout in milliseconds |
-| `parsers` | json | No | File processing controls \(e.g., \["pdf"\]\) |
-| `actions` | json | No | Pre-scrape operations \(wait, click, scroll, screenshot, etc.\) |
-| `location` | json | No | Geographic settings \(country, languages\) |
-| `removeBase64Images` | boolean | No | Strip base64 images from output \(default: true\) |
-| `blockAds` | boolean | No | Enable ad and popup blocking \(default: true\) |
-| `proxy` | string | No | Proxy type: basic, stealth, or auto \(default: auto\) |
-| `storeInCache` | boolean | No | Cache the page \(default: true\) |
-| `zeroDataRetention` | boolean | No | Enable zero data retention mode \(default: false\) |
-| `scrapeOptions` | json | No | Options for content scraping \(legacy, prefer top-level params\) |
+| `scrapeOptions` | json | No | Options for content scraping |
 | `apiKey` | string | Yes | Firecrawl API key |
 
 #### Output
@@ -112,15 +94,6 @@ Search for information on the web using Firecrawl
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `query` | string | Yes | The search query to use |
-| `limit` | number | No | Maximum number of results to return \(1-100, default: 5\) |
-| `sources` | json | No | Search sources: \["web"\], \["images"\], or \["news"\] \(default: \["web"\]\) |
-| `categories` | json | No | Filter by categories: \["github"\], \["research"\], or \["pdf"\] |
-| `tbs` | string | No | Time-based search: qdr:h \(hour\), qdr:d \(day\), qdr:w \(week\), qdr:m \(month\), qdr:y \(year\) |
-| `location` | string | No | Geographic location for results \(e.g., "San Francisco, California, United States"\) |
-| `country` | string | No | ISO country code for geo-targeting \(default: US\) |
-| `timeout` | number | No | Timeout in milliseconds \(default: 60000\) |
-| `ignoreInvalidURLs` | boolean | No | Exclude invalid URLs from results \(default: false\) |
-| `scrapeOptions` | json | No | Advanced scraping configuration for search results |
 | `apiKey` | string | Yes | Firecrawl API key |
 
 #### Output
@@ -140,20 +113,6 @@ Crawl entire websites and extract structured content from all accessible pages
 | `url` | string | Yes | The website URL to crawl |
 | `limit` | number | No | Maximum number of pages to crawl \(default: 100\) |
 | `onlyMainContent` | boolean | No | Extract only main content from pages |
-| `prompt` | string | No | Natural language instruction to auto-generate crawler options |
-| `maxDiscoveryDepth` | number | No | Depth limit for URL discovery \(root pages have depth 0\) |
-| `sitemap` | string | No | Whether to use sitemap data: "skip" or "include" \(default: "include"\) |
-| `crawlEntireDomain` | boolean | No | Follow sibling/parent URLs or only child paths \(default: false\) |
-| `allowExternalLinks` | boolean | No | Follow external website links \(default: false\) |
-| `allowSubdomains` | boolean | No | Follow subdomain links \(default: false\) |
-| `ignoreQueryParameters` | boolean | No | Prevent re-scraping same path with different query params \(default: false\) |
-| `delay` | number | No | Seconds between scrapes for rate limit compliance |
-| `maxConcurrency` | number | No | Concurrent scrape limit |
-| `excludePaths` | json | No | Array of regex patterns for URLs to exclude |
-| `includePaths` | json | No | Array of regex patterns for URLs to include exclusively |
-| `webhook` | json | No | Webhook configuration for crawl notifications |
-| `scrapeOptions` | json | No | Advanced scraping configuration |
-| `zeroDataRetention` | boolean | No | Enable zero data retention \(default: false\) |
 | `apiKey` | string | Yes | Firecrawl API Key |
 
 #### Output

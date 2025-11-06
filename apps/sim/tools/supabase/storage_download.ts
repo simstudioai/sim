@@ -1,8 +1,11 @@
+import { createLogger } from '@/lib/logs/console/logger'
 import type {
   SupabaseStorageDownloadParams,
   SupabaseStorageDownloadResponse,
 } from '@/tools/supabase/types'
 import type { ToolConfig } from '@/tools/types'
+
+const logger = createLogger('SupabaseStorageDownloadTool')
 
 export const storageDownloadTool: ToolConfig<
   SupabaseStorageDownloadParams,
@@ -32,6 +35,12 @@ export const storageDownloadTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'The path to the file to download (e.g., "folder/file.jpg")',
     },
+    fileName: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description: 'Optional filename override',
+    },
     apiKey: {
       type: 'string',
       required: true,
@@ -51,55 +60,62 @@ export const storageDownloadTool: ToolConfig<
     }),
   },
 
-  transformResponse: async (response: Response) => {
-    // Get the content type
-    const contentType = response.headers.get('content-type') || 'application/octet-stream'
-
-    // Check if it's a text-based file
-    const isText =
-      contentType.startsWith('text/') ||
-      contentType.includes('json') ||
-      contentType.includes('xml') ||
-      contentType.includes('javascript') ||
-      contentType.includes('html')
-
-    let fileContent: string
-    if (isText) {
-      // Return text content as-is
-      fileContent = await response.text()
-    } else {
-      // Return binary content as base64
-      const buffer = await response.arrayBuffer()
-      const bytes = new Uint8Array(buffer)
-      let binary = ''
-      for (let i = 0; i < bytes.byteLength; i++) {
-        binary += String.fromCharCode(bytes[i])
+  transformResponse: async (response: Response, params?: SupabaseStorageDownloadParams) => {
+    try {
+      if (!response.ok) {
+        logger.error('Failed to download file from Supabase storage', {
+          status: response.status,
+          statusText: response.statusText,
+        })
+        throw new Error(`Failed to download file: ${response.statusText}`)
       }
-      fileContent = btoa(binary)
-    }
 
-    return {
-      success: true,
-      output: {
-        message: 'Successfully downloaded file from storage',
-        fileContent: fileContent,
-        contentType: contentType,
-        isBase64: !isText,
-      },
-      error: undefined,
+      const contentType = response.headers.get('content-type') || 'application/octet-stream'
+
+      const pathParts = params?.path?.split('/') || []
+      const defaultFileName = pathParts[pathParts.length - 1] || 'download'
+      const resolvedName = params?.fileName || defaultFileName
+
+      logger.info('Downloading file from Supabase storage', {
+        bucket: params?.bucket,
+        path: params?.path,
+        fileName: resolvedName,
+        contentType,
+      })
+
+      const arrayBuffer = await response.arrayBuffer()
+      const fileBuffer = Buffer.from(arrayBuffer)
+
+      logger.info('File downloaded successfully from Supabase storage', {
+        name: resolvedName,
+        size: fileBuffer.length,
+        contentType,
+      })
+
+      const base64Data = fileBuffer.toString('base64')
+
+      return {
+        success: true,
+        output: {
+          file: {
+            name: resolvedName,
+            mimeType: contentType,
+            data: base64Data,
+            size: fileBuffer.length,
+          },
+        },
+        error: undefined,
+      }
+    } catch (error: any) {
+      logger.error('Error downloading file from Supabase storage', {
+        error: error.message,
+        stack: error.stack,
+      })
+      throw error
     }
   },
 
   outputs: {
-    message: { type: 'string', description: 'Operation status message' },
-    fileContent: {
-      type: 'string',
-      description: 'File content (base64 encoded if binary, plain text otherwise)',
-    },
-    contentType: { type: 'string', description: 'MIME type of the file' },
-    isBase64: {
-      type: 'boolean',
-      description: 'Whether the file content is base64 encoded',
-    },
+    file: { type: 'file', description: 'Downloaded file stored in execution files' },
   },
 }

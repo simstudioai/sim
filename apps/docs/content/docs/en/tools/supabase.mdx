@@ -325,16 +325,14 @@ Download a file from a Supabase storage bucket
 | `projectId` | string | Yes | Your Supabase project ID \(e.g., jdrkgepadsdopsntdlom\) |
 | `bucket` | string | Yes | The name of the storage bucket |
 | `path` | string | Yes | The path to the file to download \(e.g., "folder/file.jpg"\) |
+| `fileName` | string | No | Optional filename override |
 | `apiKey` | string | Yes | Your Supabase service role secret key |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `message` | string | Operation status message |
-| `fileContent` | string | File content \(base64 encoded if binary, plain text otherwise\) |
-| `contentType` | string | MIME type of the file |
-| `isBase64` | boolean | Whether the file content is base64 encoded |
+| `file` | file | Downloaded file stored in execution files |
 
 ### `supabase_storage_list`
 
