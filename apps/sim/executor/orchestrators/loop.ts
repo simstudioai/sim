@@ -276,7 +276,7 @@ export class LoopOrchestrator {
     return ctx.loopExecutions?.get(loopId)
   }
 
-  shouldExecuteLoopNode(nodeId: string, loopId: string, context: ExecutionContext): boolean {
+  shouldExecuteLoopNode(ctx: ExecutionContext, nodeId: string, loopId: string): boolean {
     return true
   }
 
@@ -346,13 +346,19 @@ export class LoopOrchestrator {
     if (typeof items === 'string') {
       if (items.startsWith('<') && items.endsWith('>')) {
         const resolved = this.resolver.resolveSingleReference(ctx, '', items)
-        return Array.isArray(resolved) ? resolved : []
+        if (Array.isArray(resolved)) {
+          return resolved
+        }
+        return []
       }
 
       try {
         const normalized = items.replace(/'/g, '"')
         const parsed = JSON.parse(normalized)
-        return Array.isArray(parsed) ? parsed : []
+        if (Array.isArray(parsed)) {
+          return parsed
+        }
+        return []
       } catch (error) {
         logger.error('Failed to parse forEach items', { items, error })
         return []

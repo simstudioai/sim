@@ -36,7 +36,12 @@ export class EvaluatorBlockHandler implements BlockHandler {
     }
 
     logger.info('Inputs for evaluator:', inputs)
-    const metrics = Array.isArray(inputs.metrics) ? inputs.metrics : []
+    let metrics: any[]
+    if (Array.isArray(inputs.metrics)) {
+      metrics = inputs.metrics
+    } else {
+      metrics = []
+    }
     logger.info('Metrics for evaluator:', metrics)
     const metricDescriptions = metrics
       .filter((m: any) => m?.name && m.range)
@@ -151,7 +156,10 @@ export class EvaluatorBlockHandler implements BlockHandler {
     if (typeof content === 'string') {
       if (isJSONString(content)) {
         const parsed = parseJSON(content, null)
-        return parsed ? stringifyJSON(parsed) : content
+        if (parsed) {
+          return stringifyJSON(parsed)
+        }
+        return content
       }
       return content
     }
@@ -192,7 +200,12 @@ export class EvaluatorBlockHandler implements BlockHandler {
     metrics: any
   ): Record<string, number> {
     const metricScores: Record<string, number> = {}
-    const validMetrics = Array.isArray(metrics) ? metrics : []
+    let validMetrics: any[]
+    if (Array.isArray(metrics)) {
+      validMetrics = metrics
+    } else {
+      validMetrics = []
+    }
 
     if (Object.keys(parsedContent).length === 0) {
       validMetrics.forEach((metric: any) => {

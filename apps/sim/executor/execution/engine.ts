@@ -253,7 +253,7 @@ export class ExecutionEngine {
         allowResumeTriggers: this.allowResumeTriggers,
       })
       
-      const result = await this.nodeOrchestrator.executeNode(nodeId, this.context)
+      const result = await this.nodeOrchestrator.executeNode(this.context, nodeId)
       
       logger.debug('Node execution completed', {
         nodeId,
@@ -312,7 +312,7 @@ export class ExecutionEngine {
       return
     }
 
-    await this.nodeOrchestrator.handleNodeCompletion(nodeId, output, this.context)
+    await this.nodeOrchestrator.handleNodeCompletion(this.context, nodeId, output)
 
     if (isFinalOutput) {
       this.finalOutput = output

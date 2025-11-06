@@ -19,11 +19,16 @@ function serializeLoopExecutions(
   if (!loopExecutions) return undefined
   const result: Record<string, any> = {}
   for (const [loopId, scope] of loopExecutions.entries()) {
+    let currentIterationOutputs: any
+    if (scope.currentIterationOutputs instanceof Map) {
+      currentIterationOutputs = Object.fromEntries(scope.currentIterationOutputs)
+    } else {
+      currentIterationOutputs = scope.currentIterationOutputs ?? {}
+    }
+
     result[loopId] = {
       ...scope,
-        currentIterationOutputs: scope.currentIterationOutputs instanceof Map
-        ? Object.fromEntries(scope.currentIterationOutputs)
-        : scope.currentIterationOutputs ?? {},
+      currentIterationOutputs,
     }
   }
   return result
@@ -35,11 +40,16 @@ function serializeParallelExecutions(
   if (!parallelExecutions) return undefined
   const result: Record<string, any> = {}
   for (const [parallelId, scope] of parallelExecutions.entries()) {
+    let branchOutputs: any
+    if (scope.branchOutputs instanceof Map) {
+      branchOutputs = Object.fromEntries(scope.branchOutputs)
+    } else {
+      branchOutputs = scope.branchOutputs ?? {}
+    }
+
     result[parallelId] = {
       ...scope,
-        branchOutputs: scope.branchOutputs instanceof Map
-        ? Object.fromEntries(scope.branchOutputs)
-        : scope.branchOutputs ?? {},
+      branchOutputs,
     }
   }
   return result
@@ -51,8 +61,14 @@ export function serializePauseSnapshot(
   dag?: DAG
 ): SerializedSnapshot {
   const metadataFromContext = context.metadata as ExecutionMetadata | undefined
-  const useDraftState =
-    metadataFromContext?.useDraftState ?? (context.isDeployedContext === true ? false : true)
+  let useDraftState: boolean
+  if (metadataFromContext?.useDraftState !== undefined) {
+    useDraftState = metadataFromContext.useDraftState
+  } else if (context.isDeployedContext === true) {
+    useDraftState = false
+  } else {
+    useDraftState = true
+  }
 
   const dagIncomingEdges: Record<string, string[]> | undefined = dag
     ? Object.fromEntries(

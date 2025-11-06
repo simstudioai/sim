@@ -149,9 +149,16 @@ export class BlockExecutor {
         return errorOutput
       }
 
+      let errorToThrow: Error | string
+      if (error instanceof Error) {
+        errorToThrow = error
+      } else {
+        errorToThrow = errorMessage
+      }
+
       throw buildBlockExecutionError({
         block,
-        error: error instanceof Error ? error : errorMessage,
+        error: errorToThrow,
         context: ctx,
         additionalInfo: {
           nodeId: node.id,
@@ -383,7 +390,10 @@ export class BlockExecutor {
       }
     }
 
-    const previousState = existingState ? { ...existingState } : undefined
+    let previousState: BlockState | undefined
+    if (existingState) {
+      previousState = { ...existingState }
+    }
     const hadPrevious = existingState !== undefined
 
     const placeholderState: BlockState = {

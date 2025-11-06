@@ -25,7 +25,7 @@ export class NodeExecutionOrchestrator {
     private parallelOrchestrator: ParallelOrchestrator
   ) {}
 
-  async executeNode(nodeId: string, context: any): Promise<NodeExecutionResult> {
+  async executeNode(ctx: ExecutionContext, nodeId: string): Promise<NodeExecutionResult> {
     const node = this.dag.nodes.get(nodeId)
     if (!node) {
       throw new Error(`Node not found in DAG: ${nodeId}`)
@@ -42,12 +42,12 @@ export class NodeExecutionOrchestrator {
     }
 
     const loopId = node.metadata.loopId
-    if (loopId && !this.loopOrchestrator.getLoopScope(context, loopId)) {
+    if (loopId && !this.loopOrchestrator.getLoopScope(ctx, loopId)) {
       logger.debug('Initializing loop scope before first execution', { loopId, nodeId })
-      this.loopOrchestrator.initializeLoopScope(context, loopId)
+      this.loopOrchestrator.initializeLoopScope(ctx, loopId)
     }
 
-    if (loopId && !this.loopOrchestrator.shouldExecuteLoopNode(nodeId, loopId, context)) {
+    if (loopId && !this.loopOrchestrator.shouldExecuteLoopNode(ctx, nodeId, loopId)) {
       logger.debug('Loop node should not execute', { nodeId, loopId })
       return {
         nodeId,
@@ -62,7 +62,7 @@ export class NodeExecutionOrchestrator {
         sentinelType: node.metadata.sentinelType,
         loopId,
       })
-      const output = this.handleSentinel(node, context)
+      const output = this.handleSentinel(ctx, node)
       const isFinalOutput = node.outgoingEdges.size === 0
       return {
         nodeId,
@@ -72,7 +72,7 @@ export class NodeExecutionOrchestrator {
     }
 
     logger.debug('Executing node', { nodeId, blockType: node.block.metadata?.id })
-    const output = await this.blockExecutor.execute(context, node, node.block)
+    const output = await this.blockExecutor.execute(ctx, node, node.block)
     const isFinalOutput = node.outgoingEdges.size === 0
     return {
       nodeId,
@@ -81,53 +81,59 @@ export class NodeExecutionOrchestrator {
     }
   }
 
-  private handleSentinel(node: DAGNode, context: any): NormalizedBlockOutput {
+  private handleSentinel(ctx: ExecutionContext, node: DAGNode): NormalizedBlockOutput {
     const sentinelType = node.metadata.sentinelType
     const loopId = node.metadata.loopId
-    if (sentinelType === 'start') {
-      logger.debug('Sentinel start - loop entry', { nodeId: node.id, loopId })
-      return { sentinelStart: true }
-    }
 
-    if (sentinelType === 'end') {
-      logger.debug('Sentinel end - evaluating loop continuation', { nodeId: node.id, loopId })
-      if (!loopId) {
-        logger.warn('Sentinel end called without loopId')
-        return { shouldExit: true, selectedRoute: EDGE.LOOP_EXIT }
+    switch (sentinelType) {
+      case 'start': {
+        logger.debug('Sentinel start - loop entry', { nodeId: node.id, loopId })
+        return { sentinelStart: true }
       }
 
-      const continuationResult = this.loopOrchestrator.evaluateLoopContinuation(context, loopId)
-      logger.debug('Loop continuation evaluated', {
-        loopId,
-        shouldContinue: continuationResult.shouldContinue,
-        shouldExit: continuationResult.shouldExit,
-        iteration: continuationResult.currentIteration,
-      })
+      case 'end': {
+        logger.debug('Sentinel end - evaluating loop continuation', { nodeId: node.id, loopId })
+        if (!loopId) {
+          logger.warn('Sentinel end called without loopId')
+          return { shouldExit: true, selectedRoute: EDGE.LOOP_EXIT }
+        }
 
-      if (continuationResult.shouldContinue) {
+        const continuationResult = this.loopOrchestrator.evaluateLoopContinuation(ctx, loopId)
+        logger.debug('Loop continuation evaluated', {
+          loopId,
+          shouldContinue: continuationResult.shouldContinue,
+          shouldExit: continuationResult.shouldExit,
+          iteration: continuationResult.currentIteration,
+        })
+
+        if (continuationResult.shouldContinue) {
+          return {
+            shouldContinue: true,
+            shouldExit: false,
+            selectedRoute: continuationResult.selectedRoute,
+            loopIteration: continuationResult.currentIteration,
+          }
+        }
+
         return {
-          shouldContinue: true,
-          shouldExit: false,
+          results: continuationResult.aggregatedResults || [],
+          shouldContinue: false,
+          shouldExit: true,
           selectedRoute: continuationResult.selectedRoute,
-          loopIteration: continuationResult.currentIteration,
+          totalIterations: continuationResult.aggregatedResults?.length || 0,
         }
       }
-      return {
-        results: continuationResult.aggregatedResults || [],
-        shouldContinue: false,
-        shouldExit: true,
-        selectedRoute: continuationResult.selectedRoute,
-        totalIterations: continuationResult.aggregatedResults?.length || 0,
-      }
+
+      default:
+        logger.warn('Unknown sentinel type', { sentinelType })
+        return {}
     }
-    logger.warn('Unknown sentinel type', { sentinelType })
-    return {}
   }
 
   async handleNodeCompletion(
+    ctx: ExecutionContext,
     nodeId: string,
-    output: NormalizedBlockOutput,
-    context: any
+    output: NormalizedBlockOutput
   ): Promise<void> {
     const node = this.dag.nodes.get(nodeId)
     if (!node) {
@@ -147,64 +153,64 @@ export class NodeExecutionOrchestrator {
     const isSentinel = node.metadata.isSentinel
     if (isSentinel) {
       logger.debug('Handling sentinel node', { nodeId: node.id, loopId })
-      this.handleRegularNodeCompletion(node, output, context)
+      this.handleRegularNodeCompletion(ctx, node, output)
     } else if (loopId) {
       logger.debug('Handling loop node', { nodeId: node.id, loopId })
-      this.handleLoopNodeCompletion(node, output, loopId, context)
+      this.handleLoopNodeCompletion(ctx, node, output, loopId)
     } else if (isParallelBranch) {
       const parallelId = this.findParallelIdForNode(node.id)
       if (parallelId) {
         logger.debug('Handling parallel node', { nodeId: node.id, parallelId })
-        this.handleParallelNodeCompletion(context, node, output, parallelId)
+        this.handleParallelNodeCompletion(ctx, node, output, parallelId)
       } else {
-        this.handleRegularNodeCompletion(node, output, context)
+        this.handleRegularNodeCompletion(ctx, node, output)
       }
     } else {
       logger.debug('Handling regular node', { nodeId: node.id })
-      this.handleRegularNodeCompletion(node, output, context)
+      this.handleRegularNodeCompletion(ctx, node, output)
     }
   }
 
   private handleLoopNodeCompletion(
+    ctx: ExecutionContext,
     node: DAGNode,
     output: NormalizedBlockOutput,
-    loopId: string,
-    context: ExecutionContext
+    loopId: string
   ): void {
-    this.loopOrchestrator.storeLoopNodeOutput(context, loopId, node.id, output)
+    this.loopOrchestrator.storeLoopNodeOutput(ctx, loopId, node.id, output)
     this.state.setBlockOutput(node.id, output)
   }
 
   private handleParallelNodeCompletion(
-    context: ExecutionContext,
+    ctx: ExecutionContext,
     node: DAGNode,
     output: NormalizedBlockOutput,
     parallelId: string
   ): void {
-    const scope = this.parallelOrchestrator.getParallelScope(context, parallelId)
+    const scope = this.parallelOrchestrator.getParallelScope(ctx, parallelId)
     if (!scope) {
       const totalBranches = node.metadata.branchTotal || 1
       const parallelConfig = this.dag.parallelConfigs.get(parallelId)
       const nodesInParallel = (parallelConfig as any)?.nodes?.length || 1
-      this.parallelOrchestrator.initializeParallelScope(context, parallelId, totalBranches, nodesInParallel)
+      this.parallelOrchestrator.initializeParallelScope(ctx, parallelId, totalBranches, nodesInParallel)
     }
     const allComplete = this.parallelOrchestrator.handleParallelBranchCompletion(
-      context,
+      ctx,
       parallelId,
       node.id,
       output
     )
     if (allComplete) {
-      this.parallelOrchestrator.aggregateParallelResults(context, parallelId)
+      this.parallelOrchestrator.aggregateParallelResults(ctx, parallelId)
     }
 
     this.state.setBlockOutput(node.id, output)
   }
 
   private handleRegularNodeCompletion(
+    ctx: ExecutionContext,
     node: DAGNode,
-    output: NormalizedBlockOutput,
-    context: any
+    output: NormalizedBlockOutput
   ): void {
     this.state.setBlockOutput(node.id, output)
 

@@ -116,33 +116,37 @@ export class EdgeManager {
   private shouldActivateEdge(edge: DAGEdge, output: NormalizedBlockOutput): boolean {
     const handle = edge.sourceHandle
 
-    if (handle?.startsWith(EDGE.CONDITION_PREFIX)) {
+    if (!handle) {
+      return true
+    }
+
+    if (handle.startsWith(EDGE.CONDITION_PREFIX)) {
       const conditionValue = handle.substring(EDGE.CONDITION_PREFIX.length)
       return output.selectedOption === conditionValue
     }
 
-    if (handle?.startsWith(EDGE.ROUTER_PREFIX)) {
+    if (handle.startsWith(EDGE.ROUTER_PREFIX)) {
       const routeId = handle.substring(EDGE.ROUTER_PREFIX.length)
       return output.selectedRoute === routeId
     }
 
-    if (handle === EDGE.LOOP_CONTINUE || handle === EDGE.LOOP_CONTINUE_ALT) {
-      return output.selectedRoute === EDGE.LOOP_CONTINUE
-    }
+    switch (handle) {
+      case EDGE.LOOP_CONTINUE:
+      case EDGE.LOOP_CONTINUE_ALT:
+        return output.selectedRoute === EDGE.LOOP_CONTINUE
 
-    if (handle === EDGE.LOOP_EXIT) {
-      return output.selectedRoute === EDGE.LOOP_EXIT
-    }
+      case EDGE.LOOP_EXIT:
+        return output.selectedRoute === EDGE.LOOP_EXIT
 
-    if (handle === EDGE.ERROR && !output.error) {
-      return false
-    }
+      case EDGE.ERROR:
+        return !!output.error
 
-    if (handle === EDGE.SOURCE && output.error) {
-      return false
-    }
+      case EDGE.SOURCE:
+        return !output.error
 
-    return true
+      default:
+        return true
+    }
   }
 
   private isBackwardsEdge(sourceHandle?: string): boolean {

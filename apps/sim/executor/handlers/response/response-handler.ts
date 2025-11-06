@@ -165,7 +165,10 @@ export class ResponseBlockHandler implements BlockHandler {
 
     if (typeof value === 'string' && !this.isVariableReference(value)) {
       const parsed = this.tryParseJson(value, value)
-      return Array.isArray(parsed) ? parsed : value
+      if (Array.isArray(parsed)) {
+        return parsed
+      }
+      return value
     }
 
     return value
@@ -181,9 +184,12 @@ export class ResponseBlockHandler implements BlockHandler {
     }
 
     if (item.type === 'array' && Array.isArray(item.value)) {
-      return item.value.map((subItem: any) =>
-        typeof subItem === 'object' && subItem.type ? subItem.value : subItem
-      )
+      return item.value.map((subItem: any) => {
+        if (typeof subItem === 'object' && subItem.type) {
+          return subItem.value
+        }
+        return subItem
+      })
     }
 
     return item.value
@@ -195,7 +201,10 @@ export class ResponseBlockHandler implements BlockHandler {
     }
 
     const numValue = Number(value)
-    return Number.isNaN(numValue) ? value : numValue
+    if (Number.isNaN(numValue)) {
+      return value
+    }
+    return numValue
   }
 
   private convertBooleanValue(value: any): any {
