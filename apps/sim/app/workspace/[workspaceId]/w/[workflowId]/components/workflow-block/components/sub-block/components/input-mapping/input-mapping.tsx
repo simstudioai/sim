@@ -38,7 +38,10 @@ function isStarterBlock(value: unknown): value is StarterBlockLegacy {
   return !!value && typeof value === 'object' && (value as { type?: unknown }).type === 'starter'
 }
 
-function isInputFormatField(value: unknown): value is InputFormatField {
+type ValidatedInputFormatField = Required<Pick<InputFormatField, 'name'>> &
+  Pick<InputFormatField, 'type'>
+
+function isInputFormatField(value: unknown): value is ValidatedInputFormatField {
   if (typeof value !== 'object' || value === null) return false
   if (!('name' in value)) return false
   const { name, type } = value as { name: unknown; type?: unknown }
