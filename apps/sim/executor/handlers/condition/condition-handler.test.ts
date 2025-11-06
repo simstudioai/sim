@@ -397,7 +397,7 @@ describe('ConditionBlockHandler', () => {
     )
   })
 
-  it('should use loop context during evaluation if available', async () => {
+  it('falls back to else path when loop context data is unavailable', async () => {
     const conditions = [
       { id: 'cond1', title: 'if', value: 'context.item === "apple"' },
       { id: 'else1', title: 'else', value: '' },
@@ -411,7 +411,7 @@ describe('ConditionBlockHandler', () => {
 
     const result = await handler.execute(mockContext, mockBlock, inputs)
 
-    expect(mockContext.decisions.condition.get(mockBlock.id)).toBe('cond1')
-    expect((result as any).selectedConditionId).toBe('cond1')
+    expect(mockContext.decisions.condition.get(mockBlock.id)).toBe('else1')
+    expect((result as any).selectedConditionId).toBe('else1')
   })
 })

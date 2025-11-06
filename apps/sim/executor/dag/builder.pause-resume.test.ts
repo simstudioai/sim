@@ -53,20 +53,16 @@ describe('DAGBuilder pause-resume transformation', () => {
     expect(pauseNode).toBeDefined()
     expect(pauseNode?.metadata.isPauseResponse).toBe(true)
 
-    const triggerNode = dag.nodes.get('pause__trigger')
-    expect(triggerNode).toBeDefined()
-    expect(triggerNode?.metadata.isResumeTrigger).toBe(true)
-
     const startNode = dag.nodes.get('start')!
     const startOutgoing = Array.from(startNode.outgoingEdges.values())
     expect(startOutgoing).toHaveLength(1)
     expect(startOutgoing[0].target).toBe('pause')
 
     const pauseOutgoing = Array.from(pauseNode!.outgoingEdges.values())
-    expect(pauseOutgoing).toHaveLength(0)
+    expect(pauseOutgoing).toHaveLength(1)
+    expect(pauseOutgoing[0].target).toBe('finish')
 
-    const triggerOutgoing = Array.from(triggerNode!.outgoingEdges.values())
-    expect(triggerOutgoing).toHaveLength(1)
-    expect(triggerOutgoing[0].target).toBe('finish')
+    const triggerNode = dag.nodes.get('pause__trigger')
+    expect(triggerNode).toBeUndefined()
   })
 })
