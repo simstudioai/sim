@@ -8,7 +8,6 @@ export interface ReadUrlParams {
   jsonResponse?: boolean
   apiKey?: string
   // Content extraction params
-  timeout?: number
   withImagesummary?: boolean
   retainImages?: 'none' | 'all'
   returnFormat?: 'markdown' | 'html' | 'text' | 'screenshot' | 'pageshot'
@@ -47,7 +46,6 @@ export interface SearchParams {
   withGeneratedAlt?: boolean
   respondWith?: 'no-content'
   returnFormat?: 'markdown' | 'html' | 'text' | 'screenshot' | 'pageshot'
-  timeout?: number
 }
 
 export interface SearchResult {

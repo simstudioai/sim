@@ -40,12 +40,6 @@ export const readUrlTool: ToolConfig<ReadUrlParams, ReadUrlResponse> = {
       description: 'Your Jina AI API key',
     },
     // Content extraction params
-    timeout: {
-      type: 'number',
-      required: false,
-      visibility: 'user-only',
-      description: 'Maximum seconds to wait for page load',
-    },
     withImagesummary: {
       type: 'boolean',
       required: false,
@@ -131,9 +125,6 @@ export const readUrlTool: ToolConfig<ReadUrlParams, ReadUrlResponse> = {
       }
 
       // Content extraction headers
-      if (params.timeout) {
-        headers['X-Timeout'] = Number(params.timeout).toString()
-      }
       if (params.withImagesummary === true) {
         headers['X-With-Images-Summary'] = 'true'
       }

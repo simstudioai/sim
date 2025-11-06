@@ -34,13 +34,6 @@ export const JinaBlock: BlockConfig<ReadUrlResponse | SearchResponse> = {
       condition: { field: 'operation', value: 'jina_read_url' },
     },
     {
-      id: 'timeout',
-      title: 'Timeout (seconds)',
-      type: 'short-input',
-      placeholder: '30',
-      condition: { field: 'operation', value: 'jina_read_url' },
-    },
-    {
       id: 'returnFormat',
       title: 'Return Format',
       type: 'dropdown',
@@ -130,13 +123,6 @@ export const JinaBlock: BlockConfig<ReadUrlResponse | SearchResponse> = {
       condition: { field: 'operation', value: 'jina_search' },
     },
     {
-      id: 'searchTimeout',
-      title: 'Timeout (seconds)',
-      type: 'short-input',
-      placeholder: '30',
-      condition: { field: 'operation', value: 'jina_search' },
-    },
-    {
       id: 'searchOptions',
       title: 'Options',
       type: 'checkbox-list',
@@ -176,7 +162,6 @@ export const JinaBlock: BlockConfig<ReadUrlResponse | SearchResponse> = {
     useReaderLMv2: { type: 'boolean', description: 'Use Reader LM v2 (3x cost)' },
     gatherLinks: { type: 'boolean', description: 'Gather page links' },
     jsonResponse: { type: 'boolean', description: 'JSON response format' },
-    timeout: { type: 'number', description: 'Timeout in seconds' },
     withImagesummary: { type: 'boolean', description: 'Gather images' },
     retainImages: { type: 'string', description: 'Retain images setting' },
     returnFormat: { type: 'string', description: 'Output format' },
@@ -196,7 +181,6 @@ export const JinaBlock: BlockConfig<ReadUrlResponse | SearchResponse> = {
     respondWith: { type: 'string', description: 'Response mode' },
     searchReturnFormat: { type: 'string', description: 'Search output format' },
     searchRetainImages: { type: 'string', description: 'Search retain images' },
-    searchTimeout: { type: 'number', description: 'Search timeout' },
   },
   outputs: {
     // Read URL outputs
