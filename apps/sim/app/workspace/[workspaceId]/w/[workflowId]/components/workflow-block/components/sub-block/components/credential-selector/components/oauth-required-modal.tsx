@@ -163,16 +163,19 @@ export function OAuthRequiredModal({
 
   const handleConnectDirectly = async () => {
     try {
-      // Determine the appropriate serviceId and providerId
       const providerId = getProviderIdFromServiceId(effectiveServiceId)
 
-      // Close the modal
       onClose()
 
       logger.info('Linking OAuth2:', {
         providerId,
         requiredScopes,
       })
+
+      if (providerId === 'trello') {
+        window.location.href = '/api/auth/trello/authorize'
+        return
+      }
 
       await client.oauth2.link({
         providerId,

@@ -24,6 +24,7 @@ import {
   RedditIcon,
   SlackIcon,
   SupabaseIcon,
+  TrelloIcon,
   WealthboxIcon,
   WebflowIcon,
   xIcon,
@@ -47,6 +48,7 @@ export type OAuthProvider =
   | 'linear'
   | 'slack'
   | 'reddit'
+  | 'trello'
   | 'wealthbox'
   | 'webflow'
   | string
@@ -79,6 +81,7 @@ export type OAuthService =
   | 'wealthbox'
   | 'onedrive'
   | 'webflow'
+  | 'trello'
 export interface OAuthProviderConfig {
   id: OAuthProvider
   name: string
@@ -529,6 +532,23 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
       },
     },
     defaultService: 'webflow',
+  },
+  trello: {
+    id: 'trello',
+    name: 'Trello',
+    icon: (props) => TrelloIcon(props),
+    services: {
+      trello: {
+        id: 'trello',
+        name: 'Trello',
+        description: 'Manage Trello boards, cards, and workflows.',
+        providerId: 'trello',
+        icon: (props) => TrelloIcon(props),
+        baseProviderIcon: (props) => TrelloIcon(props),
+        scopes: ['read', 'write'],
+      },
+    },
+    defaultService: 'trello',
   },
 }
 

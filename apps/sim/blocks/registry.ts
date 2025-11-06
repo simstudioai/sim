@@ -72,6 +72,7 @@ import { TavilyBlock } from '@/blocks/blocks/tavily'
 import { TelegramBlock } from '@/blocks/blocks/telegram'
 import { ThinkingBlock } from '@/blocks/blocks/thinking'
 import { TranslateBlock } from '@/blocks/blocks/translate'
+import { TrelloBlock } from '@/blocks/blocks/trello'
 import { TwilioSMSBlock } from '@/blocks/blocks/twilio'
 import { TwilioVoiceBlock } from '@/blocks/blocks/twilio_voice'
 import { TypeformBlock } from '@/blocks/blocks/typeform'
@@ -168,6 +169,7 @@ export const registry: Record<string, BlockConfig> = {
   telegram: TelegramBlock,
   thinking: ThinkingBlock,
   translate: TranslateBlock,
+  trello: TrelloBlock,
   twilio_sms: TwilioSMSBlock,
   twilio_voice: TwilioVoiceBlock,
   typeform: TypeformBlock,

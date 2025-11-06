@@ -193,6 +193,14 @@ import {
   telegramSendVideoTool,
 } from '@/tools/telegram'
 import { thinkingTool } from '@/tools/thinking'
+import {
+  trelloAddCommentTool,
+  trelloCreateCardTool,
+  trelloGetActionsTool,
+  trelloListCardsTool,
+  trelloListListsTool,
+  trelloUpdateCardTool,
+} from '@/tools/trello'
 import { sendSMSTool } from '@/tools/twilio'
 import { getRecordingTool, listCallsTool, makeCallTool } from '@/tools/twilio_voice'
 import { typeformFilesTool, typeformInsightsTool, typeformResponsesTool } from '@/tools/typeform'
@@ -357,6 +365,12 @@ export const tools: Record<string, ToolConfig> = {
   perplexity_search: perplexitySearchTool,
   confluence_retrieve: confluenceRetrieveTool,
   confluence_update: confluenceUpdateTool,
+  trello_list_lists: trelloListListsTool,
+  trello_list_cards: trelloListCardsTool,
+  trello_create_card: trelloCreateCardTool,
+  trello_update_card: trelloUpdateCardTool,
+  trello_get_actions: trelloGetActionsTool,
+  trello_add_comment: trelloAddCommentTool,
   twilio_send_sms: sendSMSTool,
   twilio_voice_make_call: makeCallTool,
   twilio_voice_list_calls: listCallsTool,
