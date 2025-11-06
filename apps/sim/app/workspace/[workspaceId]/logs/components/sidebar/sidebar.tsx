@@ -436,13 +436,22 @@ export function Sidebar({
                   </div>
                 )}
 
-                {/* Level */}
+                {/* Status */}
                 <div>
-                  <h3 className='mb-1 font-medium text-muted-foreground text-xs'>Level</h3>
-                  <div className='group relative text-sm capitalize'>
-                    <CopyButton text={log.level} />
-                    {log.level}
-                  </div>
+                  <h3 className='mb-1 font-medium text-muted-foreground text-xs'>Status</h3>
+                  {(() => {
+                    const baseLevel = (log.level || 'info').toLowerCase()
+                    const isPending = log.duration == null
+                    const statusLabel = isPending
+                      ? 'Pending'
+                      : `${baseLevel.charAt(0).toUpperCase()}${baseLevel.slice(1)}`
+                    return (
+                      <div className='group relative text-sm capitalize'>
+                        <CopyButton text={statusLabel} />
+                        {statusLabel}
+                      </div>
+                    )
+                  })()}
                 </div>
 
                 {/* Trigger */}

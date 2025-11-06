@@ -317,6 +317,12 @@ export function WorkflowDetails({
                       const outputsStr = log.outputs ? JSON.stringify(log.outputs) : '—'
                       const errorStr = log.errorMessage || ''
                       const isExpanded = expandedRowId === log.id
+                      const baseLevel = (log.level || 'info').toLowerCase()
+                      const isPending = log.duration == null
+                      const isError = baseLevel === 'error'
+                      const statusLabel = isPending
+                        ? 'Pending'
+                        : `${baseLevel.charAt(0).toUpperCase()}${baseLevel.slice(1)}`
 
                       return (
                         <div
@@ -348,12 +354,14 @@ export function WorkflowDetails({
                               <div
                                 className={cn(
                                   'inline-flex items-center rounded-[8px] px-[6px] py-[2px] font-[400] text-xs transition-all duration-200 lg:px-[8px]',
-                                  log.level === 'error'
+                                  isError
                                     ? 'bg-red-500 text-white'
-                                    : 'bg-secondary text-card-foreground'
+                                    : isPending
+                                      ? 'bg-amber-300 text-amber-900 dark:bg-amber-500/90 dark:text-black'
+                                      : 'bg-secondary text-card-foreground'
                                 )}
                               >
-                                {log.level}
+                                {statusLabel}
                               </div>
                             </div>
 
