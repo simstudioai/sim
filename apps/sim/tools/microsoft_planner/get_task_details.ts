@@ -60,10 +60,13 @@ export const getTaskDetailsTool: ToolConfig<
     const taskDetails = await response.json()
     logger.info('Task details retrieved:', taskDetails)
 
+    const etag = taskDetails['@odata.etag'] || ''
+
     const result: MicrosoftPlannerGetTaskDetailsResponse = {
       success: true,
       output: {
         taskDetails,
+        etag,
         metadata: {
           taskId: taskDetails.id,
         },
@@ -81,6 +84,10 @@ export const getTaskDetailsTool: ToolConfig<
     taskDetails: {
       type: 'object',
       description: 'The task details including description, checklist, and references',
+    },
+    etag: {
+      type: 'string',
+      description: 'The ETag value for this task details - use this for update operations',
     },
     metadata: { type: 'object', description: 'Metadata including taskId' },
   },

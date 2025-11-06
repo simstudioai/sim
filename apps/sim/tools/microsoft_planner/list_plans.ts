@@ -13,7 +13,7 @@ export const listPlansTool: ToolConfig<
 > = {
   id: 'microsoft_planner_list_plans',
   name: 'List Microsoft Planner Plans',
-  description: 'List all plans in a Microsoft 365 group',
+  description: 'List all plans shared with the current user',
   version: '1.0',
 
   oauth: {
@@ -29,20 +29,11 @@ export const listPlansTool: ToolConfig<
       visibility: 'hidden',
       description: 'The access token for the Microsoft Planner API',
     },
-    groupId: {
-      type: 'string',
-      required: true,
-      visibility: 'user-only',
-      description: 'The ID of the Microsoft 365 group',
-    },
   },
 
   request: {
-    url: (params) => {
-      if (!params.groupId) {
-        throw new Error('Group ID is required')
-      }
-      return `https://graph.microsoft.com/v1.0/groups/${params.groupId}/planner/plans`
+    url: () => {
+      return 'https://graph.microsoft.com/v1.0/me/planner/plans'
     },
     method: 'GET',
     headers: (params) => {
@@ -67,8 +58,8 @@ export const listPlansTool: ToolConfig<
       output: {
         plans,
         metadata: {
-          groupId: plans.length > 0 ? plans[0].container?.containerId : undefined,
           count: plans.length,
+          userId: 'me',
         },
       },
     }
@@ -78,7 +69,7 @@ export const listPlansTool: ToolConfig<
 
   outputs: {
     success: { type: 'boolean', description: 'Whether plans were retrieved successfully' },
-    plans: { type: 'array', description: 'Array of plan objects' },
-    metadata: { type: 'object', description: 'Metadata including groupId and count' },
+    plans: { type: 'array', description: 'Array of plan objects shared with the current user' },
+    metadata: { type: 'object', description: 'Metadata including userId and count' },
   },
 }

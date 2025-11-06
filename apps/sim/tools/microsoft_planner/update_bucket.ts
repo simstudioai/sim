@@ -15,6 +15,7 @@ export const updateBucketTool: ToolConfig<
   name: 'Update Microsoft Planner Bucket',
   description: 'Update a bucket in Microsoft Planner',
   version: '1.0',
+  errorExtractor: 'nested-error-object',
 
   oauth: {
     required: true,
@@ -65,10 +66,22 @@ export const updateBucketTool: ToolConfig<
         throw new Error('ETag is required for update operations')
       }
 
+      let cleanedEtag = params.etag.trim()
+
+      while (cleanedEtag.startsWith('"') && cleanedEtag.endsWith('"')) {
+        cleanedEtag = cleanedEtag.slice(1, -1)
+        logger.info('Removed surrounding quotes:', cleanedEtag)
+      }
+
+      if (cleanedEtag.includes('\\"')) {
+        cleanedEtag = cleanedEtag.replace(/\\"/g, '"')
+        logger.info('Cleaned escaped quotes from etag')
+      }
+
       return {
         Authorization: `Bearer ${params.accessToken}`,
         'Content-Type': 'application/json',
-        'If-Match': params.etag,
+        'If-Match': cleanedEtag,
       }
     },
     body: (params) => {

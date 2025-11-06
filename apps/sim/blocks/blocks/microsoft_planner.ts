@@ -75,16 +75,6 @@ export const MicrosoftPlannerBlock: BlockConfig<MicrosoftPlannerResponse> = {
       placeholder: 'Select Microsoft account',
     },
 
-    // Group ID - for list_plans
-    {
-      id: 'groupId',
-      title: 'Group ID',
-      type: 'short-input',
-      placeholder: 'Enter the Microsoft 365 group ID',
-      condition: { field: 'operation', value: ['list_plans'] },
-      dependsOn: ['credential'],
-    },
-
     // Plan ID - for various operations
     {
       id: 'planId',
@@ -153,7 +143,8 @@ export const MicrosoftPlannerBlock: BlockConfig<MicrosoftPlannerResponse> = {
       id: 'etag',
       title: 'ETag',
       type: 'short-input',
-      placeholder: 'Enter the ETag from the resource (required for updates/deletes)',
+      placeholder: 'Etag of the item',
+      required: true,
       condition: {
         field: 'operation',
         value: [
@@ -361,13 +352,7 @@ export const MicrosoftPlannerBlock: BlockConfig<MicrosoftPlannerResponse> = {
 
         // List Plans
         if (operation === 'list_plans') {
-          if (!groupId?.trim()) {
-            throw new Error('Group ID is required to list plans.')
-          }
-          return {
-            ...baseParams,
-            groupId: groupId.trim(),
-          }
+          return baseParams
         }
 
         // Read Plan
@@ -455,9 +440,10 @@ export const MicrosoftPlannerBlock: BlockConfig<MicrosoftPlannerResponse> = {
         // Read Task
         if (operation === 'read_task') {
           const readParams: MicrosoftPlannerBlockParams = { ...baseParams }
+          const readTaskId = (taskId || manualTaskId || '').trim()
 
-          if (effectiveTaskId) {
-            readParams.taskId = effectiveTaskId
+          if (readTaskId) {
+            readParams.taskId = readTaskId
           } else if (planId?.trim()) {
             readParams.planId = planId.trim()
           }
@@ -621,6 +607,10 @@ export const MicrosoftPlannerBlock: BlockConfig<MicrosoftPlannerResponse> = {
     previewType: { type: 'string', description: 'Preview type for task details' },
   },
   outputs: {
+    message: {
+      type: 'string',
+      description: 'Success message from the operation',
+    },
     task: {
       type: 'json',
       description:
@@ -629,6 +619,14 @@ export const MicrosoftPlannerBlock: BlockConfig<MicrosoftPlannerResponse> = {
     tasks: {
       type: 'json',
       description: 'Array of Microsoft Planner tasks',
+    },
+    taskId: {
+      type: 'string',
+      description: 'ID of the task',
+    },
+    etag: {
+      type: 'string',
+      description: 'ETag of the resource - use this for update/delete operations',
     },
     plan: {
       type: 'json',

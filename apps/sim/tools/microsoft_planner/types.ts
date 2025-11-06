@@ -124,7 +124,10 @@ export interface MicrosoftPlannerCreateResponse extends ToolResponse {
 
 export interface MicrosoftPlannerUpdateTaskResponse extends ToolResponse {
   output: {
+    message: string
     task: PlannerTask
+    taskId: string
+    etag: string
     metadata: MicrosoftPlannerMetadata
   }
 }
@@ -188,6 +191,7 @@ export interface MicrosoftPlannerDeleteBucketResponse extends ToolResponse {
 export interface MicrosoftPlannerGetTaskDetailsResponse extends ToolResponse {
   output: {
     taskDetails: PlannerTaskDetails
+    etag: string
     metadata: MicrosoftPlannerMetadata
   }
 }
