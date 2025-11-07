@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { AlertTriangle, Check, ChevronDown, ExternalLink, Plus, RefreshCw } from 'lucide-react'
+import { useCallback, useEffect, useState } from 'react'
+import { Check, ChevronDown, ExternalLink, Plus, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Command,
@@ -10,7 +10,6 @@ import {
 } from '@/components/ui/command'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { createLogger } from '@/lib/logs/console/logger'
-import { client } from '@/lib/auth-client'
 import {
   type Credential,
   OAUTH_PROVIDERS,
@@ -72,7 +71,6 @@ export function ToolCredentialSelector({
   const [isLoading, setIsLoading] = useState(false)
   const [showOAuthModal, setShowOAuthModal] = useState(false)
   const [selectedId, setSelectedId] = useState('')
-  const [isAuthorizing, setIsAuthorizing] = useState(false)
   const { activeWorkflowId } = useWorkflowRegistry()
 
   useEffect(() => {
@@ -157,38 +155,8 @@ export function ToolCredentialSelector({
     }
   }
 
-  const selectedCredential = useMemo(
-    () => credentials.find((cred) => cred.id === selectedId),
-    [credentials, selectedId]
-  )
+  const selectedCredential = credentials.find((cred) => cred.id === selectedId)
   const isForeign = !!(selectedId && !selectedCredential)
-
-  const missingScopes = selectedCredential?.missingScopes || []
-  const extraScopes = selectedCredential?.extraScopes || []
-  const requiresReauthorization = !!selectedCredential?.requiresReauthorization
-
-  const handleAuthorize = useCallback(async () => {
-    if (!selectedCredential) {
-      setShowOAuthModal(true)
-      return
-    }
-
-    try {
-      setIsAuthorizing(true)
-      await client.oauth2.link({
-        providerId: selectedCredential.provider,
-        callbackURL: window.location.href,
-      })
-    } catch (error) {
-      logger.error('Error initiating OAuth reauthorization:', {
-        error,
-        credentialId: selectedCredential.id,
-        provider: selectedCredential.provider,
-      })
-    } finally {
-      setIsAuthorizing(false)
-    }
-  }, [selectedCredential])
 
   return (
     <>
@@ -249,20 +217,11 @@ export function ToolCredentialSelector({
                       value={credential.id}
                       onSelect={() => handleSelect(credential.id)}
                     >
-                      <div className='flex w-full items-center justify-between gap-2'>
-                        <div className='flex items-center gap-2'>
-                          {getProviderIcon(credential.provider)}
-                          <span className='font-normal'>{credential.name}</span>
-                        </div>
-                        <div className='flex items-center gap-2'>
-                          {credential.requiresReauthorization && (
-                            <span className='rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-900'>
-                              Update
-                            </span>
-                          )}
-                          {credential.id === selectedId && <Check className='h-4 w-4' />}
-                        </div>
+                      <div className='flex items-center gap-2'>
+                        {getProviderIcon(credential.provider)}
+                        <span className='font-normal'>{credential.name}</span>
                       </div>
+                      {credential.id === selectedId && <Check className='ml-auto h-4 w-4' />}
                     </CommandItem>
                   ))}
                 </CommandGroup>
@@ -280,40 +239,6 @@ export function ToolCredentialSelector({
           </Command>
         </PopoverContent>
       </Popover>
-
-      {requiresReauthorization && (
-        <div className='mt-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-amber-900'>
-          <div className='flex flex-wrap items-start justify-between gap-3'>
-            <div className='flex items-start gap-2'>
-              <AlertTriangle className='mt-0.5 h-4 w-4 flex-shrink-0 text-amber-500' />
-              <div className='space-y-1'>
-                <p className='font-medium text-sm'>More permissions needed</p>
-                <p className='text-xs'>
-                  Re-authorize this connection to unlock the latest features for {getProviderName(provider)}.
-                </p>
-                {missingScopes.length > 0 && (
-                  <p className='text-xs'>
-                    Missing scopes: {missingScopes.join(', ')}
-                  </p>
-                )}
-                {missingScopes.length === 0 && extraScopes.length > 0 && (
-                  <p className='text-xs'>
-                    Scope changes detected: {extraScopes.join(', ')}
-                  </p>
-                )}
-              </div>
-            </div>
-            <Button
-              size='sm'
-              variant='outline'
-              onClick={handleAuthorize}
-              disabled={isAuthorizing}
-            >
-              {isAuthorizing ? 'Authorizing...' : 'Authorize'}
-            </Button>
-          </div>
-        </div>
-      )}
 
       <OAuthRequiredModal
         isOpen={showOAuthModal}
