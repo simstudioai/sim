@@ -307,7 +307,7 @@ export async function POST(req: NextRequest) {
       (currentChat?.conversationId as string | undefined) || conversationId
 
     const requestPayload = {
-      message: message, // Just send the current user message text
+      message: message,
       workflowId,
       userId: authenticatedUserId,
       stream: stream,

@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { Check, ChevronDown, ExternalLink, Search } from 'lucide-react'
+import { AlertTriangle, Check, ChevronDown, ExternalLink, Search } from 'lucide-react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -22,7 +22,19 @@ interface CredentialsProps {
 interface ServiceInfo extends OAuthServiceConfig {
   isConnected: boolean
   lastConnected?: string
-  accounts?: { id: string; name: string }[]
+  accounts?: {
+    id: string
+    name: string
+    scopes?: string[]
+    missingScopes?: string[]
+    extraScopes?: string[]
+    requiresReauthorization?: boolean
+  }[]
+  grantedScopes?: string[]
+  canonicalScopes?: string[]
+  missingScopes?: string[]
+  extraScopes?: string[]
+  requiresReauthorization?: boolean
 }
 
 export function Credentials({ onOpenChange, registerCloseHandler }: CredentialsProps) {
@@ -54,6 +66,12 @@ export function Credentials({ onOpenChange, registerCloseHandler }: CredentialsP
           ...service,
           isConnected: false,
           scopes: service.scopes || [],
+          accounts: [],
+          grantedScopes: [],
+          canonicalScopes: service.scopes || [],
+          missingScopes: [],
+          extraScopes: [],
+          requiresReauthorization: false,
         })
       })
     })
@@ -89,8 +107,15 @@ export function Credentials({ onOpenChange, registerCloseHandler }: CredentialsP
             return {
               ...service,
               isConnected: connection.accounts?.length > 0,
-              accounts: connection.accounts || [],
-              lastConnected: connection.lastConnected,
+            accounts: connection.accounts || [],
+            lastConnected: connection.lastConnected,
+            grantedScopes: connection.scopes || [],
+            canonicalScopes: connection.canonicalScopes || service.scopes || [],
+            missingScopes: connection.missingScopes || [],
+            extraScopes: connection.extraScopes || [],
+            requiresReauthorization:
+              connection.requiresReauthorization ||
+              (connection.accounts || []).some((acc: any) => acc.requiresReauthorization),
             }
           }
 
@@ -115,6 +140,15 @@ export function Credentials({ onOpenChange, registerCloseHandler }: CredentialsP
               isConnected: connectionWithScopes.accounts?.length > 0,
               accounts: connectionWithScopes.accounts || [],
               lastConnected: connectionWithScopes.lastConnected,
+            grantedScopes: connectionWithScopes.scopes || [],
+            canonicalScopes: connectionWithScopes.canonicalScopes || service.scopes || [],
+            missingScopes: connectionWithScopes.missingScopes || [],
+            extraScopes: connectionWithScopes.extraScopes || [],
+            requiresReauthorization:
+              connectionWithScopes.requiresReauthorization ||
+              (connectionWithScopes.accounts || []).some(
+                (acc: any) => acc.requiresReauthorization
+              ),
             }
           }
 
@@ -423,64 +457,118 @@ export function Credentials({ onOpenChange, registerCloseHandler }: CredentialsP
                   <Label className='font-normal text-muted-foreground text-xs uppercase'>
                     {OAUTH_PROVIDERS[providerKey]?.name || 'Other Services'}
                   </Label>
-                  {providerServices.map((service) => (
-                    <div
-                      key={service.id}
-                      className={cn(
-                        'flex items-center justify-between gap-4',
-                        pendingService === service.id && '-m-2 rounded-[8px] bg-primary/5 p-2'
-                      )}
-                      ref={pendingService === service.id ? pendingServiceRef : undefined}
-                    >
-                      <div className='flex items-center gap-3'>
-                        <div className='flex h-10 w-10 shrink-0 items-center justify-center rounded-[8px] bg-muted'>
-                          {typeof service.icon === 'function'
-                            ? service.icon({ className: 'h-5 w-5' })
-                            : service.icon}
-                        </div>
-                        <div className='min-w-0'>
-                          <div className='flex items-center gap-2'>
-                            <span className='font-normal text-sm'>{service.name}</span>
-                          </div>
-                          {service.accounts && service.accounts.length > 0 ? (
-                            <p className='truncate text-muted-foreground text-xs'>
-                              {service.accounts.map((a) => a.name).join(', ')}
-                            </p>
-                          ) : (
-                            <p className='truncate text-muted-foreground text-xs'>
-                              {service.description}
-                            </p>
-                          )}
-                        </div>
-                      </div>
+                  {providerServices.map((service) => {
+                    const accountsNeedingUpdate =
+                      service.accounts?.filter((acc) => acc.requiresReauthorization) || []
 
-                      {service.accounts && service.accounts.length > 0 ? (
-                        <Button
-                          variant='ghost'
-                          size='sm'
-                          onClick={() => handleDisconnect(service, service.accounts![0].id)}
-                          disabled={isConnecting === `${service.id}-${service.accounts![0].id}`}
-                          className={cn(
-                            'h-8 text-muted-foreground hover:text-foreground',
-                            isConnecting === `${service.id}-${service.accounts![0].id}` &&
-                              'cursor-not-allowed'
+                    return (
+                      <div
+                        key={service.id}
+                        className={cn(
+                          'flex flex-col gap-3',
+                          pendingService === service.id && '-m-2 rounded-[8px] bg-primary/5 p-2'
+                        )}
+                        ref={pendingService === service.id ? pendingServiceRef : undefined}
+                      >
+                        <div className='flex items-center justify-between gap-4'>
+                          <div className='flex items-center gap-3'>
+                            <div className='flex h-10 w-10 shrink-0 items-center justify-center rounded-[8px] bg-muted'>
+                              {typeof service.icon === 'function'
+                                ? service.icon({ className: 'h-5 w-5' })
+                                : service.icon}
+                            </div>
+                            <div className='min-w-0'>
+                              <div className='flex items-center gap-2'>
+                                <span className='font-normal text-sm'>{service.name}</span>
+                              </div>
+                              {service.accounts && service.accounts.length > 0 ? (
+                                <p className='truncate text-muted-foreground text-xs'>
+                                  {service.accounts.map((a) => a.name).join(', ')}
+                                </p>
+                              ) : (
+                                <p className='truncate text-muted-foreground text-xs'>
+                                  {service.description}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+
+                          {service.accounts && service.accounts.length > 0 ? (
+                            <Button
+                              variant='ghost'
+                              size='sm'
+                              onClick={() => handleDisconnect(service, service.accounts![0].id)}
+                              disabled={isConnecting === `${service.id}-${service.accounts![0].id}`}
+                              className={cn(
+                                'h-8 text-muted-foreground hover:text-foreground',
+                                isConnecting === `${service.id}-${service.accounts![0].id}` &&
+                                  'cursor-not-allowed'
+                              )}
+                            >
+                              Disconnect
+                            </Button>
+                          ) : (
+                            <Button
+                              variant='outline'
+                              size='sm'
+                              onClick={() => handleConnect(service)}
+                              disabled={isConnecting === service.id}
+                              className={cn(
+                                'h-8',
+                                isConnecting === service.id && 'cursor-not-allowed'
+                              )}
+                            >
+                              Connect
+                            </Button>
                           )}
-                        >
-                          Disconnect
-                        </Button>
-                      ) : (
-                        <Button
-                          variant='outline'
-                          size='sm'
-                          onClick={() => handleConnect(service)}
-                          disabled={isConnecting === service.id}
-                          className={cn('h-8', isConnecting === service.id && 'cursor-not-allowed')}
-                        >
-                          Connect
-                        </Button>
-                      )}
-                    </div>
-                  ))}
+                        </div>
+
+                        {service.requiresReauthorization && (
+                          <div className='flex flex-wrap items-start justify-between gap-3 rounded-[8px] border border-amber-200 bg-amber-50 px-3 py-2 text-amber-900'>
+                            <div className='flex items-start gap-2'>
+                              <AlertTriangle className='mt-0.5 h-4 w-4 flex-shrink-0 text-amber-500' />
+                              <div className='space-y-1'>
+                                <p className='font-medium text-sm'>More permissions needed</p>
+                                <p className='text-xs'>
+                                  Re-authorize to use the latest {service.name} features.
+                                </p>
+                                {accountsNeedingUpdate.length > 0 && (
+                                  <p className='text-xs'>
+                                    Affects: {accountsNeedingUpdate.map((a) => a.name).join(', ')}
+                                  </p>
+                                )}
+                                {service.missingScopes && service.missingScopes.length > 0 && (
+                                  <p className='text-xs'>
+                                    Missing scopes: {service.missingScopes.join(', ')}
+                                  </p>
+                                )}
+                                {(!service.missingScopes ||
+                                  service.missingScopes.length === 0) &&
+                                  service.extraScopes &&
+                                  service.extraScopes.length > 0 && (
+                                    <p className='text-xs'>
+                                      Scope changes detected: {service.extraScopes.join(', ')}
+                                    </p>
+                                  )}
+                              </div>
+                            </div>
+                            <Button
+                              variant='outline'
+                              size='sm'
+                              onClick={() => handleConnect(service)}
+                              disabled={isConnecting === service.id}
+                              className={cn(
+                                'h-8',
+                                isConnecting === service.id && 'cursor-not-allowed'
+                              )}
+                            >
+                              {isConnecting === service.id ? 'Authorizing...' : 'Authorize'}
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
                 </div>
               ))}
 
