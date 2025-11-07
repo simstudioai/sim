@@ -85,7 +85,7 @@ describe('Forget Password API Route', () => {
     const data = await response.json()
 
     expect(response.status).toBe(400)
-    expect(data.message).toBe('Email is required')
+    expect(data.message).toBe('Invalid request data')
 
     const auth = await import('@/lib/auth')
     expect(auth.auth.api.forgetPassword).not.toHaveBeenCalled()
@@ -104,7 +104,7 @@ describe('Forget Password API Route', () => {
     const data = await response.json()
 
     expect(response.status).toBe(400)
-    expect(data.message).toBe('Email is required')
+    expect(data.message).toBe('Invalid request data')
 
     const auth = await import('@/lib/auth')
     expect(auth.auth.api.forgetPassword).not.toHaveBeenCalled()

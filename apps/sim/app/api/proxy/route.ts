@@ -1,5 +1,6 @@
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
+import { z } from 'zod'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { generateInternalToken } from '@/lib/auth/internal'
 import { isDev } from '@/lib/environment'
@@ -11,6 +12,22 @@ import { executeTool } from '@/tools'
 import { getTool, validateRequiredParametersAfterMerge } from '@/tools/utils'
 
 const logger = createLogger('ProxyAPI')
+
+/**
+ * Zod schema for POST request body
+ */
+const proxyPostSchema = z.object({
+  toolId: z.string().min(1, 'toolId is required'),
+  params: z.record(z.any()).optional().default({}),
+  executionContext: z
+    .object({
+      workflowId: z.string().optional(),
+      workspaceId: z.string().optional(),
+      executionId: z.string().optional(),
+      userId: z.string().optional(),
+    })
+    .optional(),
+})
 
 /**
  * Creates a minimal set of default headers for proxy requests
@@ -266,12 +283,18 @@ export async function POST(request: NextRequest) {
       throw new Error('Invalid JSON in request body')
     }
 
-    const { toolId, params, executionContext } = requestBody
-
-    if (!toolId) {
-      logger.error(`[${requestId}] Missing toolId in request`)
-      throw new Error('Missing toolId in request')
+    const validationResult = proxyPostSchema.safeParse(requestBody)
+    if (!validationResult.success) {
+      logger.error(`[${requestId}] Request validation failed`, {
+        errors: validationResult.error.errors,
+      })
+      const errorMessages = validationResult.error.errors
+        .map((err) => `${err.path.join('.')}: ${err.message}`)
+        .join(', ')
+      throw new Error(`Validation failed: ${errorMessages}`)
     }
+
+    const { toolId, params } = validationResult.data
 
     logger.info(`[${requestId}] Processing tool: ${toolId}`)
 
@@ -306,17 +329,15 @@ export async function POST(request: NextRequest) {
         (output) => output.type === 'file' || output.type === 'file[]'
       )
 
-    // Add userId to execution context for file uploads
-    const contextWithUser = executionContext
-      ? { ...executionContext, userId: authResult.userId }
-      : undefined
-
+    // Note: executionContext from request body is a partial object with workflowId, workspaceId, executionId
+    // It's not a full ExecutionContext (which requires blockStates, executedBlocks, etc.)
+    // The executeTool function handles undefined context gracefully
     const result = await executeTool(
       toolId,
       params,
       true, // skipProxy (we're already in the proxy)
       !hasFileOutputs, // skipPostProcess (don't skip if tool has file outputs)
-      contextWithUser // pass execution context with userId for file processing
+      undefined // execution context is not available in proxy context
     )
 
     if (!result.success) {

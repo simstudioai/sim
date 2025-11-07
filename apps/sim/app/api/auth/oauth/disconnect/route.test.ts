@@ -131,7 +131,7 @@ describe('OAuth Disconnect API Route', () => {
     const data = await response.json()
 
     expect(response.status).toBe(400)
-    expect(data.error).toBe('Provider is required')
+    expect(data.error).toBe('Validation failed')
     expect(mockLogger.warn).toHaveBeenCalled()
   })
 

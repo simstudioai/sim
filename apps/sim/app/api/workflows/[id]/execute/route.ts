@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { validate as uuidValidate, v4 as uuidv4 } from 'uuid'
+import { z } from 'zod'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { checkServerSideUsageLimits } from '@/lib/billing'
 import { processInputFileFields } from '@/lib/execution/files'
@@ -21,6 +22,14 @@ import { Serializer } from '@/serializer'
 import type { SubflowType } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('WorkflowExecuteAPI')
+
+const ExecuteWorkflowSchema = z.object({
+  selectedOutputs: z.array(z.string()).optional().default([]),
+  triggerType: z.enum(['api', 'webhook', 'schedule', 'manual', 'chat']).optional(),
+  stream: z.boolean().optional(),
+  useDraftState: z.boolean().optional(),
+  input: z.any().optional(),
+})
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -277,16 +286,40 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       logger.warn(`[${requestId}] Failed to parse request body, using defaults`)
     }
 
+    const validation = ExecuteWorkflowSchema.safeParse(body)
+    if (!validation.success) {
+      logger.warn(`[${requestId}] Invalid request body:`, validation.error.errors)
+      return NextResponse.json(
+        {
+          error: 'Invalid request body',
+          details: validation.error.errors.map((e) => ({
+            path: e.path.join('.'),
+            message: e.message,
+          })),
+        },
+        { status: 400 }
+      )
+    }
+
     const defaultTriggerType = auth.authType === 'api_key' ? 'api' : 'manual'
 
     const {
-      selectedOutputs = [],
+      selectedOutputs,
       triggerType = defaultTriggerType,
       stream: streamParam,
       useDraftState,
-    } = body
+      input: validatedInput,
+    } = validation.data
 
-    const input = auth.authType === 'api_key' ? body : body.input
+    // For API key auth, the entire body is the input (except for our control fields)
+    // For session auth, the input is explicitly provided in the input field
+    const input =
+      auth.authType === 'api_key'
+        ? (() => {
+            const { selectedOutputs, triggerType, stream, useDraftState, ...rest } = body
+            return Object.keys(rest).length > 0 ? rest : validatedInput
+          })()
+        : validatedInput
 
     const shouldUseDraftState = useDraftState ?? auth.authType === 'session'
 

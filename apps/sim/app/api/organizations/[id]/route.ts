@@ -2,6 +2,7 @@ import { db } from '@sim/db'
 import { member, organization } from '@sim/db/schema'
 import { and, eq, ne } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import {
   getOrganizationSeatAnalytics,
@@ -11,6 +12,21 @@ import {
 import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('OrganizationAPI')
+
+const updateOrganizationSchema = z.object({
+  name: z.string().trim().min(1, 'Organization name is required').optional(),
+  slug: z
+    .string()
+    .trim()
+    .min(1, 'Organization slug is required')
+    .regex(
+      /^[a-z0-9-_]+$/,
+      'Slug can only contain lowercase letters, numbers, hyphens, and underscores'
+    )
+    .optional(),
+  logo: z.string().nullable().optional(),
+  seats: z.number().int().min(1, 'Invalid seat count').optional(),
+})
 
 /**
  * GET /api/organizations/[id]
@@ -112,7 +128,14 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
     const { id: organizationId } = await params
     const body = await request.json()
-    const { name, slug, logo, seats } = body
+
+    const validation = updateOrganizationSchema.safeParse(body)
+    if (!validation.success) {
+      const firstError = validation.error.errors[0]
+      return NextResponse.json({ error: firstError.message }, { status: 400 })
+    }
+
+    const { name, slug, logo, seats } = validation.data
 
     // Verify user has admin access
     const memberEntry = await db
@@ -134,10 +157,6 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
     // Handle seat count update
     if (seats !== undefined) {
-      if (typeof seats !== 'number' || seats < 1) {
-        return NextResponse.json({ error: 'Invalid seat count' }, { status: 400 })
-      }
-
       const result = await updateOrganizationSeats(organizationId, seats, session.user.id)
 
       if (!result.success) {
@@ -163,28 +182,8 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
     // Handle settings update
     if (name !== undefined || slug !== undefined || logo !== undefined) {
-      // Validate required fields
-      if (name !== undefined && (!name || typeof name !== 'string' || name.trim().length === 0)) {
-        return NextResponse.json({ error: 'Organization name is required' }, { status: 400 })
-      }
-
-      if (slug !== undefined && (!slug || typeof slug !== 'string' || slug.trim().length === 0)) {
-        return NextResponse.json({ error: 'Organization slug is required' }, { status: 400 })
-      }
-
-      // Validate slug format
+      // Check if slug is already taken by another organization
       if (slug !== undefined) {
-        const slugRegex = /^[a-z0-9-_]+$/
-        if (!slugRegex.test(slug)) {
-          return NextResponse.json(
-            {
-              error: 'Slug can only contain lowercase letters, numbers, hyphens, and underscores',
-            },
-            { status: 400 }
-          )
-        }
-
-        // Check if slug is already taken by another organization
         const existingSlug = await db
           .select()
           .from(organization)
@@ -198,9 +197,9 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
       // Build update object with only provided fields
       const updateData: any = { updatedAt: new Date() }
-      if (name !== undefined) updateData.name = name.trim()
-      if (slug !== undefined) updateData.slug = slug.trim()
-      if (logo !== undefined) updateData.logo = logo || null
+      if (name !== undefined) updateData.name = name
+      if (slug !== undefined) updateData.slug = slug
+      if (logo !== undefined) updateData.logo = logo
 
       // Update organization
       const updatedOrg = await db

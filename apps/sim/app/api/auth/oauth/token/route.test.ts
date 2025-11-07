@@ -143,7 +143,7 @@ describe('OAuth Token API Routes', () => {
       const data = await response.json()
 
       expect(response.status).toBe(400)
-      expect(data).toHaveProperty('error', 'Credential ID is required')
+      expect(data).toHaveProperty('error', 'Validation failed')
       expect(mockLogger.warn).toHaveBeenCalled()
     })
 
@@ -282,7 +282,7 @@ describe('OAuth Token API Routes', () => {
       const data = await response.json()
 
       expect(response.status).toBe(400)
-      expect(data).toHaveProperty('error', 'Credential ID is required')
+      expect(data).toHaveProperty('error', 'Validation failed')
       expect(mockLogger.warn).toHaveBeenCalled()
     })
 

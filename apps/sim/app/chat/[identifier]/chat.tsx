@@ -354,7 +354,7 @@ export default function ChatClient({ identifier }: { identifier: string }) {
             name: file.name,
             size: file.size,
             type: file.type,
-            dataUrl: file.dataUrl || (await fileToBase64(file.file)),
+            data: file.dataUrl || (await fileToBase64(file.file)),
           }))
         )
       }

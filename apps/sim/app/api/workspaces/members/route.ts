@@ -1,16 +1,34 @@
 import { db } from '@sim/db'
-import { permissions, type permissionTypeEnum, user } from '@sim/db/schema'
+import { permissions, user } from '@sim/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
+import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console/logger'
 import { hasAdminPermission } from '@/lib/permissions/utils'
 
 const logger = createLogger('WorkspaceMemberAPI')
 
-type PermissionType = (typeof permissionTypeEnum.enumValues)[number]
+const addMemberSchema = z.object({
+  workspaceId: z.string().uuid(),
+  userEmail: z.string().email(),
+  permission: z.enum(['admin', 'write', 'read']).default('read'),
+})
 
-// Add a member to a workspace
+/**
+ * Add a member to a workspace
+ *
+ * Note: This endpoint exists but is currently not used by the frontend.
+ * The application uses the workspace invitations system instead:
+ * - POST /api/workspaces/invitations - Send invitation email
+ * - POST /api/workspaces/invitations/[invitationId] - Resend invitation
+ * - DELETE /api/workspaces/invitations/[invitationId] - Cancel invitation
+ *
+ * This direct member addition endpoint could be used for:
+ * - Programmatic member addition via API keys
+ * - Internal admin tools
+ * - Future UI implementations that skip the invitation flow
+ */
 export async function POST(req: Request) {
   const session = await getSession()
 
@@ -19,23 +37,7 @@ export async function POST(req: Request) {
   }
 
   try {
-    const { workspaceId, userEmail, permission = 'read' } = await req.json()
-
-    if (!workspaceId || !userEmail) {
-      return NextResponse.json(
-        { error: 'Workspace ID and user email are required' },
-        { status: 400 }
-      )
-    }
-
-    // Validate permission type
-    const validPermissions: PermissionType[] = ['admin', 'write', 'read']
-    if (!validPermissions.includes(permission)) {
-      return NextResponse.json(
-        { error: `Invalid permission: must be one of ${validPermissions.join(', ')}` },
-        { status: 400 }
-      )
-    }
+    const { workspaceId, userEmail, permission } = addMemberSchema.parse(await req.json())
 
     // Check if current user has admin permission for the workspace
     const hasAdmin = await hasAdminPermission(session.user.id, workspaceId)

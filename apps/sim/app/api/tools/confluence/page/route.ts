@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createLogger } from '@/lib/logs/console/logger'
+import { z } from 'zod'
 import { validateAlphanumericId, validateJiraCloudId } from '@/lib/security/input-validation'
 import { getConfluenceCloudId } from '@/tools/confluence/utils'
 
@@ -7,29 +8,86 @@ const logger = createLogger('ConfluencePageAPI')
 
 export const dynamic = 'force-dynamic'
 
+const postPageSchema = z
+  .object({
+    domain: z.string().min(1, 'Domain is required'),
+    accessToken: z.string().min(1, 'Access token is required'),
+    cloudId: z.string().optional(),
+    pageId: z.string().min(1, 'Page ID is required'),
+  })
+  .refine(
+    (data) => {
+      const validation = validateAlphanumericId(data.pageId, 'pageId', 255)
+      return validation.isValid
+    },
+    (data) => {
+      const validation = validateAlphanumericId(data.pageId, 'pageId', 255)
+      return { message: validation.error || 'Invalid page ID', path: ['pageId'] }
+    }
+  )
+
+const putPageSchema = z
+  .object({
+    domain: z.string().min(1, 'Domain is required'),
+    accessToken: z.string().min(1, 'Access token is required'),
+    cloudId: z.string().optional(),
+    pageId: z.string().min(1, 'Page ID is required'),
+    title: z.string().optional(),
+    body: z
+      .object({
+        value: z.string().optional(),
+      })
+      .optional(),
+    version: z
+      .object({
+        message: z.string().optional(),
+      })
+      .optional(),
+  })
+  .refine(
+    (data) => {
+      const validation = validateAlphanumericId(data.pageId, 'pageId', 255)
+      return validation.isValid
+    },
+    (data) => {
+      const validation = validateAlphanumericId(data.pageId, 'pageId', 255)
+      return { message: validation.error || 'Invalid page ID', path: ['pageId'] }
+    }
+  )
+
+const deletePageSchema = z
+  .object({
+    domain: z.string().min(1, 'Domain is required'),
+    accessToken: z.string().min(1, 'Access token is required'),
+    cloudId: z.string().optional(),
+    pageId: z.string().min(1, 'Page ID is required'),
+  })
+  .refine(
+    (data) => {
+      const validation = validateAlphanumericId(data.pageId, 'pageId', 255)
+      return validation.isValid
+    },
+    (data) => {
+      const validation = validateAlphanumericId(data.pageId, 'pageId', 255)
+      return { message: validation.error || 'Invalid page ID', path: ['pageId'] }
+    }
+  )
+
 export async function POST(request: Request) {
   try {
-    const { domain, accessToken, pageId, cloudId: providedCloudId } = await request.json()
+    const body = await request.json()
 
-    if (!domain) {
-      return NextResponse.json({ error: 'Domain is required' }, { status: 400 })
+    const validation = postPageSchema.safeParse(body)
+    if (!validation.success) {
+      const firstError = validation.error.errors[0]
+      return NextResponse.json({ error: firstError.message }, { status: 400 })
     }
 
-    if (!accessToken) {
-      return NextResponse.json({ error: 'Access token is required' }, { status: 400 })
-    }
-
-    if (!pageId) {
-      return NextResponse.json({ error: 'Page ID is required' }, { status: 400 })
-    }
-
-    const pageIdValidation = validateAlphanumericId(pageId, 'pageId', 255)
-    if (!pageIdValidation.isValid) {
-      return NextResponse.json({ error: pageIdValidation.error }, { status: 400 })
-    }
+    const { domain, accessToken, cloudId: providedCloudId, pageId } = validation.data
 
     const cloudId = providedCloudId || (await getConfluenceCloudId(domain, accessToken))
 
+    // Validate cloudId with domain-specific validation
     const cloudIdValidation = validateJiraCloudId(cloudId, 'cloudId')
     if (!cloudIdValidation.isValid) {
       return NextResponse.json({ error: cloudIdValidation.error }, { status: 400 })
@@ -91,6 +149,13 @@ export async function PUT(request: Request) {
   try {
     const body = await request.json()
 
+    // Validate with Zod
+    const validation = putPageSchema.safeParse(body)
+    if (!validation.success) {
+      const firstError = validation.error.errors[0]
+      return NextResponse.json({ error: firstError.message }, { status: 400 })
+    }
+
     const {
       domain,
       accessToken,
@@ -99,27 +164,11 @@ export async function PUT(request: Request) {
       title,
       body: pageBody,
       version,
-    } = body
-
-    if (!domain) {
-      return NextResponse.json({ error: 'Domain is required' }, { status: 400 })
-    }
-
-    if (!accessToken) {
-      return NextResponse.json({ error: 'Access token is required' }, { status: 400 })
-    }
-
-    if (!pageId) {
-      return NextResponse.json({ error: 'Page ID is required' }, { status: 400 })
-    }
-
-    const pageIdValidation = validateAlphanumericId(pageId, 'pageId', 255)
-    if (!pageIdValidation.isValid) {
-      return NextResponse.json({ error: pageIdValidation.error }, { status: 400 })
-    }
+    } = validation.data
 
     const cloudId = providedCloudId || (await getConfluenceCloudId(domain, accessToken))
 
+    // Validate cloudId with domain-specific validation
     const cloudIdValidation = validateJiraCloudId(cloudId, 'cloudId')
     if (!cloudIdValidation.isValid) {
       return NextResponse.json({ error: cloudIdValidation.error }, { status: 400 })
@@ -204,27 +253,20 @@ export async function PUT(request: Request) {
 
 export async function DELETE(request: Request) {
   try {
-    const { domain, accessToken, pageId, cloudId: providedCloudId } = await request.json()
+    const body = await request.json()
 
-    if (!domain) {
-      return NextResponse.json({ error: 'Domain is required' }, { status: 400 })
+    // Validate with Zod
+    const validation = deletePageSchema.safeParse(body)
+    if (!validation.success) {
+      const firstError = validation.error.errors[0]
+      return NextResponse.json({ error: firstError.message }, { status: 400 })
     }
 
-    if (!accessToken) {
-      return NextResponse.json({ error: 'Access token is required' }, { status: 400 })
-    }
-
-    if (!pageId) {
-      return NextResponse.json({ error: 'Page ID is required' }, { status: 400 })
-    }
-
-    const pageIdValidation = validateAlphanumericId(pageId, 'pageId', 255)
-    if (!pageIdValidation.isValid) {
-      return NextResponse.json({ error: pageIdValidation.error }, { status: 400 })
-    }
+    const { domain, accessToken, cloudId: providedCloudId, pageId } = validation.data
 
     const cloudId = providedCloudId || (await getConfluenceCloudId(domain, accessToken))
 
+    // Validate cloudId with domain-specific validation
     const cloudIdValidation = validateJiraCloudId(cloudId, 'cloudId')
     if (!cloudIdValidation.isValid) {
       return NextResponse.json({ error: cloudIdValidation.error }, { status: 400 })

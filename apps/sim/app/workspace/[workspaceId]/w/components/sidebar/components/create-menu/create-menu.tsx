@@ -191,7 +191,7 @@ export function CreateMenu({ onCreateWorkflow, isCreatingWorkflow = false }: Cre
                 targetFolderId = folderMap.get(folderPathKey)!
               }
 
-              const workflowName = extractWorkflowName(workflow.content)
+              const workflowName = extractWorkflowName(workflow.content, workflow.name)
               const { clearDiff } = useWorkflowDiffStore.getState()
               clearDiff()
 
@@ -252,7 +252,7 @@ export function CreateMenu({ onCreateWorkflow, isCreatingWorkflow = false }: Cre
                 continue
               }
 
-              const workflowName = extractWorkflowName(workflow.content)
+              const workflowName = extractWorkflowName(workflow.content, workflow.name)
               const { clearDiff } = useWorkflowDiffStore.getState()
               clearDiff()
 

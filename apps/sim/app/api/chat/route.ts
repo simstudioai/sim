@@ -68,7 +68,6 @@ export async function POST(request: NextRequest) {
       return createErrorResponse('Unauthorized', 401)
     }
 
-    // Parse and validate request body
     const body = await request.json()
 
     try {

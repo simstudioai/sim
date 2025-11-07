@@ -3,9 +3,9 @@ import { account, user, workflow } from '@sim/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { jwtDecode } from 'jwt-decode'
 import { type NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { createLogger } from '@/lib/logs/console/logger'
-import type { OAuthService } from '@/lib/oauth/oauth'
 import { parseProvider } from '@/lib/oauth/oauth'
 import { getUserEntityPermissions } from '@/lib/permissions/utils'
 import { generateRequestId } from '@/lib/utils'
@@ -13,6 +13,17 @@ import { generateRequestId } from '@/lib/utils'
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('OAuthCredentialsAPI')
+
+const credentialsQuerySchema = z
+  .object({
+    provider: z.string().nullish(),
+    workflowId: z.string().uuid('Workflow ID must be a valid UUID').nullish(),
+    credentialId: z.string().uuid('Credential ID must be a valid UUID').nullish(),
+  })
+  .refine((data) => data.provider || data.credentialId, {
+    message: 'Provider or credentialId is required',
+    path: ['provider'],
+  })
 
 interface GoogleIdToken {
   email?: string
@@ -27,11 +38,46 @@ export async function GET(request: NextRequest) {
   const requestId = generateRequestId()
 
   try {
-    // Get query params
     const { searchParams } = new URL(request.url)
-    const providerParam = searchParams.get('provider') as OAuthService | null
-    const workflowId = searchParams.get('workflowId')
-    const credentialId = searchParams.get('credentialId')
+    const rawQuery = {
+      provider: searchParams.get('provider'),
+      workflowId: searchParams.get('workflowId'),
+      credentialId: searchParams.get('credentialId'),
+    }
+
+    const parseResult = credentialsQuerySchema.safeParse(rawQuery)
+
+    if (!parseResult.success) {
+      // Check for refinement errors (custom validation) first
+      const refinementError = parseResult.error.errors.find((err) => err.code === 'custom')
+      if (refinementError) {
+        logger.warn(`[${requestId}] Invalid query parameters: ${refinementError.message}`)
+        return NextResponse.json(
+          {
+            error: refinementError.message,
+          },
+          { status: 400 }
+        )
+      }
+
+      // Handle other validation errors
+      const errors = parseResult.error.errors.map((err) => ({
+        path: err.path.join('.'),
+        message: err.message,
+      }))
+
+      logger.warn(`[${requestId}] Invalid query parameters`, { errors })
+
+      return NextResponse.json(
+        {
+          error: 'Validation failed',
+          details: errors,
+        },
+        { status: 400 }
+      )
+    }
+
+    const { provider: providerParam, workflowId, credentialId } = parseResult.data
 
     // Authenticate requester (supports session, API key, internal JWT)
     const authResult = await checkHybridAuth(request)
@@ -82,11 +128,6 @@ export async function GET(request: NextRequest) {
       effectiveUserId = wf.userId
     } else {
       effectiveUserId = requesterUserId
-    }
-
-    if (!providerParam && !credentialId) {
-      logger.warn(`[${requestId}] Missing provider parameter`)
-      return NextResponse.json({ error: 'Provider or credentialId is required' }, { status: 400 })
     }
 
     // Parse the provider to get base provider and feature type (if provider is present)

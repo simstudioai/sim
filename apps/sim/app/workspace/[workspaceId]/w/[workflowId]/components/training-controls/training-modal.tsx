@@ -313,8 +313,11 @@ export function TrainingModal() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           json: JSON.stringify(sanitizedWorkflow),
-          source_path: liveWorkflowTitle,
-          summary: liveWorkflowDescription,
+          title: liveWorkflowTitle,
+          tags: [],
+          metadata: {
+            summary: liveWorkflowDescription,
+          },
         }),
       })
 

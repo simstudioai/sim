@@ -180,13 +180,26 @@ export async function extractWorkflowsFromFiles(files: File[]): Promise<Imported
   return workflows
 }
 
-export function extractWorkflowName(content: string): string {
+export function extractWorkflowName(content: string, filename: string): string {
   try {
     const parsed = JSON.parse(content)
+
     if (parsed.state?.metadata?.name && typeof parsed.state.metadata.name === 'string') {
       return parsed.state.metadata.name.trim()
     }
-  } catch {}
+  } catch {
+    // JSON parse failed, fall through to filename
+  }
 
-  return `Imported Workflow ${new Date().toLocaleString()}`
+  let name = filename.replace(/\.json$/i, '')
+
+  name = name.replace(/-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i, '')
+
+  name = name
+    .replace(/[-_]/g, ' ')
+    .split(' ')
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(' ')
+
+  return name.trim() || 'Imported Workflow'
 }
