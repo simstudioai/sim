@@ -798,9 +798,6 @@ copilot:
       SIM_BASE_URL: ""
       SIM_AGENT_API_KEY: ""
       REDIS_URL: ""
-      LOG_LEVEL: "info"
-      CORS_ALLOWED_ORIGINS: ""
-      OTEL_EXPORTER_OTLP_ENDPOINT: ""
     
     # Optional: additional static environment variables
     extraEnv: []

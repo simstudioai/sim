@@ -38,9 +38,6 @@ copilot:
       SIM_BASE_URL: "https://sim.example.com"  # Base URL for Sim deployment
       SIM_AGENT_API_KEY: ""                    # Must match SIM-side COPILOT_API_KEY
       REDIS_URL: "redis://default:password@redis:6379"
-      LOG_LEVEL: "info"
-      CORS_ALLOWED_ORIGINS: "https://sim.example.com"
-      OTEL_EXPORTER_OTLP_ENDPOINT: ""
     
     # Create a Secret from the values above. Set create=false to reference an existing secret instead.
     secret:
