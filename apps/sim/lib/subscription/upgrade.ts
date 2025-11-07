@@ -134,6 +134,48 @@ export function useSubscriptionUpgrade() {
           }
         )
 
+        // Try Loops checkout first (if enabled), fallback to Better Auth's Stripe checkout
+        try {
+          logger.info('Attempting Loops checkout for subscription upgrade', {
+            targetPlan,
+            referenceId,
+          })
+
+          const checkoutResponse = await fetch('/api/billing/checkout', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              plan: targetPlan,
+              successUrl: currentUrl,
+              cancelUrl: currentUrl,
+              metadata: {
+                referenceId,
+                subscriptionId: currentSubscriptionId,
+                seats: targetPlan === 'team' ? CONSTANTS.INITIAL_TEAM_SEATS : undefined,
+              },
+            }),
+          })
+
+          if (checkoutResponse.ok) {
+            const { url } = await checkoutResponse.json()
+
+            if (url) {
+              logger.info('Loops checkout session created, redirecting', { url })
+              // Redirect to Loops checkout
+              window.location.href = url
+              return
+            }
+          }
+
+          // If Loops checkout failed or not enabled, log and fall through to Stripe
+          logger.info('Loops checkout not available, falling back to Stripe checkout')
+        } catch (error) {
+          logger.warn('Loops checkout failed, falling back to Stripe checkout', { error })
+        }
+
+        // Fallback to Better Auth's Stripe checkout
         await betterAuthSubscription.upgrade(finalParams)
 
         // For team plans, refresh organization data to ensure UI updates

@@ -40,6 +40,7 @@ export const env = createEnv({
     // Payment & Billing
     STRIPE_SECRET_KEY:                     z.string().min(1).optional(),           // Stripe secret key for payment processing
     STRIPE_WEBHOOK_SECRET:                 z.string().min(1).optional(),           // General Stripe webhook secret
+    LOOPS_API_KEY:                         z.string().min(1).optional(),           // Loops API key for checkout links
     STRIPE_FREE_PRICE_ID:                  z.string().min(1).optional(),           // Stripe price ID for free tier
     FREE_TIER_COST_LIMIT:                  z.number().optional(),                  // Cost limit for free tier users
     FREE_STORAGE_LIMIT_GB:                 z.number().optional().default(5),       // Storage limit in GB for free tier users
