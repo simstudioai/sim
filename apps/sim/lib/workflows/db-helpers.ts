@@ -404,11 +404,19 @@ export async function deployWorkflow(params: {
       return { success: false, error: 'Failed to load workflow state' }
     }
 
+    // Also fetch workflow variables
+    const [workflowRecord] = await db
+      .select({ variables: workflow.variables })
+      .from(workflow)
+      .where(eq(workflow.id, workflowId))
+      .limit(1)
+
     const currentState = {
       blocks: normalizedData.blocks,
       edges: normalizedData.edges,
       loops: normalizedData.loops,
       parallels: normalizedData.parallels,
+      variables: workflowRecord?.variables || undefined,
       lastSaved: Date.now(),
     }
 
@@ -620,5 +628,7 @@ export function regenerateWorkflowStateIds(state: any): any {
     loops: newLoops,
     parallels: newParallels,
     lastSaved: state.lastSaved || Date.now(),
+    ...(state.variables && { variables: state.variables }),
+    ...(state.metadata && { metadata: state.metadata }),
   }
 }

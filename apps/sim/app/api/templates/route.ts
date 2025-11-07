@@ -14,46 +14,19 @@ import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console/logger'
 import { generateRequestId } from '@/lib/utils'
+import {
+  extractRequiredCredentials,
+  sanitizeCredentials,
+} from '@/lib/workflows/credential-extractor'
 
 const logger = createLogger('TemplatesAPI')
 
 export const revalidate = 0
 
 // Function to sanitize sensitive data from workflow state
+// Now uses the more comprehensive sanitizeCredentials from credential-extractor
 function sanitizeWorkflowState(state: any): any {
-  const sanitizedState = JSON.parse(JSON.stringify(state)) // Deep clone
-
-  if (sanitizedState.blocks) {
-    Object.values(sanitizedState.blocks).forEach((block: any) => {
-      if (block.subBlocks) {
-        Object.entries(block.subBlocks).forEach(([key, subBlock]: [string, any]) => {
-          // Clear OAuth credentials and API keys using regex patterns
-          if (
-            /credential|oauth|api[_-]?key|token|secret|auth|password|bearer/i.test(key) ||
-            /credential|oauth|api[_-]?key|token|secret|auth|password|bearer/i.test(
-              subBlock.type || ''
-            ) ||
-            /credential|oauth|api[_-]?key|token|secret|auth|password|bearer/i.test(
-              subBlock.value || ''
-            )
-          ) {
-            subBlock.value = ''
-          }
-        })
-      }
-
-      // Also clear from data field if present
-      if (block.data) {
-        Object.entries(block.data).forEach(([key, value]: [string, any]) => {
-          if (/credential|oauth|api[_-]?key|token|secret|auth|password|bearer/i.test(key)) {
-            block.data[key] = ''
-          }
-        })
-      }
-    })
-  }
-
-  return sanitizedState
+  return sanitizeCredentials(state)
 }
 
 // Schema for creating a template
@@ -149,6 +122,7 @@ export async function GET(request: NextRequest) {
         stars: templates.stars,
         status: templates.status,
         tags: templates.tags,
+        requiredCredentials: templates.requiredCredentials,
         state: templates.state,
         createdAt: templates.createdAt,
         updatedAt: templates.updatedAt,
@@ -287,6 +261,28 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Ensure the state includes workflow variables (if not already included)
+    let stateWithVariables = activeVersion[0].state as any
+    if (stateWithVariables && !stateWithVariables.variables) {
+      // Fetch workflow variables if not in deployment version
+      const [workflowRecord] = await db
+        .select({ variables: workflow.variables })
+        .from(workflow)
+        .where(eq(workflow.id, data.workflowId))
+        .limit(1)
+
+      stateWithVariables = {
+        ...stateWithVariables,
+        variables: workflowRecord?.variables || undefined,
+      }
+    }
+
+    // Extract credential requirements before sanitizing
+    const requiredCredentials = extractRequiredCredentials(stateWithVariables)
+
+    // Sanitize the workflow state to remove all credential values
+    const sanitizedState = sanitizeWorkflowState(stateWithVariables)
+
     const newTemplate = {
       id: templateId,
       workflowId: data.workflowId,
@@ -300,7 +296,8 @@ export async function POST(request: NextRequest) {
       stars: 0,
       status: 'pending' as const, // All new templates start as pending
       tags: data.tags || [],
-      state: activeVersion[0].state, // Copy the state from the deployment version
+      requiredCredentials: requiredCredentials, // Store the extracted credential requirements
+      state: sanitizedState, // Store the sanitized state without credential values
       createdAt: now,
       updatedAt: now,
     }

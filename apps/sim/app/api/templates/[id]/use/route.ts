@@ -63,6 +63,20 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const newWorkflowId = uuidv4()
     const now = new Date()
 
+    // Extract variables from the template state and remap to the new workflow
+    const templateVariables = (templateData.state as any)?.variables as
+      | Record<string, any>
+      | undefined
+    const remappedVariables: Record<string, any> = (() => {
+      if (!templateVariables || typeof templateVariables !== 'object') return {}
+      const mapped: Record<string, any> = {}
+      for (const [, variable] of Object.entries(templateVariables)) {
+        const newVarId = uuidv4()
+        mapped[newVarId] = { ...variable, id: newVarId, workflowId: newWorkflowId }
+      }
+      return mapped
+    })()
+
     // Step 1: Create the workflow record (like imports do)
     await db.insert(workflow).values({
       id: newWorkflowId,
@@ -73,6 +87,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
           : `${templateData.name} (copy)`,
       description: templateData.description,
       userId: session.user.id,
+      variables: remappedVariables, // Remap variable IDs and workflowId for the new workflow
       createdAt: now,
       updatedAt: now,
       lastSynced: now,
@@ -88,6 +103,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       : regenerateWorkflowStateIds(templateData.state)
 
     // Step 3: Save the workflow state using the existing state endpoint (like imports do)
+    // Ensure variables in state are remapped for the new workflow as well
+    const workflowStateWithVariables = { ...workflowState, variables: remappedVariables }
     const stateResponse = await fetch(`${getBaseUrl()}/api/workflows/${newWorkflowId}/state`, {
       method: 'PUT',
       headers: {
@@ -95,7 +112,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         // Forward the session cookie for authentication
         cookie: request.headers.get('cookie') || '',
       },
-      body: JSON.stringify(workflowState),
+      body: JSON.stringify(workflowStateWithVariables),
     })
 
     if (!stateResponse.ok) {

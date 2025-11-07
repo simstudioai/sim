@@ -57,6 +57,7 @@ import {
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
+import type { CredentialRequirement } from '@/lib/workflows/credential-extractor'
 import type { Template } from '@/app/templates/templates'
 import { WorkflowPreview } from '@/app/workspace/[workspaceId]/w/components/workflow-preview/workflow-preview'
 
@@ -698,6 +699,20 @@ export default function TemplateDetails() {
           <div className='mx-auto max-w-7xl'>
             <h2 className='mb-4 font-semibold text-xl'>Workflow Preview</h2>
             <div className='h-[600px] w-full'>{renderWorkflowPreview()}</div>
+
+            {Array.isArray(template.requiredCredentials) &&
+              template.requiredCredentials.length > 0 && (
+                <div className='mt-8'>
+                  <h3 className='mb-3 font-semibold text-lg'>Credentials Needed</h3>
+                  <ul className='list-disc pl-6 space-y-1 text-sm text-muted-foreground'>
+                    {template.requiredCredentials.map(
+                      (cred: CredentialRequirement, idx: number) => (
+                        <li key={idx}>{cred.description || cred.label}</li>
+                      )
+                    )}
+                  </ul>
+                </div>
+              )}
           </div>
         </div>
       </div>

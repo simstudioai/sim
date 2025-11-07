@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { createLogger } from '@/lib/logs/console/logger'
+import type { CredentialRequirement } from '@/lib/workflows/credential-extractor'
 import { NavigationTabs } from '@/app/templates/components/navigation-tabs'
 import { TemplateCard, TemplateCardSkeleton } from '@/app/templates/components/template-card'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
@@ -26,6 +27,7 @@ export interface Template {
   stars: number
   status: 'pending' | 'approved' | 'rejected'
   tags: string[]
+  requiredCredentials: CredentialRequirement[] // Array of credential requirements
   state: WorkflowState
   createdAt: Date | string
   updatedAt: Date | string

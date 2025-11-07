@@ -475,6 +475,18 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
         useWorkflowStore.setState(workflowState)
         useSubBlockStore.getState().initializeFromWorkflow(id, (workflowState as any).blocks || {})
 
+        // Load workflow variables if they exist
+        if (workflowData?.variables && typeof workflowData.variables === 'object') {
+          useVariablesStore.setState((state) => {
+            const withoutWorkflow = Object.fromEntries(
+              Object.entries(state.variables).filter(([, v]: any) => v.workflowId !== id)
+            )
+            return {
+              variables: { ...withoutWorkflow, ...workflowData.variables },
+            }
+          })
+        }
+
         window.dispatchEvent(
           new CustomEvent('active-workflow-changed', {
             detail: { workflowId: id },

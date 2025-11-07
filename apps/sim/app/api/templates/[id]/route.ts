@@ -1,11 +1,15 @@
 import { db } from '@sim/db'
-import { templates } from '@sim/db/schema'
+import { templates, workflow } from '@sim/db/schema'
 import { eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console/logger'
 import { generateRequestId } from '@/lib/utils'
+import {
+  extractRequiredCredentials,
+  sanitizeCredentials,
+} from '@/lib/workflows/credential-extractor'
 
 const logger = createLogger('TemplateByIdAPI')
 
@@ -153,16 +157,33 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       const normalizedData = await loadWorkflowFromNormalizedTables(existingTemplate[0].workflowId)
 
       if (normalizedData) {
+        // Also fetch workflow variables
+        const [workflowRecord] = await db
+          .select({ variables: workflow.variables })
+          .from(workflow)
+          .where(eq(workflow.id, existingTemplate[0].workflowId))
+          .limit(1)
+
         const currentState = {
           blocks: normalizedData.blocks,
           edges: normalizedData.edges,
           loops: normalizedData.loops,
           parallels: normalizedData.parallels,
+          variables: workflowRecord?.variables || undefined,
           lastSaved: Date.now(),
         }
-        updateData.state = currentState
+
+        // Extract credential requirements from the new state
+        const requiredCredentials = extractRequiredCredentials(currentState)
+
+        // Sanitize the state before storing
+        const sanitizedState = sanitizeCredentials(currentState)
+
+        updateData.state = sanitizedState
+        updateData.requiredCredentials = requiredCredentials
+
         logger.info(
-          `[${requestId}] Updating template state from current workflow: ${existingTemplate[0].workflowId}`
+          `[${requestId}] Updating template state and credentials from current workflow: ${existingTemplate[0].workflowId}`
         )
       } else {
         logger.warn(`[${requestId}] Could not load workflow state for template: ${id}`)

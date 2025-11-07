@@ -102,6 +102,7 @@ const WorkflowStateSchema = z.object({
   lastSaved: z.number().optional(),
   isDeployed: z.boolean().optional(),
   deployedAt: z.coerce.date().optional(),
+  variables: z.any().optional(), // Workflow variables
 })
 
 /**
@@ -228,14 +229,18 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       logger.error(`[${requestId}] Failed to persist custom tools`, { error, workflowId })
     }
 
-    // Update workflow's lastSynced timestamp
-    await db
-      .update(workflow)
-      .set({
-        lastSynced: new Date(),
-        updatedAt: new Date(),
-      })
-      .where(eq(workflow.id, workflowId))
+    // Update workflow's lastSynced timestamp and variables if provided
+    const updateData: any = {
+      lastSynced: new Date(),
+      updatedAt: new Date(),
+    }
+
+    // If variables are provided in the state, update them in the workflow record
+    if (state.variables !== undefined) {
+      updateData.variables = state.variables
+    }
+
+    await db.update(workflow).set(updateData).where(eq(workflow.id, workflowId))
 
     const elapsed = Date.now() - startTime
     logger.info(`[${requestId}] Successfully saved workflow ${workflowId} state in ${elapsed}ms`)

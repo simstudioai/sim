@@ -142,6 +142,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
           isDeployed: workflowData.isDeployed || false,
           deployedAt: workflowData.deployedAt,
         },
+        // Include workflow variables
+        variables: workflowData.variables || {},
       }
 
       logger.info(`[${requestId}] Loaded workflow ${workflowId} from normalized tables`)
