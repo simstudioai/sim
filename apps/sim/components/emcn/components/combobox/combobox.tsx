@@ -75,6 +75,8 @@ export interface ComboboxProps
   isLoading?: boolean
   /** Error message to display */
   error?: string | null
+  /** Callback when popover open state changes */
+  onOpenChange?: (open: boolean) => void
 }
 
 /**
@@ -102,6 +104,7 @@ const Combobox = forwardRef<HTMLDivElement, ComboboxProps>(
       multiSelect = false,
       isLoading = false,
       error = null,
+      onOpenChange,
       ...props
     },
     ref
@@ -320,7 +323,13 @@ const Combobox = forwardRef<HTMLDivElement, ComboboxProps>(
     const SelectedIcon = selectedOption?.icon
 
     return (
-      <Popover open={open} onOpenChange={setOpen}>
+      <Popover
+        open={open}
+        onOpenChange={(next) => {
+          setOpen(next)
+          onOpenChange?.(next)
+        }}
+      >
         <div ref={containerRef} className='relative w-full' {...props}>
           <PopoverAnchor asChild>
             <div className='w-full'>
@@ -385,7 +394,13 @@ const Combobox = forwardRef<HTMLDivElement, ComboboxProps>(
                   onClick={handleToggle}
                   onKeyDown={handleKeyDown}
                 >
-                  <span className={cn('flex-1 truncate', !selectedOption && 'text-[#787878]')}>
+                  <span
+                    className={cn(
+                      'flex-1 truncate',
+                      !selectedOption && 'text-[#787878]',
+                      overlayContent && 'text-transparent'
+                    )}
+                  >
                     {selectedOption ? selectedOption.label : placeholder}
                   </span>
                   <ChevronDown
@@ -394,6 +409,11 @@ const Combobox = forwardRef<HTMLDivElement, ComboboxProps>(
                       open && 'rotate-180'
                     )}
                   />
+                  {overlayContent && (
+                    <div className='pointer-events-none absolute inset-y-0 right-[24px] left-0 flex items-center px-[8px]'>
+                      <div className='w-full truncate'>{overlayContent}</div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -448,12 +468,9 @@ const Combobox = forwardRef<HTMLDivElement, ComboboxProps>(
                         role='option'
                         aria-selected={isSelected}
                         data-option-index={index}
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          handleSelect(option.value)
-                        }}
                         onMouseDown={(e) => {
                           e.preventDefault()
+                          e.stopPropagation()
                           handleSelect(option.value)
                         }}
                         onMouseEnter={() => setHighlightedIndex(index)}

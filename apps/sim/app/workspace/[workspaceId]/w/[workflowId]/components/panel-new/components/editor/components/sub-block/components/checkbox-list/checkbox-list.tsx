@@ -49,7 +49,7 @@ function CheckboxItem({ blockId, option, isPreview, subBlockValues, disabled }: 
       />
       <Label
         htmlFor={`${blockId}-${option.id}`}
-        className='cursor-pointer font-normal text-sm leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70'
+        className='cursor-pointer font-medium font-sans text-[#E6E6E6] text-sm leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-50'
       >
         {option.label}
       </Label>

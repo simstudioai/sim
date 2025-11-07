@@ -130,10 +130,10 @@ export function Dropdown({
   const comboboxOptions = useMemo((): ComboboxOption[] => {
     return availableOptions.map((opt) => {
       if (typeof opt === 'string') {
-        return { label: opt, value: opt }
+        return { label: opt.toLowerCase(), value: opt }
       }
       return {
-        label: opt.label,
+        label: opt.label.toLowerCase(),
         value: opt.id,
         icon: 'icon' in opt ? opt.icon : undefined,
       }
@@ -305,27 +305,19 @@ export function Dropdown({
   const multiSelectOverlay = useMemo(() => {
     if (!multiSelect || !multiValues || multiValues.length === 0) return undefined
 
-    const optionsNotLoaded = fetchOptions && fetchedOptions.length === 0
-
     return (
-      <div className='flex flex-wrap items-center gap-1'>
-        {optionsNotLoaded ? (
-          <Badge className='text-xs'>{multiValues.length} selected</Badge>
-        ) : (
-          <>
-            {multiValues.slice(0, 2).map((selectedValue: string) => (
-              <Badge key={selectedValue} className='text-xs'>
-                {optionMap.get(selectedValue) || selectedValue}
-              </Badge>
-            ))}
-            {multiValues.length > 2 && (
-              <Badge className='text-xs'>+{multiValues.length - 2} more</Badge>
-            )}
-          </>
-        )}
+      <div className='flex items-center gap-1 overflow-hidden whitespace-nowrap'>
+        {multiValues.map((selectedValue: string) => (
+          <Badge
+            key={selectedValue}
+            className='shrink-0 rounded-[8px] py-[4px] text-[12px] leading-none'
+          >
+            {(optionMap.get(selectedValue) || selectedValue).toLowerCase()}
+          </Badge>
+        ))}
       </div>
     )
-  }, [multiSelect, multiValues, fetchOptions, fetchedOptions.length, optionMap])
+  }, [multiSelect, multiValues, optionMap])
 
   return (
     <Combobox
@@ -337,6 +329,12 @@ export function Dropdown({
       placeholder={placeholder}
       disabled={disabled}
       editable={false}
+      onOpenChange={(open) => {
+        if (open) {
+          // Fetch options when the dropdown is opened to ensure freshness
+          void fetchOptionsIfNeeded()
+        }
+      }}
       overlayContent={multiSelectOverlay}
       multiSelect={multiSelect}
       isLoading={isLoadingOptions}
