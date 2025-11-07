@@ -73,7 +73,7 @@ export async function GET(request: NextRequest) {
         }
 
         // Method 2: For GitHub, the accountId might be the username
-        if (!displayName && provider === 'github') {
+        if (!displayName && baseProvider === 'github') {
           displayName = `${acc.accountId} (GitHub)`
         }
 
@@ -84,7 +84,7 @@ export async function GET(request: NextRequest) {
 
         // Fallback: Use accountId with provider type as context
         if (!displayName) {
-          displayName = `${acc.accountId} (${provider})`
+          displayName = `${acc.accountId} (${baseProvider})`
         }
 
         // Create a unique connection key that includes the full provider ID

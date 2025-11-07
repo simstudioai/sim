@@ -60,9 +60,9 @@ describe('OAuth Connections API Route', () => {
       featureType: providerId.split('-')[1] || 'default',
     }))
 
-    mockEvaluateScopeCoverage.mockImplementation((_providerId: string, grantedScopes: string[]) => ({
-      canonicalScopes: grantedScopes,
-      grantedScopes,
+    mockEvaluateScopeCoverage.mockImplementation((_providerId: string, _grantedScopes: string[]) => ({
+      canonicalScopes: ['email', 'profile'],
+      grantedScopes: ['email', 'profile'],
       missingScopes: [],
       extraScopes: [],
       requiresReauthorization: false,
