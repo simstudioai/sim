@@ -145,13 +145,7 @@ export async function verifyFileAccess(
     // Check metadata for userId/workspaceId, or database for workspace files
     return await verifyRegularFileAccess(cloudKey, userId, customConfig, isLocal)
   } catch (error) {
-    logger.error('Error verifying file access:', {
-      cloudKey,
-      userId,
-      error: error instanceof Error ? error.message : String(error),
-      stack: error instanceof Error ? error.stack : undefined,
-      errorType: error?.constructor?.name,
-    })
+    logger.error('Error verifying file access:', { cloudKey, userId, error })
     // Deny access on error to be safe
     return false
   }
@@ -218,12 +212,7 @@ async function verifyWorkspaceFileAccess(
     logger.warn('Workspace file missing authorization metadata', { cloudKey, userId })
     return false
   } catch (error) {
-    logger.error('Error verifying workspace file access', {
-      cloudKey,
-      userId,
-      error: error instanceof Error ? error.message : String(error),
-      stack: error instanceof Error ? error.stack : undefined,
-    })
+    logger.error('Error verifying workspace file access', { cloudKey, userId, error })
     return false
   }
 }
@@ -299,17 +288,8 @@ async function verifyCopilotFileAccess(
   customConfig?: StorageConfig
 ): Promise<boolean> {
   try {
-    logger.debug('Verifying copilot file access', { cloudKey, userId })
-
     // Priority 1: Check workspaceFiles table (new system)
     const fileRecord = await getFileMetadataByKey(cloudKey, 'copilot')
-
-    logger.debug('Database lookup result', {
-      cloudKey,
-      found: !!fileRecord,
-      fileUserId: fileRecord?.userId,
-      requestingUserId: userId,
-    })
 
     if (fileRecord) {
       if (fileRecord.userId === userId) {
@@ -365,13 +345,7 @@ async function verifyCopilotFileAccess(
     logger.warn('Copilot file missing authorization metadata', { cloudKey, userId })
     return false
   } catch (error) {
-    logger.error('Error verifying copilot file access', {
-      cloudKey,
-      userId,
-      error: error instanceof Error ? error.message : String(error),
-      stack: error instanceof Error ? error.stack : undefined,
-      errorType: error?.constructor?.name,
-    })
+    logger.error('Error verifying copilot file access', { cloudKey, userId, error })
     return false
   }
 }
@@ -514,12 +488,7 @@ async function verifyChatFileAccess(
     logger.debug('Chat file access granted', { userId, workspaceId, cloudKey })
     return true
   } catch (error) {
-    logger.error('Error verifying chat file access', {
-      cloudKey,
-      userId,
-      error: error instanceof Error ? error.message : String(error),
-      stack: error instanceof Error ? error.stack : undefined,
-    })
+    logger.error('Error verifying chat file access', { cloudKey, userId, error })
     return false
   }
 }
@@ -600,12 +569,7 @@ async function verifyRegularFileAccess(
     logger.warn('File missing ownership metadata', { cloudKey, userId })
     return false
   } catch (error) {
-    logger.error('Error verifying regular file access', {
-      cloudKey,
-      userId,
-      error: error instanceof Error ? error.message : String(error),
-      stack: error instanceof Error ? error.stack : undefined,
-    })
+    logger.error('Error verifying regular file access', { cloudKey, userId, error })
     return false
   }
 }
