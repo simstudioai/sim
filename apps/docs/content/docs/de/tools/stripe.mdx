@@ -359,7 +359,7 @@ Ein neues Abonnement für einen Kunden erstellen
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Ja | Stripe API-Schlüssel (geheimer Schlüssel) |
 | `customer` | string | Ja | Kunden-ID für das Abonnement |
-| `items` | json | Ja | Array von Artikeln mit Preis-IDs (z.B. [{"price": "price_xxx", "quantity": 1}]) |
+| `items` | json | Ja | Array von Artikeln mit Preis-IDs \(z.B. \[\{"price": "price_xxx", "quantity": 1\}\]\) |
 | `trial_period_days` | number | Nein | Anzahl der Testtage |
 | `default_payment_method` | string | Nein | Zahlungsmethoden-ID |
 | `cancel_at_period_end` | boolean | Nein | Abonnement am Ende der Periode kündigen |
@@ -774,7 +774,7 @@ Alle Zahlungen auflisten
 | `apiKey` | string | Ja | Stripe API-Schlüssel (geheimer Schlüssel) |
 | `limit` | number | Nein | Anzahl der zurückzugebenden Ergebnisse (Standard 10, max. 100) |
 | `customer` | string | Nein | Nach Kunden-ID filtern |
-| `created` | json | Nein | Nach Erstellungsdatum filtern (z.B. {"gt": 1633024800}) |
+| `created` | json | Nein | Nach Erstellungsdatum filtern \(z.B. \{"gt": 1633024800\}\) |
 
 #### Output
 
@@ -1051,7 +1051,7 @@ Alle Events auflisten
 | `apiKey` | string | Ja | Stripe API-Schlüssel (Secret-Key) |
 | `limit` | number | Nein | Anzahl der zurückzugebenden Ergebnisse (Standard 10, max. 100) |
 | `type` | string | Nein | Nach Event-Typ filtern (z.B. payment_intent.created) |
-| `created` | json | Nein | Nach Erstellungsdatum filtern (z.B. {"gt": 1633024800}) |
+| `created` | json | Nein | Nach Erstellungsdatum filtern \(z.B. \{"gt": 1633024800\}\) |
 
 #### Output
 
