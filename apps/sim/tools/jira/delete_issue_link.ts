@@ -66,7 +66,7 @@ export const jiraDeleteIssueLinkTool: ToolConfig<
       }
       return 'https://api.atlassian.com/oauth/token/accessible-resources'
     },
-    method: 'DELETE',
+    method: (params: JiraDeleteIssueLinkParams) => (params.cloudId ? 'DELETE' : 'GET'),
     headers: (params: JiraDeleteIssueLinkParams) => {
       return {
         Accept: 'application/json',

@@ -65,7 +65,7 @@ export const jiraTransitionIssueTool: ToolConfig<
       }
       return 'https://api.atlassian.com/oauth/token/accessible-resources'
     },
-    method: 'POST',
+    method: (params: JiraTransitionIssueParams) => (params.cloudId ? 'POST' : 'GET'),
     headers: (params: JiraTransitionIssueParams) => {
       return {
         Accept: 'application/json',
@@ -74,6 +74,7 @@ export const jiraTransitionIssueTool: ToolConfig<
       }
     },
     body: (params: JiraTransitionIssueParams) => {
+      if (!params.cloudId) return undefined as any
       const body: any = {
         transition: {
           id: params.transitionId,

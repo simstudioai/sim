@@ -1,6 +1,6 @@
 ---
 title: OneDrive
-description: Create, upload, and list files
+description: Create, upload, download, list, and delete files
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -51,7 +51,7 @@ In Sim, the OneDrive integration enables your agents to directly interact with y
 
 ## Usage Instructions
 
-Integrate OneDrive into the workflow. Can create text and Excel files, upload files, and list files.
+Integrate OneDrive into the workflow. Can create text and Excel files, upload files, download files, list files, and delete files or folders.
 
 
 
@@ -135,6 +135,24 @@ List files and folders in OneDrive
 | `success` | boolean | Whether files were listed successfully |
 | `files` | array | Array of file and folder objects with metadata |
 | `nextPageToken` | string | Token for retrieving the next page of results \(optional\) |
+
+### `onedrive_delete`
+
+Delete a file or folder from OneDrive
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `fileId` | string | Yes | The ID of the file or folder to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the file was deleted successfully |
+| `deleted` | boolean | Confirmation that the file was deleted |
+| `fileId` | string | The ID of the deleted file |
 
 
 

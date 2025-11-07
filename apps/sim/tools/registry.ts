@@ -360,6 +360,7 @@ import {
 } from '@/tools/notion'
 import {
   onedriveCreateFolderTool,
+  onedriveDeleteTool,
   onedriveDownloadTool,
   onedriveListTool,
   onedriveUploadTool,
@@ -1010,6 +1011,7 @@ export const tools: Record<string, ToolConfig> = {
   linear_delete_project_status: linearDeleteProjectStatusTool,
   linear_list_project_statuses: linearListProjectStatusesTool,
   onedrive_create_folder: onedriveCreateFolderTool,
+  onedrive_delete: onedriveDeleteTool,
   onedrive_download: onedriveDownloadTool,
   onedrive_list: onedriveListTool,
   onedrive_upload: onedriveUploadTool,

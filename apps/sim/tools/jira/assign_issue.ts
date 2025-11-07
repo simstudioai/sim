@@ -72,7 +72,7 @@ export const jiraAssignIssueTool: ToolConfig<JiraAssignIssueParams, JiraAssignIs
       }
       return 'https://api.atlassian.com/oauth/token/accessible-resources'
     },
-    method: 'PUT',
+    method: (params: JiraAssignIssueParams) => (params.cloudId ? 'PUT' : 'GET'),
     headers: (params: JiraAssignIssueParams) => {
       return {
         Accept: 'application/json',
@@ -81,6 +81,7 @@ export const jiraAssignIssueTool: ToolConfig<JiraAssignIssueParams, JiraAssignIs
       }
     },
     body: (params: JiraAssignIssueParams) => {
+      if (!params.cloudId) return undefined as any
       return {
         accountId: params.accountId === 'null' ? null : params.accountId,
       }

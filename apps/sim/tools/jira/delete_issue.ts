@@ -72,7 +72,7 @@ export const jiraDeleteIssueTool: ToolConfig<JiraDeleteIssueParams, JiraDeleteIs
       }
       return 'https://api.atlassian.com/oauth/token/accessible-resources'
     },
-    method: 'DELETE',
+    method: (params: JiraDeleteIssueParams) => (params.cloudId ? 'DELETE' : 'GET'),
     headers: (params: JiraDeleteIssueParams) => {
       return {
         Accept: 'application/json',
@@ -94,12 +94,31 @@ export const jiraDeleteIssueTool: ToolConfig<JiraDeleteIssueParams, JiraDeleteIs
         },
       })
 
+      if (deleteResponse.status === 204) {
+        return {
+          success: true,
+          output: {
+            ts: new Date().toISOString(),
+            issueKey: params?.issueKey || 'unknown',
+            success: true,
+          },
+        }
+      }
+
       if (!deleteResponse.ok) {
         let message = `Failed to delete Jira issue (${deleteResponse.status})`
         try {
-          const err = await deleteResponse.json()
-          message = err?.errorMessages?.join(', ') || err?.message || message
-        } catch (_e) {}
+          const contentType = deleteResponse.headers.get('content-type') || ''
+          if (contentType.includes('application/json')) {
+            const err = await deleteResponse.json()
+            message = err?.errorMessages?.join(', ') || err?.message || message
+          } else {
+            const text = await deleteResponse.text()
+            message = `${message} - Received HTML/text response. Check authentication and permissions. Response: ${text.substring(0, 200)}`
+          }
+        } catch (_e) {
+          // If parsing fails, keep default message
+        }
         throw new Error(message)
       }
 
@@ -113,12 +132,31 @@ export const jiraDeleteIssueTool: ToolConfig<JiraDeleteIssueParams, JiraDeleteIs
       }
     }
 
+    if (response.status === 204) {
+      return {
+        success: true,
+        output: {
+          ts: new Date().toISOString(),
+          issueKey: params?.issueKey || 'unknown',
+          success: true,
+        },
+      }
+    }
+
     if (!response.ok) {
       let message = `Failed to delete Jira issue (${response.status})`
       try {
-        const err = await response.json()
-        message = err?.errorMessages?.join(', ') || err?.message || message
-      } catch (_e) {}
+        const contentType = response.headers.get('content-type') || ''
+        if (contentType.includes('application/json')) {
+          const err = await response.json()
+          message = err?.errorMessages?.join(', ') || err?.message || message
+        } else {
+          const text = await response.text()
+          message = `${message} - Received HTML/text response. Check authentication and permissions. Response: ${text.substring(0, 200)}`
+        }
+      } catch (_e) {
+        // If parsing fails, keep default message
+      }
       throw new Error(message)
     }
 

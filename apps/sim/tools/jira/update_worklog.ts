@@ -74,7 +74,7 @@ export const jiraUpdateWorklogTool: ToolConfig<JiraUpdateWorklogParams, JiraUpda
         }
         return 'https://api.atlassian.com/oauth/token/accessible-resources'
       },
-      method: 'PUT',
+      method: (params: JiraUpdateWorklogParams) => (params.cloudId ? 'PUT' : 'GET'),
       headers: (params: JiraUpdateWorklogParams) => {
         return {
           Accept: 'application/json',
@@ -83,6 +83,7 @@ export const jiraUpdateWorklogTool: ToolConfig<JiraUpdateWorklogParams, JiraUpda
         }
       },
       body: (params: JiraUpdateWorklogParams) => {
+        if (!params.cloudId) return undefined as any
         return {
 <<<<<<< HEAD
           timeSpentSeconds: Number(params.timeSpentSeconds),

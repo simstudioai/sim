@@ -67,7 +67,7 @@ export const jiraAddWorklogTool: ToolConfig<JiraAddWorklogParams, JiraAddWorklog
       }
       return 'https://api.atlassian.com/oauth/token/accessible-resources'
     },
-    method: 'POST',
+    method: (params: JiraAddWorklogParams) => (params.cloudId ? 'POST' : 'GET'),
     headers: (params: JiraAddWorklogParams) => {
       return {
         Accept: 'application/json',
@@ -76,6 +76,7 @@ export const jiraAddWorklogTool: ToolConfig<JiraAddWorklogParams, JiraAddWorklog
       }
     },
     body: (params: JiraAddWorklogParams) => {
+      if (!params.cloudId) return undefined as any
       return {
         timeSpentSeconds: Number(params.timeSpentSeconds),
         comment: params.comment
@@ -95,13 +96,18 @@ export const jiraAddWorklogTool: ToolConfig<JiraAddWorklogParams, JiraAddWorklog
               ],
             }
           : undefined,
-        started: params.started || new Date().toISOString().replace(/\.\d{3}Z$/, '+0000'),
+        started:
+          (params.started ? params.started.replace(/Z$/, '+0000') : undefined) ||
+          new Date().toISOString().replace(/Z$/, '+0000'),
       }
     },
   },
 
   transformResponse: async (response: Response, params?: JiraAddWorklogParams) => {
     if (!params?.cloudId) {
+      if (!params?.timeSpentSeconds || params.timeSpentSeconds <= 0) {
+        throw new Error('timeSpentSeconds is required and must be greater than 0')
+      }
       const cloudId = await getJiraCloudId(params!.domain, params!.accessToken)
       // Make the actual request with the resolved cloudId
       const worklogUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${params?.issueKey}/worklog`
@@ -131,7 +137,10 @@ export const jiraAddWorklogTool: ToolConfig<JiraAddWorklogParams, JiraAddWorklog
                 ],
               }
             : undefined,
-          started: params?.started || new Date().toISOString().replace(/\.\d{3}Z$/, '+0000'),
+          // Preserve milliseconds and convert trailing Z to +0000 as required by Jira examples
+          started:
+            (params?.started ? params.started.replace(/Z$/, '+0000') : undefined) ||
+            new Date().toISOString().replace(/Z$/, '+0000'),
         }),
       })
 

@@ -72,7 +72,7 @@ export const jiraDeleteCommentTool: ToolConfig<JiraDeleteCommentParams, JiraDele
         }
         return 'https://api.atlassian.com/oauth/token/accessible-resources'
       },
-      method: 'DELETE',
+      method: (params: JiraDeleteCommentParams) => (params.cloudId ? 'DELETE' : 'GET'),
       headers: (params: JiraDeleteCommentParams) => {
         return {
           Accept: 'application/json',
