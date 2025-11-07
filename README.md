@@ -117,7 +117,7 @@ docker run --name simstudio-db \
 
 ```bash
 cd apps/sim
-cp .env.example .env  # Configure with required variables (DATABASE_URL, BETTER_AUTH_SECRET, BETTER_AUTH_URL)
+cp .env.example .env  # Configure with required variables (DATABASE_URL, BETTER_AUTH_SECRET, BETTER_AUTH_URL, NEXT_PUBLIC_APP_URL)
 ```
 
 Update your `.env` file with the database URL:
