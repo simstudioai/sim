@@ -87,7 +87,6 @@ export async function POST(request: Request) {
 
     const cloudId = providedCloudId || (await getConfluenceCloudId(domain, accessToken))
 
-    // Validate cloudId with domain-specific validation
     const cloudIdValidation = validateJiraCloudId(cloudId, 'cloudId')
     if (!cloudIdValidation.isValid) {
       return NextResponse.json({ error: cloudIdValidation.error }, { status: 400 })
@@ -167,7 +166,6 @@ export async function PUT(request: Request) {
 
     const cloudId = providedCloudId || (await getConfluenceCloudId(domain, accessToken))
 
-    // Validate cloudId with domain-specific validation
     const cloudIdValidation = validateJiraCloudId(cloudId, 'cloudId')
     if (!cloudIdValidation.isValid) {
       return NextResponse.json({ error: cloudIdValidation.error }, { status: 400 })
@@ -264,7 +262,6 @@ export async function DELETE(request: Request) {
 
     const cloudId = providedCloudId || (await getConfluenceCloudId(domain, accessToken))
 
-    // Validate cloudId with domain-specific validation
     const cloudIdValidation = validateJiraCloudId(cloudId, 'cloudId')
     if (!cloudIdValidation.isValid) {
       return NextResponse.json({ error: cloudIdValidation.error }, { status: 400 })

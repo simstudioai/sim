@@ -13,9 +13,6 @@ import { getTool, validateRequiredParametersAfterMerge } from '@/tools/utils'
 
 const logger = createLogger('ProxyAPI')
 
-/**
- * Zod schema for POST request body
- */
 const proxyPostSchema = z.object({
   toolId: z.string().min(1, 'toolId is required'),
   params: z.record(z.any()).optional().default({}),
@@ -329,9 +326,6 @@ export async function POST(request: NextRequest) {
         (output) => output.type === 'file' || output.type === 'file[]'
       )
 
-    // Note: executionContext from request body is a partial object with workflowId, workspaceId, executionId
-    // It's not a full ExecutionContext (which requires blockStates, executedBlocks, etc.)
-    // The executeTool function handles undefined context gracefully
     const result = await executeTool(
       toolId,
       params,

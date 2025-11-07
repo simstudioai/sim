@@ -15,12 +15,6 @@ export const dynamic = 'force-dynamic'
 const scheduleActionEnum = z.enum(['reactivate', 'disable'])
 const scheduleStatusEnum = z.enum(['active', 'disabled'])
 
-/**
- * Schema for updating schedule status
- * Note: This PUT endpoint exists but currently has no UI callers.
- * Schedule management uses DELETE for removal, but reactivate/disable
- * functionality may be implemented in future UI updates.
- */
 const scheduleUpdateSchema = z
   .object({
     action: scheduleActionEnum.optional(),
