@@ -87,14 +87,15 @@ export function extractRequiredCredentials(state: any): CredentialRequirement[] 
       if (!subBlockConfig.password) return
 
       const blockName = blockConfig.name || block.type
+      const suffix = block?.triggerMode ? ' Trigger' : ''
       const fieldLabel = subBlockConfig.title || formatFieldName(subBlockConfig.id)
-      const key = `secret-${block.type}-${subBlockConfig.id}`
+      const key = `secret-${block.type}-${subBlockConfig.id}-${block?.triggerMode ? 'trigger' : 'default'}`
 
       if (!seen.has(key)) {
         seen.add(key)
         credentials.push({
           type: CredentialType.SECRET,
-          label: `${fieldLabel} for ${blockName}`,
+          label: `${fieldLabel} for ${blockName}${suffix}`,
           blockType: block.type,
           subBlockId: subBlockConfig.id,
           required: subBlockConfig.required !== false,
@@ -103,8 +104,13 @@ export function extractRequiredCredentials(state: any): CredentialRequirement[] 
     })
   })
 
-  // Helper to check visibility
+  // Helper to check visibility, respecting mode and conditions
   function isSubBlockVisible(block: any, subBlockConfig: SubBlockConfig): boolean {
+    const mode = subBlockConfig.mode ?? 'both'
+    if (mode === 'trigger' && !block?.triggerMode) return false
+    if (mode === 'basic' && block?.advancedMode) return false
+    if (mode === 'advanced' && !block?.advancedMode) return false
+
     if (!subBlockConfig.condition) return true
 
     const condition =
