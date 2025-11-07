@@ -1220,6 +1220,7 @@ export interface LinearDeleteProjectLabelResponse extends ToolResponse {
 
 export interface LinearListProjectLabelsParams {
   accessToken?: string
+  projectId?: string
 }
 
 export interface LinearListProjectLabelsResponse extends ToolResponse {

@@ -69,7 +69,7 @@ export const linearUnarchiveIssueTool: ToolConfig<
       success: result.success,
       output: {
         success: result.success,
-        issueId: result.entity?.id || params.issueId,
+        issueId: result.entity?.id,
       },
     }
   },
