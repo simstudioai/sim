@@ -277,28 +277,6 @@ Supprimer une pièce jointe d'une page Confluence (déplace vers la corbeille).
 | `attachmentId` | chaîne | ID de la pièce jointe supprimée |
 | `deleted` | booléen | Statut de la suppression |
 
-### `confluence_add_label`
-
-Ajouter une étiquette à une page Confluence.
-
-#### Entrée
-
-| Paramètre | Type | Obligatoire | Description |
-| --------- | ---- | -------- | ----------- |
-| `domain` | chaîne | Oui | Votre domaine Confluence \(ex. : votreentreprise.atlassian.net\) |
-| `pageId` | chaîne | Oui | ID de la page Confluence à laquelle ajouter l'étiquette |
-| `labelName` | chaîne | Oui | Nom de l'étiquette à ajouter |
-| `cloudId` | chaîne | Non | ID Cloud Confluence pour l'instance. S'il n'est pas fourni, il sera récupéré à l'aide du domaine. |
-
-#### Sortie
-
-| Paramètre | Type | Description |
-| --------- | ---- | ----------- |
-| `ts` | chaîne | Horodatage de l'opération |
-| `pageId` | chaîne | ID de la page |
-| `labelName` | chaîne | Nom du libellé |
-| `added` | booléen | Statut de l'ajout |
-
 ### `confluence_list_labels`
 
 Lister tous les libellés d'une page Confluence.
@@ -317,28 +295,6 @@ Lister tous les libellés d'une page Confluence.
 | --------- | ---- | ----------- |
 | `ts` | chaîne | Horodatage de la récupération |
 | `labels` | tableau | Liste des libellés |
-
-### `confluence_remove_label`
-
-Supprimer un libellé d'une page Confluence.
-
-#### Entrée
-
-| Paramètre | Type | Obligatoire | Description |
-| --------- | ---- | -------- | ----------- |
-| `domain` | chaîne | Oui | Votre domaine Confluence \(ex. : votreentreprise.atlassian.net\) |
-| `pageId` | chaîne | Oui | ID de la page Confluence dont il faut supprimer le libellé |
-| `labelName` | chaîne | Oui | Nom du libellé à supprimer |
-| `cloudId` | chaîne | Non | ID Cloud Confluence pour l'instance. S'il n'est pas fourni, il sera récupéré à l'aide du domaine. |
-
-#### Sortie
-
-| Paramètre | Type | Description |
-| --------- | ---- | ----------- |
-| `ts` | chaîne | Horodatage de l'opération |
-| `pageId` | chaîne | ID de la page |
-| `labelName` | chaîne | Nom du libellé |
-| `removed` | booléen | Statut de suppression |
 
 ### `confluence_get_space`
 
@@ -373,7 +329,7 @@ Lister tous les espaces Confluence accessibles à l'utilisateur.
 | Paramètre | Type | Obligatoire | Description |
 | --------- | ---- | -------- | ----------- |
 | `domain` | chaîne | Oui | Votre domaine Confluence \(ex. : votreentreprise.atlassian.net\) |
-| `limit` | nombre | Non | Nombre maximum d'espaces à retourner \(par défaut : 25\) |
+| `limit` | nombre | Non | Nombre maximum d'espaces à renvoyer \(par défaut : 25\) |
 | `cloudId` | chaîne | Non | ID Cloud Confluence pour l'instance. S'il n'est pas fourni, il sera récupéré à l'aide du domaine. |
 
 #### Sortie

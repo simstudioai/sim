@@ -61,15 +61,11 @@ Busca en la web usando Exa AI. Devuelve resultados de búsqueda relevantes con t
 | `type` | string | No | Tipo de búsqueda: neural, keyword, auto o fast \(predeterminado: auto\) |
 | `includeDomains` | string | No | Lista separada por comas de dominios a incluir en los resultados |
 | `excludeDomains` | string | No | Lista separada por comas de dominios a excluir de los resultados |
-| `startPublishedDate` | string | No | Filtrar resultados publicados después de esta fecha \(formato ISO 8601, ej., 2024-01-01\) |
-| `endPublishedDate` | string | No | Filtrar resultados publicados antes de esta fecha \(formato ISO 8601\) |
-| `startCrawlDate` | string | No | Filtrar resultados rastreados después de esta fecha \(formato ISO 8601\) |
-| `endCrawlDate` | string | No | Filtrar resultados rastreados antes de esta fecha \(formato ISO 8601\) |
 | `category` | string | No | Filtrar por categoría: company, research_paper, news_article, pdf, github, tweet, movie, song, personal_site |
 | `text` | boolean | No | Incluir contenido de texto completo en los resultados \(predeterminado: false\) |
 | `highlights` | boolean | No | Incluir fragmentos destacados en los resultados \(predeterminado: false\) |
 | `summary` | boolean | No | Incluir resúmenes generados por IA en los resultados \(predeterminado: false\) |
-| `livecrawl` | string | No | Modo de rastreo en vivo: always, fallback, o never \(predeterminado: never\) |
+| `livecrawl` | string | No | Modo de rastreo en vivo: always, fallback o never \(predeterminado: never\) |
 | `apiKey` | string | Sí | Clave API de Exa AI |
 
 #### Salida
@@ -115,10 +111,6 @@ Encuentra páginas web similares a una URL determinada utilizando Exa AI. Devuel
 | `includeDomains` | string | No | Lista separada por comas de dominios a incluir en los resultados |
 | `excludeDomains` | string | No | Lista separada por comas de dominios a excluir de los resultados |
 | `excludeSourceDomain` | boolean | No | Excluir el dominio de origen de los resultados \(predeterminado: false\) |
-| `startPublishedDate` | string | No | Filtrar resultados publicados después de esta fecha \(formato ISO 8601, por ejemplo, 2024-01-01\) |
-| `endPublishedDate` | string | No | Filtrar resultados publicados antes de esta fecha \(formato ISO 8601\) |
-| `startCrawlDate` | string | No | Filtrar resultados rastreados después de esta fecha \(formato ISO 8601\) |
-| `endCrawlDate` | string | No | Filtrar resultados rastreados antes de esta fecha \(formato ISO 8601\) |
 | `category` | string | No | Filtrar por categoría: company, research_paper, news_article, pdf, github, tweet, movie, song, personal_site |
 | `highlights` | boolean | No | Incluir fragmentos destacados en los resultados \(predeterminado: false\) |
 | `summary` | boolean | No | Incluir resúmenes generados por IA en los resultados \(predeterminado: false\) |

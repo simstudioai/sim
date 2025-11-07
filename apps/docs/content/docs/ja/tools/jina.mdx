@@ -79,28 +79,16 @@ Jina AI Readerを使用してウェブコンテンツを抽出し、LLMフレン
 | `gatherLinks` | boolean | いいえ | すべてのリンクを最後にまとめるかどうか |
 | `jsonResponse` | boolean | いいえ | レスポンスをJSON形式で返すかどうか |
 | `apiKey` | string | はい | あなたのJina AI APIキー |
-| `targetSelector` | string | いいえ | 特定のページ要素を対象とするCSSセレクタ（例："#main-content"） |
-| `waitForSelector` | string | いいえ | コンテンツ抽出前に待機するCSSセレクタ（動的ページに有用） |
-| `removeSelector` | string | いいえ | 除外する要素のCSSセレクタ（例："header, footer, .ad"） |
-| `timeout` | number | いいえ | ページ読み込みを待機する最大秒数 |
-| `withImagesummary` | boolean | いいえ | メタデータ付きでページのすべての画像を収集 |
-| `retainImages` | string | いいえ | 画像の含め方の制御："none"はすべて削除、"all"はすべて保持 |
+| `withImagesummary` | boolean | いいえ | ページからメタデータ付きですべての画像を収集する |
+| `retainImages` | string | いいえ | 画像の含め方の制御：「none」はすべて削除、「all」はすべて保持 |
 | `returnFormat` | string | いいえ | 出力形式：markdown、html、text、screenshot、またはpageshot |
-| `withIframe` | boolean | いいえ | 抽出にiframeコンテンツを含める |
-| `withShadowDom` | boolean | いいえ | Shadow DOMコンテンツを抽出 |
-| `setCookie` | string | いいえ | 認証クッキーを転送（キャッシュを無効化） |
-| `proxyUrl` | string | いいえ | リクエストルーティング用のHTTPプロキシURL |
-| `proxy` | string | いいえ | プロキシの国コード（例："US"、"UK"）または"auto"/"none" |
-| `engine` | string | いいえ | レンダリングエンジン：browser、direct、またはcf-browser-rendering |
-| `tokenBudget` | number | いいえ | リクエストの最大トークン数（コスト管理） |
-| `noCache` | boolean | いいえ | リアルタイム取得のためにキャッシュされたコンテンツをバイパス |
-| `cacheTolerance` | number | いいえ | カスタムキャッシュ寿命（秒） |
-| `withGeneratedAlt` | boolean | いいえ | VLMを使用して画像の代替テキストを生成 |
-| `baseUrl` | string | いいえ | リダイレクトチェーンをたどるには"final"に設定 |
-| `locale` | string | いいえ | レンダリング用のブラウザロケール（例："en-US"） |
+| `withIframe` | boolean | いいえ | 抽出にiframeコンテンツを含めるかどうか |
+| `withShadowDom` | boolean | いいえ | Shadow DOMコンテンツを抽出する |
+| `noCache` | boolean | いいえ | リアルタイム取得のためにキャッシュされたコンテンツをバイパスする |
+| `withGeneratedAlt` | boolean | いいえ | VLMを使用して画像の代替テキストを生成する |
 | `robotsTxt` | string | いいえ | robots.txtチェック用のボットユーザーエージェント |
-| `dnt` | boolean | いいえ | Do Not Track - キャッシュ/トラッキングを防止 |
-| `noGfm` | boolean | いいえ | GitHub Flavored Markdownを無効化 |
+| `dnt` | boolean | いいえ | Do Not Track - キャッシュ/トラッキングを防止する |
+| `noGfm` | boolean | いいえ | GitHub Flavored Markdownを無効にする |
 
 #### 出力
 
@@ -120,25 +108,16 @@ Jina AI Readerを使用してウェブコンテンツを抽出し、LLMフレン
 | --------- | ---- | -------- | ----------- |
 | `q` | string | はい | 検索クエリ文字列 |
 | `apiKey` | string | はい | あなたのJina AI APIキー |
-| `gl` | string | いいえ | 地域固有の結果のための2文字の国コード（例：「US」、「UK」、「JP」） |
-| `location` | string | いいえ | ローカライズされた検索結果のための都市レベルの位置 |
-| `hl` | string | いいえ | 結果のための2文字の言語コード（例：「en」、「es」、「fr」） |
 | `num` | number | いいえ | ページあたりの最大結果数（デフォルト：5） |
-| `page` | number | いいえ | ページネーションのためのページ番号（オフセット） |
-| `site` | string | いいえ | 特定のドメインに結果を制限します。複数のサイトの場合はカンマ区切りで指定可能（例：「jina.ai,github.com」） |
+| `site` | string | いいえ | 特定のドメインに結果を制限する。複数のサイトの場合はカンマ区切りで指定可能（例："jina.ai,github.com"） |
 | `withFavicon` | boolean | いいえ | 結果にウェブサイトのファビコンを含める |
-| `withImagesummary` | boolean | いいえ | 結果ページからメタデータ付きのすべての画像を収集する |
+| `withImagesummary` | boolean | いいえ | 結果ページからメタデータ付きですべての画像を収集する |
 | `withLinksummary` | boolean | いいえ | 結果ページからすべてのリンクを収集する |
-| `retainImages` | string | いいえ | 画像の含め方を制御：「none」はすべて削除、「all」はすべて保持 |
+| `retainImages` | string | いいえ | 画像の含め方の制御：「none」はすべて削除、「all」はすべて保持 |
 | `noCache` | boolean | いいえ | リアルタイム取得のためにキャッシュされたコンテンツをバイパスする |
 | `withGeneratedAlt` | boolean | いいえ | VLMを使用して画像の代替テキストを生成する |
-| `respondWith` | string | いいえ | 「no-content」に設定すると、ページコンテンツなしでメタデータのみを取得 |
+| `respondWith` | string | いいえ | ページコンテンツなしでメタデータのみを取得するには「no-content」に設定 |
 | `returnFormat` | string | いいえ | 出力形式：markdown、html、text、screenshot、またはpageshot |
-| `engine` | string | いいえ | レンダリングエンジン：browserまたはdirect |
-| `timeout` | number | いいえ | ページ読み込みを待つ最大秒数 |
-| `setCookie` | string | いいえ | 認証クッキーを転送する |
-| `proxyUrl` | string | いいえ | リクエストルーティングのためのHTTPプロキシURL |
-| `locale` | string | いいえ | レンダリングのためのブラウザロケール（例：「en-US」） |
 
 #### 出力
 

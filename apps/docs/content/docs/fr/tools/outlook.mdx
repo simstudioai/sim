@@ -163,10 +163,11 @@ Envoyer des e-mails via Outlook
 | `to` | string | Oui | Adresse e-mail du destinataire |
 | `subject` | string | Oui | Objet de l'e-mail |
 | `body` | string | Oui | Contenu du corps de l'e-mail |
+| `contentType` | string | Non | Type de contenu pour le corps de l'e-mail \(texte ou html\) |
 | `replyToMessageId` | string | Non | ID du message auquel répondre \(pour le fil de discussion\) |
 | `conversationId` | string | Non | ID de conversation pour le fil de discussion |
-| `cc` | string | Non | Destinataires en CC \(séparés par des virgules\) |
-| `bcc` | string | Non | Destinataires en BCC \(séparés par des virgules\) |
+| `cc` | string | Non | Destinataires en copie \(séparés par des virgules\) |
+| `bcc` | string | Non | Destinataires en copie cachée \(séparés par des virgules\) |
 | `attachments` | file[] | Non | Fichiers à joindre à l'e-mail |
 
 #### Sortie
@@ -189,8 +190,9 @@ Créer des brouillons d'e-mails avec Outlook
 | `to` | string | Oui | Adresse e-mail du destinataire |
 | `subject` | string | Oui | Objet de l'e-mail |
 | `body` | string | Oui | Contenu du corps de l'e-mail |
-| `cc` | string | Non | Destinataires en CC \(séparés par des virgules\) |
-| `bcc` | string | Non | Destinataires en BCC \(séparés par des virgules\) |
+| `contentType` | string | Non | Type de contenu pour le corps de l'e-mail \(texte ou html\) |
+| `cc` | string | Non | Destinataires en copie \(séparés par des virgules\) |
+| `bcc` | string | Non | Destinataires en copie cachée \(séparés par des virgules\) |
 | `attachments` | file[] | Non | Fichiers à joindre au brouillon d'e-mail |
 
 #### Sortie

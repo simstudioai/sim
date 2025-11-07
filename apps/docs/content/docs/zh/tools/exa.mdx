@@ -58,18 +58,14 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 | `query` | string | 是 | 要执行的搜索查询 |
 | `numResults` | number | 否 | 要返回的结果数量 \(默认值: 10，最大值: 25\) |
 | `useAutoprompt` | boolean | 否 | 是否使用自动提示来优化查询 \(默认值: false\) |
-| `type` | string | 否 | 搜索类型: neural, keyword, auto 或 fast \(默认值: auto\) |
-| `includeDomains` | string | 否 | 结果中包含的域名列表，用逗号分隔 |
-| `excludeDomains` | string | 否 | 结果中排除的域名列表，用逗号分隔 |
-| `startPublishedDate` | string | 否 | 筛选在此日期之后发布的结果 \(ISO 8601 格式，例如：2024-01-01\) |
-| `endPublishedDate` | string | 否 | 筛选在此日期之前发布的结果 \(ISO 8601 格式\) |
-| `startCrawlDate` | string | 否 | 筛选在此日期之后抓取的结果 \(ISO 8601 格式\) |
-| `endCrawlDate` | string | 否 | 筛选在此日期之前抓取的结果 \(ISO 8601 格式\) |
-| `category` | string | 否 | 按类别筛选: company, research_paper, news_article, pdf, github, tweet, movie, song, personal_site |
+| `type` | string | 否 | 搜索类型：neural、keyword、auto 或 fast \(默认值: auto\) |
+| `includeDomains` | string | 否 | 用逗号分隔的域名列表，包含在结果中 |
+| `excludeDomains` | string | 否 | 用逗号分隔的域名列表，从结果中排除 |
+| `category` | string | 否 | 按类别筛选：company、research_paper、news_article、pdf、github、tweet、movie、song、personal_site |
 | `text` | boolean | 否 | 在结果中包含完整文本内容 \(默认值: false\) |
 | `highlights` | boolean | 否 | 在结果中包含高亮片段 \(默认值: false\) |
 | `summary` | boolean | 否 | 在结果中包含 AI 生成的摘要 \(默认值: false\) |
-| `livecrawl` | string | 否 | 实时抓取模式: always, fallback 或 never \(默认值: never\) |
+| `livecrawl` | string | 否 | 实时爬取模式：always、fallback 或 never \(默认值: never\) |
 | `apiKey` | string | 是 | Exa AI API 密钥 |
 
 #### 输出
@@ -109,17 +105,13 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | 参数 | 类型 | 必需 | 描述 |
 | --------- | ---- | -------- | ----------- |
-| `url` | string | 是 | 用于查找相似链接的 URL |
-| `numResults` | number | 否 | 返回的相似链接数量 \(默认值: 10, 最大值: 25\) |
+| `url` | string | 是 | 要查找相似链接的 URL |
+| `numResults` | number | 否 | 要返回的相似链接数量 \(默认值: 10，最大值: 25\) |
 | `text` | boolean | 否 | 是否包含相似页面的完整文本 |
-| `includeDomains` | string | 否 | 用逗号分隔的域名列表，用于包含在结果中 |
-| `excludeDomains` | string | 否 | 用逗号分隔的域名列表，用于排除在结果之外 |
-| `excludeSourceDomain` | boolean | 否 | 排除源域名的结果 \(默认值: false\) |
-| `startPublishedDate` | string | 否 | 过滤发布在此日期之后的结果 \(ISO 8601 格式，例如：2024-01-01\) |
-| `endPublishedDate` | string | 否 | 过滤发布在此日期之前的结果 \(ISO 8601 格式\) |
-| `startCrawlDate` | string | 否 | 过滤在此日期之后爬取的结果 \(ISO 8601 格式\) |
-| `endCrawlDate` | string | 否 | 过滤在此日期之前爬取的结果 \(ISO 8601 格式\) |
-| `category` | string | 否 | 按类别过滤：company、research_paper、news_article、pdf、github、tweet、movie、song、personal_site |
+| `includeDomains` | string | 否 | 用逗号分隔的域名列表，包含在结果中 |
+| `excludeDomains` | string | 否 | 用逗号分隔的域名列表，从结果中排除 |
+| `excludeSourceDomain` | boolean | 否 | 从结果中排除源域名 \(默认值: false\) |
+| `category` | string | 否 | 按类别筛选：company、research_paper、news_article、pdf、github、tweet、movie、song、personal_site |
 | `highlights` | boolean | 否 | 在结果中包含高亮片段 \(默认值: false\) |
 | `summary` | boolean | 否 | 在结果中包含 AI 生成的摘要 \(默认值: false\) |
 | `livecrawl` | string | 否 | 实时爬取模式：always、fallback 或 never \(默认值: never\) |

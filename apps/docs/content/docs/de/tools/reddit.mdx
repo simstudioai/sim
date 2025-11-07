@@ -120,32 +120,9 @@ Kontroverse Beiträge aus einem Subreddit abrufen
 | `subreddit` | string | Name des Subreddits, aus dem Beiträge abgerufen wurden |
 | `posts` | array | Array von kontroversen Beiträgen mit Titel, Autor, URL, Punktzahl, Kommentaranzahl und Metadaten |
 
-### `reddit_get_gilded`
-
-Vergoldete/prämierte Beiträge aus einem Subreddit abrufen
-
-#### Eingabe
-
-| Parameter | Typ | Erforderlich | Beschreibung |
-| --------- | ---- | -------- | ----------- |
-| `subreddit` | string | Ja | Der Name des Subreddits, aus dem Beiträge abgerufen werden sollen \(ohne das r/ Präfix\) |
-| `limit` | number | Nein | Maximale Anzahl der zurückzugebenden Beiträge \(Standard: 10, max: 100\) |
-| `after` | string | Nein | Vollständiger Name eines Elements, nach dem Elemente abgerufen werden sollen \(für Paginierung\) |
-| `before` | string | Nein | Vollständiger Name eines Elements, vor dem Elemente abgerufen werden sollen \(für Paginierung\) |
-| `count` | number | Nein | Anzahl der bereits gesehenen Elemente in der Liste \(für Nummerierung verwendet\) |
-| `show` | string | Nein | Zeigt Elemente an, die normalerweise gefiltert würden \(z.B. "all"\) |
-| `sr_detail` | boolean | Nein | Erweitert Subreddit-Details in der Antwort |
-
-#### Ausgabe
-
-| Parameter | Typ | Beschreibung |
-| --------- | ---- | ----------- |
-| `subreddit` | string | Name des Subreddits, aus dem Beiträge abgerufen wurden |
-| `posts` | array | Array von vergoldeten/ausgezeichneten Beiträgen mit Titel, Autor, URL, Punktzahl, Kommentaranzahl und Metadaten |
-
 ### `reddit_search`
 
-Suche nach Beiträgen innerhalb eines Subreddits
+Nach Beiträgen innerhalb eines Subreddits suchen
 
 #### Eingabe
 
@@ -160,14 +137,14 @@ Suche nach Beiträgen innerhalb eines Subreddits
 | `after` | string | Nein | Vollständiger Name eines Elements, nach dem Elemente abgerufen werden sollen \(für Paginierung\) |
 | `before` | string | Nein | Vollständiger Name eines Elements, vor dem Elemente abgerufen werden sollen \(für Paginierung\) |
 | `count` | number | Nein | Anzahl der bereits gesehenen Elemente in der Liste \(für Nummerierung verwendet\) |
-| `show` | string | Nein | Elemente anzeigen, die normalerweise gefiltert würden \(z.B. "all"\) |
+| `show` | string | Nein | Zeigt Elemente an, die normalerweise gefiltert würden \(z.B. "all"\) |
 
 #### Ausgabe
 
 | Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
 | `subreddit` | string | Name des Subreddits, in dem die Suche durchgeführt wurde |
-| `posts` | array | Array von Suchergebnissen mit Titel, Autor, URL, Punktzahl, Kommentaranzahl und Metadaten |
+| `posts` | array | Array von Suchergebnisbeiträgen mit Titel, Autor, URL, Punktzahl, Kommentaranzahl und Metadaten |
 
 ### `reddit_submit_post`
 
@@ -178,7 +155,7 @@ Einen neuen Beitrag in einem Subreddit einreichen (Text oder Link)
 | Parameter | Typ | Erforderlich | Beschreibung |
 | --------- | ---- | -------- | ----------- |
 | `subreddit` | string | Ja | Der Name des Subreddits, in dem gepostet werden soll \(ohne das r/ Präfix\) |
-| `title` | string | Ja | Titel des Beitrags \(maximal 300 Zeichen\) |
+| `title` | string | Ja | Titel der Einreichung \(maximal 300 Zeichen\) |
 | `text` | string | Nein | Textinhalt für einen Selbstbeitrag \(Markdown wird unterstützt\) |
 | `url` | string | Nein | URL für einen Link-Beitrag \(kann nicht zusammen mit Text verwendet werden\) |
 | `nsfw` | boolean | Nein | Beitrag als NSFW markieren |
@@ -195,14 +172,14 @@ Einen neuen Beitrag in einem Subreddit einreichen (Text oder Link)
 
 ### `reddit_vote`
 
-Einen Reddit-Beitrag oder -Kommentar upvoten, downvoten oder die Bewertung zurückziehen
+Upvote, Downvote oder Zurücknahme einer Stimme für einen Reddit-Beitrag oder -Kommentar
 
 #### Eingabe
 
 | Parameter | Typ | Erforderlich | Beschreibung |
 | --------- | ---- | -------- | ----------- |
-| `id` | string | Ja | Vollständiger Name des Elements, für das abgestimmt werden soll \(z.B. t3_xxxxx für Beiträge, t1_xxxxx für Kommentare\) |
-| `dir` | number | Ja | Abstimmungsrichtung: 1 \(Upvote\), 0 \(Zurückziehen der Stimme\) oder -1 \(Downvote\) |
+| `id` | string | Ja | Vollständiger Name des Elements, für das abgestimmt werden soll \(z.B. t3_xxxxx für Beitrag, t1_xxxxx für Kommentar\) |
+| `dir` | number | Ja | Abstimmungsrichtung: 1 \(Upvote\), 0 \(Zurücknahme\), oder -1 \(Downvote\) |
 
 #### Ausgabe
 
@@ -219,7 +196,7 @@ Einen Reddit-Beitrag oder Kommentar in deinen gespeicherten Elementen speichern
 
 | Parameter | Typ | Erforderlich | Beschreibung |
 | --------- | ---- | -------- | ----------- |
-| `id` | string | Ja | Vollständiger Name des zu speichernden Elements \(z.B. t3_xxxxx für Beiträge, t1_xxxxx für Kommentare\) |
+| `id` | string | Ja | Vollständiger Name des zu speichernden Elements \(z.B. t3_xxxxx für Beitrag, t1_xxxxx für Kommentar\) |
 | `category` | string | Nein | Kategorie, unter der gespeichert werden soll \(Reddit Gold-Funktion\) |
 
 #### Ausgabe
@@ -247,13 +224,13 @@ Einen Reddit-Beitrag oder Kommentar in deinen gespeicherten Elementen speichern
 
 ### `reddit_reply`
 
-Eine Kommentarantwort zu einem Reddit-Beitrag oder -Kommentar hinzufügen
+Einen Kommentar zu einem Reddit-Beitrag oder Kommentar hinzufügen
 
 #### Eingabe
 
 | Parameter | Typ | Erforderlich | Beschreibung |
 | --------- | ---- | -------- | ----------- |
-| `parent_id` | string | Ja | Vollständiger Name des Elements, auf das geantwortet werden soll (z.B. t3_xxxxx für Beitrag, t1_xxxxx für Kommentar) |
+| `parent_id` | string | Ja | Vollständiger Name des Elements, auf das geantwortet werden soll \(z.B. t3_xxxxx für Beitrag, t1_xxxxx für Kommentar\) |
 | `text` | string | Ja | Kommentartext im Markdown-Format |
 
 #### Ausgabe
@@ -266,13 +243,13 @@ Eine Kommentarantwort zu einem Reddit-Beitrag oder -Kommentar hinzufügen
 
 ### `reddit_edit`
 
-Den Text deines eigenen Reddit-Beitrags oder -Kommentars bearbeiten
+Bearbeite den Text deines eigenen Reddit-Beitrags oder -Kommentars
 
 #### Eingabe
 
 | Parameter | Typ | Erforderlich | Beschreibung |
 | --------- | ---- | -------- | ----------- |
-| `thing_id` | string | Ja | Vollständiger Name des zu bearbeitenden Elements (z.B. t3_xxxxx für Beitrag, t1_xxxxx für Kommentar) |
+| `thing_id` | string | Ja | Vollständiger Name des zu bearbeitenden Elements \(z.B. t3_xxxxx für Beiträge, t1_xxxxx für Kommentare\) |
 | `text` | string | Ja | Neuer Textinhalt im Markdown-Format |
 
 #### Ausgabe
@@ -285,13 +262,13 @@ Den Text deines eigenen Reddit-Beitrags oder -Kommentars bearbeiten
 
 ### `reddit_delete`
 
-Deinen eigenen Reddit-Beitrag oder -Kommentar löschen
+Lösche deinen eigenen Reddit-Beitrag oder -Kommentar
 
 #### Eingabe
 
 | Parameter | Typ | Erforderlich | Beschreibung |
 | --------- | ---- | -------- | ----------- |
-| `id` | string | Ja | Vollständiger Name des zu löschenden Elements (z.B. t3_xxxxx für Beitrag, t1_xxxxx für Kommentar) |
+| `id` | string | Ja | Vollständiger Name des zu löschenden Elements \(z.B. t3_xxxxx für Beiträge, t1_xxxxx für Kommentare\) |
 
 #### Ausgabe
 
@@ -308,14 +285,14 @@ Subreddit abonnieren oder Abonnement kündigen
 
 | Parameter | Typ | Erforderlich | Beschreibung |
 | --------- | ---- | -------- | ----------- |
-| `subreddit` | string | Ja | Der Name des Subreddits (ohne das r/ Präfix) |
-| `action` | string | Ja | Auszuführende Aktion: "sub" zum Abonnieren oder "unsub" zum Abbestellen |
+| `subreddit` | string | Ja | Der Name des Subreddits \(ohne das r/ Präfix\) |
+| `action` | string | Ja | Auszuführende Aktion: "sub" zum Abonnieren oder "unsub" zum Kündigen des Abonnements |
 
 #### Ausgabe
 
 | Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
-| `success` | boolean | Ob die Abonnement-Aktion erfolgreich war |
+| `success` | boolean | Ob die Abonnementaktion erfolgreich war |
 | `message` | string | Erfolgs- oder Fehlermeldung |
 
 ## Hinweise

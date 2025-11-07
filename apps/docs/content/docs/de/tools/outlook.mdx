@@ -163,7 +163,8 @@ E-Mails mit Outlook senden
 | `to` | string | Ja | E-Mail-Adresse des Empfängers |
 | `subject` | string | Ja | E-Mail-Betreff |
 | `body` | string | Ja | E-Mail-Inhalt |
-| `replyToMessageId` | string | Nein | Nachrichten-ID für Antworten \(für Threading\) |
+| `contentType` | string | Nein | Inhaltstyp für den E-Mail-Text \(text oder html\) |
+| `replyToMessageId` | string | Nein | Nachrichten-ID, auf die geantwortet wird \(für Threading\) |
 | `conversationId` | string | Nein | Konversations-ID für Threading |
 | `cc` | string | Nein | CC-Empfänger \(durch Kommas getrennt\) |
 | `bcc` | string | Nein | BCC-Empfänger \(durch Kommas getrennt\) |
@@ -189,6 +190,7 @@ E-Mails mit Outlook entwerfen
 | `to` | string | Ja | E-Mail-Adresse des Empfängers |
 | `subject` | string | Ja | E-Mail-Betreff |
 | `body` | string | Ja | E-Mail-Inhalt |
+| `contentType` | string | Nein | Inhaltstyp für den E-Mail-Text \(text oder html\) |
 | `cc` | string | Nein | CC-Empfänger \(durch Kommas getrennt\) |
 | `bcc` | string | Nein | BCC-Empfänger \(durch Kommas getrennt\) |
 | `attachments` | file[] | Nein | Dateien, die an den E-Mail-Entwurf angehängt werden sollen |

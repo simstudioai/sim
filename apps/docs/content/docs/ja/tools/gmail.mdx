@@ -73,10 +73,11 @@ Gmailを使用してメールを送信する
 | `to` | string | はい | 受信者のメールアドレス |
 | `subject` | string | いいえ | メールの件名 |
 | `body` | string | はい | メール本文の内容 |
-| `threadId` | string | いいえ | 返信するスレッドID（スレッド化のため） |
+| `contentType` | string | いいえ | メール本文のコンテンツタイプ（テキストまたはHTML） |
+| `threadId` | string | いいえ | 返信するスレッドID（スレッド化用） |
 | `replyToMessageId` | string | いいえ | 返信するGmailメッセージID - Gmail読み取り結果の「id」フィールドを使用（RFC「messageId」ではない） |
-| `cc` | string | いいえ | CC受信者（カンマ区切り） |
-| `bcc` | string | いいえ | BCC受信者（カンマ区切り） |
+| `cc` | string | いいえ | CCの受信者（カンマ区切り） |
+| `bcc` | string | いいえ | BCCの受信者（カンマ区切り） |
 | `attachments` | file[] | いいえ | メールに添付するファイル |
 
 #### 出力
@@ -97,11 +98,12 @@ Gmailでメールの下書きを作成する
 | `to` | string | はい | 受信者のメールアドレス |
 | `subject` | string | いいえ | メールの件名 |
 | `body` | string | はい | メール本文の内容 |
-| `threadId` | string | いいえ | 返信するスレッドID（スレッド化のため） |
+| `contentType` | string | いいえ | メール本文のコンテンツタイプ（テキストまたはHTML） |
+| `threadId` | string | いいえ | 返信するスレッドID（スレッド化用） |
 | `replyToMessageId` | string | いいえ | 返信するGmailメッセージID - Gmail読み取り結果の「id」フィールドを使用（RFC「messageId」ではない） |
-| `cc` | string | いいえ | CC受信者（カンマ区切り） |
-| `bcc` | string | いいえ | BCC受信者（カンマ区切り） |
-| `attachments` | file[] | いいえ | 下書きメールに添付するファイル |
+| `cc` | string | いいえ | CCの受信者（カンマ区切り） |
+| `bcc` | string | いいえ | BCCの受信者（カンマ区切り） |
+| `attachments` | file[] | いいえ | メールの下書きに添付するファイル |
 
 #### 出力
 

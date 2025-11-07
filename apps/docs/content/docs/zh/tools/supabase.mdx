@@ -322,16 +322,14 @@ Sim 的 Supabase 集成使您能够轻松地将代理工作流连接到您的 Su
 | `projectId` | string | 是 | 您的 Supabase 项目 ID \(例如：jdrkgepadsdopsntdlom\) |
 | `bucket` | string | 是 | 存储桶的名称 |
 | `path` | string | 是 | 要下载的文件路径 \(例如："folder/file.jpg"\) |
+| `fileName` | string | 否 | 可选的文件名覆盖 |
 | `apiKey` | string | 是 | 您的 Supabase 服务角色密钥 |
 
 #### 输出
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `message` | string | 操作状态消息 |
-| `fileContent` | string | 文件内容 \(如果是二进制文件则为 base64 编码，否则为纯文本\) |
-| `contentType` | string | 文件的 MIME 类型 |
-| `isBase64` | boolean | 文件内容是否为 base64 编码 |
+| `file` | file | 下载的文件存储在执行文件中 |
 
 ### `supabase_storage_list`
 

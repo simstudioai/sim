@@ -1,6 +1,6 @@
 ---
 title: OneDrive
-description: Créer, télécharger et lister des fichiers
+description: Créer, téléverser, télécharger, lister et supprimer des fichiers
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -50,7 +50,7 @@ Dans Sim, l'intégration OneDrive permet à vos agents d'interagir directement a
 
 ## Instructions d'utilisation
 
-Intégrer OneDrive dans le flux de travail. Peut créer des fichiers texte et Excel, télécharger des fichiers et lister des fichiers.
+Intégrez OneDrive dans le flux de travail. Peut créer des fichiers texte et Excel, téléverser des fichiers, télécharger des fichiers, lister des fichiers et supprimer des fichiers ou dossiers.
 
 ## Outils
 
@@ -132,6 +132,24 @@ Lister les fichiers et dossiers dans OneDrive
 | `success` | boolean | Indique si les fichiers ont été listés avec succès |
 | `files` | array | Tableau d'objets de fichiers et dossiers avec métadonnées |
 | `nextPageToken` | string | Jeton pour récupérer la page suivante de résultats \(optionnel\) |
+
+### `onedrive_delete`
+
+Supprimer un fichier ou un dossier de OneDrive
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `fileId` | string | Oui | L'ID du fichier ou dossier à supprimer |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | booléen | Indique si le fichier a été supprimé avec succès |
+| `deleted` | booléen | Confirmation que le fichier a été supprimé |
+| `fileId` | string | L'ID du fichier supprimé |
 
 ## Notes
 

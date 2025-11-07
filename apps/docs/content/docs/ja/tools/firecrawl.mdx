@@ -58,7 +58,7 @@ Simでは、Firecrawl統合によりエージェントがワークフローの�
 
 ## 使用方法
 
-Firecrawlをワークフローに統合。AIを使用してページのスクレイピング、ウェブ検索、ウェブサイト全体のクロール、URL構造のマッピング、構造化データの抽出が可能。
+Firecrawlをワークフローに統合します。ページのスクレイピング、ウェブ検索、サイト全体のクローリング、URL構造のマッピング、AIによる構造化データの抽出が可能です。
 
 ## ツール
 
@@ -71,25 +71,7 @@ Firecrawlをワークフローに統合。AIを使用してページのスクレ
 | パラメータ | 型 | 必須 | 説明 |
 | --------- | ---- | -------- | ----------- |
 | `url` | string | はい | コンテンツをスクレイピングするURL |
-| `formats` | json | いいえ | 出力形式（markdown、html、rawHtml、links、images、screenshot）。デフォルト：["markdown"] |
-| `onlyMainContent` | boolean | いいえ | ヘッダー、ナビゲーション、フッターを除くメインコンテンツのみを抽出（デフォルト：true） |
-| `includeTags` | json | いいえ | 出力に保持するHTMLタグ |
-| `excludeTags` | json | いいえ | 出力から削除するHTMLタグ |
-| `maxAge` | number | いいえ | このミリ秒数より新しい場合はキャッシュバージョンを返す（デフォルト：172800000） |
-| `headers` | json | いいえ | カスタムリクエストヘッダー（クッキー、ユーザーエージェントなど） |
-| `waitFor` | number | いいえ | 取得前の遅延（ミリ秒）（デフォルト：0） |
-| `mobile` | boolean | いいえ | モバイルデバイスをエミュレート（デフォルト：false） |
-| `skipTlsVerification` | boolean | いいえ | TLS証明書の検証をスキップ（デフォルト：true） |
-| `timeout` | number | いいえ | リクエストタイムアウト（ミリ秒） |
-| `parsers` | json | いいえ | ファイル処理コントロール（例：["pdf"]） |
-| `actions` | json | いいえ | スクレイピング前の操作（待機、クリック、スクロール、スクリーンショットなど） |
-| `location` | json | いいえ | 地理的設定（国、言語） |
-| `removeBase64Images` | boolean | いいえ | 出力からbase64画像を削除（デフォルト：true） |
-| `blockAds` | boolean | いいえ | 広告とポップアップのブロックを有効化（デフォルト：true） |
-| `proxy` | string | いいえ | プロキシタイプ：basic、stealth、またはauto（デフォルト：auto） |
-| `storeInCache` | boolean | いいえ | ページをキャッシュする（デフォルト：true） |
-| `zeroDataRetention` | boolean | いいえ | ゼロデータ保持モードを有効化（デフォルト：false） |
-| `scrapeOptions` | json | いいえ | コンテンツスクレイピングのオプション（レガシー、トップレベルパラメータを推奨） |
+| `scrapeOptions` | json | いいえ | コンテンツスクレイピングのオプション |
 | `apiKey` | string | はい | Firecrawl APIキー |
 
 #### 出力
@@ -109,15 +91,6 @@ Firecrawlを使用してウェブ上の情報を検索します
 | パラメータ | 型 | 必須 | 説明 |
 | --------- | ---- | -------- | ----------- |
 | `query` | string | はい | 使用する検索クエリ |
-| `limit` | number | いいえ | 返す結果の最大数（1-100、デフォルト：5） |
-| `sources` | json | いいえ | 検索ソース：["web"]、["images"]、または["news"]（デフォルト：["web"]） |
-| `categories` | json | いいえ | カテゴリによるフィルタリング：["github"]、["research"]、または["pdf"] |
-| `tbs` | string | いいえ | 時間ベースの検索：qdr:h（時間）、qdr:d（日）、qdr:w（週）、qdr:m（月）、qdr:y（年） |
-| `location` | string | いいえ | 結果の地理的位置（例："San Francisco, California, United States"） |
-| `country` | string | いいえ | 地理的ターゲティング用のISO国コード（デフォルト：US） |
-| `timeout` | number | いいえ | タイムアウト（ミリ秒単位、デフォルト：60000） |
-| `ignoreInvalidURLs` | boolean | いいえ | 結果から無効なURLを除外する（デフォルト：false） |
-| `scrapeOptions` | json | いいえ | 検索結果の高度なスクレイピング設定 |
 | `apiKey` | string | はい | Firecrawl APIキー |
 
 #### 出力
@@ -134,23 +107,9 @@ Firecrawlを使用してウェブ上の情報を検索します
 
 | パラメータ | 型 | 必須 | 説明 |
 | --------- | ---- | -------- | ----------- |
-| `url` | string | はい | クロールするウェブサイトのURL |
+| `url` | string | はい | クロールするウェブサイトURL |
 | `limit` | number | いいえ | クロールするページの最大数（デフォルト：100） |
 | `onlyMainContent` | boolean | いいえ | ページからメインコンテンツのみを抽出する |
-| `prompt` | string | いいえ | クローラーオプションを自動生成するための自然言語指示 |
-| `maxDiscoveryDepth` | number | いいえ | URL発見の深さ制限（ルートページの深さは0） |
-| `sitemap` | string | いいえ | サイトマップデータの使用方法："skip"または"include"（デフォルト："include"） |
-| `crawlEntireDomain` | boolean | いいえ | 兄弟/親URLをフォローするか、子パスのみをフォローするか（デフォルト：false） |
-| `allowExternalLinks` | boolean | いいえ | 外部ウェブサイトリンクをフォローする（デフォルト：false） |
-| `allowSubdomains` | boolean | いいえ | サブドメインリンクをフォローする（デフォルト：false） |
-| `ignoreQueryParameters` | boolean | いいえ | 異なるクエリパラメータを持つ同じパスの再スクレイピングを防止する（デフォルト：false） |
-| `delay` | number | いいえ | レート制限遵守のためのスクレイプ間の秒数 |
-| `maxConcurrency` | number | いいえ | 同時スクレイプ制限 |
-| `excludePaths` | json | いいえ | 除外するURLの正規表現パターンの配列 |
-| `includePaths` | json | いいえ | 排他的に含めるURLの正規表現パターンの配列 |
-| `webhook` | json | いいえ | クロール通知用のWebhook設定 |
-| `scrapeOptions` | json | いいえ | 高度なスクレイピング設定 |
-| `zeroDataRetention` | boolean | いいえ | ゼロデータ保持を有効にする（デフォルト：false） |
 | `apiKey` | string | はい | Firecrawl APIキー |
 
 #### 出力

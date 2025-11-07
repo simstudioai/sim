@@ -277,28 +277,6 @@ Eliminar un adjunto de una página de Confluence (se mueve a la papelera).
 | `attachmentId` | string | ID del adjunto eliminado |
 | `deleted` | boolean | Estado de la eliminación |
 
-### `confluence_add_label`
-
-Añadir una etiqueta a una página de Confluence.
-
-#### Entrada
-
-| Parámetro | Tipo | Obligatorio | Descripción |
-| --------- | ---- | -------- | ----------- |
-| `domain` | string | Sí | Tu dominio de Confluence \(p. ej., tuempresa.atlassian.net\) |
-| `pageId` | string | Sí | ID de la página de Confluence a la que añadir la etiqueta |
-| `labelName` | string | Sí | Nombre de la etiqueta a añadir |
-| `cloudId` | string | No | ID de Confluence Cloud para la instancia. Si no se proporciona, se obtendrá utilizando el dominio. |
-
-#### Salida
-
-| Parámetro | Tipo | Descripción |
-| --------- | ---- | ----------- |
-| `ts` | string | Marca de tiempo de la operación |
-| `pageId` | string | ID de la página |
-| `labelName` | string | Nombre de la etiqueta |
-| `added` | boolean | Estado de la adición |
-
 ### `confluence_list_labels`
 
 Listar todas las etiquetas en una página de Confluence.
@@ -317,28 +295,6 @@ Listar todas las etiquetas en una página de Confluence.
 | --------- | ---- | ----------- |
 | `ts` | string | Marca de tiempo de la recuperación |
 | `labels` | array | Lista de etiquetas |
-
-### `confluence_remove_label`
-
-Eliminar una etiqueta de una página de Confluence.
-
-#### Entrada
-
-| Parámetro | Tipo | Obligatorio | Descripción |
-| --------- | ---- | -------- | ----------- |
-| `domain` | string | Sí | Tu dominio de Confluence \(p. ej., tuempresa.atlassian.net\) |
-| `pageId` | string | Sí | ID de la página de Confluence de la que eliminar la etiqueta |
-| `labelName` | string | Sí | Nombre de la etiqueta a eliminar |
-| `cloudId` | string | No | ID de Confluence Cloud para la instancia. Si no se proporciona, se obtendrá utilizando el dominio. |
-
-#### Salida
-
-| Parámetro | Tipo | Descripción |
-| --------- | ---- | ----------- |
-| `ts` | string | Marca de tiempo de la operación |
-| `pageId` | string | ID de la página |
-| `labelName` | string | Nombre de la etiqueta |
-| `removed` | boolean | Estado de eliminación |
 
 ### `confluence_get_space`
 

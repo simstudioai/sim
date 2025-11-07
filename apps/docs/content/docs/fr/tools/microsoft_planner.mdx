@@ -190,7 +190,10 @@ Mettre à jour une tâche dans Microsoft Planner
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
 | `success` | booléen | Indique si la tâche a été mise à jour avec succès |
+| `message` | chaîne | Message de succès lorsque la tâche est mise à jour |
 | `task` | objet | L'objet de tâche mis à jour avec toutes ses propriétés |
+| `taskId` | chaîne | Identifiant de la tâche mise à jour |
+| `etag` | chaîne | Nouvelle valeur ETag après la mise à jour - à utiliser pour les opérations suivantes |
 | `metadata` | objet | Métadonnées incluant taskId, planId et taskUrl |
 
 ### `microsoft_planner_delete_task`
@@ -214,21 +217,20 @@ Supprimer une tâche de Microsoft Planner
 
 ### `microsoft_planner_list_plans`
 
-Lister tous les plans dans un groupe Microsoft 365
+Liste de tous les plans partagés avec l'utilisateur actuel
 
 #### Entrée
 
 | Paramètre | Type | Obligatoire | Description |
 | --------- | ---- | -------- | ----------- |
-| `groupId` | chaîne | Oui | L'identifiant du groupe Microsoft 365 |
 
 #### Sortie
 
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
 | `success` | booléen | Indique si les plans ont été récupérés avec succès |
-| `plans` | tableau | Tableau d'objets de plan |
-| `metadata` | objet | Métadonnées incluant groupId et nombre |
+| `plans` | tableau | Tableau d'objets de plan partagés avec l'utilisateur actuel |
+| `metadata` | objet | Métadonnées incluant userId et nombre |
 
 ### `microsoft_planner_read_plan`
 
@@ -357,7 +359,8 @@ Obtenir des informations détaillées sur une tâche, y compris la liste de cont
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
 | `success` | booléen | Indique si les détails de la tâche ont été récupérés avec succès |
-| `taskDetails` | objet | Les détails de la tâche incluant la description, la liste de contrôle et les références |
+| `taskDetails` | objet | Les détails de la tâche incluant description, liste de contrôle et références |
+| `etag` | chaîne | La valeur ETag pour ces détails de tâche - à utiliser pour les opérations de mise à jour |
 | `metadata` | objet | Métadonnées incluant taskId |
 
 ### `microsoft_planner_update_task_details`

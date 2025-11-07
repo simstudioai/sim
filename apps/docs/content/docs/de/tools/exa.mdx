@@ -61,13 +61,9 @@ Durchsuchen Sie das Web mit Exa AI. Liefert relevante Suchergebnisse mit Titeln,
 | `type` | string | Nein | Suchtyp: neural, keyword, auto oder fast \(Standard: auto\) |
 | `includeDomains` | string | Nein | Kommagetrennte Liste von Domains, die in den Ergebnissen enthalten sein sollen |
 | `excludeDomains` | string | Nein | Kommagetrennte Liste von Domains, die aus den Ergebnissen ausgeschlossen werden sollen |
-| `startPublishedDate` | string | Nein | Filtert Ergebnisse, die nach diesem Datum veröffentlicht wurden \(ISO 8601-Format, z.B. 2024-01-01\) |
-| `endPublishedDate` | string | Nein | Filtert Ergebnisse, die vor diesem Datum veröffentlicht wurden \(ISO 8601-Format\) |
-| `startCrawlDate` | string | Nein | Filtert Ergebnisse, die nach diesem Datum gecrawlt wurden \(ISO 8601-Format\) |
-| `endCrawlDate` | string | Nein | Filtert Ergebnisse, die vor diesem Datum gecrawlt wurden \(ISO 8601-Format\) |
 | `category` | string | Nein | Nach Kategorie filtern: company, research_paper, news_article, pdf, github, tweet, movie, song, personal_site |
 | `text` | boolean | Nein | Vollständigen Textinhalt in Ergebnissen einschließen \(Standard: false\) |
-| `highlights` | boolean | Nein | Hervorgehobene Textausschnitte in Ergebnissen einschließen \(Standard: false\) |
+| `highlights` | boolean | Nein | Hervorgehobene Ausschnitte in Ergebnissen einschließen \(Standard: false\) |
 | `summary` | boolean | Nein | KI-generierte Zusammenfassungen in Ergebnissen einschließen \(Standard: false\) |
 | `livecrawl` | string | Nein | Live-Crawling-Modus: always, fallback oder never \(Standard: never\) |
 | `apiKey` | string | Ja | Exa AI API-Schlüssel |
@@ -111,14 +107,10 @@ Finde Webseiten, die einer bestimmten URL ähnlich sind, mit Exa AI. Gibt eine L
 | --------- | ---- | -------- | ----------- |
 | `url` | string | Ja | Die URL, für die ähnliche Links gefunden werden sollen |
 | `numResults` | number | Nein | Anzahl der zurückzugebenden ähnlichen Links \(Standard: 10, max: 25\) |
-| `text` | boolean | Nein | Ob der vollständige Text der ähnlichen Seiten einbezogen werden soll |
+| `text` | boolean | Nein | Ob der vollständige Text der ähnlichen Seiten eingeschlossen werden soll |
 | `includeDomains` | string | Nein | Kommagetrennte Liste von Domains, die in den Ergebnissen enthalten sein sollen |
 | `excludeDomains` | string | Nein | Kommagetrennte Liste von Domains, die aus den Ergebnissen ausgeschlossen werden sollen |
 | `excludeSourceDomain` | boolean | Nein | Quell-Domain aus Ergebnissen ausschließen \(Standard: false\) |
-| `startPublishedDate` | string | Nein | Ergebnisse filtern, die nach diesem Datum veröffentlicht wurden \(ISO 8601-Format, z.B. 2024-01-01\) |
-| `endPublishedDate` | string | Nein | Ergebnisse filtern, die vor diesem Datum veröffentlicht wurden \(ISO 8601-Format\) |
-| `startCrawlDate` | string | Nein | Ergebnisse filtern, die nach diesem Datum gecrawlt wurden \(ISO 8601-Format\) |
-| `endCrawlDate` | string | Nein | Ergebnisse filtern, die vor diesem Datum gecrawlt wurden \(ISO 8601-Format\) |
 | `category` | string | Nein | Nach Kategorie filtern: company, research_paper, news_article, pdf, github, tweet, movie, song, personal_site |
 | `highlights` | boolean | Nein | Hervorgehobene Ausschnitte in Ergebnissen einschließen \(Standard: false\) |
 | `summary` | boolean | Nein | KI-generierte Zusammenfassungen in Ergebnissen einschließen \(Standard: false\) |

@@ -277,28 +277,6 @@ Löscht einen Anhang von einer Confluence-Seite (wird in den Papierkorb verschob
 | `attachmentId` | string | Gelöschte Anhangs-ID |
 | `deleted` | boolean | Löschstatus |
 
-### `confluence_add_label`
-
-Fügt einer Confluence-Seite ein Label hinzu.
-
-#### Eingabe
-
-| Parameter | Typ | Erforderlich | Beschreibung |
-| --------- | ---- | -------- | ----------- |
-| `domain` | string | Ja | Ihre Confluence-Domain (z.B. ihrfirma.atlassian.net) |
-| `pageId` | string | Ja | Confluence-Seiten-ID, zu der das Label hinzugefügt werden soll |
-| `labelName` | string | Ja | Labelname zum Hinzufügen |
-| `cloudId` | string | Nein | Confluence Cloud-ID für die Instanz. Wenn nicht angegeben, wird sie über die Domain abgerufen. |
-
-#### Ausgabe
-
-| Parameter | Typ | Beschreibung |
-| --------- | ---- | ----------- |
-| `ts` | string | Zeitstempel des Vorgangs |
-| `pageId` | string | Seiten-ID |
-| `labelName` | string | Label-Name |
-| `added` | boolean | Hinzufügungsstatus |
-
 ### `confluence_list_labels`
 
 Alle Labels einer Confluence-Seite auflisten.
@@ -317,28 +295,6 @@ Alle Labels einer Confluence-Seite auflisten.
 | --------- | ---- | ----------- |
 | `ts` | string | Zeitstempel des Abrufs |
 | `labels` | array | Liste der Labels |
-
-### `confluence_remove_label`
-
-Ein Label von einer Confluence-Seite entfernen.
-
-#### Eingabe
-
-| Parameter | Typ | Erforderlich | Beschreibung |
-| --------- | ---- | -------- | ----------- |
-| `domain` | string | Ja | Ihre Confluence-Domain (z.B. ihrfirma.atlassian.net) |
-| `pageId` | string | Ja | Confluence-Seiten-ID, von der ein Label entfernt werden soll |
-| `labelName` | string | Ja | Zu entfernender Label-Name |
-| `cloudId` | string | Nein | Confluence Cloud-ID für die Instanz. Wenn nicht angegeben, wird sie über die Domain abgerufen. |
-
-#### Ausgabe
-
-| Parameter | Typ | Beschreibung |
-| --------- | ---- | ----------- |
-| `ts` | string | Zeitstempel des Vorgangs |
-| `pageId` | string | Seiten-ID |
-| `labelName` | string | Label-Name |
-| `removed` | boolean | Entfernungsstatus |
 
 ### `confluence_get_space`
 
@@ -381,7 +337,7 @@ Alle für den Benutzer zugänglichen Confluence-Spaces auflisten.
 | Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
 | `ts` | string | Zeitstempel des Abrufs |
-| `spaces` | array | Liste der Bereiche |
+| `spaces` | array | Liste der Spaces |
 
 ## Hinweise
 

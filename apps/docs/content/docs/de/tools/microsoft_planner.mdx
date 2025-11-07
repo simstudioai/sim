@@ -190,7 +190,10 @@ Eine Aufgabe in Microsoft Planner aktualisieren
 | Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
 | `success` | boolean | Gibt an, ob die Aufgabe erfolgreich aktualisiert wurde |
+| `message` | string | Erfolgsmeldung bei Aktualisierung der Aufgabe |
 | `task` | object | Das aktualisierte Aufgabenobjekt mit allen Eigenschaften |
+| `taskId` | string | ID der aktualisierten Aufgabe |
+| `etag` | string | Neuer ETag nach der Aktualisierung - verwenden Sie diesen für nachfolgende Operationen |
 | `metadata` | object | Metadaten einschließlich taskId, planId und taskUrl |
 
 ### `microsoft_planner_delete_task`
@@ -214,21 +217,20 @@ Eine Aufgabe aus Microsoft Planner löschen
 
 ### `microsoft_planner_list_plans`
 
-Alle Pläne in einer Microsoft 365-Gruppe auflisten
+Alle Pläne auflisten, die mit dem aktuellen Benutzer geteilt wurden
 
 #### Eingabe
 
 | Parameter | Typ | Erforderlich | Beschreibung |
 | --------- | ---- | -------- | ----------- |
-| `groupId` | string | Ja | Die ID der Microsoft 365-Gruppe |
 
 #### Ausgabe
 
 | Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
 | `success` | boolean | Gibt an, ob Pläne erfolgreich abgerufen wurden |
-| `plans` | array | Array von Planobjekten |
-| `metadata` | object | Metadaten einschließlich groupId und Anzahl |
+| `plans` | array | Array von Planobjekten, die mit dem aktuellen Benutzer geteilt wurden |
+| `metadata` | object | Metadaten einschließlich userId und Anzahl |
 
 ### `microsoft_planner_read_plan`
 
@@ -358,6 +360,7 @@ Detaillierte Informationen über eine Aufgabe abrufen, einschließlich Checklist
 | --------- | ---- | ----------- |
 | `success` | boolean | Gibt an, ob die Aufgabendetails erfolgreich abgerufen wurden |
 | `taskDetails` | object | Die Aufgabendetails einschließlich Beschreibung, Checkliste und Referenzen |
+| `etag` | string | Der ETag-Wert für diese Aufgabendetails - verwenden Sie diesen für Aktualisierungsoperationen |
 | `metadata` | object | Metadaten einschließlich taskId |
 
 ### `microsoft_planner_update_task_details`

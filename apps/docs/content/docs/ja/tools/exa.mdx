@@ -57,19 +57,15 @@ Exa AIを使用してウェブを検索します。タイトル、URL、テキ�
 | --------- | ---- | -------- | ----------- |
 | `query` | string | はい | 実行する検索クエリ |
 | `numResults` | number | いいえ | 返す結果の数（デフォルト：10、最大：25） |
-| `useAutoprompt` | boolean | いいえ | クエリを改善するためにautopromptを使用するかどうか（デフォルト：false） |
-| `type` | string | いいえ | 検索タイプ：neural、keyword、autoまたはfast（デフォルト：auto） |
+| `useAutoprompt` | boolean | いいえ | クエリを改善するためにオートプロンプトを使用するかどうか（デフォルト：false） |
+| `type` | string | いいえ | 検索タイプ：neural、keyword、auto、またはfast（デフォルト：auto） |
 | `includeDomains` | string | いいえ | 結果に含めるドメインのカンマ区切りリスト |
 | `excludeDomains` | string | いいえ | 結果から除外するドメインのカンマ区切りリスト |
-| `startPublishedDate` | string | いいえ | この日付以降に公開された結果をフィルタリング（ISO 8601形式、例：2024-01-01） |
-| `endPublishedDate` | string | いいえ | この日付以前に公開された結果をフィルタリング（ISO 8601形式） |
-| `startCrawlDate` | string | いいえ | この日付以降にクロールされた結果をフィルタリング（ISO 8601形式） |
-| `endCrawlDate` | string | いいえ | この日付以前にクロールされた結果をフィルタリング（ISO 8601形式） |
-| `category` | string | いいえ | カテゴリでフィルタリング：company、research_paper、news_article、pdf、github、tweet、movie、song、personal_site |
+| `category` | string | いいえ | カテゴリによるフィルタリング：company、research_paper、news_article、pdf、github、tweet、movie、song、personal_site |
 | `text` | boolean | いいえ | 結果に全文コンテンツを含める（デフォルト：false） |
 | `highlights` | boolean | いいえ | 結果にハイライトされたスニペットを含める（デフォルト：false） |
 | `summary` | boolean | いいえ | 結果にAI生成の要約を含める（デフォルト：false） |
-| `livecrawl` | string | いいえ | ライブクローリングモード：always、fallback、またはnever（デフォルト：never） |
+| `livecrawl` | string | いいえ | ライブクロールモード：always、fallback、またはnever（デフォルト：never） |
 | `apiKey` | string | はい | Exa AI APIキー |
 
 #### 出力
@@ -115,11 +111,7 @@ Exa AIを使用して、指定されたURLに類似したウェブページを�
 | `includeDomains` | string | いいえ | 結果に含めるドメインのカンマ区切りリスト |
 | `excludeDomains` | string | いいえ | 結果から除外するドメインのカンマ区切りリスト |
 | `excludeSourceDomain` | boolean | いいえ | 結果からソースドメインを除外する（デフォルト：false） |
-| `startPublishedDate` | string | いいえ | この日付以降に公開された結果をフィルタリング（ISO 8601形式、例：2024-01-01） |
-| `endPublishedDate` | string | いいえ | この日付以前に公開された結果をフィルタリング（ISO 8601形式） |
-| `startCrawlDate` | string | いいえ | この日付以降にクロールされた結果をフィルタリング（ISO 8601形式） |
-| `endCrawlDate` | string | いいえ | この日付以前にクロールされた結果をフィルタリング（ISO 8601形式） |
-| `category` | string | いいえ | カテゴリでフィルタリング：company、research_paper、news_article、pdf、github、tweet、movie、song、personal_site |
+| `category` | string | いいえ | カテゴリによるフィルタリング：company、research_paper、news_article、pdf、github、tweet、movie、song、personal_site |
 | `highlights` | boolean | いいえ | 結果にハイライトされたスニペットを含める（デフォルト：false） |
 | `summary` | boolean | いいえ | 結果にAI生成の要約を含める（デフォルト：false） |
 | `livecrawl` | string | いいえ | ライブクロールモード：always、fallback、またはnever（デフォルト：never） |

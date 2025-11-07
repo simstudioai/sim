@@ -276,28 +276,6 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 | `attachmentId` | string | 已删除的附件 ID |
 | `deleted` | boolean | 删除状态 |
 
-### `confluence_add_label`
-
-为 Confluence 页面添加标签。
-
-#### 输入
-
-| 参数 | 类型 | 必需 | 描述 |
-| --------- | ---- | -------- | ----------- |
-| `domain` | string | 是 | 您的 Confluence 域名 \(例如：yourcompany.atlassian.net\) |
-| `pageId` | string | 是 | 要添加标签的 Confluence 页面 ID |
-| `labelName` | string | 是 | 要添加的标签名称 |
-| `cloudId` | string | 否 | 实例的 Confluence Cloud ID。如果未提供，将使用域名进行获取。 |
-
-#### 输出
-
-| 参数 | 类型 | 描述 |
-| --------- | ---- | ----------- |
-| `ts` | string | 操作的时间戳 |
-| `pageId` | string | 页面 ID |
-| `labelName` | string | 标签名称 |
-| `added` | boolean | 添加状态 |
-
 ### `confluence_list_labels`
 
 列出 Confluence 页面上的所有标签。
@@ -316,28 +294,6 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 | --------- | ---- | ----------- |
 | `ts` | string | 检索的时间戳 |
 | `labels` | array | 标签列表 |
-
-### `confluence_remove_label`
-
-从 Confluence 页面中移除一个标签。
-
-#### 输入
-
-| 参数 | 类型 | 必需 | 描述 |
-| --------- | ---- | -------- | ----------- |
-| `domain` | string | 是 | 您的 Confluence 域名 \(例如：yourcompany.atlassian.net\) |
-| `pageId` | string | 是 | 要移除标签的 Confluence 页面 ID |
-| `labelName` | string | 是 | 要移除的标签名称 |
-| `cloudId` | string | 否 | 实例的 Confluence Cloud ID。如果未提供，将使用域名进行获取。 |
-
-#### 输出
-
-| 参数 | 类型 | 描述 |
-| --------- | ---- | ----------- |
-| `ts` | string | 操作的时间戳 |
-| `pageId` | string | 页面 ID |
-| `labelName` | string | 标签名称 |
-| `removed` | boolean | 移除状态 |
 
 ### `confluence_get_space`
 

@@ -51,11 +51,12 @@ Envoyer un email en utilisant votre propre clé API Resend et adresse d'expédit
 #### Entrée
 
 | Paramètre | Type | Obligatoire | Description |
-| --------- | ---- | ----------- | ----------- |
+| --------- | ---- | ---------- | ----------- |
 | `fromAddress` | chaîne | Oui | Adresse email d'expédition |
 | `to` | chaîne | Oui | Adresse email du destinataire |
 | `subject` | chaîne | Oui | Objet de l'email |
 | `body` | chaîne | Oui | Contenu du corps de l'email |
+| `contentType` | chaîne | Non | Type de contenu pour le corps de l'email (texte ou html) |
 | `resendApiKey` | chaîne | Oui | Clé API Resend pour l'envoi d'emails |
 
 #### Sortie

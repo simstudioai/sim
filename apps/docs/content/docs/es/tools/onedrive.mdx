@@ -1,6 +1,6 @@
 ---
 title: OneDrive
-description: Crear, subir y listar archivos
+description: Crear, subir, descargar, listar y eliminar archivos
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -50,7 +50,7 @@ En Sim, la integración con OneDrive permite a tus agentes interactuar directame
 
 ## Instrucciones de uso
 
-Integra OneDrive en el flujo de trabajo. Puede crear archivos de texto y Excel, subir archivos y listar archivos.
+Integra OneDrive en el flujo de trabajo. Puede crear archivos de texto y Excel, subir archivos, descargar archivos, listar archivos y eliminar archivos o carpetas.
 
 ## Herramientas
 
@@ -132,6 +132,24 @@ Listar archivos y carpetas en OneDrive
 | `success` | boolean | Si los archivos se listaron correctamente |
 | `files` | array | Array de objetos de archivo y carpeta con metadatos |
 | `nextPageToken` | string | Token para recuperar la siguiente página de resultados (opcional) |
+
+### `onedrive_delete`
+
+Eliminar un archivo o carpeta de OneDrive
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `fileId` | string | Sí | El ID del archivo o carpeta a eliminar |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Indica si el archivo se eliminó correctamente |
+| `deleted` | boolean | Confirmación de que el archivo fue eliminado |
+| `fileId` | string | El ID del archivo eliminado |
 
 ## Notas
 

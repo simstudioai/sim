@@ -79,28 +79,16 @@ Extrae y procesa contenido web en texto limpio y compatible con LLM usando Jina 
 | `gatherLinks` | boolean | No | Si se deben recopilar todos los enlaces al final |
 | `jsonResponse` | boolean | No | Si se debe devolver la respuesta en formato JSON |
 | `apiKey` | string | Sí | Tu clave API de Jina AI |
-| `targetSelector` | string | No | Selector CSS para dirigirse a elementos específicos de la página \(p.ej., "#main-content"\) |
-| `waitForSelector` | string | No | Selector CSS para esperar antes de extraer contenido \(útil para páginas dinámicas\) |
-| `removeSelector` | string | No | Selector CSS para elementos a excluir \(p.ej., "header, footer, .ad"\) |
-| `timeout` | number | No | Máximo de segundos para esperar la carga de la página |
 | `withImagesummary` | boolean | No | Recopilar todas las imágenes de la página con metadatos |
-| `retainImages` | string | No | Controlar la inclusión de imágenes: "none" elimina todas, "all" mantiene todas |
+| `retainImages` | string | No | Control de inclusión de imágenes: "none" elimina todas, "all" mantiene todas |
 | `returnFormat` | string | No | Formato de salida: markdown, html, text, screenshot o pageshot |
 | `withIframe` | boolean | No | Incluir contenido de iframe en la extracción |
 | `withShadowDom` | boolean | No | Extraer contenido de Shadow DOM |
-| `setCookie` | string | No | Reenviar cookies de autenticación \(desactiva el almacenamiento en caché\) |
-| `proxyUrl` | string | No | URL de proxy HTTP para enrutamiento de solicitudes |
-| `proxy` | string | No | Código de país para proxy \(p.ej., "US", "UK"\) o "auto"/"none" |
-| `engine` | string | No | Motor de renderizado: browser, direct o cf-browser-rendering |
-| `tokenBudget` | number | No | Máximo de tokens para la solicitud \(control de costos\) |
 | `noCache` | boolean | No | Omitir contenido en caché para recuperación en tiempo real |
-| `cacheTolerance` | number | No | Vida útil personalizada de caché en segundos |
 | `withGeneratedAlt` | boolean | No | Generar texto alternativo para imágenes usando VLM |
-| `baseUrl` | string | No | Establecer como "final" para seguir la cadena de redirección |
-| `locale` | string | No | Configuración regional del navegador para renderizado \(p.ej., "en-US"\) |
-| `robotsTxt` | string | No | User-Agent de bot para verificación de robots.txt |
+| `robotsTxt` | string | No | User-Agent del bot para verificación de robots.txt |
 | `dnt` | boolean | No | Do Not Track - evita almacenamiento en caché/seguimiento |
-| `noGfm` | boolean | No | Desactivar GitHub Flavored Markdown |
+| `noGfm` | boolean | No | Deshabilitar GitHub Flavored Markdown |
 
 #### Salida
 
@@ -117,28 +105,19 @@ Busca en la web y devuelve los 5 mejores resultados con contenido compatible con
 #### Entrada
 
 | Parámetro | Tipo | Obligatorio | Descripción |
-| --------- | ---- | ----------- | ----------- |
+| --------- | ---- | -------- | ----------- |
 | `q` | string | Sí | Cadena de consulta de búsqueda |
 | `apiKey` | string | Sí | Tu clave API de Jina AI |
-| `gl` | string | No | Código de país de dos letras para resultados específicos geográficamente (p. ej., "US", "UK", "JP") |
-| `location` | string | No | Ubicación a nivel de ciudad para resultados de búsqueda localizados |
-| `hl` | string | No | Código de idioma de dos letras para resultados (p. ej., "en", "es", "fr") |
-| `num` | number | No | Número máximo de resultados por página (predeterminado: 5) |
-| `page` | number | No | Número de página para paginación (desplazamiento) |
-| `site` | string | No | Restringir resultados a dominio(s) específico(s). Puede estar separado por comas para múltiples sitios (p. ej., "jina.ai,github.com") |
+| `num` | number | No | Número máximo de resultados por página \(predeterminado: 5\) |
+| `site` | string | No | Restringir resultados a dominio\(s\) específicos. Puede ser separado por comas para múltiples sitios \(ej., "jina.ai,github.com"\) |
 | `withFavicon` | boolean | No | Incluir favicons de sitios web en los resultados |
 | `withImagesummary` | boolean | No | Recopilar todas las imágenes de las páginas de resultados con metadatos |
 | `withLinksummary` | boolean | No | Recopilar todos los enlaces de las páginas de resultados |
 | `retainImages` | string | No | Control de inclusión de imágenes: "none" elimina todas, "all" mantiene todas |
 | `noCache` | boolean | No | Omitir contenido en caché para recuperación en tiempo real |
 | `withGeneratedAlt` | boolean | No | Generar texto alternativo para imágenes usando VLM |
-| `respondWith` | string | No | Establecer en "no-content" para obtener solo metadatos sin contenido de página |
+| `respondWith` | string | No | Establecer como "no-content" para obtener solo metadatos sin contenido de página |
 | `returnFormat` | string | No | Formato de salida: markdown, html, text, screenshot o pageshot |
-| `engine` | string | No | Motor de renderizado: browser o direct |
-| `timeout` | number | No | Segundos máximos de espera para la carga de la página |
-| `setCookie` | string | No | Reenviar cookies de autenticación |
-| `proxyUrl` | string | No | URL de proxy HTTP para enrutamiento de solicitudes |
-| `locale` | string | No | Configuración regional del navegador para renderizado (p. ej., "en-US") |
 
 #### Salida
 

@@ -190,7 +190,10 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
 | `success` | boolean | 是否成功更新任务 |
+| `message` | string | 任务更新成功时的成功消息 |
 | `task` | object | 包含所有属性的已更新任务对象 |
+| `taskId` | string | 已更新任务的 ID |
+| `etag` | string | 更新后的新 ETag - 用于后续操作 |
 | `metadata` | object | 包括 taskId、planId 和 taskUrl 的元数据 |
 
 ### `microsoft_planner_delete_task`
@@ -214,21 +217,20 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 ### `microsoft_planner_list_plans`
 
-列出 Microsoft 365 组中的所有计划
+列出与当前用户共享的所有计划
 
 #### 输入
 
 | 参数 | 类型 | 是否必需 | 描述 |
 | --------- | ---- | -------- | ----------- |
-| `groupId` | string | 是 | Microsoft 365 组的 ID |
 
 #### 输出
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
 | `success` | boolean | 是否成功检索到计划 |
-| `plans` | array | 计划对象的数组 |
-| `metadata` | object | 包括 groupId 和 count 的元数据 |
+| `plans` | array | 与当前用户共享的计划对象数组 |
+| `metadata` | object | 包括 userId 和 count 的元数据 |
 
 ### `microsoft_planner_read_plan`
 
@@ -358,6 +360,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 | --------- | ---- | ----------- |
 | `success` | boolean | 是否成功检索到任务详情 |
 | `taskDetails` | object | 包括描述、检查清单和引用的任务详情 |
+| `etag` | string | 此任务详情的 ETag 值 - 用于更新操作 |
 | `metadata` | object | 包括 taskId 的元数据 |
 
 ### `microsoft_planner_update_task_details`

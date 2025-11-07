@@ -58,7 +58,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 ## 使用说明
 
-将 Firecrawl 集成到工作流程中。可以抓取页面、搜索网络、爬取整个网站、映射 URL 结构，并使用 AI 提取结构化数据。
+将 Firecrawl 集成到工作流程中。使用 AI 抓取页面、搜索网络、爬取整个网站、映射 URL 结构并提取结构化数据。
 
 ## 工具
 
@@ -71,25 +71,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 | 参数 | 类型 | 必需 | 描述 |
 | --------- | ---- | -------- | ----------- |
 | `url` | string | 是 | 要抓取内容的 URL |
-| `formats` | json | 否 | 输出格式 \(markdown, html, rawHtml, links, images, screenshot\)。默认值: \["markdown"\] |
-| `onlyMainContent` | boolean | 否 | 仅提取主要内容，排除页眉、导航和页脚 \(默认值: true\) |
-| `includeTags` | json | 否 | 输出中要保留的 HTML 标签 |
-| `excludeTags` | json | 否 | 输出中要移除的 HTML 标签 |
-| `maxAge` | number | 否 | 如果缓存版本的年龄小于此值（以毫秒为单位），则返回缓存版本 \(默认值: 172800000\) |
-| `headers` | json | 否 | 自定义请求头 \(cookies, user-agent 等\) |
-| `waitFor` | number | 否 | 抓取前的延迟时间（以毫秒为单位）\(默认值: 0\) |
-| `mobile` | boolean | 否 | 模拟移动设备 \(默认值: false\) |
-| `skipTlsVerification` | boolean | 否 | 跳过 TLS 证书验证 \(默认值: true\) |
-| `timeout` | number | 否 | 请求超时时间（以毫秒为单位） |
-| `parsers` | json | 否 | 文件处理控制 \(例如，\["pdf"\]\) |
-| `actions` | json | 否 | 抓取前的操作 \(等待、点击、滚动、截图等\) |
-| `location` | json | 否 | 地理设置 \(国家、语言\) |
-| `removeBase64Images` | boolean | 否 | 从输出中移除 base64 图像 \(默认值: true\) |
-| `blockAds` | boolean | 否 | 启用广告和弹窗拦截 \(默认值: true\) |
-| `proxy` | string | 否 | 代理类型: basic, stealth, 或 auto \(默认值: auto\) |
-| `storeInCache` | boolean | 否 | 缓存页面 \(默认值: true\) |
-| `zeroDataRetention` | boolean | 否 | 启用零数据保留模式 \(默认值: false\) |
-| `scrapeOptions` | json | 否 | 内容抓取选项 \(旧版，优先顶级参数\) |
+| `scrapeOptions` | json | 否 | 内容抓取选项 |
 | `apiKey` | string | 是 | Firecrawl API 密钥 |
 
 #### 输出
@@ -109,15 +91,6 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 | 参数 | 类型 | 必需 | 描述 |
 | --------- | ---- | -------- | ----------- |
 | `query` | string | 是 | 要使用的搜索查询 |
-| `limit` | number | 否 | 返回的最大结果数 \(1-100，默认值：5\) |
-| `sources` | json | 否 | 搜索来源：\["web"\]、\["images"\] 或 \["news"\] \(默认值：\["web"\]\) |
-| `categories` | json | 否 | 按类别筛选：\["github"\]、\["research"\] 或 \["pdf"\] |
-| `tbs` | string | 否 | 基于时间的搜索：qdr:h \(小时\)、qdr:d \(天\)、qdr:w \(周\)、qdr:m \(月\)、qdr:y \(年\) |
-| `location` | string | 否 | 结果的地理位置 \(例如："San Francisco, California, United States"\) |
-| `country` | string | 否 | 用于地理定位的 ISO 国家代码 \(默认值：US\) |
-| `timeout` | number | 否 | 超时时间（毫秒）\(默认值：60000\) |
-| `ignoreInvalidURLs` | boolean | 否 | 从结果中排除无效的 URL \(默认值：false\) |
-| `scrapeOptions` | json | 否 | 搜索结果的高级抓取配置 |
 | `apiKey` | string | 是 | Firecrawl API 密钥 |
 
 #### 输出
@@ -134,23 +107,9 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | 参数 | 类型 | 必需 | 描述 |
 | --------- | ---- | -------- | ----------- |
-| `url` | string | 是 | 要抓取的网站 URL |
-| `limit` | number | 否 | 要抓取的最大页面数 \(默认值：100\) |
+| `url` | string | 是 | 要爬取的网站 URL |
+| `limit` | number | 否 | 要爬取的最大页面数 \(默认值：100\) |
 | `onlyMainContent` | boolean | 否 | 仅提取页面的主要内容 |
-| `prompt` | string | 否 | 用自然语言指令自动生成抓取选项 |
-| `maxDiscoveryDepth` | number | 否 | URL 发现的深度限制 \(根页面的深度为 0\) |
-| `sitemap` | string | 否 | 是否使用站点地图数据："skip" 或 "include" \(默认值："include"\) |
-| `crawlEntireDomain` | boolean | 否 | 跟随同级/父级 URL 或仅跟随子路径 \(默认值：false\) |
-| `allowExternalLinks` | boolean | 否 | 跟随外部网站链接 \(默认值：false\) |
-| `allowSubdomains` | boolean | 否 | 跟随子域链接 \(默认值：false\) |
-| `ignoreQueryParameters` | boolean | 否 | 防止使用不同查询参数重新抓取相同路径 \(默认值：false\) |
-| `delay` | number | 否 | 抓取之间的秒数间隔以符合速率限制 |
-| `maxConcurrency` | number | 否 | 并发抓取限制 |
-| `excludePaths` | json | 否 | 要排除的 URL 的正则表达式模式数组 |
-| `includePaths` | json | 否 | 要专门包含的 URL 的正则表达式模式数组 |
-| `webhook` | json | 否 | 抓取通知的 Webhook 配置 |
-| `scrapeOptions` | json | 否 | 高级抓取配置 |
-| `zeroDataRetention` | boolean | 否 | 启用零数据保留模式 \(默认值：false\) |
 | `apiKey` | string | 是 | Firecrawl API 密钥 |
 
 #### 输出

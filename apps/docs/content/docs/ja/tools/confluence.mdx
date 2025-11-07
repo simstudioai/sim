@@ -277,28 +277,6 @@ Confluenceページから添付ファイルを削除します（ゴミ箱に移�
 | `attachmentId` | string | 削除された添付ファイルID |
 | `deleted` | boolean | 削除ステータス |
 
-### `confluence_add_label`
-
-Confluenceページにラベルを追加します。
-
-#### 入力
-
-| パラメータ | 型 | 必須 | 説明 |
-| --------- | ---- | -------- | ----------- |
-| `domain` | string | はい | あなたのConfluenceドメイン（例：yourcompany.atlassian.net） |
-| `pageId` | string | はい | ラベルを追加するConfluenceページID |
-| `labelName` | string | はい | 追加するラベル名 |
-| `cloudId` | string | いいえ | インスタンスのConfluence Cloud ID。提供されない場合、ドメインを使用して取得されます。 |
-
-#### 出力
-
-| パラメータ | 型 | 説明 |
-| --------- | ---- | ----------- |
-| `ts` | string | 操作のタイムスタンプ |
-| `pageId` | string | ページID |
-| `labelName` | string | ラベル名 |
-| `added` | boolean | 追加ステータス |
-
 ### `confluence_list_labels`
 
 Confluenceページのすべてのラベルを一覧表示します。
@@ -317,28 +295,6 @@ Confluenceページのすべてのラベルを一覧表示します。
 | --------- | ---- | ----------- |
 | `ts` | string | 取得のタイムスタンプ |
 | `labels` | array | ラベルのリスト |
-
-### `confluence_remove_label`
-
-Confluenceページからラベルを削除します。
-
-#### 入力
-
-| パラメータ | 型 | 必須 | 説明 |
-| --------- | ---- | -------- | ----------- |
-| `domain` | string | はい | あなたのConfluenceドメイン（例：yourcompany.atlassian.net） |
-| `pageId` | string | はい | ラベルを削除するConfluenceページID |
-| `labelName` | string | はい | 削除するラベル名 |
-| `cloudId` | string | いいえ | インスタンスのConfluence Cloud ID。提供されない場合、ドメインを使用して取得されます。 |
-
-#### 出力
-
-| パラメータ | 型 | 説明 |
-| --------- | ---- | ----------- |
-| `ts` | string | 操作のタイムスタンプ |
-| `pageId` | string | ページID |
-| `labelName` | string | ラベル名 |
-| `removed` | boolean | 削除ステータス |
 
 ### `confluence_get_space`
 

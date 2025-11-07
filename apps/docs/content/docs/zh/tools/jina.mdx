@@ -76,28 +76,16 @@ Jina AI Reader 专注于从网页中提取最相关的内容，去除杂乱、�
 | --------- | ---- | -------- | ----------- |
 | `url` | string | 是 | 要读取并转换为 markdown 的 URL |
 | `useReaderLMv2` | boolean | 否 | 是否使用 ReaderLM-v2 以获得更高质量（3 倍 token 成本） |
-| `gatherLinks` | boolean | 否 | 是否收集所有链接到末尾 |
+| `gatherLinks` | boolean | 否 | 是否在末尾收集所有链接 |
 | `jsonResponse` | boolean | 否 | 是否以 JSON 格式返回响应 |
 | `apiKey` | string | 是 | 您的 Jina AI API 密钥 |
-| `targetSelector` | string | 否 | 用于定位特定页面元素的 CSS 选择器（例如，“#main-content”） |
-| `waitForSelector` | string | 否 | 提取内容前等待的 CSS 选择器（适用于动态页面） |
-| `removeSelector` | string | 否 | 要排除的元素的 CSS 选择器（例如，“header, footer, .ad”） |
-| `timeout` | number | 否 | 页面加载的最大等待时间（秒） |
 | `withImagesummary` | boolean | 否 | 从页面收集所有带有元数据的图像 |
-| `retainImages` | string | 否 | 控制图像包含：“none”移除所有，“all”保留所有 |
+| `retainImages` | string | 否 | 控制图像包含："none" 删除所有，"all" 保留所有 |
 | `returnFormat` | string | 否 | 输出格式：markdown、html、text、screenshot 或 pageshot |
 | `withIframe` | boolean | 否 | 在提取中包含 iframe 内容 |
 | `withShadowDom` | boolean | 否 | 提取 Shadow DOM 内容 |
-| `setCookie` | string | 否 | 转发身份验证 cookie（禁用缓存） |
-| `proxyUrl` | string | 否 | 用于请求路由的 HTTP 代理 URL |
-| `proxy` | string | 否 | 代理的国家代码（例如，“US”、“UK”）或“auto”/“none” |
-| `engine` | string | 否 | 渲染引擎：browser、direct 或 cf-browser-rendering |
-| `tokenBudget` | number | 否 | 请求的最大 token 数（成本控制） |
-| `noCache` | boolean | 否 | 绕过缓存内容以进行实时检索 |
-| `cacheTolerance` | number | 否 | 自定义缓存生命周期（秒） |
+| `noCache` | boolean | 否 | 绕过缓存内容以实时检索 |
 | `withGeneratedAlt` | boolean | 否 | 使用 VLM 为图像生成替代文本 |
-| `baseUrl` | string | 否 | 设置为“final”以遵循重定向链 |
-| `locale` | string | 否 | 渲染的浏览器语言环境（例如，“en-US”） |
 | `robotsTxt` | string | 否 | 用于 robots.txt 检查的 Bot User-Agent |
 | `dnt` | boolean | 否 | 请勿跟踪 - 防止缓存/跟踪 |
 | `noGfm` | boolean | 否 | 禁用 GitHub Flavored Markdown |
@@ -118,27 +106,18 @@ Jina AI Reader 专注于从网页中提取最相关的内容，去除杂乱、�
 
 | 参数 | 类型 | 必需 | 描述 |
 | --------- | ---- | -------- | ----------- |
-| `q` | 字符串 | 是 | 搜索查询字符串 |
-| `apiKey` | 字符串 | 是 | 您的 Jina AI API 密钥 |
-| `gl` | 字符串 | 否 | 用于地理特定结果的两位国家代码（例如，“US”、“UK”、“JP”） |
-| `location` | 字符串 | 否 | 用于本地化搜索结果的城市级位置 |
-| `hl` | 字符串 | 否 | 用于结果的两位语言代码（例如，“en”、“es”、“fr”） |
-| `num` | 数字 | 否 | 每页的最大结果数（默认值：5） |
-| `page` | 数字 | 否 | 用于分页的页码（偏移量） |
-| `site` | 字符串 | 否 | 将结果限制为特定域名。可以用逗号分隔多个站点（例如，“jina.ai,github.com”） |
-| `withFavicon` | 布尔值 | 否 | 在结果中包含网站图标 |
-| `withImagesummary` | 布尔值 | 否 | 从结果页面收集所有图片及其元数据 |
-| `withLinksummary` | 布尔值 | 否 | 从结果页面收集所有链接 |
-| `retainImages` | 字符串 | 否 | 控制图片包含：“none”移除所有，“all”保留所有 |
-| `noCache` | 布尔值 | 否 | 绕过缓存内容以进行实时检索 |
-| `withGeneratedAlt` | 布尔值 | 否 | 使用 VLM 为图片生成替代文本 |
-| `respondWith` | 字符串 | 否 | 设置为“no-content”以仅获取元数据而不包含页面内容 |
-| `returnFormat` | 字符串 | 否 | 输出格式：markdown、html、text、screenshot 或 pageshot |
-| `engine` | 字符串 | 否 | 渲染引擎：browser 或 direct |
-| `timeout` | 数字 | 否 | 页面加载的最大等待时间（秒） |
-| `setCookie` | 字符串 | 否 | 转发身份验证 cookies |
-| `proxyUrl` | 字符串 | 否 | 用于请求路由的 HTTP 代理 URL |
-| `locale` | 字符串 | 否 | 用于渲染的浏览器语言环境（例如，“en-US”） |
+| `q` | string | 是 | 搜索查询字符串 |
+| `apiKey` | string | 是 | 您的 Jina AI API 密钥 |
+| `num` | number | 否 | 每页最大结果数（默认值：5） |
+| `site` | string | 否 | 将结果限制为特定域名。可以用逗号分隔多个站点（例如："jina.ai,github.com"） |
+| `withFavicon` | boolean | 否 | 在结果中包含网站图标 |
+| `withImagesummary` | boolean | 否 | 从结果页面收集所有带有元数据的图像 |
+| `withLinksummary` | boolean | 否 | 从结果页面收集所有链接 |
+| `retainImages` | string | 否 | 控制图像包含："none" 删除所有，"all" 保留所有 |
+| `noCache` | boolean | 否 | 绕过缓存内容以实时检索 |
+| `withGeneratedAlt` | boolean | 否 | 使用 VLM 为图像生成替代文本 |
+| `respondWith` | string | 否 | 设置为 "no-content" 以仅获取元数据而不包含页面内容 |
+| `returnFormat` | string | 否 | 输出格式：markdown、html、text、screenshot 或 pageshot |
 
 #### 输出
 
