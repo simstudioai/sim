@@ -63,7 +63,7 @@ export async function POST(request: NextRequest) {
     // Context must be explicitly provided
     if (!contextParam) {
       throw new InvalidRequestError(
-        'Upload requires explicit context parameter (knowledge-base, workspace, execution, copilot, chat, profile-pictures, or creator-profile-pictures)'
+        'Upload requires explicit context parameter (knowledge-base, workspace, execution, copilot, chat, or profile-pictures)'
       )
     }
 
@@ -221,13 +221,8 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      // Handle image-only contexts (copilot, chat, profile-pictures, creator-profile-pictures)
-      if (
-        context === 'copilot' ||
-        context === 'chat' ||
-        context === 'profile-pictures' ||
-        context === 'creator-profile-pictures'
-      ) {
+      // Handle image-only contexts (copilot, chat, profile-pictures)
+      if (context === 'copilot' || context === 'chat' || context === 'profile-pictures') {
         if (!isImageFileType(file.type)) {
           throw new InvalidRequestError(
             `Only image files (JPEG, PNG, GIF, WebP, SVG) are allowed for ${context} uploads`
@@ -291,7 +286,7 @@ export async function POST(request: NextRequest) {
 
       // Unknown context
       throw new InvalidRequestError(
-        `Unsupported context: ${context}. Use knowledge-base, workspace, execution, copilot, chat, profile-pictures, or creator-profile-pictures`
+        `Unsupported context: ${context}. Use knowledge-base, workspace, execution, copilot, chat, or profile-pictures`
       )
     }
 

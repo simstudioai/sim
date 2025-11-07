@@ -27,7 +27,7 @@ import {
 } from '@/components/ui'
 import { useSession } from '@/lib/auth-client'
 import { createLogger } from '@/lib/logs/console/logger'
-import { useCreatorProfilePictureUpload } from './hooks/use-creator-profile-picture-upload'
+import { useProfilePictureUpload } from '../account/hooks/use-profile-picture-upload'
 
 const logger = createLogger('CreatorProfile')
 
@@ -82,7 +82,7 @@ export function CreatorProfile() {
     handleThumbnailClick: handleProfilePictureClick,
     handleFileChange: handleProfilePictureChange,
     isUploading: isUploadingProfilePicture,
-  } = useCreatorProfilePictureUpload({
+  } = useProfilePictureUpload({
     currentImage: profileImageUrl,
     onUpload: async (url) => {
       form.setValue('profileImageUrl', url || '')

@@ -248,11 +248,10 @@ export function inferContextFromKey(key: string): StorageContext {
   if (key.startsWith('execution/')) return 'execution'
   if (key.startsWith('workspace/')) return 'workspace'
   if (key.startsWith('profile-pictures/')) return 'profile-pictures'
-  if (key.startsWith('creator-profile-pictures/')) return 'creator-profile-pictures'
   if (key.startsWith('logs/')) return 'logs'
 
   throw new Error(
-    `File key must start with a context prefix (kb/, chat/, copilot/, execution/, workspace/, profile-pictures/, creator-profile-pictures/, or logs/). Got: ${key}`
+    `File key must start with a context prefix (kb/, chat/, copilot/, execution/, workspace/, profile-pictures/, or logs/). Got: ${key}`
   )
 }
 

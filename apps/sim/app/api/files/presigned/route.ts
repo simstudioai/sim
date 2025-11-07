@@ -73,13 +73,7 @@ export async function POST(request: NextRequest) {
       throw new ValidationError('type query parameter is required')
     }
 
-    const validTypes: StorageContext[] = [
-      'knowledge-base',
-      'chat',
-      'copilot',
-      'profile-pictures',
-      'creator-profile-pictures',
-    ]
+    const validTypes: StorageContext[] = ['knowledge-base', 'chat', 'copilot', 'profile-pictures']
     if (!validTypes.includes(uploadTypeParam as StorageContext)) {
       throw new ValidationError(`Invalid type parameter. Must be one of: ${validTypes.join(', ')}`)
     }
@@ -132,7 +126,7 @@ export async function POST(request: NextRequest) {
         )
       }
     } else {
-      if (uploadType === 'profile-pictures' || uploadType === 'creator-profile-pictures') {
+      if (uploadType === 'profile-pictures') {
         if (!sessionUserId?.trim()) {
           throw new ValidationError(
             'Authenticated user session is required for profile picture uploads'
