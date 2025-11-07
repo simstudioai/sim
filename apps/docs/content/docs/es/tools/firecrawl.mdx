@@ -1,6 +1,6 @@
 ---
 title: Firecrawl
-description: Rastrea o busca en la web
+description: Raspa, busca, rastrea, mapea y extrae datos web
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -58,7 +58,7 @@ Esto permite a tus agentes recopilar información de sitios web, extraer datos e
 
 ## Instrucciones de uso
 
-Integra Firecrawl en el flujo de trabajo. Puede buscar, extraer o rastrear sitios web. Requiere clave API.
+Integra Firecrawl en el flujo de trabajo. Puede raspar páginas, buscar en la web, rastrear sitios web completos, mapear estructuras de URL y extraer datos estructurados usando IA.
 
 ## Herramientas
 
@@ -70,8 +70,26 @@ Extrae contenido estructurado de páginas web con soporte integral de metadatos.
 
 | Parámetro | Tipo | Obligatorio | Descripción |
 | --------- | ---- | -------- | ----------- |
-| `url` | string | Sí | La URL de la que extraer contenido |
-| `scrapeOptions` | json | No | Opciones para la extracción de contenido |
+| `url` | string | Sí | La URL de donde extraer contenido |
+| `formats` | json | No | Formatos de salida \(markdown, html, rawHtml, links, images, screenshot\). Predeterminado: \["markdown"\] |
+| `onlyMainContent` | boolean | No | Extraer solo el contenido principal, excluyendo encabezados, navegación, pies de página \(predeterminado: true\) |
+| `includeTags` | json | No | Etiquetas HTML a conservar en la salida |
+| `excludeTags` | json | No | Etiquetas HTML a eliminar de la salida |
+| `maxAge` | number | No | Devolver versión en caché si es más reciente que esta edad en ms \(predeterminado: 172800000\) |
+| `headers` | json | No | Encabezados de solicitud personalizados \(cookies, user-agent, etc.\) |
+| `waitFor` | number | No | Retraso en milisegundos antes de la obtención \(predeterminado: 0\) |
+| `mobile` | boolean | No | Emular dispositivo móvil \(predeterminado: false\) |
+| `skipTlsVerification` | boolean | No | Omitir verificación de certificado TLS \(predeterminado: true\) |
+| `timeout` | number | No | Tiempo de espera de solicitud en milisegundos |
+| `parsers` | json | No | Controles de procesamiento de archivos \(por ejemplo, \["pdf"\]\) |
+| `actions` | json | No | Operaciones previas al raspado \(esperar, clic, desplazamiento, captura de pantalla, etc.\) |
+| `location` | json | No | Configuración geográfica \(país, idiomas\) |
+| `removeBase64Images` | boolean | No | Eliminar imágenes base64 de la salida \(predeterminado: true\) |
+| `blockAds` | boolean | No | Habilitar bloqueo de anuncios y ventanas emergentes \(predeterminado: true\) |
+| `proxy` | string | No | Tipo de proxy: básico, sigiloso o automático \(predeterminado: auto\) |
+| `storeInCache` | boolean | No | Almacenar la página en caché \(predeterminado: true\) |
+| `zeroDataRetention` | boolean | No | Habilitar modo de retención de datos cero \(predeterminado: false\) |
+| `scrapeOptions` | json | No | Opciones para raspado de contenido \(heredado, preferir parámetros de nivel superior\) |
 | `apiKey` | string | Sí | Clave API de Firecrawl |
 
 #### Salida
@@ -91,6 +109,15 @@ Busca información en la web usando Firecrawl
 | Parámetro | Tipo | Obligatorio | Descripción |
 | --------- | ---- | -------- | ----------- |
 | `query` | string | Sí | La consulta de búsqueda a utilizar |
+| `limit` | number | No | Número máximo de resultados a devolver (1-100, predeterminado: 5) |
+| `sources` | json | No | Fuentes de búsqueda: ["web"], ["images"], o ["news"] (predeterminado: ["web"]) |
+| `categories` | json | No | Filtrar por categorías: ["github"], ["research"], o ["pdf"] |
+| `tbs` | string | No | Búsqueda basada en tiempo: qdr:h (hora), qdr:d (día), qdr:w (semana), qdr:m (mes), qdr:y (año) |
+| `location` | string | No | Ubicación geográfica para los resultados (ej., "San Francisco, California, United States") |
+| `country` | string | No | Código de país ISO para geolocalización (predeterminado: US) |
+| `timeout` | number | No | Tiempo de espera en milisegundos (predeterminado: 60000) |
+| `ignoreInvalidURLs` | boolean | No | Excluir URLs inválidas de los resultados (predeterminado: false) |
+| `scrapeOptions` | json | No | Configuración avanzada de extracción para resultados de búsqueda |
 | `apiKey` | string | Sí | Clave API de Firecrawl |
 
 #### Salida
@@ -108,8 +135,22 @@ Rastrea sitios web completos y extrae contenido estructurado de todas las págin
 | Parámetro | Tipo | Obligatorio | Descripción |
 | --------- | ---- | -------- | ----------- |
 | `url` | string | Sí | La URL del sitio web a rastrear |
-| `limit` | number | No | Número máximo de páginas a rastrear \(predeterminado: 100\) |
+| `limit` | number | No | Número máximo de páginas a rastrear (predeterminado: 100) |
 | `onlyMainContent` | boolean | No | Extraer solo el contenido principal de las páginas |
+| `prompt` | string | No | Instrucción en lenguaje natural para generar automáticamente opciones de rastreo |
+| `maxDiscoveryDepth` | number | No | Límite de profundidad para el descubrimiento de URL (las páginas raíz tienen profundidad 0) |
+| `sitemap` | string | No | Si usar datos del mapa del sitio: "skip" o "include" (predeterminado: "include") |
+| `crawlEntireDomain` | boolean | No | Seguir URLs hermanas/padres o solo rutas hijas (predeterminado: false) |
+| `allowExternalLinks` | boolean | No | Seguir enlaces a sitios web externos (predeterminado: false) |
+| `allowSubdomains` | boolean | No | Seguir enlaces de subdominio (predeterminado: false) |
+| `ignoreQueryParameters` | boolean | No | Evitar volver a extraer la misma ruta con diferentes parámetros de consulta (predeterminado: false) |
+| `delay` | number | No | Segundos entre extracciones para cumplir con límites de tasa |
+| `maxConcurrency` | number | No | Límite de extracciones concurrentes |
+| `excludePaths` | json | No | Array de patrones regex para URLs a excluir |
+| `includePaths` | json | No | Array de patrones regex para URLs a incluir exclusivamente |
+| `webhook` | json | No | Configuración de webhook para notificaciones de rastreo |
+| `scrapeOptions` | json | No | Configuración avanzada de extracción |
+| `zeroDataRetention` | boolean | No | Habilitar retención de datos cero (predeterminado: false) |
 | `apiKey` | string | Sí | Clave API de Firecrawl |
 
 #### Salida
@@ -117,6 +158,58 @@ Rastrea sitios web completos y extrae contenido estructurado de todas las págin
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
 | `pages` | array | Array de páginas rastreadas con su contenido y metadatos |
+
+### `firecrawl_map`
+
+Obtén una lista completa de URLs de cualquier sitio web de forma rápida y confiable. Útil para descubrir todas las páginas de un sitio sin necesidad de rastrearlas.
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `url` | string | Sí | La URL base para mapear y descubrir enlaces |
+| `search` | string | No | Filtrar resultados por relevancia a un término de búsqueda (ej., "blog") |
+| `sitemap` | string | No | Controla el uso del sitemap: "skip", "include" (predeterminado), o "only" |
+| `includeSubdomains` | boolean | No | Incluir URLs de subdominios (predeterminado: true) |
+| `ignoreQueryParameters` | boolean | No | Excluir URLs que contengan cadenas de consulta (predeterminado: true) |
+| `limit` | number | No | Número máximo de enlaces a devolver (máx: 100.000, predeterminado: 5.000) |
+| `timeout` | number | No | Tiempo de espera de la solicitud en milisegundos |
+| `location` | json | No | Contexto geográfico para proxy (país, idiomas) |
+| `apiKey` | string | Sí | Clave API de Firecrawl |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Si la operación de mapeo fue exitosa |
+| `links` | array | Array de URLs descubiertas del sitio web |
+
+### `firecrawl_extract`
+
+Extrae datos estructurados de páginas web completas utilizando instrucciones en lenguaje natural y esquema JSON. Función agente potente para la extracción inteligente de datos.
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `urls` | json | Sí | Array de URLs de las que extraer datos (admite formato glob) |
+| `prompt` | string | No | Instrucciones en lenguaje natural para el proceso de extracción |
+| `schema` | json | No | Esquema JSON que define la estructura de los datos a extraer |
+| `enableWebSearch` | boolean | No | Habilitar búsqueda web para encontrar información complementaria (predeterminado: false) |
+| `ignoreSitemap` | boolean | No | Ignorar archivos sitemap.xml durante el escaneo (predeterminado: false) |
+| `includeSubdomains` | boolean | No | Extender el escaneo a subdominios (predeterminado: true) |
+| `showSources` | boolean | No | Devolver fuentes de datos en la respuesta (predeterminado: false) |
+| `ignoreInvalidURLs` | boolean | No | Omitir URLs inválidas en el array (predeterminado: true) |
+| `scrapeOptions` | json | No | Opciones avanzadas de configuración de extracción |
+| `apiKey` | string | Sí | Clave API de Firecrawl |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Si la operación de extracción fue exitosa |
+| `data` | object | Datos estructurados extraídos según el esquema o prompt |
+| `sources` | array | Fuentes de datos \(solo si showSources está habilitado\) |
 
 ## Notas
 

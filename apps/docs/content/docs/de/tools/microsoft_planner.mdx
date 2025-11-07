@@ -1,6 +1,6 @@
 ---
 title: Microsoft Planner
-description: Aufgaben in Microsoft Planner lesen und erstellen
+description: Verwalten von Aufgaben, Plänen und Buckets in Microsoft Planner
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -121,7 +121,7 @@ In Sim ermöglicht die Microsoft Planner-Integration Ihren Agenten, Aufgaben pro
 
 ## Gebrauchsanweisungen
 
-Integrieren Sie Microsoft Planner in den Workflow. Kann Aufgaben lesen und erstellen. Erfordert OAuth.
+Integrieren Sie Microsoft Planner in den Workflow. Verwalten Sie Aufgaben, Pläne, Buckets und Aufgabendetails einschließlich Checklisten und Referenzen.
 
 ## Tools
 
@@ -166,6 +166,222 @@ Eine neue Aufgabe in Microsoft Planner erstellen
 | `success` | boolean | Gibt an, ob die Aufgabe erfolgreich erstellt wurde |
 | `task` | object | Das erstellte Aufgabenobjekt mit allen Eigenschaften |
 | `metadata` | object | Metadaten einschließlich planId, taskId und taskUrl |
+
+### `microsoft_planner_update_task`
+
+Eine Aufgabe in Microsoft Planner aktualisieren
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `taskId` | string | Ja | Die ID der zu aktualisierenden Aufgabe |
+| `etag` | string | Ja | Der ETag-Wert der zu aktualisierenden Aufgabe \(If-Match-Header\) |
+| `title` | string | Nein | Der neue Titel der Aufgabe |
+| `bucketId` | string | Nein | Die Bucket-ID, in die die Aufgabe verschoben werden soll |
+| `dueDateTime` | string | Nein | Das Fälligkeitsdatum und die Uhrzeit für die Aufgabe \(ISO 8601-Format\) |
+| `startDateTime` | string | Nein | Das Startdatum und die Uhrzeit für die Aufgabe \(ISO 8601-Format\) |
+| `percentComplete` | number | Nein | Der Prozentsatz der Aufgabenfertigstellung \(0-100\) |
+| `priority` | number | Nein | Die Priorität der Aufgabe \(0-10\) |
+| `assigneeUserId` | string | Nein | Die Benutzer-ID, der die Aufgabe zugewiesen werden soll |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Gibt an, ob die Aufgabe erfolgreich aktualisiert wurde |
+| `task` | object | Das aktualisierte Aufgabenobjekt mit allen Eigenschaften |
+| `metadata` | object | Metadaten einschließlich taskId, planId und taskUrl |
+
+### `microsoft_planner_delete_task`
+
+Eine Aufgabe aus Microsoft Planner löschen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `taskId` | string | Ja | Die ID der zu löschenden Aufgabe |
+| `etag` | string | Ja | Der ETag-Wert der zu löschenden Aufgabe \(If-Match-Header\) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Gibt an, ob die Aufgabe erfolgreich gelöscht wurde |
+| `deleted` | boolean | Bestätigung der Löschung |
+| `metadata` | object | Zusätzliche Metadaten |
+
+### `microsoft_planner_list_plans`
+
+Alle Pläne in einer Microsoft 365-Gruppe auflisten
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `groupId` | string | Ja | Die ID der Microsoft 365-Gruppe |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Gibt an, ob Pläne erfolgreich abgerufen wurden |
+| `plans` | array | Array von Planobjekten |
+| `metadata` | object | Metadaten einschließlich groupId und Anzahl |
+
+### `microsoft_planner_read_plan`
+
+Details eines bestimmten Microsoft Planner-Plans abrufen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `planId` | string | Ja | Die ID des abzurufenden Plans |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Gibt an, ob der Plan erfolgreich abgerufen wurde |
+| `plan` | object | Das Planobjekt mit allen Eigenschaften |
+| `metadata` | object | Metadaten einschließlich planId und planUrl |
+
+### `microsoft_planner_list_buckets`
+
+Alle Buckets in einem Microsoft Planner-Plan auflisten
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `planId` | string | Ja | Die ID des Plans |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Gibt an, ob Buckets erfolgreich abgerufen wurden |
+| `buckets` | array | Array von Bucket-Objekten |
+| `metadata` | object | Metadaten einschließlich planId und Anzahl |
+
+### `microsoft_planner_read_bucket`
+
+Details eines bestimmten Buckets abrufen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `bucketId` | string | Ja | Die ID des abzurufenden Buckets |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Gibt an, ob der Bucket erfolgreich abgerufen wurde |
+| `bucket` | object | Das Bucket-Objekt mit allen Eigenschaften |
+| `metadata` | object | Metadaten einschließlich bucketId und planId |
+
+### `microsoft_planner_create_bucket`
+
+Einen neuen Bucket in einem Microsoft Planner-Plan erstellen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `planId` | string | Ja | Die ID des Plans, in dem der Bucket erstellt wird |
+| `name` | string | Ja | Der Name des Buckets |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Gibt an, ob der Bucket erfolgreich erstellt wurde |
+| `bucket` | object | Das erstellte Bucket-Objekt mit allen Eigenschaften |
+| `metadata` | object | Metadaten einschließlich bucketId und planId |
+
+### `microsoft_planner_update_bucket`
+
+Einen Bucket in Microsoft Planner aktualisieren
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `bucketId` | string | Ja | Die ID des zu aktualisierenden Buckets |
+| `name` | string | Nein | Der neue Name des Buckets |
+| `etag` | string | Ja | Der ETag-Wert des zu aktualisierenden Buckets \(If-Match-Header\) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Gibt an, ob der Bucket erfolgreich aktualisiert wurde |
+| `bucket` | object | Das aktualisierte Bucket-Objekt mit allen Eigenschaften |
+| `metadata` | object | Metadaten einschließlich bucketId und planId |
+
+### `microsoft_planner_delete_bucket`
+
+Einen Bucket aus Microsoft Planner löschen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `bucketId` | string | Ja | Die ID des zu löschenden Buckets |
+| `etag` | string | Ja | Der ETag-Wert des zu löschenden Buckets \(If-Match-Header\) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Gibt an, ob der Bucket erfolgreich gelöscht wurde |
+| `deleted` | boolean | Bestätigung der Löschung |
+| `metadata` | object | Zusätzliche Metadaten |
+
+### `microsoft_planner_get_task_details`
+
+Detaillierte Informationen über eine Aufgabe abrufen, einschließlich Checkliste und Referenzen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `taskId` | string | Ja | Die ID der Aufgabe |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Gibt an, ob die Aufgabendetails erfolgreich abgerufen wurden |
+| `taskDetails` | object | Die Aufgabendetails einschließlich Beschreibung, Checkliste und Referenzen |
+| `metadata` | object | Metadaten einschließlich taskId |
+
+### `microsoft_planner_update_task_details`
+
+Aktualisieren von Aufgabendetails einschließlich Beschreibung, Checklistenelementen und Referenzen in Microsoft Planner
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `taskId` | string | Ja | Die ID der Aufgabe |
+| `etag` | string | Ja | Der ETag-Wert aus den zu aktualisierenden Aufgabendetails \(If-Match-Header\) |
+| `description` | string | Nein | Die Beschreibung der Aufgabe |
+| `checklist` | object | Nein | Checklistenelemente als JSON-Objekt |
+| `references` | object | Nein | Referenzen als JSON-Objekt |
+| `previewType` | string | Nein | Vorschautyp: automatic, noPreview, checklist, description oder reference |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Gibt an, ob die Aufgabendetails erfolgreich aktualisiert wurden |
+| `taskDetails` | object | Das aktualisierte Aufgabendetailobjekt mit allen Eigenschaften |
+| `metadata` | object | Metadaten einschließlich taskId |
 
 ## Hinweise
 

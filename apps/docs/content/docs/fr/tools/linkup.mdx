@@ -54,10 +54,17 @@ Recherchez des informations sur le web en utilisant Linkup
 
 | Paramètre | Type | Obligatoire | Description |
 | --------- | ---- | ---------- | ----------- |
-| `q` | chaîne | Oui | La requête de recherche |
-| `depth` | chaîne | Oui | Profondeur de recherche \(doit être soit « standard » soit « deep »\) |
-| `outputType` | chaîne | Oui | Type de sortie à retourner \(doit être soit « sourcedAnswer » soit « searchResults »\) |
-| `apiKey` | chaîne | Oui | Entrez votre clé API Linkup |
+| `q` | string | Oui | La requête de recherche |
+| `depth` | string | Oui | Profondeur de recherche \(doit être soit "standard" soit "deep"\) |
+| `outputType` | string | Oui | Type de sortie à retourner \(doit être "sourcedAnswer" ou "searchResults"\) |
+| `apiKey` | string | Oui | Entrez votre clé API Linkup |
+| `includeImages` | boolean | Non | Indique s'il faut inclure des images dans les résultats de recherche |
+| `fromDate` | string | Non | Date de début pour filtrer les résultats \(format AAAA-MM-JJ\) |
+| `toDate` | string | Non | Date de fin pour filtrer les résultats \(format AAAA-MM-JJ\) |
+| `excludeDomains` | string | Non | Liste de noms de domaine séparés par des virgules à exclure des résultats de recherche |
+| `includeDomains` | string | Non | Liste de noms de domaine séparés par des virgules pour restreindre les résultats de recherche |
+| `includeInlineCitations` | boolean | Non | Ajouter des citations en ligne aux réponses \(s'applique uniquement lorsque outputType est "sourcedAnswer"\) |
+| `includeSources` | boolean | Non | Inclure les sources dans la réponse |
 
 #### Sortie
 

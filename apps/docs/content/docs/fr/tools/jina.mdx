@@ -1,6 +1,6 @@
 ---
 title: Jina
-description: Convertir le contenu d'un site web en texte
+description: Recherchez sur le web ou extrayez du contenu à partir d'URLs
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -62,7 +62,7 @@ Cette intégration est particulièrement précieuse pour créer des agents qui d
 
 ## Instructions d'utilisation
 
-Intégrer Jina dans le flux de travail. Extrait du contenu des sites web. Nécessite une clé API.
+Intégrez Jina AI dans votre flux de travail. Recherchez sur le web et obtenez des résultats adaptés aux LLM, ou extrayez du contenu propre à partir d'URLs spécifiques avec des options d'analyse avancées.
 
 ## Outils
 
@@ -73,18 +73,78 @@ Extrayez et traitez le contenu web en texte propre et adapté aux LLM avec Jina 
 #### Entrée
 
 | Paramètre | Type | Obligatoire | Description |
-| --------- | ---- | ----------- | ----------- |
-| `url` | string | Oui | L'URL à lire et à convertir en markdown |
-| `useReaderLMv2` | boolean | Non | Indique s'il faut utiliser ReaderLM-v2 pour une meilleure qualité |
-| `gatherLinks` | boolean | Non | Indique s'il faut rassembler tous les liens à la fin |
-| `jsonResponse` | boolean | Non | Indique s'il faut renvoyer la réponse au format JSON |
+| --------- | ---- | -------- | ----------- |
+| `url` | string | Oui | L'URL à lire et convertir en markdown |
+| `useReaderLMv2` | boolean | Non | Utiliser ReaderLM-v2 pour une meilleure qualité \(coût en tokens 3x plus élevé\) |
+| `gatherLinks` | boolean | Non | Rassembler tous les liens à la fin |
+| `jsonResponse` | boolean | Non | Renvoyer la réponse au format JSON |
 | `apiKey` | string | Oui | Votre clé API Jina AI |
+| `targetSelector` | string | Non | Sélecteur CSS pour cibler des éléments spécifiques de la page \(ex. : "#main-content"\) |
+| `waitForSelector` | string | Non | Sélecteur CSS à attendre avant d'extraire le contenu \(utile pour les pages dynamiques\) |
+| `removeSelector` | string | Non | Sélecteur CSS pour les éléments à exclure \(ex. : "header, footer, .ad"\) |
+| `timeout` | number | Non | Temps d'attente maximum en secondes pour le chargement de la page |
+| `withImagesummary` | boolean | Non | Recueillir toutes les images de la page avec leurs métadonnées |
+| `retainImages` | string | Non | Contrôle de l'inclusion d'images : "none" supprime tout, "all" conserve tout |
+| `returnFormat` | string | Non | Format de sortie : markdown, html, text, screenshot ou pageshot |
+| `withIframe` | boolean | Non | Inclure le contenu des iframes dans l'extraction |
+| `withShadowDom` | boolean | Non | Extraire le contenu du Shadow DOM |
+| `setCookie` | string | Non | Transférer les cookies d'authentification \(désactive la mise en cache\) |
+| `proxyUrl` | string | Non | URL du proxy HTTP pour le routage des requêtes |
+| `proxy` | string | Non | Code pays pour le proxy \(ex. : "US", "UK"\) ou "auto"/"none" |
+| `engine` | string | Non | Moteur de rendu : browser, direct ou cf-browser-rendering |
+| `tokenBudget` | number | Non | Nombre maximum de tokens pour la requête \(contrôle des coûts\) |
+| `noCache` | boolean | Non | Contourner le contenu mis en cache pour une récupération en temps réel |
+| `cacheTolerance` | number | Non | Durée de vie personnalisée du cache en secondes |
+| `withGeneratedAlt` | boolean | Non | Générer du texte alternatif pour les images en utilisant VLM |
+| `baseUrl` | string | Non | Définir sur "final" pour suivre la chaîne de redirection |
+| `locale` | string | Non | Locale du navigateur pour le rendu \(ex. : "fr-FR"\) |
+| `robotsTxt` | string | Non | User-Agent du bot pour la vérification du robots.txt |
+| `dnt` | boolean | Non | Do Not Track - empêche la mise en cache/le suivi |
+| `noGfm` | boolean | Non | Désactiver le Markdown au format GitHub |
 
 #### Sortie
 
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
 | `content` | string | Le contenu extrait de l'URL, traité en texte propre et adapté aux LLM |
+| `links` | array | Liste des liens trouvés sur la page (lorsque gatherLinks ou withLinksummary est activé) |
+| `images` | array | Liste des images trouvées sur la page (lorsque withImagesummary est activé) |
+
+### `jina_search`
+
+Recherche sur le web et renvoie les 5 meilleurs résultats avec un contenu adapté aux LLM. Chaque résultat est automatiquement traité via l'API Jina Reader. Prend en charge le filtrage géographique, les restrictions de site et la pagination.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `q` | string | Oui | Chaîne de requête de recherche |
+| `apiKey` | string | Oui | Votre clé API Jina AI |
+| `gl` | string | Non | Code pays à deux lettres pour des résultats géo-spécifiques (ex. : "US", "UK", "JP") |
+| `location` | string | Non | Localisation au niveau de la ville pour des résultats de recherche localisés |
+| `hl` | string | Non | Code de langue à deux lettres pour les résultats (ex. : "en", "es", "fr") |
+| `num` | number | Non | Nombre maximum de résultats par page (par défaut : 5) |
+| `page` | number | Non | Numéro de page pour la pagination (décalage) |
+| `site` | string | Non | Restreindre les résultats à des domaines spécifiques. Peut être séparé par des virgules pour plusieurs sites (ex. : "jina.ai,github.com") |
+| `withFavicon` | boolean | Non | Inclure les favicons des sites web dans les résultats |
+| `withImagesummary` | boolean | Non | Recueillir toutes les images des pages de résultats avec métadonnées |
+| `withLinksummary` | boolean | Non | Recueillir tous les liens des pages de résultats |
+| `retainImages` | string | Non | Contrôle de l'inclusion d'images : "none" supprime tout, "all" conserve tout |
+| `noCache` | boolean | Non | Contourner le contenu mis en cache pour une récupération en temps réel |
+| `withGeneratedAlt` | boolean | Non | Générer du texte alternatif pour les images à l'aide de VLM |
+| `respondWith` | string | Non | Définir sur "no-content" pour obtenir uniquement les métadonnées sans le contenu de la page |
+| `returnFormat` | string | Non | Format de sortie : markdown, html, text, screenshot ou pageshot |
+| `engine` | string | Non | Moteur de rendu : browser ou direct |
+| `timeout` | number | Non | Temps maximum d'attente en secondes pour le chargement de la page |
+| `setCookie` | string | Non | Transmettre les cookies d'authentification |
+| `proxyUrl` | string | Non | URL du proxy HTTP pour le routage des requêtes |
+| `locale` | string | Non | Paramètres régionaux du navigateur pour le rendu (ex. : "en-US") |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `results` | array | Tableau de résultats de recherche, chacun contenant titre, description, url et contenu adapté aux LLM |
 
 ## Notes
 

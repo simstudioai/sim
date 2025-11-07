@@ -75,7 +75,7 @@ Ob Sie interne Tools erstellen, Geschäftsprozesse automatisieren oder Produktio
 
 ## Gebrauchsanweisung
 
-Integrieren Sie Supabase in den Workflow. Kann viele Zeilen abrufen, eine Zeile abrufen, erstellen, aktualisieren, löschen und upserten.
+Integrieren Sie Supabase in den Workflow. Unterstützt Datenbankoperationen (Abfrage, Einfügen, Aktualisieren, Löschen, Upsert), Volltextsuche, RPC-Funktionen, Zeilenzählung, Vektorsuche und komplettes Speichermanagement (Hochladen, Herunterladen, Auflisten, Verschieben, Kopieren, Löschen von Dateien und Buckets).
 
 ## Tools
 
@@ -202,6 +202,51 @@ Daten in eine Supabase-Tabelle einfügen oder aktualisieren (Upsert-Operation)
 | `message` | string | Statusmeldung der Operation |
 | `results` | array | Array der eingefügten/aktualisierten Datensätze |
 
+### `supabase_count`
+
+Zeilen in einer Supabase-Tabelle zählen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Ja | Ihre Supabase-Projekt-ID \(z.B. jdrkgepadsdopsntdlom\) |
+| `table` | string | Ja | Der Name der Supabase-Tabelle, deren Zeilen gezählt werden sollen |
+| `filter` | string | Nein | PostgREST-Filter \(z.B. "status=eq.active"\) |
+| `countType` | string | Nein | Zähltyp: exact, planned oder estimated \(Standard: exact\) |
+| `apiKey` | string | Ja | Ihr Supabase Service Role Secret Key |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `message` | string | Statusmeldung der Operation |
+| `count` | number | Anzahl der Zeilen, die dem Filter entsprechen |
+
+### `supabase_text_search`
+
+Volltextsuche in einer Supabase-Tabelle durchführen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Ja | Ihre Supabase-Projekt-ID \(z.B. jdrkgepadsdopsntdlom\) |
+| `table` | string | Ja | Der Name der Supabase-Tabelle für die Suche |
+| `column` | string | Ja | Die Spalte, in der gesucht werden soll |
+| `query` | string | Ja | Die Suchanfrage |
+| `searchType` | string | Nein | Suchtyp: plain, phrase oder websearch \(Standard: websearch\) |
+| `language` | string | Nein | Sprache für die Textsuchkonfiguration \(Standard: english\) |
+| `limit` | number | Nein | Maximale Anzahl der zurückzugebenden Zeilen |
+| `apiKey` | string | Ja | Ihr Supabase Service Role Secret Key |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `message` | string | Statusmeldung der Operation |
+| `results` | array | Array von Datensätzen, die der Suchabfrage entsprechen |
+
 ### `supabase_vector_search`
 
 Ähnlichkeitssuche mit pgvector in einer Supabase-Tabelle durchführen
@@ -223,6 +268,259 @@ Daten in eine Supabase-Tabelle einfügen oder aktualisieren (Upsert-Operation)
 | --------- | ---- | ----------- |
 | `message` | string | Statusmeldung der Operation |
 | `results` | array | Array von Datensätzen mit Ähnlichkeitswerten aus der Vektorsuche. Jeder Datensatz enthält ein Ähnlichkeitsfeld \(0-1\), das angibt, wie ähnlich er dem Abfragevektor ist. |
+
+### `supabase_rpc`
+
+Eine PostgreSQL-Funktion in Supabase aufrufen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Ja | Ihre Supabase-Projekt-ID \(z.B. jdrkgepadsdopsntdlom\) |
+| `functionName` | string | Ja | Der Name der aufzurufenden PostgreSQL-Funktion |
+| `apiKey` | string | Ja | Ihr Supabase Service Role Secret Key |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `message` | string | Statusmeldung der Operation |
+| `results` | json | Von der Funktion zurückgegebenes Ergebnis |
+
+### `supabase_storage_upload`
+
+Eine Datei in einen Supabase-Speicher-Bucket hochladen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Ja | Ihre Supabase-Projekt-ID \(z.B. jdrkgepadsdopsntdlom\) |
+| `bucket` | string | Ja | Der Name des Speicher-Buckets |
+| `path` | string | Ja | Der Pfad, unter dem die Datei gespeichert wird \(z.B. "ordner/datei.jpg"\) |
+| `fileContent` | string | Ja | Der Dateiinhalt \(base64-kodiert für Binärdateien oder Klartext\) |
+| `contentType` | string | Nein | MIME-Typ der Datei \(z.B. "image/jpeg", "text/plain"\) |
+| `upsert` | boolean | Nein | Wenn true, überschreibt vorhandene Datei \(Standard: false\) |
+| `apiKey` | string | Ja | Ihr Supabase Service Role Secret Key |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `message` | string | Statusmeldung der Operation |
+| `results` | object | Upload-Ergebnis einschließlich Dateipfad und Metadaten |
+
+### `supabase_storage_download`
+
+Eine Datei aus einem Supabase-Speicher-Bucket herunterladen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Ja | Ihre Supabase-Projekt-ID \(z.B. jdrkgepadsdopsntdlom\) |
+| `bucket` | string | Ja | Der Name des Speicher-Buckets |
+| `path` | string | Ja | Der Pfad zur herunterzuladenden Datei \(z.B. "ordner/datei.jpg"\) |
+| `apiKey` | string | Ja | Ihr Supabase Service Role Secret Key |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `message` | string | Statusmeldung der Operation |
+| `fileContent` | string | Dateiinhalt \(base64-kodiert bei Binärdateien, ansonsten Klartext\) |
+| `contentType` | string | MIME-Typ der Datei |
+| `isBase64` | boolean | Ob der Dateiinhalt base64-kodiert ist |
+
+### `supabase_storage_list`
+
+Dateien in einem Supabase-Speicher-Bucket auflisten
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Ja | Ihre Supabase-Projekt-ID \(z.B. jdrkgepadsdopsntdlom\) |
+| `bucket` | string | Ja | Der Name des Speicher-Buckets |
+| `path` | string | Nein | Der Ordnerpfad, aus dem Dateien aufgelistet werden sollen \(Standard: Root\) |
+| `limit` | number | Nein | Maximale Anzahl der zurückzugebenden Dateien \(Standard: 100\) |
+| `offset` | number | Nein | Anzahl der zu überspringenden Dateien \(für Paginierung\) |
+| `sortBy` | string | Nein | Spalte zum Sortieren: name, created_at, updated_at \(Standard: name\) |
+| `sortOrder` | string | Nein | Sortierreihenfolge: asc oder desc \(Standard: asc\) |
+| `search` | string | Nein | Suchbegriff zum Filtern von Dateien nach Namen |
+| `apiKey` | string | Ja | Ihr Supabase Service-Rolle-Secret-Schlüssel |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `message` | string | Statusmeldung der Operation |
+| `results` | array | Array von Dateiobjekten mit Metadaten |
+
+### `supabase_storage_delete`
+
+Dateien aus einem Supabase-Speicher-Bucket löschen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Ja | Ihre Supabase-Projekt-ID \(z.B. jdrkgepadsdopsntdlom\) |
+| `bucket` | string | Ja | Der Name des Speicher-Buckets |
+| `paths` | array | Ja | Array von Dateipfaden zum Löschen \(z.B. \["ordner/datei1.jpg", "ordner/datei2.jpg"\]\) |
+| `apiKey` | string | Ja | Ihr Supabase Service Role Secret Key |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `message` | string | Statusmeldung der Operation |
+| `results` | array | Array der gelöschten Dateiobjekte |
+
+### `supabase_storage_move`
+
+Eine Datei innerhalb eines Supabase-Speicher-Buckets verschieben
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Ja | Ihre Supabase-Projekt-ID \(z.B. jdrkgepadsdopsntdlom\) |
+| `bucket` | string | Ja | Der Name des Speicher-Buckets |
+| `fromPath` | string | Ja | Der aktuelle Pfad der Datei \(z.B. "ordner/alt.jpg"\) |
+| `toPath` | string | Ja | Der neue Pfad für die Datei \(z.B. "neuerordner/neu.jpg"\) |
+| `apiKey` | string | Ja | Ihr Supabase Service Role Secret Key |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `message` | string | Statusmeldung der Operation |
+| `results` | object | Ergebnis der Verschiebeaktion |
+
+### `supabase_storage_copy`
+
+Eine Datei innerhalb eines Supabase-Speicher-Buckets kopieren
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Ja | Ihre Supabase-Projekt-ID \(z.B. jdrkgepadsdopsntdlom\) |
+| `bucket` | string | Ja | Der Name des Speicher-Buckets |
+| `fromPath` | string | Ja | Der Pfad der Quelldatei \(z.B. "folder/source.jpg"\) |
+| `toPath` | string | Ja | Der Pfad für die kopierte Datei \(z.B. "folder/copy.jpg"\) |
+| `apiKey` | string | Ja | Ihr Supabase Service Role Secret Key |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `message` | string | Statusmeldung der Operation |
+| `results` | object | Ergebnis der Kopieroperation |
+
+### `supabase_storage_create_bucket`
+
+Einen neuen Speicher-Bucket in Supabase erstellen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Ja | Ihre Supabase-Projekt-ID \(z.B. jdrkgepadsdopsntdlom\) |
+| `bucket` | string | Ja | Der Name des zu erstellenden Buckets |
+| `isPublic` | boolean | Nein | Ob der Bucket öffentlich zugänglich sein soll \(Standard: false\) |
+| `fileSizeLimit` | number | Nein | Maximale Dateigröße in Bytes \(optional\) |
+| `allowedMimeTypes` | array | Nein | Array erlaubter MIME-Typen \(z.B. \["image/png", "image/jpeg"\]\) |
+| `apiKey` | string | Ja | Ihr Supabase Service Role Secret Key |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `message` | string | Statusmeldung der Operation |
+| `results` | object | Informationen zum erstellten Bucket |
+
+### `supabase_storage_list_buckets`
+
+Alle Speicher-Buckets in Supabase auflisten
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Ja | Ihre Supabase-Projekt-ID \(z.B. jdrkgepadsdopsntdlom\) |
+| `apiKey` | string | Ja | Ihr Supabase Service Role Secret Key |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `message` | string | Statusmeldung der Operation |
+| `results` | array | Array von Bucket-Objekten |
+
+### `supabase_storage_delete_bucket`
+
+Einen Speicher-Bucket in Supabase löschen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Ja | Ihre Supabase-Projekt-ID \(z.B. jdrkgepadsdopsntdlom\) |
+| `bucket` | string | Ja | Der Name des zu löschenden Buckets |
+| `apiKey` | string | Ja | Ihr Supabase Service Role Secret Key |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `message` | string | Statusmeldung der Operation |
+| `results` | object | Ergebnis der Löschoperation |
+
+### `supabase_storage_get_public_url`
+
+Die öffentliche URL für eine Datei in einem Supabase-Speicher-Bucket abrufen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Ja | Ihre Supabase-Projekt-ID \(z.B. jdrkgepadsdopsntdlom\) |
+| `bucket` | string | Ja | Der Name des Speicher-Buckets |
+| `path` | string | Ja | Der Pfad zur Datei \(z.B. "ordner/datei.jpg"\) |
+| `download` | boolean | Nein | Wenn true, wird der Download erzwungen anstatt der Inline-Anzeige \(Standard: false\) |
+| `apiKey` | string | Ja | Ihr Supabase Service Role Secret Key |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `message` | string | Statusmeldung der Operation |
+| `publicUrl` | string | Die öffentliche URL für den Zugriff auf die Datei |
+
+### `supabase_storage_create_signed_url`
+
+Erstellt eine temporäre signierte URL für eine Datei in einem Supabase-Speicher-Bucket
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Ja | Ihre Supabase-Projekt-ID \(z.B. jdrkgepadsdopsntdlom\) |
+| `bucket` | string | Ja | Der Name des Speicher-Buckets |
+| `path` | string | Ja | Der Pfad zur Datei \(z.B. "ordner/datei.jpg"\) |
+| `expiresIn` | number | Ja | Anzahl der Sekunden bis zum Ablauf der URL \(z.B. 3600 für 1 Stunde\) |
+| `download` | boolean | Nein | Wenn true, wird der Download erzwungen anstatt der Inline-Anzeige \(Standard: false\) |
+| `apiKey` | string | Ja | Ihr Supabase Service Role Secret Key |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `message` | string | Statusmeldung der Operation |
+| `signedUrl` | string | Die temporäre signierte URL für den Zugriff auf die Datei |
 
 ## Hinweise
 
