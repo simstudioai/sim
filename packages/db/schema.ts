@@ -1256,23 +1256,45 @@ export const workflowCheckpoints = pgTable(
 )
 
 export const templateStatusEnum = pgEnum('template_status', ['pending', 'approved', 'rejected'])
-export const templateAuthorTypeEnum = pgEnum('template_author_type', ['user', 'organization'])
+export const templateCreatorTypeEnum = pgEnum('template_creator_type', ['user', 'organization'])
+
+export const templateCreators = pgTable(
+  'template_creators',
+  {
+    id: text('id').primaryKey(),
+    referenceType: templateCreatorTypeEnum('reference_type').notNull(),
+    referenceId: text('reference_id').notNull(),
+    name: text('name').notNull(),
+    profileImageUrl: text('profile_image_url'),
+    about: text('about'),
+    xUrl: text('x_url'),
+    linkedinUrl: text('linkedin_url'),
+    websiteUrl: text('website_url'),
+    contactEmail: text('contact_email'),
+    createdBy: text('created_by')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    referenceUniqueIdx: uniqueIndex('template_creators_reference_idx').on(
+      table.referenceType,
+      table.referenceId
+    ),
+    referenceIdIdx: index('template_creators_reference_id_idx').on(table.referenceId),
+    createdByIdx: index('template_creators_created_by_idx').on(table.createdBy),
+  })
+)
 
 export const templates = pgTable(
   'templates',
   {
     id: text('id').primaryKey(),
     workflowId: text('workflow_id').references(() => workflow.id, { onDelete: 'set null' }),
-    userId: text('user_id')
-      .notNull()
-      .references(() => user.id, { onDelete: 'cascade' }),
     name: text('name').notNull(),
-    description: text('description'),
-    author: text('author').notNull(), // Display name for author (user name or org name)
-    authorType: templateAuthorTypeEnum('author_type').notNull().default('user'),
-    organizationId: text('organization_id').references(() => organization.id, {
-      onDelete: 'set null',
-    }),
+    details: jsonb('details'),
+    creatorId: text('creator_id').references(() => templateCreators.id, { onDelete: 'set null' }),
     views: integer('views').notNull().default(0),
     stars: integer('stars').notNull().default(0),
     status: templateStatusEnum('status').notNull().default('pending'),
@@ -1284,9 +1306,8 @@ export const templates = pgTable(
   },
   (table) => ({
     // Primary access patterns
-    userIdIdx: index('templates_user_id_idx').on(table.userId),
     statusIdx: index('templates_status_idx').on(table.status),
-    organizationIdIdx: index('templates_organization_id_idx').on(table.organizationId),
+    creatorIdIdx: index('templates_creator_id_idx').on(table.creatorId),
 
     // Sorting indexes for popular/trending templates
     viewsIdx: index('templates_views_idx').on(table.views),
@@ -1295,7 +1316,6 @@ export const templates = pgTable(
     // Composite indexes for common queries
     statusViewsIdx: index('templates_status_views_idx').on(table.status, table.views),
     statusStarsIdx: index('templates_status_stars_idx').on(table.status, table.stars),
-    userStatusIdx: index('templates_user_status_idx').on(table.userId, table.status),
 
     // Temporal indexes
     createdAtIdx: index('templates_created_at_idx').on(table.createdAt),

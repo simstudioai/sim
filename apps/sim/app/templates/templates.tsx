@@ -17,12 +17,24 @@ const logger = createLogger('TemplatesPage')
 export interface Template {
   id: string
   workflowId: string | null
-  userId: string
   name: string
-  description: string | null
-  author: string
-  authorType: 'user' | 'organization'
-  organizationId: string | null
+  details?: {
+    tagline?: string
+    about?: string
+  } | null
+  creatorId: string | null
+  creator?: {
+    id: string
+    name: string
+    profileImageUrl?: string | null
+    about?: string | null
+    xUrl?: string | null
+    linkedinUrl?: string | null
+    websiteUrl?: string | null
+    contactEmail?: string | null
+    referenceType: 'user' | 'organization'
+    referenceId: string
+  } | null
   views: number
   stars: number
   status: 'pending' | 'approved' | 'rejected'
@@ -70,16 +82,27 @@ export default function Templates({
     const query = searchQuery.toLowerCase()
     return (
       template.name.toLowerCase().includes(query) ||
-      template.description?.toLowerCase().includes(query) ||
-      template.author.toLowerCase().includes(query)
+      template.details?.tagline?.toLowerCase().includes(query) ||
+      template.creator?.name?.toLowerCase().includes(query)
     )
   }
 
   const ownedTemplates = currentUserId
-    ? templates.filter((template) => template.userId === currentUserId)
+    ? templates.filter(
+        (template) =>
+          template.creator?.referenceType === 'user' &&
+          template.creator?.referenceId === currentUserId
+      )
     : []
   const starredTemplates = currentUserId
-    ? templates.filter((template) => template.isStarred && template.userId !== currentUserId)
+    ? templates.filter(
+        (template) =>
+          template.isStarred &&
+          !(
+            template.creator?.referenceType === 'user' &&
+            template.creator?.referenceId === currentUserId
+          )
+      )
     : []
 
   const filteredOwnedTemplates = ownedTemplates.filter(matchesSearch)
@@ -99,11 +122,9 @@ export default function Templates({
       key={template.id}
       id={template.id}
       title={template.name}
-      description={template.description || ''}
-      author={template.author}
-      userId={template.userId}
-      authorType={template.authorType}
-      organizationId={template.organizationId}
+      description={template.details?.tagline || ''}
+      author={template.creator?.name || 'Unknown'}
+      creatorId={template.creatorId}
       usageCount={template.views.toString()}
       stars={template.stars}
       tags={template.tags}

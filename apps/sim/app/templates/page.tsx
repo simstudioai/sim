@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { settings, templateStars, templates, user } from '@sim/db/schema'
+import { settings, templateCreators, templateStars, templates, user } from '@sim/db/schema'
 import { and, desc, eq, sql } from 'drizzle-orm'
 import { getSession } from '@/lib/auth'
 import type { Template } from '@/app/templates/templates'
@@ -41,12 +41,10 @@ export default async function TemplatesPage() {
       .select({
         id: templates.id,
         workflowId: templates.workflowId,
-        userId: templates.userId,
         name: templates.name,
-        description: templates.description,
-        author: templates.author,
-        authorType: templates.authorType,
-        organizationId: templates.organizationId,
+        details: templates.details,
+        creatorId: templates.creatorId,
+        creator: templateCreators,
         views: templates.views,
         stars: templates.stars,
         status: templates.status,
@@ -62,6 +60,7 @@ export default async function TemplatesPage() {
         templateStars,
         and(eq(templateStars.templateId, templates.id), eq(templateStars.userId, session.user.id))
       )
+      .leftJoin(templateCreators, eq(templates.creatorId, templateCreators.id))
       .where(whereCondition)
       .orderBy(desc(templates.views), desc(templates.createdAt))
   } else {
@@ -70,12 +69,10 @@ export default async function TemplatesPage() {
       .select({
         id: templates.id,
         workflowId: templates.workflowId,
-        userId: templates.userId,
         name: templates.name,
-        description: templates.description,
-        author: templates.author,
-        authorType: templates.authorType,
-        organizationId: templates.organizationId,
+        details: templates.details,
+        creatorId: templates.creatorId,
+        creator: templateCreators,
         views: templates.views,
         stars: templates.stars,
         status: templates.status,
@@ -86,6 +83,7 @@ export default async function TemplatesPage() {
         updatedAt: templates.updatedAt,
       })
       .from(templates)
+      .leftJoin(templateCreators, eq(templates.creatorId, templateCreators.id))
       .where(eq(templates.status, 'approved'))
       .orderBy(desc(templates.views), desc(templates.createdAt))
       .then((rows) => rows.map((row) => ({ ...row, isStarred: false })))

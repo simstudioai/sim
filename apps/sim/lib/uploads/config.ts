@@ -151,6 +151,11 @@ function getS3Config(context: StorageContext): StorageConfig {
         bucket: S3_PROFILE_PICTURES_CONFIG.bucket,
         region: S3_PROFILE_PICTURES_CONFIG.region,
       }
+    case 'creator-profile-pictures':
+      return {
+        bucket: S3_PROFILE_PICTURES_CONFIG.bucket,
+        region: S3_PROFILE_PICTURES_CONFIG.region,
+      }
     default:
       return {
         bucket: S3_CONFIG.bucket,
@@ -200,6 +205,13 @@ function getBlobConfig(context: StorageContext): StorageConfig {
         containerName: BLOB_CONFIG.containerName,
       }
     case 'profile-pictures':
+      return {
+        accountName: BLOB_PROFILE_PICTURES_CONFIG.accountName,
+        accountKey: BLOB_PROFILE_PICTURES_CONFIG.accountKey,
+        connectionString: BLOB_PROFILE_PICTURES_CONFIG.connectionString,
+        containerName: BLOB_PROFILE_PICTURES_CONFIG.containerName,
+      }
+    case 'creator-profile-pictures':
       return {
         accountName: BLOB_PROFILE_PICTURES_CONFIG.accountName,
         accountKey: BLOB_PROFILE_PICTURES_CONFIG.accountKey,

@@ -57,7 +57,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'type query parameter is required' }, { status: 400 })
     }
 
-    const validTypes: StorageContext[] = ['knowledge-base', 'chat', 'copilot', 'profile-pictures']
+    const validTypes: StorageContext[] = [
+      'knowledge-base',
+      'chat',
+      'copilot',
+      'profile-pictures',
+      'creator-profile-pictures',
+    ]
     if (!validTypes.includes(uploadTypeParam as StorageContext)) {
       return NextResponse.json(
         { error: `Invalid type parameter. Must be one of: ${validTypes.join(', ')}` },

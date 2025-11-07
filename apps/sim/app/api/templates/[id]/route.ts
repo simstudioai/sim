@@ -1,6 +1,6 @@
 import { db } from '@sim/db'
-import { templates, workflow } from '@sim/db/schema'
-import { eq, sql } from 'drizzle-orm'
+import { member, templateCreators, templates, workflow } from '@sim/db/schema'
+import { and, eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
@@ -25,15 +25,27 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     logger.debug(`[${requestId}] Fetching template: ${id}`)
 
-    // Fetch the template by ID
-    const result = await db.select().from(templates).where(eq(templates.id, id)).limit(1)
+    // Fetch the template by ID with creator info
+    const result = await db
+      .select({
+        template: templates,
+        creator: templateCreators,
+      })
+      .from(templates)
+      .leftJoin(templateCreators, eq(templates.creatorId, templateCreators.id))
+      .where(eq(templates.id, id))
+      .limit(1)
 
     if (result.length === 0) {
       logger.warn(`[${requestId}] Template not found: ${id}`)
       return NextResponse.json({ error: 'Template not found' }, { status: 404 })
     }
 
-    const template = result[0]
+    const { template, creator } = result[0]
+    const templateWithCreator = {
+      ...template,
+      creator: creator || undefined,
+    }
 
     // Only show approved templates to non-authenticated users
     if (!session?.user?.id && template.status !== 'approved') {
@@ -77,7 +89,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     return NextResponse.json({
       data: {
-        ...template,
+        ...templateWithCreator,
         views: template.views + (shouldIncrementView ? 1 : 0),
         isStarred,
       },
@@ -90,10 +102,13 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
 const updateTemplateSchema = z.object({
   name: z.string().min(1).max(100).optional(),
-  description: z.string().min(1).max(500).optional(),
-  author: z.string().min(1).max(100).optional(),
-  authorType: z.enum(['user', 'organization']).optional(),
-  organizationId: z.string().optional(),
+  details: z
+    .object({
+      tagline: z.string().max(500, 'Tagline must be less than 500 characters').optional(),
+      about: z.string().optional(), // Markdown long description
+    })
+    .optional(),
+  creatorId: z.string().optional(), // Creator profile ID
   tags: z.array(z.string()).max(10, 'Maximum 10 tags allowed').optional(),
   updateState: z.boolean().optional(), // Explicitly request state update from current workflow
 })
@@ -121,8 +136,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       )
     }
 
-    const { name, description, author, authorType, organizationId, tags, updateState } =
-      validationResult.data
+    const { name, details, creatorId, tags, updateState } = validationResult.data
 
     // Check if template exists
     const existingTemplate = await db.select().from(templates).where(eq(templates.id, id)).limit(1)
@@ -132,10 +146,40 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.json({ error: 'Template not found' }, { status: 404 })
     }
 
-    // Permission: template owner only
-    if (existingTemplate[0].userId !== session.user.id) {
-      logger.warn(`[${requestId}] User denied permission to update template ${id}`)
-      return NextResponse.json({ error: 'Access denied' }, { status: 403 })
+    // Permission: check via creator profile
+    if (existingTemplate[0].creatorId) {
+      const creatorProfile = await db
+        .select()
+        .from(templateCreators)
+        .where(eq(templateCreators.id, existingTemplate[0].creatorId))
+        .limit(1)
+
+      if (creatorProfile.length > 0) {
+        const creator = creatorProfile[0]
+        let hasPermission = false
+
+        if (creator.referenceType === 'user') {
+          hasPermission = creator.referenceId === session.user.id
+        } else if (creator.referenceType === 'organization') {
+          // Check if user is a member of the organization
+          const membership = await db
+            .select()
+            .from(member)
+            .where(
+              and(
+                eq(member.userId, session.user.id),
+                eq(member.organizationId, creator.referenceId)
+              )
+            )
+            .limit(1)
+          hasPermission = membership.length > 0
+        }
+
+        if (!hasPermission) {
+          logger.warn(`[${requestId}] User denied permission to update template ${id}`)
+          return NextResponse.json({ error: 'Access denied' }, { status: 403 })
+        }
+      }
     }
 
     // Prepare update data - only include fields that were provided
@@ -145,13 +189,9 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
     // Only update fields that were provided
     if (name !== undefined) updateData.name = name
-    if (description !== undefined) updateData.description = description
-    if (author !== undefined) updateData.author = author
+    if (details !== undefined) updateData.details = details
     if (tags !== undefined) updateData.tags = tags
-
-    // Optional fields
-    if (authorType) updateData.authorType = authorType
-    if (organizationId !== undefined) updateData.organizationId = organizationId
+    if (creatorId !== undefined) updateData.creatorId = creatorId
 
     // Only update the state if explicitly requested and the template has a connected workflow
     if (updateState && existingTemplate[0].workflowId) {
@@ -235,10 +275,40 @@ export async function DELETE(
 
     const template = existing[0]
 
-    // Permission: owner only
-    if (template.userId !== session.user.id) {
-      logger.warn(`[${requestId}] User denied permission to delete template ${id}`)
-      return NextResponse.json({ error: 'Access denied' }, { status: 403 })
+    // Permission: check via creator profile
+    if (template.creatorId) {
+      const creatorProfile = await db
+        .select()
+        .from(templateCreators)
+        .where(eq(templateCreators.id, template.creatorId))
+        .limit(1)
+
+      if (creatorProfile.length > 0) {
+        const creator = creatorProfile[0]
+        let hasPermission = false
+
+        if (creator.referenceType === 'user') {
+          hasPermission = creator.referenceId === session.user.id
+        } else if (creator.referenceType === 'organization') {
+          // Check if user is a member of the organization
+          const membership = await db
+            .select()
+            .from(member)
+            .where(
+              and(
+                eq(member.userId, session.user.id),
+                eq(member.organizationId, creator.referenceId)
+              )
+            )
+            .limit(1)
+          hasPermission = membership.length > 0
+        }
+
+        if (!hasPermission) {
+          logger.warn(`[${requestId}] User denied permission to delete template ${id}`)
+          return NextResponse.json({ error: 'Access denied' }, { status: 403 })
+        }
+      }
     }
 
     await db.delete(templates).where(eq(templates.id, id))

@@ -7,6 +7,7 @@ import {
   Home,
   Key,
   LogIn,
+  Palette,
   Server,
   Settings,
   Shield,
@@ -51,6 +52,7 @@ type NavigationItem = {
     | 'general'
     | 'environment'
     | 'account'
+    | 'creator-profile'
     | 'credentials'
     | 'apikeys'
     | 'files'
@@ -99,6 +101,11 @@ const allNavigationItems: NavigationItem[] = [
     id: 'account',
     label: 'Account',
     icon: User,
+  },
+  {
+    id: 'creator-profile',
+    label: 'Creator Profile',
+    icon: Palette,
   },
   {
     id: 'apikeys',

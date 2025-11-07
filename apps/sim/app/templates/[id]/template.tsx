@@ -56,7 +56,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { TooltipProvider } from '@/components/ui/tooltip'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
 import type { CredentialRequirement } from '@/lib/workflows/credential-extractor'
@@ -125,6 +125,7 @@ export default function TemplateDetails() {
   const [isEditing, setIsEditing] = useState(false)
   const [isApproving, setIsApproving] = useState(false)
   const [isRejecting, setIsRejecting] = useState(false)
+  const [hasWorkspaceAccess, setHasWorkspaceAccess] = useState<boolean | null>(null)
   const [workspaces, setWorkspaces] = useState<
     Array<{ id: string; name: string; permissions: string }>
   >([])
@@ -235,13 +236,42 @@ export default function TemplateDetails() {
     }
   }, [searchParams, currentUserId, template, router])
 
-  // Check if user is owner (created it or org member for org-authored templates)
-  const isOwner =
+  // Check if user can edit template (based on creator profile)
+  const canEditTemplate =
     currentUserId &&
-    (template?.userId === currentUserId ||
-      (template?.authorType === 'organization' &&
-        template?.organizationId &&
-        currentUserOrgs.includes(template.organizationId)))
+    template?.creator &&
+    ((template.creator.referenceType === 'user' &&
+      template.creator.referenceId === currentUserId) ||
+      (template.creator.referenceType === 'organization' &&
+        template.creator.referenceId &&
+        currentUserOrgs.includes(template.creator.referenceId)))
+
+  // Check workspace access for connected workflow
+  useEffect(() => {
+    const checkWorkspaceAccess = async () => {
+      if (!template?.workflowId || !currentUserId || !canEditTemplate) {
+        setHasWorkspaceAccess(null)
+        return
+      }
+
+      try {
+        const checkResponse = await fetch(`/api/workflows/${template.workflowId}`)
+        if (checkResponse.status === 403) {
+          setHasWorkspaceAccess(false)
+        } else if (checkResponse.ok) {
+          setHasWorkspaceAccess(true)
+        } else {
+          // Workflow doesn't exist
+          setHasWorkspaceAccess(null)
+        }
+      } catch (error) {
+        logger.error('Error checking workspace access:', error)
+        setHasWorkspaceAccess(null)
+      }
+    }
+
+    checkWorkspaceAccess()
+  }, [template?.workflowId, currentUserId, canEditTemplate])
 
   if (loading) {
     return (
@@ -336,13 +366,21 @@ export default function TemplateDetails() {
   const handleEditTemplate = async () => {
     if (!currentUserId || !template) return
 
-    // Check if workflow exists
+    // Check if workflow exists and user has access
     if (template.workflowId) {
       setIsEditing(true)
       try {
         const checkResponse = await fetch(`/api/workflows/${template.workflowId}`)
+
+        if (checkResponse.status === 403) {
+          // User doesn't have access to the workspace
+          // This shouldn't happen if button is properly disabled, but handle it gracefully
+          alert("You don't have access to the workspace containing this template")
+          return
+        }
+
         if (checkResponse.ok) {
-          // Workflow exists, get its workspace and navigate to it
+          // Workflow exists and user has access, get its workspace and navigate to it
           const result = await checkResponse.json()
           const workspaceId = result.data?.workspaceId
           if (workspaceId) {
@@ -485,9 +523,11 @@ export default function TemplateDetails() {
                 {/* Title and description */}
                 <div>
                   <h1 className='font-bold text-3xl text-foreground'>{template.name}</h1>
-                  <p className='mt-2 max-w-3xl text-lg text-muted-foreground'>
-                    {template.description}
-                  </p>
+                  {template.details?.tagline && (
+                    <p className='mt-2 max-w-3xl text-lg text-muted-foreground'>
+                      {template.details.tagline}
+                    </p>
+                  )}
                   {/* Tags */}
                   {template.tags && template.tags.length > 0 && (
                     <div className='mt-3 flex flex-wrap gap-2'>
@@ -529,7 +569,7 @@ export default function TemplateDetails() {
                 )}
 
                 {/* Star button - only for logged-in non-owners and non-pending templates */}
-                {currentUserId && !isOwner && template.status !== 'pending' && (
+                {currentUserId && !canEditTemplate && template.status !== 'pending' && (
                   <Button
                     variant='outline'
                     size='sm'
@@ -547,16 +587,33 @@ export default function TemplateDetails() {
                 )}
 
                 {/* Edit button - for template owners (approved or pending) */}
-                {isOwner && currentUserId && (
+                {canEditTemplate && currentUserId && (
                   <>
                     {template.workflowId && !showWorkspaceSelectorForEdit ? (
-                      <Button
-                        onClick={handleEditTemplate}
-                        disabled={isEditing}
-                        className='bg-blue-600 text-white hover:bg-blue-700'
-                      >
-                        {isEditing ? 'Opening...' : 'Edit Template'}
-                      </Button>
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span>
+                              <Button
+                                onClick={handleEditTemplate}
+                                disabled={isEditing || hasWorkspaceAccess === false}
+                                className={
+                                  hasWorkspaceAccess === false
+                                    ? 'opacity-50 cursor-not-allowed'
+                                    : 'bg-blue-600 text-white hover:bg-blue-700'
+                                }
+                              >
+                                {isEditing ? 'Opening...' : 'Edit Template'}
+                              </Button>
+                            </span>
+                          </TooltipTrigger>
+                          {hasWorkspaceAccess === false && (
+                            <TooltipContent>
+                              <p>Don't have access to workspace to edit template</p>
+                            </TooltipContent>
+                          )}
+                        </Tooltip>
+                      </TooltipProvider>
                     ) : (
                       <DropdownMenu
                         open={showWorkspaceSelectorForEdit}
@@ -606,7 +663,7 @@ export default function TemplateDetails() {
                 )}
 
                 {/* Use template button - only for approved templates and non-owners */}
-                {template.status === 'approved' && !isOwner && (
+                {template.status === 'approved' && !canEditTemplate && (
                   <>
                     {!currentUserId ? (
                       <Button
@@ -683,11 +740,11 @@ export default function TemplateDetails() {
               {/* Author */}
               <div className='flex items-center gap-1 rounded-full bg-secondary px-3 py-1'>
                 <User className='h-3 w-3' />
-                <span>by {template.author}</span>
+                <span>by {template.creator?.name || 'Unknown'}</span>
               </div>
 
               {/* Author Type - show if organization */}
-              {template.authorType === 'organization' && (
+              {template.creator?.referenceType === 'organization' && (
                 <div className='flex items-center gap-1 rounded-full bg-secondary px-3 py-1'>
                   <Users className='h-3 w-3' />
                   <span>Organization</span>

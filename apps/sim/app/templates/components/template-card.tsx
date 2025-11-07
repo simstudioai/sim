@@ -115,9 +115,7 @@ interface TemplateCardProps {
   title: string
   description: string
   author: string
-  userId: string
-  authorType: 'user' | 'organization'
-  organizationId: string | null
+  creatorId: string | null
   usageCount: string
   stars?: number
   blocks?: string[]

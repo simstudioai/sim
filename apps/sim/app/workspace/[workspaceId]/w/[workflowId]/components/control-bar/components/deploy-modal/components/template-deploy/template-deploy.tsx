@@ -35,17 +35,19 @@ const logger = createLogger('TemplateDeploy')
 
 const templateSchema = z.object({
   name: z.string().min(1, 'Name is required').max(100, 'Max 100 characters'),
-  description: z.string().min(1, 'Description is required').max(500, 'Max 500 characters'),
-  authorId: z.string().min(1, 'Author is required'),
+  tagline: z.string().max(500, 'Max 500 characters').optional(),
+  about: z.string().optional(), // Markdown long description
+  creatorId: z.string().optional(), // Creator profile ID
   tags: z.array(z.string()).max(10, 'Maximum 10 tags allowed').optional().default([]),
 })
 
 type TemplateFormData = z.infer<typeof templateSchema>
 
-interface AuthorOption {
+interface CreatorOption {
   id: string
   name: string
-  type: 'user' | 'organization'
+  referenceType: 'user' | 'organization'
+  referenceId: string
 }
 
 interface TemplateDeployProps {
@@ -60,32 +62,37 @@ export function TemplateDeploy({ workflowId, onDeploymentComplete }: TemplateDep
   const [isLoadingTemplate, setIsLoadingTemplate] = useState(false)
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
-  const [authorOptions, setAuthorOptions] = useState<AuthorOption[]>([])
-  const [loadingAuthors, setLoadingAuthors] = useState(false)
+  const [creatorOptions, setCreatorOptions] = useState<CreatorOption[]>([])
+  const [loadingCreators, setLoadingCreators] = useState(false)
   const [showPreviewDialog, setShowPreviewDialog] = useState(false)
 
   const form = useForm<TemplateFormData>({
     resolver: zodResolver(templateSchema),
     defaultValues: {
       name: '',
-      description: '',
-      authorId: session?.user?.id || '',
+      tagline: '',
+      about: '',
+      creatorId: undefined,
       tags: [],
     },
   })
 
-  // Fetch author options (user + organizations)
+  // Fetch creator options (user + organizations)
+  // TODO: This will be replaced with actual creator profile fetching once the creator profile management is built
   useEffect(() => {
-    const fetchAuthorOptions = async () => {
+    const fetchCreatorOptions = async () => {
       if (!session?.user?.id) return
 
-      setLoadingAuthors(true)
+      setLoadingCreators(true)
       try {
-        const options: AuthorOption[] = [
+        // For now, create temporary creator options based on user and orgs
+        // In the future, this will fetch actual creator profiles from the database
+        const options: CreatorOption[] = [
           {
-            id: session.user.id,
+            id: `user-${session.user.id}`, // Temporary ID format
             name: session.user.name || session.user.email || 'Me',
-            type: 'user',
+            referenceType: 'user',
+            referenceId: session.user.id,
           },
         ]
 
@@ -93,22 +100,23 @@ export function TemplateDeploy({ workflowId, onDeploymentComplete }: TemplateDep
         if (response.ok) {
           const data = await response.json()
           const orgs = (data.organizations || []).map((org: any) => ({
-            id: org.id,
+            id: `org-${org.id}`, // Temporary ID format
             name: org.name,
-            type: 'organization' as const,
+            referenceType: 'organization' as const,
+            referenceId: org.id,
           }))
           options.push(...orgs)
         }
 
-        setAuthorOptions(options)
+        setCreatorOptions(options)
       } catch (error) {
-        logger.error('Error fetching author options:', error)
+        logger.error('Error fetching creator options:', error)
       } finally {
-        setLoadingAuthors(false)
+        setLoadingCreators(false)
       }
     }
 
-    fetchAuthorOptions()
+    fetchCreatorOptions()
   }, [session?.user?.id, session?.user?.name, session?.user?.email])
 
   // Check for existing template
@@ -123,14 +131,15 @@ export function TemplateDeploy({ workflowId, onDeploymentComplete }: TemplateDep
           setExistingTemplate(template)
 
           if (template) {
-            // Determine authorId from template
-            const authorId =
-              template.authorType === 'organization' ? template.organizationId : template.userId
+            // Map old template format to new format if needed
+            const tagline = (template.details as any)?.tagline || template.description || ''
+            const about = (template.details as any)?.about || ''
 
             form.reset({
               name: template.name,
-              description: template.description,
-              authorId: authorId || session?.user?.id || '',
+              tagline: tagline,
+              about: about,
+              creatorId: template.creatorId || undefined,
               tags: template.tags || [],
             })
           }
@@ -155,23 +164,15 @@ export function TemplateDeploy({ workflowId, onDeploymentComplete }: TemplateDep
     setIsSubmitting(true)
 
     try {
-      // Determine author info from selected option
-      const selectedAuthor = authorOptions.find((opt) => opt.id === data.authorId)
-      const authorType = selectedAuthor?.type || 'user'
-      const authorName = selectedAuthor?.name || session.user.name || session.user.email || ''
-      const organizationId = authorType === 'organization' ? data.authorId : undefined
-
+      // Build template data with new schema
       const templateData: any = {
         name: data.name,
-        description: data.description || '',
-        author: authorName,
-        authorType,
+        details: {
+          tagline: data.tagline || '',
+          about: data.about || '',
+        },
+        creatorId: data.creatorId || null,
         tags: data.tags || [],
-      }
-
-      // Only include organizationId if it's defined
-      if (organizationId) {
-        templateData.organizationId = organizationId
       }
 
       let response
@@ -229,8 +230,10 @@ export function TemplateDeploy({ workflowId, onDeploymentComplete }: TemplateDep
         setShowDeleteDialog(false)
         form.reset({
           name: '',
-          description: '',
-          authorId: session?.user?.id || '',
+          tagline: '',
+          about: '',
+          creatorId: undefined,
+          tags: [],
         })
       }
     } catch (error) {
@@ -299,14 +302,28 @@ export function TemplateDeploy({ workflowId, onDeploymentComplete }: TemplateDep
 
           <FormField
             control={form.control}
-            name='description'
+            name='tagline'
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Description</FormLabel>
+                <FormLabel>Tagline</FormLabel>
+                <FormControl>
+                  <Input placeholder='Brief description of what this template does' {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name='about'
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>About (Optional)</FormLabel>
                 <FormControl>
                   <Textarea
-                    placeholder='What does this template do?'
-                    className='min-h-[100px] resize-none'
+                    placeholder='Detailed description (supports Markdown)'
+                    className='min-h-[150px] resize-none'
                     {...field}
                   />
                 </FormControl>
@@ -317,24 +334,26 @@ export function TemplateDeploy({ workflowId, onDeploymentComplete }: TemplateDep
 
           <FormField
             control={form.control}
-            name='authorId'
+            name='creatorId'
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Author</FormLabel>
+                <FormLabel>Creator Profile</FormLabel>
                 <Select
                   onValueChange={field.onChange}
                   value={field.value}
-                  disabled={loadingAuthors}
+                  disabled={loadingCreators}
                 >
                   <FormControl>
                     <SelectTrigger>
-                      <SelectValue placeholder={loadingAuthors ? 'Loading...' : 'Select author'} />
+                      <SelectValue
+                        placeholder={loadingCreators ? 'Loading...' : 'Select creator profile'}
+                      />
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
-                    {authorOptions.map((option) => (
+                    {creatorOptions.map((option) => (
                       <SelectItem key={option.id} value={option.id}>
-                        {option.name} {option.type === 'organization' && '(Organization)'}
+                        {option.name} {option.referenceType === 'organization' && '(Organization)'}
                       </SelectItem>
                     ))}
                   </SelectContent>

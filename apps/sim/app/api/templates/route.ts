@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import {
   member,
+  templateCreators,
   templateStars,
   templates,
   user,
@@ -33,16 +34,13 @@ function sanitizeWorkflowState(state: any): any {
 const CreateTemplateSchema = z.object({
   workflowId: z.string().min(1, 'Workflow ID is required'),
   name: z.string().min(1, 'Name is required').max(100, 'Name must be less than 100 characters'),
-  description: z
-    .string()
-    .min(1, 'Description is required')
-    .max(500, 'Description must be less than 500 characters'),
-  author: z
-    .string()
-    .min(1, 'Author is required')
-    .max(100, 'Author must be less than 100 characters'),
-  authorType: z.enum(['user', 'organization']).default('user'),
-  organizationId: z.string().optional(),
+  details: z
+    .object({
+      tagline: z.string().max(500, 'Tagline must be less than 500 characters').optional(),
+      about: z.string().optional(), // Markdown long description
+    })
+    .optional(),
+  creatorId: z.string().optional(), // Creator profile ID
   tags: z.array(z.string()).max(10, 'Maximum 10 tags allowed').optional().default([]),
 })
 
@@ -100,7 +98,10 @@ export async function GET(request: NextRequest) {
     if (params.search) {
       const searchTerm = `%${params.search}%`
       conditions.push(
-        or(ilike(templates.name, searchTerm), ilike(templates.description, searchTerm))
+        or(
+          ilike(templates.name, searchTerm),
+          sql`${templates.details}->>'tagline' ILIKE ${searchTerm}`
+        )
       )
     }
 
@@ -112,12 +113,10 @@ export async function GET(request: NextRequest) {
       .select({
         id: templates.id,
         workflowId: templates.workflowId,
-        userId: templates.userId,
         name: templates.name,
-        description: templates.description,
-        author: templates.author,
-        authorType: templates.authorType,
-        organizationId: templates.organizationId,
+        details: templates.details,
+        creatorId: templates.creatorId,
+        creator: templateCreators,
         views: templates.views,
         stars: templates.stars,
         status: templates.status,
@@ -134,6 +133,7 @@ export async function GET(request: NextRequest) {
         templateStars,
         and(eq(templateStars.templateId, templates.id), eq(templateStars.userId, session.user.id))
       )
+      .leftJoin(templateCreators, eq(templates.creatorId, templateCreators.id))
       .where(whereCondition)
       .orderBy(desc(templates.views), desc(templates.createdAt))
       .limit(params.limit)
@@ -204,31 +204,50 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Workflow not found' }, { status: 404 })
     }
 
-    // Validate organization ownership if authorType is organization
-    if (data.authorType === 'organization') {
-      if (!data.organizationId) {
-        logger.warn(`[${requestId}] Organization ID required for organization author type`)
-        return NextResponse.json(
-          { error: 'Organization ID is required when author type is organization' },
-          { status: 400 }
-        )
-      }
-
-      // Verify user is a member of the organization
-      const membership = await db
+    // Validate creator profile if provided
+    if (data.creatorId) {
+      // Verify the creator profile exists and user has access
+      const creatorProfile = await db
         .select()
-        .from(member)
-        .where(
-          and(eq(member.userId, session.user.id), eq(member.organizationId, data.organizationId))
-        )
+        .from(templateCreators)
+        .where(eq(templateCreators.id, data.creatorId))
         .limit(1)
 
-      if (membership.length === 0) {
-        logger.warn(`[${requestId}] User not a member of organization: ${data.organizationId}`)
-        return NextResponse.json(
-          { error: 'You must be a member of the organization to publish on its behalf' },
-          { status: 403 }
-        )
+      if (creatorProfile.length === 0) {
+        logger.warn(`[${requestId}] Creator profile not found: ${data.creatorId}`)
+        return NextResponse.json({ error: 'Creator profile not found' }, { status: 404 })
+      }
+
+      const creator = creatorProfile[0]
+
+      // Verify user has permission to use this creator profile
+      if (creator.referenceType === 'user') {
+        if (creator.referenceId !== session.user.id) {
+          logger.warn(`[${requestId}] User cannot use creator profile: ${data.creatorId}`)
+          return NextResponse.json(
+            { error: 'You do not have permission to use this creator profile' },
+            { status: 403 }
+          )
+        }
+      } else if (creator.referenceType === 'organization') {
+        // Verify user is a member of the organization
+        const membership = await db
+          .select()
+          .from(member)
+          .where(
+            and(eq(member.userId, session.user.id), eq(member.organizationId, creator.referenceId))
+          )
+          .limit(1)
+
+        if (membership.length === 0) {
+          logger.warn(
+            `[${requestId}] User not a member of organization for creator: ${data.creatorId}`
+          )
+          return NextResponse.json(
+            { error: 'You must be a member of the organization to use its creator profile' },
+            { status: 403 }
+          )
+        }
       }
     }
 
@@ -286,12 +305,9 @@ export async function POST(request: NextRequest) {
     const newTemplate = {
       id: templateId,
       workflowId: data.workflowId,
-      userId: session.user.id,
       name: data.name,
-      description: data.description || null,
-      author: data.author,
-      authorType: data.authorType,
-      organizationId: data.organizationId || null,
+      details: data.details || null,
+      creatorId: data.creatorId || null,
       views: 0,
       stars: 0,
       status: 'pending' as const, // All new templates start as pending

@@ -14,6 +14,12 @@ const logger = createLogger('TemplateUseAPI')
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
+// Type for template details
+interface TemplateDetails {
+  tagline?: string
+  about?: string
+}
+
 // POST /api/templates/[id]/use - Use a template (increment views and create workflow)
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const requestId = generateRequestId()
@@ -44,7 +50,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       .select({
         id: templates.id,
         name: templates.name,
-        description: templates.description,
+        details: templates.details,
         state: templates.state,
         workflowId: templates.workflowId,
       })
@@ -85,7 +91,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         connectToTemplate && !templateData.workflowId
           ? templateData.name
           : `${templateData.name} (copy)`,
-      description: templateData.description,
+      description: (templateData.details as TemplateDetails | null)?.tagline || null,
       userId: session.user.id,
       variables: remappedVariables, // Remap variable IDs and workflowId for the new workflow
       createdAt: now,
