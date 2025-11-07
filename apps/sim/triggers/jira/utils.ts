@@ -27,20 +27,20 @@ export const jiraWebhookSubBlocks: SubBlockConfig[] = [
     requiredScopes: [
       'read:jira-work',
       'read:jira-user',
-      'manage:jira-webhook', // Classic scope for webhook management
+      'manage:jira-webhook',
       'read:webhook:jira',
       'write:webhook:jira',
       'delete:webhook:jira',
       'read:issue-event:jira',
-      'read:issue:jira', // Full issue data in webhook payloads
-      'read:issue.changelog:jira', // Changelog data for update events
-      'read:comment:jira', // Comment data for comment events
+      'read:issue:jira',
+      'read:issue.changelog:jira',
+      'read:comment:jira',
       'read:comment.property:jira',
       'read:issue.property:jira',
-      'read:issue-worklog:jira', // Worklog data for worklog events
+      'read:issue-worklog:jira',
       'read:project:jira',
-      'read:field:jira', // Required for webhook registration
-      'read:jql:jira', // Required for JQL filtering
+      'read:field:jira',
+      'read:jql:jira',
     ],
     placeholder: 'Select Jira account',
     required: true,
@@ -104,13 +104,9 @@ export function jiraSetupInstructions(eventType: string, additionalNotes?: strin
     .join('')
 }
 
-/**
- * Build base outputs common to all Jira webhook triggers
- */
 function buildBaseWebhookOutputs(): Record<string, TriggerOutput> {
   return {
-    // Event metadata
-    event_type: {
+    webhookEvent: {
       type: 'string',
       description:
         'The webhook event type (e.g., jira:issue_created, comment_created, worklog_created)',
@@ -120,106 +116,157 @@ function buildBaseWebhookOutputs(): Record<string, TriggerOutput> {
       description: 'Timestamp of the webhook event',
     },
 
-    // Flattened issue fields for easy access
-    issue_id: {
-      type: 'string',
-      description: 'Jira issue ID',
-    },
-    issue_key: {
-      type: 'string',
-      description: 'Jira issue key (e.g., PROJ-123)',
-    },
-    summary: {
-      type: 'string',
-      description: 'Issue summary/title',
-    },
-    description: {
-      type: 'string',
-      description: 'Issue description',
-    },
-    status: {
-      type: 'string',
-      description: 'Current issue status name',
-    },
-    status_id: {
-      type: 'string',
-      description: 'Current issue status ID',
-    },
-    priority: {
-      type: 'string',
-      description: 'Issue priority name',
-    },
-    priority_id: {
-      type: 'string',
-      description: 'Issue priority ID',
-    },
-    assignee: {
-      type: 'string',
-      description: 'Assignee display name',
-    },
-    assignee_id: {
-      type: 'string',
-      description: 'Assignee account ID',
-    },
-    reporter: {
-      type: 'string',
-      description: 'Reporter display name',
-    },
-    reporter_id: {
-      type: 'string',
-      description: 'Reporter account ID',
-    },
-    project_key: {
-      type: 'string',
-      description: 'Project key',
-    },
-    project_name: {
-      type: 'string',
-      description: 'Project name',
-    },
-    issue_type: {
-      type: 'string',
-      description: 'Issue type name (e.g., Bug, Task, Story)',
-    },
-    created_date: {
-      type: 'string',
-      description: 'Issue creation date (ISO format)',
-    },
-    updated_date: {
-      type: 'string',
-      description: 'Issue last updated date (ISO format)',
-    },
-
-    // User who triggered the event
-    user_name: {
-      type: 'string',
-      description: 'Display name of user who triggered the event',
-    },
-    user_id: {
-      type: 'string',
-      description: 'Account ID of user who triggered the event',
-    },
-    user_email: {
-      type: 'string',
-      description: 'Email of user who triggered the event',
-    },
-
-    // Nested complete objects for detailed access
-    jira: {
-      type: 'json',
-      description:
-        'Complete Jira webhook payload (access nested data like jira.user.accountId, jira.issue.id, jira.issue.fields.summary, etc.)',
-    },
     issue: {
-      type: 'json',
-      description: 'Complete issue object from Jira',
-    },
-    user: {
-      type: 'json',
-      description: 'User object who triggered the event',
+      id: {
+        type: 'string',
+        description: 'Jira issue ID',
+      },
+      key: {
+        type: 'string',
+        description: 'Jira issue key (e.g., PROJ-123)',
+      },
+      self: {
+        type: 'string',
+        description: 'REST API URL for this issue',
+      },
+      fields: {
+        votes: {
+          type: 'json',
+          description: 'Votes on this issue',
+        },
+        labels: {
+          type: 'array',
+          description: 'Array of labels applied to this issue',
+        },
+        status: {
+          name: {
+            type: 'string',
+            description: 'Status name',
+          },
+          id: {
+            type: 'string',
+            description: 'Status ID',
+          },
+          statusCategory: {
+            type: 'json',
+            description: 'Status category information',
+          },
+        },
+        created: {
+          type: 'string',
+          description: 'Issue creation date (ISO format)',
+        },
+        creator: {
+          displayName: {
+            type: 'string',
+            description: 'Creator display name',
+          },
+          accountId: {
+            type: 'string',
+            description: 'Creator account ID',
+          },
+          emailAddress: {
+            type: 'string',
+            description: 'Creator email address',
+          },
+        },
+        duedate: {
+          type: 'string',
+          description: 'Due date for the issue',
+        },
+        project: {
+          key: {
+            type: 'string',
+            description: 'Project key',
+          },
+          name: {
+            type: 'string',
+            description: 'Project name',
+          },
+          id: {
+            type: 'string',
+            description: 'Project ID',
+          },
+        },
+        summary: {
+          type: 'string',
+          description: 'Issue summary/title',
+        },
+        updated: {
+          type: 'string',
+          description: 'Last updated date (ISO format)',
+        },
+        watches: {
+          type: 'json',
+          description: 'Watchers information',
+        },
+        assignee: {
+          displayName: {
+            type: 'string',
+            description: 'Assignee display name',
+          },
+          accountId: {
+            type: 'string',
+            description: 'Assignee account ID',
+          },
+          emailAddress: {
+            type: 'string',
+            description: 'Assignee email address',
+          },
+        },
+        priority: {
+          name: {
+            type: 'string',
+            description: 'Priority name',
+          },
+          id: {
+            type: 'string',
+            description: 'Priority ID',
+          },
+        },
+        progress: {
+          type: 'json',
+          description: 'Progress tracking information',
+        },
+        reporter: {
+          displayName: {
+            type: 'string',
+            description: 'Reporter display name',
+          },
+          accountId: {
+            type: 'string',
+            description: 'Reporter account ID',
+          },
+          emailAddress: {
+            type: 'string',
+            description: 'Reporter email address',
+          },
+        },
+        security: {
+          type: 'string',
+          description: 'Security level',
+        },
+        subtasks: {
+          type: 'array',
+          description: 'Array of subtask objects',
+        },
+        versions: {
+          type: 'array',
+          description: 'Array of affected versions',
+        },
+        issuetype: {
+          name: {
+            type: 'string',
+            description: 'Issue type name',
+          },
+          id: {
+            type: 'string',
+            description: 'Issue type ID',
+          },
+        },
+      },
     },
 
-    // Webhook metadata
     webhook: {
       type: 'json',
       description: 'Webhook metadata including provider, path, and raw payload',
@@ -227,9 +274,6 @@ function buildBaseWebhookOutputs(): Record<string, TriggerOutput> {
   }
 }
 
-/**
- * Build outputs for issue created/deleted triggers (no changelog)
- */
 export function buildIssueOutputs(): Record<string, TriggerOutput> {
   return {
     ...buildBaseWebhookOutputs(),
@@ -240,9 +284,6 @@ export function buildIssueOutputs(): Record<string, TriggerOutput> {
   }
 }
 
-/**
- * Build outputs for issue updated trigger (includes changelog)
- */
 export function buildIssueUpdatedOutputs(): Record<string, TriggerOutput> {
   return {
     ...buildBaseWebhookOutputs(),
@@ -251,102 +292,101 @@ export function buildIssueUpdatedOutputs(): Record<string, TriggerOutput> {
       description: 'Issue event type name from Jira (only present in issue events)',
     },
     changelog: {
-      type: 'json',
-      description:
-        'Changelog object showing what fields changed (only available for issue_updated events)',
+      id: {
+        type: 'string',
+        description: 'Changelog ID',
+      },
+      items: {
+        type: 'array',
+        description:
+          'Array of changed items. Each item contains field, fieldtype, from, fromString, to, toString',
+      },
     },
   }
 }
 
-/**
- * Build outputs for comment-related triggers
- * Note: Comment webhooks do not include changelog or issue_event_type_name
- */
 export function buildCommentOutputs(): Record<string, TriggerOutput> {
   return {
     ...buildBaseWebhookOutputs(),
 
-    // Comment-specific fields
-    comment_id: {
-      type: 'string',
-      description: 'Comment ID',
-    },
-    comment_body: {
-      type: 'string',
-      description: 'Comment text/body',
-    },
-    comment_author: {
-      type: 'string',
-      description: 'Comment author display name',
-    },
-    comment_author_id: {
-      type: 'string',
-      description: 'Comment author account ID',
-    },
-    comment_created: {
-      type: 'string',
-      description: 'Comment creation date (ISO format)',
-    },
-    comment_updated: {
-      type: 'string',
-      description: 'Comment last updated date (ISO format)',
-    },
-
     comment: {
-      type: 'json',
-      description: 'Complete comment object from Jira',
+      id: {
+        type: 'string',
+        description: 'Comment ID',
+      },
+      body: {
+        type: 'string',
+        description: 'Comment text/body',
+      },
+      author: {
+        displayName: {
+          type: 'string',
+          description: 'Comment author display name',
+        },
+        accountId: {
+          type: 'string',
+          description: 'Comment author account ID',
+        },
+        emailAddress: {
+          type: 'string',
+          description: 'Comment author email address',
+        },
+      },
+      created: {
+        type: 'string',
+        description: 'Comment creation date (ISO format)',
+      },
+      updated: {
+        type: 'string',
+        description: 'Comment last updated date (ISO format)',
+      },
     },
   }
 }
 
-/**
- * Build outputs for worklog-related triggers
- * Note: Worklog webhooks do not include changelog or issue_event_type_name
- */
 export function buildWorklogOutputs(): Record<string, TriggerOutput> {
   return {
     ...buildBaseWebhookOutputs(),
 
-    // Worklog-specific fields
-    worklog_id: {
-      type: 'string',
-      description: 'Worklog entry ID',
-    },
-    worklog_author: {
-      type: 'string',
-      description: 'Worklog author display name',
-    },
-    worklog_author_id: {
-      type: 'string',
-      description: 'Worklog author account ID',
-    },
-    time_spent: {
-      type: 'string',
-      description: 'Time spent (e.g., "2h 30m")',
-    },
-    time_spent_seconds: {
-      type: 'number',
-      description: 'Time spent in seconds',
-    },
-    worklog_comment: {
-      type: 'string',
-      description: 'Worklog comment/description',
-    },
-    worklog_started: {
-      type: 'string',
-      description: 'When the work was started (ISO format)',
-    },
-
     worklog: {
-      type: 'json',
-      description: 'Complete worklog object from Jira',
+      id: {
+        type: 'string',
+        description: 'Worklog entry ID',
+      },
+      author: {
+        displayName: {
+          type: 'string',
+          description: 'Worklog author display name',
+        },
+        accountId: {
+          type: 'string',
+          description: 'Worklog author account ID',
+        },
+        emailAddress: {
+          type: 'string',
+          description: 'Worklog author email address',
+        },
+      },
+      timeSpent: {
+        type: 'string',
+        description: 'Time spent (e.g., "2h 30m")',
+      },
+      timeSpentSeconds: {
+        type: 'number',
+        description: 'Time spent in seconds',
+      },
+      comment: {
+        type: 'string',
+        description: 'Worklog comment/description',
+      },
+      started: {
+        type: 'string',
+        description: 'When the work was started (ISO format)',
+      },
     },
   }
 }
 
-/**
- * Validates if a webhook event matches the expected trigger type
- */
 export function isJiraEventMatch(
   triggerId: string,
   webhookEvent: string,
@@ -381,87 +421,30 @@ export function isJiraEventMatch(
   )
 }
 
-/**
- * Extracts and flattens issue data from Jira webhook payload
- */
 export function extractIssueData(body: any) {
-  const issue = body.issue || {}
-  const fields = issue.fields || {}
-  const user = body.user || {}
-
   return {
-    // Event metadata
-    event_type: body.webhookEvent,
-    issue_event_type_name: body.issue_event_type_name,
+    webhookEvent: body.webhookEvent,
     timestamp: body.timestamp,
-
-    // Flattened issue fields
-    issue_id: issue.id,
-    issue_key: issue.key,
-    summary: fields.summary,
-    description: fields.description,
-    status: fields.status?.name,
-    status_id: fields.status?.id,
-    priority: fields.priority?.name,
-    priority_id: fields.priority?.id,
-    assignee: fields.assignee?.displayName,
-    assignee_id: fields.assignee?.accountId,
-    reporter: fields.reporter?.displayName,
-    reporter_id: fields.reporter?.accountId,
-    project_key: fields.project?.key,
-    project_name: fields.project?.name,
-    issue_type: fields.issuetype?.name,
-    created_date: fields.created,
-    updated_date: fields.updated,
-
-    // User who triggered the event
-    user_name: user.displayName,
-    user_id: user.accountId,
-    user_email: user.emailAddress,
-
-    // Complete Jira webhook payload for direct nested access (e.g., <jira.user.accountId>, <jira.issue.id>)
-    jira: body,
-    issue: issue,
+    issue_event_type_name: body.issue_event_type_name,
+    issue: body.issue || {},
     changelog: body.changelog,
-    user: user,
   }
 }
 
-/**
- * Extracts comment data from Jira webhook payload
- */
 export function extractCommentData(body: any) {
-  const baseData = extractIssueData(body)
-  const comment = body.comment || {}
-
   return {
-    ...baseData,
-    comment_id: comment.id,
-    comment_body: comment.body,
-    comment_author: comment.author?.displayName,
-    comment_author_id: comment.author?.accountId,
-    comment_created: comment.created,
-    comment_updated: comment.updated,
-    comment: comment,
+    webhookEvent: body.webhookEvent,
+    timestamp: body.timestamp,
+    issue: body.issue || {},
+    comment: body.comment || {},
   }
 }
 
-/**
- * Extracts worklog data from Jira webhook payload
- */
 export function extractWorklogData(body: any) {
-  const baseData = extractIssueData(body)
-  const worklog = body.worklog || {}
-
   return {
-    ...baseData,
-    worklog_id: worklog.id,
-    worklog_author: worklog.author?.displayName,
-    worklog_author_id: worklog.author?.accountId,
-    time_spent: worklog.timeSpent,
-    time_spent_seconds: worklog.timeSpentSeconds,
-    worklog_comment: worklog.comment,
-    worklog_started: worklog.started,
-    worklog: worklog,
+    webhookEvent: body.webhookEvent,
+    timestamp: body.timestamp,
+    issue: body.issue || {},
+    worklog: body.worklog || {},
   }
 }

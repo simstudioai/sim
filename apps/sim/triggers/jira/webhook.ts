@@ -69,31 +69,84 @@ export const jiraWebhookTrigger: TriggerConfig = {
 
   outputs: {
     ...buildIssueOutputs(),
-    // Add comment-specific outputs (may or may not be present)
+    changelog: {
+      id: {
+        type: 'string',
+        description: 'Changelog ID',
+      },
+      items: {
+        type: 'array',
+        description:
+          'Array of changed items. Each item contains field, fieldtype, from, fromString, to, toString',
+      },
+    },
     comment: {
-      type: 'json',
-      description: 'Comment object (for comment events)',
+      id: {
+        type: 'string',
+        description: 'Comment ID',
+      },
+      body: {
+        type: 'string',
+        description: 'Comment text/body',
+      },
+      author: {
+        displayName: {
+          type: 'string',
+          description: 'Comment author display name',
+        },
+        accountId: {
+          type: 'string',
+          description: 'Comment author account ID',
+        },
+        emailAddress: {
+          type: 'string',
+          description: 'Comment author email address',
+        },
+      },
+      created: {
+        type: 'string',
+        description: 'Comment creation date (ISO format)',
+      },
+      updated: {
+        type: 'string',
+        description: 'Comment last updated date (ISO format)',
+      },
     },
-    comment_id: {
-      type: 'string',
-      description: 'Comment ID (for comment events)',
-    },
-    comment_body: {
-      type: 'string',
-      description: 'Comment text (for comment events)',
-    },
-    // Add worklog-specific outputs (may or may not be present)
     worklog: {
-      type: 'json',
-      description: 'Worklog object (for worklog events)',
-    },
-    worklog_id: {
-      type: 'string',
-      description: 'Worklog ID (for worklog events)',
-    },
-    time_spent: {
-      type: 'string',
-      description: 'Time spent (for worklog events)',
+      id: {
+        type: 'string',
+        description: 'Worklog entry ID',
+      },
+      author: {
+        displayName: {
+          type: 'string',
+          description: 'Worklog author display name',
+        },
+        accountId: {
+          type: 'string',
+          description: 'Worklog author account ID',
+        },
+        emailAddress: {
+          type: 'string',
+          description: 'Worklog author email address',
+        },
+      },
+      timeSpent: {
+        type: 'string',
+        description: 'Time spent (e.g., "2h 30m")',
+      },
+      timeSpentSeconds: {
+        type: 'number',
+        description: 'Time spent in seconds',
+      },
+      comment: {
+        type: 'string',
+        description: 'Worklog comment/description',
+      },
+      started: {
+        type: 'string',
+        description: 'When the work was started (ISO format)',
+      },
     },
   },
 

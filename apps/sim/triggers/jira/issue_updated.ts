@@ -1,6 +1,6 @@
 import { JiraIcon } from '@/components/icons'
 import type { TriggerConfig } from '@/triggers/types'
-import { buildIssueOutputs, jiraSetupInstructions } from './utils'
+import { buildIssueUpdatedOutputs, jiraSetupInstructions } from './utils'
 
 /**
  * Jira Issue Updated Trigger
@@ -94,7 +94,7 @@ export const jiraIssueUpdatedTrigger: TriggerConfig = {
     },
   ],
 
-  outputs: buildIssueOutputs(),
+  outputs: buildIssueUpdatedOutputs(),
 
   webhook: {
     method: 'POST',
