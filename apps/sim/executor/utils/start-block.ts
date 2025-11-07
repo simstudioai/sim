@@ -268,8 +268,17 @@ function buildUnifiedStartOutput(workflowInput: unknown): NormalizedBlockOutput 
   if (!Object.hasOwn(output, 'input')) {
     output.input = ''
   }
+
   if (!Object.hasOwn(output, 'conversationId')) {
-    output.conversationId = ''
+    const conversationId =
+      isPlainObject(workflowInput) && workflowInput.conversationId
+        ? ensureString(workflowInput.conversationId)
+        : undefined
+    if (conversationId) {
+      output.conversationId = conversationId
+    }
+  } else if (typeof output.conversationId === 'string' && output.conversationId.length === 0) {
+    delete output.conversationId
   }
 
   return mergeFilesIntoOutput(output, workflowInput)
@@ -293,7 +302,11 @@ function buildChatOutput(workflowInput: unknown): NormalizedBlockOutput {
 
   const output: NormalizedBlockOutput = {
     input: ensureString(source?.input),
-    conversationId: ensureString(source?.conversationId),
+  }
+
+  const conversationId = ensureString(source?.conversationId)
+  if (conversationId) {
+    output.conversationId = conversationId
   }
 
   return mergeFilesIntoOutput(output, workflowInput)
@@ -319,7 +332,7 @@ function buildLegacyStarterOutput(
   }
 
   const conversationId = isPlainObject(workflowInput) ? workflowInput.conversationId : undefined
-  if (conversationId !== undefined) {
+  if (conversationId) {
     output.conversationId = ensureString(conversationId)
   }
 
