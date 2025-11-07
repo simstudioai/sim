@@ -321,17 +321,15 @@ Descargar un archivo de un bucket de almacenamiento de Supabase
 | --------- | ---- | -------- | ----------- |
 | `projectId` | string | Sí | ID de tu proyecto Supabase \(p. ej., jdrkgepadsdopsntdlom\) |
 | `bucket` | string | Sí | El nombre del bucket de almacenamiento |
-| `path` | string | Sí | La ruta al archivo para descargar \(p. ej., "carpeta/archivo.jpg"\) |
+| `path` | string | Sí | La ruta al archivo a descargar \(p. ej., "carpeta/archivo.jpg"\) |
+| `fileName` | string | No | Anulación opcional del nombre del archivo |
 | `apiKey` | string | Sí | Tu clave secreta de rol de servicio de Supabase |
 
 #### Salida
 
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
-| `message` | string | Mensaje de estado de la operación |
-| `fileContent` | string | Contenido del archivo \(codificado en base64 si es binario, texto plano en caso contrario\) |
-| `contentType` | string | Tipo MIME del archivo |
-| `isBase64` | boolean | Indica si el contenido del archivo está codificado en base64 |
+| `file` | file | Archivo descargado almacenado en archivos de ejecución |
 
 ### `supabase_storage_list`
 

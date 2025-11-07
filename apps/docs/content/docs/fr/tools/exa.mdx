@@ -56,20 +56,16 @@ Recherchez sur le web en utilisant Exa AI. Renvoie des résultats de recherche p
 | Paramètre | Type | Obligatoire | Description |
 | --------- | ---- | ---------- | ----------- |
 | `query` | chaîne | Oui | La requête de recherche à exécuter |
-| `numResults` | nombre | Non | Nombre de résultats à renvoyer \(par défaut : 10, max : 25\) |
-| `useAutoprompt` | booléen | Non | Indique s'il faut utiliser l'autoprompt pour améliorer la requête \(par défaut : false\) |
+| `numResults` | nombre | Non | Nombre de résultats à retourner \(par défaut : 10, max : 25\) |
+| `useAutoprompt` | booléen | Non | Utiliser l'autoprompt pour améliorer la requête \(par défaut : false\) |
 | `type` | chaîne | Non | Type de recherche : neural, keyword, auto ou fast \(par défaut : auto\) |
-| `includeDomains` | chaîne | Non | Liste de domaines séparés par des virgules à inclure dans les résultats |
-| `excludeDomains` | chaîne | Non | Liste de domaines séparés par des virgules à exclure des résultats |
-| `startPublishedDate` | chaîne | Non | Filtrer les résultats publiés après cette date \(format ISO 8601, ex. 2024-01-01\) |
-| `endPublishedDate` | chaîne | Non | Filtrer les résultats publiés avant cette date \(format ISO 8601\) |
-| `startCrawlDate` | chaîne | Non | Filtrer les résultats indexés après cette date \(format ISO 8601\) |
-| `endCrawlDate` | chaîne | Non | Filtrer les résultats indexés avant cette date \(format ISO 8601\) |
+| `includeDomains` | chaîne | Non | Liste de domaines à inclure dans les résultats, séparés par des virgules |
+| `excludeDomains` | chaîne | Non | Liste de domaines à exclure des résultats, séparés par des virgules |
 | `category` | chaîne | Non | Filtrer par catégorie : company, research_paper, news_article, pdf, github, tweet, movie, song, personal_site |
 | `text` | booléen | Non | Inclure le contenu textuel complet dans les résultats \(par défaut : false\) |
-| `highlights` | booléen | Non | Inclure des extraits mis en évidence dans les résultats \(par défaut : false\) |
+| `highlights` | booléen | Non | Inclure des extraits surlignés dans les résultats \(par défaut : false\) |
 | `summary` | booléen | Non | Inclure des résumés générés par IA dans les résultats \(par défaut : false\) |
-| `livecrawl` | chaîne | Non | Mode d'indexation en direct : always, fallback, ou never \(par défaut : never\) |
+| `livecrawl` | chaîne | Non | Mode d'exploration en direct : always, fallback, ou never \(par défaut : never\) |
 | `apiKey` | chaîne | Oui | Clé API Exa AI |
 
 #### Sortie
@@ -111,14 +107,10 @@ Trouvez des pages web similaires à une URL donnée en utilisant Exa AI. Renvoie
 | --------- | ---- | ---------- | ----------- |
 | `url` | chaîne | Oui | L'URL pour laquelle trouver des liens similaires |
 | `numResults` | nombre | Non | Nombre de liens similaires à retourner \(par défaut : 10, max : 25\) |
-| `text` | booléen | Non | Indique s'il faut inclure le texte complet des pages similaires |
-| `includeDomains` | chaîne | Non | Liste de domaines séparés par des virgules à inclure dans les résultats |
-| `excludeDomains` | chaîne | Non | Liste de domaines séparés par des virgules à exclure des résultats |
+| `text` | booléen | Non | Inclure ou non le texte complet des pages similaires |
+| `includeDomains` | chaîne | Non | Liste de domaines à inclure dans les résultats, séparés par des virgules |
+| `excludeDomains` | chaîne | Non | Liste de domaines à exclure des résultats, séparés par des virgules |
 | `excludeSourceDomain` | booléen | Non | Exclure le domaine source des résultats \(par défaut : false\) |
-| `startPublishedDate` | chaîne | Non | Filtrer les résultats publiés après cette date \(format ISO 8601, ex. : 2024-01-01\) |
-| `endPublishedDate` | chaîne | Non | Filtrer les résultats publiés avant cette date \(format ISO 8601\) |
-| `startCrawlDate` | chaîne | Non | Filtrer les résultats explorés après cette date \(format ISO 8601\) |
-| `endCrawlDate` | chaîne | Non | Filtrer les résultats explorés avant cette date \(format ISO 8601\) |
 | `category` | chaîne | Non | Filtrer par catégorie : company, research_paper, news_article, pdf, github, tweet, movie, song, personal_site |
 | `highlights` | booléen | Non | Inclure des extraits surlignés dans les résultats \(par défaut : false\) |
 | `summary` | booléen | Non | Inclure des résumés générés par IA dans les résultats \(par défaut : false\) |

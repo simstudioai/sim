@@ -125,9 +125,8 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 | --------- | ---- | -------- | ----------- |
 | `input` | string | 是 | 研究查询或问题 \(最多 15,000 个字符\) |
 | `processor` | string | 否 | 计算级别：base、lite、pro、ultra、ultra2x、ultra4x、ultra8x \(默认值：base\) |
-| `output_schema` | string | 否 | 所需的输出格式描述。使用 "text" 表示带有引用的 markdown 报告，或描述结构化 JSON 格式 |
-| `include_domains` | string | 否 | 限制研究的域名列表，以逗号分隔 \(来源策略\) |
-| `exclude_domains` | string | 否 | 排除研究的域名列表，以逗号分隔 \(来源策略\) |
+| `include_domains` | string | 否 | 限制研究范围的以逗号分隔的域名列表 \(来源策略\) |
+| `exclude_domains` | string | 否 | 从研究中排除的以逗号分隔的域名列表 \(来源策略\) |
 | `apiKey` | string | 是 | Parallel AI API 密钥 |
 
 #### 输出

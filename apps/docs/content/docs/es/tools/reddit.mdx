@@ -120,29 +120,6 @@ Obtener publicaciones controvertidas de un subreddit
 | `subreddit` | string | Nombre del subreddit del que se obtuvieron las publicaciones |
 | `posts` | array | Array de publicaciones controvertidas con título, autor, URL, puntuación, recuento de comentarios y metadatos |
 
-### `reddit_get_gilded`
-
-Obtener publicaciones premiadas/con medallas de un subreddit
-
-#### Entrada
-
-| Parámetro | Tipo | Obligatorio | Descripción |
-| --------- | ---- | -------- | ----------- |
-| `subreddit` | string | Sí | El nombre del subreddit del que obtener publicaciones \(sin el prefijo r/\) |
-| `limit` | number | No | Número máximo de publicaciones a devolver \(predeterminado: 10, máximo: 100\) |
-| `after` | string | No | Nombre completo de un elemento para obtener elementos posteriores \(para paginación\) |
-| `before` | string | No | Nombre completo de un elemento para obtener elementos anteriores \(para paginación\) |
-| `count` | number | No | Recuento de elementos ya vistos en el listado \(usado para numeración\) |
-| `show` | string | No | Mostrar elementos que normalmente serían filtrados \(p. ej., "all"\) |
-| `sr_detail` | boolean | No | Expandir detalles del subreddit en la respuesta |
-
-#### Salida
-
-| Parámetro | Tipo | Descripción |
-| --------- | ---- | ----------- |
-| `subreddit` | string | Nombre del subreddit del que se obtuvieron las publicaciones |
-| `posts` | array | Array de publicaciones premiadas/con insignias con título, autor, URL, puntuación, recuento de comentarios y metadatos |
-
 ### `reddit_search`
 
 Buscar publicaciones dentro de un subreddit
@@ -160,7 +137,7 @@ Buscar publicaciones dentro de un subreddit
 | `after` | string | No | Nombre completo de un elemento para obtener elementos posteriores \(para paginación\) |
 | `before` | string | No | Nombre completo de un elemento para obtener elementos anteriores \(para paginación\) |
 | `count` | number | No | Recuento de elementos ya vistos en el listado \(usado para numeración\) |
-| `show` | string | No | Mostrar elementos que normalmente serían filtrados \(por ejemplo, "all"\) |
+| `show` | string | No | Mostrar elementos que normalmente serían filtrados \(p. ej., "all"\) |
 
 #### Salida
 
@@ -191,11 +168,11 @@ Enviar una nueva publicación a un subreddit (texto o enlace)
 | --------- | ---- | ----------- |
 | `success` | boolean | Si la publicación se envió correctamente |
 | `message` | string | Mensaje de éxito o error |
-| `data` | object | Datos de la publicación incluyendo ID, nombre, URL y permalink |
+| `data` | object | Datos de la publicación incluyendo ID, nombre, URL y enlace permanente |
 
 ### `reddit_vote`
 
-Votar positivamente, negativamente o quitar voto a una publicación o comentario de Reddit
+Votar positivamente, negativamente o quitar el voto a una publicación o comentario de Reddit
 
 #### Entrada
 
@@ -208,7 +185,7 @@ Votar positivamente, negativamente o quitar voto a una publicación o comentario
 
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
-| `success` | boolean | Si el voto fue exitoso |
+| `success` | boolean | Indica si el voto fue exitoso |
 | `message` | string | Mensaje de éxito o error |
 
 ### `reddit_save`
@@ -226,7 +203,7 @@ Guardar una publicación o comentario de Reddit en tus elementos guardados
 
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
-| `success` | boolean | Si el guardado fue exitoso |
+| `success` | boolean | Indica si el guardado fue exitoso |
 | `message` | string | Mensaje de éxito o error |
 
 ### `reddit_unsave`
@@ -253,16 +230,16 @@ Añadir una respuesta de comentario a una publicación o comentario de Reddit
 
 | Parámetro | Tipo | Obligatorio | Descripción |
 | --------- | ---- | -------- | ----------- |
-| `parent_id` | string | Sí | Nombre completo del elemento al que responder (p. ej., t3_xxxxx para publicación, t1_xxxxx para comentario) |
+| `parent_id` | string | Sí | Nombre completo del elemento al que responder \(p. ej., t3_xxxxx para publicación, t1_xxxxx para comentario\) |
 | `text` | string | Sí | Texto del comentario en formato markdown |
 
 #### Salida
 
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
-| `success` | boolean | Indica si la respuesta se publicó correctamente |
+| `success` | boolean | Si la respuesta se publicó correctamente |
 | `message` | string | Mensaje de éxito o error |
-| `data` | object | Datos del comentario incluyendo ID, nombre, enlace permanente y cuerpo |
+| `data` | object | Datos del comentario incluyendo ID, nombre, permalink y cuerpo |
 
 ### `reddit_edit`
 
@@ -272,14 +249,14 @@ Editar el texto de tu propia publicación o comentario de Reddit
 
 | Parámetro | Tipo | Obligatorio | Descripción |
 | --------- | ---- | -------- | ----------- |
-| `thing_id` | string | Sí | Nombre completo del elemento a editar (p. ej., t3_xxxxx para publicación, t1_xxxxx para comentario) |
+| `thing_id` | string | Sí | Nombre completo del elemento a editar \(p. ej., t3_xxxxx para publicación, t1_xxxxx para comentario\) |
 | `text` | string | Sí | Nuevo contenido de texto en formato markdown |
 
 #### Salida
 
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
-| `success` | boolean | Indica si la edición fue exitosa |
+| `success` | boolean | Si la edición fue exitosa |
 | `message` | string | Mensaje de éxito o error |
 | `data` | object | Datos del contenido actualizado |
 
@@ -291,7 +268,7 @@ Eliminar tu propia publicación o comentario de Reddit
 
 | Parámetro | Tipo | Obligatorio | Descripción |
 | --------- | ---- | -------- | ----------- |
-| `id` | string | Sí | Nombre completo del elemento a eliminar (p. ej., t3_xxxxx para publicación, t1_xxxxx para comentario) |
+| `id` | string | Sí | Nombre completo del elemento a eliminar \(p. ej., t3_xxxxx para publicación, t1_xxxxx para comentario\) |
 
 #### Salida
 
@@ -306,7 +283,7 @@ Suscribirse o cancelar la suscripción a un subreddit
 
 #### Entrada
 
-| Parámetro | Tipo | Requerido | Descripción |
+| Parámetro | Tipo | Obligatorio | Descripción |
 | --------- | ---- | -------- | ----------- |
 | `subreddit` | string | Sí | El nombre del subreddit \(sin el prefijo r/\) |
 | `action` | string | Sí | Acción a realizar: "sub" para suscribirse o "unsub" para cancelar la suscripción |

@@ -1,6 +1,6 @@
 ---
 title: OneDrive
-description: 创建、上传和列出文件
+description: 创建、上传、下载、列出和删除文件
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -50,7 +50,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 ## 使用说明
 
-将 OneDrive 集成到工作流程中。可以创建文本和 Excel 文件、上传文件以及列出文件。
+将 OneDrive 集成到工作流程中。可以创建文本和 Excel 文件，上传文件，下载文件，列出文件，以及删除文件或文件夹。
 
 ## 工具
 
@@ -133,7 +133,25 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 | `files` | array | 包含元数据的文件和文件夹对象数组 |
 | `nextPageToken` | string | 用于检索下一页结果的令牌 \(可选\) |
 
+### `onedrive_delete`
+
+从 OneDrive 删除文件或文件夹
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `fileId` | string | 是 | 要删除的文件或文件夹的 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 文件是否成功删除 |
+| `deleted` | boolean | 文件已删除的确认信息 |
+| `fileId` | string | 已删除文件的 ID |
+
 ## 注意事项
 
-- 类别: `tools`
-- 类型: `onedrive`
+- 类别：`tools`
+- 类型：`onedrive`

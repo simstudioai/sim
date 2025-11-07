@@ -38,7 +38,7 @@ En Sim, la integración con Linear permite a tus agentes interactuar sin problem
 
 ## Instrucciones de uso
 
-Integra Linear en el flujo de trabajo. Puede gestionar incidencias, comentarios, proyectos, etiquetas, estados de flujo de trabajo, ciclos, archivos adjuntos y más.
+Integra Linear en el flujo de trabajo. Puede gestionar incidencias, comentarios, proyectos, etiquetas, estados de flujo de trabajo, ciclos, adjuntos y más. También puede activar flujos de trabajo basados en eventos de webhook de Linear.
 
 ## Herramientas
 
@@ -884,6 +884,590 @@ Marcar una notificación como leída o no leída en Linear
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
 | `notification` | object | La notificación actualizada |
+
+### `linear_create_customer`
+
+Crear un nuevo cliente en Linear
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ----------- | ----------- |
+| `name` | string | Sí | Nombre del cliente |
+| `domains` | array | No | Dominios asociados con este cliente |
+| `externalIds` | array | No | IDs externos de otros sistemas |
+| `logoUrl` | string | No | URL del logotipo del cliente |
+| `ownerId` | string | No | ID del usuario propietario de este cliente |
+| `revenue` | number | No | Ingresos anuales de este cliente |
+| `size` | number | No | Tamaño de la organización del cliente |
+| `statusId` | string | No | ID del estado del cliente |
+| `tierId` | string | No | ID del nivel del cliente |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `customer` | object | El cliente creado |
+
+### `linear_list_customers`
+
+Listar todos los clientes en Linear
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ----------- | ----------- |
+| `first` | number | No | Número de clientes a devolver \(predeterminado: 50\) |
+| `after` | string | No | Cursor para paginación |
+| `includeArchived` | boolean | No | Incluir clientes archivados \(predeterminado: false\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `customers` | array | Array de clientes |
+
+### `linear_create_customer_request`
+
+Crea una solicitud de cliente (necesidad) en Linear. Asigna al cliente, establece la urgencia (prioridad: 0 = No importante, 1 = Importante), y opcionalmente vincula a una incidencia.
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ----------- | ----------- |
+| `customerId` | string | Sí | ID del cliente al que asignar esta solicitud |
+| `body` | string | No | Descripción de la solicitud del cliente |
+| `priority` | number | No | Nivel de urgencia: 0 = No importante, 1 = Importante \(predeterminado: 0\) |
+| `issueId` | string | No | ID de la incidencia a la que vincular esta solicitud |
+| `projectId` | string | No | ID del proyecto al que vincular esta solicitud |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `customerNeed` | object | La solicitud de cliente creada |
+
+### `linear_update_customer_request`
+
+Actualiza una solicitud de cliente (necesidad) en Linear. Puede cambiar la urgencia, descripción, asignación de cliente e incidencia vinculada.
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ----------- | ----------- |
+| `customerNeedId` | string | Sí | ID de la solicitud de cliente a actualizar |
+| `body` | string | No | Descripción actualizada de la solicitud del cliente |
+| `priority` | number | No | Nivel de urgencia actualizado: 0 = No importante, 1 = Importante |
+| `customerId` | string | No | Nuevo ID del cliente al que asignar esta solicitud |
+| `issueId` | string | No | Nuevo ID de la incidencia a la que vincular esta solicitud |
+| `projectId` | string | No | Nuevo ID del proyecto al que vincular esta solicitud |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `customerNeed` | object | La solicitud del cliente actualizada |
+
+### `linear_list_customer_requests`
+
+Listar todas las solicitudes de clientes (necesidades) en Linear
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ----------- | ----------- |
+| `first` | number | No | Número de solicitudes de clientes a devolver \(predeterminado: 50\) |
+| `after` | string | No | Cursor para paginación |
+| `includeArchived` | boolean | No | Incluir solicitudes de clientes archivadas \(predeterminado: false\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `customerNeeds` | array | Array de solicitudes de clientes |
+
+### `linear_get_customer`
+
+Obtener un solo cliente por ID en Linear
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ----------- | ----------- |
+| `customerId` | string | Sí | ID del cliente a recuperar |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `customer` | object | Los datos del cliente |
+
+### `linear_update_customer`
+
+Actualizar un cliente en Linear
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ----------- | ----------- |
+| `customerId` | string | Sí | ID del cliente a actualizar |
+| `name` | string | No | Nombre del cliente actualizado |
+| `domains` | array | No | Dominios actualizados |
+| `externalIds` | array | No | IDs externos actualizados |
+| `logoUrl` | string | No | URL del logo actualizada |
+| `ownerId` | string | No | ID del usuario propietario actualizado |
+| `revenue` | number | No | Ingresos anuales actualizados |
+| `size` | number | No | Tamaño de la organización actualizado |
+| `statusId` | string | No | ID del estado del cliente actualizado |
+| `tierId` | string | No | ID del nivel del cliente actualizado |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `customer` | object | El cliente actualizado |
+
+### `linear_delete_customer`
+
+Eliminar un cliente en Linear
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ----------- | ----------- |
+| `customerId` | string | Sí | ID del cliente a eliminar |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Indica si la eliminación fue exitosa |
+
+### `linear_merge_customers`
+
+Fusionar dos clientes en Linear moviendo todos los datos desde el origen al destino
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ----------- | ----------- |
+| `sourceCustomerId` | string | Sí | ID del cliente origen (será eliminado después de la fusión) |
+| `targetCustomerId` | string | Sí | ID del cliente destino (recibirá todos los datos) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `customer` | object | El cliente destino fusionado |
+
+### `linear_create_customer_status`
+
+Crear un nuevo estado de cliente en Linear
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ----------- | ----------- |
+| `name` | string | Sí | Nombre del estado del cliente |
+| `color` | string | Sí | Color del estado (código hex) |
+| `displayName` | string | No | Nombre para mostrar del estado |
+| `description` | string | No | Descripción del estado |
+| `position` | number | No | Posición en la lista de estados |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `customerStatus` | object | El estado del cliente creado |
+
+### `linear_update_customer_status`
+
+Actualizar un estado de cliente en Linear
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ----------- | ----------- |
+| `statusId` | string | Sí | ID del estado de cliente a actualizar |
+| `name` | string | No | Nombre de estado actualizado |
+| `color` | string | No | Color de estado actualizado |
+| `displayName` | string | No | Nombre de visualización actualizado |
+| `description` | string | No | Descripción actualizada |
+| `position` | number | No | Posición actualizada |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `customerStatus` | object | El estado del cliente actualizado |
+
+### `linear_delete_customer_status`
+
+Eliminar un estado de cliente en Linear
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ----------- | ----------- |
+| `statusId` | string | Sí | ID del estado de cliente a eliminar |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Indica si la eliminación fue exitosa |
+
+### `linear_list_customer_statuses`
+
+Listar todos los estados de cliente en Linear
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ----------- | ----------- |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `customerStatuses` | array | Lista de estados de cliente |
+
+### `linear_create_customer_tier`
+
+Crear un nuevo nivel de cliente en Linear
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ----------- | ----------- |
+| `name` | string | Sí | Nombre del nivel de cliente |
+| `color` | string | Sí | Color del nivel (código hex) |
+| `displayName` | string | No | Nombre para mostrar del nivel |
+| `description` | string | No | Descripción del nivel |
+| `position` | number | No | Posición en la lista de niveles |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `customerTier` | object | El nivel de cliente creado |
+
+### `linear_update_customer_tier`
+
+Actualizar un nivel de cliente en Linear
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ----------- | ----------- |
+| `tierId` | string | Sí | ID del nivel de cliente a actualizar |
+| `name` | string | No | Nombre actualizado del nivel |
+| `color` | string | No | Color actualizado del nivel |
+| `displayName` | string | No | Nombre para mostrar actualizado |
+| `description` | string | No | Descripción actualizada |
+| `position` | number | No | Posición actualizada |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `customerTier` | object | El nivel de cliente actualizado |
+
+### `linear_delete_customer_tier`
+
+Eliminar un nivel de cliente en Linear
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ----------- | ----------- |
+| `tierId` | string | Sí | ID del nivel de cliente a eliminar |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Indica si la eliminación fue exitosa |
+
+### `linear_list_customer_tiers`
+
+Listar todos los niveles de cliente en Linear
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ----------- | ----------- |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `customerTiers` | array | Lista de niveles de cliente |
+
+### `linear_delete_project`
+
+Eliminar un proyecto en Linear
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ----------- | ----------- |
+| `projectId` | string | Sí | ID del proyecto a eliminar |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Indica si la eliminación fue exitosa |
+
+### `linear_create_project_label`
+
+Crear una nueva etiqueta de proyecto en Linear
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ----------- | ----------- |
+| `name` | string | Sí | Nombre de la etiqueta de proyecto |
+| `color` | string | No | Color de la etiqueta (código hexadecimal) |
+| `description` | string | No | Descripción de la etiqueta |
+| `isGroup` | boolean | No | Indica si es un grupo de etiquetas |
+| `parentId` | string | No | ID del grupo de etiquetas padre |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `projectLabel` | object | La etiqueta de proyecto creada |
+
+### `linear_update_project_label`
+
+Actualizar una etiqueta de proyecto en Linear
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ----------- | ----------- |
+| `labelId` | string | Sí | ID de la etiqueta de proyecto a actualizar |
+| `name` | string | No | Nombre actualizado de la etiqueta |
+| `color` | string | No | Color actualizado de la etiqueta |
+| `description` | string | No | Descripción actualizada |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `projectLabel` | object | La etiqueta de proyecto actualizada |
+
+### `linear_delete_project_label`
+
+Eliminar una etiqueta de proyecto en Linear
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ----------- | ----------- |
+| `labelId` | string | Sí | ID de la etiqueta de proyecto a eliminar |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Indica si la eliminación fue exitosa |
+
+### `linear_list_project_labels`
+
+Listar todas las etiquetas de proyecto en Linear
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ----------- | ----------- |
+| `projectId` | string | No | ID de proyecto opcional para filtrar etiquetas de un proyecto específico |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `projectLabels` | array | Lista de etiquetas de proyecto |
+
+### `linear_add_label_to_project`
+
+Añadir una etiqueta a un proyecto en Linear
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ----------- | ----------- |
+| `projectId` | string | Sí | ID del proyecto |
+| `labelId` | string | Sí | ID de la etiqueta para añadir |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Indica si la etiqueta se añadió correctamente |
+| `projectId` | string | El ID del proyecto |
+
+### `linear_remove_label_from_project`
+
+Eliminar una etiqueta de un proyecto en Linear
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ----------- | ----------- |
+| `projectId` | string | Sí | ID del proyecto |
+| `labelId` | string | Sí | ID de la etiqueta para eliminar |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Indica si la etiqueta se eliminó correctamente |
+| `projectId` | string | El ID del proyecto |
+
+### `linear_create_project_milestone`
+
+Crear un nuevo hito de proyecto en Linear
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ----------- | ----------- |
+| `projectId` | string | Sí | ID del proyecto |
+| `name` | string | Sí | Nombre del hito |
+| `description` | string | No | Descripción del hito |
+| `targetDate` | string | No | Fecha objetivo \(ISO 8601\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `projectMilestone` | object | El hito de proyecto creado |
+
+### `linear_update_project_milestone`
+
+Actualizar un hito de proyecto en Linear
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ----------- | ----------- |
+| `milestoneId` | string | Sí | ID del hito de proyecto a actualizar |
+| `name` | string | No | Nombre actualizado del hito |
+| `description` | string | No | Descripción actualizada |
+| `targetDate` | string | No | Fecha objetivo actualizada \(ISO 8601\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `projectMilestone` | object | El hito de proyecto actualizado |
+
+### `linear_delete_project_milestone`
+
+Eliminar un hito de proyecto en Linear
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ----------- | ----------- |
+| `milestoneId` | string | Sí | ID del hito de proyecto a eliminar |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Indica si la eliminación fue exitosa |
+
+### `linear_list_project_milestones`
+
+Listar todos los hitos de un proyecto en Linear
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ----------- | ----------- |
+| `projectId` | string | Sí | ID del proyecto para listar sus hitos |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `projectMilestones` | array | Lista de hitos del proyecto |
+
+### `linear_create_project_status`
+
+Crear un nuevo estado de proyecto en Linear
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ----------- | ----------- |
+| `name` | string | Sí | Nombre del estado del proyecto |
+| `color` | string | Sí | Color del estado \(código hex\) |
+| `description` | string | No | Descripción del estado |
+| `indefinite` | boolean | No | Indica si el estado es indefinido |
+| `position` | number | No | Posición en la lista de estados |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `projectStatus` | object | El estado del proyecto creado |
+
+### `linear_update_project_status`
+
+Actualizar un estado de proyecto en Linear
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ----------- | ----------- |
+| `statusId` | string | Sí | ID del estado del proyecto a actualizar |
+| `name` | string | No | Nombre actualizado del estado |
+| `color` | string | No | Color actualizado del estado |
+| `description` | string | No | Descripción actualizada |
+| `indefinite` | boolean | No | Indicador indefinido actualizado |
+| `position` | number | No | Posición actualizada |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `projectStatus` | object | El estado del proyecto actualizado |
+
+### `linear_delete_project_status`
+
+Eliminar un estado de proyecto en Linear
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ----------- | ----------- |
+| `statusId` | string | Sí | ID del estado del proyecto a eliminar |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Indica si la eliminación fue exitosa |
+
+### `linear_list_project_statuses`
+
+Listar todos los estados de proyecto en Linear
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ----------- | ----------- |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `projectStatuses` | array | Lista de estados de proyecto |
 
 ## Notas
 

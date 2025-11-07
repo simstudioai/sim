@@ -1,6 +1,6 @@
 ---
 title: OneDrive
-description: Dateien erstellen, hochladen und auflisten
+description: Dateien erstellen, hochladen, herunterladen, auflisten und löschen
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -50,7 +50,7 @@ In Sim ermöglicht die OneDrive-Integration Ihren Agenten die direkte Interaktio
 
 ## Nutzungsanweisungen
 
-OneDrive in den Workflow integrieren. Kann Text- und Excel-Dateien erstellen, Dateien hochladen und Dateien auflisten.
+Integriert OneDrive in den Workflow. Kann Text- und Excel-Dateien erstellen, Dateien hochladen, Dateien herunterladen, Dateien auflisten und Dateien oder Ordner löschen.
 
 ## Tools
 
@@ -132,6 +132,24 @@ Dateien und Ordner in OneDrive auflisten
 | `success` | boolean | Ob Dateien erfolgreich aufgelistet wurden |
 | `files` | array | Array von Datei- und Ordnerobjekten mit Metadaten |
 | `nextPageToken` | string | Token zum Abrufen der nächsten Ergebnisseite (optional) |
+
+### `onedrive_delete`
+
+Eine Datei oder einen Ordner von OneDrive löschen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `fileId` | string | Ja | Die ID der zu löschenden Datei oder des zu löschenden Ordners |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Ob die Datei erfolgreich gelöscht wurde |
+| `deleted` | boolean | Bestätigung, dass die Datei gelöscht wurde |
+| `fileId` | string | Die ID der gelöschten Datei |
 
 ## Hinweise
 

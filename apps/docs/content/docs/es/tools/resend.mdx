@@ -51,11 +51,12 @@ Envía un correo electrónico usando tu propia clave API de Resend y dirección 
 #### Entrada
 
 | Parámetro | Tipo | Obligatorio | Descripción |
-| --------- | ---- | ----------- | ----------- |
+| --------- | ---- | ---------- | ----------- |
 | `fromAddress` | string | Sí | Dirección de correo electrónico desde la que enviar |
 | `to` | string | Sí | Dirección de correo electrónico del destinatario |
 | `subject` | string | Sí | Asunto del correo electrónico |
 | `body` | string | Sí | Contenido del cuerpo del correo electrónico |
+| `contentType` | string | No | Tipo de contenido para el cuerpo del correo electrónico \(texto o html\) |
 | `resendApiKey` | string | Sí | Clave API de Resend para enviar correos electrónicos |
 
 #### Salida

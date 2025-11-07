@@ -162,11 +162,12 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 | `to` | string | 是 | 收件人电子邮件地址 |
 | `subject` | string | 是 | 邮件主题 |
 | `body` | string | 是 | 邮件正文内容 |
+| `contentType` | string | 否 | 邮件正文的内容类型（text 或 html） |
 | `replyToMessageId` | string | 否 | 要回复的消息 ID（用于线程化） |
 | `conversationId` | string | 否 | 用于线程化的会话 ID |
-| `cc` | string | 否 | 抄送收件人（以逗号分隔） |
-| `bcc` | string | 否 | 密送收件人（以逗号分隔） |
-| `attachments` | file[] | 否 | 要附加到电子邮件的文件 |
+| `cc` | string | 否 | 抄送收件人（逗号分隔） |
+| `bcc` | string | 否 | 密送收件人（逗号分隔） |
+| `attachments` | file[] | 否 | 要附加到邮件的文件 |
 
 #### 输出
 
@@ -188,8 +189,9 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 | `to` | string | 是 | 收件人电子邮件地址 |
 | `subject` | string | 是 | 邮件主题 |
 | `body` | string | 是 | 邮件正文内容 |
-| `cc` | string | 否 | 抄送收件人（以逗号分隔） |
-| `bcc` | string | 否 | 密送收件人（以逗号分隔） |
+| `contentType` | string | 否 | 邮件正文的内容类型（text 或 html） |
+| `cc` | string | 否 | 抄送收件人（逗号分隔） |
+| `bcc` | string | 否 | 密送收件人（逗号分隔） |
 | `attachments` | file[] | 否 | 要附加到邮件草稿的文件 |
 
 #### 输出

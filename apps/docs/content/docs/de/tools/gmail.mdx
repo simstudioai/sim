@@ -74,10 +74,11 @@ E-Mails mit Gmail senden
 | `to` | string | Ja | E-Mail-Adresse des Empfängers |
 | `subject` | string | Nein | Betreff der E-Mail |
 | `body` | string | Ja | Inhalt der E-Mail |
-| `threadId` | string | Nein | Thread-ID für Antworten \(für Threading\) |
-| `replyToMessageId` | string | Nein | Gmail-Nachrichten-ID für Antworten - verwenden Sie das "id"-Feld aus den Gmail-Leseergebnissen \(nicht die RFC "messageId"\) |
-| `cc` | string | Nein | CC-Empfänger \(durch Kommas getrennt\) |
-| `bcc` | string | Nein | BCC-Empfänger \(durch Kommas getrennt\) |
+| `contentType` | string | Nein | Inhaltstyp für den E-Mail-Text (text oder html) |
+| `threadId` | string | Nein | Thread-ID für Antworten (für Threading) |
+| `replyToMessageId` | string | Nein | Gmail-Nachrichten-ID für Antworten - verwenden Sie das "id"-Feld aus den Gmail-Leseergebnissen (nicht die RFC "messageId") |
+| `cc` | string | Nein | CC-Empfänger (durch Kommas getrennt) |
+| `bcc` | string | Nein | BCC-Empfänger (durch Kommas getrennt) |
 | `attachments` | file[] | Nein | Dateien, die an die E-Mail angehängt werden sollen |
 
 #### Ausgabe
@@ -98,10 +99,11 @@ E-Mail-Entwürfe in Gmail erstellen
 | `to` | string | Ja | E-Mail-Adresse des Empfängers |
 | `subject` | string | Nein | Betreff der E-Mail |
 | `body` | string | Ja | Inhalt der E-Mail |
-| `threadId` | string | Nein | Thread-ID für Antworten \(für Threading\) |
-| `replyToMessageId` | string | Nein | Gmail-Nachrichten-ID für Antworten - verwenden Sie das "id"-Feld aus den Gmail-Leseergebnissen \(nicht die RFC "messageId"\) |
-| `cc` | string | Nein | CC-Empfänger \(durch Kommas getrennt\) |
-| `bcc` | string | Nein | BCC-Empfänger \(durch Kommas getrennt\) |
+| `contentType` | string | Nein | Inhaltstyp für den E-Mail-Text (text oder html) |
+| `threadId` | string | Nein | Thread-ID für Antworten (für Threading) |
+| `replyToMessageId` | string | Nein | Gmail-Nachrichten-ID für Antworten - verwenden Sie das "id"-Feld aus den Gmail-Leseergebnissen (nicht die RFC "messageId") |
+| `cc` | string | Nein | CC-Empfänger (durch Kommas getrennt) |
+| `bcc` | string | Nein | BCC-Empfänger (durch Kommas getrennt) |
 | `attachments` | file[] | Nein | Dateien, die an den E-Mail-Entwurf angehängt werden sollen |
 
 #### Ausgabe

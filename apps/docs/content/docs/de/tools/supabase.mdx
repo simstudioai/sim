@@ -322,16 +322,14 @@ Eine Datei aus einem Supabase-Speicher-Bucket herunterladen
 | `projectId` | string | Ja | Ihre Supabase-Projekt-ID \(z.B. jdrkgepadsdopsntdlom\) |
 | `bucket` | string | Ja | Der Name des Speicher-Buckets |
 | `path` | string | Ja | Der Pfad zur herunterzuladenden Datei \(z.B. "ordner/datei.jpg"\) |
+| `fileName` | string | Nein | Optionale Überschreibung des Dateinamens |
 | `apiKey` | string | Ja | Ihr Supabase Service Role Secret Key |
 
 #### Ausgabe
 
 | Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
-| `message` | string | Statusmeldung der Operation |
-| `fileContent` | string | Dateiinhalt \(base64-kodiert bei Binärdateien, ansonsten Klartext\) |
-| `contentType` | string | MIME-Typ der Datei |
-| `isBase64` | boolean | Ob der Dateiinhalt base64-kodiert ist |
+| `file` | file | Heruntergeladene Datei, gespeichert in Ausführungsdateien |
 
 ### `supabase_storage_list`
 

@@ -319,19 +319,17 @@ Télécharger un fichier depuis un bucket de stockage Supabase
 
 | Paramètre | Type | Obligatoire | Description |
 | --------- | ---- | ----------- | ----------- |
-| `projectId` | string | Oui | L'ID de votre projet Supabase \(ex. : jdrkgepadsdopsntdlom\) |
-| `bucket` | string | Oui | Le nom du bucket de stockage |
-| `path` | string | Oui | Le chemin vers le fichier à télécharger \(ex. : "dossier/fichier.jpg"\) |
-| `apiKey` | string | Oui | Votre clé secrète de rôle de service Supabase |
+| `projectId` | chaîne | Oui | L'ID de votre projet Supabase (ex. : jdrkgepadsdopsntdlom) |
+| `bucket` | chaîne | Oui | Le nom du bucket de stockage |
+| `path` | chaîne | Oui | Le chemin vers le fichier à télécharger (ex. : "dossier/fichier.jpg") |
+| `fileName` | chaîne | Non | Remplacement optionnel du nom de fichier |
+| `apiKey` | chaîne | Oui | Votre clé secrète de rôle de service Supabase |
 
 #### Sortie
 
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
-| `message` | string | Message d'état de l'opération |
-| `fileContent` | string | Contenu du fichier \(encodé en base64 si binaire, texte brut sinon\) |
-| `contentType` | string | Type MIME du fichier |
-| `isBase64` | boolean | Indique si le contenu du fichier est encodé en base64 |
+| `file` | fichier | Fichier téléchargé stocké dans les fichiers d'exécution |
 
 ### `supabase_storage_list`
 
