@@ -62,7 +62,7 @@ export const subscribeTool: ToolConfig<RedditSubscribeParams, RedditWriteRespons
         sr_name: subreddit,
       })
 
-      return formData.toString()
+      return formData.toString() as unknown as Record<string, any>
     },
   },
 

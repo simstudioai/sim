@@ -59,7 +59,7 @@ export const voteTool: ToolConfig<RedditVoteParams, RedditWriteResponse> = {
         dir: params.dir.toString(),
       })
 
-      return formData.toString()
+      return formData.toString() as unknown as Record<string, any>
     },
   },
 
