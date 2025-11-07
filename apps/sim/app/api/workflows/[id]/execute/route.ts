@@ -196,7 +196,7 @@ function resolveOutputIds(
   return selectedOutputs.map((outputId) => {
     const underscoreIndex = outputId.indexOf('_')
     const dotIndex = outputId.indexOf('.')
-    
+
     // Check if starts with UUID followed by separator
     if (underscoreIndex > 0) {
       const maybeUuid = outputId.substring(0, underscoreIndex)
@@ -204,12 +204,12 @@ function resolveOutputIds(
         return outputId
       }
     }
-    
+
     if (dotIndex > 0) {
       const maybeUuid = outputId.substring(0, dotIndex)
       if (uuidValidate(maybeUuid)) {
         // Convert to underscore format for consistency
-        return outputId.substring(0, dotIndex) + '_' + outputId.substring(dotIndex + 1)
+        return `${outputId.substring(0, dotIndex)}_${outputId.substring(dotIndex + 1)}`
       }
     }
 

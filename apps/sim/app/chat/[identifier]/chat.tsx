@@ -409,6 +409,7 @@ export default function ChatClient({ identifier }: { identifier: string }) {
             autoPlayResponses: shouldPlayAudio,
           },
           audioStreamHandler: audioHandler,
+          outputConfigs: chatConfig?.outputConfigs,
         }
       )
     } catch (error: any) {
