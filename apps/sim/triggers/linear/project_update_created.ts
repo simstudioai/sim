@@ -1,6 +1,6 @@
 import { LinearIcon } from '@/components/icons'
 import type { TriggerConfig } from '@/triggers/types'
-import { buildProjectUpdateOutputs, linearSetupInstructions, linearWebhookSubBlocks } from './utils'
+import { buildProjectUpdateOutputs, linearSetupInstructions } from './utils'
 
 export const linearProjectUpdateCreatedTrigger: TriggerConfig = {
   id: 'linear_project_update_created',
@@ -11,13 +11,34 @@ export const linearProjectUpdateCreatedTrigger: TriggerConfig = {
   icon: LinearIcon,
 
   subBlocks: [
-    ...linearWebhookSubBlocks.map((block) => ({
-      ...block,
+    {
+      id: 'webhookUrlDisplay',
+      title: 'Webhook URL',
+      type: 'short-input',
+      readOnly: true,
+      showCopyButton: true,
+      useWebhookUrl: true,
+      placeholder: 'Webhook URL will be generated',
+      mode: 'trigger',
       condition: {
         field: 'selectedTriggerId',
         value: 'linear_project_update_created',
       },
-    })),
+    },
+    {
+      id: 'webhookSecret',
+      title: 'Webhook Secret',
+      type: 'short-input',
+      placeholder: 'Enter a strong secret',
+      description: 'Validates that webhook deliveries originate from Linear.',
+      password: true,
+      required: false,
+      mode: 'trigger',
+      condition: {
+        field: 'selectedTriggerId',
+        value: 'linear_project_update_created',
+      },
+    },
     {
       id: 'triggerInstructions',
       title: 'Setup Instructions',

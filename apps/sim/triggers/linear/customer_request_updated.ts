@@ -1,11 +1,6 @@
 import { LinearIcon } from '@/components/icons'
 import type { TriggerConfig } from '@/triggers/types'
-import {
-  buildCustomerRequestOutputs,
-  linearSetupInstructions,
-  linearTriggerOptions,
-  linearWebhookSubBlocks,
-} from './utils'
+import { buildCustomerRequestOutputs, linearSetupInstructions } from './utils'
 
 export const linearCustomerRequestUpdatedTrigger: TriggerConfig = {
   id: 'linear_customer_request_updated',
@@ -17,21 +12,33 @@ export const linearCustomerRequestUpdatedTrigger: TriggerConfig = {
 
   subBlocks: [
     {
-      id: 'selectedTriggerId',
-      title: 'Trigger Type',
-      type: 'dropdown',
+      id: 'webhookUrlDisplay',
+      title: 'Webhook URL',
+      type: 'short-input',
+      readOnly: true,
+      showCopyButton: true,
+      useWebhookUrl: true,
+      placeholder: 'Webhook URL will be generated',
       mode: 'trigger',
-      options: linearTriggerOptions,
-      value: () => 'linear_customer_request_updated',
-      required: true,
-    },
-    ...linearWebhookSubBlocks.map((block) => ({
-      ...block,
       condition: {
         field: 'selectedTriggerId',
         value: 'linear_customer_request_updated',
       },
-    })),
+    },
+    {
+      id: 'webhookSecret',
+      title: 'Webhook Secret',
+      type: 'short-input',
+      placeholder: 'Enter a strong secret',
+      description: 'Validates that webhook deliveries originate from Linear.',
+      password: true,
+      required: false,
+      mode: 'trigger',
+      condition: {
+        field: 'selectedTriggerId',
+        value: 'linear_customer_request_updated',
+      },
+    },
     {
       id: 'triggerInstructions',
       title: 'Setup Instructions',

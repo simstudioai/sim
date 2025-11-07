@@ -1,6 +1,6 @@
 import { LinearIcon } from '@/components/icons'
 import type { TriggerConfig } from '@/triggers/types'
-import { linearSetupInstructions, linearWebhookSubBlocks, userOutputs } from './utils'
+import { linearSetupInstructions, userOutputs } from './utils'
 
 export const linearWebhookTrigger: TriggerConfig = {
   id: 'linear_webhook',
@@ -11,7 +11,34 @@ export const linearWebhookTrigger: TriggerConfig = {
   icon: LinearIcon,
 
   subBlocks: [
-    ...linearWebhookSubBlocks,
+    {
+      id: 'webhookUrlDisplay',
+      title: 'Webhook URL',
+      type: 'short-input',
+      readOnly: true,
+      showCopyButton: true,
+      useWebhookUrl: true,
+      placeholder: 'Webhook URL will be generated',
+      mode: 'trigger',
+      condition: {
+        field: 'selectedTriggerId',
+        value: 'linear_webhook',
+      },
+    },
+    {
+      id: 'webhookSecret',
+      title: 'Webhook Secret',
+      type: 'short-input',
+      placeholder: 'Enter a strong secret',
+      description: 'Validates that webhook deliveries originate from Linear.',
+      password: true,
+      required: false,
+      mode: 'trigger',
+      condition: {
+        field: 'selectedTriggerId',
+        value: 'linear_webhook',
+      },
+    },
     {
       id: 'triggerInstructions',
       title: 'Setup Instructions',
@@ -21,6 +48,10 @@ export const linearWebhookTrigger: TriggerConfig = {
         'This webhook will receive all Linear events. Use the <code>type</code> and <code>action</code> fields in the payload to filter and handle different event types.'
       ),
       mode: 'trigger',
+      condition: {
+        field: 'selectedTriggerId',
+        value: 'linear_webhook',
+      },
     },
     {
       id: 'triggerSave',
@@ -28,6 +59,10 @@ export const linearWebhookTrigger: TriggerConfig = {
       type: 'trigger-save',
       mode: 'trigger',
       triggerId: 'linear_webhook',
+      condition: {
+        field: 'selectedTriggerId',
+        value: 'linear_webhook',
+      },
     },
     {
       id: 'samplePayload',
@@ -62,6 +97,10 @@ export const linearWebhookTrigger: TriggerConfig = {
       collapsible: true,
       defaultCollapsed: true,
       mode: 'trigger',
+      condition: {
+        field: 'selectedTriggerId',
+        value: 'linear_webhook',
+      },
     },
   ],
 

@@ -1,4 +1,3 @@
-import type { SubBlockConfig } from '@/blocks/types'
 import type { TriggerOutput } from '@/triggers/types'
 
 /**
@@ -20,32 +19,6 @@ export const linearTriggerOptions = [
   { label: 'Customer Request Created', id: 'linear_customer_request_created' },
   { label: 'Customer Request Updated', id: 'linear_customer_request_updated' },
   { label: 'General Webhook (All Events)', id: 'linear_webhook' },
-]
-
-/**
- * Shared sub-blocks configuration for all Linear webhook triggers
- */
-export const linearWebhookSubBlocks: SubBlockConfig[] = [
-  {
-    id: 'webhookUrlDisplay',
-    title: 'Webhook URL',
-    type: 'short-input',
-    readOnly: true,
-    showCopyButton: true,
-    useWebhookUrl: true,
-    placeholder: 'Webhook URL will be generated',
-    mode: 'trigger',
-  },
-  {
-    id: 'webhookSecret',
-    title: 'Webhook Secret',
-    type: 'short-input',
-    placeholder: 'Enter a strong secret',
-    description: 'Validates that webhook deliveries originate from Linear.',
-    password: true,
-    required: false,
-    mode: 'trigger',
-  },
 ]
 
 /**
