@@ -78,6 +78,81 @@ export const jiraIssueCommentedTrigger: TriggerConfig = {
         value: 'jira_issue_commented',
       },
     },
+    {
+      id: 'samplePayload',
+      title: 'Event Payload Example',
+      type: 'code',
+      language: 'json',
+      defaultValue: JSON.stringify(
+        {
+          timestamp: 1234567890000,
+          webhookEvent: 'comment_created',
+          issue: {
+            id: '10001',
+            key: 'PROJ-123',
+            self: 'https://your-domain.atlassian.net/rest/api/2/issue/10001',
+            fields: {
+              summary: 'Bug needs investigation',
+              status: {
+                name: 'In Progress',
+                id: '10001',
+                statusCategory: {
+                  key: 'indeterminate',
+                  name: 'In Progress',
+                },
+              },
+              priority: {
+                name: 'High',
+                id: '2',
+              },
+              assignee: {
+                displayName: 'John Doe',
+                accountId: '557058:a1b2c3d4-5e6f-7g8h-9i0j-k1l2m3n4o5p6',
+                emailAddress: 'john.doe@example.com',
+              },
+              reporter: {
+                displayName: 'Jane Smith',
+                accountId: '557058:b2c3d4e5-6f7g-8h9i-0j1k-l2m3n4o5p6q7',
+                emailAddress: 'jane.smith@example.com',
+              },
+              project: {
+                key: 'PROJ',
+                name: 'Project Name',
+                id: '10000',
+              },
+              issuetype: {
+                name: 'Bug',
+                id: '10004',
+              },
+              created: '2024-01-15T10:30:00.000+0000',
+              updated: '2024-01-15T15:45:00.000+0000',
+              labels: ['backend', 'urgent'],
+            },
+          },
+          comment: {
+            id: '10050',
+            body: 'I found the root cause. The issue is in the authentication service.',
+            author: {
+              displayName: 'John Doe',
+              accountId: '557058:a1b2c3d4-5e6f-7g8h-9i0j-k1l2m3n4o5p6',
+              emailAddress: 'john.doe@example.com',
+            },
+            created: '2024-01-15T15:45:00.000+0000',
+            updated: '2024-01-15T15:45:00.000+0000',
+          },
+        },
+        null,
+        2
+      ),
+      readOnly: true,
+      collapsible: true,
+      defaultCollapsed: true,
+      mode: 'trigger',
+      condition: {
+        field: 'selectedTriggerId',
+        value: 'jira_issue_commented',
+      },
+    },
   ],
 
   outputs: buildCommentOutputs(),
