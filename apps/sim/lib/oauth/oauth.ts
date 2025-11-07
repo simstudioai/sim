@@ -700,7 +700,10 @@ export interface ScopeEvaluation {
 }
 
 // Compare granted scopes with canonical ones for a providerId
-export function evaluateScopeCoverage(providerId: string, grantedScopes: string[]): ScopeEvaluation {
+export function evaluateScopeCoverage(
+  providerId: string,
+  grantedScopes: string[]
+): ScopeEvaluation {
   const canonicalScopes = getCanonicalScopesForProvider(providerId)
   const normalizedGranted = normalizeScopes(grantedScopes)
 

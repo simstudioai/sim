@@ -73,13 +73,15 @@ describe('OAuth Credentials API Route', () => {
       baseProvider: providerId.split('-')[0] || providerId,
     }))
 
-    mockEvaluateScopeCoverage.mockImplementation((_providerId: string, grantedScopes: string[]) => ({
-      canonicalScopes: grantedScopes,
-      grantedScopes,
-      missingScopes: [],
-      extraScopes: [],
-      requiresReauthorization: false,
-    }))
+    mockEvaluateScopeCoverage.mockImplementation(
+      (_providerId: string, grantedScopes: string[]) => ({
+        canonicalScopes: grantedScopes,
+        grantedScopes,
+        missingScopes: [],
+        extraScopes: [],
+        requiresReauthorization: false,
+      })
+    )
   })
 
   afterEach(() => {

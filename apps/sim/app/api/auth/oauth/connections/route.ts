@@ -4,8 +4,8 @@ import { jwtDecode } from 'jwt-decode'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console/logger'
-import { evaluateScopeCoverage, parseProvider } from '@/lib/oauth/oauth'
 import type { OAuthProvider } from '@/lib/oauth/oauth'
+import { evaluateScopeCoverage, parseProvider } from '@/lib/oauth/oauth'
 import { generateRequestId } from '@/lib/utils'
 
 const logger = createLogger('OAuthConnectionsAPI')
@@ -144,9 +144,7 @@ export async function GET(request: NextRequest) {
             extraScopes: scopeEvaluation.extraScopes,
             requiresReauthorization: scopeEvaluation.requiresReauthorization,
             lastConnected: acc.updatedAt.toISOString(),
-            accounts: [
-              accountSummary,
-            ],
+            accounts: [accountSummary],
           })
         }
       }
