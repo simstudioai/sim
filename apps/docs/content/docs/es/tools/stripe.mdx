@@ -79,7 +79,7 @@ Crear un nuevo Payment Intent para procesar un pago
 | `description` | string | No | Descripción del pago |
 | `receipt_email` | string | No | Dirección de correo electrónico para enviar el recibo |
 | `metadata` | json | No | Conjunto de pares clave-valor para almacenar información adicional |
-| `automatic_payment_methods` | json | No | Habilitar métodos de pago automáticos (p. ej., {"enabled": true}) |
+| `automatic_payment_methods` | json | No | Habilitar métodos de pago automáticos \(p. ej., \{"enabled": true\}\) |
 
 #### Salida
 
@@ -359,7 +359,7 @@ Crear una nueva suscripción para un cliente
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Sí | Clave API de Stripe (clave secreta) |
 | `customer` | string | Sí | ID del cliente a suscribir |
-| `items` | json | Sí | Array de elementos con IDs de precio (p. ej., [{"price": "price_xxx", "quantity": 1}]) |
+| `items` | json | Sí | Array de elementos con IDs de precio \(p. ej., \[\{"price": "price_xxx", "quantity": 1\}\]\) |
 | `trial_period_days` | number | No | Número de días de prueba |
 | `default_payment_method` | string | No | ID del método de pago |
 | `cancel_at_period_end` | boolean | No | Cancelar suscripción al final del período |
@@ -1051,7 +1051,7 @@ Listar todos los eventos
 | `apiKey` | string | Sí | Clave API de Stripe (clave secreta) |
 | `limit` | number | No | Número de resultados a devolver (predeterminado 10, máximo 100) |
 | `type` | string | No | Filtrar por tipo de evento (p. ej., payment_intent.created) |
-| `created` | json | No | Filtrar por fecha de creación (p. ej., {"gt": 1633024800}) |
+| `created` | json | No | Filtrar por fecha de creación \(p. ej., \{"gt": 1633024800\}\) |
 
 #### Salida
 

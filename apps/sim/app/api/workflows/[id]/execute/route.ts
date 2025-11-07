@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from 'next/server'
-import { v4 as uuidv4 } from 'uuid'
+import { validate as uuidValidate, v4 as uuidv4 } from 'uuid'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { checkServerSideUsageLimits } from '@/lib/billing'
 import { processInputFileFields } from '@/lib/execution/files'
@@ -13,6 +13,7 @@ import {
 import { executeWorkflowCore } from '@/lib/workflows/executor/execution-core'
 import { type ExecutionEvent, encodeSSEEvent } from '@/lib/workflows/executor/execution-events'
 import { PauseResumeManager } from '@/lib/workflows/executor/pause-resume-manager'
+import { createStreamingResponse } from '@/lib/workflows/streaming'
 import { validateWorkflowAccess } from '@/app/api/workflows/middleware'
 import { type ExecutionMetadata, ExecutionSnapshot } from '@/executor/execution/snapshot'
 import type { StreamingExecution } from '@/executor/types'
@@ -182,6 +183,60 @@ export function createFilteredResult(result: any) {
         }
       : undefined,
   }
+}
+
+function resolveOutputIds(
+  selectedOutputs: string[] | undefined,
+  blocks: Record<string, any>
+): string[] | undefined {
+  if (!selectedOutputs || selectedOutputs.length === 0) {
+    return selectedOutputs
+  }
+
+  return selectedOutputs.map((outputId) => {
+    const underscoreIndex = outputId.indexOf('_')
+    const dotIndex = outputId.indexOf('.')
+    if (underscoreIndex > 0) {
+      const maybeUuid = outputId.substring(0, underscoreIndex)
+      if (uuidValidate(maybeUuid)) {
+        return outputId
+      }
+    }
+
+    if (dotIndex > 0) {
+      const maybeUuid = outputId.substring(0, dotIndex)
+      if (uuidValidate(maybeUuid)) {
+        return `${outputId.substring(0, dotIndex)}_${outputId.substring(dotIndex + 1)}`
+      }
+    }
+
+    if (uuidValidate(outputId)) {
+      return outputId
+    }
+
+    if (dotIndex === -1) {
+      logger.warn(`Invalid output ID format (missing dot): ${outputId}`)
+      return outputId
+    }
+
+    const blockName = outputId.substring(0, dotIndex)
+    const path = outputId.substring(dotIndex + 1)
+
+    const normalizedBlockName = blockName.toLowerCase().replace(/\s+/g, '')
+    const block = Object.values(blocks).find((b: any) => {
+      const normalized = (b.name || '').toLowerCase().replace(/\s+/g, '')
+      return normalized === normalizedBlockName
+    })
+
+    if (!block) {
+      logger.warn(`Block not found for name: ${blockName} (from output ID: ${outputId})`)
+      return outputId
+    }
+
+    const resolvedId = `${block.id}_${path}`
+    logger.debug(`Resolved output ID: ${outputId} -> ${resolvedId}`)
+    return resolvedId
+  })
 }
 
 /**
@@ -425,7 +480,32 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       }
     }
 
-    logger.info(`[${requestId}] Using SSE execution (streaming response)`)
+    if (shouldUseDraftState) {
+      logger.info(`[${requestId}] Using SSE console log streaming (manual execution)`)
+    } else {
+      logger.info(`[${requestId}] Using streaming API response`)
+      const deployedData = await loadDeployedWorkflowState(workflowId)
+      const resolvedSelectedOutputs = resolveOutputIds(selectedOutputs, deployedData?.blocks || {})
+      const stream = await createStreamingResponse({
+        requestId,
+        workflow,
+        input: processedInput,
+        executingUserId: userId,
+        streamConfig: {
+          selectedOutputs: resolvedSelectedOutputs,
+          isSecureMode: false,
+          workflowTriggerType: triggerType === 'chat' ? 'chat' : 'api',
+        },
+        createFilteredResult,
+        executionId,
+      })
+
+      return new NextResponse(stream, {
+        status: 200,
+        headers: SSE_HEADERS,
+      })
+    }
+
     const encoder = new TextEncoder()
     let executorInstance: any = null
     let isStreamClosed = false
