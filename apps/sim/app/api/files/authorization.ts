@@ -122,7 +122,7 @@ export async function verifyFileAccess(
     }
 
     // 2. Execution files: workspace_id/workflow_id/execution_id/filename
-    if (inferredContext === 'execution' || isExecutionFile(cloudKey, bucketType)) {
+    if (inferredContext === 'execution' || (!context && isExecutionFile(cloudKey, bucketType))) {
       return await verifyExecutionFileAccess(cloudKey, userId, customConfig)
     }
 
