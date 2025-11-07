@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from 'next/server'
-import { v4 as uuidv4, validate as uuidValidate } from 'uuid'
+import { validate as uuidValidate, v4 as uuidv4 } from 'uuid'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { checkServerSideUsageLimits } from '@/lib/billing'
 import { processInputFileFields } from '@/lib/execution/files'
@@ -334,8 +334,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         variables: {},
       })
 
-    await loggingSession.safeCompleteWithError({
-      error: {
+      await loggingSession.safeCompleteWithError({
+        error: {
           message:
             usageCheck.message || 'Usage limit exceeded. Please upgrade your plan to continue.',
           stackTrace: undefined,
@@ -368,17 +368,17 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           false
         )
 
-          const executionContext = {
+        const executionContext = {
           workspaceId: workflow.workspaceId || '',
-            workflowId,
-            executionId,
-          }
+          workflowId,
+          executionId,
+        }
 
         processedInput = await processInputFileFields(
           input,
           serializedWorkflow.blocks,
-                executionContext,
-                requestId,
+          executionContext,
+          requestId,
           userId
         )
       }
@@ -477,27 +477,27 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       logger.info(`[${requestId}] Using SSE console log streaming (manual execution)`)
     } else {
       logger.info(`[${requestId}] Using streaming API response`)
-        const deployedData = await loadDeployedWorkflowState(workflowId)
+      const deployedData = await loadDeployedWorkflowState(workflowId)
       const resolvedSelectedOutputs = resolveOutputIds(selectedOutputs, deployedData?.blocks || {})
-        const stream = await createStreamingResponse({
-          requestId,
+      const stream = await createStreamingResponse({
+        requestId,
         workflow,
         input: processedInput,
         executingUserId: userId,
-          streamConfig: {
-            selectedOutputs: resolvedSelectedOutputs,
+        streamConfig: {
+          selectedOutputs: resolvedSelectedOutputs,
           isSecureMode: false,
           workflowTriggerType: triggerType === 'chat' ? 'chat' : 'api',
-          },
-          createFilteredResult,
-          executionId,
-        })
+        },
+        createFilteredResult,
+        executionId,
+      })
 
-        return new NextResponse(stream, {
-          status: 200,
-          headers: SSE_HEADERS,
-        })
-      }
+      return new NextResponse(stream, {
+        status: 200,
+        headers: SSE_HEADERS,
+      })
+    }
 
     const encoder = new TextEncoder()
     let executorInstance: any = null
@@ -665,7 +665,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           }
 
           const metadata: ExecutionMetadata = {
-        requestId,
+            requestId,
             executionId,
             workflowId,
             workspaceId: workflow.workspaceId,
@@ -742,7 +742,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
               endTime: result.metadata?.endTime || new Date().toISOString(),
             },
           })
-    } catch (error: any) {
+        } catch (error: any) {
           logger.error(`[${requestId}] SSE execution failed:`, error)
 
           const executionResult = error.executionResult
