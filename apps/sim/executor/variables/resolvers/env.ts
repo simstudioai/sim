@@ -1,6 +1,6 @@
 import { createLogger } from '@/lib/logs/console/logger'
 import { extractEnvVarName, isEnvVarReference } from '@/executor/consts'
-import type { ResolutionContext, Resolver } from './reference'
+import type { ResolutionContext, Resolver } from '@/executor/variables/resolvers/reference'
 
 const logger = createLogger('EnvResolver')
 
@@ -14,7 +14,6 @@ export class EnvResolver implements Resolver {
 
     const value = context.executionContext.environmentVariables?.[varName]
     if (value === undefined) {
-      logger.debug('Environment variable not found, returning original reference', { varName })
       return reference
     }
     return value

@@ -56,11 +56,6 @@ describe('File Upload API Route', () => {
     const response = await POST(req)
     const data = await response.json()
 
-    if (response.status !== 200) {
-      console.error('Upload failed with status:', response.status)
-      console.error('Error response:', data)
-    }
-
     expect(response.status).toBe(200)
     expect(data).toHaveProperty('url')
     expect(data.url).toMatch(/\/api\/files\/serve\/.*\.txt$/)

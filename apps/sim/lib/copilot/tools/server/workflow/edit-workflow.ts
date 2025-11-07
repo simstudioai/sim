@@ -9,7 +9,6 @@ import { extractAndPersistCustomTools } from '@/lib/workflows/custom-tools-persi
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/db-helpers'
 import { validateWorkflowState } from '@/lib/workflows/validation'
 import { getAllBlocks } from '@/blocks/registry'
-import { resolveOutputType } from '@/blocks/utils'
 import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
 
 interface EditWorkflowOperation {
@@ -134,9 +133,7 @@ function createBlockFromParams(blockId: string, params: any, parentId?: string):
         subBlocks[key] = { id: key, type: 'short-input', value: value }
       })
     }
-    outputs = triggerMode
-      ? getBlockOutputs(params.type, subBlocks, triggerMode)
-      : resolveOutputType(blockConfig.outputs)
+    outputs = getBlockOutputs(params.type, subBlocks, triggerMode)
   } else {
     outputs = {}
   }

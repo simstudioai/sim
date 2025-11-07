@@ -57,6 +57,7 @@
     "sms",
     "stagehand",
     "stagehand_agent",
+    "stripe",
     "supabase",
     "tavily",
     "telegram",

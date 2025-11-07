@@ -59,8 +59,15 @@ Search the web for information using Linkup
 | --------- | ---- | -------- | ----------- |
 | `q` | string | Yes | The search query |
 | `depth` | string | Yes | Search depth \(has to either be "standard" or "deep"\) |
-| `outputType` | string | Yes | Type of output to return \(has to either be "sourcedAnswer" or "searchResults"\) |
+| `outputType` | string | Yes | Type of output to return \(has to be "sourcedAnswer" or "searchResults"\) |
 | `apiKey` | string | Yes | Enter your Linkup API key |
+| `includeImages` | boolean | No | Whether to include images in search results |
+| `fromDate` | string | No | Start date for filtering results \(YYYY-MM-DD format\) |
+| `toDate` | string | No | End date for filtering results \(YYYY-MM-DD format\) |
+| `excludeDomains` | string | No | Comma-separated list of domain names to exclude from search results |
+| `includeDomains` | string | No | Comma-separated list of domain names to restrict search results to |
+| `includeInlineCitations` | boolean | No | Add inline citations to answers \(only applies when outputType is "sourcedAnswer"\) |
+| `includeSources` | boolean | No | Include sources in response |
 
 #### Output
 

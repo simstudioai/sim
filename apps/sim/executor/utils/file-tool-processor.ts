@@ -25,7 +25,6 @@ export class FileToolProcessor {
 
     const processedOutput = { ...toolOutput }
 
-    // Process each output that's marked as file or file[]
     for (const [outputKey, outputDef] of Object.entries(toolConfig.outputs)) {
       if (!FileToolProcessor.isFileOutput(outputDef.type)) {
         continue
@@ -101,7 +100,33 @@ export class FileToolProcessor {
     context: ExecutionContext
   ): Promise<UserFile> {
     try {
-      if (fileData.url) {
+      let buffer: Buffer | null = null
+
+      if (Buffer.isBuffer(fileData.data)) {
+        buffer = fileData.data
+      } else if (
+        fileData.data &&
+        typeof fileData.data === 'object' &&
+        'type' in fileData.data &&
+        'data' in fileData.data
+      ) {
+        const serializedBuffer = fileData.data as { type: string; data: number[] }
+        if (serializedBuffer.type === 'Buffer' && Array.isArray(serializedBuffer.data)) {
+          buffer = Buffer.from(serializedBuffer.data)
+        } else {
+          throw new Error(`Invalid serialized buffer format for ${fileData.name}`)
+        }
+      } else if (typeof fileData.data === 'string' && fileData.data) {
+        let base64Data = fileData.data
+
+        if (base64Data.includes('-') || base64Data.includes('_')) {
+          base64Data = base64Data.replace(/-/g, '+').replace(/_/g, '/')
+        }
+
+        buffer = Buffer.from(base64Data, 'base64')
+      }
+
+      if (!buffer && fileData.url) {
         const response = await fetch(fileData.url)
 
         if (!response.ok) {
@@ -109,8 +134,10 @@ export class FileToolProcessor {
         }
 
         const arrayBuffer = await response.arrayBuffer()
-        const buffer = Buffer.from(arrayBuffer)
+        buffer = Buffer.from(arrayBuffer)
+      }
 
+      if (buffer) {
         if (buffer.length === 0) {
           throw new Error(`File '${fileData.name}' has zero bytes`)
         }
@@ -125,6 +152,12 @@ export class FileToolProcessor {
           fileData.name,
           fileData.mimeType,
           context.userId
+        )
+      }
+
+      if (!fileData.data) {
+        throw new Error(
+          `File data for '${fileData.name}' must have either 'data' (Buffer/base64) or 'url' property`
         )
       }
 

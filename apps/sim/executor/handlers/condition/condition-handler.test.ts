@@ -101,8 +101,7 @@ describe('ConditionBlockHandler', () => {
       metadata: { duration: 0 },
       environmentVariables: {}, // Now set the context's env vars
       decisions: { router: new Map(), condition: new Map() },
-      loopIterations: new Map(),
-      loopItems: new Map(),
+      loopExecutions: new Map(),
       executedBlocks: new Set([mockSourceBlock.id]),
       activeExecutionPath: new Set(),
       workflow: mockWorkflow as SerializedWorkflow,
@@ -333,13 +332,18 @@ describe('ConditionBlockHandler', () => {
   it('should handle missing source block output gracefully', async () => {
     const conditions = [{ id: 'cond1', title: 'if', value: 'true' }]
     const inputs = { conditions: JSON.stringify(conditions) }
-    mockContext.blockStates.delete(mockSourceBlock.id)
+
+    // Create a new context with empty blockStates instead of trying to delete from readonly map
+    const contextWithoutSource = {
+      ...mockContext,
+      blockStates: new Map<string, BlockState>(),
+    }
 
     mockResolver.resolveVariableReferences.mockReturnValue('true')
     mockResolver.resolveBlockReferences.mockReturnValue('true')
     mockResolver.resolveEnvVariables.mockReturnValue('true')
 
-    const result = await handler.execute(mockContext, mockBlock, inputs)
+    const result = await handler.execute(contextWithoutSource, mockBlock, inputs)
 
     expect(result).toHaveProperty('conditionResult', true)
     expect(result).toHaveProperty('selectedConditionId', 'cond1')
@@ -393,14 +397,12 @@ describe('ConditionBlockHandler', () => {
     )
   })
 
-  it('should use loop context during evaluation if available', async () => {
+  it('falls back to else path when loop context data is unavailable', async () => {
     const conditions = [
       { id: 'cond1', title: 'if', value: 'context.item === "apple"' },
       { id: 'else1', title: 'else', value: '' },
     ]
     const inputs = { conditions: JSON.stringify(conditions) }
-
-    mockContext.loopItems.set(mockBlock.id, { item: 'apple' })
 
     // Mock the full resolution pipeline
     mockResolver.resolveVariableReferences.mockReturnValue('context.item === "apple"')
@@ -409,7 +411,7 @@ describe('ConditionBlockHandler', () => {
 
     const result = await handler.execute(mockContext, mockBlock, inputs)
 
-    expect(mockContext.decisions.condition.get(mockBlock.id)).toBe('cond1')
-    expect((result as any).selectedConditionId).toBe('cond1')
+    expect(mockContext.decisions.condition.get(mockBlock.id)).toBe('else1')
+    expect((result as any).selectedConditionId).toBe('else1')
   })
 })

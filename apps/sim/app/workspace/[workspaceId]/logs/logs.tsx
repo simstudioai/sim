@@ -1,7 +1,8 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { AlertCircle, Info, Loader2 } from 'lucide-react'
+import { AlertCircle, ArrowUpRight, Info, Loader2 } from 'lucide-react'
+import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { createLogger } from '@/lib/logs/console/logger'
 import { parseQuery, queryToApiParams } from '@/lib/logs/query-parser'
@@ -775,6 +776,13 @@ export default function Logs() {
                   {logs.map((log) => {
                     const formattedDate = formatDate(log.createdAt)
                     const isSelected = selectedLog?.id === log.id
+                    const baseLevel = (log.level || 'info').toLowerCase()
+                    const isError = baseLevel === 'error'
+                    // If it's an error, don't treat it as pending even if hasPendingPause is true
+                    const isPending = !isError && log.hasPendingPause === true
+                    const statusLabel = isPending
+                      ? 'Pending'
+                      : `${baseLevel.charAt(0).toUpperCase()}${baseLevel.slice(1)}`
 
                     return (
                       <div
@@ -785,7 +793,7 @@ export default function Logs() {
                         }`}
                         onClick={() => handleLogClick(log)}
                       >
-                        <div className='grid min-w-[600px] grid-cols-[120px_80px_120px_120px] items-center gap-2 px-2 py-4 md:grid-cols-[140px_90px_140px_120px] md:gap-3 lg:min-w-0 lg:grid-cols-[160px_100px_160px_120px] lg:gap-4 xl:grid-cols-[160px_100px_160px_120px_120px_100px]'>
+                        <div className='grid min-w-[600px] grid-cols-[120px_80px_120px_120px_40px] items-center gap-2 px-2 py-4 md:grid-cols-[140px_90px_140px_120px_40px] md:gap-3 lg:min-w-0 lg:grid-cols-[160px_100px_160px_120px_40px] lg:gap-4 xl:grid-cols-[160px_100px_160px_120px_120px_100px_40px]'>
                           {/* Time */}
                           <div>
                             <div className='text-[13px]'>
@@ -806,12 +814,14 @@ export default function Logs() {
                             <div
                               className={cn(
                                 'inline-flex items-center rounded-[8px] px-[6px] py-[2px] font-medium text-xs transition-all duration-200 lg:px-[8px]',
-                                log.level === 'error'
+                                isError
                                   ? 'bg-red-500 text-white'
-                                  : 'bg-secondary text-card-foreground'
+                                  : isPending
+                                    ? 'bg-amber-300 text-amber-900 dark:bg-amber-500/90 dark:text-black'
+                                    : 'bg-secondary text-card-foreground'
                               )}
                             >
-                              {log.level}
+                              {statusLabel}
                             </div>
                           </div>
 
@@ -859,6 +869,23 @@ export default function Logs() {
                             <div className='text-muted-foreground text-xs'>
                               {log.duration || '—'}
                             </div>
+                          </div>
+
+                          {/* Resume Link */}
+                          <div className='flex justify-end'>
+                            {isPending &&
+                            log.executionId &&
+                            (log.workflow?.id || log.workflowId) ? (
+                              <Link
+                                href={`/resume/${log.workflow?.id || log.workflowId}/${log.executionId}`}
+                                className='inline-flex h-7 w-7 items-center justify-center rounded-md border border-primary/60 border-dashed text-primary hover:bg-primary/10'
+                                aria-label='Open resume console'
+                              >
+                                <ArrowUpRight className='h-4 w-4' />
+                              </Link>
+                            ) : (
+                              <span className='h-7 w-7' />
+                            )}
                           </div>
                         </div>
                       </div>

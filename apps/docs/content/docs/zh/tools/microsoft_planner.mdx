@@ -1,6 +1,6 @@
 ---
 title: Microsoft Planner
-description: 阅读和创建 Microsoft Planner 中的任务
+description: 在 Microsoft Planner 中管理任务、计划和桶
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -121,7 +121,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 ## 使用说明
 
-将 Microsoft Planner 集成到工作流程中。可以读取和创建任务。需要 OAuth 授权。
+将 Microsoft Planner 集成到工作流程中。管理任务、计划、桶以及任务详情，包括检查清单和参考。
 
 ## 工具
 
@@ -166,6 +166,222 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 | `success` | boolean | 是否成功创建任务 |
 | `task` | object | 包含所有属性的已创建任务对象 |
 | `metadata` | object | 包括 planId、taskId 和 taskUrl 的元数据 |
+
+### `microsoft_planner_update_task`
+
+更新 Microsoft Planner 中的任务
+
+#### 输入
+
+| 参数 | 类型 | 是否必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `taskId` | string | 是 | 要更新的任务 ID |
+| `etag` | string | 是 | 要更新任务的 ETag 值（If-Match 头） |
+| `title` | string | 否 | 任务的新标题 |
+| `bucketId` | string | 否 | 要移动任务的桶 ID |
+| `dueDateTime` | string | 否 | 任务的截止日期和时间（ISO 8601 格式） |
+| `startDateTime` | string | 否 | 任务的开始日期和时间（ISO 8601 格式） |
+| `percentComplete` | number | 否 | 任务完成的百分比（0-100） |
+| `priority` | number | 否 | 任务的优先级（0-10） |
+| `assigneeUserId` | string | 否 | 要分配任务的用户 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 是否成功更新任务 |
+| `task` | object | 包含所有属性的已更新任务对象 |
+| `metadata` | object | 包括 taskId、planId 和 taskUrl 的元数据 |
+
+### `microsoft_planner_delete_task`
+
+从 Microsoft Planner 中删除任务
+
+#### 输入
+
+| 参数 | 类型 | 是否必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `taskId` | string | 是 | 要删除的任务 ID |
+| `etag` | string | 是 | 要删除任务的 ETag 值（If-Match 头） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 是否成功删除任务 |
+| `deleted` | boolean | 删除确认 |
+| `metadata` | object | 附加元数据 |
+
+### `microsoft_planner_list_plans`
+
+列出 Microsoft 365 组中的所有计划
+
+#### 输入
+
+| 参数 | 类型 | 是否必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `groupId` | string | 是 | Microsoft 365 组的 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 是否成功检索到计划 |
+| `plans` | array | 计划对象的数组 |
+| `metadata` | object | 包括 groupId 和 count 的元数据 |
+
+### `microsoft_planner_read_plan`
+
+获取特定 Microsoft Planner 计划的详细信息
+
+#### 输入
+
+| 参数 | 类型 | 是否必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `planId` | string | 是 | 要检索的计划 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 是否成功检索到计划 |
+| `plan` | object | 包含所有属性的计划对象 |
+| `metadata` | object | 包括 planId 和 planUrl 的元数据 |
+
+### `microsoft_planner_list_buckets`
+
+列出 Microsoft Planner 计划中的所有桶
+
+#### 输入
+
+| 参数 | 类型 | 是否必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `planId` | string | 是 | 计划的 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 是否成功检索到桶 |
+| `buckets` | array | 桶对象的数组 |
+| `metadata` | object | 包括 planId 和 count 的元数据 |
+
+### `microsoft_planner_read_bucket`
+
+获取特定桶的详细信息
+
+#### 输入
+
+| 参数 | 类型 | 是否必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `bucketId` | string | 是 | 要检索的桶的 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 是否成功检索到桶 |
+| `bucket` | object | 包含所有属性的桶对象 |
+| `metadata` | object | 包括 bucketId 和 planId 的元数据 |
+
+### `microsoft_planner_create_bucket`
+
+在 Microsoft Planner 计划中创建一个新桶
+
+#### 输入
+
+| 参数 | 类型 | 是否必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `planId` | string | 是 | 要创建桶的计划 ID |
+| `name` | string | 是 | 桶的名称 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 是否成功创建了桶 |
+| `bucket` | object | 包含所有属性的已创建桶对象 |
+| `metadata` | object | 包括 bucketId 和 planId 的元数据 |
+
+### `microsoft_planner_update_bucket`
+
+更新 Microsoft Planner 中的一个桶
+
+#### 输入
+
+| 参数 | 类型 | 是否必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `bucketId` | string | 是 | 要更新的桶的 ID |
+| `name` | string | 否 | 桶的新名称 |
+| `etag` | string | 是 | 要更新的桶的 ETag 值（If-Match 头） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 是否成功更新了桶 |
+| `bucket` | object | 包含所有属性的已更新桶对象 |
+| `metadata` | object | 包括 bucketId 和 planId 的元数据 |
+
+### `microsoft_planner_delete_bucket`
+
+从 Microsoft Planner 中删除一个桶
+
+#### 输入
+
+| 参数 | 类型 | 是否必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `bucketId` | string | 是 | 要删除的桶的 ID |
+| `etag` | string | 是 | 要删除的桶的 ETag 值（If-Match 头） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 是否成功删除了桶 |
+| `deleted` | boolean | 删除确认 |
+| `metadata` | object | 其他元数据 |
+
+### `microsoft_planner_get_task_details`
+
+获取有关任务的详细信息，包括检查清单和引用
+
+#### 输入
+
+| 参数 | 类型 | 是否必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `taskId` | string | 是 | 任务的 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 是否成功检索到任务详情 |
+| `taskDetails` | object | 包括描述、检查清单和引用的任务详情 |
+| `metadata` | object | 包括 taskId 的元数据 |
+
+### `microsoft_planner_update_task_details`
+
+更新 Microsoft Planner 中的任务详情，包括描述、检查清单项和引用
+
+#### 输入
+
+| 参数 | 类型 | 是否必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `taskId` | string | 是 | 任务的 ID |
+| `etag` | string | 是 | 用于更新任务详情的 ETag 值（If-Match 头） |
+| `description` | string | 否 | 任务的描述 |
+| `checklist` | object | 否 | 作为 JSON 对象的检查清单项 |
+| `references` | object | 否 | 作为 JSON 对象的引用 |
+| `previewType` | string | 否 | 预览类型：automatic、noPreview、checklist、description 或 reference |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 是否成功更新任务详情 |
+| `taskDetails` | object | 包含所有属性的已更新任务详情对象 |
+| `metadata` | object | 包括 taskId 的元数据 |
 
 ## 注意事项
 

@@ -384,6 +384,93 @@ export async function verifyProviderAuth(
     }
   }
 
+  if (foundWebhook.provider === 'linear') {
+    const secret = providerConfig.secret as string | undefined
+
+    if (secret) {
+      const signature = request.headers.get('Linear-Signature')
+
+      if (!signature) {
+        logger.warn(`[${requestId}] Linear webhook missing signature header`)
+        return new NextResponse('Unauthorized - Missing Linear signature', { status: 401 })
+      }
+
+      const { validateLinearSignature } = await import('@/lib/webhooks/utils.server')
+
+      const isValidSignature = validateLinearSignature(secret, signature, rawBody)
+
+      if (!isValidSignature) {
+        logger.warn(`[${requestId}] Linear signature verification failed`, {
+          signatureLength: signature.length,
+          secretLength: secret.length,
+        })
+        return new NextResponse('Unauthorized - Invalid Linear signature', { status: 401 })
+      }
+
+      logger.debug(`[${requestId}] Linear signature verified successfully`)
+    }
+  }
+
+  if (foundWebhook.provider === 'jira') {
+    const secret = providerConfig.secret as string | undefined
+
+    if (secret) {
+      const signature = request.headers.get('X-Hub-Signature')
+
+      if (!signature) {
+        logger.warn(`[${requestId}] Jira webhook missing signature header`)
+        return new NextResponse('Unauthorized - Missing Jira signature', { status: 401 })
+      }
+
+      const { validateJiraSignature } = await import('@/lib/webhooks/utils.server')
+
+      const isValidSignature = validateJiraSignature(secret, signature, rawBody)
+
+      if (!isValidSignature) {
+        logger.warn(`[${requestId}] Jira signature verification failed`, {
+          signatureLength: signature.length,
+          secretLength: secret.length,
+        })
+        return new NextResponse('Unauthorized - Invalid Jira signature', { status: 401 })
+      }
+
+      logger.debug(`[${requestId}] Jira signature verified successfully`)
+    }
+  }
+
+  if (foundWebhook.provider === 'github') {
+    const secret = providerConfig.secret as string | undefined
+
+    if (secret) {
+      // GitHub supports both SHA-256 (preferred) and SHA-1 (legacy)
+      const signature256 = request.headers.get('X-Hub-Signature-256')
+      const signature1 = request.headers.get('X-Hub-Signature')
+      const signature = signature256 || signature1
+
+      if (!signature) {
+        logger.warn(`[${requestId}] GitHub webhook missing signature header`)
+        return new NextResponse('Unauthorized - Missing GitHub signature', { status: 401 })
+      }
+
+      const { validateGitHubSignature } = await import('@/lib/webhooks/utils.server')
+
+      const isValidSignature = validateGitHubSignature(secret, signature, rawBody)
+
+      if (!isValidSignature) {
+        logger.warn(`[${requestId}] GitHub signature verification failed`, {
+          signatureLength: signature.length,
+          secretLength: secret.length,
+          usingSha256: !!signature256,
+        })
+        return new NextResponse('Unauthorized - Invalid GitHub signature', { status: 401 })
+      }
+
+      logger.debug(`[${requestId}] GitHub signature verified successfully`, {
+        usingSha256: !!signature256,
+      })
+    }
+  }
+
   if (foundWebhook.provider === 'generic') {
     if (providerConfig.requireAuth) {
       const configToken = providerConfig.token
@@ -588,6 +675,66 @@ export async function queueWebhookExecution(
         `[${options.requestId}] Webhook requires a workspace billing account to attribute usage`
       )
       return NextResponse.json({ error: 'Workspace billing account required' }, { status: 402 })
+    }
+
+    // GitHub event filtering for event-specific triggers
+    if (foundWebhook.provider === 'github') {
+      const providerConfig = (foundWebhook.providerConfig as Record<string, any>) || {}
+      const triggerId = providerConfig.triggerId as string | undefined
+
+      if (triggerId && triggerId !== 'github_webhook') {
+        const eventType = request.headers.get('x-github-event')
+        const action = body.action
+
+        const { isGitHubEventMatch } = await import('@/triggers/github/utils')
+
+        if (!isGitHubEventMatch(triggerId, eventType || '', action, body)) {
+          logger.debug(
+            `[${options.requestId}] GitHub event mismatch for trigger ${triggerId}. Event: ${eventType}, Action: ${action}. Skipping execution.`,
+            {
+              webhookId: foundWebhook.id,
+              workflowId: foundWorkflow.id,
+              triggerId,
+              receivedEvent: eventType,
+              receivedAction: action,
+            }
+          )
+
+          // Return 200 OK to prevent GitHub from retrying
+          return NextResponse.json({
+            message: 'Event type does not match trigger configuration. Ignoring.',
+          })
+        }
+      }
+    }
+
+    // Jira event filtering for event-specific triggers
+    if (foundWebhook.provider === 'jira') {
+      const providerConfig = (foundWebhook.providerConfig as Record<string, any>) || {}
+      const triggerId = providerConfig.triggerId as string | undefined
+
+      if (triggerId && triggerId !== 'jira_webhook') {
+        const webhookEvent = body.webhookEvent as string | undefined
+
+        const { isJiraEventMatch } = await import('@/triggers/jira/utils')
+
+        if (!isJiraEventMatch(triggerId, webhookEvent || '', body)) {
+          logger.debug(
+            `[${options.requestId}] Jira event mismatch for trigger ${triggerId}. Event: ${webhookEvent}. Skipping execution.`,
+            {
+              webhookId: foundWebhook.id,
+              workflowId: foundWorkflow.id,
+              triggerId,
+              receivedEvent: webhookEvent,
+            }
+          )
+
+          // Return 200 OK to prevent Jira from retrying
+          return NextResponse.json({
+            message: 'Event type does not match trigger configuration. Ignoring.',
+          })
+        }
+      }
     }
 
     const headers = Object.fromEntries(request.headers.entries())

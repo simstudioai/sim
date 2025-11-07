@@ -57,11 +57,11 @@ export async function PUT(request: Request) {
     const summaryValue = summary || title
     const fields: Record<string, any> = {}
 
-    if (summaryValue) {
+    if (summaryValue !== undefined && summaryValue !== null && summaryValue !== '') {
       fields.summary = summaryValue
     }
 
-    if (description) {
+    if (description !== undefined && description !== null && description !== '') {
       fields.description = {
         type: 'doc',
         version: 1,
@@ -79,19 +79,19 @@ export async function PUT(request: Request) {
       }
     }
 
-    if (status) {
+    if (status !== undefined && status !== null && status !== '') {
       fields.status = {
         name: status,
       }
     }
 
-    if (priority) {
+    if (priority !== undefined && priority !== null && priority !== '') {
       fields.priority = {
         name: priority,
       }
     }
 
-    if (assignee) {
+    if (assignee !== undefined && assignee !== null && assignee !== '') {
       fields.assignee = {
         id: assignee,
       }

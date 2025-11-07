@@ -228,7 +228,7 @@ export default function LoginPage({
         },
         {
           onError: (ctx) => {
-            console.error('Login error:', ctx.error)
+            logger.error('Login error:', ctx.error)
             const errorMessage: string[] = ['Invalid email or password']
 
             if (ctx.error.code?.includes('EMAIL_NOT_VERIFIED')) {
@@ -288,7 +288,7 @@ export default function LoginPage({
         return
       }
 
-      console.error('Uncaught login error:', err)
+      logger.error('Uncaught login error:', err)
     } finally {
       setIsLoading(false)
     }

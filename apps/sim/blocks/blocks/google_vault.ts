@@ -84,7 +84,7 @@ export const GoogleVaultBlock: BlockConfig = {
     },
     {
       id: 'fileName',
-      title: 'File Name (optional)',
+      title: 'File Name',
       type: 'short-input',
       layout: 'full',
       placeholder: 'Override filename used for storage/display',

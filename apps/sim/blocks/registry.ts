@@ -50,6 +50,7 @@ import { OneDriveBlock } from '@/blocks/blocks/onedrive'
 import { OpenAIBlock } from '@/blocks/blocks/openai'
 import { OutlookBlock } from '@/blocks/blocks/outlook'
 import { ParallelBlock } from '@/blocks/blocks/parallel'
+import { PauseResumeBlock } from '@/blocks/blocks/pause_resume'
 import { PerplexityBlock } from '@/blocks/blocks/perplexity'
 import { PineconeBlock } from '@/blocks/blocks/pinecone'
 import { PostgreSQLBlock } from '@/blocks/blocks/postgresql'
@@ -67,6 +68,7 @@ import { StagehandBlock } from '@/blocks/blocks/stagehand'
 import { StagehandAgentBlock } from '@/blocks/blocks/stagehand_agent'
 import { StartTriggerBlock } from '@/blocks/blocks/start_trigger'
 import { StarterBlock } from '@/blocks/blocks/starter'
+import { StripeBlock } from '@/blocks/blocks/stripe'
 import { SupabaseBlock } from '@/blocks/blocks/supabase'
 import { TavilyBlock } from '@/blocks/blocks/tavily'
 import { TelegramBlock } from '@/blocks/blocks/telegram'
@@ -95,6 +97,7 @@ export const registry: Record<string, BlockConfig> = {
   agent: AgentBlock,
   airtable: AirtableBlock,
   api: ApiBlock,
+  approval: PauseResumeBlock,
   arxiv: ArxivBlock,
   browser_use: BrowserUseBlock,
   clay: ClayBlock,
@@ -163,6 +166,7 @@ export const registry: Record<string, BlockConfig> = {
   chat_trigger: ChatTriggerBlock,
   manual_trigger: ManualTriggerBlock,
   api_trigger: ApiTriggerBlock,
+  stripe: StripeBlock,
   supabase: SupabaseBlock,
   tavily: TavilyBlock,
   telegram: TelegramBlock,

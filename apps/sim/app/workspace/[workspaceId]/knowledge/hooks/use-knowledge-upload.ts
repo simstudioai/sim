@@ -943,12 +943,10 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
       setUploadError(null)
       setUploadProgress({ stage: 'uploading', filesCompleted: 0, totalFiles: files.length })
 
-      // Upload files in batches with retry logic
       const uploadedFiles = await uploadFilesInBatches(files)
 
       setUploadProgress((prev) => ({ ...prev, stage: 'processing' }))
 
-      // Start async document processing
       const processPayload = {
         documents: uploadedFiles.map((file) => ({
           ...file,
@@ -999,7 +997,6 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
 
       const processResult = await processResponse.json()
 
-      // Validate process result structure
       if (!processResult.success) {
         throw new ProcessingError(
           `Document processing failed: ${processResult.error || 'Unknown error'}`,
@@ -1018,7 +1015,6 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
 
       logger.info(`Successfully started processing ${uploadedFiles.length} documents`)
 
-      // Call success callback
       options.onUploadComplete?.(uploadedFiles)
 
       return uploadedFiles
@@ -1029,8 +1025,7 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
       setUploadError(error)
       options.onError?.(error)
 
-      // Show user-friendly error message in console for debugging
-      console.error('Document upload failed:', error.message)
+      logger.error('Document upload failed:', error.message)
 
       throw err
     } finally {

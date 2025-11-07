@@ -1,3 +1,4 @@
+import { createLogger } from '@/lib/logs/console/logger'
 import type { GmailAttachment, GmailReadParams, GmailToolResponse } from '@/tools/gmail/types'
 import {
   createMessagesSummary,
@@ -6,6 +7,8 @@ import {
   processMessageForSummary,
 } from '@/tools/gmail/utils'
 import type { ToolConfig } from '@/tools/types'
+
+const logger = createLogger('GmailReadTool')
 
 export const gmailReadTool: ToolConfig<GmailReadParams, GmailToolResponse> = {
   id: 'gmail_read',
@@ -98,7 +101,7 @@ export const gmailReadTool: ToolConfig<GmailReadParams, GmailToolResponse> = {
       }
 
       // Set max results (default to 1 for simplicity, max 10)
-      const maxResults = params.maxResults ? Math.min(params.maxResults, 10) : 1
+      const maxResults = params.maxResults ? Math.min(Number(params.maxResults), 10) : 1
       url.searchParams.append('maxResults', maxResults.toString())
 
       return url.toString()
@@ -135,7 +138,7 @@ export const gmailReadTool: ToolConfig<GmailReadParams, GmailToolResponse> = {
 
       // For agentic workflows, we'll fetch the first message by default
       // If maxResults > 1, we'll return a summary of messages found
-      const maxResults = params?.maxResults ? Math.min(params.maxResults, 10) : 1
+      const maxResults = params?.maxResults ? Math.min(Number(params.maxResults), 10) : 1
 
       if (maxResults === 1) {
         try {
@@ -210,7 +213,7 @@ export const gmailReadTool: ToolConfig<GmailReadParams, GmailToolResponse> = {
                   allAttachments.push(...processedResult.output.attachments)
                 }
               } catch (error: any) {
-                console.error(`Error processing message ${msg.id} for attachments:`, error)
+                logger.error(`Error processing message ${msg.id} for attachments:`, error)
               }
             }
           }

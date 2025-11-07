@@ -1,9 +1,18 @@
 import { createLogger } from '@/lib/logs/console/logger'
 import { BlockType } from '@/executor/consts'
-import type { ExecutionContext, ExecutionResult, NormalizedBlockOutput } from '@/executor/types'
-import type { DAG } from '../dag/builder'
-import type { NodeExecutionOrchestrator } from '../orchestrators/node'
-import type { EdgeManager } from './edge-manager'
+import type { DAG } from '@/executor/dag/builder'
+import type { EdgeManager } from '@/executor/execution/edge-manager'
+import { serializePauseSnapshot } from '@/executor/execution/snapshot-serializer'
+import type { NodeExecutionOrchestrator } from '@/executor/orchestrators/node'
+import type {
+  ExecutionContext,
+  ExecutionResult,
+  NormalizedBlockOutput,
+  PauseMetadata,
+  PausePoint,
+  ResumeStatus,
+} from '@/executor/types'
+import { normalizeError } from '@/executor/utils/errors'
 
 const logger = createLogger('ExecutionEngine')
 
@@ -12,31 +21,31 @@ export class ExecutionEngine {
   private executing = new Set<Promise<void>>()
   private queueLock = Promise.resolve()
   private finalOutput: NormalizedBlockOutput = {}
+  private pausedBlocks: Map<string, PauseMetadata> = new Map()
+  private allowResumeTriggers: boolean
 
   constructor(
+    private context: ExecutionContext,
     private dag: DAG,
     private edgeManager: EdgeManager,
-    private nodeOrchestrator: NodeExecutionOrchestrator,
-    private context: ExecutionContext
-  ) {}
+    private nodeOrchestrator: NodeExecutionOrchestrator
+  ) {
+    this.allowResumeTriggers = this.context.metadata.resumeFromSnapshot === true
+  }
 
   async run(triggerBlockId?: string): Promise<ExecutionResult> {
     const startTime = Date.now()
     try {
       this.initializeQueue(triggerBlockId)
-      logger.debug('Starting execution loop', {
-        initialQueueSize: this.readyQueue.length,
-        startNodeId: triggerBlockId,
-      })
 
       while (this.hasWork()) {
         await this.processQueue()
       }
-
-      logger.debug('Execution loop completed', {
-        finalOutputKeys: Object.keys(this.finalOutput),
-      })
       await this.waitForAllExecutions()
+
+      if (this.pausedBlocks.size > 0) {
+        return this.buildPausedResult(startTime)
+      }
 
       const endTime = Date.now()
       this.context.metadata.endTime = new Date(endTime).toISOString()
@@ -53,7 +62,7 @@ export class ExecutionEngine {
       this.context.metadata.endTime = new Date(endTime).toISOString()
       this.context.metadata.duration = endTime - startTime
 
-      const errorMessage = error instanceof Error ? error.message : String(error)
+      const errorMessage = normalizeError(error)
       logger.error('Execution failed', { error: errorMessage })
 
       const executionResult: ExecutionResult = {
@@ -74,9 +83,13 @@ export class ExecutionEngine {
   }
 
   private addToQueue(nodeId: string): void {
+    const node = this.dag.nodes.get(nodeId)
+    if (node?.metadata?.isResumeTrigger && !this.allowResumeTriggers) {
+      return
+    }
+
     if (!this.readyQueue.includes(nodeId)) {
       this.readyQueue.push(nodeId)
-      logger.debug('Added to queue', { nodeId, queueLength: this.readyQueue.length })
     }
   }
 
@@ -122,6 +135,56 @@ export class ExecutionEngine {
   }
 
   private initializeQueue(triggerBlockId?: string): void {
+    const pendingBlocks = this.context.metadata.pendingBlocks
+    const remainingEdges = (this.context.metadata as any).remainingEdges
+
+    if (remainingEdges && Array.isArray(remainingEdges) && remainingEdges.length > 0) {
+      logger.info('Removing edges from resumed pause blocks', {
+        edgeCount: remainingEdges.length,
+        edges: remainingEdges,
+      })
+
+      for (const edge of remainingEdges) {
+        const targetNode = this.dag.nodes.get(edge.target)
+        if (targetNode) {
+          const hadEdge = targetNode.incomingEdges.has(edge.source)
+          targetNode.incomingEdges.delete(edge.source)
+
+          if (this.edgeManager.isNodeReady(targetNode)) {
+            logger.info('Node became ready after edge removal', { nodeId: targetNode.id })
+            this.addToQueue(targetNode.id)
+          }
+        }
+      }
+
+      logger.info('Edge removal complete, queued ready nodes', {
+        queueLength: this.readyQueue.length,
+        queuedNodes: this.readyQueue,
+      })
+
+      return
+    }
+
+    if (pendingBlocks && pendingBlocks.length > 0) {
+      logger.info('Initializing queue from pending blocks (resume mode)', {
+        pendingBlocks,
+        allowResumeTriggers: this.allowResumeTriggers,
+        dagNodeCount: this.dag.nodes.size,
+      })
+
+      for (const nodeId of pendingBlocks) {
+        this.addToQueue(nodeId)
+      }
+
+      logger.info('Pending blocks queued', {
+        queueLength: this.readyQueue.length,
+        queuedNodes: this.readyQueue,
+      })
+
+      this.context.metadata.pendingBlocks = []
+      return
+    }
+
     if (triggerBlockId) {
       this.addToQueue(triggerBlockId)
       return
@@ -155,18 +218,17 @@ export class ExecutionEngine {
   private async executeNodeAsync(nodeId: string): Promise<void> {
     try {
       const wasAlreadyExecuted = this.context.executedBlocks.has(nodeId)
-      const result = await this.nodeOrchestrator.executeNode(nodeId, this.context)
+      const node = this.dag.nodes.get(nodeId)
+
+      const result = await this.nodeOrchestrator.executeNode(this.context, nodeId)
+
       if (!wasAlreadyExecuted) {
         await this.withQueueLock(async () => {
           await this.handleNodeCompletion(nodeId, result.output, result.isFinalOutput)
         })
-      } else {
-        logger.debug('Node was already executed, skipping edge processing to avoid loops', {
-          nodeId,
-        })
       }
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error)
+      const errorMessage = normalizeError(error)
       logger.error('Node execution failed', { nodeId, error: errorMessage })
       throw error
     }
@@ -183,19 +245,73 @@ export class ExecutionEngine {
       return
     }
 
-    await this.nodeOrchestrator.handleNodeCompletion(nodeId, output, this.context)
+    if (output._pauseMetadata) {
+      const pauseMetadata = output._pauseMetadata
+      this.pausedBlocks.set(pauseMetadata.contextId, pauseMetadata)
+      this.context.metadata.status = 'paused'
+      this.context.metadata.pausePoints = Array.from(this.pausedBlocks.keys())
+
+      return
+    }
+
+    await this.nodeOrchestrator.handleNodeCompletion(this.context, nodeId, output)
 
     if (isFinalOutput) {
       this.finalOutput = output
     }
 
     const readyNodes = this.edgeManager.processOutgoingEdges(node, output, false)
-    this.addMultipleToQueue(readyNodes)
 
-    logger.debug('Node completion handled', {
+    logger.info('Processing outgoing edges', {
       nodeId,
+      outgoingEdgesCount: node.outgoingEdges.size,
       readyNodesCount: readyNodes.length,
-      queueSize: this.readyQueue.length,
+      readyNodes,
     })
+
+    this.addMultipleToQueue(readyNodes)
+  }
+
+  private buildPausedResult(startTime: number): ExecutionResult {
+    const endTime = Date.now()
+    this.context.metadata.endTime = new Date(endTime).toISOString()
+    this.context.metadata.duration = endTime - startTime
+    this.context.metadata.status = 'paused'
+
+    const snapshotSeed = serializePauseSnapshot(this.context, [], this.dag)
+    const pausePoints: PausePoint[] = Array.from(this.pausedBlocks.values()).map((pause) => ({
+      contextId: pause.contextId,
+      blockId: pause.blockId,
+      response: pause.response,
+      registeredAt: pause.timestamp,
+      resumeStatus: 'paused' as ResumeStatus,
+      snapshotReady: true,
+      parallelScope: pause.parallelScope,
+      loopScope: pause.loopScope,
+      resumeLinks: pause.resumeLinks,
+    }))
+
+    return {
+      success: true,
+      output: this.collectPauseResponses(),
+      logs: this.context.blockLogs,
+      metadata: this.context.metadata,
+      status: 'paused',
+      pausePoints,
+      snapshotSeed,
+    }
+  }
+
+  private collectPauseResponses(): NormalizedBlockOutput {
+    const responses = Array.from(this.pausedBlocks.values()).map((pause) => pause.response)
+
+    if (responses.length === 1) {
+      return responses[0]
+    }
+
+    return {
+      pausedBlocks: responses,
+      pauseCount: responses.length,
+    }
   }
 }

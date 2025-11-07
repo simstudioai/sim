@@ -50,11 +50,11 @@ export const listFormsTool: ToolConfig<TypeformListFormsParams, TypeformListForm
       }
 
       if (params.page) {
-        queryParams.push(`page=${params.page}`)
+        queryParams.push(`page=${Number(params.page)}`)
       }
 
       if (params.pageSize) {
-        queryParams.push(`page_size=${params.pageSize}`)
+        queryParams.push(`page_size=${Number(params.pageSize)}`)
       }
 
       if (params.workspaceId) {

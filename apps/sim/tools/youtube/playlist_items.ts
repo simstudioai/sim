@@ -43,7 +43,7 @@ export const youtubePlaylistItemsTool: ToolConfig<
   request: {
     url: (params: YouTubePlaylistItemsParams) => {
       let url = `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet,contentDetails&playlistId=${params.playlistId}&key=${params.apiKey}`
-      url += `&maxResults=${params.maxResults || 10}`
+      url += `&maxResults=${Number(params.maxResults || 10)}`
       if (params.pageToken) {
         url += `&pageToken=${params.pageToken}`
       }

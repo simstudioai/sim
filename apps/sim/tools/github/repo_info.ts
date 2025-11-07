@@ -42,7 +42,6 @@ export const repoInfoTool: ToolConfig<BaseGitHubParams, RepoInfoResponse> = {
   transformResponse: async (response) => {
     const data = await response.json()
 
-    // Create a human-readable content string
     const content = `Repository: ${data.name}
 Description: ${data.description || 'No description'}
 Language: ${data.language || 'Not specified'}

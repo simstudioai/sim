@@ -59,6 +59,17 @@ Durchsuchen Sie das Web mit Exa AI. Liefert relevante Suchergebnisse mit Titeln,
 | `numResults` | number | Nein | Anzahl der zurückzugebenden Ergebnisse \(Standard: 10, max: 25\) |
 | `useAutoprompt` | boolean | Nein | Ob Autoprompt zur Verbesserung der Anfrage verwendet werden soll \(Standard: false\) |
 | `type` | string | Nein | Suchtyp: neural, keyword, auto oder fast \(Standard: auto\) |
+| `includeDomains` | string | Nein | Kommagetrennte Liste von Domains, die in den Ergebnissen enthalten sein sollen |
+| `excludeDomains` | string | Nein | Kommagetrennte Liste von Domains, die aus den Ergebnissen ausgeschlossen werden sollen |
+| `startPublishedDate` | string | Nein | Filtert Ergebnisse, die nach diesem Datum veröffentlicht wurden \(ISO 8601-Format, z.B. 2024-01-01\) |
+| `endPublishedDate` | string | Nein | Filtert Ergebnisse, die vor diesem Datum veröffentlicht wurden \(ISO 8601-Format\) |
+| `startCrawlDate` | string | Nein | Filtert Ergebnisse, die nach diesem Datum gecrawlt wurden \(ISO 8601-Format\) |
+| `endCrawlDate` | string | Nein | Filtert Ergebnisse, die vor diesem Datum gecrawlt wurden \(ISO 8601-Format\) |
+| `category` | string | Nein | Nach Kategorie filtern: company, research_paper, news_article, pdf, github, tweet, movie, song, personal_site |
+| `text` | boolean | Nein | Vollständigen Textinhalt in Ergebnissen einschließen \(Standard: false\) |
+| `highlights` | boolean | Nein | Hervorgehobene Textausschnitte in Ergebnissen einschließen \(Standard: false\) |
+| `summary` | boolean | Nein | KI-generierte Zusammenfassungen in Ergebnissen einschließen \(Standard: false\) |
+| `livecrawl` | string | Nein | Live-Crawling-Modus: always, fallback oder never \(Standard: never\) |
 | `apiKey` | string | Ja | Exa AI API-Schlüssel |
 
 #### Ausgabe
@@ -78,6 +89,10 @@ Ruft den Inhalt von Webseiten mit Exa AI ab. Gibt den Titel, Textinhalt und opti
 | `urls` | string | Ja | Kommagetrennte Liste von URLs, von denen Inhalte abgerufen werden sollen |
 | `text` | boolean | Nein | Wenn true, gibt den vollständigen Seitentext mit Standardeinstellungen zurück. Wenn false, deaktiviert die Textrückgabe. |
 | `summaryQuery` | string | Nein | Abfrage zur Steuerung der Zusammenfassungserstellung |
+| `subpages` | number | Nein | Anzahl der Unterseiten, die von den angegebenen URLs gecrawlt werden sollen |
+| `subpageTarget` | string | Nein | Kommagetrennte Schlüsselwörter zur Zielausrichtung auf bestimmte Unterseiten \(z.B. "docs,tutorial,about"\) |
+| `highlights` | boolean | Nein | Hervorgehobene Ausschnitte in Ergebnissen einschließen \(Standard: false\) |
+| `livecrawl` | string | Nein | Live-Crawling-Modus: always, fallback oder never \(Standard: never\) |
 | `apiKey` | string | Ja | Exa AI API-Schlüssel |
 
 #### Ausgabe
@@ -97,6 +112,17 @@ Finde Webseiten, die einer bestimmten URL ähnlich sind, mit Exa AI. Gibt eine L
 | `url` | string | Ja | Die URL, für die ähnliche Links gefunden werden sollen |
 | `numResults` | number | Nein | Anzahl der zurückzugebenden ähnlichen Links \(Standard: 10, max: 25\) |
 | `text` | boolean | Nein | Ob der vollständige Text der ähnlichen Seiten einbezogen werden soll |
+| `includeDomains` | string | Nein | Kommagetrennte Liste von Domains, die in den Ergebnissen enthalten sein sollen |
+| `excludeDomains` | string | Nein | Kommagetrennte Liste von Domains, die aus den Ergebnissen ausgeschlossen werden sollen |
+| `excludeSourceDomain` | boolean | Nein | Quell-Domain aus Ergebnissen ausschließen \(Standard: false\) |
+| `startPublishedDate` | string | Nein | Ergebnisse filtern, die nach diesem Datum veröffentlicht wurden \(ISO 8601-Format, z.B. 2024-01-01\) |
+| `endPublishedDate` | string | Nein | Ergebnisse filtern, die vor diesem Datum veröffentlicht wurden \(ISO 8601-Format\) |
+| `startCrawlDate` | string | Nein | Ergebnisse filtern, die nach diesem Datum gecrawlt wurden \(ISO 8601-Format\) |
+| `endCrawlDate` | string | Nein | Ergebnisse filtern, die vor diesem Datum gecrawlt wurden \(ISO 8601-Format\) |
+| `category` | string | Nein | Nach Kategorie filtern: company, research_paper, news_article, pdf, github, tweet, movie, song, personal_site |
+| `highlights` | boolean | Nein | Hervorgehobene Ausschnitte in Ergebnissen einschließen \(Standard: false\) |
+| `summary` | boolean | Nein | KI-generierte Zusammenfassungen in Ergebnissen einschließen \(Standard: false\) |
+| `livecrawl` | string | Nein | Live-Crawling-Modus: always, fallback oder never \(Standard: never\) |
 | `apiKey` | string | Ja | Exa AI API-Schlüssel |
 
 #### Ausgabe
@@ -133,7 +159,7 @@ Führe umfassende Recherchen mit KI durch, um detaillierte Berichte mit Quellena
 | Parameter | Typ | Erforderlich | Beschreibung |
 | --------- | ---- | -------- | ----------- |
 | `query` | string | Ja | Rechercheabfrage oder Thema |
-| `includeText` | boolean | Nein | Vollständigen Textinhalt in Ergebnissen einschließen |
+| `model` | string | Nein | Recherchemodell: exa-research-fast, exa-research (Standard) oder exa-research-pro |
 | `apiKey` | string | Ja | Exa AI API-Schlüssel |
 
 #### Ausgabe

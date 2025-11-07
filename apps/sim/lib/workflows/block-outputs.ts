@@ -167,6 +167,29 @@ export function getBlockOutputs(
     return getUnifiedStartOutputs(subBlocks)
   }
 
+  if (blockType === 'approval') {
+    // Start with only uiUrl (apiUrl commented out - not accessible as output)
+    const pauseResumeOutputs: Record<string, any> = {
+      uiUrl: { type: 'string', description: 'Resume UI URL' },
+      // apiUrl: { type: 'string', description: 'Resume API URL' }, // Commented out - not accessible as output
+    }
+
+    const normalizedInputFormat = normalizeInputFormatValue(subBlocks?.inputFormat?.value)
+
+    // Add each input format field as a top-level output
+    for (const field of normalizedInputFormat) {
+      const fieldName = field?.name?.trim()
+      if (!fieldName) continue
+
+      pauseResumeOutputs[fieldName] = {
+        type: (field?.type || 'any') as any,
+        description: `Field from input format`,
+      }
+    }
+
+    return pauseResumeOutputs
+  }
+
   if (startPath === StartBlockPath.LEGACY_STARTER) {
     return getLegacyStarterOutputs(subBlocks)
   }

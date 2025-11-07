@@ -33,7 +33,7 @@ export const googleFormsWebhookTrigger: TriggerConfig = {
     },
     {
       id: 'secretHeaderName',
-      title: 'Custom Secret Header (optional)',
+      title: 'Custom Secret Header',
       type: 'short-input',
       placeholder: 'X-GForms-Secret',
       description:
@@ -43,7 +43,7 @@ export const googleFormsWebhookTrigger: TriggerConfig = {
     },
     {
       id: 'formId',
-      title: 'Form ID (optional)',
+      title: 'Form ID',
       type: 'short-input',
       placeholder: '1FAIpQLSd... (Google Form ID)',
       description:

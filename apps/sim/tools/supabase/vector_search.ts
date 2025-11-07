@@ -72,11 +72,11 @@ export const vectorSearchTool: ToolConfig<
 
       // Add optional parameters if provided
       if (params.matchThreshold !== undefined) {
-        rpcParams.match_threshold = params.matchThreshold
+        rpcParams.match_threshold = Number(params.matchThreshold)
       }
 
       if (params.matchCount !== undefined) {
-        rpcParams.match_count = params.matchCount
+        rpcParams.match_count = Number(params.matchCount)
       }
 
       return rpcParams

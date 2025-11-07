@@ -17,6 +17,7 @@ import {
 import { decryptSecret } from '@/lib/utils'
 import { blockExistsInDeployment, loadDeployedWorkflowState } from '@/lib/workflows/db-helpers'
 import { executeWorkflowCore } from '@/lib/workflows/executor/execution-core'
+import { PauseResumeManager } from '@/lib/workflows/executor/pause-resume-manager'
 import { getWorkspaceBilledAccountUserId } from '@/lib/workspaces/utils'
 import { type ExecutionMetadata, ExecutionSnapshot } from '@/executor/execution/snapshot'
 import { Serializer } from '@/serializer'
@@ -451,6 +452,24 @@ export async function executeScheduleJob(payload: ScheduleExecutionPayload) {
             callbacks: {},
             loggingSession,
           })
+
+          if (executionResult.status === 'paused') {
+            if (!executionResult.snapshotSeed) {
+              logger.error(`[${requestId}] Missing snapshot seed for paused execution`, {
+                executionId,
+              })
+            } else {
+              await PauseResumeManager.persistPauseResult({
+                workflowId: payload.workflowId,
+                executionId,
+                pausePoints: executionResult.pausePoints || [],
+                snapshotSeed: executionResult.snapshotSeed,
+                executorUserId: executionResult.metadata?.userId,
+              })
+            }
+          } else {
+            await PauseResumeManager.processQueuedResumes(executionId)
+          }
 
           logger.info(`[${requestId}] Workflow execution completed: ${payload.workflowId}`, {
             success: executionResult.success,

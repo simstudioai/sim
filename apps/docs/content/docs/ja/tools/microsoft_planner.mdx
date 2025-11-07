@@ -1,6 +1,6 @@
 ---
 title: Microsoft Planner
-description: Microsoft Plannerでタスクを読み取り、作成する
+description: Microsoft Plannerでタスク、プラン、バケットを管理する
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -121,7 +121,7 @@ Simでは、Microsoft Planner統合により、エージェントがワークフ
 
 ## 使用手順
 
-Microsoft Plannerをワークフローに統合します。タスクの読み取りと作成が可能です。OAuthが必要です。
+Microsoft Plannerをワークフローに統合します。タスク、プラン、バケット、およびチェックリストや参照を含むタスクの詳細を管理します。
 
 ## ツール
 
@@ -167,7 +167,223 @@ Microsoft Plannerで新しいタスクを作成する
 | `task` | object | すべてのプロパティを持つ作成されたタスクオブジェクト |
 | `metadata` | object | planId、taskId、taskUrlを含むメタデータ |
 
+### `microsoft_planner_update_task`
+
+Microsoft Plannerでタスクを更新する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `taskId` | string | はい | 更新するタスクのID |
+| `etag` | string | はい | 更新するタスクからのETag値（If-Matchヘッダー） |
+| `title` | string | いいえ | タスクの新しいタイトル |
+| `bucketId` | string | いいえ | タスクを移動するバケットID |
+| `dueDateTime` | string | いいえ | タスクの期限日時（ISO 8601形式） |
+| `startDateTime` | string | いいえ | タスクの開始日時（ISO 8601形式） |
+| `percentComplete` | number | いいえ | タスク完了の割合（0-100） |
+| `priority` | number | いいえ | タスクの優先度（0-10） |
+| `assigneeUserId` | string | いいえ | タスクを割り当てるユーザーID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | タスクが正常に更新されたかどうか |
+| `task` | object | すべてのプロパティを持つ更新されたタスクオブジェクト |
+| `metadata` | object | taskId、planId、taskUrlを含むメタデータ |
+
+### `microsoft_planner_delete_task`
+
+Microsoft Plannerからタスクを削除する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `taskId` | string | はい | 削除するタスクのID |
+| `etag` | string | はい | 削除するタスクのETag値（If-Matchヘッダー） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | タスクが正常に削除されたかどうか |
+| `deleted` | boolean | 削除の確認 |
+| `metadata` | object | 追加のメタデータ |
+
+### `microsoft_planner_list_plans`
+
+Microsoft 365グループ内のすべてのプランを一覧表示する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `groupId` | string | はい | Microsoft 365グループのID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | プランが正常に取得されたかどうか |
+| `plans` | array | プランオブジェクトの配列 |
+| `metadata` | object | groupIdと数を含むメタデータ |
+
+### `microsoft_planner_read_plan`
+
+特定のMicrosoft Plannerプランの詳細を取得する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `planId` | string | はい | 取得するプランのID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | プランが正常に取得されたかどうか |
+| `plan` | object | すべてのプロパティを持つプランオブジェクト |
+| `metadata` | object | planIdとplanUrlを含むメタデータ |
+
+### `microsoft_planner_list_buckets`
+
+Microsoft Plannerプラン内のすべてのバケットを一覧表示する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `planId` | string | はい | プランのID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | バケットが正常に取得されたかどうか |
+| `buckets` | array | バケットオブジェクトの配列 |
+| `metadata` | object | planIdと数を含むメタデータ |
+
+### `microsoft_planner_read_bucket`
+
+特定のバケットの詳細を取得する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `bucketId` | string | はい | 取得するバケットのID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | バケットが正常に取得されたかどうか |
+| `bucket` | object | すべてのプロパティを持つバケットオブジェクト |
+| `metadata` | object | bucketIdとplanIdを含むメタデータ |
+
+### `microsoft_planner_create_bucket`
+
+Microsoft Plannerプランに新しいバケットを作成する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `planId` | string | はい | バケットが作成されるプランのID |
+| `name` | string | はい | バケットの名前 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | バケットが正常に作成されたかどうか |
+| `bucket` | object | すべてのプロパティを持つ作成されたバケットオブジェクト |
+| `metadata` | object | bucketIdとplanIdを含むメタデータ |
+
+### `microsoft_planner_update_bucket`
+
+Microsoft Plannerのバケットを更新する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `bucketId` | string | はい | 更新するバケットのID |
+| `name` | string | いいえ | バケットの新しい名前 |
+| `etag` | string | はい | 更新するバケットからのETag値（If-Matchヘッダー） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | バケットが正常に更新されたかどうか |
+| `bucket` | object | すべてのプロパティを持つ更新されたバケットオブジェクト |
+| `metadata` | object | bucketIdとplanIdを含むメタデータ |
+
+### `microsoft_planner_delete_bucket`
+
+Microsoft Plannerからバケットを削除する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `bucketId` | string | はい | 削除するバケットのID |
+| `etag` | string | はい | 削除するバケットからのETag値（If-Matchヘッダー） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | バケットが正常に削除されたかどうか |
+| `deleted` | boolean | 削除の確認 |
+| `metadata` | object | 追加のメタデータ |
+
+### `microsoft_planner_get_task_details`
+
+チェックリストや参照を含むタスクの詳細情報を取得する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `taskId` | string | はい | タスクのID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | タスクの詳細が正常に取得されたかどうか |
+| `taskDetails` | object | 説明、チェックリスト、参照を含むタスクの詳細 |
+| `metadata` | object | taskIdを含むメタデータ |
+
+### `microsoft_planner_update_task_details`
+
+Microsoft Plannerでタスクの詳細（説明、チェックリスト項目、参照）を更新する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `taskId` | string | はい | タスクのID |
+| `etag` | string | はい | 更新するタスク詳細からのETag値（If-Matchヘッダー） |
+| `description` | string | いいえ | タスクの説明 |
+| `checklist` | object | いいえ | JSONオブジェクトとしてのチェックリスト項目 |
+| `references` | object | いいえ | JSONオブジェクトとしての参照 |
+| `previewType` | string | いいえ | プレビュータイプ：automatic、noPreview、checklist、description、またはreference |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | タスクの詳細が正常に更新されたかどうか |
+| `taskDetails` | object | すべてのプロパティを持つ更新されたタスク詳細オブジェクト |
+| `metadata` | object | taskIdを含むメタデータ |
+
 ## 注意事項
 
-- カテゴリ: `tools`
+- カテゴリー: `tools`
 - タイプ: `microsoft_planner`

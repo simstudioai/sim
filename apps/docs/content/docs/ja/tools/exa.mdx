@@ -57,8 +57,19 @@ Exa AIを使用してウェブを検索します。タイトル、URL、テキ�
 | --------- | ---- | -------- | ----------- |
 | `query` | string | はい | 実行する検索クエリ |
 | `numResults` | number | いいえ | 返す結果の数（デフォルト：10、最大：25） |
-| `useAutoprompt` | boolean | いいえ | クエリを改善するために自動プロンプトを使用するかどうか（デフォルト：false） |
-| `type` | string | いいえ | 検索タイプ：neural、keyword、auto、またはfast（デフォルト：auto） |
+| `useAutoprompt` | boolean | いいえ | クエリを改善するためにautopromptを使用するかどうか（デフォルト：false） |
+| `type` | string | いいえ | 検索タイプ：neural、keyword、autoまたはfast（デフォルト：auto） |
+| `includeDomains` | string | いいえ | 結果に含めるドメインのカンマ区切りリスト |
+| `excludeDomains` | string | いいえ | 結果から除外するドメインのカンマ区切りリスト |
+| `startPublishedDate` | string | いいえ | この日付以降に公開された結果をフィルタリング（ISO 8601形式、例：2024-01-01） |
+| `endPublishedDate` | string | いいえ | この日付以前に公開された結果をフィルタリング（ISO 8601形式） |
+| `startCrawlDate` | string | いいえ | この日付以降にクロールされた結果をフィルタリング（ISO 8601形式） |
+| `endCrawlDate` | string | いいえ | この日付以前にクロールされた結果をフィルタリング（ISO 8601形式） |
+| `category` | string | いいえ | カテゴリでフィルタリング：company、research_paper、news_article、pdf、github、tweet、movie、song、personal_site |
+| `text` | boolean | いいえ | 結果に全文コンテンツを含める（デフォルト：false） |
+| `highlights` | boolean | いいえ | 結果にハイライトされたスニペットを含める（デフォルト：false） |
+| `summary` | boolean | いいえ | 結果にAI生成の要約を含める（デフォルト：false） |
+| `livecrawl` | string | いいえ | ライブクローリングモード：always、fallback、またはnever（デフォルト：never） |
 | `apiKey` | string | はい | Exa AI APIキー |
 
 #### 出力
@@ -76,8 +87,12 @@ Exa AIを使用してウェブページのコンテンツを取得します。�
 | パラメータ | 型 | 必須 | 説明 |
 | --------- | ---- | -------- | ----------- |
 | `urls` | string | はい | コンテンツを取得するURLのカンマ区切りリスト |
-| `text` | boolean | いいえ | trueの場合、デフォルト設定で完全なページテキストを返します。falseの場合、テキスト返却を無効にします。 |
+| `text` | boolean | いいえ | trueの場合、デフォルト設定でページ全文を返します。falseの場合、テキスト返却を無効にします。 |
 | `summaryQuery` | string | いいえ | 要約生成をガイドするクエリ |
+| `subpages` | number | いいえ | 提供されたURLからクロールするサブページの数 |
+| `subpageTarget` | string | いいえ | 特定のサブページを対象とするカンマ区切りのキーワード（例："docs,tutorial,about"） |
+| `highlights` | boolean | いいえ | 結果にハイライトされたスニペットを含める（デフォルト：false） |
+| `livecrawl` | string | いいえ | ライブクロールモード：always、fallback、またはnever（デフォルト：never） |
 | `apiKey` | string | はい | Exa AI APIキー |
 
 #### 出力
@@ -97,6 +112,17 @@ Exa AIを使用して、指定されたURLに類似したウェブページを�
 | `url` | string | はい | 類似リンクを検索するURL |
 | `numResults` | number | いいえ | 返す類似リンクの数（デフォルト：10、最大：25） |
 | `text` | boolean | いいえ | 類似ページの全文を含めるかどうか |
+| `includeDomains` | string | いいえ | 結果に含めるドメインのカンマ区切りリスト |
+| `excludeDomains` | string | いいえ | 結果から除外するドメインのカンマ区切りリスト |
+| `excludeSourceDomain` | boolean | いいえ | 結果からソースドメインを除外する（デフォルト：false） |
+| `startPublishedDate` | string | いいえ | この日付以降に公開された結果をフィルタリング（ISO 8601形式、例：2024-01-01） |
+| `endPublishedDate` | string | いいえ | この日付以前に公開された結果をフィルタリング（ISO 8601形式） |
+| `startCrawlDate` | string | いいえ | この日付以降にクロールされた結果をフィルタリング（ISO 8601形式） |
+| `endCrawlDate` | string | いいえ | この日付以前にクロールされた結果をフィルタリング（ISO 8601形式） |
+| `category` | string | いいえ | カテゴリでフィルタリング：company、research_paper、news_article、pdf、github、tweet、movie、song、personal_site |
+| `highlights` | boolean | いいえ | 結果にハイライトされたスニペットを含める（デフォルト：false） |
+| `summary` | boolean | いいえ | 結果にAI生成の要約を含める（デフォルト：false） |
+| `livecrawl` | string | いいえ | ライブクロールモード：always、fallback、またはnever（デフォルト：never） |
 | `apiKey` | string | はい | Exa AI APIキー |
 
 #### 出力
@@ -133,7 +159,7 @@ AIを使用して包括的な調査を行い、引用付きの詳細なレポー
 | パラメータ | 型 | 必須 | 説明 |
 | --------- | ---- | -------- | ----------- |
 | `query` | string | はい | 調査クエリまたはトピック |
-| `includeText` | boolean | いいえ | 結果に全文コンテンツを含める |
+| `model` | string | いいえ | 調査モデル: exa-research-fast、exa-research（デフォルト）、または exa-research-pro |
 | `apiKey` | string | はい | Exa AI APIキー |
 
 #### 出力

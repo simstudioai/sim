@@ -1,6 +1,6 @@
 ---
 title: Firecrawl
-description: Scrape or search the web
+description: Scrape, search, crawl, map, and extract web data
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -59,7 +59,7 @@ This allows your agents to gather information from websites, extract structured 
 
 ## Usage Instructions
 
-Integrate Firecrawl into the workflow. Can search, scrape, or crawl websites.
+Integrate Firecrawl into the workflow. Scrape pages, search the web, crawl entire sites, map URL structures, and extract structured data with AI.
 
 
 
@@ -120,6 +120,58 @@ Crawl entire websites and extract structured content from all accessible pages
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `pages` | array | Array of crawled pages with their content and metadata |
+
+### `firecrawl_map`
+
+Get a complete list of URLs from any website quickly and reliably. Useful for discovering all pages on a site without crawling them.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `url` | string | Yes | The base URL to map and discover links from |
+| `search` | string | No | Filter results by relevance to a search term \(e.g., "blog"\) |
+| `sitemap` | string | No | Controls sitemap usage: "skip", "include" \(default\), or "only" |
+| `includeSubdomains` | boolean | No | Whether to include URLs from subdomains \(default: true\) |
+| `ignoreQueryParameters` | boolean | No | Exclude URLs containing query strings \(default: true\) |
+| `limit` | number | No | Maximum number of links to return \(max: 100,000, default: 5,000\) |
+| `timeout` | number | No | Request timeout in milliseconds |
+| `location` | json | No | Geographic context for proxying \(country, languages\) |
+| `apiKey` | string | Yes | Firecrawl API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the mapping operation was successful |
+| `links` | array | Array of discovered URLs from the website |
+
+### `firecrawl_extract`
+
+Extract structured data from entire webpages using natural language prompts and JSON schema. Powerful agentic feature for intelligent data extraction.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `urls` | json | Yes | Array of URLs to extract data from \(supports glob format\) |
+| `prompt` | string | No | Natural language guidance for the extraction process |
+| `schema` | json | No | JSON Schema defining the structure of data to extract |
+| `enableWebSearch` | boolean | No | Enable web search to find supplementary information \(default: false\) |
+| `ignoreSitemap` | boolean | No | Ignore sitemap.xml files during scanning \(default: false\) |
+| `includeSubdomains` | boolean | No | Extend scanning to subdomains \(default: true\) |
+| `showSources` | boolean | No | Return data sources in the response \(default: false\) |
+| `ignoreInvalidURLs` | boolean | No | Skip invalid URLs in the array \(default: true\) |
+| `scrapeOptions` | json | No | Advanced scraping configuration options |
+| `apiKey` | string | Yes | Firecrawl API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the extraction operation was successful |
+| `data` | object | Extracted structured data according to the schema or prompt |
+| `sources` | array | Data sources \(only if showSources is enabled\) |
 
 
 

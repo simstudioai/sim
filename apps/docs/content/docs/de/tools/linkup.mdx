@@ -56,8 +56,15 @@ Durchsuche das Web nach Informationen mit Linkup
 | --------- | ---- | -------- | ----------- |
 | `q` | string | Ja | Die Suchanfrage |
 | `depth` | string | Ja | Suchtiefe (muss entweder "standard" oder "deep" sein) |
-| `outputType` | string | Ja | Art der zurückzugebenden Ausgabe (muss entweder "sourcedAnswer" oder "searchResults" sein) |
-| `apiKey` | string | Ja | Gib deinen Linkup API-Schlüssel ein |
+| `outputType` | string | Ja | Art der zurückzugebenden Ausgabe (muss "sourcedAnswer" oder "searchResults" sein) |
+| `apiKey` | string | Ja | Geben Sie Ihren Linkup API-Schlüssel ein |
+| `includeImages` | boolean | Nein | Ob Bilder in Suchergebnissen enthalten sein sollen |
+| `fromDate` | string | Nein | Startdatum für die Filterung von Ergebnissen (Format JJJJ-MM-TT) |
+| `toDate` | string | Nein | Enddatum für die Filterung von Ergebnissen (Format JJJJ-MM-TT) |
+| `excludeDomains` | string | Nein | Kommagetrennte Liste von Domainnamen, die von Suchergebnissen ausgeschlossen werden sollen |
+| `includeDomains` | string | Nein | Kommagetrennte Liste von Domainnamen, auf die Suchergebnisse beschränkt werden sollen |
+| `includeInlineCitations` | boolean | Nein | Inline-Zitate zu Antworten hinzufügen (gilt nur, wenn outputType "sourcedAnswer" ist) |
+| `includeSources` | boolean | Nein | Quellen in die Antwort einbeziehen |
 
 #### Ausgabe
 

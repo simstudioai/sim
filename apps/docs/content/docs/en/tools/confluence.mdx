@@ -43,7 +43,7 @@ In Sim, the Confluence integration enables your agents to access and leverage yo
 
 ## Usage Instructions
 
-Integrate Confluence into the workflow. Can read and update a page.
+Integrate Confluence into the workflow. Can read, create, update, delete pages, manage comments, attachments, labels, and search content.
 
 
 
@@ -93,6 +93,254 @@ Update a Confluence page using the Confluence API.
 | `pageId` | string | Confluence page ID |
 | `title` | string | Updated page title |
 | `success` | boolean | Update operation success status |
+
+### `confluence_create_page`
+
+Create a new page in a Confluence space.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Your Confluence domain \(e.g., yourcompany.atlassian.net\) |
+| `spaceId` | string | Yes | Confluence space ID where the page will be created |
+| `title` | string | Yes | Title of the new page |
+| `content` | string | Yes | Page content in Confluence storage format \(HTML\) |
+| `parentId` | string | No | Parent page ID if creating a child page |
+| `cloudId` | string | No | Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | Timestamp of creation |
+| `pageId` | string | Created page ID |
+| `title` | string | Page title |
+| `url` | string | Page URL |
+
+### `confluence_delete_page`
+
+Delete a Confluence page (moves it to trash where it can be restored).
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Your Confluence domain \(e.g., yourcompany.atlassian.net\) |
+| `pageId` | string | Yes | Confluence page ID to delete |
+| `cloudId` | string | No | Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | Timestamp of deletion |
+| `pageId` | string | Deleted page ID |
+| `deleted` | boolean | Deletion status |
+
+### `confluence_search`
+
+Search for content across Confluence pages, blog posts, and other content.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Your Confluence domain \(e.g., yourcompany.atlassian.net\) |
+| `query` | string | Yes | Search query string |
+| `limit` | number | No | Maximum number of results to return \(default: 25\) |
+| `cloudId` | string | No | Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | Timestamp of search |
+| `results` | array | Search results |
+
+### `confluence_create_comment`
+
+Add a comment to a Confluence page.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Your Confluence domain \(e.g., yourcompany.atlassian.net\) |
+| `pageId` | string | Yes | Confluence page ID to comment on |
+| `comment` | string | Yes | Comment text in Confluence storage format |
+| `cloudId` | string | No | Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | Timestamp of creation |
+| `commentId` | string | Created comment ID |
+| `pageId` | string | Page ID |
+
+### `confluence_list_comments`
+
+List all comments on a Confluence page.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Your Confluence domain \(e.g., yourcompany.atlassian.net\) |
+| `pageId` | string | Yes | Confluence page ID to list comments from |
+| `limit` | number | No | Maximum number of comments to return \(default: 25\) |
+| `cloudId` | string | No | Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | Timestamp of retrieval |
+| `comments` | array | List of comments |
+
+### `confluence_update_comment`
+
+Update an existing comment on a Confluence page.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Your Confluence domain \(e.g., yourcompany.atlassian.net\) |
+| `commentId` | string | Yes | Confluence comment ID to update |
+| `comment` | string | Yes | Updated comment text in Confluence storage format |
+| `cloudId` | string | No | Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | Timestamp of update |
+| `commentId` | string | Updated comment ID |
+| `updated` | boolean | Update status |
+
+### `confluence_delete_comment`
+
+Delete a comment from a Confluence page.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Your Confluence domain \(e.g., yourcompany.atlassian.net\) |
+| `commentId` | string | Yes | Confluence comment ID to delete |
+| `cloudId` | string | No | Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | Timestamp of deletion |
+| `commentId` | string | Deleted comment ID |
+| `deleted` | boolean | Deletion status |
+
+### `confluence_list_attachments`
+
+List all attachments on a Confluence page.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Your Confluence domain \(e.g., yourcompany.atlassian.net\) |
+| `pageId` | string | Yes | Confluence page ID to list attachments from |
+| `limit` | number | No | Maximum number of attachments to return \(default: 25\) |
+| `cloudId` | string | No | Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | Timestamp of retrieval |
+| `attachments` | array | List of attachments |
+
+### `confluence_delete_attachment`
+
+Delete an attachment from a Confluence page (moves to trash).
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Your Confluence domain \(e.g., yourcompany.atlassian.net\) |
+| `attachmentId` | string | Yes | Confluence attachment ID to delete |
+| `cloudId` | string | No | Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | Timestamp of deletion |
+| `attachmentId` | string | Deleted attachment ID |
+| `deleted` | boolean | Deletion status |
+
+### `confluence_list_labels`
+
+List all labels on a Confluence page.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Your Confluence domain \(e.g., yourcompany.atlassian.net\) |
+| `pageId` | string | Yes | Confluence page ID to list labels from |
+| `cloudId` | string | No | Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | Timestamp of retrieval |
+| `labels` | array | List of labels |
+
+### `confluence_get_space`
+
+Get details about a specific Confluence space.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Your Confluence domain \(e.g., yourcompany.atlassian.net\) |
+| `spaceId` | string | Yes | Confluence space ID to retrieve |
+| `cloudId` | string | No | Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | Timestamp of retrieval |
+| `spaceId` | string | Space ID |
+| `name` | string | Space name |
+| `key` | string | Space key |
+| `type` | string | Space type |
+| `status` | string | Space status |
+| `url` | string | Space URL |
+
+### `confluence_list_spaces`
+
+List all Confluence spaces accessible to the user.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Your Confluence domain \(e.g., yourcompany.atlassian.net\) |
+| `limit` | number | No | Maximum number of spaces to return \(default: 25\) |
+| `cloudId` | string | No | Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | Timestamp of retrieval |
+| `spaces` | array | List of spaces |
 
 
 

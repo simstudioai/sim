@@ -1,8 +1,8 @@
 import { createLogger } from '@/lib/logs/console/logger'
 import { isReference, parseReferencePath, REFERENCE } from '@/executor/consts'
 import { extractBaseBlockId } from '@/executor/utils/subflow-utils'
+import type { ResolutionContext, Resolver } from '@/executor/variables/resolvers/reference'
 import type { SerializedWorkflow } from '@/serializer/types'
-import type { ResolutionContext, Resolver } from './reference'
 
 const logger = createLogger('LoopResolver')
 
@@ -34,10 +34,9 @@ export class LoopResolver implements Resolver {
     if (!loopScope) {
       const loopId = this.findLoopForBlock(context.currentNodeId)
       if (!loopId) {
-        logger.debug('Block not in a loop', { nodeId: context.currentNodeId })
         return undefined
       }
-      loopScope = context.executionState.getLoopScope(loopId)
+      loopScope = context.executionContext.loopExecutions?.get(loopId)
     }
 
     if (!loopScope) {

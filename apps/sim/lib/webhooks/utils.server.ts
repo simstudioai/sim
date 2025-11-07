@@ -1233,6 +1233,87 @@ export async function formatWebhookInput(
     }
   }
 
+  if (foundWebhook.provider === 'linear') {
+    // Linear webhook payload structure:
+    // { action, type, webhookId, webhookTimestamp, organizationId, createdAt, actor, data, updatedFrom? }
+    return {
+      // Extract top-level fields from Linear payload
+      action: body.action || '',
+      type: body.type || '',
+      webhookId: body.webhookId || '',
+      webhookTimestamp: body.webhookTimestamp || 0,
+      organizationId: body.organizationId || '',
+      createdAt: body.createdAt || '',
+      actor: body.actor || null,
+      data: body.data || null,
+      updatedFrom: body.updatedFrom || null,
+
+      // Keep webhook metadata
+      webhook: {
+        data: {
+          provider: 'linear',
+          path: foundWebhook.path,
+          providerConfig: foundWebhook.providerConfig,
+          payload: body,
+          headers: Object.fromEntries(request.headers.entries()),
+          method: request.method,
+        },
+      },
+      workflowId: foundWorkflow.id,
+    }
+  }
+
+  // Jira webhook format
+  if (foundWebhook.provider === 'jira') {
+    const { extractIssueData, extractCommentData, extractWorklogData } = await import(
+      '@/triggers/jira/utils'
+    )
+
+    const providerConfig = (foundWebhook.providerConfig as Record<string, any>) || {}
+    const triggerId = providerConfig.triggerId as string | undefined
+
+    let extractedData
+    if (triggerId === 'jira_issue_commented') {
+      extractedData = extractCommentData(body)
+    } else if (triggerId === 'jira_worklog_created') {
+      extractedData = extractWorklogData(body)
+    } else {
+      extractedData = extractIssueData(body)
+    }
+
+    return {
+      ...extractedData,
+      webhook: {
+        data: {
+          provider: 'jira',
+          path: foundWebhook.path,
+          providerConfig: foundWebhook.providerConfig,
+          payload: body,
+          headers: Object.fromEntries(request.headers.entries()),
+          method: request.method,
+        },
+      },
+      workflowId: foundWorkflow.id,
+    }
+  }
+
+  if (foundWebhook.provider === 'stripe') {
+    return {
+      ...body,
+      webhook: {
+        data: {
+          provider: 'stripe',
+          path: foundWebhook.path,
+          providerConfig: foundWebhook.providerConfig,
+          payload: body,
+          headers: Object.fromEntries(request.headers.entries()),
+          method: request.method,
+        },
+      },
+      workflowId: foundWorkflow.id,
+    }
+  }
+
   // Generic format for other providers
   return {
     webhook: {
@@ -1262,25 +1343,21 @@ export function validateMicrosoftTeamsSignature(
   body: string
 ): boolean {
   try {
-    // Basic validation first
     if (!hmacSecret || !signature || !body) {
       return false
     }
 
-    // Check if signature has correct format
     if (!signature.startsWith('HMAC ')) {
       return false
     }
 
-    const providedSignature = signature.substring(5) // Remove 'HMAC ' prefix
+    const providedSignature = signature.substring(5)
 
-    // Compute HMAC SHA256 signature using Node.js crypto
     const crypto = require('crypto')
     const secretBytes = Buffer.from(hmacSecret, 'base64')
     const bodyBytes = Buffer.from(body, 'utf8')
     const computedHash = crypto.createHmac('sha256', secretBytes).update(bodyBytes).digest('base64')
 
-    // Constant-time comparison to prevent timing attacks
     if (computedHash.length !== providedSignature.length) {
       return false
     }
@@ -1335,6 +1412,167 @@ export function validateTypeformSignature(
     return result === 0
   } catch (error) {
     logger.error('Error validating Typeform signature:', error)
+    return false
+  }
+}
+
+/**
+ * Validates a Linear webhook request signature using HMAC SHA-256
+ * @param secret - Linear webhook secret (plain text)
+ * @param signature - Linear-Signature header value (hex-encoded HMAC SHA-256 signature)
+ * @param body - Raw request body string
+ * @returns Whether the signature is valid
+ */
+export function validateLinearSignature(secret: string, signature: string, body: string): boolean {
+  try {
+    if (!secret || !signature || !body) {
+      logger.warn('Linear signature validation missing required fields', {
+        hasSecret: !!secret,
+        hasSignature: !!signature,
+        hasBody: !!body,
+      })
+      return false
+    }
+
+    const crypto = require('crypto')
+    const computedHash = crypto.createHmac('sha256', secret).update(body, 'utf8').digest('hex')
+
+    logger.debug('Linear signature comparison', {
+      computedSignature: `${computedHash.substring(0, 10)}...`,
+      providedSignature: `${signature.substring(0, 10)}...`,
+      computedLength: computedHash.length,
+      providedLength: signature.length,
+      match: computedHash === signature,
+    })
+
+    if (computedHash.length !== signature.length) {
+      return false
+    }
+
+    let result = 0
+    for (let i = 0; i < computedHash.length; i++) {
+      result |= computedHash.charCodeAt(i) ^ signature.charCodeAt(i)
+    }
+
+    return result === 0
+  } catch (error) {
+    logger.error('Error validating Linear signature:', error)
+    return false
+  }
+}
+
+/**
+ * Validates a Jira webhook request signature using HMAC SHA-256
+ * @param secret - Jira webhook secret (plain text)
+ * @param signature - X-Hub-Signature header value (format: 'sha256=<hex>')
+ * @param body - Raw request body string
+ * @returns Whether the signature is valid
+ */
+export function validateJiraSignature(secret: string, signature: string, body: string): boolean {
+  try {
+    if (!secret || !signature || !body) {
+      logger.warn('Jira signature validation missing required fields', {
+        hasSecret: !!secret,
+        hasSignature: !!signature,
+        hasBody: !!body,
+      })
+      return false
+    }
+
+    if (!signature.startsWith('sha256=')) {
+      logger.warn('Jira signature has invalid format (expected sha256=)', {
+        signaturePrefix: signature.substring(0, 10),
+      })
+      return false
+    }
+
+    const providedSignature = signature.substring(7)
+
+    const crypto = require('crypto')
+    const computedHash = crypto.createHmac('sha256', secret).update(body, 'utf8').digest('hex')
+
+    logger.debug('Jira signature comparison', {
+      computedSignature: `${computedHash.substring(0, 10)}...`,
+      providedSignature: `${providedSignature.substring(0, 10)}...`,
+      computedLength: computedHash.length,
+      providedLength: providedSignature.length,
+      match: computedHash === providedSignature,
+    })
+
+    if (computedHash.length !== providedSignature.length) {
+      return false
+    }
+
+    let result = 0
+    for (let i = 0; i < computedHash.length; i++) {
+      result |= computedHash.charCodeAt(i) ^ providedSignature.charCodeAt(i)
+    }
+
+    return result === 0
+  } catch (error) {
+    logger.error('Error validating Jira signature:', error)
+    return false
+  }
+}
+
+/**
+ * Validates a GitHub webhook request signature using HMAC SHA-256 or SHA-1
+ * @param secret - GitHub webhook secret (plain text)
+ * @param signature - X-Hub-Signature-256 or X-Hub-Signature header value (format: 'sha256=<hex>' or 'sha1=<hex>')
+ * @param body - Raw request body string
+ * @returns Whether the signature is valid
+ */
+export function validateGitHubSignature(secret: string, signature: string, body: string): boolean {
+  try {
+    if (!secret || !signature || !body) {
+      logger.warn('GitHub signature validation missing required fields', {
+        hasSecret: !!secret,
+        hasSignature: !!signature,
+        hasBody: !!body,
+      })
+      return false
+    }
+
+    const crypto = require('crypto')
+    let algorithm: 'sha256' | 'sha1'
+    let providedSignature: string
+
+    if (signature.startsWith('sha256=')) {
+      algorithm = 'sha256'
+      providedSignature = signature.substring(7)
+    } else if (signature.startsWith('sha1=')) {
+      algorithm = 'sha1'
+      providedSignature = signature.substring(5)
+    } else {
+      logger.warn('GitHub signature has invalid format', {
+        signature: `${signature.substring(0, 10)}...`,
+      })
+      return false
+    }
+
+    const computedHash = crypto.createHmac(algorithm, secret).update(body, 'utf8').digest('hex')
+
+    logger.debug('GitHub signature comparison', {
+      algorithm,
+      computedSignature: `${computedHash.substring(0, 10)}...`,
+      providedSignature: `${providedSignature.substring(0, 10)}...`,
+      computedLength: computedHash.length,
+      providedLength: providedSignature.length,
+      match: computedHash === providedSignature,
+    })
+
+    if (computedHash.length !== providedSignature.length) {
+      return false
+    }
+
+    let result = 0
+    for (let i = 0; i < computedHash.length; i++) {
+      result |= computedHash.charCodeAt(i) ^ providedSignature.charCodeAt(i)
+    }
+
+    return result === 0
+  } catch (error) {
+    logger.error('Error validating GitHub signature:', error)
     return false
   }
 }

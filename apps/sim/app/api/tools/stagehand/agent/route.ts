@@ -170,7 +170,7 @@ async function processSecureActions(
   return { modifiedMessage, executedActions }
 }
 
-// New helper function for direct login attempt
+// Helper function for direct login attempt
 async function attemptDirectLogin(
   stagehand: Stagehand,
   variables: Record<string, string> | undefined

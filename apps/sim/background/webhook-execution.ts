@@ -17,6 +17,7 @@ import {
   loadWorkflowFromNormalizedTables,
 } from '@/lib/workflows/db-helpers'
 import { executeWorkflowCore } from '@/lib/workflows/executor/execution-core'
+import { PauseResumeManager } from '@/lib/workflows/executor/pause-resume-manager'
 import { getWorkflowById } from '@/lib/workflows/utils'
 import { type ExecutionMetadata, ExecutionSnapshot } from '@/executor/execution/snapshot'
 import type { ExecutionResult } from '@/executor/types'
@@ -133,16 +134,6 @@ async function executeWebhookJobInternal(
   const loggingSession = new LoggingSession(payload.workflowId, executionId, 'webhook', requestId)
 
   try {
-    await loggingSession.safeStart({
-      userId: payload.userId,
-      workspaceId: '', // Will be resolved below
-      variables: {},
-      triggerData: {
-        isTest: payload.testMode === true,
-        executionTarget: payload.executionTarget || 'deployed',
-      },
-    })
-
     const workflowData =
       payload.executionTarget === 'live'
         ? await loadWorkflowFromNormalizedTables(payload.workflowId)
@@ -259,6 +250,24 @@ async function executeWebhookJobInternal(
           callbacks: {},
           loggingSession,
         })
+
+        if (executionResult.status === 'paused') {
+          if (!executionResult.snapshotSeed) {
+            logger.error(`[${requestId}] Missing snapshot seed for paused execution`, {
+              executionId,
+            })
+          } else {
+            await PauseResumeManager.persistPauseResult({
+              workflowId: payload.workflowId,
+              executionId,
+              pausePoints: executionResult.pausePoints || [],
+              snapshotSeed: executionResult.snapshotSeed,
+              executorUserId: executionResult.metadata?.userId,
+            })
+          }
+        } else {
+          await PauseResumeManager.processQueuedResumes(executionId)
+        }
 
         logger.info(`[${requestId}] Airtable webhook execution completed`, {
           success: executionResult.success,
@@ -455,6 +464,24 @@ async function executeWebhookJobInternal(
       loggingSession,
     })
 
+    if (executionResult.status === 'paused') {
+      if (!executionResult.snapshotSeed) {
+        logger.error(`[${requestId}] Missing snapshot seed for paused execution`, {
+          executionId,
+        })
+      } else {
+        await PauseResumeManager.persistPauseResult({
+          workflowId: payload.workflowId,
+          executionId,
+          pausePoints: executionResult.pausePoints || [],
+          snapshotSeed: executionResult.snapshotSeed,
+          executorUserId: executionResult.metadata?.userId,
+        })
+      }
+    } else {
+      await PauseResumeManager.processQueuedResumes(executionId)
+    }
+
     logger.info(`[${requestId}] Webhook execution completed`, {
       success: executionResult.success,
       workflowId: payload.workflowId,
@@ -478,6 +505,17 @@ async function executeWebhookJobInternal(
     })
 
     try {
+      // Ensure logging session is started (safe to call multiple times)
+      await loggingSession.safeStart({
+        userId: payload.userId,
+        workspaceId: '', // May not be available for early errors
+        variables: {},
+        triggerData: {
+          isTest: payload.testMode === true,
+          executionTarget: payload.executionTarget || 'deployed',
+        },
+      })
+
       const executionResult = (error?.executionResult as ExecutionResult | undefined) || {
         success: false,
         output: {},

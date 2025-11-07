@@ -1,6 +1,6 @@
 ---
 title: Jina
-description: Convert website content into text
+description: Search the web or extract content from URLs
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -63,7 +63,7 @@ This integration is particularly valuable for building agents that need to gathe
 
 ## Usage Instructions
 
-Integrate Jina into the workflow. Extracts content from websites.
+Integrate Jina AI into the workflow. Search the web and get LLM-friendly results, or extract clean content from specific URLs with advanced parsing options.
 
 
 
@@ -78,16 +78,55 @@ Extract and process web content into clean, LLM-friendly text using Jina AI Read
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `url` | string | Yes | The URL to read and convert to markdown |
-| `useReaderLMv2` | boolean | No | Whether to use ReaderLM-v2 for better quality |
+| `useReaderLMv2` | boolean | No | Whether to use ReaderLM-v2 for better quality \(3x token cost\) |
 | `gatherLinks` | boolean | No | Whether to gather all links at the end |
 | `jsonResponse` | boolean | No | Whether to return response in JSON format |
 | `apiKey` | string | Yes | Your Jina AI API key |
+| `withImagesummary` | boolean | No | Gather all images from the page with metadata |
+| `retainImages` | string | No | Control image inclusion: "none" removes all, "all" keeps all |
+| `returnFormat` | string | No | Output format: markdown, html, text, screenshot, or pageshot |
+| `withIframe` | boolean | No | Include iframe content in extraction |
+| `withShadowDom` | boolean | No | Extract Shadow DOM content |
+| `noCache` | boolean | No | Bypass cached content for real-time retrieval |
+| `withGeneratedAlt` | boolean | No | Generate alt text for images using VLM |
+| `robotsTxt` | string | No | Bot User-Agent for robots.txt checking |
+| `dnt` | boolean | No | Do Not Track - prevents caching/tracking |
+| `noGfm` | boolean | No | Disable GitHub Flavored Markdown |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `content` | string | The extracted content from the URL, processed into clean, LLM-friendly text |
+| `links` | array | List of links found on the page \(when gatherLinks or withLinksummary is enabled\) |
+| `images` | array | List of images found on the page \(when withImagesummary is enabled\) |
+
+### `jina_search`
+
+Search the web and return top 5 results with LLM-friendly content. Each result is automatically processed through Jina Reader API. Supports geographic filtering, site restrictions, and pagination.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `q` | string | Yes | Search query string |
+| `apiKey` | string | Yes | Your Jina AI API key |
+| `num` | number | No | Maximum number of results per page \(default: 5\) |
+| `site` | string | No | Restrict results to specific domain\(s\). Can be comma-separated for multiple sites \(e.g., "jina.ai,github.com"\) |
+| `withFavicon` | boolean | No | Include website favicons in results |
+| `withImagesummary` | boolean | No | Gather all images from result pages with metadata |
+| `withLinksummary` | boolean | No | Gather all links from result pages |
+| `retainImages` | string | No | Control image inclusion: "none" removes all, "all" keeps all |
+| `noCache` | boolean | No | Bypass cached content for real-time retrieval |
+| `withGeneratedAlt` | boolean | No | Generate alt text for images using VLM |
+| `respondWith` | string | No | Set to "no-content" to get only metadata without page content |
+| `returnFormat` | string | No | Output format: markdown, html, text, screenshot, or pageshot |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `results` | array | Array of search results, each containing title, description, url, and LLM-friendly content |
 
 
 

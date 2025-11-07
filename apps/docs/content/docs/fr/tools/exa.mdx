@@ -56,9 +56,20 @@ Recherchez sur le web en utilisant Exa AI. Renvoie des résultats de recherche p
 | Paramètre | Type | Obligatoire | Description |
 | --------- | ---- | ---------- | ----------- |
 | `query` | chaîne | Oui | La requête de recherche à exécuter |
-| `numResults` | nombre | Non | Nombre de résultats à retourner \(par défaut : 10, max : 25\) |
+| `numResults` | nombre | Non | Nombre de résultats à renvoyer \(par défaut : 10, max : 25\) |
 | `useAutoprompt` | booléen | Non | Indique s'il faut utiliser l'autoprompt pour améliorer la requête \(par défaut : false\) |
 | `type` | chaîne | Non | Type de recherche : neural, keyword, auto ou fast \(par défaut : auto\) |
+| `includeDomains` | chaîne | Non | Liste de domaines séparés par des virgules à inclure dans les résultats |
+| `excludeDomains` | chaîne | Non | Liste de domaines séparés par des virgules à exclure des résultats |
+| `startPublishedDate` | chaîne | Non | Filtrer les résultats publiés après cette date \(format ISO 8601, ex. 2024-01-01\) |
+| `endPublishedDate` | chaîne | Non | Filtrer les résultats publiés avant cette date \(format ISO 8601\) |
+| `startCrawlDate` | chaîne | Non | Filtrer les résultats indexés après cette date \(format ISO 8601\) |
+| `endCrawlDate` | chaîne | Non | Filtrer les résultats indexés avant cette date \(format ISO 8601\) |
+| `category` | chaîne | Non | Filtrer par catégorie : company, research_paper, news_article, pdf, github, tweet, movie, song, personal_site |
+| `text` | booléen | Non | Inclure le contenu textuel complet dans les résultats \(par défaut : false\) |
+| `highlights` | booléen | Non | Inclure des extraits mis en évidence dans les résultats \(par défaut : false\) |
+| `summary` | booléen | Non | Inclure des résumés générés par IA dans les résultats \(par défaut : false\) |
+| `livecrawl` | chaîne | Non | Mode d'indexation en direct : always, fallback, ou never \(par défaut : never\) |
 | `apiKey` | chaîne | Oui | Clé API Exa AI |
 
 #### Sortie
@@ -75,9 +86,13 @@ Récupérer le contenu des pages web en utilisant Exa AI. Renvoie le titre, le c
 
 | Paramètre | Type | Obligatoire | Description |
 | --------- | ---- | ---------- | ----------- |
-| `urls` | chaîne | Oui | Liste d'URLs séparées par des virgules dont il faut récupérer le contenu |
+| `urls` | chaîne | Oui | Liste d'URLs séparées par des virgules pour récupérer du contenu |
 | `text` | booléen | Non | Si vrai, renvoie le texte complet de la page avec les paramètres par défaut. Si faux, désactive le retour de texte. |
 | `summaryQuery` | chaîne | Non | Requête pour guider la génération du résumé |
+| `subpages` | nombre | Non | Nombre de sous-pages à explorer à partir des URLs fournies |
+| `subpageTarget` | chaîne | Non | Mots-clés séparés par des virgules pour cibler des sous-pages spécifiques \(ex. : "docs,tutorial,about"\) |
+| `highlights` | booléen | Non | Inclure des extraits surlignés dans les résultats \(par défaut : false\) |
+| `livecrawl` | chaîne | Non | Mode d'exploration en direct : always, fallback, ou never \(par défaut : never\) |
 | `apiKey` | chaîne | Oui | Clé API Exa AI |
 
 #### Sortie
@@ -95,8 +110,19 @@ Trouvez des pages web similaires à une URL donnée en utilisant Exa AI. Renvoie
 | Paramètre | Type | Obligatoire | Description |
 | --------- | ---- | ---------- | ----------- |
 | `url` | chaîne | Oui | L'URL pour laquelle trouver des liens similaires |
-| `numResults` | nombre | Non | Nombre de liens similaires à renvoyer \(par défaut : 10, max : 25\) |
+| `numResults` | nombre | Non | Nombre de liens similaires à retourner \(par défaut : 10, max : 25\) |
 | `text` | booléen | Non | Indique s'il faut inclure le texte complet des pages similaires |
+| `includeDomains` | chaîne | Non | Liste de domaines séparés par des virgules à inclure dans les résultats |
+| `excludeDomains` | chaîne | Non | Liste de domaines séparés par des virgules à exclure des résultats |
+| `excludeSourceDomain` | booléen | Non | Exclure le domaine source des résultats \(par défaut : false\) |
+| `startPublishedDate` | chaîne | Non | Filtrer les résultats publiés après cette date \(format ISO 8601, ex. : 2024-01-01\) |
+| `endPublishedDate` | chaîne | Non | Filtrer les résultats publiés avant cette date \(format ISO 8601\) |
+| `startCrawlDate` | chaîne | Non | Filtrer les résultats explorés après cette date \(format ISO 8601\) |
+| `endCrawlDate` | chaîne | Non | Filtrer les résultats explorés avant cette date \(format ISO 8601\) |
+| `category` | chaîne | Non | Filtrer par catégorie : company, research_paper, news_article, pdf, github, tweet, movie, song, personal_site |
+| `highlights` | booléen | Non | Inclure des extraits surlignés dans les résultats \(par défaut : false\) |
+| `summary` | booléen | Non | Inclure des résumés générés par IA dans les résultats \(par défaut : false\) |
+| `livecrawl` | chaîne | Non | Mode d'exploration en direct : always, fallback, ou never \(par défaut : never\) |
 | `apiKey` | chaîne | Oui | Clé API Exa AI |
 
 #### Sortie
@@ -133,7 +159,7 @@ Effectuer des recherches complètes à l'aide de l'IA pour générer des rapport
 | Paramètre | Type | Obligatoire | Description |
 | --------- | ---- | ---------- | ----------- |
 | `query` | chaîne | Oui | Requête ou sujet de recherche |
-| `includeText` | booléen | Non | Inclure le contenu intégral dans les résultats |
+| `model` | chaîne | Non | Modèle de recherche : exa-research-fast, exa-research \(par défaut\), ou exa-research-pro |
 | `apiKey` | chaîne | Oui | Clé API Exa AI |
 
 #### Sortie

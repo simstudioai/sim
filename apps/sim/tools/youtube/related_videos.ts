@@ -45,7 +45,7 @@ export const youtubeRelatedVideosTool: ToolConfig<
       let url = `https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&relatedToVideoId=${encodeURIComponent(
         params.videoId
       )}&key=${params.apiKey}`
-      url += `&maxResults=${params.maxResults || 10}`
+      url += `&maxResults=${Number(params.maxResults || 10)}`
       if (params.pageToken) {
         url += `&pageToken=${params.pageToken}`
       }

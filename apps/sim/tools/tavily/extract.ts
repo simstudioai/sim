@@ -21,6 +21,24 @@ export const extractTool: ToolConfig<TavilyExtractParams, TavilyExtractResponse>
       visibility: 'user-only',
       description: 'The depth of extraction (basic=1 credit/5 URLs, advanced=2 credits/5 URLs)',
     },
+    format: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description: 'Output format: markdown or text (default: markdown)',
+    },
+    include_images: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-only',
+      description: 'Incorporate images in extraction output',
+    },
+    include_favicon: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-only',
+      description: 'Add favicon URL for each result',
+    },
     apiKey: {
       type: 'string',
       required: true,
@@ -42,6 +60,9 @@ export const extractTool: ToolConfig<TavilyExtractParams, TavilyExtractResponse>
       }
 
       if (params.extract_depth) body.extract_depth = params.extract_depth
+      if (params.format) body.format = params.format
+      if (params.include_images !== undefined) body.include_images = params.include_images
+      if (params.include_favicon !== undefined) body.include_favicon = params.include_favicon
 
       return body
     },
@@ -68,6 +89,7 @@ export const extractTool: ToolConfig<TavilyExtractParams, TavilyExtractResponse>
         properties: {
           url: { type: 'string', description: 'The URL that was extracted' },
           raw_content: { type: 'string', description: 'The raw text content from the webpage' },
+          favicon: { type: 'string', description: 'Favicon URL (if requested)' },
         },
       },
       description: 'Successfully extracted content from URLs',

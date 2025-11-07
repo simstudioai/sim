@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-// Tool IDs supported by the new Copilot runtime
+// Tool IDs supported by the Copilot runtime
 export const ToolIds = z.enum([
   'get_user_workflow',
   'edit_workflow',
@@ -21,13 +21,10 @@ export const ToolIds = z.enum([
   'list_gdrive_files',
   'read_gdrive_file',
   'reason',
-  // New tools
   'list_user_workflows',
   'get_workflow_from_name',
-  // New variable tools
   'get_global_workflow_variables',
   'set_global_workflow_variables',
-  // New
   'oauth_request_access',
   'get_trigger_blocks',
 ])

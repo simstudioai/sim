@@ -28,6 +28,31 @@ export const getContentsTool: ToolConfig<ExaGetContentsParams, ExaGetContentsRes
       visibility: 'user-or-llm',
       description: 'Query to guide the summary generation',
     },
+    subpages: {
+      type: 'number',
+      required: false,
+      visibility: 'user-only',
+      description: 'Number of subpages to crawl from the provided URLs',
+    },
+    subpageTarget: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description:
+        'Comma-separated keywords to target specific subpages (e.g., "docs,tutorial,about")',
+    },
+    highlights: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-only',
+      description: 'Include highlighted snippets in results (default: false)',
+    },
+    livecrawl: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description: 'Live crawling mode: always, fallback, or never (default: never)',
+    },
     apiKey: {
       type: 'string',
       required: true,
@@ -67,6 +92,28 @@ export const getContentsTool: ToolConfig<ExaGetContentsParams, ExaGetContentsRes
         }
       }
 
+      // Subpages crawling
+      if (params.subpages !== undefined) {
+        body.subpages = Number(params.subpages)
+      }
+
+      if (params.subpageTarget) {
+        body.subpageTarget = params.subpageTarget
+          .split(',')
+          .map((target: string) => target.trim())
+          .filter((target: string) => target.length > 0)
+      }
+
+      // Content options
+      if (params.highlights !== undefined) {
+        body.highlights = params.highlights
+      }
+
+      // Live crawl mode
+      if (params.livecrawl) {
+        body.livecrawl = params.livecrawl
+      }
+
       return body
     },
   },
@@ -82,6 +129,7 @@ export const getContentsTool: ToolConfig<ExaGetContentsParams, ExaGetContentsRes
           title: result.title || '',
           text: result.text || '',
           summary: result.summary || '',
+          highlights: result.highlights,
         })),
       },
     }

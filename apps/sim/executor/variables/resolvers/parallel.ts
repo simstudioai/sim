@@ -1,8 +1,8 @@
 import { createLogger } from '@/lib/logs/console/logger'
 import { isReference, parseReferencePath, REFERENCE } from '@/executor/consts'
 import { extractBaseBlockId, extractBranchIndex } from '@/executor/utils/subflow-utils'
+import type { ResolutionContext, Resolver } from '@/executor/variables/resolvers/reference'
 import type { SerializedWorkflow } from '@/serializer/types'
-import type { ResolutionContext, Resolver } from './reference'
 
 const logger = createLogger('ParallelResolver')
 
@@ -31,7 +31,6 @@ export class ParallelResolver implements Resolver {
     const [_, property] = parts
     const parallelId = this.findParallelForBlock(context.currentNodeId)
     if (!parallelId) {
-      logger.debug('Block not in a parallel', { nodeId: context.currentNodeId })
       return undefined
     }
 
@@ -43,7 +42,6 @@ export class ParallelResolver implements Resolver {
 
     const branchIndex = extractBranchIndex(context.currentNodeId)
     if (branchIndex === null) {
-      logger.debug('Node ID does not have branch index', { nodeId: context.currentNodeId })
       return undefined
     }
 

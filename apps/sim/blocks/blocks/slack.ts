@@ -117,7 +117,7 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
     },
     {
       id: 'threadTs',
-      title: 'Thread Timestamp (Optional)',
+      title: 'Thread Timestamp',
       type: 'short-input',
       layout: 'full',
       canonicalParamId: 'thread_ts',

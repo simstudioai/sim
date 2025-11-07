@@ -72,7 +72,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ workspace: newWorkspace })
   } catch (error) {
-    console.error('Error creating workspace:', error)
+    logger.error('Error creating workspace:', error)
     return NextResponse.json({ error: 'Failed to create workspace' }, { status: 500 })
   }
 }

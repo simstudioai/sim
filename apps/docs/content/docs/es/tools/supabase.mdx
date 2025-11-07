@@ -75,7 +75,7 @@ Ya sea que estés construyendo herramientas internas, automatizando procesos de 
 
 ## Instrucciones de uso
 
-Integra Supabase en el flujo de trabajo. Puede obtener muchas filas, obtener, crear, actualizar, eliminar y actualizar/insertar una fila.
+Integra Supabase en el flujo de trabajo. Admite operaciones de base de datos (consulta, inserción, actualización, eliminación, upsert), búsqueda de texto completo, funciones RPC, conteo de filas, búsqueda vectorial y gestión completa de almacenamiento (subir, descargar, listar, mover, copiar, eliminar archivos y buckets).
 
 ## Herramientas
 
@@ -202,6 +202,51 @@ Insertar o actualizar datos en una tabla de Supabase (operación upsert)
 | `message` | string | Mensaje de estado de la operación |
 | `results` | array | Array de registros insertados o actualizados |
 
+### `supabase_count`
+
+Contar filas en una tabla de Supabase
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Sí | ID de tu proyecto Supabase \(p. ej., jdrkgepadsdopsntdlom\) |
+| `table` | string | Sí | Nombre de la tabla Supabase de la que contar filas |
+| `filter` | string | No | Filtro PostgREST \(p. ej., "status=eq.active"\) |
+| `countType` | string | No | Tipo de conteo: exact, planned o estimated \(predeterminado: exact\) |
+| `apiKey` | string | Sí | Tu clave secreta de rol de servicio de Supabase |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `message` | string | Mensaje de estado de la operación |
+| `count` | number | Número de filas que coinciden con el filtro |
+
+### `supabase_text_search`
+
+Realizar búsqueda de texto completo en una tabla de Supabase
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Sí | ID de tu proyecto Supabase \(p. ej., jdrkgepadsdopsntdlom\) |
+| `table` | string | Sí | Nombre de la tabla Supabase en la que buscar |
+| `column` | string | Sí | La columna en la que buscar |
+| `query` | string | Sí | La consulta de búsqueda |
+| `searchType` | string | No | Tipo de búsqueda: plain, phrase o websearch \(predeterminado: websearch\) |
+| `language` | string | No | Idioma para la configuración de búsqueda de texto \(predeterminado: english\) |
+| `limit` | number | No | Número máximo de filas a devolver |
+| `apiKey` | string | Sí | Tu clave secreta de rol de servicio de Supabase |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `message` | string | Mensaje de estado de la operación |
+| `results` | array | Array de registros que coinciden con la consulta de búsqueda |
+
 ### `supabase_vector_search`
 
 Realizar búsqueda de similitud usando pgvector en una tabla de Supabase
@@ -210,11 +255,11 @@ Realizar búsqueda de similitud usando pgvector en una tabla de Supabase
 
 | Parámetro | Tipo | Obligatorio | Descripción |
 | --------- | ---- | ----------- | ----------- |
-| `projectId` | string | Sí | ID de tu proyecto Supabase \(p. ej., jdrkgepadsdopsntdlom\) |
-| `functionName` | string | Sí | Nombre de la función PostgreSQL que realiza la búsqueda vectorial \(p. ej., match_documents\) |
+| `projectId` | string | Sí | ID de tu proyecto Supabase (p. ej., jdrkgepadsdopsntdlom) |
+| `functionName` | string | Sí | Nombre de la función PostgreSQL que realiza la búsqueda vectorial (p. ej., match_documents) |
 | `queryEmbedding` | array | Sí | El vector/embedding de consulta para buscar elementos similares |
-| `matchThreshold` | number | No | Umbral mínimo de similitud \(0-1\), típicamente 0.7-0.9 |
-| `matchCount` | number | No | Número máximo de resultados a devolver \(predeterminado: 10\) |
+| `matchThreshold` | number | No | Umbral mínimo de similitud (0-1), típicamente 0.7-0.9 |
+| `matchCount` | number | No | Número máximo de resultados a devolver (predeterminado: 10) |
 | `apiKey` | string | Sí | Tu clave secreta de rol de servicio de Supabase |
 
 #### Salida
@@ -222,7 +267,260 @@ Realizar búsqueda de similitud usando pgvector en una tabla de Supabase
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
 | `message` | string | Mensaje de estado de la operación |
-| `results` | array | Array de registros con puntuaciones de similitud de la búsqueda vectorial. Cada registro incluye un campo de similitud \(0-1\) que indica cuán similar es al vector de consulta. |
+| `results` | array | Array de registros con puntuaciones de similitud de la búsqueda vectorial. Cada registro incluye un campo de similitud (0-1) que indica cuán similar es al vector de consulta. |
+
+### `supabase_rpc`
+
+Llamar a una función PostgreSQL en Supabase
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ----------- | ----------- |
+| `projectId` | string | Sí | ID de tu proyecto Supabase (p. ej., jdrkgepadsdopsntdlom) |
+| `functionName` | string | Sí | Nombre de la función PostgreSQL a llamar |
+| `apiKey` | string | Sí | Tu clave secreta de rol de servicio de Supabase |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `message` | string | Mensaje de estado de la operación |
+| `results` | json | Resultado devuelto por la función |
+
+### `supabase_storage_upload`
+
+Subir un archivo a un bucket de almacenamiento de Supabase
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Sí | ID de tu proyecto Supabase \(p. ej., jdrkgepadsdopsntdlom\) |
+| `bucket` | string | Sí | El nombre del bucket de almacenamiento |
+| `path` | string | Sí | La ruta donde se almacenará el archivo \(p. ej., "carpeta/archivo.jpg"\) |
+| `fileContent` | string | Sí | El contenido del archivo \(codificado en base64 para archivos binarios, o texto plano\) |
+| `contentType` | string | No | Tipo MIME del archivo \(p. ej., "image/jpeg", "text/plain"\) |
+| `upsert` | boolean | No | Si es verdadero, sobrescribe el archivo existente \(predeterminado: false\) |
+| `apiKey` | string | Sí | Tu clave secreta de rol de servicio de Supabase |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `message` | string | Mensaje de estado de la operación |
+| `results` | object | Resultado de la subida incluyendo ruta del archivo y metadatos |
+
+### `supabase_storage_download`
+
+Descargar un archivo de un bucket de almacenamiento de Supabase
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Sí | ID de tu proyecto Supabase \(p. ej., jdrkgepadsdopsntdlom\) |
+| `bucket` | string | Sí | El nombre del bucket de almacenamiento |
+| `path` | string | Sí | La ruta al archivo para descargar \(p. ej., "carpeta/archivo.jpg"\) |
+| `apiKey` | string | Sí | Tu clave secreta de rol de servicio de Supabase |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `message` | string | Mensaje de estado de la operación |
+| `fileContent` | string | Contenido del archivo \(codificado en base64 si es binario, texto plano en caso contrario\) |
+| `contentType` | string | Tipo MIME del archivo |
+| `isBase64` | boolean | Indica si el contenido del archivo está codificado en base64 |
+
+### `supabase_storage_list`
+
+Listar archivos en un bucket de almacenamiento de Supabase
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ----------- | ----------- |
+| `projectId` | string | Sí | ID de tu proyecto Supabase \(p. ej., jdrkgepadsdopsntdlom\) |
+| `bucket` | string | Sí | El nombre del bucket de almacenamiento |
+| `path` | string | No | La ruta de la carpeta desde donde listar archivos \(predeterminado: raíz\) |
+| `limit` | number | No | Número máximo de archivos a devolver \(predeterminado: 100\) |
+| `offset` | number | No | Número de archivos a omitir \(para paginación\) |
+| `sortBy` | string | No | Columna para ordenar: name, created_at, updated_at \(predeterminado: name\) |
+| `sortOrder` | string | No | Orden de clasificación: asc o desc \(predeterminado: asc\) |
+| `search` | string | No | Término de búsqueda para filtrar archivos por nombre |
+| `apiKey` | string | Sí | Tu clave secreta de rol de servicio de Supabase |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `message` | string | Mensaje de estado de la operación |
+| `results` | array | Array de objetos de archivo con metadatos |
+
+### `supabase_storage_delete`
+
+Eliminar archivos de un bucket de almacenamiento de Supabase
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Sí | ID de tu proyecto Supabase \(p. ej., jdrkgepadsdopsntdlom\) |
+| `bucket` | string | Sí | El nombre del bucket de almacenamiento |
+| `paths` | array | Sí | Array de rutas de archivos a eliminar \(p. ej., \["carpeta/archivo1.jpg", "carpeta/archivo2.jpg"\]\) |
+| `apiKey` | string | Sí | Tu clave secreta de rol de servicio de Supabase |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `message` | string | Mensaje de estado de la operación |
+| `results` | array | Array de objetos de archivos eliminados |
+
+### `supabase_storage_move`
+
+Mover un archivo dentro de un bucket de almacenamiento de Supabase
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Sí | ID de tu proyecto Supabase \(p. ej., jdrkgepadsdopsntdlom\) |
+| `bucket` | string | Sí | El nombre del bucket de almacenamiento |
+| `fromPath` | string | Sí | La ruta actual del archivo \(p. ej., "carpeta/viejo.jpg"\) |
+| `toPath` | string | Sí | La nueva ruta para el archivo \(p. ej., "nuevacarpeta/nuevo.jpg"\) |
+| `apiKey` | string | Sí | Tu clave secreta de rol de servicio de Supabase |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `message` | string | Mensaje de estado de la operación |
+| `results` | object | Resultado de la operación de movimiento |
+
+### `supabase_storage_copy`
+
+Copiar un archivo dentro de un bucket de almacenamiento de Supabase
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Sí | ID de tu proyecto Supabase \(p. ej., jdrkgepadsdopsntdlom\) |
+| `bucket` | string | Sí | El nombre del bucket de almacenamiento |
+| `fromPath` | string | Sí | La ruta del archivo de origen \(p. ej., "carpeta/origen.jpg"\) |
+| `toPath` | string | Sí | La ruta para el archivo copiado \(p. ej., "carpeta/copia.jpg"\) |
+| `apiKey` | string | Sí | Tu clave secreta de rol de servicio de Supabase |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `message` | string | Mensaje de estado de la operación |
+| `results` | object | Resultado de la operación de copia |
+
+### `supabase_storage_create_bucket`
+
+Crear un nuevo bucket de almacenamiento en Supabase
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Sí | ID de tu proyecto Supabase \(p. ej., jdrkgepadsdopsntdlom\) |
+| `bucket` | string | Sí | El nombre del bucket a crear |
+| `isPublic` | boolean | No | Si el bucket debe ser accesible públicamente \(predeterminado: false\) |
+| `fileSizeLimit` | number | No | Tamaño máximo de archivo en bytes \(opcional\) |
+| `allowedMimeTypes` | array | No | Array de tipos MIME permitidos \(p. ej., \["image/png", "image/jpeg"\]\) |
+| `apiKey` | string | Sí | Tu clave secreta de rol de servicio de Supabase |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `message` | string | Mensaje de estado de la operación |
+| `results` | object | Información del bucket creado |
+
+### `supabase_storage_list_buckets`
+
+Listar todos los buckets de almacenamiento en Supabase
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Sí | ID de tu proyecto Supabase \(p. ej., jdrkgepadsdopsntdlom\) |
+| `apiKey` | string | Sí | Tu clave secreta de rol de servicio de Supabase |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `message` | string | Mensaje de estado de la operación |
+| `results` | array | Array de objetos de bucket |
+
+### `supabase_storage_delete_bucket`
+
+Eliminar un bucket de almacenamiento en Supabase
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Sí | ID de tu proyecto Supabase \(p. ej., jdrkgepadsdopsntdlom\) |
+| `bucket` | string | Sí | El nombre del bucket a eliminar |
+| `apiKey` | string | Sí | Tu clave secreta de rol de servicio de Supabase |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `message` | string | Mensaje de estado de la operación |
+| `results` | object | Resultado de la operación de eliminación |
+
+### `supabase_storage_get_public_url`
+
+Obtener la URL pública para un archivo en un bucket de almacenamiento de Supabase
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Sí | ID de tu proyecto Supabase \(p. ej., jdrkgepadsdopsntdlom\) |
+| `bucket` | string | Sí | El nombre del bucket de almacenamiento |
+| `path` | string | Sí | La ruta al archivo \(p. ej., "carpeta/archivo.jpg"\) |
+| `download` | boolean | No | Si es verdadero, fuerza la descarga en lugar de mostrar en línea \(predeterminado: false\) |
+| `apiKey` | string | Sí | Tu clave secreta de rol de servicio de Supabase |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `message` | string | Mensaje de estado de la operación |
+| `publicUrl` | string | La URL pública para acceder al archivo |
+
+### `supabase_storage_create_signed_url`
+
+Crear una URL firmada temporal para un archivo en un bucket de almacenamiento de Supabase
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Sí | ID de tu proyecto Supabase \(p. ej., jdrkgepadsdopsntdlom\) |
+| `bucket` | string | Sí | El nombre del bucket de almacenamiento |
+| `path` | string | Sí | La ruta al archivo \(p. ej., "carpeta/archivo.jpg"\) |
+| `expiresIn` | number | Sí | Número de segundos hasta que expire la URL \(p. ej., 3600 para 1 hora\) |
+| `download` | boolean | No | Si es verdadero, fuerza la descarga en lugar de mostrar en línea \(predeterminado: false\) |
+| `apiKey` | string | Sí | Tu clave secreta de rol de servicio de Supabase |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `message` | string | Mensaje de estado de la operación |
+| `signedUrl` | string | La URL firmada temporal para acceder al archivo |
 
 ## Notas
 

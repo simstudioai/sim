@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
+import { createLogger } from '@/lib/logs/console/logger'
 import { soehne } from '@/app/fonts/soehne/soehne'
 import Controls from '@/app/workspace/[workspaceId]/logs/components/dashboard/controls'
 import KPIs from '@/app/workspace/[workspaceId]/logs/components/dashboard/kpis'
@@ -13,6 +14,8 @@ import { mapToExecutionLog, mapToExecutionLogAlt } from '@/app/workspace/[worksp
 import { formatCost } from '@/providers/utils'
 import { useFilterStore } from '@/stores/logs/filters/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+
+const logger = createLogger('Dashboard')
 
 type TimeFilter = '30m' | '1h' | '6h' | '12h' | '24h' | '3d' | '7d' | '14d' | '30d'
 
@@ -362,7 +365,7 @@ export default function Dashboard() {
         })
         setGlobalLogsMeta({ offset: mappedLogs.length, hasMore: mappedLogs.length === 50 })
       } catch (err) {
-        console.error('Error fetching executions:', err)
+        logger.error('Error fetching executions:', err)
         setError(err instanceof Error ? err.message : 'An error occurred')
       } finally {
         setLoading(false)
@@ -418,7 +421,7 @@ export default function Dashboard() {
           },
         }))
       } catch (err) {
-        console.error('Error fetching workflow details:', err)
+        logger.error('Error fetching workflow details:', err)
       }
     },
     [workspaceId, endTime, getStartTime, triggers]

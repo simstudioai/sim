@@ -252,7 +252,7 @@ export const DiffControls = memo(function DiffControls() {
       logger.error('Failed to accept changes:', error)
 
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
-      console.error('Workflow update failed:', errorMessage)
+      logger.error('Workflow update failed:', errorMessage)
       alert(`Failed to save workflow changes: ${errorMessage}`)
     }
   }, [createCheckpoint, clearPreviewYaml, updatePreviewToolCallState, acceptChanges])

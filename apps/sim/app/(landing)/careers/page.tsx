@@ -14,9 +14,12 @@ import {
 } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { quickValidateEmail } from '@/lib/email/validation'
+import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
 import { LegalLayout } from '@/app/(landing)/components'
 import { soehne } from '@/app/fonts/soehne/soehne'
+
+const logger = createLogger('CareersPage')
 
 const validateName = (name: string): string[] => {
   const errors: string[] = []
@@ -188,7 +191,7 @@ export default function CareersPage() {
 
       setSubmitStatus('success')
     } catch (error) {
-      console.error('Error submitting application:', error)
+      logger.error('Error submitting application:', error)
       setSubmitStatus('error')
     } finally {
       setIsSubmitting(false)
