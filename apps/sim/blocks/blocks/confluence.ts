@@ -31,9 +31,7 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
         { label: 'Delete Comment', id: 'delete_comment' },
         { label: 'List Attachments', id: 'list_attachments' },
         { label: 'Delete Attachment', id: 'delete_attachment' },
-        { label: 'Add Label', id: 'add_label' },
         { label: 'List Labels', id: 'list_labels' },
-        { label: 'Remove Label', id: 'remove_label' },
         { label: 'Get Space', id: 'get_space' },
         { label: 'List Spaces', id: 'list_spaces' },
       ],
@@ -55,14 +53,24 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
       requiredScopes: [
         'read:confluence-content.all',
         'read:confluence-space.summary',
+        'read:space:confluence',
+        'read:space-details:confluence',
         'write:confluence-content',
         'write:confluence-space',
         'write:confluence-file',
+        'read:content:confluence',
+        'read:page:confluence',
+        'write:page:confluence',
+        'read:comment:confluence',
         'write:comment:confluence',
+        'delete:comment:confluence',
+        'read:attachment:confluence',
         'write:attachment:confluence',
+        'delete:attachment:confluence',
+        'delete:page:confluence',
+        'read:label:confluence',
         'write:label:confluence',
         'search:confluence',
-        'readonly:content.attachment:confluence',
         'read:me',
         'offline_access',
       ],
@@ -93,6 +101,7 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
       title: 'Space ID',
       type: 'short-input',
       placeholder: 'Enter Confluence space ID',
+      required: true,
       condition: { field: 'operation', value: ['create', 'get_space'] },
     },
     {
@@ -180,9 +189,7 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
       'confluence_delete_comment',
       'confluence_list_attachments',
       'confluence_delete_attachment',
-      'confluence_add_label',
       'confluence_list_labels',
-      'confluence_remove_label',
       'confluence_get_space',
       'confluence_list_spaces',
     ],
@@ -211,12 +218,8 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
             return 'confluence_list_attachments'
           case 'delete_attachment':
             return 'confluence_delete_attachment'
-          case 'add_label':
-            return 'confluence_add_label'
           case 'list_labels':
             return 'confluence_list_labels'
-          case 'remove_label':
-            return 'confluence_remove_label'
           case 'get_space':
             return 'confluence_get_space'
           case 'list_spaces':
@@ -238,9 +241,7 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
           'create_comment',
           'list_comments',
           'list_attachments',
-          'add_label',
           'list_labels',
-          'remove_label',
         ]
 
         // Operations that require spaceId

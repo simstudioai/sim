@@ -42,6 +42,8 @@ export async function POST(request: Request) {
 
     const url = `https://api.atlassian.com/ex/confluence/${cloudId}/wiki/api/v2/footer-comments`
 
+    logger.info('Calling Confluence API', { url })
+
     const body = {
       pageId,
       body: {

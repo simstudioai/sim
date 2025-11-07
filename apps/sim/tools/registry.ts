@@ -8,7 +8,6 @@ import { arxivGetAuthorPapersTool, arxivGetPaperTool, arxivSearchTool } from '@/
 import { browserUseRunTaskTool } from '@/tools/browser_use'
 import { clayPopulateTool } from '@/tools/clay'
 import {
-  confluenceAddLabelTool,
   confluenceCreateCommentTool,
   confluenceCreatePageTool,
   confluenceDeleteAttachmentTool,
@@ -19,7 +18,6 @@ import {
   confluenceListCommentsTool,
   confluenceListLabelsTool,
   confluenceListSpacesTool,
-  confluenceRemoveLabelTool,
   confluenceRetrieveTool,
   confluenceSearchTool,
   confluenceUpdateCommentTool,
@@ -822,9 +820,7 @@ export const tools: Record<string, ToolConfig> = {
   confluence_delete_comment: confluenceDeleteCommentTool,
   confluence_list_attachments: confluenceListAttachmentsTool,
   confluence_delete_attachment: confluenceDeleteAttachmentTool,
-  confluence_add_label: confluenceAddLabelTool,
   confluence_list_labels: confluenceListLabelsTool,
-  confluence_remove_label: confluenceRemoveLabelTool,
   confluence_get_space: confluenceGetSpaceTool,
   confluence_list_spaces: confluenceListSpacesTool,
   twilio_send_sms: sendSMSTool,

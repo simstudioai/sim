@@ -1,4 +1,3 @@
-import { confluenceAddLabelTool } from '@/tools/confluence/add_label'
 import { confluenceCreateCommentTool } from '@/tools/confluence/create_comment'
 import { confluenceCreatePageTool } from '@/tools/confluence/create_page'
 import { confluenceDeleteAttachmentTool } from '@/tools/confluence/delete_attachment'
@@ -9,7 +8,6 @@ import { confluenceListAttachmentsTool } from '@/tools/confluence/list_attachmen
 import { confluenceListCommentsTool } from '@/tools/confluence/list_comments'
 import { confluenceListLabelsTool } from '@/tools/confluence/list_labels'
 import { confluenceListSpacesTool } from '@/tools/confluence/list_spaces'
-import { confluenceRemoveLabelTool } from '@/tools/confluence/remove_label'
 import { confluenceRetrieveTool } from '@/tools/confluence/retrieve'
 import { confluenceSearchTool } from '@/tools/confluence/search'
 import { confluenceUpdateTool } from '@/tools/confluence/update'
@@ -27,9 +25,7 @@ export {
   confluenceDeleteCommentTool,
   confluenceListAttachmentsTool,
   confluenceDeleteAttachmentTool,
-  confluenceAddLabelTool,
   confluenceListLabelsTool,
-  confluenceRemoveLabelTool,
   confluenceGetSpaceTool,
   confluenceListSpacesTool,
 }

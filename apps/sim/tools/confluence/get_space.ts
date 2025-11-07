@@ -63,20 +63,22 @@ export const confluenceGetSpaceTool: ToolConfig<
   },
 
   request: {
-    url: () => '/api/tools/confluence/space',
+    url: (params: ConfluenceGetSpaceParams) => {
+      const query = new URLSearchParams({
+        domain: params.domain,
+        accessToken: params.accessToken,
+        spaceId: params.spaceId,
+      })
+      if (params.cloudId) {
+        query.set('cloudId', params.cloudId)
+      }
+      return `/api/tools/confluence/space?${query.toString()}`
+    },
     method: 'GET',
     headers: (params: ConfluenceGetSpaceParams) => {
       return {
         Accept: 'application/json',
         Authorization: `Bearer ${params.accessToken}`,
-      }
-    },
-    body: (params: ConfluenceGetSpaceParams) => {
-      return {
-        domain: params.domain,
-        accessToken: params.accessToken,
-        cloudId: params.cloudId,
-        spaceId: params.spaceId,
       }
     },
   },
