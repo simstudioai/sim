@@ -57,7 +57,7 @@ export const saveTool: ToolConfig<RedditSaveParams, RedditWriteResponse> = {
         formData.append('category', params.category)
       }
 
-      return { body: formData.toString() }
+      return formData.toString()
     },
   },
 
@@ -142,7 +142,7 @@ export const unsaveTool: ToolConfig<RedditSaveParams, RedditWriteResponse> = {
         id: params.id,
       })
 
-      return { body: formData.toString() }
+      return formData.toString()
     },
   },
 

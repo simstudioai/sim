@@ -24,7 +24,6 @@ export const RedditBlock: BlockConfig<RedditResponse> = {
         { label: 'Get Posts', id: 'get_posts' },
         { label: 'Get Comments', id: 'get_comments' },
         { label: 'Get Controversial Posts', id: 'get_controversial' },
-        { label: 'Get Gilded Posts', id: 'get_gilded' },
         { label: 'Search Subreddit', id: 'search' },
         { label: 'Submit Post', id: 'submit_post' },
         { label: 'Vote', id: 'vote' },
@@ -75,7 +74,7 @@ export const RedditBlock: BlockConfig<RedditResponse> = {
       placeholder: 'Enter subreddit name (without r/)',
       condition: {
         field: 'operation',
-        value: ['get_posts', 'get_comments', 'get_controversial', 'get_gilded', 'search'],
+        value: ['get_posts', 'get_comments', 'get_controversial', 'search'],
       },
       required: true,
     },
@@ -195,18 +194,6 @@ export const RedditBlock: BlockConfig<RedditResponse> = {
       condition: {
         field: 'operation',
         value: 'get_controversial',
-      },
-    },
-
-    // Get Gilded specific fields
-    {
-      id: 'gildedLimit',
-      title: 'Max Posts',
-      type: 'short-input',
-      placeholder: '10',
-      condition: {
-        field: 'operation',
-        value: 'get_gilded',
       },
     },
 
@@ -507,7 +494,6 @@ export const RedditBlock: BlockConfig<RedditResponse> = {
       'reddit_get_posts',
       'reddit_get_comments',
       'reddit_get_controversial',
-      'reddit_get_gilded',
       'reddit_search',
       'reddit_submit_post',
       'reddit_vote',
@@ -528,10 +514,6 @@ export const RedditBlock: BlockConfig<RedditResponse> = {
 
         if (operation === 'get_controversial') {
           return 'reddit_get_controversial'
-        }
-
-        if (operation === 'get_gilded') {
-          return 'reddit_get_gilded'
         }
 
         if (operation === 'search') {
@@ -591,14 +573,6 @@ export const RedditBlock: BlockConfig<RedditResponse> = {
             subreddit: rest.subreddit,
             time: rest.controversialTime,
             limit: rest.controversialLimit ? Number.parseInt(rest.controversialLimit) : undefined,
-            credential: credential,
-          }
-        }
-
-        if (operation === 'get_gilded') {
-          return {
-            subreddit: rest.subreddit,
-            limit: rest.gildedLimit ? Number.parseInt(rest.gildedLimit) : undefined,
             credential: credential,
           }
         }
@@ -702,7 +676,6 @@ export const RedditBlock: BlockConfig<RedditResponse> = {
     commentLimit: { type: 'number', description: 'Maximum comments' },
     controversialTime: { type: 'string', description: 'Time filter for controversial posts' },
     controversialLimit: { type: 'number', description: 'Maximum controversial posts' },
-    gildedLimit: { type: 'number', description: 'Maximum gilded posts' },
     searchQuery: { type: 'string', description: 'Search query text' },
     searchSort: { type: 'string', description: 'Search result sort order' },
     searchTime: { type: 'string', description: 'Time filter for search results' },

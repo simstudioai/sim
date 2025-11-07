@@ -55,7 +55,7 @@ export const editTool: ToolConfig<RedditEditParams, RedditWriteResponse> = {
         api_type: 'json',
       })
 
-      return { body: formData.toString() }
+      return formData.toString()
     },
   },
 

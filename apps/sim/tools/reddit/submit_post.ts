@@ -107,7 +107,7 @@ export const submitPostTool: ToolConfig<RedditSubmitParams, RedditWriteResponse>
       if (params.send_replies !== undefined)
         formData.append('sendreplies', params.send_replies.toString())
 
-      return { body: formData.toString() }
+      return formData.toString()
     },
   },
 

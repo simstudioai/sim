@@ -59,7 +59,7 @@ export const voteTool: ToolConfig<RedditVoteParams, RedditWriteResponse> = {
         dir: params.dir.toString(),
       })
 
-      return { body: formData.toString() }
+      return formData.toString()
     },
   },
 

@@ -62,7 +62,7 @@ export const subscribeTool: ToolConfig<RedditSubscribeParams, RedditWriteRespons
         sr_name: subreddit,
       })
 
-      return { body: formData.toString() }
+      return formData.toString()
     },
   },
 

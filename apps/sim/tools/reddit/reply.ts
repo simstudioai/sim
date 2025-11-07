@@ -55,7 +55,7 @@ export const replyTool: ToolConfig<RedditReplyParams, RedditWriteResponse> = {
         api_type: 'json',
       })
 
-      return { body: formData.toString() }
+      return formData.toString()
     },
   },
 
