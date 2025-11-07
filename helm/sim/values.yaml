@@ -919,7 +919,7 @@ copilot:
     
     # Image configuration (same as server)
     image:
-      repository: sidstudio/copilot
+      repository: simstudioai/copilot
       tag: latest
       pullPolicy: Always
     

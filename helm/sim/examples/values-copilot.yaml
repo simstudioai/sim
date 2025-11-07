@@ -5,7 +5,7 @@ copilot:
   # Server configuration
   server:
     image:
-      repository: sidstudio/copilot
+      repository: simstudioai/copilot
       tag: latest
       pullPolicy: Always
     
