@@ -65,38 +65,33 @@ export default function Templates({
     )
   }
 
-  // Get templates for the active tab with search filtering
-  const getActiveTabTemplates = () => {
-    let filtered = templates
-
-    // Filter by active tab
-    if (activeTab === 'your') {
-      filtered = filtered.filter(
-        (template) =>
-          (currentUserId && template.userId === currentUserId) || template.isStarred === true
-      )
-    } else if (activeTab === 'gallery') {
-      // Show all approved templates
-      filtered = filtered.filter((template) => template.status === 'approved')
-    } else if (activeTab === 'pending') {
-      // Show pending templates for super users
-      filtered = filtered.filter((template) => template.status === 'pending')
-    }
-
-    // Apply search filter
-    if (searchQuery) {
-      filtered = filtered.filter(
-        (template) =>
-          template.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          template.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          template.author.toLowerCase().includes(searchQuery.toLowerCase())
-      )
-    }
-
-    return filtered
+  const matchesSearch = (template: Template) => {
+    if (!searchQuery) return true
+    const query = searchQuery.toLowerCase()
+    return (
+      template.name.toLowerCase().includes(query) ||
+      template.description?.toLowerCase().includes(query) ||
+      template.author.toLowerCase().includes(query)
+    )
   }
 
-  const activeTemplates = getActiveTabTemplates()
+  const ownedTemplates = currentUserId
+    ? templates.filter((template) => template.userId === currentUserId)
+    : []
+  const starredTemplates = currentUserId
+    ? templates.filter((template) => template.isStarred && template.userId !== currentUserId)
+    : []
+
+  const filteredOwnedTemplates = ownedTemplates.filter(matchesSearch)
+  const filteredStarredTemplates = starredTemplates.filter(matchesSearch)
+
+  const galleryTemplates = templates
+    .filter((template) => template.status === 'approved')
+    .filter(matchesSearch)
+
+  const pendingTemplates = templates
+    .filter((template) => template.status === 'pending')
+    .filter(matchesSearch)
 
   // Helper function to render template cards
   const renderTemplateCard = (template: Template) => (
@@ -127,10 +122,7 @@ export default function Templates({
   }
 
   // Calculate counts for tabs
-  const yourTemplatesCount = templates.filter(
-    (template) =>
-      (currentUserId && template.userId === currentUserId) || template.isStarred === true
-  ).length
+  const yourTemplatesCount = ownedTemplates.length + starredTemplates.length
   const galleryCount = templates.filter((template) => template.status === 'approved').length
   const pendingCount = templates.filter((template) => template.status === 'pending').length
 
@@ -230,37 +222,73 @@ export default function Templates({
             </div>
           )}
 
-          {/* Templates Grid - Based on Active Tab */}
-          <div className='grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'>
-            {loading ? (
-              renderSkeletonCards()
-            ) : activeTemplates.length === 0 ? (
-              <div className='col-span-full flex h-64 items-center justify-center rounded-lg border border-dashed border-muted-foreground/25 bg-muted/20'>
+          {loading ? (
+            <div className='grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'>
+              {renderSkeletonCards()}
+            </div>
+          ) : activeTab === 'your' ? (
+            filteredOwnedTemplates.length === 0 && filteredStarredTemplates.length === 0 ? (
+              <div className='flex h-64 items-center justify-center rounded-lg border border-dashed border-muted-foreground/25 bg-muted/20'>
                 <div className='text-center'>
                   <p className='font-medium text-muted-foreground text-sm'>
-                    {searchQuery
-                      ? 'No templates found'
-                      : activeTab === 'pending'
-                        ? 'No pending templates'
-                        : activeTab === 'your'
-                          ? 'No templates yet'
-                          : 'No templates available'}
+                    {searchQuery ? 'No templates found' : 'No templates yet'}
                   </p>
                   <p className='mt-1 text-muted-foreground/70 text-xs'>
                     {searchQuery
                       ? 'Try a different search term'
-                      : activeTab === 'pending'
-                        ? 'New submissions will appear here'
-                        : activeTab === 'your'
-                          ? 'Create or star templates to see them here'
-                          : 'Templates will appear once approved'}
+                      : 'Create or star templates to see them here'}
                   </p>
                 </div>
               </div>
             ) : (
-              activeTemplates.map((template) => renderTemplateCard(template))
-            )}
-          </div>
+              <div className='space-y-8'>
+                {filteredOwnedTemplates.length > 0 && (
+                  <section>
+                    <h2 className='mb-3 font-semibold text-lg'>Your Templates</h2>
+                    <div className='grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'>
+                      {filteredOwnedTemplates.map((template) => renderTemplateCard(template))}
+                    </div>
+                  </section>
+                )}
+
+                {filteredStarredTemplates.length > 0 && (
+                  <section>
+                    <h2 className='mb-3 font-semibold text-lg'>Starred Templates</h2>
+                    <div className='grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'>
+                      {filteredStarredTemplates.map((template) => renderTemplateCard(template))}
+                    </div>
+                  </section>
+                )}
+              </div>
+            )
+          ) : (
+            <div className='grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'>
+              {(activeTab === 'gallery' ? galleryTemplates : pendingTemplates).length === 0 ? (
+                <div className='col-span-full flex h-64 items-center justify-center rounded-lg border border-dashed border-muted-foreground/25 bg-muted/20'>
+                  <div className='text-center'>
+                    <p className='font-medium text-muted-foreground text-sm'>
+                      {searchQuery
+                        ? 'No templates found'
+                        : activeTab === 'pending'
+                          ? 'No pending templates'
+                          : 'No templates available'}
+                    </p>
+                    <p className='mt-1 text-muted-foreground/70 text-xs'>
+                      {searchQuery
+                        ? 'Try a different search term'
+                        : activeTab === 'pending'
+                          ? 'New submissions will appear here'
+                          : 'Templates will appear once approved'}
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                (activeTab === 'gallery' ? galleryTemplates : pendingTemplates).map((template) =>
+                  renderTemplateCard(template)
+                )
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>
