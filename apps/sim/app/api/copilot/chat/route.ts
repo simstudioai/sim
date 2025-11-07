@@ -325,6 +325,16 @@ export async function POST(req: NextRequest) {
       ...(processedFileContents.length > 0 && { fileAttachments: processedFileContents }),
     }
 
+    try {
+      logger.info(`[${tracker.requestId}] About to call Sim Agent`, {
+        hasContext: agentContexts.length > 0,
+        contextCount: agentContexts.length,
+        hasConversationId: !!effectiveConversationId,
+        hasFileAttachments: processedFileContents.length > 0,
+        messageLength: message.length,
+      })
+    } catch {}
+
     const simAgentResponse = await fetch(`${SIM_AGENT_API_URL}/api/chat-completion-streaming`, {
       method: 'POST',
       headers: {
