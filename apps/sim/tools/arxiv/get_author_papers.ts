@@ -34,7 +34,7 @@ export const getAuthorPapersTool: ToolConfig<
       searchParams.append('search_query', `au:"${params.authorName}"`)
       searchParams.append(
         'max_results',
-        (params.maxResults ? Math.min(params.maxResults, 2000) : 10).toString()
+        (params.maxResults ? Math.min(Number(params.maxResults), 2000) : 10).toString()
       )
       searchParams.append('sortBy', 'submittedDate')
       searchParams.append('sortOrder', 'descending')

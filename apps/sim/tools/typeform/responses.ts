@@ -53,7 +53,7 @@ export const responsesTool: ToolConfig<TypeformResponsesParams, TypeformResponse
       const queryParams = []
 
       if (params.pageSize) {
-        queryParams.push(`page_size=${params.pageSize}`)
+        queryParams.push(`page_size=${Number(params.pageSize)}`)
       }
 
       if (params.since) {

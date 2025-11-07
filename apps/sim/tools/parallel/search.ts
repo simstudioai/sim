@@ -53,6 +53,7 @@ export const searchTool: ToolConfig<ParallelSearchParams, ToolResponse> = {
     headers: (params) => ({
       'Content-Type': 'application/json',
       'x-api-key': params.apiKey,
+      'parallel-beta': 'search-extract-2025-10-10',
     }),
     body: (params) => {
       const body: Record<string, unknown> = {
@@ -62,8 +63,9 @@ export const searchTool: ToolConfig<ParallelSearchParams, ToolResponse> = {
 
       // Add optional parameters if provided
       if (params.processor) body.processor = params.processor
-      if (params.max_results) body.max_results = params.max_results
-      if (params.max_chars_per_result) body.max_chars_per_result = params.max_chars_per_result
+      if (params.max_results) body.max_results = Number(params.max_results)
+      if (params.max_chars_per_result)
+        body.max_chars_per_result = Number(params.max_chars_per_result)
 
       return body
     },

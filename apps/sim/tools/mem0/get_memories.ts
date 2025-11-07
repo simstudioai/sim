@@ -93,7 +93,7 @@ export const mem0GetMemoriesTool: ToolConfig = {
 
       // Build final filters object
       const body: Record<string, any> = {
-        page_size: params.limit || 10,
+        page_size: Number(params.limit || 10),
       }
 
       // Only add filters if we have any conditions

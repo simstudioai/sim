@@ -45,10 +45,10 @@ export const webflowListItemsTool: ToolConfig<WebflowListItemsParams, WebflowLis
       const queryParams = new URLSearchParams()
 
       if (params.offset !== undefined) {
-        queryParams.append('offset', params.offset.toString())
+        queryParams.append('offset', Number(params.offset).toString())
       }
       if (params.limit !== undefined) {
-        queryParams.append('limit', params.limit.toString())
+        queryParams.append('limit', Number(params.limit).toString())
       }
 
       const query = queryParams.toString()

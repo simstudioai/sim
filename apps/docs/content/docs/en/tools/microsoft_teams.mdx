@@ -1,6 +1,6 @@
 ---
 title: Microsoft Teams
-description: Read, write, and create messages
+description: Manage messages, reactions, and members in Teams
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -98,7 +98,7 @@ In Sim, the Microsoft Teams integration enables your agents to interact directly
 
 ## Usage Instructions
 
-Integrate Microsoft Teams into the workflow. Can read and write chat messages, and read and write channel messages. Can be used in trigger mode to trigger a workflow when a message is sent to a chat or channel. To mention users in messages, wrap their name in `<at>` tags: `<at>userName</at>`
+Integrate Microsoft Teams into the workflow. Read, write, update, and delete chat and channel messages. Reply to messages, add reactions, and list team/channel members. Can be used in trigger mode to trigger a workflow when a message is sent to a chat or channel. To mention users in messages, wrap their name in `<at>` tags: `<at>userName</at>`
 
 
 
@@ -201,6 +201,209 @@ Write or send a message to a Microsoft Teams channel
 | `createdTime` | string | Timestamp when message was created |
 | `url` | string | Web URL to the message |
 | `updatedContent` | boolean | Whether content was successfully updated |
+
+### `microsoft_teams_update_chat_message`
+
+Update an existing message in a Microsoft Teams chat
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `chatId` | string | Yes | The ID of the chat containing the message |
+| `messageId` | string | Yes | The ID of the message to update |
+| `content` | string | Yes | The new content for the message |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the update was successful |
+| `messageId` | string | ID of the updated message |
+| `updatedContent` | boolean | Whether content was successfully updated |
+
+### `microsoft_teams_update_channel_message`
+
+Update an existing message in a Microsoft Teams channel
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `teamId` | string | Yes | The ID of the team |
+| `channelId` | string | Yes | The ID of the channel containing the message |
+| `messageId` | string | Yes | The ID of the message to update |
+| `content` | string | Yes | The new content for the message |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the update was successful |
+| `messageId` | string | ID of the updated message |
+| `updatedContent` | boolean | Whether content was successfully updated |
+
+### `microsoft_teams_delete_chat_message`
+
+Soft delete a message in a Microsoft Teams chat
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `chatId` | string | Yes | The ID of the chat containing the message |
+| `messageId` | string | Yes | The ID of the message to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the deletion was successful |
+| `deleted` | boolean | Confirmation of deletion |
+| `messageId` | string | ID of the deleted message |
+
+### `microsoft_teams_delete_channel_message`
+
+Soft delete a message in a Microsoft Teams channel
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `teamId` | string | Yes | The ID of the team |
+| `channelId` | string | Yes | The ID of the channel containing the message |
+| `messageId` | string | Yes | The ID of the message to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the deletion was successful |
+| `deleted` | boolean | Confirmation of deletion |
+| `messageId` | string | ID of the deleted message |
+
+### `microsoft_teams_reply_to_message`
+
+Reply to an existing message in a Microsoft Teams channel
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `teamId` | string | Yes | The ID of the team |
+| `channelId` | string | Yes | The ID of the channel |
+| `messageId` | string | Yes | The ID of the message to reply to |
+| `content` | string | Yes | The reply content |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the reply was successful |
+| `messageId` | string | ID of the reply message |
+| `updatedContent` | boolean | Whether content was successfully sent |
+
+### `microsoft_teams_get_message`
+
+Get a specific message from a Microsoft Teams chat or channel
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `teamId` | string | No | The ID of the team \(for channel messages\) |
+| `channelId` | string | No | The ID of the channel \(for channel messages\) |
+| `chatId` | string | No | The ID of the chat \(for chat messages\) |
+| `messageId` | string | Yes | The ID of the message to retrieve |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the retrieval was successful |
+| `content` | string | The message content |
+| `metadata` | object | Message metadata including sender, timestamp, etc. |
+
+### `microsoft_teams_set_reaction`
+
+Add an emoji reaction to a message in Microsoft Teams
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `teamId` | string | No | The ID of the team \(for channel messages\) |
+| `channelId` | string | No | The ID of the channel \(for channel messages\) |
+| `chatId` | string | No | The ID of the chat \(for chat messages\) |
+| `messageId` | string | Yes | The ID of the message to react to |
+| `reactionType` | string | Yes | The emoji reaction \(e.g., ❤️, 👍, 😊\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the reaction was added successfully |
+| `reactionType` | string | The emoji that was added |
+| `messageId` | string | ID of the message |
+
+### `microsoft_teams_unset_reaction`
+
+Remove an emoji reaction from a message in Microsoft Teams
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `teamId` | string | No | The ID of the team \(for channel messages\) |
+| `channelId` | string | No | The ID of the channel \(for channel messages\) |
+| `chatId` | string | No | The ID of the chat \(for chat messages\) |
+| `messageId` | string | Yes | The ID of the message |
+| `reactionType` | string | Yes | The emoji reaction to remove \(e.g., ❤️, 👍, 😊\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the reaction was removed successfully |
+| `reactionType` | string | The emoji that was removed |
+| `messageId` | string | ID of the message |
+
+### `microsoft_teams_list_team_members`
+
+List all members of a Microsoft Teams team
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `teamId` | string | Yes | The ID of the team |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the listing was successful |
+| `members` | array | Array of team members |
+| `memberCount` | number | Total number of members |
+
+### `microsoft_teams_list_channel_members`
+
+List all members of a Microsoft Teams channel
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `teamId` | string | Yes | The ID of the team |
+| `channelId` | string | Yes | The ID of the channel |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the listing was successful |
+| `members` | array | Array of channel members |
+| `memberCount` | number | Total number of members |
 
 
 

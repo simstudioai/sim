@@ -56,7 +56,7 @@ export const searchTool: ToolConfig<ArxivSearchParams, ArxivSearchResponse> = {
 
       // Add optional parameters
       if (params.maxResults) {
-        searchParams.append('max_results', Math.min(params.maxResults, 2000).toString())
+        searchParams.append('max_results', Math.min(Number(params.maxResults), 2000).toString())
       } else {
         searchParams.append('max_results', '10')
       }

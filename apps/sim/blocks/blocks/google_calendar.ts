@@ -199,7 +199,7 @@ export const GoogleCalendarBlock: BlockConfig<GoogleCalendarResponse> = {
         value: ['create', 'quick_add', 'invite'],
       },
       options: [
-        { label: 'All attendees (recommended)', id: 'all' },
+        { label: 'All attendees', id: 'all' },
         { label: 'External attendees only', id: 'externalOnly' },
         { label: 'None (no emails sent)', id: 'none' },
       ],

@@ -81,7 +81,7 @@ export const listTool: ToolConfig<OneDriveToolParams, OneDriveListResponse> = {
 
       // Add pagination
       if (params.pageSize) {
-        url.searchParams.append('$top', params.pageSize.toString())
+        url.searchParams.append('$top', Number(params.pageSize).toString())
       }
 
       return url.toString()

@@ -185,3 +185,63 @@ export async function PUT(request: Request) {
     )
   }
 }
+
+export async function DELETE(request: Request) {
+  try {
+    const { domain, accessToken, pageId, cloudId: providedCloudId } = await request.json()
+
+    if (!domain) {
+      return NextResponse.json({ error: 'Domain is required' }, { status: 400 })
+    }
+
+    if (!accessToken) {
+      return NextResponse.json({ error: 'Access token is required' }, { status: 400 })
+    }
+
+    if (!pageId) {
+      return NextResponse.json({ error: 'Page ID is required' }, { status: 400 })
+    }
+
+    const pageIdValidation = validateAlphanumericId(pageId, 'pageId', 255)
+    if (!pageIdValidation.isValid) {
+      return NextResponse.json({ error: pageIdValidation.error }, { status: 400 })
+    }
+
+    const cloudId = providedCloudId || (await getConfluenceCloudId(domain, accessToken))
+
+    const cloudIdValidation = validateJiraCloudId(cloudId, 'cloudId')
+    if (!cloudIdValidation.isValid) {
+      return NextResponse.json({ error: cloudIdValidation.error }, { status: 400 })
+    }
+
+    const url = `https://api.atlassian.com/ex/confluence/${cloudId}/wiki/api/v2/pages/${pageId}`
+
+    const response = await fetch(url, {
+      method: 'DELETE',
+      headers: {
+        Accept: 'application/json',
+        Authorization: `Bearer ${accessToken}`,
+      },
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => null)
+      console.error('Confluence API error response:', {
+        status: response.status,
+        statusText: response.statusText,
+        error: JSON.stringify(errorData, null, 2),
+      })
+      const errorMessage =
+        errorData?.message || `Failed to delete Confluence page (${response.status})`
+      return NextResponse.json({ error: errorMessage }, { status: response.status })
+    }
+
+    return NextResponse.json({ pageId, deleted: true })
+  } catch (error) {
+    console.error('Error deleting Confluence page:', error)
+    return NextResponse.json(
+      { error: (error as Error).message || 'Internal server error' },
+      { status: 500 }
+    )
+  }
+}

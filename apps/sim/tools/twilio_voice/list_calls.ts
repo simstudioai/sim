@@ -80,7 +80,7 @@ export const listCallsTool: ToolConfig<TwilioListCallsParams, TwilioListCallsOut
       if (params.status) queryParams.append('Status', params.status)
       if (params.startTimeAfter) queryParams.append('StartTime>', params.startTimeAfter)
       if (params.startTimeBefore) queryParams.append('StartTime<', params.startTimeBefore)
-      if (params.pageSize) queryParams.append('PageSize', params.pageSize.toString())
+      if (params.pageSize) queryParams.append('PageSize', Number(params.pageSize).toString())
 
       const queryString = queryParams.toString()
       return queryString ? `${baseUrl}?${queryString}` : baseUrl

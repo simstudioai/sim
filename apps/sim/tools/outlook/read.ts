@@ -105,7 +105,7 @@ export const outlookReadTool: ToolConfig<OutlookReadParams, OutlookReadResponse>
     url: (params) => {
       // Set max results (default to 1 for simplicity, max 10) with no negative values
       const maxResults = params.maxResults
-        ? Math.max(1, Math.min(Math.abs(params.maxResults), 10))
+        ? Math.max(1, Math.min(Math.abs(Number(params.maxResults)), 10))
         : 1
 
       // If folder is provided, read from that specific folder

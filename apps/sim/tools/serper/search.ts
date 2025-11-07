@@ -60,7 +60,7 @@ export const searchTool: ToolConfig<SearchParams, SearchResponse> = {
       }
 
       // Only include optional parameters if they are explicitly set
-      if (params.num) body.num = params.num
+      if (params.num) body.num = Number(params.num)
       if (params.gl) body.gl = params.gl
       if (params.hl) body.hl = params.hl
 

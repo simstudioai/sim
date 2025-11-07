@@ -51,7 +51,7 @@ export const youtubeChannelVideosTool: ToolConfig<
       let url = `https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&channelId=${encodeURIComponent(
         params.channelId
       )}&key=${params.apiKey}`
-      url += `&maxResults=${params.maxResults || 10}`
+      url += `&maxResults=${Number(params.maxResults || 10)}`
       if (params.order) {
         url += `&order=${params.order}`
       }

@@ -45,7 +45,7 @@ export const youtubeChannelPlaylistsTool: ToolConfig<
       let url = `https://www.googleapis.com/youtube/v3/playlists?part=snippet,contentDetails&channelId=${encodeURIComponent(
         params.channelId
       )}&key=${params.apiKey}`
-      url += `&maxResults=${params.maxResults || 10}`
+      url += `&maxResults=${Number(params.maxResults || 10)}`
       if (params.pageToken) {
         url += `&pageToken=${params.pageToken}`
       }

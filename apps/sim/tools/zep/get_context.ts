@@ -41,7 +41,8 @@ export const zepGetContextTool: ToolConfig<any, ZepResponse> = {
       const queryParams = new URLSearchParams()
       const mode = params.mode || 'summary'
       queryParams.append('mode', mode)
-      if (params.minRating !== undefined) queryParams.append('minRating', String(params.minRating))
+      if (params.minRating !== undefined)
+        queryParams.append('minRating', String(Number(params.minRating)))
       return `https://api.getzep.com/api/v2/threads/${params.threadId}/context?${queryParams.toString()}`
     },
     method: 'GET',

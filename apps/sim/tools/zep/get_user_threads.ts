@@ -32,7 +32,7 @@ export const zepGetUserThreadsTool: ToolConfig<any, ZepResponse> = {
 
   request: {
     url: (params) => {
-      const limit = params.limit || 10
+      const limit = Number(params.limit || 10)
       return `https://api.getzep.com/api/v2/users/${params.userId}/threads?limit=${limit}`
     },
     method: 'GET',

@@ -68,6 +68,7 @@ import { StagehandBlock } from '@/blocks/blocks/stagehand'
 import { StagehandAgentBlock } from '@/blocks/blocks/stagehand_agent'
 import { StartTriggerBlock } from '@/blocks/blocks/start_trigger'
 import { StarterBlock } from '@/blocks/blocks/starter'
+import { StripeBlock } from '@/blocks/blocks/stripe'
 import { SupabaseBlock } from '@/blocks/blocks/supabase'
 import { TavilyBlock } from '@/blocks/blocks/tavily'
 import { TelegramBlock } from '@/blocks/blocks/telegram'
@@ -165,6 +166,7 @@ export const registry: Record<string, BlockConfig> = {
   chat_trigger: ChatTriggerBlock,
   manual_trigger: ManualTriggerBlock,
   api_trigger: ApiTriggerBlock,
+  stripe: StripeBlock,
   supabase: SupabaseBlock,
   tavily: TavilyBlock,
   telegram: TelegramBlock,

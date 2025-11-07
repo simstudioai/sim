@@ -28,13 +28,56 @@ export const searchTool: ToolConfig<LinkupSearchParams, LinkupSearchToolResponse
       type: 'string',
       required: true,
       visibility: 'user-only',
-      description: 'Type of output to return (has to either be "sourcedAnswer" or "searchResults")',
+      description: 'Type of output to return (has to be "sourcedAnswer" or "searchResults")',
     },
     apiKey: {
       type: 'string',
       required: true,
       visibility: 'user-only',
       description: 'Enter your Linkup API key',
+    },
+    includeImages: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Whether to include images in search results',
+    },
+    fromDate: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Start date for filtering results (YYYY-MM-DD format)',
+    },
+    toDate: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'End date for filtering results (YYYY-MM-DD format)',
+    },
+    excludeDomains: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Comma-separated list of domain names to exclude from search results',
+    },
+    includeDomains: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Comma-separated list of domain names to restrict search results to',
+    },
+    includeInlineCitations: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Add inline citations to answers (only applies when outputType is "sourcedAnswer")',
+    },
+    includeSources: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Include sources in response',
     },
   },
 
@@ -48,11 +91,32 @@ export const searchTool: ToolConfig<LinkupSearchParams, LinkupSearchToolResponse
     body: (params) => {
       const body: Record<string, any> = {
         q: params.q,
+        depth: params.depth,
+        outputType: params.outputType,
       }
 
-      if (params.depth) body.depth = params.depth
-      if (params.outputType) body.outputType = params.outputType
-      body.includeImages = false
+      if (params.includeImages !== undefined) body.includeImages = params.includeImages
+      if (params.fromDate) body.fromDate = params.fromDate
+      if (params.toDate) body.toDate = params.toDate
+
+      if (params.excludeDomains) {
+        body.excludeDomains = params.excludeDomains
+          .split(',')
+          .map((d: string) => d.trim())
+          .filter((d: string) => d.length > 0)
+      }
+
+      if (params.includeDomains) {
+        body.includeDomains = params.includeDomains
+          .split(',')
+          .map((d: string) => d.trim())
+          .filter((d: string) => d.length > 0)
+      }
+
+      if (params.includeInlineCitations !== undefined)
+        body.includeInlineCitations = params.includeInlineCitations
+
+      if (params.includeSources !== undefined) body.includeSources = params.includeSources
 
       return body
     },
@@ -63,10 +127,7 @@ export const searchTool: ToolConfig<LinkupSearchParams, LinkupSearchToolResponse
 
     return {
       success: true,
-      output: {
-        answer: data.answer,
-        sources: data.sources,
-      },
+      output: data,
     }
   },
 

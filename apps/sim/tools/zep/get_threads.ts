@@ -47,8 +47,8 @@ export const zepGetThreadsTool: ToolConfig<any, ZepResponse> = {
   request: {
     url: (params) => {
       const queryParams = new URLSearchParams()
-      queryParams.append('page_size', String(params.pageSize || 10))
-      queryParams.append('page_number', String(params.pageNumber || 1))
+      queryParams.append('page_size', String(Number(params.pageSize || 10)))
+      queryParams.append('page_number', String(Number(params.pageNumber || 1)))
       if (params.orderBy) queryParams.append('order_by', params.orderBy)
       if (params.asc !== undefined) queryParams.append('asc', String(params.asc))
       return `https://api.getzep.com/api/v2/threads?${queryParams.toString()}`

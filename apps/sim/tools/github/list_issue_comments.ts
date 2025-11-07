@@ -60,8 +60,8 @@ export const listIssueCommentsTool: ToolConfig<ListIssueCommentsParams, Comments
       const queryParams = new URLSearchParams()
 
       if (params.since) queryParams.append('since', params.since)
-      if (params.per_page) queryParams.append('per_page', params.per_page.toString())
-      if (params.page) queryParams.append('page', params.page.toString())
+      if (params.per_page) queryParams.append('per_page', Number(params.per_page).toString())
+      if (params.page) queryParams.append('page', Number(params.page).toString())
 
       const query = queryParams.toString()
       return query ? `${baseUrl}?${query}` : baseUrl

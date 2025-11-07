@@ -91,8 +91,8 @@ export const listIssuesTool: ToolConfig<ListIssuesParams, IssuesListResponse> = 
       if (params.labels) url.searchParams.append('labels', params.labels)
       if (params.sort) url.searchParams.append('sort', params.sort)
       if (params.direction) url.searchParams.append('direction', params.direction)
-      if (params.per_page) url.searchParams.append('per_page', params.per_page.toString())
-      if (params.page) url.searchParams.append('page', params.page.toString())
+      if (params.per_page) url.searchParams.append('per_page', Number(params.per_page).toString())
+      if (params.page) url.searchParams.append('page', Number(params.page).toString())
       return url.toString()
     },
     method: 'GET',

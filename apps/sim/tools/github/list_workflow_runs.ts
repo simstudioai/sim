@@ -85,10 +85,10 @@ export const listWorkflowRunsTool: ToolConfig<ListWorkflowRunsParams, ListWorkfl
         url.searchParams.append('status', params.status)
       }
       if (params.per_page) {
-        url.searchParams.append('per_page', params.per_page.toString())
+        url.searchParams.append('per_page', Number(params.per_page).toString())
       }
       if (params.page) {
-        url.searchParams.append('page', params.page.toString())
+        url.searchParams.append('page', Number(params.page).toString())
       }
       return url.toString()
     },

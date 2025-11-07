@@ -44,9 +44,9 @@ export const zepGetMessagesTool: ToolConfig<any, ZepResponse> = {
   request: {
     url: (params) => {
       const queryParams = new URLSearchParams()
-      if (params.limit) queryParams.append('limit', String(params.limit))
+      if (params.limit) queryParams.append('limit', String(Number(params.limit)))
       if (params.cursor) queryParams.append('cursor', params.cursor)
-      if (params.lastn) queryParams.append('lastn', String(params.lastn))
+      if (params.lastn) queryParams.append('lastn', String(Number(params.lastn)))
 
       const queryString = queryParams.toString()
       return `https://api.getzep.com/api/v2/threads/${params.threadId}/messages${queryString ? `?${queryString}` : ''}`

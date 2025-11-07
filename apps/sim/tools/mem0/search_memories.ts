@@ -50,7 +50,7 @@ export const mem0SearchMemoriesTool: ToolConfig<any, Mem0Response> = {
         filters: {
           user_id: params.userId,
         },
-        top_k: params.limit || 10,
+        top_k: Number(params.limit || 10),
       }
 
       return body

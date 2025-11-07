@@ -74,7 +74,7 @@ export const imageTool: ToolConfig = {
         model: params.model,
         prompt: params.prompt,
         size: params.size || '1024x1024',
-        n: params.n || 1,
+        n: params.n ? Number(params.n) : 1,
       }
 
       // Add model-specific parameters

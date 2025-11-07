@@ -1233,6 +1233,23 @@ export async function formatWebhookInput(
     }
   }
 
+  if (foundWebhook.provider === 'stripe') {
+    return {
+      ...body,
+      webhook: {
+        data: {
+          provider: 'stripe',
+          path: foundWebhook.path,
+          providerConfig: foundWebhook.providerConfig,
+          payload: body,
+          headers: Object.fromEntries(request.headers.entries()),
+          method: request.method,
+        },
+      },
+      workflowId: foundWorkflow.id,
+    }
+  }
+
   // Generic format for other providers
   return {
     webhook: {
