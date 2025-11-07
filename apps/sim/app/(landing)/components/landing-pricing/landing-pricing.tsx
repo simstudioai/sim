@@ -19,7 +19,7 @@ import {
   ENTERPRISE_PLAN_FEATURES,
   PRO_PLAN_FEATURES,
   TEAM_PLAN_FEATURES,
-} from '@/app/workspace/[workspaceId]/w/components/sidebar/components/settings-modal/components/subscription/plan-configs'
+} from '@/app/workspace/[workspaceId]/w/components/sidebar/components-new/settings-modal/components/subscription/plan-configs'
 
 const logger = createLogger('LandingPricing')
 

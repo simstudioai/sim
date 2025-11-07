@@ -14,12 +14,18 @@ import {
   getCodeEditorProps,
 } from '@/components/emcn/components/code/code'
 import { Button } from '@/components/ui/button'
-import { checkEnvVarTrigger, EnvVarDropdown } from '@/components/ui/env-var-dropdown'
-import { checkTagTrigger, TagDropdown } from '@/components/ui/tag-dropdown'
 import { CodeLanguage } from '@/lib/execution/languages'
 import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
 import { isLikelyReferenceSegment, SYSTEM_REFERENCE_PREFIXES, splitReferenceSegment } from '@/lib/workflows/references'
+import {
+  checkEnvVarTrigger,
+  EnvVarDropdown,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/components/sub-block/components/env-var-dropdown'
+import {
+  checkTagTrigger,
+  TagDropdown,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/components/sub-block/components/tag-dropdown'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/components/sub-block/hooks/use-sub-block-value'
 import { WandPromptBar } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/wand-prompt-bar/wand-prompt-bar'
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'

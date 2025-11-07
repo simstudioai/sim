@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback } from 'react'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import type { WorkflowBlockProps } from '../types'
 
@@ -16,14 +16,6 @@ export interface UseBlockPropertiesReturn {
   displayAdvancedMode: boolean
   /** Whether the block is in trigger mode for display */
   displayTriggerMode: boolean
-  /** Local state for advanced mode in diff mode */
-  diffAdvancedMode: boolean
-  /** Local state for trigger mode in diff mode */
-  diffTriggerMode: boolean
-  /** Setter for diff advanced mode */
-  setDiffAdvancedMode: React.Dispatch<React.SetStateAction<boolean>>
-  /** Setter for diff trigger mode */
-  setDiffTriggerMode: React.Dispatch<React.SetStateAction<boolean>>
 }
 
 /**
@@ -90,31 +82,10 @@ export function useBlockProperties(
     ? (currentWorkflowBlocks[blockId]?.triggerMode ?? false)
     : storeBlockTriggerMode
 
-  // Local UI state for diff mode controls
-  const [diffAdvancedMode, setDiffAdvancedMode] = useState<boolean>(blockAdvancedMode)
-  const [diffTriggerMode, setDiffTriggerMode] = useState<boolean>(blockTriggerMode)
-
-  // Sync local diff state when entering diff mode or blockId changes
-  useEffect(() => {
-    if (isDiffMode) {
-      setDiffAdvancedMode(blockAdvancedMode)
-      setDiffTriggerMode(blockTriggerMode)
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isDiffMode, blockId])
-
   // Compute display states
-  const displayAdvancedMode = isDiffMode
-    ? diffAdvancedMode
-    : isPreview
-      ? (blockState?.advancedMode ?? false)
-      : blockAdvancedMode
+  const displayAdvancedMode = isPreview ? (blockState?.advancedMode ?? false) : blockAdvancedMode
 
-  const displayTriggerMode = isDiffMode
-    ? diffTriggerMode
-    : isPreview
-      ? (blockState?.triggerMode ?? false)
-      : blockTriggerMode
+  const displayTriggerMode = isPreview ? (blockState?.triggerMode ?? false) : blockTriggerMode
 
   return {
     horizontalHandles,
@@ -122,9 +93,5 @@ export function useBlockProperties(
     blockWidth,
     displayAdvancedMode,
     displayTriggerMode,
-    diffAdvancedMode,
-    diffTriggerMode,
-    setDiffAdvancedMode,
-    setDiffTriggerMode,
   }
 }

@@ -26,19 +26,3 @@ export interface ScheduleInfo {
   isDisabled?: boolean
   id?: string
 }
-
-/**
- * Webhook information for webhook-triggered workflows
- */
-export interface WebhookInfo {
-  webhookPath: string
-  provider: string
-}
-
-/**
- * Block layout metrics
- */
-export interface BlockLayoutMetrics {
-  width: number
-  height: number
-}

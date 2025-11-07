@@ -13,7 +13,7 @@ import {
   TeamSeats,
   TeamSeatsOverview,
   TeamUsage,
-} from '@/app/workspace/[workspaceId]/w/components/sidebar/components/settings-modal/components/team-management/components'
+} from '@/app/workspace/[workspaceId]/w/components/sidebar/components-new/settings-modal/components/team-management/components'
 import { generateSlug, useOrganizationStore } from '@/stores/organization'
 import { useSubscriptionStore } from '@/stores/subscription/store'
 

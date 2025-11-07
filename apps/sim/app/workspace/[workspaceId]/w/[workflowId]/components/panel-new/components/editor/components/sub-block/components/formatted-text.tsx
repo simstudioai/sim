@@ -63,7 +63,7 @@ export function formatDisplayText(text: string, context?: HighlightContext): Rea
 
     if (matchText.startsWith('{{')) {
       nodes.push(
-        <span key={key++} className='text-blue-500'>
+        <span key={key++} className='text-[#34B5FF] dark:text-[#34B5FF]'>
           {matchText}
         </span>
       )
@@ -73,7 +73,7 @@ export function formatDisplayText(text: string, context?: HighlightContext): Rea
       if (split && shouldHighlightReference(split.reference)) {
         pushPlainText(split.leading)
         nodes.push(
-          <span key={key++} className='text-blue-500'>
+          <span key={key++} className='text-[#34B5FF] dark:text-[#34B5FF]'>
             {split.reference}
           </span>
         )

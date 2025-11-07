@@ -2,8 +2,8 @@
 
 import { Plus, X } from 'lucide-react'
 import { Button, Input, Label } from '@/components/ui'
-import { EnvVarDropdown } from '@/components/ui/env-var-dropdown'
-import { formatDisplayText } from '@/components/ui/formatted-text'
+import { EnvVarDropdown } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/components/sub-block/components/env-var-dropdown'
+import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/components/sub-block/components/formatted-text'
 import type { McpServerFormData, McpServerTestResult } from '../types'
 
 interface AddServerFormProps {

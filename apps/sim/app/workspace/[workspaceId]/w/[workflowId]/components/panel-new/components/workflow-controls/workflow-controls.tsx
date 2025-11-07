@@ -1,3 +1,7 @@
+/**
+ * @deprecated This component is deprecated and kept as reference only.
+ */
+
 'use client'
 
 import { useStore } from 'reactflow'

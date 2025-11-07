@@ -1,5 +1,5 @@
-import { EnvVarDropdown } from '@/components/ui/env-var-dropdown'
-import { TagDropdown } from '@/components/ui/tag-dropdown'
+import { EnvVarDropdown } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/components/sub-block/components/env-var-dropdown'
+import { TagDropdown } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/components/sub-block/components/tag-dropdown'
 
 /**
  * Props for the SubBlockDropdowns component.

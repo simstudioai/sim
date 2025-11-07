@@ -1,9 +1,4 @@
 /**
- * Maximum length for block names
- */
-export const MAX_BLOCK_NAME_LENGTH = 18
-
-/**
  * Webhook provider display names
  */
 export const WEBHOOK_PROVIDERS: Record<string, string> = {

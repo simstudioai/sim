@@ -1,4 +1,5 @@
 export { ControlBar } from './control-bar/control-bar'
+export { DiffControls } from './diff-controls/diff-controls'
 export { ErrorBoundary } from './error/index'
 export { Panel } from './panel/panel'
 export { SkeletonLoading } from './skeleton-loading/skeleton-loading'

@@ -14,8 +14,8 @@ import 'reactflow/dist/style.css'
 import { createLogger } from '@/lib/logs/console/logger'
 import { TriggerUtils } from '@/lib/workflows/triggers'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
+import { DiffControls } from '@/app/workspace/[workspaceId]/w/[workflowId]/components'
 import { UserAvatarStack } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/control-bar/components/user-avatar-stack/user-avatar-stack'
-import { DiffControls } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/diff-controls'
 import { ErrorBoundary } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/error/index'
 import { Panel } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/panel-new'
 import { SubflowNodeComponent } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/subflow-node'
@@ -24,7 +24,7 @@ import { TriggerList } from '@/app/workspace/[workspaceId]/w/[workflowId]/compon
 import {
   TriggerWarningDialog,
   TriggerWarningType,
-} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/trigger-warning-dialog'
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/trigger-warning-dialog/trigger-warning-dialog'
 import { WorkflowBlock } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/workflow-block'
 import { WorkflowEdge } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-edge/workflow-edge'
 import { CollaboratorCursorLayer } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-presence/collaborator-cursor-layer'

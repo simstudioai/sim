@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Check, Copy, Info, Plus, Search } from 'lucide-react'
 import { useParams } from 'next/navigation'
+import { Tooltip } from '@/components/emcn/components/tooltip/tooltip'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -18,7 +19,6 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Switch } from '@/components/ui/switch'
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { useSession } from '@/lib/auth-client'
 import { createLogger } from '@/lib/logs/console/logger'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
@@ -432,46 +432,44 @@ export function ApiKeys({ onOpenChange, registerCloseHandler }: ApiKeysProps) {
             <>
               {/* Allow Personal API Keys Toggle */}
               {!searchTerm.trim() && (
-                <TooltipProvider delayDuration={150}>
-                  <div className='mb-6 flex items-center justify-between'>
-                    <div className='flex items-center gap-2'>
-                      <span className='font-medium text-[12px] text-foreground'>
-                        Allow personal API keys
-                      </span>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <button
-                            type='button'
-                            className='rounded-full p-1 text-muted-foreground transition hover:text-foreground'
-                          >
-                            <Info className='h-3 w-3' strokeWidth={2} />
-                          </button>
-                        </TooltipTrigger>
-                        <TooltipContent side='top' className='max-w-xs text-xs'>
-                          Allow collaborators to create and use their own keys with billing charged
-                          to them.
-                        </TooltipContent>
-                      </Tooltip>
-                    </div>
-                    {workspaceSettingsLoading ? (
-                      <Skeleton className='h-5 w-16 rounded-full' />
-                    ) : (
-                      <Switch
-                        checked={allowPersonalApiKeys}
-                        disabled={!canManageWorkspaceKeys || workspaceSettingsUpdating}
-                        onCheckedChange={async (checked) => {
-                          const previous = allowPersonalApiKeys
-                          setAllowPersonalApiKeys(checked)
-                          try {
-                            await updateWorkspaceSettings({ allowPersonalApiKeys: checked })
-                          } catch (error) {
-                            setAllowPersonalApiKeys(previous)
-                          }
-                        }}
-                      />
-                    )}
+                <div className='mb-6 flex items-center justify-between'>
+                  <div className='flex items-center gap-2'>
+                    <span className='font-medium text-[12px] text-foreground'>
+                      Allow personal API keys
+                    </span>
+                    <Tooltip.Root>
+                      <Tooltip.Trigger asChild>
+                        <button
+                          type='button'
+                          className='rounded-full p-1 text-muted-foreground transition hover:text-foreground'
+                        >
+                          <Info className='h-3 w-3' strokeWidth={2} />
+                        </button>
+                      </Tooltip.Trigger>
+                      <Tooltip.Content side='top' className='max-w-xs text-xs'>
+                        Allow collaborators to create and use their own keys with billing charged to
+                        them.
+                      </Tooltip.Content>
+                    </Tooltip.Root>
                   </div>
-                </TooltipProvider>
+                  {workspaceSettingsLoading ? (
+                    <Skeleton className='h-5 w-16 rounded-full' />
+                  ) : (
+                    <Switch
+                      checked={allowPersonalApiKeys}
+                      disabled={!canManageWorkspaceKeys || workspaceSettingsUpdating}
+                      onCheckedChange={async (checked) => {
+                        const previous = allowPersonalApiKeys
+                        setAllowPersonalApiKeys(checked)
+                        try {
+                          await updateWorkspaceSettings({ allowPersonalApiKeys: checked })
+                        } catch (error) {
+                          setAllowPersonalApiKeys(previous)
+                        }
+                      }}
+                    />
+                  )}
+                </div>
               )}
 
               {/* Workspace section */}

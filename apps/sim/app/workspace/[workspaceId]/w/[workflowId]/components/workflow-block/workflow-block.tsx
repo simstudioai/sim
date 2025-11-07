@@ -188,7 +188,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
   const currentWorkflow = useCurrentWorkflow()
   const currentBlock = currentWorkflow.getBlockById(id)
 
-  const { isEnabled, isActive, diffStatus, isDeletedBlock, fieldDiff } = useBlockState(
+  const { isEnabled, isActive, diffStatus, isDeletedBlock } = useBlockState(
     id,
     currentWorkflow,
     data
@@ -212,8 +212,12 @@ export const WorkflowBlock = memo(function WorkflowBlock({
     disableSchedule,
   } = useScheduleInfo(id, type, currentWorkflowId)
 
-  const { childWorkflowId, childActiveVersion, childIsDeployed, isLoadingChildVersion } =
-    useChildWorkflow(id, type, data.isPreview ?? false, data.subBlockValues)
+  const { childWorkflowId, childIsDeployed } = useChildWorkflow(
+    id,
+    type,
+    data.isPreview ?? false,
+    data.subBlockValues
+  )
 
   const { collaborativeSetSubblockValue } = useCollaborativeWorkflow()
 
@@ -557,11 +561,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
         <ActionBar blockId={id} blockType={type} disabled={!userPermissions.canEdit} />
 
         {shouldShowDefaultHandles && (
-          <Connections
-            blockId={id}
-            isDisabled={!userPermissions.canEdit}
-            horizontalHandles={horizontalHandles}
-          />
+          <Connections blockId={id} horizontalHandles={horizontalHandles} />
         )}
 
         {shouldShowDefaultHandles && (

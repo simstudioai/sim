@@ -1,7 +1,7 @@
 import { useCallback, useRef, useState } from 'react'
 import { useParams } from 'next/navigation'
-import { checkEnvVarTrigger } from '@/components/ui/env-var-dropdown'
-import { checkTagTrigger } from '@/components/ui/tag-dropdown'
+import { checkEnvVarTrigger } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/components/sub-block/components/env-var-dropdown'
+import { checkTagTrigger } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/components/sub-block/components/tag-dropdown'
 import type { SubBlockConfig } from '@/blocks/types'
 import { useTagSelection } from '@/hooks/use-tag-selection'
 

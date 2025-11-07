@@ -8,7 +8,6 @@ import { getBlock } from '@/blocks'
 interface ConnectionsProps {
   blockId: string
   horizontalHandles: boolean
-  isDisabled?: boolean
 }
 
 /**
@@ -37,7 +36,7 @@ function getConnectionIcon(connection: ConnectedBlock) {
 /**
  * Displays incoming connections as compact floating text above the workflow block
  */
-export function Connections({ blockId, horizontalHandles, isDisabled = false }: ConnectionsProps) {
+export function Connections({ blockId, horizontalHandles }: ConnectionsProps) {
   const { incomingConnections, hasIncomingConnections } = useBlockConnections(blockId)
 
   if (!hasIncomingConnections) return null

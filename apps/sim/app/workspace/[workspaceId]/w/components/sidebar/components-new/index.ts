@@ -1,1 +1,4 @@
+export { FooterNavigation } from './footer-navigation'
+export { HelpModal } from './help-modal'
+export { SettingsModal } from './settings-modal'
 export { WorkflowList } from './workflow-list/workflow-list'

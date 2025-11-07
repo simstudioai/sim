@@ -5,7 +5,7 @@ import { AlertCircle, Plus, Search } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { Alert, AlertDescription, Button, Input, Skeleton } from '@/components/ui'
 import { createLogger } from '@/lib/logs/console/logger'
-import { CustomToolModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/tool-input/components/custom-tool-modal/custom-tool-modal'
+import { CustomToolModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/components/sub-block/components/tool-input/components/custom-tool-modal/custom-tool-modal'
 import { useCustomToolsStore } from '@/stores/custom-tools/store'
 
 const logger = createLogger('CustomToolsSettings')

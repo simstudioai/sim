@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AlertCircle, Check, Save, Trash2 } from 'lucide-react'
 import { useParams } from 'next/navigation'
+import { Tooltip } from '@/components/emcn/components/tooltip/tooltip'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
   AlertDialog,
@@ -14,7 +15,6 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { createLogger } from '@/lib/logs/console/logger'
 import { parseCronToHumanReadable } from '@/lib/schedules/utils'
 import { cn } from '@/lib/utils'
@@ -443,8 +443,8 @@ export function ScheduleSave({ blockId, isPreview = false, disabled = false }: S
           ) : (
             <>
               <div className='flex items-center gap-2'>
-                <Tooltip>
-                  <TooltipTrigger asChild>
+                <Tooltip.Root>
+                  <Tooltip.Trigger asChild>
                     <Badge
                       variant='outline'
                       className={cn(
@@ -471,15 +471,15 @@ export function ScheduleSave({ blockId, isPreview = false, disabled = false }: S
                       </div>
                       {scheduleStatus === 'active' ? 'Active' : 'Disabled'}
                     </Badge>
-                  </TooltipTrigger>
-                  <TooltipContent side='top' className='max-w-[300px]'>
+                  </Tooltip.Trigger>
+                  <Tooltip.Content side='top' className='max-w-[300px]'>
                     {scheduleStatus === 'disabled' ? (
                       <p className='text-sm'>Click to reactivate this schedule</p>
                     ) : (
                       <p className='text-sm'>Click to disable this schedule</p>
                     )}
-                  </TooltipContent>
-                </Tooltip>
+                  </Tooltip.Content>
+                </Tooltip.Root>
                 {failedCount > 0 && (
                   <span className='text-destructive text-sm'>
                     ⚠️ {failedCount} failed run{failedCount !== 1 ? 's' : ''}

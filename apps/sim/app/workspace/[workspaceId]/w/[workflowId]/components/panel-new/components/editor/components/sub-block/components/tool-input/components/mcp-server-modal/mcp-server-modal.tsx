@@ -11,8 +11,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { checkEnvVarTrigger, EnvVarDropdown } from '@/components/ui/env-var-dropdown'
-import { formatDisplayText } from '@/components/ui/formatted-text'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
@@ -24,6 +22,11 @@ import {
 } from '@/components/ui/select'
 import { createLogger } from '@/lib/logs/console/logger'
 import type { McpTransport } from '@/lib/mcp/types'
+import {
+  checkEnvVarTrigger,
+  EnvVarDropdown,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/components/sub-block/components/env-var-dropdown'
+import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/components/sub-block/components/formatted-text'
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
 import { useMcpServerTest } from '@/hooks/use-mcp-server-test'
 import { useMcpServersStore } from '@/stores/mcp-servers/store'

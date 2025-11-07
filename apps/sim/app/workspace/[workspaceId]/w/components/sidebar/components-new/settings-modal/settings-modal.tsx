@@ -20,7 +20,7 @@ import {
   SSO,
   Subscription,
   TeamManagement,
-} from '@/app/workspace/[workspaceId]/w/components/sidebar/components/settings-modal/components'
+} from '@/app/workspace/[workspaceId]/w/components/sidebar/components-new/settings-modal/components'
 import { useOrganizationStore } from '@/stores/organization'
 import { useGeneralStore } from '@/stores/settings/general/store'
 

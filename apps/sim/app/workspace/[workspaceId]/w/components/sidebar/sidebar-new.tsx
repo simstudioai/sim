@@ -6,7 +6,7 @@ import { useParams } from 'next/navigation'
 import { Button, ChevronDown, FolderPlus, PanelLeft, Tooltip } from '@/components/emcn'
 import { useSession } from '@/lib/auth-client'
 import { useFolderStore } from '@/stores/folders/store'
-import { WorkflowList } from './components-new'
+import { FooterNavigation, WorkflowList } from './components-new'
 import {
   useFolderOperations,
   useSidebarResize,
@@ -307,6 +307,9 @@ export function SidebarNew() {
               />
             </div>
           </div>
+
+          {/* Footer Navigation */}
+          <FooterNavigation />
         </div>
       </aside>
 

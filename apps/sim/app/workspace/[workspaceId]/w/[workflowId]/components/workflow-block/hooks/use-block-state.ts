@@ -18,8 +18,6 @@ export interface UseBlockStateReturn {
   diffStatus: DiffStatus
   /** Whether this is a deleted block in diff mode */
   isDeletedBlock: boolean
-  /** Field-level diff information */
-  fieldDiff: any
 }
 
 /**
@@ -49,16 +47,13 @@ export function useBlockState(
       : undefined
 
   // Get diff-related data
-  const { diffAnalysis, isShowingDiff, fieldDiff } = useWorkflowDiffStore(
+  const { diffAnalysis, isShowingDiff } = useWorkflowDiffStore(
     useCallback(
       (state) => ({
         diffAnalysis: state.diffAnalysis,
         isShowingDiff: state.isShowingDiff,
-        fieldDiff: currentWorkflow.isDiffMode
-          ? state.diffAnalysis?.field_diffs?.[blockId]
-          : undefined,
       }),
-      [blockId, currentWorkflow.isDiffMode]
+      []
     )
   )
 
@@ -73,6 +68,5 @@ export function useBlockState(
     isActive,
     diffStatus,
     isDeletedBlock: isDeletedBlock ?? false,
-    fieldDiff,
   }
 }

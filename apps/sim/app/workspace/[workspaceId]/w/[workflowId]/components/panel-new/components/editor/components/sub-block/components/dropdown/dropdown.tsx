@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Badge } from '@/components/emcn'
 import { Combobox, type ComboboxOption } from '@/components/emcn/components'
-import { Badge } from '@/components/ui/badge'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/components/sub-block/hooks/use-sub-block-value'
 import { ResponseBlockHandler } from '@/executor/handlers/response/response-handler'
 
@@ -310,9 +310,7 @@ export function Dropdown({
     return (
       <div className='flex flex-wrap items-center gap-1'>
         {optionsNotLoaded ? (
-          <Badge className='text-xs'>
-            {multiValues.length} selected
-          </Badge>
+          <Badge className='text-xs'>{multiValues.length} selected</Badge>
         ) : (
           <>
             {multiValues.slice(0, 2).map((selectedValue: string) => (
@@ -321,9 +319,7 @@ export function Dropdown({
               </Badge>
             ))}
             {multiValues.length > 2 && (
-              <Badge className='text-xs'>
-                +{multiValues.length - 2} more
-              </Badge>
+              <Badge className='text-xs'>+{multiValues.length - 2} more</Badge>
             )}
           </>
         )}
