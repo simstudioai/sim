@@ -46,6 +46,7 @@ import {
   Zap,
 } from 'lucide-react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -483,6 +484,20 @@ export default function TemplateDetails() {
                   <p className='mt-2 max-w-3xl text-lg text-muted-foreground'>
                     {template.description}
                   </p>
+                  {/* Tags */}
+                  {template.tags && template.tags.length > 0 && (
+                    <div className='flex flex-wrap gap-2 mt-3'>
+                      {template.tags.map((tag, index) => (
+                        <Badge
+                          key={index}
+                          variant='secondary'
+                          className='px-2.5 py-0.5 text-sm bg-muted/60 hover:bg-muted/80 border-0'
+                        >
+                          {tag}
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
 

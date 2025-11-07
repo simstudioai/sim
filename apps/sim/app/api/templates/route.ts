@@ -70,6 +70,7 @@ const CreateTemplateSchema = z.object({
     .max(100, 'Author must be less than 100 characters'),
   authorType: z.enum(['user', 'organization']).default('user'),
   organizationId: z.string().optional(),
+  tags: z.array(z.string()).max(10, 'Maximum 10 tags allowed').optional().default([]),
 })
 
 // Schema for query parameters
@@ -147,6 +148,7 @@ export async function GET(request: NextRequest) {
         views: templates.views,
         stars: templates.stars,
         status: templates.status,
+        tags: templates.tags,
         state: templates.state,
         createdAt: templates.createdAt,
         updatedAt: templates.updatedAt,
@@ -297,6 +299,7 @@ export async function POST(request: NextRequest) {
       views: 0,
       stars: 0,
       status: 'pending' as const, // All new templates start as pending
+      tags: data.tags || [],
       state: activeVersion[0].state, // Copy the state from the deployment version
       createdAt: now,
       updatedAt: now,

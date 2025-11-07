@@ -87,6 +87,7 @@ const updateTemplateSchema = z.object({
   author: z.string().min(1).max(100).optional(),
   authorType: z.enum(['user', 'organization']).optional(),
   organizationId: z.string().optional(),
+  tags: z.array(z.string()).max(10, 'Maximum 10 tags allowed').optional(),
   updateState: z.boolean().optional(), // Explicitly request state update from current workflow
 })
 
@@ -113,7 +114,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       )
     }
 
-    const { name, description, author, authorType, organizationId, updateState } =
+    const { name, description, author, authorType, organizationId, tags, updateState } =
       validationResult.data
 
     // Check if template exists
@@ -139,6 +140,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     if (name !== undefined) updateData.name = name
     if (description !== undefined) updateData.description = description
     if (author !== undefined) updateData.author = author
+    if (tags !== undefined) updateData.tags = tags
 
     // Optional fields
     if (authorType) updateData.authorType = authorType

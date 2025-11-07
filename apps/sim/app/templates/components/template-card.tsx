@@ -42,6 +42,7 @@ import {
   Zap,
 } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
+import { Badge } from '@/components/ui/badge'
 import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
 import { getBlock } from '@/blocks/registry'
@@ -120,6 +121,7 @@ interface TemplateCardProps {
   usageCount: string
   stars?: number
   blocks?: string[]
+  tags?: string[]
   onClick?: () => void
   className?: string
   // Add state prop to extract block types
@@ -234,6 +236,7 @@ export function TemplateCard({
   usageCount,
   stars = 0,
   blocks = [],
+  tags = [],
   onClick,
   className,
   state,
@@ -375,9 +378,32 @@ export function TemplateCard({
           </div>
 
           {/* Description */}
-          <p className='line-clamp-3 break-words font-sans text-muted-foreground text-xs leading-relaxed'>
+          <p className='line-clamp-2 break-words font-sans text-muted-foreground text-xs leading-relaxed'>
             {description}
           </p>
+
+          {/* Tags */}
+          {tags && tags.length > 0 && (
+            <div className='flex flex-wrap gap-1 mt-1'>
+              {tags.slice(0, 3).map((tag, index) => (
+                <Badge
+                  key={index}
+                  variant='secondary'
+                  className='h-5 px-1.5 text-[10px] bg-muted/60 hover:bg-muted/80 border-0'
+                >
+                  {tag}
+                </Badge>
+              ))}
+              {tags.length > 3 && (
+                <Badge
+                  variant='secondary'
+                  className='h-5 px-1.5 text-[10px] bg-muted/60 hover:bg-muted/80 border-0'
+                >
+                  +{tags.length - 3}
+                </Badge>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Bottom section */}

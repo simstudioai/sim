@@ -25,6 +25,7 @@ export interface Template {
   views: number
   stars: number
   status: 'pending' | 'approved' | 'rejected'
+  tags: string[]
   state: WorkflowState
   createdAt: Date | string
   updatedAt: Date | string
@@ -108,6 +109,7 @@ export default function Templates({
       organizationId={template.organizationId}
       usageCount={template.views.toString()}
       stars={template.stars}
+      tags={template.tags}
       state={template.state as { blocks?: Record<string, { type: string; name?: string }> }}
       isStarred={template.isStarred}
       onStarChange={handleStarChange}

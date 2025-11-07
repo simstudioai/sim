@@ -25,6 +25,7 @@ import {
   SelectValue,
   Textarea,
 } from '@/components/ui'
+import { TagInput } from '@/components/ui/tag-input'
 import { useSession } from '@/lib/auth-client'
 import { createLogger } from '@/lib/logs/console/logger'
 import { WorkflowPreview } from '@/app/workspace/[workspaceId]/w/components/workflow-preview/workflow-preview'
@@ -36,6 +37,7 @@ const templateSchema = z.object({
   name: z.string().min(1, 'Name is required').max(100, 'Max 100 characters'),
   description: z.string().min(1, 'Description is required').max(500, 'Max 500 characters'),
   authorId: z.string().min(1, 'Author is required'),
+  tags: z.array(z.string()).max(10, 'Maximum 10 tags allowed').optional().default([]),
 })
 
 type TemplateFormData = z.infer<typeof templateSchema>
@@ -68,6 +70,7 @@ export function TemplateDeploy({ workflowId, onDeploymentComplete }: TemplateDep
       name: '',
       description: '',
       authorId: session?.user?.id || '',
+      tags: [],
     },
   })
 
@@ -128,6 +131,7 @@ export function TemplateDeploy({ workflowId, onDeploymentComplete }: TemplateDep
               name: template.name,
               description: template.description,
               authorId: authorId || session?.user?.id || '',
+              tags: template.tags || [],
             })
           }
         }
@@ -162,6 +166,7 @@ export function TemplateDeploy({ workflowId, onDeploymentComplete }: TemplateDep
         description: data.description || '',
         author: authorName,
         authorType,
+        tags: data.tags || [],
       }
 
       // Only include organizationId if it's defined
@@ -334,6 +339,29 @@ export function TemplateDeploy({ workflowId, onDeploymentComplete }: TemplateDep
                     ))}
                   </SelectContent>
                 </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name='tags'
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Tags</FormLabel>
+                <FormControl>
+                  <TagInput
+                    value={field.value || []}
+                    onChange={field.onChange}
+                    placeholder='Type and press Enter to add tags'
+                    maxTags={10}
+                    disabled={isSubmitting}
+                  />
+                </FormControl>
+                <p className='text-xs text-muted-foreground'>
+                  Add up to 10 tags to help users discover your template
+                </p>
                 <FormMessage />
               </FormItem>
             )}

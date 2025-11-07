@@ -1276,6 +1276,7 @@ export const templates = pgTable(
     views: integer('views').notNull().default(0),
     stars: integer('stars').notNull().default(0),
     status: templateStatusEnum('status').notNull().default('pending'),
+    tags: text('tags').array().notNull().default(sql`'{}'::text[]`), // Array of tags
     state: jsonb('state').notNull(), // Store the workflow state directly
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
