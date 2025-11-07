@@ -300,15 +300,15 @@ async function verifyCopilotFileAccess(
 ): Promise<boolean> {
   try {
     logger.debug('Verifying copilot file access', { cloudKey, userId })
-    
+
     // Priority 1: Check workspaceFiles table (new system)
     const fileRecord = await getFileMetadataByKey(cloudKey, 'copilot')
-    
-    logger.debug('Database lookup result', { 
-      cloudKey, 
+
+    logger.debug('Database lookup result', {
+      cloudKey,
       found: !!fileRecord,
       fileUserId: fileRecord?.userId,
-      requestingUserId: userId
+      requestingUserId: userId,
     })
 
     if (fileRecord) {

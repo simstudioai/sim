@@ -325,7 +325,6 @@ export async function POST(req: NextRequest) {
       ...(processedFileContents.length > 0 && { fileAttachments: processedFileContents }),
     }
 
-
     console.log('requestPayload', requestPayload)
 
     try {
