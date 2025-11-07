@@ -238,6 +238,7 @@ export function SettingsNavigation({
                 }
               }}
               onClick={() => onSectionChange(item.id)}
+              data-section={item.id}
               className={cn(
                 'group flex h-9 w-full cursor-pointer items-center rounded-[8px] px-2 py-2 font-medium font-sans text-sm transition-colors',
                 activeSection === item.id ? 'bg-muted' : 'hover:bg-muted'

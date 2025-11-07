@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { CheckCircle2, Loader2, Trash2 } from 'lucide-react'
+import { CheckCircle2, Loader2, Plus, Trash2 } from 'lucide-react'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import {
@@ -77,47 +77,33 @@ export function TemplateDeploy({ workflowId, onDeploymentComplete }: TemplateDep
     },
   })
 
-  // Fetch creator options (user + organizations)
-  // TODO: This will be replaced with actual creator profile fetching once the creator profile management is built
+  // Fetch creator profiles
   useEffect(() => {
     const fetchCreatorOptions = async () => {
       if (!session?.user?.id) return
 
       setLoadingCreators(true)
       try {
-        // For now, create temporary creator options based on user and orgs
-        // In the future, this will fetch actual creator profiles from the database
-        const options: CreatorOption[] = [
-          {
-            id: `user-${session.user.id}`, // Temporary ID format
-            name: session.user.name || session.user.email || 'Me',
-            referenceType: 'user',
-            referenceId: session.user.id,
-          },
-        ]
-
-        const response = await fetch('/api/organizations')
+        const response = await fetch('/api/creator-profiles')
         if (response.ok) {
           const data = await response.json()
-          const orgs = (data.organizations || []).map((org: any) => ({
-            id: `org-${org.id}`, // Temporary ID format
-            name: org.name,
-            referenceType: 'organization' as const,
-            referenceId: org.id,
+          const profiles = (data.profiles || []).map((profile: any) => ({
+            id: profile.id,
+            name: profile.name,
+            referenceType: profile.referenceType,
+            referenceId: profile.referenceId,
           }))
-          options.push(...orgs)
+          setCreatorOptions(profiles)
         }
-
-        setCreatorOptions(options)
       } catch (error) {
-        logger.error('Error fetching creator options:', error)
+        logger.error('Error fetching creator profiles:', error)
       } finally {
         setLoadingCreators(false)
       }
     }
 
     fetchCreatorOptions()
-  }, [session?.user?.id, session?.user?.name, session?.user?.email])
+  }, [session?.user?.id])
 
   // Check for existing template
   useEffect(() => {
@@ -338,26 +324,57 @@ export function TemplateDeploy({ workflowId, onDeploymentComplete }: TemplateDep
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Creator Profile</FormLabel>
-                <Select
-                  onValueChange={field.onChange}
-                  value={field.value}
-                  disabled={loadingCreators}
-                >
-                  <FormControl>
-                    <SelectTrigger>
-                      <SelectValue
-                        placeholder={loadingCreators ? 'Loading...' : 'Select creator profile'}
-                      />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    {creatorOptions.map((option) => (
-                      <SelectItem key={option.id} value={option.id}>
-                        {option.name} {option.referenceType === 'organization' && '(Organization)'}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                {creatorOptions.length === 0 && !loadingCreators ? (
+                  <div className='flex items-center gap-2'>
+                    <Button
+                      type='button'
+                      variant='outline'
+                      size='sm'
+                      className='gap-2'
+                      onClick={() => {
+                        // Open settings modal to creator profile tab
+                        const settingsButton = document.querySelector(
+                          '[data-settings-button]'
+                        ) as HTMLButtonElement
+                        if (settingsButton) {
+                          settingsButton.click()
+                          setTimeout(() => {
+                            const creatorProfileTab = document.querySelector(
+                              '[data-section="creator-profile"]'
+                            ) as HTMLButtonElement
+                            if (creatorProfileTab) {
+                              creatorProfileTab.click()
+                            }
+                          }, 100)
+                        }
+                      }}
+                    >
+                      <Plus className='h-4 w-4 text-muted-foreground' />
+                      <span className='text-muted-foreground'>Create a Creator Profile</span>
+                    </Button>
+                  </div>
+                ) : (
+                  <Select
+                    onValueChange={field.onChange}
+                    value={field.value}
+                    disabled={loadingCreators}
+                  >
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue
+                          placeholder={loadingCreators ? 'Loading...' : 'Select creator profile'}
+                        />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {creatorOptions.map((option) => (
+                        <SelectItem key={option.id} value={option.id}>
+                          {option.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
                 <FormMessage />
               </FormItem>
             )}

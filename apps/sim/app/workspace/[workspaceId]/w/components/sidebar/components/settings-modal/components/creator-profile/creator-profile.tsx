@@ -34,8 +34,8 @@ const logger = createLogger('CreatorProfile')
 const creatorProfileSchema = z.object({
   referenceType: z.enum(['user', 'organization']),
   referenceId: z.string().min(1, 'Reference is required'),
-  name: z.string().min(1, 'Name is required').max(100, 'Max 100 characters'),
-  profileImageUrl: z.string().url().optional().or(z.literal('')),
+  name: z.string().min(1, 'Display Name is required').max(100, 'Max 100 characters'),
+  profileImageUrl: z.string().min(1, 'Profile Picture is required'),
   about: z.string().max(2000, 'Max 2000 characters').optional(),
   xUrl: z.string().url().optional().or(z.literal('')),
   linkedinUrl: z.string().url().optional().or(z.literal('')),
@@ -196,56 +196,57 @@ export function CreatorProfile() {
     <div className='h-full overflow-y-auto p-6'>
       <div className='mx-auto max-w-2xl space-y-6'>
         <div>
-          <h2 className='font-semibold text-lg'>Creator Profile</h2>
-          <p className='mt-1 text-muted-foreground text-sm'>
+          <p className='text-muted-foreground text-sm'>
             Set up your creator profile for publishing templates
           </p>
         </div>
 
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className='space-y-6'>
-            {/* Profile Type */}
-            <FormField
-              control={form.control}
-              name='referenceType'
-              render={({ field }) => (
-                <FormItem className='space-y-3'>
-                  <FormLabel>Profile Type</FormLabel>
-                  <FormControl>
-                    <RadioGroup
-                      onValueChange={field.onChange}
-                      defaultValue={field.value}
-                      className='flex flex-col space-y-1'
-                    >
-                      <div className='flex items-center space-x-3'>
-                        <RadioGroupItem value='user' id='user' />
-                        <label
-                          htmlFor='user'
-                          className='flex cursor-pointer items-center gap-2 font-normal text-sm'
-                        >
-                          <User className='h-4 w-4' />
-                          Personal Profile
-                        </label>
-                      </div>
-                      <div className='flex items-center space-x-3'>
-                        <RadioGroupItem value='organization' id='organization' />
-                        <label
-                          htmlFor='organization'
-                          className='flex cursor-pointer items-center gap-2 font-normal text-sm'
-                        >
-                          <Users className='h-4 w-4' />
-                          Organization Profile
-                        </label>
-                      </div>
-                    </RadioGroup>
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            {/* Profile Type - only show if user has organizations */}
+            {organizations.length > 0 && (
+              <FormField
+                control={form.control}
+                name='referenceType'
+                render={({ field }) => (
+                  <FormItem className='space-y-3'>
+                    <FormLabel>Profile Type</FormLabel>
+                    <FormControl>
+                      <RadioGroup
+                        onValueChange={field.onChange}
+                        defaultValue={field.value}
+                        className='flex flex-col space-y-1'
+                      >
+                        <div className='flex items-center space-x-3'>
+                          <RadioGroupItem value='user' id='user' />
+                          <label
+                            htmlFor='user'
+                            className='flex cursor-pointer items-center gap-2 font-normal text-sm'
+                          >
+                            <User className='h-4 w-4' />
+                            Personal Profile
+                          </label>
+                        </div>
+                        <div className='flex items-center space-x-3'>
+                          <RadioGroupItem value='organization' id='organization' />
+                          <label
+                            htmlFor='organization'
+                            className='flex cursor-pointer items-center gap-2 font-normal text-sm'
+                          >
+                            <Users className='h-4 w-4' />
+                            Organization Profile
+                          </label>
+                        </div>
+                      </RadioGroup>
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
 
             {/* Reference Selection */}
-            {referenceType === 'organization' && (
+            {referenceType === 'organization' && organizations.length > 0 && (
               <FormField
                 control={form.control}
                 name='referenceId'
@@ -278,7 +279,9 @@ export function CreatorProfile() {
               name='name'
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Display Name</FormLabel>
+                  <FormLabel>
+                    Display Name <span className='text-destructive'>*</span>
+                  </FormLabel>
                   <FormControl>
                     <Input placeholder='How your name appears on templates' {...field} />
                   </FormControl>
@@ -296,7 +299,7 @@ export function CreatorProfile() {
                   <FormLabel>
                     <div className='flex items-center gap-2'>
                       <Camera className='h-4 w-4' />
-                      Profile Picture
+                      Profile Picture <span className='text-destructive'>*</span>
                     </div>
                   </FormLabel>
                   <FormControl>

@@ -11,12 +11,12 @@ const logger = createLogger('CreatorProfileByIdAPI')
 
 const UpdateCreatorProfileSchema = z.object({
   name: z.string().min(1, 'Name is required').max(100, 'Max 100 characters').optional(),
-  profileImageUrl: z.string().url().optional().nullable(),
-  about: z.string().max(2000, 'Max 2000 characters').optional().nullable(),
-  xUrl: z.string().url().optional().nullable(),
-  linkedinUrl: z.string().url().optional().nullable(),
-  websiteUrl: z.string().url().optional().nullable(),
-  contactEmail: z.string().email().optional().nullable(),
+  profileImageUrl: z.string().optional().or(z.literal('')),
+  about: z.string().max(2000, 'Max 2000 characters').optional().or(z.literal('')),
+  xUrl: z.string().url().optional().or(z.literal('')),
+  linkedinUrl: z.string().url().optional().or(z.literal('')),
+  websiteUrl: z.string().url().optional().or(z.literal('')),
+  contactEmail: z.string().email().optional().or(z.literal('')),
 })
 
 // Helper to check if user has permission to manage profile

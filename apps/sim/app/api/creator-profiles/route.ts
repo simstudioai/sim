@@ -14,12 +14,12 @@ const CreateCreatorProfileSchema = z.object({
   referenceType: z.enum(['user', 'organization']),
   referenceId: z.string().min(1, 'Reference ID is required'),
   name: z.string().min(1, 'Name is required').max(100, 'Max 100 characters'),
-  profileImageUrl: z.string().url().optional().nullable(),
-  about: z.string().max(2000, 'Max 2000 characters').optional().nullable(),
-  xUrl: z.string().url().optional().nullable(),
-  linkedinUrl: z.string().url().optional().nullable(),
-  websiteUrl: z.string().url().optional().nullable(),
-  contactEmail: z.string().email().optional().nullable(),
+  profileImageUrl: z.string().min(1, 'Profile image is required'),
+  about: z.string().max(2000, 'Max 2000 characters').optional().or(z.literal('')),
+  xUrl: z.string().url().optional().or(z.literal('')),
+  linkedinUrl: z.string().url().optional().or(z.literal('')),
+  websiteUrl: z.string().url().optional().or(z.literal('')),
+  contactEmail: z.string().email().optional().or(z.literal('')),
 })
 
 // GET /api/creator-profiles - Get creator profiles for current user
