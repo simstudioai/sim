@@ -41,7 +41,7 @@ export const linearArchiveIssueTool: ToolConfig<
         mutation ArchiveIssue($id: String!) {
           issueArchive(id: $id) {
             success
-            issue {
+            entity {
               id
             }
           }
@@ -65,13 +65,11 @@ export const linearArchiveIssueTool: ToolConfig<
     }
 
     const result = data.data.issueArchive
-    // Note: The mutation returns success but not the issue object,
-    // so we return the issueId from the original request params
     return {
       success: result.success,
       output: {
         success: result.success,
-        issueId: result.issue?.id || '',
+        issueId: result.entity?.id || params.issueId,
       },
     }
   },

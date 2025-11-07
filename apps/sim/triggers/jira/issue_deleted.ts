@@ -1,6 +1,6 @@
 import { JiraIcon } from '@/components/icons'
 import type { TriggerConfig } from '@/triggers/types'
-import { buildIssueOutputs, jiraSetupInstructions, jiraWebhookSubBlocks } from './utils'
+import { buildIssueOutputs, jiraSetupInstructions } from './utils'
 
 /**
  * Jira Issue Deleted Trigger
@@ -10,35 +10,39 @@ export const jiraIssueDeletedTrigger: TriggerConfig = {
   id: 'jira_issue_deleted',
   name: 'Jira Issue Deleted',
   provider: 'jira',
-  description:
-    'Trigger workflow when an issue is deleted in Jira. Clean up related data, notify stakeholders, or sync deletions with external systems.',
+  description: 'Trigger workflow when an issue is deleted in Jira',
   version: '1.0.0',
   icon: JiraIcon,
 
   subBlocks: [
     {
-      id: 'selectedTriggerId',
-      title: 'Trigger Type',
-      type: 'dropdown',
+      id: 'webhookUrlDisplay',
+      title: 'Webhook URL',
+      type: 'short-input',
+      readOnly: true,
+      showCopyButton: true,
+      useWebhookUrl: true,
+      placeholder: 'Webhook URL will be generated',
       mode: 'trigger',
-      options: [
-        { label: 'Issue Deleted', id: 'jira_issue_deleted' },
-        { label: 'Issue Created', id: 'jira_issue_created' },
-        { label: 'Issue Updated', id: 'jira_issue_updated' },
-        { label: 'Issue Commented', id: 'jira_issue_commented' },
-        { label: 'Worklog Created', id: 'jira_worklog_created' },
-        { label: 'Generic Webhook (All Events)', id: 'jira_webhook' },
-      ],
-      value: () => 'jira_issue_deleted',
-      required: true,
-    },
-    ...jiraWebhookSubBlocks.map((block) => ({
-      ...block,
       condition: {
         field: 'selectedTriggerId',
         value: 'jira_issue_deleted',
       },
-    })),
+    },
+    {
+      id: 'webhookSecret',
+      title: 'Webhook Secret',
+      type: 'short-input',
+      placeholder: 'Enter a strong secret',
+      description: 'Optional secret to validate webhook deliveries from Jira using HMAC signature',
+      password: true,
+      required: false,
+      mode: 'trigger',
+      condition: {
+        field: 'selectedTriggerId',
+        value: 'jira_issue_deleted',
+      },
+    },
     {
       id: 'jqlFilter',
       title: 'JQL Filter (Optional)',

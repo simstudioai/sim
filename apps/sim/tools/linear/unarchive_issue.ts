@@ -41,7 +41,7 @@ export const linearUnarchiveIssueTool: ToolConfig<
         mutation UnarchiveIssue($id: String!) {
           issueUnarchive(id: $id) {
             success
-            issue {
+            entity {
               id
             }
           }
@@ -69,7 +69,7 @@ export const linearUnarchiveIssueTool: ToolConfig<
       success: result.success,
       output: {
         success: result.success,
-        issueId: result.issue?.id || '',
+        issueId: result.entity?.id || params.issueId,
       },
     }
   },

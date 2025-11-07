@@ -280,28 +280,6 @@ Delete an attachment from a Confluence page (moves to trash).
 | `attachmentId` | string | Deleted attachment ID |
 | `deleted` | boolean | Deletion status |
 
-### `confluence_add_label`
-
-Add a label to a Confluence page.
-
-#### Input
-
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `domain` | string | Yes | Your Confluence domain \(e.g., yourcompany.atlassian.net\) |
-| `pageId` | string | Yes | Confluence page ID to add label to |
-| `labelName` | string | Yes | Label name to add |
-| `cloudId` | string | No | Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain. |
-
-#### Output
-
-| Parameter | Type | Description |
-| --------- | ---- | ----------- |
-| `ts` | string | Timestamp of operation |
-| `pageId` | string | Page ID |
-| `labelName` | string | Label name |
-| `added` | boolean | Addition status |
-
 ### `confluence_list_labels`
 
 List all labels on a Confluence page.
@@ -320,28 +298,6 @@ List all labels on a Confluence page.
 | --------- | ---- | ----------- |
 | `ts` | string | Timestamp of retrieval |
 | `labels` | array | List of labels |
-
-### `confluence_remove_label`
-
-Remove a label from a Confluence page.
-
-#### Input
-
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `domain` | string | Yes | Your Confluence domain \(e.g., yourcompany.atlassian.net\) |
-| `pageId` | string | Yes | Confluence page ID to remove label from |
-| `labelName` | string | Yes | Label name to remove |
-| `cloudId` | string | No | Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain. |
-
-#### Output
-
-| Parameter | Type | Description |
-| --------- | ---- | ----------- |
-| `ts` | string | Timestamp of operation |
-| `pageId` | string | Page ID |
-| `labelName` | string | Label name |
-| `removed` | boolean | Removal status |
 
 ### `confluence_get_space`
 

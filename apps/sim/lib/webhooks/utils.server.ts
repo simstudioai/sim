@@ -1233,6 +1233,36 @@ export async function formatWebhookInput(
     }
   }
 
+  if (foundWebhook.provider === 'linear') {
+    // Linear webhook payload structure:
+    // { action, type, webhookId, webhookTimestamp, organizationId, createdAt, actor, data, updatedFrom? }
+    return {
+      // Extract top-level fields from Linear payload
+      action: body.action || '',
+      type: body.type || '',
+      webhookId: body.webhookId || '',
+      webhookTimestamp: body.webhookTimestamp || 0,
+      organizationId: body.organizationId || '',
+      createdAt: body.createdAt || '',
+      actor: body.actor || null,
+      data: body.data || null,
+      updatedFrom: body.updatedFrom || null,
+
+      // Keep webhook metadata
+      webhook: {
+        data: {
+          provider: 'linear',
+          path: foundWebhook.path,
+          providerConfig: foundWebhook.providerConfig,
+          payload: body,
+          headers: Object.fromEntries(request.headers.entries()),
+          method: request.method,
+        },
+      },
+      workflowId: foundWorkflow.id,
+    }
+  }
+
    // Jira webhook format
    if (foundWebhook.provider === 'jira') {
     const { extractIssueData, extractCommentData, extractWorklogData } = await import(

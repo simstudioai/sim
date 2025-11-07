@@ -43,7 +43,7 @@ export const linearCustomerRequestCreatedTrigger: TriggerConfig = {
       id: 'triggerInstructions',
       title: 'Setup Instructions',
       type: 'text',
-      defaultValue: linearSetupInstructions('CustomerNeed (create)'),
+      defaultValue: linearSetupInstructions('Customer Requests'),
       mode: 'trigger',
       condition: {
         field: 'selectedTriggerId',

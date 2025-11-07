@@ -2,6 +2,7 @@ import { JiraIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
 import type { JiraResponse } from '@/tools/jira/types'
+import { getTrigger } from '@/triggers'
 
 export const JiraBlock: BlockConfig<JiraResponse> = {
   type: 'jira',
@@ -353,6 +354,13 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
       placeholder: 'Enter link ID to delete',
       condition: { field: 'operation', value: 'delete_link' },
     },
+    // Trigger SubBlocks
+    ...getTrigger('jira_issue_created').subBlocks,
+    ...getTrigger('jira_issue_updated').subBlocks,
+    ...getTrigger('jira_issue_deleted').subBlocks,
+    ...getTrigger('jira_issue_commented').subBlocks,
+    ...getTrigger('jira_worklog_created').subBlocks,
+    ...getTrigger('jira_webhook').subBlocks,
   ],
   tools: {
     access: [
@@ -833,5 +841,39 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
     // jira_bulk_read outputs
     // Note: bulk_read returns an array in the output field, each item contains:
     // ts, issueKey, summary, description, status, assignee, created, updated
+
+    // Trigger outputs (from webhook events)
+    event_type: { type: 'string', description: 'Webhook event type' },
+    issue_id: { type: 'string', description: 'Issue ID from webhook' },
+    issue_key: { type: 'string', description: 'Issue key from webhook' },
+    project_key: { type: 'string', description: 'Project key from webhook' },
+    project_name: { type: 'string', description: 'Project name from webhook' },
+    issue_type_name: { type: 'string', description: 'Issue type from webhook' },
+    priority_name: { type: 'string', description: 'Issue priority from webhook' },
+    status_name: { type: 'string', description: 'Issue status from webhook' },
+    assignee_name: { type: 'string', description: 'Assignee display name from webhook' },
+    assignee_email: { type: 'string', description: 'Assignee email from webhook' },
+    reporter_name: { type: 'string', description: 'Reporter display name from webhook' },
+    reporter_email: { type: 'string', description: 'Reporter email from webhook' },
+    comment_id: { type: 'string', description: 'Comment ID (for comment events)' },
+    comment_body: { type: 'string', description: 'Comment text (for comment events)' },
+    worklog_id: { type: 'string', description: 'Worklog ID (for worklog events)' },
+    time_spent: { type: 'string', description: 'Time spent (for worklog events)' },
+    changelog: { type: 'json', description: 'Changelog object (for update events)' },
+    issue: { type: 'json', description: 'Complete issue object from webhook' },
+    jira: { type: 'json', description: 'Complete webhook payload' },
+    user: { type: 'json', description: 'User object who triggered the event' },
+    webhook: { type: 'json', description: 'Webhook metadata' },
+  },
+  triggers: {
+    enabled: true,
+    available: [
+      'jira_issue_created',
+      'jira_issue_updated',
+      'jira_issue_deleted',
+      'jira_issue_commented',
+      'jira_worklog_created',
+      'jira_webhook',
+    ],
   },
 }

@@ -1,6 +1,6 @@
 import { JiraIcon } from '@/components/icons'
 import type { TriggerConfig } from '@/triggers/types'
-import { buildIssueOutputs, jiraSetupInstructions, jiraWebhookSubBlocks } from './utils'
+import { buildIssueOutputs, jiraSetupInstructions, jiraTriggerOptions } from './utils'
 
 /**
  * Jira Issue Created Trigger
@@ -10,8 +10,7 @@ export const jiraIssueCreatedTrigger: TriggerConfig = {
   id: 'jira_issue_created',
   name: 'Jira Issue Created',
   provider: 'jira',
-  description:
-    'Trigger workflow when a new issue is created in Jira. Automate notifications, create related tasks, or update external systems.',
+  description: 'Trigger workflow when a new issue is created in Jira',
   version: '1.0.0',
   icon: JiraIcon,
 
@@ -21,24 +20,38 @@ export const jiraIssueCreatedTrigger: TriggerConfig = {
       title: 'Trigger Type',
       type: 'dropdown',
       mode: 'trigger',
-      options: [
-        { label: 'Issue Created', id: 'jira_issue_created' },
-        { label: 'Issue Updated', id: 'jira_issue_updated' },
-        { label: 'Issue Deleted', id: 'jira_issue_deleted' },
-        { label: 'Issue Commented', id: 'jira_issue_commented' },
-        { label: 'Worklog Created', id: 'jira_worklog_created' },
-        { label: 'Generic Webhook (All Events)', id: 'jira_webhook' },
-      ],
+      options: jiraTriggerOptions,
       value: () => 'jira_issue_created',
       required: true,
     },
-    ...jiraWebhookSubBlocks.map((block) => ({
-      ...block,
+    {
+      id: 'webhookUrlDisplay',
+      title: 'Webhook URL',
+      type: 'short-input',
+      readOnly: true,
+      showCopyButton: true,
+      useWebhookUrl: true,
+      placeholder: 'Webhook URL will be generated',
+      mode: 'trigger',
       condition: {
         field: 'selectedTriggerId',
         value: 'jira_issue_created',
       },
-    })),
+    },
+    {
+      id: 'webhookSecret',
+      title: 'Webhook Secret',
+      type: 'short-input',
+      placeholder: 'Enter a strong secret',
+      description: 'Optional secret to validate webhook deliveries from Jira using HMAC signature',
+      password: true,
+      required: false,
+      mode: 'trigger',
+      condition: {
+        field: 'selectedTriggerId',
+        value: 'jira_issue_created',
+      },
+    },
     {
       id: 'jqlFilter',
       title: 'JQL Filter (Optional)',

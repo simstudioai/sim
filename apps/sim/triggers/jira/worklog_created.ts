@@ -1,6 +1,6 @@
 import { JiraIcon } from '@/components/icons'
 import type { TriggerConfig } from '@/triggers/types'
-import { buildWorklogOutputs, jiraSetupInstructions, jiraWebhookSubBlocks } from './utils'
+import { buildWorklogOutputs, jiraSetupInstructions } from './utils'
 
 /**
  * Jira Worklog Created Trigger
@@ -10,35 +10,39 @@ export const jiraWorklogCreatedTrigger: TriggerConfig = {
   id: 'jira_worklog_created',
   name: 'Jira Worklog Created',
   provider: 'jira',
-  description:
-    'Trigger workflow when time is logged on a Jira issue. Track time entries, sync with external systems, generate reports, or notify team leads.',
+  description: 'Trigger workflow when time is logged on a Jira issue',
   version: '1.0.0',
   icon: JiraIcon,
 
   subBlocks: [
     {
-      id: 'selectedTriggerId',
-      title: 'Trigger Type',
-      type: 'dropdown',
+      id: 'webhookUrlDisplay',
+      title: 'Webhook URL',
+      type: 'short-input',
+      readOnly: true,
+      showCopyButton: true,
+      useWebhookUrl: true,
+      placeholder: 'Webhook URL will be generated',
       mode: 'trigger',
-      options: [
-        { label: 'Worklog Created', id: 'jira_worklog_created' },
-        { label: 'Issue Created', id: 'jira_issue_created' },
-        { label: 'Issue Updated', id: 'jira_issue_updated' },
-        { label: 'Issue Deleted', id: 'jira_issue_deleted' },
-        { label: 'Issue Commented', id: 'jira_issue_commented' },
-        { label: 'Generic Webhook (All Events)', id: 'jira_webhook' },
-      ],
-      value: () => 'jira_worklog_created',
-      required: true,
-    },
-    ...jiraWebhookSubBlocks.map((block) => ({
-      ...block,
       condition: {
         field: 'selectedTriggerId',
         value: 'jira_worklog_created',
       },
-    })),
+    },
+    {
+      id: 'webhookSecret',
+      title: 'Webhook Secret',
+      type: 'short-input',
+      placeholder: 'Enter a strong secret',
+      description: 'Optional secret to validate webhook deliveries from Jira using HMAC signature',
+      password: true,
+      required: false,
+      mode: 'trigger',
+      condition: {
+        field: 'selectedTriggerId',
+        value: 'jira_worklog_created',
+      },
+    },
     {
       id: 'jqlFilter',
       title: 'JQL Filter (Optional)',

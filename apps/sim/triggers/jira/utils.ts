@@ -2,6 +2,18 @@ import type { SubBlockConfig } from '@/blocks/types'
 import type { TriggerOutput } from '@/triggers/types'
 
 /**
+ * Shared trigger dropdown options for all Jira triggers
+ */
+export const jiraTriggerOptions = [
+  { label: 'Issue Created', id: 'jira_issue_created' },
+  { label: 'Issue Updated', id: 'jira_issue_updated' },
+  { label: 'Issue Deleted', id: 'jira_issue_deleted' },
+  { label: 'Issue Commented', id: 'jira_issue_commented' },
+  { label: 'Worklog Created', id: 'jira_worklog_created' },
+  { label: 'Generic Webhook (All Events)', id: 'jira_webhook' },
+]
+
+/**
  * Common webhook subBlocks for Jira triggers
  * Used across all Jira webhook-based triggers
  */
@@ -69,33 +81,27 @@ export const jiraWebhookSubBlocks: SubBlockConfig[] = [
 /**
  * Generates setup instructions for Jira webhooks
  */
-export function jiraSetupInstructions(eventType: string): string {
-  return `
-## How to configure this Jira webhook:
+export function jiraSetupInstructions(eventType: string, additionalNotes?: string): string {
+  const instructions = [
+    '<strong>Note:</strong> You must have admin permissions in your Jira workspace to create webhooks.',
+    'In Jira, navigate to <strong>Settings > System > WebHooks</strong>.',
+    'Click <strong>"Create a WebHook"</strong> to add a new webhook.',
+    'Paste the <strong>Webhook URL</strong> from above into the URL field.',
+    'Optionally, enter the <strong>Webhook Secret</strong> from above into the secret field for added security.',
+    `Select the events you want to trigger this workflow. For this trigger, select <strong>${eventType}</strong>.`,
+    'Click <strong>"Create"</strong> to activate the webhook.',
+  ]
 
-1. **Save this workflow** to generate your unique webhook URL
-2. **Copy the webhook URL** shown above
-3. **Go to Jira Settings:**
-   - Navigate to Settings (⚙️) → System → WebHooks
-   - Or go to: \`https://your-domain.atlassian.net/plugins/servlet/webhooks\`
-4. **Create a new webhook:**
-   - Click "Create a WebHook"
-   - **Name:** Give it a descriptive name (e.g., "Sim Workflow - ${eventType}")
-   - **Status:** Enabled
-   - **URL:** Paste your webhook URL from above
-   - **Events:** Select the events you want to trigger this workflow
-   - **JQL Filter:** (Optional) Add a JQL query to filter which issues trigger the webhook
-5. **(Optional) Add Secret:**
-   - If you entered a webhook secret above, add it in the Jira webhook configuration
-   - This provides additional security through HMAC signature validation
-6. **Test the webhook:**
-   - Perform the action in Jira (e.g., create an issue)
-   - Check if your workflow is triggered
+  if (additionalNotes) {
+    instructions.push(additionalNotes)
+  }
 
-**Note:** Make sure your Jira OAuth app has the necessary webhook scopes enabled.
-
-**Supported Events:** \`${eventType}\`
-`.trim()
+  return instructions
+    .map(
+      (instruction, index) =>
+        `<div class="mb-3">${index === 0 ? instruction : `<strong>${index}.</strong> ${instruction}`}</div>`
+    )
+    .join('')
 }
 
 /**

@@ -1,6 +1,6 @@
 import { JiraIcon } from '@/components/icons'
 import type { TriggerConfig } from '@/triggers/types'
-import { buildCommentOutputs, jiraSetupInstructions, jiraWebhookSubBlocks } from './utils'
+import { buildCommentOutputs, jiraSetupInstructions } from './utils'
 
 /**
  * Jira Issue Commented Trigger
@@ -10,35 +10,39 @@ export const jiraIssueCommentedTrigger: TriggerConfig = {
   id: 'jira_issue_commented',
   name: 'Jira Issue Commented',
   provider: 'jira',
-  description:
-    'Trigger workflow when a comment is added to a Jira issue. Notify team members, analyze sentiment, extract action items, or sync comments to external systems.',
+  description: 'Trigger workflow when a comment is added to a Jira issue',
   version: '1.0.0',
   icon: JiraIcon,
 
   subBlocks: [
     {
-      id: 'selectedTriggerId',
-      title: 'Trigger Type',
-      type: 'dropdown',
+      id: 'webhookUrlDisplay',
+      title: 'Webhook URL',
+      type: 'short-input',
+      readOnly: true,
+      showCopyButton: true,
+      useWebhookUrl: true,
+      placeholder: 'Webhook URL will be generated',
       mode: 'trigger',
-      options: [
-        { label: 'Issue Commented', id: 'jira_issue_commented' },
-        { label: 'Issue Created', id: 'jira_issue_created' },
-        { label: 'Issue Updated', id: 'jira_issue_updated' },
-        { label: 'Issue Deleted', id: 'jira_issue_deleted' },
-        { label: 'Worklog Created', id: 'jira_worklog_created' },
-        { label: 'Generic Webhook (All Events)', id: 'jira_webhook' },
-      ],
-      value: () => 'jira_issue_commented',
-      required: true,
-    },
-    ...jiraWebhookSubBlocks.map((block) => ({
-      ...block,
       condition: {
         field: 'selectedTriggerId',
         value: 'jira_issue_commented',
       },
-    })),
+    },
+    {
+      id: 'webhookSecret',
+      title: 'Webhook Secret',
+      type: 'short-input',
+      placeholder: 'Enter a strong secret',
+      description: 'Optional secret to validate webhook deliveries from Jira using HMAC signature',
+      password: true,
+      required: false,
+      mode: 'trigger',
+      condition: {
+        field: 'selectedTriggerId',
+        value: 'jira_issue_commented',
+      },
+    },
     {
       id: 'jqlFilter',
       title: 'JQL Filter (Optional)',

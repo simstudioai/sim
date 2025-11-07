@@ -1,6 +1,6 @@
 import { JiraIcon } from '@/components/icons'
 import type { TriggerConfig } from '@/triggers/types'
-import { buildIssueOutputs, jiraSetupInstructions, jiraWebhookSubBlocks } from './utils'
+import { buildIssueOutputs, jiraSetupInstructions } from './utils'
 
 /**
  * Generic Jira Webhook Trigger
@@ -10,35 +10,39 @@ export const jiraWebhookTrigger: TriggerConfig = {
   id: 'jira_webhook',
   name: 'Jira Webhook (All Events)',
   provider: 'jira',
-  description:
-    'Trigger workflow on any Jira webhook event. Receives all Jira events including issue created, updated, deleted, commented, and worklog events.',
+  description: 'Trigger workflow on any Jira webhook event',
   version: '1.0.0',
   icon: JiraIcon,
 
   subBlocks: [
     {
-      id: 'selectedTriggerId',
-      title: 'Trigger Type',
-      type: 'dropdown',
+      id: 'webhookUrlDisplay',
+      title: 'Webhook URL',
+      type: 'short-input',
+      readOnly: true,
+      showCopyButton: true,
+      useWebhookUrl: true,
+      placeholder: 'Webhook URL will be generated',
       mode: 'trigger',
-      options: [
-        { label: 'Generic Webhook (All Events)', id: 'jira_webhook' },
-        { label: 'Issue Created', id: 'jira_issue_created' },
-        { label: 'Issue Updated', id: 'jira_issue_updated' },
-        { label: 'Issue Deleted', id: 'jira_issue_deleted' },
-        { label: 'Issue Commented', id: 'jira_issue_commented' },
-        { label: 'Worklog Created', id: 'jira_worklog_created' },
-      ],
-      value: () => 'jira_webhook',
-      required: true,
-    },
-    ...jiraWebhookSubBlocks.map((block) => ({
-      ...block,
       condition: {
         field: 'selectedTriggerId',
         value: 'jira_webhook',
       },
-    })),
+    },
+    {
+      id: 'webhookSecret',
+      title: 'Webhook Secret',
+      type: 'short-input',
+      placeholder: 'Enter a strong secret',
+      description: 'Optional secret to validate webhook deliveries from Jira using HMAC signature',
+      password: true,
+      required: false,
+      mode: 'trigger',
+      condition: {
+        field: 'selectedTriggerId',
+        value: 'jira_webhook',
+      },
+    },
     {
       id: 'triggerInstructions',
       title: 'Setup Instructions',
