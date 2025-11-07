@@ -123,7 +123,6 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
     const userId = session.user.id
 
-    // Parse and validate request body
     const body = await request.json()
     const state = WorkflowStateSchema.parse(body)
 

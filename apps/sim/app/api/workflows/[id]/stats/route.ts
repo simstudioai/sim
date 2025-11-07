@@ -2,32 +2,44 @@ import { db } from '@sim/db'
 import { userStats, workflow } from '@sim/db/schema'
 import { eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('WorkflowStatsAPI')
 
+const queryParamsSchema = z.object({
+  runs: z.coerce.number().int().min(1).max(100).default(1),
+})
+
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const searchParams = request.nextUrl.searchParams
-  const runs = Number.parseInt(searchParams.get('runs') || '1', 10)
 
-  if (Number.isNaN(runs) || runs < 1 || runs > 100) {
-    logger.error(`Invalid number of runs: ${runs}`)
+  const validation = queryParamsSchema.safeParse({
+    runs: searchParams.get('runs'),
+  })
+
+  if (!validation.success) {
+    logger.error(`Invalid query parameters: ${validation.error.message}`)
     return NextResponse.json(
-      { error: 'Invalid number of runs. Must be between 1 and 100.' },
+      {
+        error:
+          validation.error.errors[0]?.message ||
+          'Invalid number of runs. Must be between 1 and 100.',
+      },
       { status: 400 }
     )
   }
 
+  const { runs } = validation.data
+
   try {
-    // Get workflow record
     const [workflowRecord] = await db.select().from(workflow).where(eq(workflow.id, id)).limit(1)
 
     if (!workflowRecord) {
       return NextResponse.json({ error: `Workflow ${id} not found` }, { status: 404 })
     }
 
-    // Update workflow runCount
     try {
       await db
         .update(workflow)

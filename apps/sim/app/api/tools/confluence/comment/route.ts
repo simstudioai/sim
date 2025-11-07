@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { z } from 'zod'
 import { createLogger } from '@/lib/logs/console/logger'
 import { validateAlphanumericId, validateJiraCloudId } from '@/lib/security/input-validation'
 import { getConfluenceCloudId } from '@/tools/confluence/utils'
@@ -7,37 +8,55 @@ const logger = createLogger('ConfluenceCommentAPI')
 
 export const dynamic = 'force-dynamic'
 
+const putCommentSchema = z
+  .object({
+    domain: z.string().min(1, 'Domain is required'),
+    accessToken: z.string().min(1, 'Access token is required'),
+    cloudId: z.string().optional(),
+    commentId: z.string().min(1, 'Comment ID is required'),
+    comment: z.string().min(1, 'Comment is required'),
+  })
+  .refine(
+    (data) => {
+      const validation = validateAlphanumericId(data.commentId, 'commentId', 255)
+      return validation.isValid
+    },
+    (data) => {
+      const validation = validateAlphanumericId(data.commentId, 'commentId', 255)
+      return { message: validation.error || 'Invalid comment ID', path: ['commentId'] }
+    }
+  )
+
+const deleteCommentSchema = z
+  .object({
+    domain: z.string().min(1, 'Domain is required'),
+    accessToken: z.string().min(1, 'Access token is required'),
+    cloudId: z.string().optional(),
+    commentId: z.string().min(1, 'Comment ID is required'),
+  })
+  .refine(
+    (data) => {
+      const validation = validateAlphanumericId(data.commentId, 'commentId', 255)
+      return validation.isValid
+    },
+    (data) => {
+      const validation = validateAlphanumericId(data.commentId, 'commentId', 255)
+      return { message: validation.error || 'Invalid comment ID', path: ['commentId'] }
+    }
+  )
+
 // Update a comment
 export async function PUT(request: Request) {
   try {
-    const {
-      domain,
-      accessToken,
-      cloudId: providedCloudId,
-      commentId,
-      comment,
-    } = await request.json()
+    const body = await request.json()
 
-    if (!domain) {
-      return NextResponse.json({ error: 'Domain is required' }, { status: 400 })
+    const validation = putCommentSchema.safeParse(body)
+    if (!validation.success) {
+      const firstError = validation.error.errors[0]
+      return NextResponse.json({ error: firstError.message }, { status: 400 })
     }
 
-    if (!accessToken) {
-      return NextResponse.json({ error: 'Access token is required' }, { status: 400 })
-    }
-
-    if (!commentId) {
-      return NextResponse.json({ error: 'Comment ID is required' }, { status: 400 })
-    }
-
-    if (!comment) {
-      return NextResponse.json({ error: 'Comment is required' }, { status: 400 })
-    }
-
-    const commentIdValidation = validateAlphanumericId(commentId, 'commentId', 255)
-    if (!commentIdValidation.isValid) {
-      return NextResponse.json({ error: commentIdValidation.error }, { status: 400 })
-    }
+    const { domain, accessToken, cloudId: providedCloudId, commentId, comment } = validation.data
 
     const cloudId = providedCloudId || (await getConfluenceCloudId(domain, accessToken))
 
@@ -64,7 +83,7 @@ export async function PUT(request: Request) {
 
     const url = `https://api.atlassian.com/ex/confluence/${cloudId}/wiki/api/v2/footer-comments/${commentId}`
 
-    const body = {
+    const updateBody = {
       body: {
         representation: 'storage',
         value: comment,
@@ -82,7 +101,7 @@ export async function PUT(request: Request) {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${accessToken}`,
       },
-      body: JSON.stringify(body),
+      body: JSON.stringify(updateBody),
     })
 
     if (!response.ok) {
@@ -111,24 +130,15 @@ export async function PUT(request: Request) {
 // Delete a comment
 export async function DELETE(request: Request) {
   try {
-    const { domain, accessToken, cloudId: providedCloudId, commentId } = await request.json()
+    const body = await request.json()
 
-    if (!domain) {
-      return NextResponse.json({ error: 'Domain is required' }, { status: 400 })
+    const validation = deleteCommentSchema.safeParse(body)
+    if (!validation.success) {
+      const firstError = validation.error.errors[0]
+      return NextResponse.json({ error: firstError.message }, { status: 400 })
     }
 
-    if (!accessToken) {
-      return NextResponse.json({ error: 'Access token is required' }, { status: 400 })
-    }
-
-    if (!commentId) {
-      return NextResponse.json({ error: 'Comment ID is required' }, { status: 400 })
-    }
-
-    const commentIdValidation = validateAlphanumericId(commentId, 'commentId', 255)
-    if (!commentIdValidation.isValid) {
-      return NextResponse.json({ error: commentIdValidation.error }, { status: 400 })
-    }
+    const { domain, accessToken, cloudId: providedCloudId, commentId } = validation.data
 
     const cloudId = providedCloudId || (await getConfluenceCloudId(domain, accessToken))
 

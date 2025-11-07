@@ -1,4 +1,5 @@
 import { type NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
 
@@ -6,6 +7,13 @@ const logger = createLogger('CopilotTrainingExamplesAPI')
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
+
+const TrainingExampleSchema = z.object({
+  json: z.string().min(1, 'JSON string is required'),
+  title: z.string().min(1, 'Title is required'),
+  tags: z.array(z.string()).optional(),
+  metadata: z.record(z.unknown()).optional(),
+})
 
 export async function POST(request: NextRequest) {
   const baseUrl = env.AGENT_INDEXER_URL
@@ -23,8 +31,24 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
 
+    const validationResult = TrainingExampleSchema.safeParse(body)
+
+    if (!validationResult.success) {
+      logger.warn('Invalid training example format', { errors: validationResult.error.errors })
+      return NextResponse.json(
+        {
+          error: 'Invalid training example format',
+          details: validationResult.error.errors,
+        },
+        { status: 400 }
+      )
+    }
+
+    const validatedData = validationResult.data
+
     logger.info('Sending workflow example to agent indexer', {
-      hasJsonField: typeof body?.json === 'string',
+      hasJsonField: typeof validatedData.json === 'string',
+      title: validatedData.title,
     })
 
     const upstream = await fetch(`${baseUrl}/examples/add`, {
@@ -33,7 +57,7 @@ export async function POST(request: NextRequest) {
         'Content-Type': 'application/json',
         'x-api-key': apiKey,
       },
-      body: JSON.stringify(body),
+      body: JSON.stringify(validatedData),
     })
 
     if (!upstream.ok) {

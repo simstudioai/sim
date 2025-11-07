@@ -1,12 +1,32 @@
 import type { NextRequest } from 'next/server'
+import { z } from 'zod'
 import { createLogger } from '@/lib/logs/console/logger'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import { generateRequestId } from '@/lib/utils'
 import { validateWorkflowAccess } from '@/app/api/workflows/middleware'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
+import type { ExecutionResult } from '@/executor/types'
 
 const logger = createLogger('WorkflowLogAPI')
+
+const postBodySchema = z.object({
+  logs: z.array(z.any()).optional(),
+  executionId: z.string().min(1, 'Execution ID is required').optional(),
+  result: z
+    .object({
+      success: z.boolean(),
+      error: z.string().optional(),
+      output: z.any(),
+      metadata: z
+        .object({
+          source: z.string().optional(),
+          duration: z.number().optional(),
+        })
+        .optional(),
+    })
+    .optional(),
+})
 
 export const dynamic = 'force-dynamic'
 
@@ -15,16 +35,30 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const { id } = await params
 
   try {
-    const validation = await validateWorkflowAccess(request, id, false)
-    if (validation.error) {
-      logger.warn(`[${requestId}] Workflow access validation failed: ${validation.error.message}`)
-      return createErrorResponse(validation.error.message, validation.error.status)
+    const accessValidation = await validateWorkflowAccess(request, id, false)
+    if (accessValidation.error) {
+      logger.warn(
+        `[${requestId}] Workflow access validation failed: ${accessValidation.error.message}`
+      )
+      return createErrorResponse(accessValidation.error.message, accessValidation.error.status)
     }
 
     const body = await request.json()
-    const { logs, executionId, result } = body
+    const validation = postBodySchema.safeParse(body)
+
+    if (!validation.success) {
+      logger.warn(`[${requestId}] Invalid request body: ${validation.error.message}`)
+      return createErrorResponse(validation.error.errors[0]?.message || 'Invalid request body', 400)
+    }
+
+    const { logs, executionId, result } = validation.data
 
     if (result) {
+      if (!executionId) {
+        logger.warn(`[${requestId}] Missing executionId for result logging`)
+        return createErrorResponse('executionId is required when logging results', 400)
+      }
+
       logger.info(`[${requestId}] Persisting execution result for workflow: ${id}`, {
         executionId,
         success: result.success,
@@ -35,8 +69,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       const triggerType = isChatExecution ? 'chat' : 'manual'
       const loggingSession = new LoggingSession(id, executionId, triggerType, requestId)
 
-      const userId = validation.workflow.userId
-      const workspaceId = validation.workflow.workspaceId || ''
+      const userId = accessValidation.workflow.userId
+      const workspaceId = accessValidation.workflow.workspaceId || ''
 
       await loggingSession.safeStart({
         userId,
@@ -44,7 +78,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         variables: {},
       })
 
-      const { traceSpans, totalDuration } = buildTraceSpans(result)
+      const resultWithOutput = {
+        ...result,
+        output: result.output ?? {},
+      }
+
+      const { traceSpans, totalDuration } = buildTraceSpans(resultWithOutput as ExecutionResult)
 
       if (result.success === false) {
         const message = result.error || 'Workflow execution failed'

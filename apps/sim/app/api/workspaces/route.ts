@@ -2,12 +2,17 @@ import { db } from '@sim/db'
 import { permissions, workflow, workspace } from '@sim/db/schema'
 import { and, desc, eq, isNull } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
+import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console/logger'
 import { saveWorkflowToNormalizedTables } from '@/lib/workflows/db-helpers'
 import { buildDefaultWorkflowArtifacts } from '@/lib/workflows/defaults'
 
 const logger = createLogger('Workspaces')
+
+const createWorkspaceSchema = z.object({
+  name: z.string().trim().min(1, 'Name is required'),
+})
 
 // Get all workspaces for the current user
 export async function GET() {
@@ -62,11 +67,7 @@ export async function POST(req: Request) {
   }
 
   try {
-    const { name } = await req.json()
-
-    if (!name) {
-      return NextResponse.json({ error: 'Name is required' }, { status: 400 })
-    }
+    const { name } = createWorkspaceSchema.parse(await req.json())
 
     const newWorkspace = await createWorkspace(session.user.id, name)
 

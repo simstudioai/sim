@@ -1,12 +1,21 @@
 import { db, workflowDeploymentVersion } from '@sim/db'
 import { and, eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
+import { z } from 'zod'
 import { createLogger } from '@/lib/logs/console/logger'
 import { generateRequestId } from '@/lib/utils'
 import { validateWorkflowPermissions } from '@/lib/workflows/utils'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
 
 const logger = createLogger('WorkflowDeploymentVersionAPI')
+
+const patchBodySchema = z.object({
+  name: z
+    .string()
+    .trim()
+    .min(1, 'Name cannot be empty')
+    .max(100, 'Name must be 100 characters or less'),
+})
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -73,24 +82,17 @@ export async function PATCH(
     }
 
     const body = await request.json()
-    const { name } = body
+    const validation = patchBodySchema.safeParse(body)
 
-    if (typeof name !== 'string') {
-      return createErrorResponse('Name must be a string', 400)
+    if (!validation.success) {
+      return createErrorResponse(validation.error.errors[0]?.message || 'Invalid request body', 400)
     }
 
-    const trimmedName = name.trim()
-    if (trimmedName.length === 0) {
-      return createErrorResponse('Name cannot be empty', 400)
-    }
-
-    if (trimmedName.length > 100) {
-      return createErrorResponse('Name must be 100 characters or less', 400)
-    }
+    const { name } = validation.data
 
     const [updated] = await db
       .update(workflowDeploymentVersion)
-      .set({ name: trimmedName })
+      .set({ name })
       .where(
         and(
           eq(workflowDeploymentVersion.workflowId, id),
@@ -104,7 +106,7 @@ export async function PATCH(
     }
 
     logger.info(
-      `[${requestId}] Renamed deployment version ${version} for workflow ${id} to "${trimmedName}"`
+      `[${requestId}] Renamed deployment version ${version} for workflow ${id} to "${name}"`
     )
 
     return createSuccessResponse({ name: updated.name })

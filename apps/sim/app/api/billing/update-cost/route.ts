@@ -53,7 +53,6 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // Parse and validate request body
     const body = await req.json()
     const validation = UpdateCostSchema.safeParse(body)
 

@@ -2,11 +2,15 @@ import { db } from '@sim/db'
 import { permissions, workspace } from '@sim/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console/logger'
 import { hasWorkspaceAdminAccess } from '@/lib/permissions/utils'
 
 const logger = createLogger('WorkspaceMemberAPI')
+const deleteMemberSchema = z.object({
+  workspaceId: z.string().uuid(),
+})
 
 // DELETE /api/workspaces/members/[id] - Remove a member from a workspace
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -19,12 +23,8 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
 
   try {
     // Get the workspace ID from the request body or URL
-    const body = await req.json()
-    const workspaceId = body.workspaceId
-
-    if (!workspaceId) {
-      return NextResponse.json({ error: 'Workspace ID is required' }, { status: 400 })
-    }
+    const body = deleteMemberSchema.parse(await req.json())
+    const { workspaceId } = body
 
     const workspaceRow = await db
       .select({ billedAccountUserId: workspace.billedAccountUserId })

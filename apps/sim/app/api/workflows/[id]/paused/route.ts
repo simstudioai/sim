@@ -1,6 +1,11 @@
 import { type NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { PauseResumeManager } from '@/lib/workflows/executor/pause-resume-manager'
 import { validateWorkflowAccess } from '@/app/api/workflows/middleware'
+
+const queryParamsSchema = z.object({
+  status: z.string().optional(),
+})
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -20,7 +25,18 @@ export async function GET(
     return NextResponse.json({ error: access.error.message }, { status: access.error.status })
   }
 
-  const statusFilter = request.nextUrl.searchParams.get('status') || undefined
+  const validation = queryParamsSchema.safeParse({
+    status: request.nextUrl.searchParams.get('status'),
+  })
+
+  if (!validation.success) {
+    return NextResponse.json(
+      { error: validation.error.errors[0]?.message || 'Invalid query parameters' },
+      { status: 400 }
+    )
+  }
+
+  const { status: statusFilter } = validation.data
 
   const pausedExecutions = await PauseResumeManager.listPausedExecutions({
     workflowId,
