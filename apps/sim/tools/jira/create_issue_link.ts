@@ -17,6 +17,7 @@ export interface JiraCreateIssueLinkResponse extends ToolResponse {
     inwardIssue: string
     outwardIssue: string
     linkType: string
+    linkId?: string
     success: boolean
   }
 }
@@ -83,13 +84,11 @@ export const jiraCreateIssueLinkTool: ToolConfig<
   },
 
   request: {
-    url: (params: JiraCreateIssueLinkParams) => {
-      if (params.cloudId) {
-        return `https://api.atlassian.com/ex/jira/${params.cloudId}/rest/api/3/issueLink`
-      }
+    url: (_params: JiraCreateIssueLinkParams) => {
+      // Always discover first; actual POST happens in transformResponse
       return 'https://api.atlassian.com/oauth/token/accessible-resources'
     },
-    method: 'POST',
+    method: () => 'GET',
     headers: (params: JiraCreateIssueLinkParams) => {
       return {
         Accept: 'application/json',
@@ -97,17 +96,60 @@ export const jiraCreateIssueLinkTool: ToolConfig<
         Authorization: `Bearer ${params.accessToken}`,
       }
     },
-    body: (params: JiraCreateIssueLinkParams) => {
-      return {
-        type: {
-          name: params?.linkType,
-        },
-        inwardIssue: {
-          key: params?.inwardIssueKey,
-        },
-        outwardIssue: {
-          key: params?.outwardIssueKey,
-        },
+    body: () => undefined as any,
+  },
+
+  transformResponse: async (response: Response, params?: JiraCreateIssueLinkParams) => {
+    // Resolve cloudId
+    const cloudId = params?.cloudId || (await getJiraCloudId(params!.domain, params!.accessToken))
+
+    // Fetch and resolve link type by id/name/inward/outward (case-insensitive)
+    const typesResp = await fetch(
+      `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issueLinkType`,
+      {
+        method: 'GET',
+        headers: { Accept: 'application/json', Authorization: `Bearer ${params!.accessToken}` },
+      }
+    )
+    if (!typesResp.ok) {
+      throw new Error(`Failed to fetch issue link types (${typesResp.status})`)
+    }
+    const typesData = await typesResp.json()
+    const provided = (params!.linkType || '').trim().toLowerCase()
+    let resolvedType: { id?: string; name?: string } | undefined
+    const allTypes = Array.isArray(typesData?.issueLinkTypes) ? typesData.issueLinkTypes : []
+    for (const t of allTypes) {
+      const name = String(t?.name || '').toLowerCase()
+      const inward = String(t?.inward || '').toLowerCase()
+      const outward = String(t?.outward || '').toLowerCase()
+      if (provided && (provided === name || provided === inward || provided === outward)) {
+        resolvedType = t?.id ? { id: String(t.id) } : { name: t?.name }
+        break
+      }
+    }
+    if (!resolvedType && /^\d+$/.test(provided)) {
+      resolvedType = { id: provided }
+    }
+    if (!resolvedType) {
+      const available = allTypes
+        .map((t: any) => `${t?.name} (inward: ${t?.inward}, outward: ${t?.outward})`)
+        .join('; ')
+      throw new Error(`Unknown issue link type "${params!.linkType}". Available: ${available}`)
+    }
+
+    // Create issue link
+    const linkUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issueLink`
+    const linkResponse = await fetch(linkUrl, {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${params!.accessToken}`,
+      },
+      body: JSON.stringify({
+        type: resolvedType,
+        inwardIssue: { key: params!.inwardIssueKey },
+        outwardIssue: { key: params!.outwardIssueKey },
         comment: params?.comment
           ? {
               body: {
@@ -119,7 +161,7 @@ export const jiraCreateIssueLinkTool: ToolConfig<
                     content: [
                       {
                         type: 'text',
-                        text: params.comment,
+                        text: params!.comment,
                       },
                     ],
                   },
@@ -127,83 +169,23 @@ export const jiraCreateIssueLinkTool: ToolConfig<
               },
             }
           : undefined,
-      }
-    },
-  },
-
-  transformResponse: async (response: Response, params?: JiraCreateIssueLinkParams) => {
-    if (!params?.cloudId) {
-      const cloudId = await getJiraCloudId(params!.domain, params!.accessToken)
-      // Make the actual request with the resolved cloudId
-      const linkUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issueLink`
-      const linkResponse = await fetch(linkUrl, {
-        method: 'POST',
-        headers: {
-          Accept: 'application/json',
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${params?.accessToken}`,
-        },
-        body: JSON.stringify({
-          type: {
-            name: params?.linkType,
-          },
-          inwardIssue: {
-            key: params?.inwardIssueKey,
-          },
-          outwardIssue: {
-            key: params?.outwardIssueKey,
-          },
-          comment: params?.comment
-            ? {
-                body: {
-                  type: 'doc',
-                  version: 1,
-                  content: [
-                    {
-                      type: 'paragraph',
-                      content: [
-                        {
-                          type: 'text',
-                          text: params.comment,
-                        },
-                      ],
-                    },
-                  ],
-                },
-              }
-            : undefined,
-        }),
-      })
-
-      if (!linkResponse.ok) {
-        let message = `Failed to create issue link (${linkResponse.status})`
-        try {
-          const err = await linkResponse.json()
-          message = err?.errorMessages?.join(', ') || err?.message || message
-        } catch (_e) {}
-        throw new Error(message)
-      }
-
-      return {
-        success: true,
-        output: {
-          ts: new Date().toISOString(),
-          inwardIssue: params?.inwardIssueKey || 'unknown',
-          outwardIssue: params?.outwardIssueKey || 'unknown',
-          linkType: params?.linkType || 'unknown',
-          success: true,
-        },
-      }
-    }
-
-    // If cloudId was provided, process the response
-    if (!response.ok) {
-      let message = `Failed to create issue link (${response.status})`
+      }),
+    })
+    if (!linkResponse.ok) {
+      let message = `Failed to create issue link (${linkResponse.status})`
       try {
-        const err = await response.json()
+        const err = await linkResponse.json()
         message = err?.errorMessages?.join(', ') || err?.message || message
       } catch (_e) {}
       throw new Error(message)
+    }
+
+    // Try to extract the newly created link ID from the Location header
+    const location = linkResponse.headers.get('location') || linkResponse.headers.get('Location')
+    let linkId: string | undefined
+    if (location) {
+      const match = location.match(/\/issueLink\/(\d+)/)
+      if (match) linkId = match[1]
     }
 
     return {
@@ -213,6 +195,7 @@ export const jiraCreateIssueLinkTool: ToolConfig<
         inwardIssue: params?.inwardIssueKey || 'unknown',
         outwardIssue: params?.outwardIssueKey || 'unknown',
         linkType: params?.linkType || 'unknown',
+        linkId,
         success: true,
       },
     }

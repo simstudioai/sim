@@ -9,6 +9,7 @@ export const writeChannelTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTea
   name: 'Write to Microsoft Teams Channel',
   description: 'Write or send a message to a Microsoft Teams channel',
   version: '1.0',
+  errorExtractor: 'nested-error-object',
   oauth: {
     required: true,
     provider: 'microsoft-teams',

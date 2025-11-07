@@ -15,6 +15,7 @@ const OutlookDraftSchema = z.object({
   to: z.string().min(1, 'Recipient email is required'),
   subject: z.string().min(1, 'Subject is required'),
   body: z.string().min(1, 'Email body is required'),
+  contentType: z.enum(['text', 'html']).optional().nullable(),
   cc: z.string().optional().nullable(),
   bcc: z.string().optional().nullable(),
   attachments: z.array(z.any()).optional().nullable(),
@@ -70,7 +71,7 @@ export async function POST(request: NextRequest) {
     const message: any = {
       subject: validatedData.subject,
       body: {
-        contentType: 'Text',
+        contentType: validatedData.contentType || 'text',
         content: validatedData.body,
       },
       toRecipients,

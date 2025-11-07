@@ -46,6 +46,18 @@ export const ResendBlock: BlockConfig<MailSendResult> = {
       required: true,
     },
     {
+      id: 'contentType',
+      title: 'Content Type',
+      type: 'dropdown',
+      layout: 'full',
+      options: [
+        { label: 'Plain Text', id: 'text' },
+        { label: 'HTML', id: 'html' },
+      ],
+      value: () => 'text',
+      required: false,
+    },
+    {
       id: 'resendApiKey',
       title: 'Resend API Key',
       type: 'short-input',
@@ -75,6 +87,7 @@ export const ResendBlock: BlockConfig<MailSendResult> = {
     to: { type: 'string', description: 'Recipient email address' },
     subject: { type: 'string', description: 'Email subject' },
     body: { type: 'string', description: 'Email body content' },
+    contentType: { type: 'string', description: 'Content type (text or html)' },
     resendApiKey: { type: 'string', description: 'Resend API key for sending emails' },
   },
 

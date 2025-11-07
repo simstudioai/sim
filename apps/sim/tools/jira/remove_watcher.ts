@@ -72,7 +72,7 @@ export const jiraRemoveWatcherTool: ToolConfig<JiraRemoveWatcherParams, JiraRemo
         }
         return 'https://api.atlassian.com/oauth/token/accessible-resources'
       },
-      method: 'DELETE',
+      method: (params: JiraRemoveWatcherParams) => (params.cloudId ? 'DELETE' : 'GET'),
       headers: (params: JiraRemoveWatcherParams) => {
         return {
           Accept: 'application/json',

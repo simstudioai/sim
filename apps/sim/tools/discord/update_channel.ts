@@ -57,8 +57,10 @@ export const discordUpdateChannelTool: ToolConfig<
     }),
     body: (params: DiscordUpdateChannelParams) => {
       const body: any = {}
-      if (params.name) body.name = params.name
-      if (params.topic !== undefined) body.topic = params.topic
+      if (params.name !== undefined && params.name !== null && params.name !== '')
+        body.name = params.name
+      if (params.topic !== undefined && params.topic !== null && params.topic !== '')
+        body.topic = params.topic
       return body
     },
   },

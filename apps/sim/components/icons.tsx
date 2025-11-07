@@ -1798,13 +1798,13 @@ export function StripeIcon(props: SVGProps<SVGSVGElement>) {
       />
       <path d='M194.9 33.9001H169.8V121.4H194.9V33.9001Z' fill='white' />
       <path
-        fill-rule='evenodd'
+        fillRule='evenodd'
         clipRule='evenodd'
         d='M142.9 41.3001L141.3 33.9001H119.7V121.4H144.7V62.1001C150.6 54.4001 160.6 55.8001 163.7 56.9001V33.9001C160.5 32.7001 148.8 30.5001 142.9 41.3001Z'
         fill='white'
       />
       <path
-        fill-rule='evenodd'
+        fillRule='evenodd'
         clipRule='evenodd'
         d='M92.8999 12.2002L68.4999 17.4002L68.3999 97.5002C68.3999 112.3 79.4999 123.2 94.2999 123.2C102.5 123.2 108.5 121.7 111.8 119.9V99.6002C108.6 100.9 92.7999 105.5 92.7999 90.7002V55.2002H111.8V33.9002H92.7999L92.8999 12.2002Z'
         fill='white'

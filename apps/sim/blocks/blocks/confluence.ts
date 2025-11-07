@@ -19,7 +19,6 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
       id: 'operation',
       title: 'Operation',
       type: 'dropdown',
-      layout: 'full',
       options: [
         { label: 'Read Page', id: 'read' },
         { label: 'Create Page', id: 'create' },
@@ -32,9 +31,7 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
         { label: 'Delete Comment', id: 'delete_comment' },
         { label: 'List Attachments', id: 'list_attachments' },
         { label: 'Delete Attachment', id: 'delete_attachment' },
-        { label: 'Add Label', id: 'add_label' },
         { label: 'List Labels', id: 'list_labels' },
-        { label: 'Remove Label', id: 'remove_label' },
         { label: 'Get Space', id: 'get_space' },
         { label: 'List Spaces', id: 'list_spaces' },
       ],
@@ -44,7 +41,6 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
       id: 'domain',
       title: 'Domain',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter Confluence domain (e.g., simstudio.atlassian.net)',
       required: true,
     },
@@ -52,20 +48,29 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
       id: 'credential',
       title: 'Confluence Account',
       type: 'oauth-input',
-      layout: 'full',
       provider: 'confluence',
       serviceId: 'confluence',
       requiredScopes: [
         'read:confluence-content.all',
         'read:confluence-space.summary',
+        'read:space:confluence',
+        'read:space-details:confluence',
         'write:confluence-content',
         'write:confluence-space',
         'write:confluence-file',
+        'read:content:confluence',
+        'read:page:confluence',
+        'write:page:confluence',
+        'read:comment:confluence',
         'write:comment:confluence',
+        'delete:comment:confluence',
+        'read:attachment:confluence',
         'write:attachment:confluence',
+        'delete:attachment:confluence',
+        'delete:page:confluence',
+        'read:label:confluence',
         'write:label:confluence',
         'search:confluence',
-        'readonly:content.attachment:confluence',
         'read:me',
         'offline_access',
       ],
@@ -76,7 +81,6 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
       id: 'pageId',
       title: 'Select Page',
       type: 'file-selector',
-      layout: 'full',
       canonicalParamId: 'pageId',
       provider: 'confluence',
       serviceId: 'confluence',
@@ -88,7 +92,6 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
       id: 'manualPageId',
       title: 'Page ID',
       type: 'short-input',
-      layout: 'full',
       canonicalParamId: 'pageId',
       placeholder: 'Enter Confluence page ID',
       mode: 'advanced',
@@ -97,15 +100,14 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
       id: 'spaceId',
       title: 'Space ID',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter Confluence space ID',
+      required: true,
       condition: { field: 'operation', value: ['create', 'get_space'] },
     },
     {
       id: 'title',
       title: 'Title',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter title for the page',
       condition: { field: 'operation', value: ['create', 'update'] },
     },
@@ -113,7 +115,6 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
       id: 'content',
       title: 'Content',
       type: 'long-input',
-      layout: 'full',
       placeholder: 'Enter content for the page',
       condition: { field: 'operation', value: ['create', 'update'] },
     },
@@ -121,7 +122,6 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
       id: 'parentId',
       title: 'Parent Page ID',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter parent page ID (optional)',
       condition: { field: 'operation', value: 'create' },
     },
@@ -129,7 +129,6 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
       id: 'query',
       title: 'Search Query',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter search query',
       required: true,
       condition: { field: 'operation', value: 'search' },
@@ -138,7 +137,6 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
       id: 'comment',
       title: 'Comment Text',
       type: 'long-input',
-      layout: 'full',
       placeholder: 'Enter comment text',
       required: true,
       condition: { field: 'operation', value: ['create_comment', 'update_comment'] },
@@ -147,7 +145,6 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
       id: 'commentId',
       title: 'Comment ID',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter comment ID',
       required: true,
       condition: { field: 'operation', value: ['update_comment', 'delete_comment'] },
@@ -156,7 +153,6 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
       id: 'attachmentId',
       title: 'Attachment ID',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter attachment ID',
       required: true,
       condition: { field: 'operation', value: 'delete_attachment' },
@@ -165,7 +161,6 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
       id: 'labelName',
       title: 'Label Name',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter label name',
       required: true,
       condition: { field: 'operation', value: ['add_label', 'remove_label'] },
@@ -174,7 +169,6 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
       id: 'limit',
       title: 'Limit',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter maximum number of results (default: 25)',
       condition: {
         field: 'operation',
@@ -195,9 +189,7 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
       'confluence_delete_comment',
       'confluence_list_attachments',
       'confluence_delete_attachment',
-      'confluence_add_label',
       'confluence_list_labels',
-      'confluence_remove_label',
       'confluence_get_space',
       'confluence_list_spaces',
     ],
@@ -226,12 +218,8 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
             return 'confluence_list_attachments'
           case 'delete_attachment':
             return 'confluence_delete_attachment'
-          case 'add_label':
-            return 'confluence_add_label'
           case 'list_labels':
             return 'confluence_list_labels'
-          case 'remove_label':
-            return 'confluence_remove_label'
           case 'get_space':
             return 'confluence_get_space'
           case 'list_spaces':
@@ -253,9 +241,7 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
           'create_comment',
           'list_comments',
           'list_attachments',
-          'add_label',
           'list_labels',
-          'remove_label',
         ]
 
         // Operations that require spaceId

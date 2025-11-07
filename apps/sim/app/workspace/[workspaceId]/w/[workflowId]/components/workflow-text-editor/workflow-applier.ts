@@ -20,8 +20,6 @@ export async function applyWorkflowDiff(
   content: string,
   format: EditorFormat
 ): Promise<ApplyResult> {
-  console.log('🔥 applyWorkflowDiff called!', { format, contentLength: content.length })
-
   try {
     const { activeWorkflowId } = useWorkflowRegistry.getState()
 
@@ -41,8 +39,6 @@ export async function applyWorkflowDiff(
     })
 
     if (format === 'yaml') {
-      console.log('🔥 Processing YAML format!')
-
       logger.info('Processing YAML format - calling consolidated YAML endpoint')
 
       try {
@@ -78,9 +74,6 @@ export async function applyWorkflowDiff(
           errors: result.errors || [],
           warnings: result.warnings || [],
         })
-
-        // Auto layout is now handled automatically by the backend system
-        // when applyAutoLayout is true in the request
 
         // Calculate applied operations (blocks + edges)
         const appliedOperations = (result.data?.blocksCount || 0) + (result.data?.edgesCount || 0)

@@ -62,7 +62,7 @@ export const jiraUpdateCommentTool: ToolConfig<JiraUpdateCommentParams, JiraUpda
         }
         return 'https://api.atlassian.com/oauth/token/accessible-resources'
       },
-      method: 'PUT',
+      method: (params: JiraUpdateCommentParams) => (params.cloudId ? 'PUT' : 'GET'),
       headers: (params: JiraUpdateCommentParams) => {
         return {
           Accept: 'application/json',
@@ -71,6 +71,7 @@ export const jiraUpdateCommentTool: ToolConfig<JiraUpdateCommentParams, JiraUpda
         }
       },
       body: (params: JiraUpdateCommentParams) => {
+        if (!params.cloudId) return undefined as any
         return {
           body: {
             type: 'doc',

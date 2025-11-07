@@ -41,7 +41,6 @@ export const MicrosoftPlannerBlock: BlockConfig<MicrosoftPlannerResponse> = {
       id: 'operation',
       title: 'Operation',
       type: 'dropdown',
-      layout: 'full',
       options: [
         { label: 'Read Task', id: 'read_task' },
         { label: 'Create Task', id: 'create_task' },
@@ -62,7 +61,6 @@ export const MicrosoftPlannerBlock: BlockConfig<MicrosoftPlannerResponse> = {
       id: 'credential',
       title: 'Microsoft Account',
       type: 'oauth-input',
-      layout: 'full',
       provider: 'microsoft-planner',
       serviceId: 'microsoft-planner',
       requiredScopes: [
@@ -77,23 +75,11 @@ export const MicrosoftPlannerBlock: BlockConfig<MicrosoftPlannerResponse> = {
       placeholder: 'Select Microsoft account',
     },
 
-    // Group ID - for list_plans
-    {
-      id: 'groupId',
-      title: 'Group ID',
-      type: 'short-input',
-      layout: 'full',
-      placeholder: 'Enter the Microsoft 365 group ID',
-      condition: { field: 'operation', value: ['list_plans'] },
-      dependsOn: ['credential'],
-    },
-
     // Plan ID - for various operations
     {
       id: 'planId',
       title: 'Plan ID',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter the plan ID',
       condition: {
         field: 'operation',
@@ -107,7 +93,6 @@ export const MicrosoftPlannerBlock: BlockConfig<MicrosoftPlannerResponse> = {
       id: 'taskId',
       title: 'Task ID',
       type: 'file-selector',
-      layout: 'full',
       placeholder: 'Select a task',
       provider: 'microsoft-planner',
       condition: { field: 'operation', value: ['read_task'] },
@@ -121,7 +106,6 @@ export const MicrosoftPlannerBlock: BlockConfig<MicrosoftPlannerResponse> = {
       id: 'manualTaskId',
       title: 'Manual Task ID',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter the task ID',
       condition: { field: 'operation', value: ['read_task'] },
       dependsOn: ['credential', 'planId'],
@@ -134,7 +118,6 @@ export const MicrosoftPlannerBlock: BlockConfig<MicrosoftPlannerResponse> = {
       id: 'taskIdForUpdate',
       title: 'Task ID',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter the task ID',
       condition: {
         field: 'operation',
@@ -149,7 +132,6 @@ export const MicrosoftPlannerBlock: BlockConfig<MicrosoftPlannerResponse> = {
       id: 'bucketIdForRead',
       title: 'Bucket ID',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter the bucket ID',
       condition: { field: 'operation', value: ['read_bucket', 'update_bucket', 'delete_bucket'] },
       dependsOn: ['credential'],
@@ -161,8 +143,8 @@ export const MicrosoftPlannerBlock: BlockConfig<MicrosoftPlannerResponse> = {
       id: 'etag',
       title: 'ETag',
       type: 'short-input',
-      layout: 'full',
-      placeholder: 'Enter the ETag from the resource (required for updates/deletes)',
+      placeholder: 'Etag of the item',
+      required: true,
       condition: {
         field: 'operation',
         value: [
@@ -181,7 +163,6 @@ export const MicrosoftPlannerBlock: BlockConfig<MicrosoftPlannerResponse> = {
       id: 'title',
       title: 'Task Title',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter the task title',
       condition: { field: 'operation', value: ['create_task', 'update_task'] },
     },
@@ -191,7 +172,6 @@ export const MicrosoftPlannerBlock: BlockConfig<MicrosoftPlannerResponse> = {
       id: 'name',
       title: 'Bucket Name',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter the bucket name',
       condition: { field: 'operation', value: ['create_bucket', 'update_bucket'] },
     },
@@ -201,8 +181,7 @@ export const MicrosoftPlannerBlock: BlockConfig<MicrosoftPlannerResponse> = {
       id: 'description',
       title: 'Description',
       type: 'long-input',
-      layout: 'full',
-      placeholder: 'Enter task description (optional)',
+      placeholder: 'Enter task description',
       condition: { field: 'operation', value: ['create_task', 'update_task_details'] },
     },
 
@@ -211,7 +190,6 @@ export const MicrosoftPlannerBlock: BlockConfig<MicrosoftPlannerResponse> = {
       id: 'dueDateTime',
       title: 'Due Date',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter due date in ISO 8601 format (e.g., 2024-12-31T23:59:59Z)',
       condition: { field: 'operation', value: ['create_task', 'update_task'] },
     },
@@ -221,7 +199,6 @@ export const MicrosoftPlannerBlock: BlockConfig<MicrosoftPlannerResponse> = {
       id: 'startDateTime',
       title: 'Start Date',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter start date in ISO 8601 format (optional)',
       condition: { field: 'operation', value: ['update_task'] },
     },
@@ -231,7 +208,6 @@ export const MicrosoftPlannerBlock: BlockConfig<MicrosoftPlannerResponse> = {
       id: 'assigneeUserId',
       title: 'Assignee User ID',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter the user ID to assign this task to (optional)',
       condition: { field: 'operation', value: ['create_task', 'update_task'] },
     },
@@ -241,7 +217,6 @@ export const MicrosoftPlannerBlock: BlockConfig<MicrosoftPlannerResponse> = {
       id: 'bucketId',
       title: 'Bucket ID',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter the bucket ID to organize the task (optional)',
       condition: { field: 'operation', value: ['create_task', 'update_task'] },
     },
@@ -251,7 +226,6 @@ export const MicrosoftPlannerBlock: BlockConfig<MicrosoftPlannerResponse> = {
       id: 'priority',
       title: 'Priority',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter priority (0-10, optional)',
       condition: { field: 'operation', value: ['update_task'] },
     },
@@ -261,7 +235,6 @@ export const MicrosoftPlannerBlock: BlockConfig<MicrosoftPlannerResponse> = {
       id: 'percentComplete',
       title: 'Percent Complete',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter completion percentage (0-100, optional)',
       condition: { field: 'operation', value: ['update_task'] },
     },
@@ -271,7 +244,6 @@ export const MicrosoftPlannerBlock: BlockConfig<MicrosoftPlannerResponse> = {
       id: 'checklist',
       title: 'Checklist (JSON)',
       type: 'long-input',
-      layout: 'full',
       placeholder: 'Enter checklist as JSON object (optional)',
       condition: { field: 'operation', value: ['update_task_details'] },
     },
@@ -281,7 +253,6 @@ export const MicrosoftPlannerBlock: BlockConfig<MicrosoftPlannerResponse> = {
       id: 'references',
       title: 'References (JSON)',
       type: 'long-input',
-      layout: 'full',
       placeholder: 'Enter references as JSON object (optional)',
       condition: { field: 'operation', value: ['update_task_details'] },
     },
@@ -291,7 +262,6 @@ export const MicrosoftPlannerBlock: BlockConfig<MicrosoftPlannerResponse> = {
       id: 'previewType',
       title: 'Preview Type',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter preview type (automatic, noPreview, checklist, description, reference)',
       condition: { field: 'operation', value: ['update_task_details'] },
     },
@@ -382,13 +352,7 @@ export const MicrosoftPlannerBlock: BlockConfig<MicrosoftPlannerResponse> = {
 
         // List Plans
         if (operation === 'list_plans') {
-          if (!groupId?.trim()) {
-            throw new Error('Group ID is required to list plans.')
-          }
-          return {
-            ...baseParams,
-            groupId: groupId.trim(),
-          }
+          return baseParams
         }
 
         // Read Plan
@@ -476,9 +440,10 @@ export const MicrosoftPlannerBlock: BlockConfig<MicrosoftPlannerResponse> = {
         // Read Task
         if (operation === 'read_task') {
           const readParams: MicrosoftPlannerBlockParams = { ...baseParams }
+          const readTaskId = (taskId || manualTaskId || '').trim()
 
-          if (effectiveTaskId) {
-            readParams.taskId = effectiveTaskId
+          if (readTaskId) {
+            readParams.taskId = readTaskId
           } else if (planId?.trim()) {
             readParams.planId = planId.trim()
           }
@@ -642,6 +607,10 @@ export const MicrosoftPlannerBlock: BlockConfig<MicrosoftPlannerResponse> = {
     previewType: { type: 'string', description: 'Preview type for task details' },
   },
   outputs: {
+    message: {
+      type: 'string',
+      description: 'Success message from the operation',
+    },
     task: {
       type: 'json',
       description:
@@ -650,6 +619,14 @@ export const MicrosoftPlannerBlock: BlockConfig<MicrosoftPlannerResponse> = {
     tasks: {
       type: 'json',
       description: 'Array of Microsoft Planner tasks',
+    },
+    taskId: {
+      type: 'string',
+      description: 'ID of the task',
+    },
+    etag: {
+      type: 'string',
+      description: 'ETag of the resource - use this for update/delete operations',
     },
     plan: {
       type: 'json',

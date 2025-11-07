@@ -16,6 +16,7 @@ export const updateTaskDetailsTool: ToolConfig<
   description:
     'Update task details including description, checklist items, and references in Microsoft Planner',
   version: '1.0',
+  errorExtractor: 'nested-error-object',
 
   oauth: {
     required: true,
@@ -84,10 +85,39 @@ export const updateTaskDetailsTool: ToolConfig<
         throw new Error('ETag is required for update operations')
       }
 
+      let cleanedEtag = params.etag.trim()
+
+      logger.info('ETag processing:', {
+        original: params.etag,
+        originalLength: params.etag.length,
+      })
+
+      while (cleanedEtag.startsWith('"') && cleanedEtag.endsWith('"')) {
+        cleanedEtag = cleanedEtag.slice(1, -1)
+        logger.info('Removed surrounding quotes:', cleanedEtag)
+      }
+
+      if (cleanedEtag.includes('\\"')) {
+        cleanedEtag = cleanedEtag.replace(/\\"/g, '"')
+        logger.info('Unescaped quotes:', cleanedEtag)
+      }
+
+      if (!/^W\/".+"$/.test(cleanedEtag)) {
+        logger.warn(
+          'Unexpected ETag format for If-Match. For plannerTaskDetails, use the ETag from GET /planner/tasks/{id}/details.',
+          {
+            cleanedEtag,
+          }
+        )
+      }
+
+      logger.info(`Using If-Match header: ${cleanedEtag}`)
+
       return {
         Authorization: `Bearer ${params.accessToken}`,
         'Content-Type': 'application/json',
-        'If-Match': params.etag,
+        Prefer: 'return=representation',
+        'If-Match': cleanedEtag,
       }
     },
     body: (params) => {

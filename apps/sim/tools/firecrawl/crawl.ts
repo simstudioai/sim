@@ -31,90 +31,6 @@ export const crawlTool: ToolConfig<FirecrawlCrawlParams, FirecrawlCrawlResponse>
       visibility: 'user-only',
       description: 'Extract only main content from pages',
     },
-    prompt: {
-      type: 'string',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'Natural language instruction to auto-generate crawler options',
-    },
-    maxDiscoveryDepth: {
-      type: 'number',
-      required: false,
-      visibility: 'user-only',
-      description: 'Depth limit for URL discovery (root pages have depth 0)',
-    },
-    sitemap: {
-      type: 'string',
-      required: false,
-      visibility: 'user-only',
-      description: 'Whether to use sitemap data: "skip" or "include" (default: "include")',
-    },
-    crawlEntireDomain: {
-      type: 'boolean',
-      required: false,
-      visibility: 'user-only',
-      description: 'Follow sibling/parent URLs or only child paths (default: false)',
-    },
-    allowExternalLinks: {
-      type: 'boolean',
-      required: false,
-      visibility: 'user-only',
-      description: 'Follow external website links (default: false)',
-    },
-    allowSubdomains: {
-      type: 'boolean',
-      required: false,
-      visibility: 'user-only',
-      description: 'Follow subdomain links (default: false)',
-    },
-    ignoreQueryParameters: {
-      type: 'boolean',
-      required: false,
-      visibility: 'user-only',
-      description: 'Prevent re-scraping same path with different query params (default: false)',
-    },
-    delay: {
-      type: 'number',
-      required: false,
-      visibility: 'user-only',
-      description: 'Seconds between scrapes for rate limit compliance',
-    },
-    maxConcurrency: {
-      type: 'number',
-      required: false,
-      visibility: 'user-only',
-      description: 'Concurrent scrape limit',
-    },
-    excludePaths: {
-      type: 'json',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'Array of regex patterns for URLs to exclude',
-    },
-    includePaths: {
-      type: 'json',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'Array of regex patterns for URLs to include exclusively',
-    },
-    webhook: {
-      type: 'json',
-      required: false,
-      visibility: 'hidden',
-      description: 'Webhook configuration for crawl notifications',
-    },
-    scrapeOptions: {
-      type: 'json',
-      required: false,
-      visibility: 'hidden',
-      description: 'Advanced scraping configuration',
-    },
-    zeroDataRetention: {
-      type: 'boolean',
-      required: false,
-      visibility: 'hidden',
-      description: 'Enable zero data retention (default: false)',
-    },
     apiKey: {
       type: 'string',
       required: true,
@@ -123,7 +39,7 @@ export const crawlTool: ToolConfig<FirecrawlCrawlParams, FirecrawlCrawlResponse>
     },
   },
   request: {
-    url: 'https://api.firecrawl.dev/v1/crawl',
+    url: 'https://api.firecrawl.dev/v2/crawl',
     method: 'POST',
     headers: (params) => ({
       'Content-Type': 'application/json',
@@ -185,10 +101,11 @@ export const crawlTool: ToolConfig<FirecrawlCrawlParams, FirecrawlCrawlResponse>
 
     while (elapsedTime < MAX_POLL_TIME_MS) {
       try {
-        const statusResponse = await fetch(`/api/tools/firecrawl/crawl/${jobId}`, {
+        const statusResponse = await fetch(`https://api.firecrawl.dev/v2/crawl/${jobId}`, {
           method: 'GET',
           headers: {
             Authorization: `Bearer ${params.apiKey}`,
+            'Content-Type': 'application/json',
           },
         })
 

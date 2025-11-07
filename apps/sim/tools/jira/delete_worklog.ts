@@ -72,7 +72,7 @@ export const jiraDeleteWorklogTool: ToolConfig<JiraDeleteWorklogParams, JiraDele
         }
         return 'https://api.atlassian.com/oauth/token/accessible-resources'
       },
-      method: 'DELETE',
+      method: (params: JiraDeleteWorklogParams) => (params.cloudId ? 'DELETE' : 'GET'),
       headers: (params: JiraDeleteWorklogParams) => {
         return {
           Accept: 'application/json',

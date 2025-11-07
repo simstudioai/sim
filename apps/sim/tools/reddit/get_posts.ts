@@ -91,16 +91,21 @@ export const getPostsTool: ToolConfig<RedditPostsParams, RedditPostsResponse> = 
       })
 
       // Add time parameter only for 'top' sorting
-      if (sort === 'top' && params.time) {
+      if (sort === 'top' && params.time !== undefined && params.time !== null) {
         urlParams.append('t', params.time)
       }
 
       // Add pagination parameters if provided
-      if (params.after) urlParams.append('after', params.after)
-      if (params.before) urlParams.append('before', params.before)
-      if (params.count !== undefined) urlParams.append('count', params.count.toString())
-      if (params.show) urlParams.append('show', params.show)
-      if (params.sr_detail !== undefined) urlParams.append('sr_detail', params.sr_detail.toString())
+      if (params.after !== undefined && params.after !== null && params.after !== '')
+        urlParams.append('after', params.after)
+      if (params.before !== undefined && params.before !== null && params.before !== '')
+        urlParams.append('before', params.before)
+      if (params.count !== undefined && params.count !== null)
+        urlParams.append('count', params.count.toString())
+      if (params.show !== undefined && params.show !== null && params.show !== '')
+        urlParams.append('show', params.show)
+      if (params.sr_detail !== undefined && params.sr_detail !== null)
+        urlParams.append('sr_detail', params.sr_detail.toString())
 
       return `https://oauth.reddit.com/r/${subreddit}/${sort}?${urlParams.toString()}`
     },

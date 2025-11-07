@@ -18,7 +18,6 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
       id: 'operation',
       title: 'Operation',
       type: 'dropdown',
-      layout: 'full',
       options: [
         { label: 'Send Message', id: 'discord_send_message' },
         { label: 'Get Channel Messages', id: 'discord_get_messages' },
@@ -62,7 +61,6 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
       id: 'botToken',
       title: 'Bot Token',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter Discord bot token',
       password: true,
       required: true,
@@ -71,7 +69,6 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
       id: 'serverId',
       title: 'Server ID',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter Discord server ID',
       required: true,
       provider: 'discord',
@@ -82,7 +79,6 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
       id: 'channelId',
       title: 'Channel ID',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter Discord channel ID',
       required: true,
       provider: 'discord',
@@ -112,7 +108,6 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
       id: 'messageId',
       title: 'Message ID',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter message ID',
       required: true,
       condition: {
@@ -133,7 +128,6 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
       id: 'content',
       title: 'Message Content',
       type: 'long-input',
-      layout: 'full',
       placeholder: 'Enter message content...',
       condition: {
         field: 'operation',
@@ -145,7 +139,6 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
       id: 'emoji',
       title: 'Emoji',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter emoji (e.g., 👍 or custom:123456789)',
       required: true,
       condition: {
@@ -158,7 +151,6 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
       id: 'userId',
       title: 'User ID',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter Discord user ID',
       condition: {
         field: 'operation',
@@ -180,7 +172,6 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
       id: 'threadId',
       title: 'Thread ID',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter thread ID',
       required: true,
       condition: {
@@ -193,7 +184,6 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
       id: 'name',
       title: 'Name',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter name',
       required: true,
       condition: {
@@ -201,11 +191,20 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
         value: [
           'discord_create_thread',
           'discord_create_channel',
-          'discord_update_channel',
           'discord_create_role',
-          'discord_update_role',
           'discord_create_webhook',
         ],
+      },
+    },
+    // Name (optional for updates)
+    {
+      id: 'name',
+      title: 'Name',
+      type: 'short-input',
+      placeholder: 'Enter new name (optional)',
+      condition: {
+        field: 'operation',
+        value: ['discord_update_channel', 'discord_update_role'],
       },
     },
     // Role ID
@@ -213,7 +212,6 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
       id: 'roleId',
       title: 'Role ID',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter role ID',
       required: true,
       condition: {
@@ -231,7 +229,6 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
       id: 'webhookId',
       title: 'Webhook ID',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter webhook ID',
       required: true,
       condition: {
@@ -244,7 +241,6 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
       id: 'webhookToken',
       title: 'Webhook Token',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter webhook token',
       required: true,
       condition: {
@@ -257,7 +253,6 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
       id: 'inviteCode',
       title: 'Invite Code',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter invite code',
       required: true,
       condition: {
@@ -270,7 +265,6 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
       id: 'archived',
       title: 'Archived',
       type: 'dropdown',
-      layout: 'full',
       options: [
         { label: 'Archive', id: 'true' },
         { label: 'Unarchive', id: 'false' },
@@ -286,7 +280,6 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
       id: 'topic',
       title: 'Topic',
       type: 'long-input',
-      layout: 'full',
       placeholder: 'Enter channel topic (optional)',
       condition: {
         field: 'operation',
@@ -298,7 +291,6 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
       id: 'color',
       title: 'Color',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter color as integer (e.g., 16711680 for red)',
       condition: {
         field: 'operation',
@@ -310,7 +302,6 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
       id: 'nick',
       title: 'Nickname',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter new nickname',
       condition: {
         field: 'operation',
@@ -322,7 +313,6 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
       id: 'reason',
       title: 'Reason',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter reason for this action',
       condition: {
         field: 'operation',
@@ -334,7 +324,6 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
       id: 'limit',
       title: 'Message Limit',
       type: 'short-input',
-      layout: 'half',
       placeholder: 'Number of messages (default: 10, max: 100)',
       condition: { field: 'operation', value: 'discord_get_messages' },
     },
@@ -343,7 +332,6 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
       id: 'autoArchiveDuration',
       title: 'Auto Archive Duration (minutes)',
       type: 'dropdown',
-      layout: 'full',
       options: [
         { label: '1 hour (60 minutes)', id: '60' },
         { label: '24 hours (1440 minutes)', id: '1440' },
@@ -361,7 +349,6 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
       id: 'channelType',
       title: 'Channel Type',
       type: 'dropdown',
-      layout: 'full',
       options: [
         { label: 'Text Channel', id: '0' },
         { label: 'Voice Channel', id: '2' },
@@ -380,7 +367,6 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
       id: 'parentId',
       title: 'Parent Category ID',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter parent category ID (optional)',
       condition: {
         field: 'operation',
@@ -392,7 +378,6 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
       id: 'hoist',
       title: 'Display Separately',
       type: 'dropdown',
-      layout: 'full',
       options: [
         { label: 'Yes - Display role members separately', id: 'true' },
         { label: "No - Don't display separately", id: 'false' },
@@ -408,7 +393,6 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
       id: 'mentionable',
       title: 'Mentionable',
       type: 'dropdown',
-      layout: 'full',
       options: [
         { label: 'Yes - Role can be mentioned', id: 'true' },
         { label: 'No - Role cannot be mentioned', id: 'false' },
@@ -424,7 +408,6 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
       id: 'deleteMessageDays',
       title: 'Delete Message History',
       type: 'dropdown',
-      layout: 'full',
       options: [
         { label: "Don't delete any messages", id: '0' },
         { label: 'Delete messages from last 1 day', id: '1' },
@@ -441,7 +424,6 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
       id: 'mute',
       title: 'Server Mute',
       type: 'dropdown',
-      layout: 'full',
       options: [
         { label: 'Mute member', id: 'true' },
         { label: 'Unmute member', id: 'false' },
@@ -456,7 +438,6 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
       id: 'deaf',
       title: 'Server Deafen',
       type: 'dropdown',
-      layout: 'full',
       options: [
         { label: 'Deafen member', id: 'true' },
         { label: 'Undeafen member', id: 'false' },
@@ -471,7 +452,6 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
       id: 'maxAge',
       title: 'Invite Expiration',
       type: 'dropdown',
-      layout: 'full',
       options: [
         { label: 'Never expire', id: '0' },
         { label: '30 minutes', id: '1800' },
@@ -492,7 +472,6 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
       id: 'maxUses',
       title: 'Max Uses',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Maximum number of uses (0 = unlimited)',
       condition: {
         field: 'operation',
@@ -504,7 +483,6 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
       id: 'temporary',
       title: 'Temporary Membership',
       type: 'dropdown',
-      layout: 'full',
       options: [
         { label: 'No - Grant permanent membership', id: 'false' },
         { label: 'Yes - Kick on disconnect if no role', id: 'true' },
@@ -520,7 +498,6 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
       id: 'username',
       title: 'Override Username',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Custom username to display (optional)',
       condition: {
         field: 'operation',
@@ -532,7 +509,6 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
       id: 'attachmentFiles',
       title: 'Attachments',
       type: 'file-upload',
-      layout: 'full',
       canonicalParamId: 'files',
       placeholder: 'Upload files to attach',
       condition: { field: 'operation', value: 'discord_send_message' },
@@ -544,7 +520,6 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
       id: 'files',
       title: 'File Attachments',
       type: 'short-input',
-      layout: 'full',
       canonicalParamId: 'files',
       placeholder: 'Reference files from previous blocks',
       condition: { field: 'operation', value: 'discord_send_message' },

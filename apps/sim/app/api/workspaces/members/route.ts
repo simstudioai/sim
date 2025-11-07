@@ -3,7 +3,10 @@ import { permissions, type permissionTypeEnum, user } from '@sim/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
+import { createLogger } from '@/lib/logs/console/logger'
 import { hasAdminPermission } from '@/lib/permissions/utils'
+
+const logger = createLogger('WorkspaceMemberAPI')
 
 type PermissionType = (typeof permissionTypeEnum.enumValues)[number]
 
@@ -87,7 +90,7 @@ export async function POST(req: Request) {
       message: `User added to workspace with ${permission} permission`,
     })
   } catch (error) {
-    console.error('Error adding workspace member:', error)
+    logger.error('Error adding workspace member:', error)
     return NextResponse.json({ error: 'Failed to add workspace member' }, { status: 500 })
   }
 }

@@ -15,11 +15,6 @@ export interface ExaSearchParams extends ExaBaseParams {
   // Domain filtering
   includeDomains?: string
   excludeDomains?: string
-  // Date filtering
-  startPublishedDate?: string
-  endPublishedDate?: string
-  startCrawlDate?: string
-  endCrawlDate?: string
   // Category filtering
   category?:
     | 'company'
@@ -95,11 +90,6 @@ export interface ExaFindSimilarLinksParams extends ExaBaseParams {
   includeDomains?: string
   excludeDomains?: string
   excludeSourceDomain?: boolean
-  // Date filtering
-  startPublishedDate?: string
-  endPublishedDate?: string
-  startCrawlDate?: string
-  endCrawlDate?: string
   // Category filtering
   category?:
     | 'company'

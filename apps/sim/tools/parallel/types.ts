@@ -39,7 +39,6 @@ export interface ParallelExtractResponse {
 export interface ParallelDeepResearchParams {
   input: string
   processor?: string
-  output_schema?: string
   include_domains?: string
   exclude_domains?: string
   apiKey: string

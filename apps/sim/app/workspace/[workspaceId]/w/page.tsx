@@ -3,7 +3,10 @@
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { LoadingAgent } from '@/components/ui/loading-agent'
+import { createLogger } from '@/lib/logs/console/logger'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+
+const logger = createLogger('WorkflowsPage')
 
 export default function WorkflowsPage() {
   const router = useRouter()
@@ -20,7 +23,7 @@ export default function WorkflowsPage() {
         await loadWorkflows(workspaceId)
         setHasInitialized(true)
       } catch (error) {
-        console.error('Failed to load workflows for workspace:', error)
+        logger.error('Failed to load workflows for workspace:', error)
         setHasInitialized(true) // Still mark as initialized to show error state
       }
     }

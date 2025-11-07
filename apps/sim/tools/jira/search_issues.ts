@@ -65,11 +65,19 @@ export const jiraSearchIssuesTool: ToolConfig<JiraSearchIssuesParams, JiraSearch
   request: {
     url: (params: JiraSearchIssuesParams) => {
       if (params.cloudId) {
-        return `https://api.atlassian.com/ex/jira/${params.cloudId}/rest/api/3/search`
+        const query = new URLSearchParams()
+        if (params.jql) query.set('jql', params.jql)
+        if (typeof params.startAt === 'number') query.set('startAt', String(params.startAt))
+        if (typeof params.maxResults === 'number')
+          query.set('maxResults', String(params.maxResults))
+        if (Array.isArray(params.fields) && params.fields.length > 0)
+          query.set('fields', params.fields.join(','))
+        const qs = query.toString()
+        return `https://api.atlassian.com/ex/jira/${params.cloudId}/rest/api/3/search/jql${qs ? `?${qs}` : ''}`
       }
       return 'https://api.atlassian.com/oauth/token/accessible-resources'
     },
-    method: 'POST',
+    method: () => 'GET',
     headers: (params: JiraSearchIssuesParams) => {
       return {
         Accept: 'application/json',
@@ -77,25 +85,23 @@ export const jiraSearchIssuesTool: ToolConfig<JiraSearchIssuesParams, JiraSearch
         Authorization: `Bearer ${params.accessToken}`,
       }
     },
-    body: (params: JiraSearchIssuesParams) => {
-      return {
-        jql: params.jql,
-        startAt: params.startAt ? Number(params.startAt) : 0,
-        maxResults: params.maxResults ? Number(params.maxResults) : 50,
-        fields: params.fields || ['summary', 'status', 'assignee', 'created', 'updated'],
-      }
-    },
+    body: () => undefined as any,
   },
 
   transformResponse: async (response: Response, params?: JiraSearchIssuesParams) => {
     if (!params?.cloudId) {
       const cloudId = await getJiraCloudId(params!.domain, params!.accessToken)
-      const searchUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/search`
+      const query = new URLSearchParams()
+      if (params?.jql) query.set('jql', params.jql)
+      if (typeof params?.startAt === 'number') query.set('startAt', String(params.startAt))
+      if (typeof params?.maxResults === 'number') query.set('maxResults', String(params.maxResults))
+      if (Array.isArray(params?.fields) && params.fields.length > 0)
+        query.set('fields', params.fields.join(','))
+      const searchUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/search/jql?${query.toString()}`
       const searchResponse = await fetch(searchUrl, {
-        method: 'POST',
+        method: 'GET',
         headers: {
           Accept: 'application/json',
-          'Content-Type': 'application/json',
           Authorization: `Bearer ${params!.accessToken}`,
         },
         body: JSON.stringify({

@@ -3,7 +3,10 @@ import { permissions, workspace } from '@sim/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
+import { createLogger } from '@/lib/logs/console/logger'
 import { hasWorkspaceAdminAccess } from '@/lib/permissions/utils'
+
+const logger = createLogger('WorkspaceMemberAPI')
 
 // DELETE /api/workspaces/members/[id] - Remove a member from a workspace
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -100,7 +103,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
 
     return NextResponse.json({ success: true })
   } catch (error) {
-    console.error('Error removing workspace member:', error)
+    logger.error('Error removing workspace member:', error)
     return NextResponse.json({ error: 'Failed to remove workspace member' }, { status: 500 })
   }
 }

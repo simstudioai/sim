@@ -62,20 +62,22 @@ export const confluenceListLabelsTool: ToolConfig<
   },
 
   request: {
-    url: () => '/api/tools/confluence/labels',
+    url: (params: ConfluenceListLabelsParams) => {
+      const query = new URLSearchParams({
+        domain: params.domain,
+        accessToken: params.accessToken,
+        pageId: params.pageId,
+      })
+      if (params.cloudId) {
+        query.set('cloudId', params.cloudId)
+      }
+      return `/api/tools/confluence/labels?${query.toString()}`
+    },
     method: 'GET',
     headers: (params: ConfluenceListLabelsParams) => {
       return {
         Accept: 'application/json',
         Authorization: `Bearer ${params.accessToken}`,
-      }
-    },
-    body: (params: ConfluenceListLabelsParams) => {
-      return {
-        domain: params.domain,
-        accessToken: params.accessToken,
-        cloudId: params.cloudId,
-        pageId: params.pageId,
       }
     },
   },

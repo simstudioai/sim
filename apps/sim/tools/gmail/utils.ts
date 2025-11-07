@@ -313,12 +313,14 @@ export function buildSimpleEmailMessage(params: {
   bcc?: string | null
   subject?: string | null
   body: string
+  contentType?: 'text' | 'html'
   inReplyTo?: string
   references?: string
 }): string {
-  const { to, cc, bcc, subject, body, inReplyTo, references } = params
+  const { to, cc, bcc, subject, body, contentType, inReplyTo, references } = params
+  const mimeContentType = contentType === 'html' ? 'text/html' : 'text/plain'
   const emailHeaders = [
-    'Content-Type: text/plain; charset="UTF-8"',
+    `Content-Type: ${mimeContentType}; charset="UTF-8"`,
     'MIME-Version: 1.0',
     `To: ${to}`,
   ]
@@ -354,6 +356,7 @@ export interface BuildMimeMessageParams {
   bcc?: string
   subject?: string
   body: string
+  contentType?: 'text' | 'html'
   inReplyTo?: string
   references?: string
   attachments?: Array<{
@@ -364,9 +367,10 @@ export interface BuildMimeMessageParams {
 }
 
 export function buildMimeMessage(params: BuildMimeMessageParams): string {
-  const { to, cc, bcc, subject, body, inReplyTo, references, attachments } = params
+  const { to, cc, bcc, subject, body, contentType, inReplyTo, references, attachments } = params
   const boundary = generateBoundary()
   const messageParts: string[] = []
+  const mimeContentType = contentType === 'html' ? 'text/html' : 'text/plain'
 
   messageParts.push(`To: ${to}`)
   if (cc) {
@@ -393,7 +397,7 @@ export function buildMimeMessage(params: BuildMimeMessageParams): string {
     messageParts.push(`Content-Type: multipart/mixed; boundary="${boundary}"`)
     messageParts.push('')
     messageParts.push(`--${boundary}`)
-    messageParts.push('Content-Type: text/plain; charset="UTF-8"')
+    messageParts.push(`Content-Type: ${mimeContentType}; charset="UTF-8"`)
     messageParts.push('Content-Transfer-Encoding: 7bit')
     messageParts.push('')
     messageParts.push(body)
@@ -414,7 +418,7 @@ export function buildMimeMessage(params: BuildMimeMessageParams): string {
 
     messageParts.push(`--${boundary}--`)
   } else {
-    messageParts.push('Content-Type: text/plain; charset="UTF-8"')
+    messageParts.push(`Content-Type: ${mimeContentType}; charset="UTF-8"`)
     messageParts.push('MIME-Version: 1.0')
     messageParts.push('')
     messageParts.push(body)

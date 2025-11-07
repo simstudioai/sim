@@ -38,6 +38,12 @@ export const gmailDraftTool: ToolConfig<GmailSendParams, GmailToolResponse> = {
       visibility: 'user-or-llm',
       description: 'Email body content',
     },
+    contentType: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Content type for the email body (text or html)',
+    },
     threadId: {
       type: 'string',
       required: false,
@@ -82,6 +88,7 @@ export const gmailDraftTool: ToolConfig<GmailSendParams, GmailToolResponse> = {
       to: params.to,
       subject: params.subject,
       body: params.body,
+      contentType: params.contentType || 'text',
       threadId: params.threadId,
       replyToMessageId: params.replyToMessageId,
       cc: params.cc,

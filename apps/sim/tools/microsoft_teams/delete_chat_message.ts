@@ -12,6 +12,7 @@ export const deleteChatMessageTool: ToolConfig<
   name: 'Delete Microsoft Teams Chat Message',
   description: 'Soft delete a message in a Microsoft Teams chat',
   version: '1.0',
+  errorExtractor: 'nested-error-object',
   oauth: {
     required: true,
     provider: 'microsoft-teams',
@@ -50,7 +51,7 @@ export const deleteChatMessageTool: ToolConfig<
       if (!chatId || !messageId) {
         throw new Error('Chat ID and Message ID are required')
       }
-      return `https://graph.microsoft.com/v1.0/chats/${encodeURIComponent(chatId)}/messages/${encodeURIComponent(messageId)}/softDelete`
+      return '/api/tools/microsoft_teams/delete_chat_message'
     },
     method: 'POST',
     headers: (params) => {
@@ -60,6 +61,13 @@ export const deleteChatMessageTool: ToolConfig<
       return {
         Authorization: `Bearer ${params.accessToken}`,
         'Content-Type': 'application/json',
+      }
+    },
+    body: (params) => {
+      return {
+        accessToken: params.accessToken,
+        chatId: params.chatId,
+        messageId: params.messageId,
       }
     },
   },

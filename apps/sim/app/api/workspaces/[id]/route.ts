@@ -202,7 +202,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       },
     })
   } catch (error) {
-    console.error('Error updating workspace:', error)
+    logger.error('Error updating workspace:', error)
     return NextResponse.json({ error: 'Failed to update workspace' }, { status: 500 })
   }
 }

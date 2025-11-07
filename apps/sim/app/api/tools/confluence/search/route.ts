@@ -1,8 +1,11 @@
 import { NextResponse } from 'next/server'
+import { createLogger } from '@/lib/logs/console/logger'
 import { validateJiraCloudId } from '@/lib/security/input-validation'
 import { getConfluenceCloudId } from '@/tools/confluence/utils'
 
 export const dynamic = 'force-dynamic'
+
+const logger = createLogger('Confluence Search')
 
 export async function POST(request: Request) {
   try {
@@ -50,7 +53,7 @@ export async function POST(request: Request) {
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => null)
-      console.error('Confluence API error response:', {
+      logger.error('Confluence API error response:', {
         status: response.status,
         statusText: response.statusText,
         error: JSON.stringify(errorData, null, 2),
@@ -71,7 +74,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ results })
   } catch (error) {
-    console.error('Error searching Confluence:', error)
+    logger.error('Error searching Confluence:', error)
     return NextResponse.json(
       { error: (error as Error).message || 'Internal server error' },
       { status: 500 }

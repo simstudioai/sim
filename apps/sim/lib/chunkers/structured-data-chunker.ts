@@ -1,4 +1,7 @@
+import { createLogger } from '@/lib/logs/console/logger'
 import type { Chunk, StructuredDataOptions } from './types'
+
+const logger = createLogger('StructuredDataChunker')
 
 // Configuration for structured data chunking (CSV, XLSX, etc.)
 const STRUCTURED_CHUNKING_CONFIG = {
@@ -46,7 +49,7 @@ export class StructuredDataChunker {
     const optimalRowsPerChunk =
       StructuredDataChunker.calculateOptimalRowsPerChunk(estimatedTokensPerRow)
 
-    console.log(
+    logger.info(
       `Structured data chunking: ${lines.length} rows, ~${estimatedTokensPerRow} tokens/row, ${optimalRowsPerChunk} rows/chunk`
     )
 
@@ -99,7 +102,7 @@ export class StructuredDataChunker {
       chunks.push(StructuredDataChunker.createChunk(chunkContent, chunkStartRow, lines.length - 1))
     }
 
-    console.log(`Created ${chunks.length} chunks from ${lines.length} rows of structured data`)
+    logger.info(`Created ${chunks.length} chunks from ${lines.length} rows of structured data`)
 
     return chunks
   }

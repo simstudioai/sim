@@ -9,10 +9,10 @@ const logger = createLogger('OneDriveBlock')
 export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
   type: 'onedrive',
   name: 'OneDrive',
-  description: 'Create, upload, and list files',
+  description: 'Create, upload, download, list, and delete files',
   authMode: AuthMode.OAuth,
   longDescription:
-    'Integrate OneDrive into the workflow. Can create text and Excel files, upload files, and list files.',
+    'Integrate OneDrive into the workflow. Can create text and Excel files, upload files, download files, list files, and delete files or folders.',
   docsLink: 'https://docs.sim.ai/tools/onedrive',
   category: 'tools',
   bgColor: '#E0E0E0',
@@ -30,6 +30,7 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
         { label: 'Upload File', id: 'upload' },
         { label: 'Download File', id: 'download' },
         { label: 'List Files', id: 'list' },
+        { label: 'Delete File', id: 'delete' },
       ],
     },
     // One Drive Credentials
@@ -307,9 +308,51 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
       placeholder: 'Optional: Override the filename',
       condition: { field: 'operation', value: 'download' },
     },
+    // Delete File Fields - File Selector (basic mode)
+    {
+      id: 'fileSelector',
+      title: 'Select File to Delete',
+      type: 'file-selector',
+      layout: 'full',
+      canonicalParamId: 'fileId',
+      provider: 'microsoft',
+      serviceId: 'onedrive',
+      requiredScopes: [
+        'openid',
+        'profile',
+        'email',
+        'Files.Read',
+        'Files.ReadWrite',
+        'offline_access',
+      ],
+      mimeType: 'file', // Exclude folders, show only files
+      placeholder: 'Select a file to delete',
+      mode: 'basic',
+      dependsOn: ['credential'],
+      condition: { field: 'operation', value: 'delete' },
+      required: true,
+    },
+    // Manual File ID input (advanced mode)
+    {
+      id: 'manualFileId',
+      title: 'File ID',
+      type: 'short-input',
+      layout: 'full',
+      canonicalParamId: 'fileId',
+      placeholder: 'Enter file or folder ID to delete',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'delete' },
+      required: true,
+    },
   ],
   tools: {
-    access: ['onedrive_upload', 'onedrive_create_folder', 'onedrive_download', 'onedrive_list'],
+    access: [
+      'onedrive_upload',
+      'onedrive_create_folder',
+      'onedrive_download',
+      'onedrive_list',
+      'onedrive_delete',
+    ],
     config: {
       tool: (params) => {
         switch (params.operation) {
@@ -322,6 +365,8 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
             return 'onedrive_download'
           case 'list':
             return 'onedrive_list'
+          case 'delete':
+            return 'onedrive_delete'
           default:
             throw new Error(`Invalid OneDrive operation: ${params.operation}`)
         }
@@ -365,6 +410,9 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
     pageSize: { type: 'number', description: 'Results per page' },
   },
   outputs: {
+    success: { type: 'boolean', description: 'Whether the operation was successful' },
+    deleted: { type: 'boolean', description: 'Whether the file was deleted' },
+    fileId: { type: 'string', description: 'The ID of the deleted file' },
     file: {
       type: 'json',
       description: 'The OneDrive file object, including details such as id, name, size, and more.',

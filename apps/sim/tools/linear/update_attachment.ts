@@ -54,8 +54,10 @@ export const linearUpdateAttachmentTool: ToolConfig<
     body: (params) => {
       const input: Record<string, any> = {}
 
-      if (params.title !== undefined) input.title = params.title
-      if (params.subtitle !== undefined) input.subtitle = params.subtitle
+      if (params.title !== undefined && params.title !== null && params.title !== '')
+        input.title = params.title
+      if (params.subtitle !== undefined && params.subtitle !== null && params.subtitle !== '')
+        input.subtitle = params.subtitle
 
       return {
         query: `

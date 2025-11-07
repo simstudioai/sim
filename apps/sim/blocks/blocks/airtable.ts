@@ -72,7 +72,7 @@ export const AirtableBlock: BlockConfig<AirtableResponse> = {
       title: 'Max Records',
       type: 'short-input',
       layout: 'half',
-      placeholder: 'Maximum records to return (optional)',
+      placeholder: 'Maximum records to return',
       condition: { field: 'operation', value: 'list' },
     },
     {

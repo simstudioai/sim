@@ -82,7 +82,9 @@ export const linearCreateIssueTool: ToolConfig<LinearCreateIssueParams, LinearCr
             teamId: params.teamId,
             projectId: params.projectId,
             title: params.title,
-            description: params.description,
+            ...(params.description !== undefined &&
+              params.description !== null &&
+              params.description !== '' && { description: params.description }),
           },
         }
       },

@@ -9,6 +9,7 @@ export const writeChatTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeamsW
   name: 'Write to Microsoft Teams Chat',
   description: 'Write or update content in a Microsoft Teams chat',
   version: '1.0',
+  errorExtractor: 'nested-error-object',
   oauth: {
     required: true,
     provider: 'microsoft-teams',

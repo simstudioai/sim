@@ -115,7 +115,7 @@ export default async function TemplatePage({ params }: TemplatePageProps) {
       />
     )
   } catch (error) {
-    console.error('Error loading template:', error)
+    logger.error('Error loading template:', error)
     return (
       <div className='flex h-screen items-center justify-center'>
         <div className='text-center'>

@@ -57,10 +57,14 @@ export const linearCreateFavoriteTool: ToolConfig<
     body: (params) => {
       const input: Record<string, any> = {}
 
-      if (params.issueId !== undefined) input.issueId = params.issueId
-      if (params.projectId !== undefined) input.projectId = params.projectId
-      if (params.cycleId !== undefined) input.cycleId = params.cycleId
-      if (params.labelId !== undefined) input.labelId = params.labelId
+      if (params.issueId !== undefined && params.issueId !== null && params.issueId !== '')
+        input.issueId = params.issueId
+      if (params.projectId !== undefined && params.projectId !== null && params.projectId !== '')
+        input.projectId = params.projectId
+      if (params.cycleId !== undefined && params.cycleId !== null && params.cycleId !== '')
+        input.cycleId = params.cycleId
+      if (params.labelId !== undefined && params.labelId !== null && params.labelId !== '')
+        input.labelId = params.labelId
 
       if (Object.keys(input).length === 0) {
         throw new Error('At least one ID (issue, project, cycle, or label) must be provided')

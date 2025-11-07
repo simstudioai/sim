@@ -75,7 +75,7 @@ export const storageCreateSignedUrlTool: ToolConfig<
     },
   },
 
-  transformResponse: async (response: Response) => {
+  transformResponse: async (response: Response, params?: SupabaseStorageCreateSignedUrlParams) => {
     let data
     try {
       data = await response.json()
@@ -83,11 +83,14 @@ export const storageCreateSignedUrlTool: ToolConfig<
       throw new Error(`Failed to parse Supabase storage create signed URL response: ${parseError}`)
     }
 
+    const relativePath = data.signedURL || data.signedUrl
+    const fullUrl = `https://${params?.projectId}.supabase.co/storage/v1${relativePath}`
+
     return {
       success: true,
       output: {
         message: 'Successfully created signed URL',
-        signedUrl: data.signedURL || data.signedUrl,
+        signedUrl: fullUrl,
       },
       error: undefined,
     }

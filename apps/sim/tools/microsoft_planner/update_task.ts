@@ -16,6 +16,7 @@ export const updateTaskTool: ToolConfig<
   name: 'Update Microsoft Planner Task',
   description: 'Update a task in Microsoft Planner',
   version: '1.0',
+  errorExtractor: 'nested-error-object',
 
   oauth: {
     required: true,
@@ -102,32 +103,56 @@ export const updateTaskTool: ToolConfig<
         throw new Error('ETag is required for update operations')
       }
 
+      let cleanedEtag = params.etag.trim()
+      logger.info('ETag value received (raw):', { etag: params.etag, length: params.etag.length })
+
+      while (cleanedEtag.startsWith('"') && cleanedEtag.endsWith('"')) {
+        cleanedEtag = cleanedEtag.slice(1, -1)
+        logger.info('Removed surrounding quotes:', cleanedEtag)
+      }
+
+      if (cleanedEtag.includes('\\"')) {
+        cleanedEtag = cleanedEtag.replace(/\\"/g, '"')
+        logger.info('Cleaned escaped quotes from etag:', {
+          original: params.etag,
+          cleaned: cleanedEtag,
+        })
+      }
+
       return {
         Authorization: `Bearer ${params.accessToken}`,
         'Content-Type': 'application/json',
-        'If-Match': params.etag,
+        'If-Match': cleanedEtag,
       }
     },
     body: (params) => {
       const body: Partial<PlannerTask> = {}
 
-      if (params.title) {
+      if (params.title !== undefined && params.title !== null && params.title !== '') {
         body.title = params.title
       }
 
-      if (params.bucketId) {
+      if (params.bucketId !== undefined && params.bucketId !== null && params.bucketId !== '') {
         body.bucketId = params.bucketId
       }
 
-      if (params.dueDateTime) {
+      if (
+        params.dueDateTime !== undefined &&
+        params.dueDateTime !== null &&
+        params.dueDateTime !== ''
+      ) {
         body.dueDateTime = params.dueDateTime
       }
 
-      if (params.startDateTime) {
+      if (
+        params.startDateTime !== undefined &&
+        params.startDateTime !== null &&
+        params.startDateTime !== ''
+      ) {
         body.startDateTime = params.startDateTime
       }
 
-      if (params.percentComplete !== undefined) {
+      if (params.percentComplete !== undefined && params.percentComplete !== null) {
         body.percentComplete = params.percentComplete
       }
 
@@ -135,7 +160,11 @@ export const updateTaskTool: ToolConfig<
         body.priority = Number(params.priority)
       }
 
-      if (params.assigneeUserId) {
+      if (
+        params.assigneeUserId !== undefined &&
+        params.assigneeUserId !== null &&
+        params.assigneeUserId !== ''
+      ) {
         body.assignments = {
           [params.assigneeUserId]: {
             '@odata.type': 'microsoft.graph.plannerAssignment',
@@ -153,14 +182,41 @@ export const updateTaskTool: ToolConfig<
     },
   },
 
-  transformResponse: async (response: Response) => {
-    const task = await response.json()
+  transformResponse: async (response: Response, params?: MicrosoftPlannerToolParams) => {
+    // Check if response has content before parsing
+    const text = await response.text()
+    if (!text || text.trim() === '') {
+      logger.info('Update successful but no response body returned (204 No Content)')
+      return {
+        success: true,
+        output: {
+          message: 'Task updated successfully',
+          task: {} as PlannerTask,
+          taskId: params?.taskId || '',
+          etag: params?.etag || '',
+          metadata: {
+            taskId: params?.taskId,
+          },
+        },
+      }
+    }
+
+    const task = JSON.parse(text)
     logger.info('Updated task:', task)
+
+    // Extract and clean the new etag for subsequent operations
+    let newEtag = task['@odata.etag']
+    if (newEtag && typeof newEtag === 'string' && newEtag.includes('\\"')) {
+      newEtag = newEtag.replace(/\\"/g, '"')
+    }
 
     const result: MicrosoftPlannerUpdateTaskResponse = {
       success: true,
       output: {
+        message: 'Task updated successfully',
         task,
+        taskId: task.id,
+        etag: newEtag,
         metadata: {
           taskId: task.id,
           planId: task.planId,
@@ -174,7 +230,13 @@ export const updateTaskTool: ToolConfig<
 
   outputs: {
     success: { type: 'boolean', description: 'Whether the task was updated successfully' },
+    message: { type: 'string', description: 'Success message when task is updated' },
     task: { type: 'object', description: 'The updated task object with all properties' },
+    taskId: { type: 'string', description: 'ID of the updated task' },
+    etag: {
+      type: 'string',
+      description: 'New ETag after update - use this for subsequent operations',
+    },
     metadata: { type: 'object', description: 'Metadata including taskId, planId, and taskUrl' },
   },
 }

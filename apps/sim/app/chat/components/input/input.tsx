@@ -7,6 +7,10 @@ import { AlertCircle, Paperclip, Send, Square, X } from 'lucide-react'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { VoiceInput } from '@/app/chat/components/input/voice-input'
 
+const logger = createLogger('ChatInput')
+
+import { createLogger } from '@/lib/logs/console/logger'
+
 const PLACEHOLDER_MOBILE = 'Enter a message'
 const PLACEHOLDER_DESKTOP = 'Enter a message or click the mic to speak'
 const MAX_TEXTAREA_HEIGHT = 120 // Max height in pixels (e.g., for about 3-4 lines)
@@ -138,7 +142,7 @@ export const ChatInput: React.FC<{
             reader.readAsDataURL(file)
           })
         } catch (error) {
-          console.error('Error reading file:', error)
+          logger.error('Error reading file:', error)
         }
       }
 

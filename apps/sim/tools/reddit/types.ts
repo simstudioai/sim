@@ -106,18 +106,6 @@ export interface RedditControversialParams {
   accessToken?: string
 }
 
-// Parameters for gilded posts
-export interface RedditGildedParams {
-  subreddit: string
-  limit?: number
-  after?: string
-  before?: string
-  count?: number
-  show?: string
-  sr_detail?: boolean
-  accessToken?: string
-}
-
 // Parameters for search
 export interface RedditSearchParams {
   subreddit: string

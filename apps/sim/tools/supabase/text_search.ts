@@ -66,8 +66,17 @@ export const textSearchTool: ToolConfig<SupabaseTextSearchParams, SupabaseTextSe
       // Build the text search filter
       let url = `https://${params.projectId}.supabase.co/rest/v1/${params.table}?select=*`
 
+      // Map search types to PostgREST operators
+      const operatorMap: Record<string, string> = {
+        plain: 'fts',
+        phrase: 'phfts',
+        websearch: 'wfts',
+      }
+
+      const operator = operatorMap[searchType] || 'wfts'
+
       // Add text search filter using PostgREST syntax
-      url += `&${params.column}=${searchType}fts(${language}).${encodeURIComponent(params.query)}`
+      url += `&${params.column}=${operator}(${language}).${encodeURIComponent(params.query)}`
 
       // Add limit if provided
       if (params.limit) {
@@ -89,6 +98,22 @@ export const textSearchTool: ToolConfig<SupabaseTextSearchParams, SupabaseTextSe
       data = await response.json()
     } catch (parseError) {
       throw new Error(`Failed to parse Supabase text search response: ${parseError}`)
+    }
+
+    if (!response.ok && data?.message) {
+      const errorMessage = data.message
+
+      if (errorMessage.includes('to_tsvector') && errorMessage.includes('does not exist')) {
+        throw new Error(
+          'Full-text search can only be performed on text columns. The selected column appears to be a non-text type (e.g., integer, boolean). Please select a text/varchar column or use a different operation.'
+        )
+      }
+
+      if (errorMessage.includes('column') && errorMessage.includes('does not exist')) {
+        throw new Error(`The specified column does not exist in the table. Error: ${errorMessage}`)
+      }
+
+      throw new Error(errorMessage)
     }
 
     const rowCount = Array.isArray(data) ? data.length : 0

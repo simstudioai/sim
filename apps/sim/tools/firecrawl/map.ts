@@ -67,7 +67,7 @@ export const mapTool: ToolConfig<MapParams, MapResponse> = {
 
   request: {
     method: 'POST',
-    url: 'https://api.firecrawl.dev/v1/map',
+    url: 'https://api.firecrawl.dev/v2/map',
     headers: (params) => ({
       'Content-Type': 'application/json',
       Authorization: `Bearer ${params.apiKey}`,
@@ -77,10 +77,10 @@ export const mapTool: ToolConfig<MapParams, MapResponse> = {
         url: params.url,
       }
 
-      if (params.search !== undefined) body.search = params.search
-      if (params.sitemap !== undefined) body.sitemap = params.sitemap
-      if (params.includeSubdomains !== undefined) body.includeSubdomains = params.includeSubdomains
-      if (params.ignoreQueryParameters !== undefined)
+      if (params.search != null) body.search = params.search
+      if (params.sitemap != null) body.sitemap = params.sitemap
+      if (params.includeSubdomains != null) body.includeSubdomains = params.includeSubdomains
+      if (params.ignoreQueryParameters != null)
         body.ignoreQueryParameters = params.ignoreQueryParameters
       if (params.limit !== undefined) body.limit = Number(params.limit)
       if (params.timeout !== undefined) body.timeout = Number(params.timeout)

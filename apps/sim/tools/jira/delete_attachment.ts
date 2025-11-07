@@ -66,7 +66,7 @@ export const jiraDeleteAttachmentTool: ToolConfig<
       }
       return 'https://api.atlassian.com/oauth/token/accessible-resources'
     },
-    method: 'DELETE',
+    method: (params: JiraDeleteAttachmentParams) => (params.cloudId ? 'DELETE' : 'GET'),
     headers: (params: JiraDeleteAttachmentParams) => {
       return {
         Accept: 'application/json',

@@ -77,6 +77,13 @@ export interface OneDriveDownloadResponse extends ToolResponse {
   }
 }
 
+export interface OneDriveDeleteResponse extends ToolResponse {
+  output: {
+    fileId: string
+    deleted: boolean
+  }
+}
+
 export interface OneDriveToolParams {
   accessToken: string
   folderSelector?: string
@@ -99,3 +106,4 @@ export type OneDriveResponse =
   | OneDriveUploadResponse
   | OneDriveDownloadResponse
   | OneDriveListResponse
+  | OneDriveDeleteResponse

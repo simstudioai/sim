@@ -59,9 +59,21 @@ export const deleteBucketTool: ToolConfig<
         throw new Error('ETag is required for delete operations')
       }
 
+      let cleanedEtag = params.etag.trim()
+
+      while (cleanedEtag.startsWith('"') && cleanedEtag.endsWith('"')) {
+        cleanedEtag = cleanedEtag.slice(1, -1)
+        logger.info('Removed surrounding quotes:', cleanedEtag)
+      }
+
+      if (cleanedEtag.includes('\\"')) {
+        cleanedEtag = cleanedEtag.replace(/\\"/g, '"')
+        logger.info('Cleaned escaped quotes from etag')
+      }
+
       return {
         Authorization: `Bearer ${params.accessToken}`,
-        'If-Match': params.etag,
+        'If-Match': cleanedEtag,
       }
     },
   },

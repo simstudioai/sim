@@ -53,9 +53,11 @@ export const discordEditMessageTool: ToolConfig<
       Authorization: `Bot ${params.botToken}`,
     }),
     body: (params: DiscordEditMessageParams) => {
-      return {
-        content: params.content,
+      const body: any = {}
+      if (params.content !== undefined && params.content !== null && params.content !== '') {
+        body.content = params.content
       }
+      return body
     },
   },
 

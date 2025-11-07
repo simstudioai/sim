@@ -123,29 +123,6 @@ Fetch controversial posts from a subreddit
 | `subreddit` | string | Name of the subreddit where posts were fetched from |
 | `posts` | array | Array of controversial posts with title, author, URL, score, comments count, and metadata |
 
-### `reddit_get_gilded`
-
-Fetch gilded/awarded posts from a subreddit
-
-#### Input
-
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `subreddit` | string | Yes | The name of the subreddit to fetch posts from \(without the r/ prefix\) |
-| `limit` | number | No | Maximum number of posts to return \(default: 10, max: 100\) |
-| `after` | string | No | Fullname of a thing to fetch items after \(for pagination\) |
-| `before` | string | No | Fullname of a thing to fetch items before \(for pagination\) |
-| `count` | number | No | A count of items already seen in the listing \(used for numbering\) |
-| `show` | string | No | Show items that would normally be filtered \(e.g., "all"\) |
-| `sr_detail` | boolean | No | Expand subreddit details in the response |
-
-#### Output
-
-| Parameter | Type | Description |
-| --------- | ---- | ----------- |
-| `subreddit` | string | Name of the subreddit where posts were fetched from |
-| `posts` | array | Array of gilded/awarded posts with title, author, URL, score, comments count, and metadata |
-
 ### `reddit_search`
 
 Search for posts within a subreddit

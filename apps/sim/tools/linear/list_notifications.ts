@@ -54,9 +54,11 @@ export const linearListNotificationsTool: ToolConfig<
               type
               createdAt
               readAt
-              issue {
-                id
-                title
+              ... on IssueNotification {
+                issue {
+                  id
+                  title
+                }
               }
             }
             pageInfo {

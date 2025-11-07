@@ -138,14 +138,17 @@ export interface SupabaseStorageDownloadParams {
   projectId: string
   bucket: string
   path: string
+  fileName?: string
 }
 
 export interface SupabaseStorageDownloadResponse extends ToolResponse {
   output: {
-    message: string
-    fileContent: string
-    contentType: string
-    isBase64: boolean
+    file: {
+      name: string
+      mimeType: string
+      data: string | Buffer
+      size: number
+    }
   }
   error?: string
 }

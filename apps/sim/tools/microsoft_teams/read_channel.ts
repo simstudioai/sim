@@ -16,6 +16,7 @@ export const readChannelTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeam
   name: 'Read Microsoft Teams Channel',
   description: 'Read content from a Microsoft Teams channel',
   version: '1.0',
+  errorExtractor: 'nested-error-object',
 
   oauth: {
     required: true,

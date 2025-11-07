@@ -62,8 +62,8 @@ export const linearSearchIssuesTool: ToolConfig<
 
       return {
         query: `
-          query SearchIssues($query: String!, $filter: IssueFilter, $first: Int, $includeArchived: Boolean) {
-            issueSearch(query: $query, filter: $filter, first: $first, includeArchived: $includeArchived) {
+          query SearchIssues($term: String!, $filter: IssueFilter, $first: Int, $includeArchived: Boolean) {
+            searchIssues(term: $term, filter: $filter, first: $first, includeArchived: $includeArchived) {
               nodes {
                 id
                 title
@@ -108,9 +108,9 @@ export const linearSearchIssuesTool: ToolConfig<
           }
         `,
         variables: {
-          query: params.query,
+          term: params.query,
           filter: Object.keys(filter).length > 0 ? filter : undefined,
-          first: params.first ? Number(params.first) : 50,
+          first: params.first || 50,
           includeArchived: params.includeArchived || false,
         },
       }
@@ -128,7 +128,7 @@ export const linearSearchIssuesTool: ToolConfig<
       }
     }
 
-    const result = data.data.issueSearch
+    const result = data.data.searchIssues
     return {
       success: true,
       output: {

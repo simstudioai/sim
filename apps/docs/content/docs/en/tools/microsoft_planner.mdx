@@ -193,7 +193,10 @@ Update a task in Microsoft Planner
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the task was updated successfully |
+| `message` | string | Success message when task is updated |
 | `task` | object | The updated task object with all properties |
+| `taskId` | string | ID of the updated task |
+| `etag` | string | New ETag after update - use this for subsequent operations |
 | `metadata` | object | Metadata including taskId, planId, and taskUrl |
 
 ### `microsoft_planner_delete_task`
@@ -217,21 +220,20 @@ Delete a task from Microsoft Planner
 
 ### `microsoft_planner_list_plans`
 
-List all plans in a Microsoft 365 group
+List all plans shared with the current user
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `groupId` | string | Yes | The ID of the Microsoft 365 group |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether plans were retrieved successfully |
-| `plans` | array | Array of plan objects |
-| `metadata` | object | Metadata including groupId and count |
+| `plans` | array | Array of plan objects shared with the current user |
+| `metadata` | object | Metadata including userId and count |
 
 ### `microsoft_planner_read_plan`
 
@@ -361,6 +363,7 @@ Get detailed information about a task including checklist and references
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the task details were retrieved successfully |
 | `taskDetails` | object | The task details including description, checklist, and references |
+| `etag` | string | The ETag value for this task details - use this for update operations |
 | `metadata` | object | Metadata including taskId |
 
 ### `microsoft_planner_update_task_details`

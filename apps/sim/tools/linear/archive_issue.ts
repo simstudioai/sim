@@ -41,6 +41,9 @@ export const linearArchiveIssueTool: ToolConfig<
         mutation ArchiveIssue($id: String!) {
           issueArchive(id: $id) {
             success
+            entity {
+              id
+            }
           }
         }
       `,
@@ -61,11 +64,12 @@ export const linearArchiveIssueTool: ToolConfig<
       }
     }
 
+    const result = data.data.issueArchive
     return {
-      success: data.data.issueArchive.success,
+      success: result.success,
       output: {
-        success: data.data.issueArchive.success,
-        issueId: response.ok ? data.data.issueArchive.success : '',
+        success: result.success,
+        issueId: result.entity?.id,
       },
     }
   },

@@ -21,7 +21,6 @@ export const SupabaseBlock: BlockConfig<SupabaseResponse> = {
       id: 'operation',
       title: 'Operation',
       type: 'dropdown',
-      layout: 'full',
       options: [
         // Database Operations
         { label: 'Get Many Rows', id: 'query' },
@@ -55,7 +54,6 @@ export const SupabaseBlock: BlockConfig<SupabaseResponse> = {
       id: 'projectId',
       title: 'Project ID',
       type: 'short-input',
-      layout: 'full',
       password: true,
       placeholder: 'Your Supabase project ID (e.g., jdrkgepadsdopsntdlom)',
       required: true,
@@ -64,7 +62,6 @@ export const SupabaseBlock: BlockConfig<SupabaseResponse> = {
       id: 'table',
       title: 'Table',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Name of the table',
       required: true,
       condition: {
@@ -76,7 +73,6 @@ export const SupabaseBlock: BlockConfig<SupabaseResponse> = {
       id: 'apiKey',
       title: 'Service Role Secret',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Your Supabase service role secret key',
       password: true,
       required: true,
@@ -86,7 +82,6 @@ export const SupabaseBlock: BlockConfig<SupabaseResponse> = {
       id: 'data',
       title: 'Data',
       type: 'code',
-      layout: 'full',
       placeholder: '{\n  "column1": "value1",\n  "column2": "value2"\n}',
       condition: { field: 'operation', value: 'insert' },
       required: true,
@@ -95,7 +90,6 @@ export const SupabaseBlock: BlockConfig<SupabaseResponse> = {
       id: 'data',
       title: 'Data',
       type: 'code',
-      layout: 'full',
       placeholder: '{\n  "column1": "value1",\n  "column2": "value2"\n}',
       condition: { field: 'operation', value: 'update' },
       required: true,
@@ -104,7 +98,6 @@ export const SupabaseBlock: BlockConfig<SupabaseResponse> = {
       id: 'data',
       title: 'Data',
       type: 'code',
-      layout: 'full',
       placeholder: '{\n  "column1": "value1",\n  "column2": "value2"\n}',
       condition: { field: 'operation', value: 'upsert' },
       required: true,
@@ -114,7 +107,6 @@ export const SupabaseBlock: BlockConfig<SupabaseResponse> = {
       id: 'filter',
       title: 'Filter (PostgREST syntax)',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'id=eq.123',
       condition: { field: 'operation', value: 'get_row' },
       required: true,
@@ -183,7 +175,6 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
       id: 'filter',
       title: 'Filter (PostgREST syntax)',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'id=eq.123',
       condition: { field: 'operation', value: 'update' },
       required: true,
@@ -252,7 +243,6 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
       id: 'filter',
       title: 'Filter (PostgREST syntax)',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'id=eq.123',
       condition: { field: 'operation', value: 'delete' },
       required: true,
@@ -322,7 +312,6 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
       id: 'filter',
       title: 'Filter (PostgREST syntax)',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'status=eq.active',
       condition: { field: 'operation', value: 'query' },
       wandConfig: {
@@ -391,7 +380,6 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
       id: 'orderBy',
       title: 'Order By',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'column_name (add DESC for descending)',
       condition: { field: 'operation', value: 'query' },
     },
@@ -400,7 +388,6 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
       id: 'limit',
       title: 'Limit',
       type: 'short-input',
-      layout: 'full',
       placeholder: '100',
       condition: { field: 'operation', value: 'query' },
     },
@@ -409,7 +396,6 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
       id: 'functionName',
       title: 'Function Name',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'match_documents',
       condition: { field: 'operation', value: 'vector_search' },
       required: true,
@@ -418,24 +404,21 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
       id: 'queryEmbedding',
       title: 'Query Embedding',
       type: 'code',
-      layout: 'full',
       placeholder: '[0.1, 0.2, 0.3, ...]',
       condition: { field: 'operation', value: 'vector_search' },
       required: true,
     },
     {
       id: 'matchThreshold',
-      title: 'Match Threshold (optional)',
+      title: 'Match Threshold',
       type: 'short-input',
-      layout: 'full',
       placeholder: '0.78',
       condition: { field: 'operation', value: 'vector_search' },
     },
     {
       id: 'matchCount',
-      title: 'Match Count (optional)',
+      title: 'Match Count',
       type: 'short-input',
-      layout: 'full',
       placeholder: '10',
       condition: { field: 'operation', value: 'vector_search' },
     },
@@ -444,7 +427,6 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
       id: 'functionName',
       title: 'Function Name',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'my_function_name',
       condition: { field: 'operation', value: 'rpc' },
       required: true,
@@ -453,7 +435,6 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
       id: 'params',
       title: 'Parameters (JSON)',
       type: 'code',
-      layout: 'full',
       placeholder: '{\n  "param1": "value1",\n  "param2": "value2"\n}',
       condition: { field: 'operation', value: 'rpc' },
     },
@@ -462,7 +443,6 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
       id: 'column',
       title: 'Column to Search',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'content',
       condition: { field: 'operation', value: 'text_search' },
       required: true,
@@ -471,7 +451,6 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
       id: 'query',
       title: 'Search Query',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'search terms',
       condition: { field: 'operation', value: 'text_search' },
       required: true,
@@ -480,7 +459,6 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
       id: 'searchType',
       title: 'Search Type',
       type: 'dropdown',
-      layout: 'full',
       options: [
         { label: 'Websearch (natural language)', id: 'websearch' },
         { label: 'Plain', id: 'plain' },
@@ -493,7 +471,6 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
       id: 'language',
       title: 'Language',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'english',
       condition: { field: 'operation', value: 'text_search' },
     },
@@ -501,7 +478,6 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
       id: 'limit',
       title: 'Limit',
       type: 'short-input',
-      layout: 'full',
       placeholder: '100',
       condition: { field: 'operation', value: 'text_search' },
     },
@@ -510,15 +486,73 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
       id: 'filter',
       title: 'Filter (PostgREST syntax)',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'status=eq.active',
       condition: { field: 'operation', value: 'count' },
+      wandConfig: {
+        enabled: true,
+        maintainHistory: true,
+        prompt: `You are an expert in PostgREST API syntax. Generate PostgREST filter expressions based on the user's request.
+
+### CONTEXT
+{context}
+
+### CRITICAL INSTRUCTION
+Return ONLY the PostgREST filter expression. Do not include any explanations, markdown formatting, or additional text. Just the raw filter expression.
+
+### POSTGREST FILTER SYNTAX
+PostgREST uses a specific syntax for filtering data. The format is:
+column=operator.value
+
+### OPERATORS
+- **eq** - equals: \`id=eq.123\`
+- **neq** - not equals: \`status=neq.inactive\`
+- **gt** - greater than: \`age=gt.18\`
+- **gte** - greater than or equal: \`score=gte.80\`
+- **lt** - less than: \`price=lt.100\`
+- **lte** - less than or equal: \`rating=lte.5\`
+- **like** - pattern matching: \`name=like.*john*\`
+- **ilike** - case-insensitive like: \`email=ilike.*@gmail.com\`
+- **in** - in list: \`category=in.(tech,science,art)\`
+- **is** - is null/not null: \`deleted_at=is.null\`
+- **not** - negation: \`not.and=(status.eq.active,verified.eq.true)\`
+
+### COMBINING FILTERS
+- **AND**: Use \`&\` or \`and=(...)\`: \`id=eq.123&status=eq.active\`
+- **OR**: Use \`or=(...)\`: \`or=(status.eq.active,status.eq.pending)\`
+
+### EXAMPLES
+
+**Simple equality**: "Find user with ID 123"
+→ id=eq.123
+
+**Text search**: "Find users with Gmail addresses"
+→ email=ilike.*@gmail.com
+
+**Range filter**: "Find products under $50"
+→ price=lt.50
+
+**Multiple conditions**: "Find active users over 18"
+→ age=gt.18&status=eq.active
+
+**OR condition**: "Find active or pending orders"
+→ or=(status.eq.active,status.eq.pending)
+
+**In list**: "Find posts in specific categories"
+→ category=in.(tech,science,health)
+
+**Null check**: "Find users without a profile picture"
+→ profile_image=is.null
+
+### REMEMBER
+Return ONLY the PostgREST filter expression - no explanations, no markdown, no extra text.`,
+        placeholder: 'Describe the filter condition...',
+        generationType: 'postgrest',
+      },
     },
     {
       id: 'countType',
       title: 'Count Type',
       type: 'dropdown',
-      layout: 'full',
       options: [
         { label: 'Exact', id: 'exact' },
         { label: 'Planned', id: 'planned' },
@@ -532,7 +566,6 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
       id: 'bucket',
       title: 'Bucket Name',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'my-bucket',
       condition: {
         field: 'operation',
@@ -556,7 +589,6 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
       id: 'path',
       title: 'File Path',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'folder/file.jpg',
       condition: { field: 'operation', value: 'storage_upload' },
       required: true,
@@ -565,7 +597,6 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
       id: 'fileContent',
       title: 'File Content',
       type: 'code',
-      layout: 'full',
       placeholder: 'Base64 encoded for binary files, or plain text',
       condition: { field: 'operation', value: 'storage_upload' },
       required: true,
@@ -574,7 +605,6 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
       id: 'contentType',
       title: 'Content Type (MIME)',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'image/jpeg',
       condition: { field: 'operation', value: 'storage_upload' },
     },
@@ -582,7 +612,6 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
       id: 'upsert',
       title: 'Upsert (overwrite if exists)',
       type: 'dropdown',
-      layout: 'full',
       options: [
         { label: 'False', id: 'false' },
         { label: 'True', id: 'true' },
@@ -595,17 +624,22 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
       id: 'path',
       title: 'File Path',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'folder/file.jpg',
       condition: { field: 'operation', value: 'storage_download' },
       required: true,
     },
+    {
+      id: 'fileName',
+      title: 'File Name Override',
+      type: 'short-input',
+      placeholder: 'my-file.jpg',
+      condition: { field: 'operation', value: 'storage_download' },
+    },
     // Storage List fields
     {
       id: 'path',
-      title: 'Folder Path (optional)',
+      title: 'Folder Path',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'folder/',
       condition: { field: 'operation', value: 'storage_list' },
     },
@@ -613,7 +647,6 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
       id: 'limit',
       title: 'Limit',
       type: 'short-input',
-      layout: 'full',
       placeholder: '100',
       condition: { field: 'operation', value: 'storage_list' },
     },
@@ -621,7 +654,6 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
       id: 'offset',
       title: 'Offset',
       type: 'short-input',
-      layout: 'full',
       placeholder: '0',
       condition: { field: 'operation', value: 'storage_list' },
     },
@@ -629,7 +661,6 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
       id: 'sortBy',
       title: 'Sort By',
       type: 'dropdown',
-      layout: 'full',
       options: [
         { label: 'Name', id: 'name' },
         { label: 'Created At', id: 'created_at' },
@@ -642,7 +673,6 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
       id: 'sortOrder',
       title: 'Sort Order',
       type: 'dropdown',
-      layout: 'full',
       options: [
         { label: 'Ascending', id: 'asc' },
         { label: 'Descending', id: 'desc' },
@@ -654,7 +684,6 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
       id: 'search',
       title: 'Search',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'search term',
       condition: { field: 'operation', value: 'storage_list' },
     },
@@ -663,7 +692,6 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
       id: 'paths',
       title: 'File Paths (JSON array)',
       type: 'code',
-      layout: 'full',
       placeholder: '["folder/file1.jpg", "folder/file2.jpg"]',
       condition: { field: 'operation', value: 'storage_delete' },
       required: true,
@@ -673,7 +701,6 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
       id: 'fromPath',
       title: 'From Path',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'folder/old.jpg',
       condition: { field: 'operation', value: 'storage_move' },
       required: true,
@@ -682,7 +709,6 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
       id: 'toPath',
       title: 'To Path',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'newfolder/new.jpg',
       condition: { field: 'operation', value: 'storage_move' },
       required: true,
@@ -692,7 +718,6 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
       id: 'fromPath',
       title: 'From Path',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'folder/source.jpg',
       condition: { field: 'operation', value: 'storage_copy' },
       required: true,
@@ -701,7 +726,6 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
       id: 'toPath',
       title: 'To Path',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'folder/copy.jpg',
       condition: { field: 'operation', value: 'storage_copy' },
       required: true,
@@ -711,7 +735,6 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
       id: 'path',
       title: 'File Path',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'folder/file.jpg',
       condition: { field: 'operation', value: 'storage_get_public_url' },
       required: true,
@@ -720,7 +743,6 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
       id: 'download',
       title: 'Force Download',
       type: 'dropdown',
-      layout: 'full',
       options: [
         { label: 'False', id: 'false' },
         { label: 'True', id: 'true' },
@@ -733,7 +755,6 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
       id: 'path',
       title: 'File Path',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'folder/file.jpg',
       condition: { field: 'operation', value: 'storage_create_signed_url' },
       required: true,
@@ -742,7 +763,6 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
       id: 'expiresIn',
       title: 'Expires In (seconds)',
       type: 'short-input',
-      layout: 'full',
       placeholder: '3600',
       condition: { field: 'operation', value: 'storage_create_signed_url' },
       required: true,
@@ -751,7 +771,6 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
       id: 'download',
       title: 'Force Download',
       type: 'dropdown',
-      layout: 'full',
       options: [
         { label: 'False', id: 'false' },
         { label: 'True', id: 'true' },
@@ -764,7 +783,6 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
       id: 'isPublic',
       title: 'Public Bucket',
       type: 'dropdown',
-      layout: 'full',
       options: [
         { label: 'False (Private)', id: 'false' },
         { label: 'True (Public)', id: 'true' },
@@ -776,7 +794,6 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
       id: 'fileSizeLimit',
       title: 'File Size Limit (bytes)',
       type: 'short-input',
-      layout: 'full',
       placeholder: '52428800',
       condition: { field: 'operation', value: 'storage_create_bucket' },
     },
@@ -784,7 +801,6 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
       id: 'allowedMimeTypes',
       title: 'Allowed MIME Types (JSON array)',
       type: 'code',
-      layout: 'full',
       placeholder: '["image/png", "image/jpeg"]',
       condition: { field: 'operation', value: 'storage_create_bucket' },
     },
@@ -1041,6 +1057,7 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
     path: { type: 'string', description: 'File path in storage' },
     fileContent: { type: 'string', description: 'File content (base64 for binary)' },
     contentType: { type: 'string', description: 'MIME type of the file' },
+    fileName: { type: 'string', description: 'Optional filename override for downloaded file' },
     upsert: { type: 'boolean', description: 'Whether to overwrite existing file' },
     download: { type: 'boolean', description: 'Whether to force download' },
     paths: { type: 'array', description: 'Array of file paths' },
@@ -1068,17 +1085,9 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
       type: 'number',
       description: 'Row count for count operations',
     },
-    fileContent: {
-      type: 'string',
-      description: 'Downloaded file content (base64 for binary files)',
-    },
-    contentType: {
-      type: 'string',
-      description: 'MIME type of downloaded file',
-    },
-    isBase64: {
-      type: 'boolean',
-      description: 'Whether file content is base64 encoded',
+    file: {
+      type: 'files',
+      description: 'Downloaded file stored in execution files',
     },
     publicUrl: {
       type: 'string',

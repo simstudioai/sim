@@ -1,6 +1,9 @@
 import { GmailIcon } from '@/components/icons'
+import { createLogger } from '@/lib/logs/console/logger'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import type { TriggerConfig } from '@/triggers/types'
+
+const logger = createLogger('GmailPollingTrigger')
 
 export const gmailPollingTrigger: TriggerConfig = {
   id: 'gmail_poller',
@@ -51,7 +54,7 @@ export const gmailPollingTrigger: TriggerConfig = {
           }
           return []
         } catch (error) {
-          console.error('Error fetching Gmail labels:', error)
+          logger.error('Error fetching Gmail labels:', error)
           return []
         }
       },

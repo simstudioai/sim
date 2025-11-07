@@ -1,5 +1,11 @@
+import { createLogger } from '@/lib/logs/console/logger'
 import type { ExtractParams, ExtractResponse } from '@/tools/firecrawl/types'
 import type { ToolConfig } from '@/tools/types'
+
+const logger = createLogger('FirecrawlExtractTool')
+
+const POLL_INTERVAL_MS = 5000 // 5 seconds between polls
+const MAX_POLL_TIME_MS = 300000 // 5 minutes maximum polling time
 
 export const extractTool: ToolConfig<ExtractParams, ExtractResponse> = {
   id: 'firecrawl_extract',
@@ -73,7 +79,7 @@ export const extractTool: ToolConfig<ExtractParams, ExtractResponse> = {
 
   request: {
     method: 'POST',
-    url: 'https://api.firecrawl.dev/v1/extract',
+    url: 'https://api.firecrawl.dev/v2/extract',
     headers: (params) => ({
       'Content-Type': 'application/json',
       Authorization: `Bearer ${params.apiKey}`,
@@ -83,14 +89,29 @@ export const extractTool: ToolConfig<ExtractParams, ExtractResponse> = {
         urls: params.urls,
       }
 
-      if (params.prompt !== undefined) body.prompt = params.prompt
-      if (params.schema !== undefined) body.schema = params.schema
-      if (params.enableWebSearch !== undefined) body.enableWebSearch = params.enableWebSearch
-      if (params.ignoreSitemap !== undefined) body.ignoreSitemap = params.ignoreSitemap
-      if (params.includeSubdomains !== undefined) body.includeSubdomains = params.includeSubdomains
-      if (params.showSources !== undefined) body.showSources = params.showSources
-      if (params.ignoreInvalidURLs !== undefined) body.ignoreInvalidURLs = params.ignoreInvalidURLs
-      if (params.scrapeOptions !== undefined) body.scrapeOptions = params.scrapeOptions
+      if (params.prompt != null) body.prompt = params.prompt
+      if (params.schema != null) body.schema = params.schema
+      if (params.enableWebSearch != null) body.enableWebSearch = params.enableWebSearch
+      if (params.ignoreSitemap != null) body.ignoreSitemap = params.ignoreSitemap
+      if (params.includeSubdomains != null) body.includeSubdomains = params.includeSubdomains
+      if (params.showSources != null) body.showSources = params.showSources
+      if (params.ignoreInvalidURLs != null) body.ignoreInvalidURLs = params.ignoreInvalidURLs
+
+      // Add scrapeOptions, filtering out null/undefined values
+      if (params.scrapeOptions != null) {
+        const cleanedScrapeOptions = Object.entries(params.scrapeOptions).reduce(
+          (acc, [key, val]) => {
+            if (val != null) {
+              acc[key] = val
+            }
+            return acc
+          },
+          {} as Record<string, any>
+        )
+        if (Object.keys(cleanedScrapeOptions).length > 0) {
+          body.scrapeOptions = cleanedScrapeOptions
+        }
+      }
 
       return body
     },
@@ -100,13 +121,82 @@ export const extractTool: ToolConfig<ExtractParams, ExtractResponse> = {
     const data = await response.json()
 
     return {
-      success: data.success,
+      success: true,
       output: {
-        success: data.success,
-        data: data.data || {},
-        sources: data.sources,
-        warning: data.warning,
+        jobId: data.id,
+        success: false,
+        data: {},
       },
+    }
+  },
+  postProcess: async (result, params) => {
+    if (!result.success) {
+      return result
+    }
+
+    const jobId = result.output.jobId
+    logger.info(`Firecrawl extract job ${jobId} created, polling for completion...`)
+
+    let elapsedTime = 0
+
+    while (elapsedTime < MAX_POLL_TIME_MS) {
+      try {
+        const statusResponse = await fetch(`https://api.firecrawl.dev/v2/extract/${jobId}`, {
+          method: 'GET',
+          headers: {
+            Authorization: `Bearer ${params.apiKey}`,
+            'Content-Type': 'application/json',
+          },
+        })
+
+        if (!statusResponse.ok) {
+          throw new Error(`Failed to get extract status: ${statusResponse.statusText}`)
+        }
+
+        const extractData = await statusResponse.json()
+        logger.info(`Firecrawl extract job ${jobId} status: ${extractData.status}`)
+
+        if (extractData.status === 'completed') {
+          result.output = {
+            jobId,
+            success: true,
+            data: extractData.data || {},
+            warning: extractData.warning,
+          }
+          return result
+        }
+
+        if (extractData.status === 'failed') {
+          return {
+            ...result,
+            success: false,
+            error: `Extract job failed: ${extractData.error || 'Unknown error'}`,
+          }
+        }
+
+        await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS))
+        elapsedTime += POLL_INTERVAL_MS
+      } catch (error: any) {
+        logger.error('Error polling for extract job status:', {
+          message: error.message || 'Unknown error',
+          jobId,
+        })
+
+        return {
+          ...result,
+          success: false,
+          error: `Error polling for extract job status: ${error.message || 'Unknown error'}`,
+        }
+      }
+    }
+
+    logger.warn(
+      `Extract job ${jobId} did not complete within the maximum polling time (${MAX_POLL_TIME_MS / 1000}s)`
+    )
+    return {
+      ...result,
+      success: false,
+      error: `Extract job did not complete within the maximum polling time (${MAX_POLL_TIME_MS / 1000}s)`,
     }
   },
 

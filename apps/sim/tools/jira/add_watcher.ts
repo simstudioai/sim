@@ -71,7 +71,7 @@ export const jiraAddWatcherTool: ToolConfig<JiraAddWatcherParams, JiraAddWatcher
       }
       return 'https://api.atlassian.com/oauth/token/accessible-resources'
     },
-    method: 'POST',
+    method: (params: JiraAddWatcherParams) => (params.cloudId ? 'POST' : 'GET'),
     headers: (params: JiraAddWatcherParams) => {
       return {
         Accept: 'application/json',
@@ -80,7 +80,8 @@ export const jiraAddWatcherTool: ToolConfig<JiraAddWatcherParams, JiraAddWatcher
       }
     },
     body: (params: JiraAddWatcherParams) => {
-      return { accountId: params.accountId }
+      if (!params.cloudId) return undefined as any
+      return params.accountId as any
     },
   },
 
@@ -96,7 +97,7 @@ export const jiraAddWatcherTool: ToolConfig<JiraAddWatcherParams, JiraAddWatcher
           'Content-Type': 'application/json',
           Authorization: `Bearer ${params?.accessToken}`,
         },
-        body: JSON.stringify({ accountId: params?.accountId }),
+        body: JSON.stringify(params?.accountId),
       })
 
       if (!watcherResponse.ok) {

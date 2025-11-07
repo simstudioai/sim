@@ -12,6 +12,7 @@ export const updateChannelMessageTool: ToolConfig<
   name: 'Update Microsoft Teams Channel Message',
   description: 'Update an existing message in a Microsoft Teams channel',
   version: '1.0',
+  errorExtractor: 'nested-error-object',
   oauth: {
     required: true,
     provider: 'microsoft-teams',
@@ -89,7 +90,13 @@ export const updateChannelMessageTool: ToolConfig<
   },
 
   transformResponse: async (response: Response, params?: MicrosoftTeamsUpdateMessageParams) => {
-    const data = await response.json()
+    let data: any = {}
+    if (response.status !== 204 && response.headers.get('content-length') !== '0') {
+      const text = await response.text()
+      if (text) {
+        data = JSON.parse(text)
+      }
+    }
 
     const metadata = {
       messageId: data.id || params?.messageId || '',

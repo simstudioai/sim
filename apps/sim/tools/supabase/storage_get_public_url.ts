@@ -47,18 +47,7 @@ export const storageGetPublicUrlTool: ToolConfig<
   },
 
   request: {
-    url: (params) => {
-      // For public URL, we don't actually need to make a request
-      // We can construct it directly
-      let url = `https://${params.projectId}.supabase.co/storage/v1/object/public/${params.bucket}/${params.path}`
-
-      if (params.download) {
-        url += '?download=true'
-      }
-
-      // Return a dummy URL that won't be called
-      return url
-    },
+    url: (params) => `https://${params.projectId}.supabase.co/storage/v1/bucket/${params.bucket}`,
     method: 'GET',
     headers: (params) => ({
       apikey: params.apiKey,
@@ -66,10 +55,12 @@ export const storageGetPublicUrlTool: ToolConfig<
     }),
   },
 
-  transformResponse: async (response: Response) => {
-    // The URL is already constructed in the request.url
-    // We just need to return it
-    const publicUrl = response.url
+  transformResponse: async (response: Response, params?: SupabaseStorageGetPublicUrlParams) => {
+    let publicUrl = `https://${params?.projectId}.supabase.co/storage/v1/object/public/${params?.bucket}/${params?.path}`
+
+    if (params?.download) {
+      publicUrl += '?download=true'
+    }
 
     return {
       success: true,

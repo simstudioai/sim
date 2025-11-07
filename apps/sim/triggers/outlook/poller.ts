@@ -1,6 +1,9 @@
 import { OutlookIcon } from '@/components/icons'
+import { createLogger } from '@/lib/logs/console/logger'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import type { TriggerConfig } from '@/triggers/types'
+
+const logger = createLogger('OutlookPollingTrigger')
 
 export const outlookPollingTrigger: TriggerConfig = {
   id: 'outlook_poller',
@@ -51,7 +54,7 @@ export const outlookPollingTrigger: TriggerConfig = {
           }
           return []
         } catch (error) {
-          console.error('Error fetching Outlook folders:', error)
+          logger.error('Error fetching Outlook folders:', error)
           return []
         }
       },
