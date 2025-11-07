@@ -85,14 +85,6 @@ export const jiraSearchIssuesTool: ToolConfig<JiraSearchIssuesParams, JiraSearch
         Authorization: `Bearer ${params.accessToken}`,
       }
     },
-    body: (params: JiraSearchIssuesParams) => {
-      return {
-        jql: params.jql,
-        startAt: params.startAt ? Number(params.startAt) : 0,
-        maxResults: params.maxResults ? Number(params.maxResults) : 50,
-        fields: params.fields || ['summary', 'status', 'assignee', 'created', 'updated'],
-      }
-    },
     body: () => undefined as any,
   },
 
@@ -112,20 +104,12 @@ export const jiraSearchIssuesTool: ToolConfig<JiraSearchIssuesParams, JiraSearch
           Accept: 'application/json',
           Authorization: `Bearer ${params!.accessToken}`,
         },
-<<<<<<< HEAD
         body: JSON.stringify({
           jql: params?.jql,
-<<<<<<< HEAD
           startAt: params?.startAt ? Number(params.startAt) : 0,
           maxResults: params?.maxResults ? Number(params.maxResults) : 50,
-=======
-          startAt: params?.startAt || 0,
-          maxResults: params?.maxResults || 50,
->>>>>>> 942ef43a6 (feat(tools): added 150+ new tools across confluence, discord, exa, firecrawl, jina, jira, linear, linkup, MS suite, parallel, reddit, supabase, & tavily)
           fields: params?.fields || ['summary', 'status', 'assignee', 'created', 'updated'],
         }),
-=======
->>>>>>> e2fe55147 (added onedrive delete, fixed jira tools)
       })
 
       if (!searchResponse.ok) {

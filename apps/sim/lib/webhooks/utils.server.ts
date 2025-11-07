@@ -1263,8 +1263,8 @@ export async function formatWebhookInput(
     }
   }
 
-   // Jira webhook format
-   if (foundWebhook.provider === 'jira') {
+  // Jira webhook format
+  if (foundWebhook.provider === 'jira') {
     const { extractIssueData, extractCommentData, extractWorklogData } = await import(
       '@/triggers/jira/utils'
     )
