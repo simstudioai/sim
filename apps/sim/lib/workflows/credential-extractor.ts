@@ -1,12 +1,10 @@
-import { createLogger } from '@/lib/logs/console/logger'
 import { getBlock } from '@/blocks/registry'
 import type { SubBlockConfig } from '@/blocks/types'
-
-const logger = createLogger('CredentialExtractor')
+import { AuthMode } from '@/blocks/types'
 
 // Credential types based on actual patterns in the codebase
 export enum CredentialType {
-  OAUTH = 'oauth', // type: 'oauth-input'
+  OAUTH = 'oauth',
   SECRET = 'secret', // password: true (covers API keys, bot tokens, passwords, etc.)
 }
 
@@ -14,12 +12,10 @@ export enum CredentialType {
 export interface CredentialRequirement {
   type: CredentialType
   provider?: string // For OAuth (e.g., 'google-drive', 'slack')
-  serviceId?: string // For OAuth services
   label: string // Human-readable label
   blockType: string // The block type that requires this
   subBlockId: string // The subblock ID for reference
   required: boolean
-  description?: string
 }
 
 // Workspace-specific subblock types that should be cleared
@@ -48,49 +44,13 @@ const WORKSPACE_SPECIFIC_FIELDS = new Set([
   'folderId',
 ])
 
-// Map of known providers to friendly names
-const PROVIDER_NAMES: Record<string, string> = {
-  'google-drive': 'Google Drive',
-  'google-sheets': 'Google Sheets',
-  'google-forms': 'Google Forms',
-  'google-calendar': 'Google Calendar',
-  'google-contacts': 'Google Contacts',
-  'google-gmail': 'Gmail',
-  slack: 'Slack',
-  discord: 'Discord',
-  notion: 'Notion',
-  github: 'GitHub',
-  jira: 'Jira',
-  linear: 'Linear',
-  x: 'X (Twitter)',
-  reddit: 'Reddit',
-  onedrive: 'OneDrive',
-  figma: 'Figma',
-  salesforce: 'Salesforce',
-  openai: 'OpenAI',
-  anthropic: 'Anthropic',
-  gemini: 'Google Gemini',
-  perplexity: 'Perplexity',
-  groq: 'Groq',
-  together: 'Together AI',
-  replicate: 'Replicate',
-  pinecone: 'Pinecone',
-  weaviate: 'Weaviate',
-  qdrant: 'Qdrant',
-  chroma: 'Chroma',
-  supabase: 'Supabase',
-  mongodb: 'MongoDB',
-  postgresql: 'PostgreSQL',
-  mysql: 'MySQL',
-}
-
 /**
  * Extract required credentials from a workflow state
  * This analyzes all blocks and their subblocks to identify credential requirements
  */
 export function extractRequiredCredentials(state: any): CredentialRequirement[] {
   const credentials: CredentialRequirement[] = []
-  const seenCredentials = new Set<string>()
+  const seen = new Set<string>()
 
   if (!state?.blocks) {
     return credentials
@@ -100,131 +60,87 @@ export function extractRequiredCredentials(state: any): CredentialRequirement[] 
   Object.values(state.blocks).forEach((block: any) => {
     if (!block?.type) return
 
-    // Get the block configuration to understand its subblocks
     const blockConfig = getBlock(block.type)
     if (!blockConfig) return
 
-    // Process each subblock configuration
+    // Add OAuth credential if block has OAuth auth mode
+    if (blockConfig.authMode === AuthMode.OAuth) {
+      const blockName = blockConfig.name || block.type
+      const key = `oauth-${block.type}`
+
+      if (!seen.has(key)) {
+        seen.add(key)
+        credentials.push({
+          type: CredentialType.OAUTH,
+          provider: block.type,
+          label: `Credential for ${blockName}`,
+          blockType: block.type,
+          subBlockId: 'oauth',
+          required: true,
+        })
+      }
+    }
+
+    // Process password fields (API keys, tokens, etc)
     blockConfig.subBlocks?.forEach((subBlockConfig: SubBlockConfig) => {
-      const credentialReq = extractCredentialFromSubBlock(
-        subBlockConfig,
-        block.type,
-        blockConfig.name || block.type
-      )
+      if (!isSubBlockVisible(block, subBlockConfig)) return
+      if (!subBlockConfig.password) return
 
-      if (credentialReq) {
-        // Create a unique key to avoid duplicates
-        const key = `${credentialReq.type}-${credentialReq.provider || ''}-${credentialReq.serviceId || ''}-${credentialReq.blockType}`
+      const blockName = blockConfig.name || block.type
+      const fieldLabel = subBlockConfig.title || formatFieldName(subBlockConfig.id)
+      const key = `secret-${block.type}-${subBlockConfig.id}`
 
-        if (!seenCredentials.has(key)) {
-          seenCredentials.add(key)
-          credentials.push(credentialReq)
-        }
+      if (!seen.has(key)) {
+        seen.add(key)
+        credentials.push({
+          type: CredentialType.SECRET,
+          label: `${fieldLabel} for ${blockName}`,
+          blockType: block.type,
+          subBlockId: subBlockConfig.id,
+          required: subBlockConfig.required !== false,
+        })
       }
     })
-
-    // Also check the actual subBlock values for OAuth inputs that weren't caught by config
-    if (block.subBlocks) {
-      Object.entries(block.subBlocks).forEach(([subBlockId, subBlock]: [string, any]) => {
-        // Check if this looks like an OAuth credential that wasn't caught by the config
-        if (shouldExtractAsCredential(subBlock)) {
-          const credentialReq: CredentialRequirement = {
-            type: CredentialType.OAUTH,
-            label: formatFieldName(subBlockId),
-            blockType: block.type,
-            subBlockId,
-            required: true,
-            description: `${formatFieldName(subBlockId)} for ${blockConfig.name || block.type}`,
-          }
-
-          const key = `${credentialReq.type}-${credentialReq.label}-${credentialReq.blockType}`
-
-          if (!seenCredentials.has(key)) {
-            seenCredentials.add(key)
-            credentials.push(credentialReq)
-          }
-        }
-      })
-    }
   })
 
-  // Sort credentials by type and label for consistent display
+  // Helper to check visibility
+  function isSubBlockVisible(block: any, subBlockConfig: SubBlockConfig): boolean {
+    if (!subBlockConfig.condition) return true
+
+    const condition =
+      typeof subBlockConfig.condition === 'function'
+        ? subBlockConfig.condition()
+        : subBlockConfig.condition
+
+    const evaluate = (cond: any): boolean => {
+      const currentValue = block?.subBlocks?.[cond.field]?.value
+      const expected = cond.value
+
+      let match =
+        expected === undefined
+          ? true
+          : Array.isArray(expected)
+            ? expected.includes(currentValue)
+            : currentValue === expected
+
+      if (cond.not) match = !match
+      if (cond.and) match = match && evaluate(cond.and)
+
+      return match
+    }
+
+    return evaluate(condition)
+  }
+
+  // Sort: OAuth first, then secrets, alphabetically within each type
   credentials.sort((a, b) => {
     if (a.type !== b.type) {
-      // OAuth credentials come first, then secrets
-      const typeOrder = {
-        [CredentialType.OAUTH]: 0,
-        [CredentialType.SECRET]: 1,
-      }
-      return typeOrder[a.type] - typeOrder[b.type]
+      return a.type === CredentialType.OAUTH ? -1 : 1
     }
     return a.label.localeCompare(b.label)
   })
 
-  logger.info(`Extracted ${credentials.length} credential requirements from workflow`)
   return credentials
-}
-
-/**
- * Extract credential requirement from a subblock configuration
- */
-function extractCredentialFromSubBlock(
-  subBlockConfig: SubBlockConfig,
-  blockType: string,
-  blockName: string
-): CredentialRequirement | null {
-  // Handle OAuth credentials (type: 'oauth-input')
-  if (subBlockConfig.type === 'oauth-input') {
-    return {
-      type: CredentialType.OAUTH,
-      provider: subBlockConfig.provider,
-      serviceId: subBlockConfig.serviceId,
-      label: subBlockConfig.title || getProviderLabel(subBlockConfig.provider) || 'OAuth Account',
-      blockType,
-      subBlockId: subBlockConfig.id,
-      required: subBlockConfig.required !== false,
-      description:
-        subBlockConfig.description ||
-        `${getProviderLabel(subBlockConfig.provider)} account for ${blockName}`,
-    }
-  }
-
-  // Handle secret fields (password: true) - includes API keys, bot tokens, passwords, etc.
-  if (subBlockConfig.password === true) {
-    return {
-      type: CredentialType.SECRET,
-      label: subBlockConfig.title || formatFieldName(subBlockConfig.id),
-      blockType,
-      subBlockId: subBlockConfig.id,
-      required: subBlockConfig.required !== false,
-      description:
-        subBlockConfig.description ||
-        `${subBlockConfig.title || formatFieldName(subBlockConfig.id)} for ${blockName}`,
-    }
-  }
-
-  return null
-}
-
-/**
- * Check if a subblock should be extracted as a credential
- * This is only used for subblocks that don't have proper config
- */
-function shouldExtractAsCredential(subBlock: any): boolean {
-  // Only extract if it's an OAuth input type
-  // We can't reliably detect password fields without the config
-  return subBlock.type === 'oauth-input'
-}
-
-/**
- * Get friendly provider label
- */
-function getProviderLabel(provider?: string): string | null {
-  if (!provider) return null
-  return (
-    PROVIDER_NAMES[provider] ||
-    provider.charAt(0).toUpperCase() + provider.slice(1).replace(/-/g, ' ')
-  )
 }
 
 /**
@@ -305,11 +221,6 @@ export function sanitizeWorkflowForSharing(
     // Process subBlocks without config (fallback)
     if (block.subBlocks) {
       Object.entries(block.subBlocks).forEach(([key, subBlock]: [string, any]) => {
-        // Clear OAuth that wasn't in config
-        if (shouldExtractAsCredential(subBlock)) {
-          subBlock.value = ''
-        }
-
         // Clear workspace-specific fields by key name
         if (WORKSPACE_SPECIFIC_FIELDS.has(key)) {
           subBlock.value = ''

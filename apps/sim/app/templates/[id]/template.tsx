@@ -60,6 +60,7 @@ import { cn } from '@/lib/utils'
 import type { CredentialRequirement } from '@/lib/workflows/credential-extractor'
 import type { Template } from '@/app/templates/templates'
 import { WorkflowPreview } from '@/app/workspace/[workspaceId]/w/components/workflow-preview/workflow-preview'
+import { getBlock } from '@/blocks/registry'
 
 const logger = createLogger('TemplateDetails')
 
@@ -706,9 +707,17 @@ export default function TemplateDetails() {
                   <h3 className='mb-3 font-semibold text-lg'>Credentials Needed</h3>
                   <ul className='list-disc pl-6 space-y-1 text-sm text-muted-foreground'>
                     {template.requiredCredentials.map(
-                      (cred: CredentialRequirement, idx: number) => (
-                        <li key={idx}>{cred.description || cred.label}</li>
-                      )
+                      (cred: CredentialRequirement, idx: number) => {
+                        // Get block name from registry or format blockType
+                        const blockName =
+                          getBlock(cred.blockType)?.name ||
+                          cred.blockType.charAt(0).toUpperCase() + cred.blockType.slice(1)
+                        const alreadyHasBlock = cred.label
+                          .toLowerCase()
+                          .includes(` for ${blockName.toLowerCase()}`)
+                        const text = alreadyHasBlock ? cred.label : `${cred.label} for ${blockName}`
+                        return <li key={idx}>{text}</li>
+                      }
                     )}
                   </ul>
                 </div>
