@@ -8,9 +8,9 @@ export const dynamic = 'force-dynamic'
 const logger = createLogger('PasswordResetAPI')
 
 const resetPasswordSchema = z.object({
-  token: z.string().min(1, 'Token is required'),
+  token: z.string({ required_error: 'Token is required' }).min(1, 'Token is required'),
   newPassword: z
-    .string()
+    .string({ required_error: 'Password is required' })
     .min(8, 'Password must be at least 8 characters long')
     .max(100, 'Password must not exceed 100 characters')
     .regex(/[A-Z]/, 'Password must contain at least one uppercase letter')
@@ -25,13 +25,13 @@ export async function POST(request: NextRequest) {
     const validationResult = resetPasswordSchema.safeParse(body)
 
     if (!validationResult.success) {
+      const firstError = validationResult.error.errors[0]
+      const errorMessage = firstError?.message || 'Invalid request data'
+
       logger.warn('Invalid password reset request data', {
         errors: validationResult.error.format(),
       })
-      return NextResponse.json(
-        { message: 'Invalid request data', details: validationResult.error.format() },
-        { status: 400 }
-      )
+      return NextResponse.json({ message: errorMessage }, { status: 400 })
     }
 
     const { token, newPassword } = validationResult.data

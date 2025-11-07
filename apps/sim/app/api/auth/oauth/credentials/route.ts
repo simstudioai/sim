@@ -48,7 +48,6 @@ export async function GET(request: NextRequest) {
     const parseResult = credentialsQuerySchema.safeParse(rawQuery)
 
     if (!parseResult.success) {
-      // Check for refinement errors (custom validation) first
       const refinementError = parseResult.error.errors.find((err) => err.code === 'custom')
       if (refinementError) {
         logger.warn(`[${requestId}] Invalid query parameters: ${refinementError.message}`)
@@ -60,18 +59,16 @@ export async function GET(request: NextRequest) {
         )
       }
 
-      // Handle other validation errors
-      const errors = parseResult.error.errors.map((err) => ({
-        path: err.path.join('.'),
-        message: err.message,
-      }))
+      const firstError = parseResult.error.errors[0]
+      const errorMessage = firstError?.message || 'Validation failed'
 
-      logger.warn(`[${requestId}] Invalid query parameters`, { errors })
+      logger.warn(`[${requestId}] Invalid query parameters`, {
+        errors: parseResult.error.errors,
+      })
 
       return NextResponse.json(
         {
-          error: 'Validation failed',
-          details: errors,
+          error: errorMessage,
         },
         { status: 400 }
       )

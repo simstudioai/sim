@@ -45,7 +45,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const url = new URL(request.url)
     const workflowId = url.searchParams.get('workflowId')
 
-    // Validate query parameters using Zod
     const validation = memoryQuerySchema.safeParse({ workflowId })
 
     if (!validation.success) {
@@ -127,7 +126,6 @@ export async function DELETE(
     const url = new URL(request.url)
     const workflowId = url.searchParams.get('workflowId')
 
-    // Validate query parameters using Zod
     const validation = memoryQuerySchema.safeParse({ workflowId })
 
     if (!validation.success) {

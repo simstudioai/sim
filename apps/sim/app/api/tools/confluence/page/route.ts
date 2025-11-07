@@ -149,7 +149,6 @@ export async function PUT(request: Request) {
   try {
     const body = await request.json()
 
-    // Validate with Zod
     const validation = putPageSchema.safeParse(body)
     if (!validation.success) {
       const firstError = validation.error.errors[0]
@@ -255,7 +254,6 @@ export async function DELETE(request: Request) {
   try {
     const body = await request.json()
 
-    // Validate with Zod
     const validation = deletePageSchema.safeParse(body)
     if (!validation.success) {
       const firstError = validation.error.errors[0]

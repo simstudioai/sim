@@ -11,12 +11,19 @@ export const dynamic = 'force-dynamic'
 const logger = createLogger('OAuthTokenAPI')
 
 const tokenRequestSchema = z.object({
-  credentialId: z.string().min(1, 'Credential ID is required'),
+  credentialId: z
+    .string({ required_error: 'Credential ID is required' })
+    .min(1, 'Credential ID is required'),
   workflowId: z.string().min(1, 'Workflow ID is required').nullish(),
 })
 
 const tokenQuerySchema = z.object({
-  credentialId: z.string().min(1, 'Credential ID is required'),
+  credentialId: z
+    .string({
+      required_error: 'Credential ID is required',
+      invalid_type_error: 'Credential ID is required',
+    })
+    .min(1, 'Credential ID is required'),
 })
 
 /**
@@ -34,17 +41,16 @@ export async function POST(request: NextRequest) {
     const parseResult = tokenRequestSchema.safeParse(rawBody)
 
     if (!parseResult.success) {
-      const errors = parseResult.error.errors.map((err) => ({
-        path: err.path.join('.'),
-        message: err.message,
-      }))
+      const firstError = parseResult.error.errors[0]
+      const errorMessage = firstError?.message || 'Validation failed'
 
-      logger.warn(`[${requestId}] Invalid token request`, { errors })
+      logger.warn(`[${requestId}] Invalid token request`, {
+        errors: parseResult.error.errors,
+      })
 
       return NextResponse.json(
         {
-          error: 'Validation failed',
-          details: errors,
+          error: errorMessage,
         },
         { status: 400 }
       )
@@ -94,17 +100,16 @@ export async function GET(request: NextRequest) {
     const parseResult = tokenQuerySchema.safeParse(rawQuery)
 
     if (!parseResult.success) {
-      const errors = parseResult.error.errors.map((err) => ({
-        path: err.path.join('.'),
-        message: err.message,
-      }))
+      const firstError = parseResult.error.errors[0]
+      const errorMessage = firstError?.message || 'Validation failed'
 
-      logger.warn(`[${requestId}] Invalid query parameters`, { errors })
+      logger.warn(`[${requestId}] Invalid query parameters`, {
+        errors: parseResult.error.errors,
+      })
 
       return NextResponse.json(
         {
-          error: 'Validation failed',
-          details: errors,
+          error: errorMessage,
         },
         { status: 400 }
       )

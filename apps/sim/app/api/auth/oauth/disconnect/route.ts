@@ -12,7 +12,7 @@ export const dynamic = 'force-dynamic'
 const logger = createLogger('OAuthDisconnectAPI')
 
 const disconnectSchema = z.object({
-  provider: z.string().min(1, 'Provider is required'),
+  provider: z.string({ required_error: 'Provider is required' }).min(1, 'Provider is required'),
   providerId: z.string().optional(),
 })
 
@@ -34,17 +34,16 @@ export async function POST(request: NextRequest) {
     const parseResult = disconnectSchema.safeParse(rawBody)
 
     if (!parseResult.success) {
-      const errors = parseResult.error.errors.map((err) => ({
-        path: err.path.join('.'),
-        message: err.message,
-      }))
+      const firstError = parseResult.error.errors[0]
+      const errorMessage = firstError?.message || 'Validation failed'
 
-      logger.warn(`[${requestId}] Invalid disconnect request`, { errors })
+      logger.warn(`[${requestId}] Invalid disconnect request`, {
+        errors: parseResult.error.errors,
+      })
 
       return NextResponse.json(
         {
-          error: 'Validation failed',
-          details: errors,
+          error: errorMessage,
         },
         { status: 400 }
       )

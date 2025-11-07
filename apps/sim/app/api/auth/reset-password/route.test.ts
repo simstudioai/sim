@@ -58,7 +58,7 @@ describe('Reset Password API Route', () => {
     const data = await response.json()
 
     expect(response.status).toBe(400)
-    expect(data.message).toBe('Invalid request data')
+    expect(data.message).toBe('Token is required')
 
     const auth = await import('@/lib/auth')
     expect(auth.auth.api.resetPassword).not.toHaveBeenCalled()
@@ -77,7 +77,7 @@ describe('Reset Password API Route', () => {
     const data = await response.json()
 
     expect(response.status).toBe(400)
-    expect(data.message).toBe('Invalid request data')
+    expect(data.message).toBe('Password is required')
 
     const auth = await import('@/lib/auth')
     expect(auth.auth.api.resetPassword).not.toHaveBeenCalled()
@@ -97,7 +97,7 @@ describe('Reset Password API Route', () => {
     const data = await response.json()
 
     expect(response.status).toBe(400)
-    expect(data.message).toBe('Invalid request data')
+    expect(data.message).toBe('Token is required')
 
     const auth = await import('@/lib/auth')
     expect(auth.auth.api.resetPassword).not.toHaveBeenCalled()
@@ -117,7 +117,7 @@ describe('Reset Password API Route', () => {
     const data = await response.json()
 
     expect(response.status).toBe(400)
-    expect(data.message).toBe('Invalid request data')
+    expect(data.message).toBe('Password must be at least 8 characters long')
 
     const auth = await import('@/lib/auth')
     expect(auth.auth.api.resetPassword).not.toHaveBeenCalled()

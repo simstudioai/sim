@@ -50,7 +50,6 @@ export async function PUT(request: Request) {
   try {
     const body = await request.json()
 
-    // Validate with Zod
     const validation = putCommentSchema.safeParse(body)
     if (!validation.success) {
       const firstError = validation.error.errors[0]
@@ -134,7 +133,6 @@ export async function DELETE(request: Request) {
   try {
     const body = await request.json()
 
-    // Validate with Zod
     const validation = deleteCommentSchema.safeParse(body)
     if (!validation.success) {
       const firstError = validation.error.errors[0]
