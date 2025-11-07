@@ -105,18 +105,15 @@ export function jiraSetupInstructions(eventType: string, additionalNotes?: strin
 }
 
 /**
- * Build comprehensive outputs for issue-related triggers
+ * Build base outputs common to all Jira webhook triggers
  */
-export function buildIssueOutputs(): Record<string, TriggerOutput> {
+function buildBaseWebhookOutputs(): Record<string, TriggerOutput> {
   return {
     // Event metadata
     event_type: {
       type: 'string',
-      description: 'The webhook event type (e.g., jira:issue_created, jira:issue_updated)',
-    },
-    issue_event_type_name: {
-      type: 'string',
-      description: 'Issue event type name from Jira',
+      description:
+        'The webhook event type (e.g., jira:issue_created, comment_created, worklog_created)',
     },
     timestamp: {
       type: 'number',
@@ -210,15 +207,12 @@ export function buildIssueOutputs(): Record<string, TriggerOutput> {
     // Nested complete objects for detailed access
     jira: {
       type: 'json',
-      description: 'Complete Jira webhook payload with issue, changelog, user, and event data',
+      description:
+        'Complete Jira webhook payload (access nested data like jira.user.accountId, jira.issue.id, jira.issue.fields.summary, etc.)',
     },
     issue: {
       type: 'json',
       description: 'Complete issue object from Jira',
-    },
-    changelog: {
-      type: 'json',
-      description: 'Changelog object (for update events) showing what fields changed',
     },
     user: {
       type: 'json',
@@ -234,11 +228,43 @@ export function buildIssueOutputs(): Record<string, TriggerOutput> {
 }
 
 /**
+ * Build outputs for issue created/deleted triggers (no changelog)
+ */
+export function buildIssueOutputs(): Record<string, TriggerOutput> {
+  return {
+    ...buildBaseWebhookOutputs(),
+    issue_event_type_name: {
+      type: 'string',
+      description: 'Issue event type name from Jira (only present in issue events)',
+    },
+  }
+}
+
+/**
+ * Build outputs for issue updated trigger (includes changelog)
+ */
+export function buildIssueUpdatedOutputs(): Record<string, TriggerOutput> {
+  return {
+    ...buildBaseWebhookOutputs(),
+    issue_event_type_name: {
+      type: 'string',
+      description: 'Issue event type name from Jira (only present in issue events)',
+    },
+    changelog: {
+      type: 'json',
+      description:
+        'Changelog object showing what fields changed (only available for issue_updated events)',
+    },
+  }
+}
+
+/**
  * Build outputs for comment-related triggers
+ * Note: Comment webhooks do not include changelog or issue_event_type_name
  */
 export function buildCommentOutputs(): Record<string, TriggerOutput> {
   return {
-    ...buildIssueOutputs(),
+    ...buildBaseWebhookOutputs(),
 
     // Comment-specific fields
     comment_id: {
@@ -268,17 +294,18 @@ export function buildCommentOutputs(): Record<string, TriggerOutput> {
 
     comment: {
       type: 'json',
-      description: 'Complete comment object',
+      description: 'Complete comment object from Jira',
     },
   }
 }
 
 /**
  * Build outputs for worklog-related triggers
+ * Note: Worklog webhooks do not include changelog or issue_event_type_name
  */
 export function buildWorklogOutputs(): Record<string, TriggerOutput> {
   return {
-    ...buildIssueOutputs(),
+    ...buildBaseWebhookOutputs(),
 
     // Worklog-specific fields
     worklog_id: {
@@ -312,7 +339,7 @@ export function buildWorklogOutputs(): Record<string, TriggerOutput> {
 
     worklog: {
       type: 'json',
-      description: 'Complete worklog object',
+      description: 'Complete worklog object from Jira',
     },
   }
 }
@@ -392,15 +419,8 @@ export function extractIssueData(body: any) {
     user_id: user.accountId,
     user_email: user.emailAddress,
 
-    // Nested complete objects
-    jira: {
-      event: body.webhookEvent,
-      issue: issue,
-      changelog: body.changelog,
-      user: user,
-      timestamp: body.timestamp,
-      matched_webhook_ids: body.matchedWebhookIds,
-    },
+    // Complete Jira webhook payload for direct nested access (e.g., <jira.user.accountId>, <jira.issue.id>)
+    jira: body,
     issue: issue,
     changelog: body.changelog,
     user: user,
