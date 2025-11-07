@@ -278,7 +278,7 @@ function buildUnifiedStartOutput(workflowInput: unknown): NormalizedBlockOutput 
       output.conversationId = conversationId
     }
   } else if (typeof output.conversationId === 'string' && output.conversationId.length === 0) {
-    delete output.conversationId
+    output.conversationId = undefined
   }
 
   return mergeFilesIntoOutput(output, workflowInput)
