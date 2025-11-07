@@ -45,7 +45,7 @@ export const jiraIssueCommentedTrigger: TriggerConfig = {
     },
     {
       id: 'jqlFilter',
-      title: 'JQL Filter (Optional)',
+      title: 'JQL Filter',
       type: 'long-input',
       placeholder: 'project = PROJ AND issuetype = Bug',
       description: 'Filter which issue comments trigger this workflow using JQL',

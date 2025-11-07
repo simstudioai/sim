@@ -284,7 +284,7 @@ export const GmailBlock: BlockConfig<GmailToolResponse> = {
     // Source label selector (basic mode)
     {
       id: 'sourceLabel',
-      title: 'Remove From Label (Optional)',
+      title: 'Remove From Label',
       type: 'folder-selector',
       layout: 'full',
       canonicalParamId: 'removeLabelIds',
@@ -303,7 +303,7 @@ export const GmailBlock: BlockConfig<GmailToolResponse> = {
     // Manual source label input (advanced mode)
     {
       id: 'manualSourceLabel',
-      title: 'Remove From Label (Optional)',
+      title: 'Remove From Label',
       type: 'short-input',
       layout: 'full',
       canonicalParamId: 'removeLabelIds',

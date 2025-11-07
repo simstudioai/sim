@@ -229,7 +229,7 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
     },
     {
       id: 'transitionComment',
-      title: 'Comment (Optional)',
+      title: 'Comment',
       type: 'long-input',
       placeholder: 'Add optional comment for transition',
       condition: { field: 'operation', value: 'transition' },
@@ -294,14 +294,14 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
     },
     {
       id: 'worklogComment',
-      title: 'Worklog Comment (Optional)',
+      title: 'Worklog Comment',
       type: 'long-input',
       placeholder: 'Enter optional worklog comment',
       condition: { field: 'operation', value: ['add_worklog', 'update_worklog'] },
     },
     {
       id: 'started',
-      title: 'Started At (Optional)',
+      title: 'Started At',
       type: 'short-input',
       placeholder: 'ISO timestamp (defaults to now)',
       condition: { field: 'operation', value: ['add_worklog', 'update_worklog'] },
@@ -341,7 +341,7 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
     },
     {
       id: 'linkComment',
-      title: 'Link Comment (Optional)',
+      title: 'Link Comment',
       type: 'long-input',
       placeholder: 'Add optional comment for the link',
       condition: { field: 'operation', value: 'create_link' },

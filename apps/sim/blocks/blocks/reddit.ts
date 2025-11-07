@@ -391,7 +391,7 @@ export const RedditBlock: BlockConfig<RedditResponse> = {
     },
     {
       id: 'saveCategory',
-      title: 'Category (optional)',
+      title: 'Category',
       type: 'short-input',
       placeholder: 'Enter category name',
       condition: {

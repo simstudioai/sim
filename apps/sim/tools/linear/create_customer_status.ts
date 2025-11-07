@@ -92,7 +92,7 @@ export const linearCreateCustomerStatusTool: ToolConfig<
           mutation CustomerStatusCreate($input: CustomerStatusCreateInput!) {
             customerStatusCreate(input: $input) {
               success
-              customerStatus {
+              status {
                 id
                 name
                 displayName
@@ -127,7 +127,7 @@ export const linearCreateCustomerStatusTool: ToolConfig<
     return {
       success: result.success,
       output: {
-        customerStatus: result.customerStatus,
+        customerStatus: result.status,
       },
     }
   },

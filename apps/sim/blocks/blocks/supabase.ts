@@ -410,14 +410,14 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
     },
     {
       id: 'matchThreshold',
-      title: 'Match Threshold (optional)',
+      title: 'Match Threshold',
       type: 'short-input',
       placeholder: '0.78',
       condition: { field: 'operation', value: 'vector_search' },
     },
     {
       id: 'matchCount',
-      title: 'Match Count (optional)',
+      title: 'Match Count',
       type: 'short-input',
       placeholder: '10',
       condition: { field: 'operation', value: 'vector_search' },
@@ -630,7 +630,7 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
     },
     {
       id: 'fileName',
-      title: 'File Name Override (optional)',
+      title: 'File Name Override',
       type: 'short-input',
       placeholder: 'my-file.jpg',
       condition: { field: 'operation', value: 'storage_download' },

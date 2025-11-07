@@ -160,6 +160,7 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
           'linear_list_cycles',
           'linear_create_cycle',
           'linear_get_active_cycle',
+          'linear_list_project_labels',
         ],
       },
     },
@@ -185,6 +186,7 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
           'linear_list_cycles',
           'linear_create_cycle',
           'linear_get_active_cycle',
+          'linear_list_project_labels',
         ],
       },
     },
@@ -207,7 +209,9 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
           'linear_get_project',
           'linear_update_project',
           'linear_archive_project',
+          'linear_delete_project',
           'linear_list_project_updates',
+          'linear_list_project_labels',
         ],
       },
     },
@@ -231,6 +235,7 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
           'linear_create_project_update',
           'linear_list_project_updates',
           'linear_create_project_link',
+          'linear_list_project_labels',
         ],
       },
     },
@@ -818,7 +823,7 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
     // Link customer request to issue
     {
       id: 'linkedIssueId',
-      title: 'Link to Issue (Optional)',
+      title: 'Link to Issue',
       type: 'short-input',
       placeholder: 'Enter issue ID to link',
       condition: {
@@ -960,7 +965,7 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
       id: 'projectLabelDescription',
       title: 'Label Description',
       type: 'long-input',
-      placeholder: 'Enter project label description (optional)',
+      placeholder: 'Enter project label description',
       condition: {
         field: 'operation',
         value: ['linear_create_project_label', 'linear_update_project_label'],
@@ -1867,7 +1872,10 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
             }
 
           case 'linear_list_project_labels':
-            return baseParams
+            return {
+              ...baseParams,
+              projectId: effectiveProjectId || undefined,
+            }
 
           case 'linear_add_label_to_project':
             if (!effectiveProjectId || !params.projectLabelId?.trim()) {

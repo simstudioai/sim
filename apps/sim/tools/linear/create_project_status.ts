@@ -88,7 +88,7 @@ export const linearCreateProjectStatusTool: ToolConfig<
           mutation ProjectStatusCreate($input: ProjectStatusCreateInput!) {
             projectStatusCreate(input: $input) {
               success
-              projectStatus {
+              status {
                 id
                 name
                 description
@@ -123,7 +123,7 @@ export const linearCreateProjectStatusTool: ToolConfig<
     return {
       success: result.success,
       output: {
-        projectStatus: result.projectStatus,
+        projectStatus: result.status,
       },
     }
   },

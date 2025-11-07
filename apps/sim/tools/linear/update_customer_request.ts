@@ -99,7 +99,7 @@ export const linearUpdateCustomerRequestTool: ToolConfig<
           mutation CustomerNeedUpdate($id: String!, $input: CustomerNeedUpdateInput!) {
             customerNeedUpdate(id: $id, input: $input) {
               success
-              customerNeed {
+              need {
                 id
                 body
                 priority
@@ -150,7 +150,7 @@ export const linearUpdateCustomerRequestTool: ToolConfig<
     return {
       success: result.success,
       output: {
-        customerNeed: result.customerNeed,
+        customerNeed: result.need,
       },
     }
   },

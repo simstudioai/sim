@@ -45,7 +45,7 @@ export const jiraIssueUpdatedTrigger: TriggerConfig = {
     },
     {
       id: 'jqlFilter',
-      title: 'JQL Filter (Optional)',
+      title: 'JQL Filter',
       type: 'long-input',
       placeholder: 'project = PROJ AND status changed to "In Progress"',
       description: 'Filter which issue updates trigger this workflow using JQL',
@@ -58,7 +58,7 @@ export const jiraIssueUpdatedTrigger: TriggerConfig = {
     },
     {
       id: 'fieldFilters',
-      title: 'Field Filters (Optional)',
+      title: 'Field Filters',
       type: 'long-input',
       placeholder: 'status, assignee, priority',
       description:

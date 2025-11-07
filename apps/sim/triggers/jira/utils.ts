@@ -59,7 +59,7 @@ export const jiraWebhookSubBlocks: SubBlockConfig[] = [
   },
   {
     id: 'webhookSecret',
-    title: 'Webhook Secret (Optional)',
+    title: 'Webhook Secret',
     type: 'short-input',
     placeholder: 'Enter webhook secret for validation',
     description: 'Optional secret to validate webhook deliveries from Jira using HMAC signature',

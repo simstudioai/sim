@@ -181,7 +181,7 @@ export const MicrosoftPlannerBlock: BlockConfig<MicrosoftPlannerResponse> = {
       id: 'description',
       title: 'Description',
       type: 'long-input',
-      placeholder: 'Enter task description (optional)',
+      placeholder: 'Enter task description',
       condition: { field: 'operation', value: ['create_task', 'update_task_details'] },
     },
 

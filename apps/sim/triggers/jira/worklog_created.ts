@@ -45,7 +45,7 @@ export const jiraWorklogCreatedTrigger: TriggerConfig = {
     },
     {
       id: 'jqlFilter',
-      title: 'JQL Filter (Optional)',
+      title: 'JQL Filter',
       type: 'long-input',
       placeholder: 'project = PROJ',
       description: 'Filter which worklog entries trigger this workflow using JQL',

@@ -45,7 +45,7 @@ export const jiraIssueDeletedTrigger: TriggerConfig = {
     },
     {
       id: 'jqlFilter',
-      title: 'JQL Filter (Optional)',
+      title: 'JQL Filter',
       type: 'long-input',
       placeholder: 'project = PROJ',
       description: 'Filter which issue deletions trigger this workflow using JQL',
