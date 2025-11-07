@@ -54,6 +54,7 @@ import { ParallelBlock } from '@/blocks/blocks/parallel'
 import { PauseResumeBlock } from '@/blocks/blocks/pause_resume'
 import { PerplexityBlock } from '@/blocks/blocks/perplexity'
 import { PineconeBlock } from '@/blocks/blocks/pinecone'
+import { PipedriveBlock } from '@/blocks/blocks/pipedrive'
 import { PostgreSQLBlock } from '@/blocks/blocks/postgresql'
 import { QdrantBlock } from '@/blocks/blocks/qdrant'
 import { RedditBlock } from '@/blocks/blocks/reddit'
@@ -148,6 +149,7 @@ export const registry: Record<string, BlockConfig> = {
   parallel_ai: ParallelBlock,
   perplexity: PerplexityBlock,
   pinecone: PineconeBlock,
+  pipedrive: PipedriveBlock,
   postgresql: PostgreSQLBlock,
   qdrant: QdrantBlock,
   resend: ResendBlock,

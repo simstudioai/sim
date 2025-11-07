@@ -1,0 +1,351 @@
+---
+title: Pipedrive
+description: Interact with Pipedrive CRM
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="pipedrive"
+  color="#E0E0E0"
+  icon={true}
+  iconSvg={`<svg className="block-icon"
+      
+      xmlns="http://www.w3.org/2000/svg"
+      
+      
+      viewBox="0 0 304 304"
+    >
+      <defs>
+        <path
+          id="path-1"
+          d="M59.6807,81.1772 C59.6807,101.5343 70.0078,123.4949 92.7336,123.4949 C109.5872,123.4949 126.6277,110.3374 126.6277,80.8785 C126.6277,55.0508 113.232,37.7119 93.2944,37.7119 C77.0483,37.7119 59.6807,49.1244 59.6807,81.1772 Z M101.3006,0 C142.0482,0 169.4469,32.2728 169.4469,80.3126 C169.4469,127.5978 140.584,160.60942 99.3224,160.60942 C79.6495,160.60942 67.0483,152.1836 60.4595,146.0843 C60.5063,147.5305 60.5374,149.1497 60.5374,150.8788 L60.5374,215 L18.32565,215 L18.32565,44.157 C18.32565,41.6732 17.53126,40.8873 15.07021,40.8873 L0.5531,40.8873 L0.5531,3.4741 L35.9736,3.4741 C52.282,3.4741 56.4564,11.7741 57.2508,18.1721 C63.8708,10.7524 77.5935,0 101.3006,0 Z"
+        />
+      </defs>
+      <g transform="translate(67,44)">
+        <mask id="mask-2" fill="#fff">
+          <use href="#path-1" />
+        </mask>
+        <use fill="#26292C" href="#path-1" />
+      </g>
+    </svg>`}
+/>
+
+## Usage Instructions
+
+Integrate Pipedrive into your workflow. Manage deals, contacts, sales pipeline, projects, activities, files, and communications with powerful CRM capabilities.
+
+
+
+## Tools
+
+### `pipedrive_get_all_deals`
+
+Retrieve all deals from Pipedrive with optional filters
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `status` | string | No | Only fetch deals with a specific status. Values: open, won, lost. If omitted, all not deleted deals are returned |
+| `person_id` | string | No | If supplied, only deals linked to the specified person are returned |
+| `org_id` | string | No | If supplied, only deals linked to the specified organization are returned |
+| `pipeline_id` | string | No | If supplied, only deals in the specified pipeline are returned |
+| `updated_since` | string | No | If set, only deals updated after this time are returned. Format: 2025-01-01T10:20:00Z |
+| `limit` | string | No | Number of results to return \(default: 100, max: 500\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation success status |
+| `output` | object | Deals data and metadata |
+
+### `pipedrive_get_deal`
+
+Retrieve detailed information about a specific deal
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `deal_id` | string | Yes | The ID of the deal to retrieve |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation success status |
+| `output` | object | Deal details |
+
+### `pipedrive_create_deal`
+
+Create a new deal in Pipedrive
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `title` | string | Yes | The title of the deal |
+| `value` | string | No | The monetary value of the deal |
+| `currency` | string | No | Currency code \(e.g., USD, EUR\) |
+| `person_id` | string | No | ID of the person this deal is associated with |
+| `org_id` | string | No | ID of the organization this deal is associated with |
+| `pipeline_id` | string | No | ID of the pipeline this deal should be placed in |
+| `stage_id` | string | No | ID of the stage this deal should be placed in |
+| `status` | string | No | Status of the deal: open, won, lost |
+| `expected_close_date` | string | No | Expected close date in YYYY-MM-DD format |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation success status |
+| `output` | object | Created deal details |
+
+### `pipedrive_update_deal`
+
+Update an existing deal in Pipedrive
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `deal_id` | string | Yes | The ID of the deal to update |
+| `title` | string | No | New title for the deal |
+| `value` | string | No | New monetary value for the deal |
+| `status` | string | No | New status: open, won, lost |
+| `stage_id` | string | No | New stage ID for the deal |
+| `expected_close_date` | string | No | New expected close date in YYYY-MM-DD format |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation success status |
+| `output` | object | Updated deal details |
+
+### `pipedrive_get_files`
+
+Retrieve files from Pipedrive with optional filters
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `deal_id` | string | No | Filter files by deal ID |
+| `person_id` | string | No | Filter files by person ID |
+| `org_id` | string | No | Filter files by organization ID |
+| `limit` | string | No | Number of results to return \(default: 100, max: 500\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation success status |
+| `output` | object | Files data |
+
+### `pipedrive_get_mail_messages`
+
+Retrieve mail messages from Pipedrive with optional filters
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `deal_id` | string | No | Filter messages by deal ID |
+| `person_id` | string | No | Filter messages by person ID |
+| `org_id` | string | No | Filter messages by organization ID |
+| `limit` | string | No | Number of results to return \(default: 100, max: 500\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation success status |
+| `output` | object | Mail messages data |
+
+### `pipedrive_get_mail_thread`
+
+Retrieve all messages from a specific mail thread
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `thread_id` | string | Yes | The ID of the mail thread |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation success status |
+| `output` | object | Mail thread messages data |
+
+### `pipedrive_get_pipelines`
+
+Retrieve all pipelines from Pipedrive
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation success status |
+| `output` | object | Pipelines data |
+
+### `pipedrive_get_pipeline_deals`
+
+Retrieve all deals in a specific pipeline
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `pipeline_id` | string | Yes | The ID of the pipeline |
+| `stage_id` | string | No | Filter by specific stage within the pipeline |
+| `status` | string | No | Filter by deal status: open, won, lost |
+| `limit` | string | No | Number of results to return \(default: 100, max: 500\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation success status |
+| `output` | object | Pipeline deals data |
+
+### `pipedrive_get_projects`
+
+Retrieve all projects from Pipedrive
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `status` | string | No | Filter by project status: open, completed, deleted |
+| `limit` | string | No | Number of results to return \(default: 100, max: 500\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation success status |
+| `output` | object | Projects data |
+
+### `pipedrive_get_project`
+
+Retrieve detailed information about a specific project
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `project_id` | string | Yes | The ID of the project to retrieve |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation success status |
+| `output` | object | Project details |
+
+### `pipedrive_create_project`
+
+Create a new project in Pipedrive
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `title` | string | Yes | The title of the project |
+| `description` | string | No | Description of the project |
+| `start_date` | string | No | Project start date in YYYY-MM-DD format |
+| `end_date` | string | No | Project end date in YYYY-MM-DD format |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation success status |
+| `output` | object | Created project details |
+
+### `pipedrive_get_activities`
+
+Retrieve activities (tasks) from Pipedrive with optional filters
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `deal_id` | string | No | Filter activities by deal ID |
+| `person_id` | string | No | Filter activities by person ID |
+| `org_id` | string | No | Filter activities by organization ID |
+| `type` | string | No | Filter by activity type \(call, meeting, task, deadline, email, lunch\) |
+| `done` | string | No | Filter by completion status: 0 for not done, 1 for done |
+| `limit` | string | No | Number of results to return \(default: 100, max: 500\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation success status |
+| `output` | object | Activities data |
+
+### `pipedrive_create_activity`
+
+Create a new activity (task) in Pipedrive
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `subject` | string | Yes | The subject/title of the activity |
+| `type` | string | Yes | Activity type: call, meeting, task, deadline, email, lunch |
+| `due_date` | string | Yes | Due date in YYYY-MM-DD format |
+| `due_time` | string | No | Due time in HH:MM format |
+| `duration` | string | No | Duration in HH:MM format |
+| `deal_id` | string | No | ID of the deal to associate with |
+| `person_id` | string | No | ID of the person to associate with |
+| `org_id` | string | No | ID of the organization to associate with |
+| `note` | string | No | Notes for the activity |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation success status |
+| `output` | object | Created activity details |
+
+### `pipedrive_update_activity`
+
+Update an existing activity (task) in Pipedrive
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `activity_id` | string | Yes | The ID of the activity to update |
+| `subject` | string | No | New subject/title for the activity |
+| `due_date` | string | No | New due date in YYYY-MM-DD format |
+| `due_time` | string | No | New due time in HH:MM format |
+| `duration` | string | No | New duration in HH:MM format |
+| `done` | string | No | Mark as done: 0 for not done, 1 for done |
+| `note` | string | No | New notes for the activity |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation success status |
+| `output` | object | Updated activity details |
+
+
+
+## Notes
+
+- Category: `tools`
+- Type: `pipedrive`

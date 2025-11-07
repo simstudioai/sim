@@ -22,6 +22,7 @@ import {
   MicrosoftTeamsIcon,
   NotionIcon,
   OutlookIcon,
+  PipedriveIcon,
   RedditIcon,
   SlackIcon,
   SupabaseIcon,
@@ -53,6 +54,7 @@ export type OAuthProvider =
   | 'wealthbox'
   | 'webflow'
   | 'asana'
+  | 'pipedrive'
   | string
 
 export type OAuthService =
@@ -85,6 +87,7 @@ export type OAuthService =
   | 'webflow'
   | 'trello'
   | 'asana'
+  | 'pipedrive'
 export interface OAuthProviderConfig {
   id: OAuthProvider
   name: string
@@ -657,6 +660,39 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     },
     defaultService: 'asana',
   },
+  pipedrive: {
+    id: 'pipedrive',
+    name: 'Pipedrive',
+    icon: (props) => PipedriveIcon(props),
+    services: {
+      pipedrive: {
+        id: 'pipedrive',
+        name: 'Pipedrive',
+        description: 'Manage deals, contacts, and sales pipeline in Pipedrive CRM.',
+        providerId: 'pipedrive',
+        icon: (props) => PipedriveIcon(props),
+        baseProviderIcon: (props) => PipedriveIcon(props),
+        scopes: [
+          'base',
+          'deals:read',
+          'deals:full',
+          'contacts:read',
+          'contacts:full',
+          'leads:read',
+          'leads:full',
+          'activities:read',
+          'activities:full',
+          'mail:read',
+          'mail:full',
+          'projects:read',
+          'projects:full',
+          'webhooks:read',
+          'webhooks:full',
+        ],
+      },
+    },
+    defaultService: 'pipedrive',
+  },
 }
 
 export function getServiceByProviderAndId(
@@ -1139,6 +1175,19 @@ function getProviderAuthConfig(provider: string): ProviderAuthConfig {
         clientId,
         clientSecret,
         useBasicAuth: true,
+        supportsRefreshTokenRotation: true,
+      }
+    }
+    case 'pipedrive': {
+      const { clientId, clientSecret } = getCredentials(
+        env.PIPEDRIVE_CLIENT_ID,
+        env.PIPEDRIVE_CLIENT_SECRET
+      )
+      return {
+        tokenEndpoint: 'https://oauth.pipedrive.com/oauth/token',
+        clientId,
+        clientSecret,
+        useBasicAuth: false,
         supportsRefreshTokenRotation: true,
       }
     }

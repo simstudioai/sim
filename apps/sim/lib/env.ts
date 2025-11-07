@@ -197,6 +197,8 @@ export const env = createEnv({
     HUBSPOT_CLIENT_SECRET:                 z.string().optional(),                  // HubSpot OAuth client secret
     WEALTHBOX_CLIENT_ID:                   z.string().optional(),                  // WealthBox OAuth client ID
     WEALTHBOX_CLIENT_SECRET:               z.string().optional(),                  // WealthBox OAuth client secret
+    PIPEDRIVE_CLIENT_ID:                   z.string().optional(),                  // Pipedrive OAuth client ID
+    PIPEDRIVE_CLIENT_SECRET:               z.string().optional(),                  // Pipedrive OAuth client secret
     LINEAR_CLIENT_ID:                      z.string().optional(),                  // Linear OAuth client ID
     LINEAR_CLIENT_SECRET:                  z.string().optional(),                  // Linear OAuth client secret
     SLACK_CLIENT_ID:                       z.string().optional(),                  // Slack OAuth client ID

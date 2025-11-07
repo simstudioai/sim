@@ -662,6 +662,68 @@ export const auth = betterAuth({
           },
         },
 
+        {
+          providerId: 'pipedrive',
+          clientId: env.PIPEDRIVE_CLIENT_ID as string,
+          clientSecret: env.PIPEDRIVE_CLIENT_SECRET as string,
+          authorizationUrl: 'https://oauth.pipedrive.com/oauth/authorize',
+          tokenUrl: 'https://oauth.pipedrive.com/oauth/token',
+          userInfoUrl: 'https://api.pipedrive.com/v1/users/me',
+          scopes: [
+            'base',
+            'deals:read',
+            'deals:full',
+            'contacts:read',
+            'contacts:full',
+            'leads:read',
+            'leads:full',
+            'activities:read',
+            'activities:full',
+            'mail:read',
+            'mail:full',
+            'projects:read',
+            'projects:full',
+            'webhooks:read',
+            'webhooks:full',
+          ],
+          responseType: 'code',
+          redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/pipedrive`,
+          getUserInfo: async (tokens) => {
+            try {
+              logger.info('Fetching Pipedrive user profile')
+
+              const response = await fetch('https://api.pipedrive.com/v1/users/me', {
+                headers: {
+                  Authorization: `Bearer ${tokens.accessToken}`,
+                },
+              })
+
+              if (!response.ok) {
+                logger.error('Failed to fetch Pipedrive user info', {
+                  status: response.status,
+                })
+                throw new Error('Failed to fetch user info')
+              }
+
+              const data = await response.json()
+              const user = data.data
+
+              return {
+                id: user.id.toString(),
+                name: user.name,
+                email: user.email,
+                emailVerified: user.activated,
+                image: user.icon_url,
+                createdAt: new Date(),
+                updatedAt: new Date(),
+              }
+            } catch (error) {
+              logger.error('Error creating Pipedrive user profile:', { error })
+              return null
+            }
+          },
+        },
+
         // Supabase provider
         {
           providerId: 'supabase',
