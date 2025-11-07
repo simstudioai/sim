@@ -325,6 +325,9 @@ export async function POST(req: NextRequest) {
       ...(processedFileContents.length > 0 && { fileAttachments: processedFileContents }),
     }
 
+
+    console.log('requestPayload', requestPayload)
+
     try {
       logger.info(`[${tracker.requestId}] About to call Sim Agent`, {
         hasContext: agentContexts.length > 0,

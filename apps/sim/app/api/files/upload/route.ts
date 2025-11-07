@@ -245,6 +245,11 @@ export async function POST(request: NextRequest) {
 
         logger.info(`Uploading ${context} file: ${originalName}`)
 
+        // Generate storage key with context prefix and timestamp to ensure uniqueness
+        const timestamp = Date.now()
+        const safeFileName = originalName.replace(/\s+/g, '-')
+        const storageKey = `${context}/${timestamp}-${safeFileName}`
+
         const metadata: Record<string, string> = {
           originalName: originalName,
           uploadedAt: new Date().toISOString(),
@@ -258,9 +263,11 @@ export async function POST(request: NextRequest) {
 
         const fileInfo = await storageService.uploadFile({
           file: buffer,
-          fileName: originalName,
+          fileName: storageKey,
           contentType: file.type,
           context,
+          preserveKey: true,
+          customKey: storageKey,
           metadata,
         })
 
