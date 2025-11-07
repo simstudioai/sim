@@ -41,6 +41,9 @@ export const linearUnarchiveIssueTool: ToolConfig<
         mutation UnarchiveIssue($id: String!) {
           issueUnarchive(id: $id) {
             success
+            issue {
+              id
+            }
           }
         }
       `,
@@ -61,11 +64,12 @@ export const linearUnarchiveIssueTool: ToolConfig<
       }
     }
 
+    const result = data.data.issueUnarchive
     return {
-      success: data.data.issueUnarchive.success,
+      success: result.success,
       output: {
-        success: data.data.issueUnarchive.success,
-        issueId: response.ok ? data.data.issueUnarchive.success : '',
+        success: result.success,
+        issueId: result.issue?.id || '',
       },
     }
   },

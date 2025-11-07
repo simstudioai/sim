@@ -42,7 +42,7 @@ In Sim, the Linear integration allows your agents to seamlessly interact with yo
 
 ## Usage Instructions
 
-Integrate Linear into the workflow. Can manage issues, comments, projects, labels, workflow states, cycles, attachments, and more.
+Integrate Linear into the workflow. Can manage issues, comments, projects, labels, workflow states, cycles, attachments, and more. Can also trigger workflows based on Linear webhook events.
 
 
 
@@ -890,6 +890,589 @@ Mark a notification as read or unread in Linear
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `notification` | object | The updated notification |
+
+### `linear_create_customer`
+
+Create a new customer in Linear
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `name` | string | Yes | Customer name |
+| `domains` | array | No | Domains associated with this customer |
+| `externalIds` | array | No | External IDs from other systems |
+| `logoUrl` | string | No | Customer's logo URL |
+| `ownerId` | string | No | ID of the user who owns this customer |
+| `revenue` | number | No | Annual revenue from this customer |
+| `size` | number | No | Size of the customer organization |
+| `statusId` | string | No | Customer status ID |
+| `tierId` | string | No | Customer tier ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `customer` | object | The created customer |
+
+### `linear_list_customers`
+
+List all customers in Linear
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `first` | number | No | Number of customers to return \(default: 50\) |
+| `after` | string | No | Cursor for pagination |
+| `includeArchived` | boolean | No | Include archived customers \(default: false\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `customers` | array | Array of customers |
+
+### `linear_create_customer_request`
+
+Create a customer request (need) in Linear. Assign to customer, set urgency (priority: 0 = Not important, 1 = Important), and optionally link to an issue.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `customerId` | string | Yes | Customer ID to assign this request to |
+| `body` | string | No | Description of the customer request |
+| `priority` | number | No | Urgency level: 0 = Not important, 1 = Important \(default: 0\) |
+| `issueId` | string | No | Issue ID to link this request to |
+| `projectId` | string | No | Project ID to link this request to |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `customerNeed` | object | The created customer request |
+
+### `linear_update_customer_request`
+
+Update a customer request (need) in Linear. Can change urgency, description, customer assignment, and linked issue.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `customerNeedId` | string | Yes | Customer request ID to update |
+| `body` | string | No | Updated description of the customer request |
+| `priority` | number | No | Updated urgency level: 0 = Not important, 1 = Important |
+| `customerId` | string | No | New customer ID to assign this request to |
+| `issueId` | string | No | New issue ID to link this request to |
+| `projectId` | string | No | New project ID to link this request to |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `customerNeed` | object | The updated customer request |
+
+### `linear_list_customer_requests`
+
+List all customer requests (needs) in Linear
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `first` | number | No | Number of customer requests to return \(default: 50\) |
+| `after` | string | No | Cursor for pagination |
+| `includeArchived` | boolean | No | Include archived customer requests \(default: false\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `customerNeeds` | array | Array of customer requests |
+
+### `linear_get_customer`
+
+Get a single customer by ID in Linear
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `customerId` | string | Yes | Customer ID to retrieve |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `customer` | object | The customer data |
+
+### `linear_update_customer`
+
+Update a customer in Linear
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `customerId` | string | Yes | Customer ID to update |
+| `name` | string | No | Updated customer name |
+| `domains` | array | No | Updated domains |
+| `externalIds` | array | No | Updated external IDs |
+| `logoUrl` | string | No | Updated logo URL |
+| `ownerId` | string | No | Updated owner user ID |
+| `revenue` | number | No | Updated annual revenue |
+| `size` | number | No | Updated organization size |
+| `statusId` | string | No | Updated customer status ID |
+| `tierId` | string | No | Updated customer tier ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `customer` | object | The updated customer |
+
+### `linear_delete_customer`
+
+Delete a customer in Linear
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `customerId` | string | Yes | Customer ID to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the deletion was successful |
+
+### `linear_merge_customers`
+
+Merge two customers in Linear by moving all data from source to target
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `sourceCustomerId` | string | Yes | Source customer ID \(will be deleted after merge\) |
+| `targetCustomerId` | string | Yes | Target customer ID \(will receive all data\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `customer` | object | The merged target customer |
+
+### `linear_create_customer_status`
+
+Create a new customer status in Linear
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `name` | string | Yes | Customer status name |
+| `color` | string | Yes | Status color \(hex code\) |
+| `displayName` | string | No | Display name for the status |
+| `description` | string | No | Status description |
+| `position` | number | No | Position in status list |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `customerStatus` | object | The created customer status |
+
+### `linear_update_customer_status`
+
+Update a customer status in Linear
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `statusId` | string | Yes | Customer status ID to update |
+| `name` | string | No | Updated status name |
+| `color` | string | No | Updated status color |
+| `displayName` | string | No | Updated display name |
+| `description` | string | No | Updated description |
+| `position` | number | No | Updated position |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `customerStatus` | object | The updated customer status |
+
+### `linear_delete_customer_status`
+
+Delete a customer status in Linear
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `statusId` | string | Yes | Customer status ID to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the deletion was successful |
+
+### `linear_list_customer_statuses`
+
+List all customer statuses in Linear
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `customerStatuses` | array | List of customer statuses |
+
+### `linear_create_customer_tier`
+
+Create a new customer tier in Linear
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `name` | string | Yes | Customer tier name |
+| `color` | string | Yes | Tier color \(hex code\) |
+| `displayName` | string | No | Display name for the tier |
+| `description` | string | No | Tier description |
+| `position` | number | No | Position in tier list |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `customerTier` | object | The created customer tier |
+
+### `linear_update_customer_tier`
+
+Update a customer tier in Linear
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `tierId` | string | Yes | Customer tier ID to update |
+| `name` | string | No | Updated tier name |
+| `color` | string | No | Updated tier color |
+| `displayName` | string | No | Updated display name |
+| `description` | string | No | Updated description |
+| `position` | number | No | Updated position |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `customerTier` | object | The updated customer tier |
+
+### `linear_delete_customer_tier`
+
+Delete a customer tier in Linear
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `tierId` | string | Yes | Customer tier ID to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the deletion was successful |
+
+### `linear_list_customer_tiers`
+
+List all customer tiers in Linear
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `customerTiers` | array | List of customer tiers |
+
+### `linear_delete_project`
+
+Delete a project in Linear
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | Project ID to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the deletion was successful |
+
+### `linear_create_project_label`
+
+Create a new project label in Linear
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `name` | string | Yes | Project label name |
+| `color` | string | No | Label color \(hex code\) |
+| `description` | string | No | Label description |
+| `isGroup` | boolean | No | Whether this is a label group |
+| `parentId` | string | No | Parent label group ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `projectLabel` | object | The created project label |
+
+### `linear_update_project_label`
+
+Update a project label in Linear
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `labelId` | string | Yes | Project label ID to update |
+| `name` | string | No | Updated label name |
+| `color` | string | No | Updated label color |
+| `description` | string | No | Updated description |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `projectLabel` | object | The updated project label |
+
+### `linear_delete_project_label`
+
+Delete a project label in Linear
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `labelId` | string | Yes | Project label ID to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the deletion was successful |
+
+### `linear_list_project_labels`
+
+List all project labels in Linear
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `projectLabels` | array | List of project labels |
+
+### `linear_add_label_to_project`
+
+Add a label to a project in Linear
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | Project ID |
+| `labelId` | string | Yes | Label ID to add |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the label was added successfully |
+| `projectId` | string | The project ID |
+
+### `linear_remove_label_from_project`
+
+Remove a label from a project in Linear
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | Project ID |
+| `labelId` | string | Yes | Label ID to remove |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the label was removed successfully |
+| `projectId` | string | The project ID |
+
+### `linear_create_project_milestone`
+
+Create a new project milestone in Linear
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | Project ID |
+| `name` | string | Yes | Milestone name |
+| `description` | string | No | Milestone description |
+| `targetDate` | string | No | Target date \(ISO 8601\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `projectMilestone` | object | The created project milestone |
+
+### `linear_update_project_milestone`
+
+Update a project milestone in Linear
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `milestoneId` | string | Yes | Project milestone ID to update |
+| `name` | string | No | Updated milestone name |
+| `description` | string | No | Updated description |
+| `targetDate` | string | No | Updated target date \(ISO 8601\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `projectMilestone` | object | The updated project milestone |
+
+### `linear_delete_project_milestone`
+
+Delete a project milestone in Linear
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `milestoneId` | string | Yes | Project milestone ID to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the deletion was successful |
+
+### `linear_list_project_milestones`
+
+List all milestones for a project in Linear
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | Project ID to list milestones for |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `projectMilestones` | array | List of project milestones |
+
+### `linear_create_project_status`
+
+Create a new project status in Linear
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `name` | string | Yes | Project status name |
+| `color` | string | Yes | Status color \(hex code\) |
+| `description` | string | No | Status description |
+| `indefinite` | boolean | No | Whether the status is indefinite |
+| `position` | number | No | Position in status list |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `projectStatus` | object | The created project status |
+
+### `linear_update_project_status`
+
+Update a project status in Linear
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `statusId` | string | Yes | Project status ID to update |
+| `name` | string | No | Updated status name |
+| `color` | string | No | Updated status color |
+| `description` | string | No | Updated description |
+| `indefinite` | boolean | No | Updated indefinite flag |
+| `position` | number | No | Updated position |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `projectStatus` | object | The updated project status |
+
+### `linear_delete_project_status`
+
+Delete a project status in Linear
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `statusId` | string | Yes | Project status ID to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the deletion was successful |
+
+### `linear_list_project_statuses`
+
+List all project statuses in Linear
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `projectStatuses` | array | List of project statuses |
 
 
 

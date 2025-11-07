@@ -57,7 +57,8 @@ export const linearCreateProjectUpdateTool: ToolConfig<
         body: params.body,
       }
 
-      if (params.health !== undefined) input.health = params.health
+      if (params.health !== undefined && params.health !== null && params.health !== '')
+        input.health = params.health
 
       return {
         query: `

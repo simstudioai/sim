@@ -59,7 +59,8 @@ export const linearCreateCycleTool: ToolConfig<LinearCreateCycleParams, LinearCr
           endsAt: params.endsAt,
         }
 
-        if (params.name !== undefined) input.name = params.name
+        if (params.name !== undefined && params.name !== null && params.name !== '')
+          input.name = params.name
 
         return {
           query: `

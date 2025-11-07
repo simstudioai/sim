@@ -58,7 +58,15 @@ export const searchTool: ToolConfig<ParallelSearchParams, ToolResponse> = {
     body: (params) => {
       const body: Record<string, unknown> = {
         objective: params.objective,
-        search_queries: params.search_queries,
+      }
+
+      // Only include search_queries if it's not empty
+      if (
+        params.search_queries !== undefined &&
+        params.search_queries !== null &&
+        params.search_queries.length > 0
+      ) {
+        body.search_queries = params.search_queries
       }
 
       // Add optional parameters if provided

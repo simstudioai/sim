@@ -5,6 +5,7 @@ export interface OutlookSendParams {
   to: string
   subject: string
   body: string
+  contentType?: 'text' | 'html'
   // Thread support parameters
   replyToMessageId?: string
   conversationId?: string
@@ -42,6 +43,7 @@ export interface OutlookDraftParams {
   bcc?: string
   subject: string
   body: string
+  contentType?: 'text' | 'html'
   attachments?: any[]
 }
 

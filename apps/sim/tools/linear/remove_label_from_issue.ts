@@ -50,6 +50,9 @@ export const linearRemoveLabelFromIssueTool: ToolConfig<
         mutation RemoveLabelFromIssue($issueId: String!, $labelId: String!) {
           issueRemoveLabel(id: $issueId, labelId: $labelId) {
             success
+            issue {
+              id
+            }
           }
         }
       `,
@@ -71,11 +74,12 @@ export const linearRemoveLabelFromIssueTool: ToolConfig<
       }
     }
 
+    const result = data.data.issueRemoveLabel
     return {
-      success: data.data.issueRemoveLabel.success,
+      success: result.success,
       output: {
-        success: data.data.issueRemoveLabel.success,
-        issueId: response.ok ? data.data.issueRemoveLabel.success : '',
+        success: result.success,
+        issueId: result.issue?.id || '',
       },
     }
   },

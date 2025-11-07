@@ -68,7 +68,7 @@ export async function POST(request: Request) {
       },
     }
 
-    if (parentId) {
+    if (parentId !== undefined && parentId !== null && parentId !== '') {
       createBody.parentId = parentId
     }
 

@@ -103,6 +103,19 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
       condition: { field: 'operation', value: ['send_outlook', 'draft_outlook'] },
       required: true,
     },
+    {
+      id: 'contentType',
+      title: 'Content Type',
+      type: 'dropdown',
+      layout: 'full',
+      options: [
+        { label: 'Plain Text', id: 'text' },
+        { label: 'HTML', id: 'html' },
+      ],
+      condition: { field: 'operation', value: ['send_outlook', 'draft_outlook'] },
+      value: () => 'text',
+      required: false,
+    },
     // File upload (basic mode)
     {
       id: 'attachmentFiles',
@@ -406,6 +419,7 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
     to: { type: 'string', description: 'Recipient email address' },
     subject: { type: 'string', description: 'Email subject' },
     body: { type: 'string', description: 'Email content' },
+    contentType: { type: 'string', description: 'Content type (Text or HTML)' },
     attachmentFiles: { type: 'json', description: 'Files to attach (UI upload)' },
     attachments: { type: 'json', description: 'Files to attach (UserFile array)' },
     // Forward operation inputs

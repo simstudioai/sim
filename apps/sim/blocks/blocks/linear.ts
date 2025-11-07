@@ -2,14 +2,16 @@ import { LinearIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
 import type { LinearResponse } from '@/tools/linear/types'
+import { getTrigger } from '@/triggers'
 
 export const LinearBlock: BlockConfig<LinearResponse> = {
   type: 'linear',
   name: 'Linear',
   description: 'Interact with Linear issues, projects, and more',
   authMode: AuthMode.OAuth,
+  triggerAllowed: true,
   longDescription:
-    'Integrate Linear into the workflow. Can manage issues, comments, projects, labels, workflow states, cycles, attachments, and more.',
+    'Integrate Linear into the workflow. Can manage issues, comments, projects, labels, workflow states, cycles, attachments, and more. Can also trigger workflows based on Linear webhook events.',
   docsLink: 'https://docs.sim.ai/tools/linear',
   category: 'tools',
   icon: LinearIcon,
@@ -79,6 +81,47 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
         // Notification Operations
         { label: 'List Notifications', id: 'linear_list_notifications' },
         { label: 'Update Notification', id: 'linear_update_notification' },
+        // Customer Operations
+        { label: 'Create Customer', id: 'linear_create_customer' },
+        { label: 'List Customers', id: 'linear_list_customers' },
+        // Customer Request Operations
+        { label: 'Create Customer Request', id: 'linear_create_customer_request' },
+        { label: 'Update Customer Request', id: 'linear_update_customer_request' },
+        { label: 'List Customer Requests', id: 'linear_list_customer_requests' },
+        // Customer Management Operations
+        { label: 'Get Customer', id: 'linear_get_customer' },
+        { label: 'Update Customer', id: 'linear_update_customer' },
+        { label: 'Delete Customer', id: 'linear_delete_customer' },
+        { label: 'Merge Customers', id: 'linear_merge_customers' },
+        // Customer Status Operations
+        { label: 'Create Customer Status', id: 'linear_create_customer_status' },
+        { label: 'Update Customer Status', id: 'linear_update_customer_status' },
+        { label: 'Delete Customer Status', id: 'linear_delete_customer_status' },
+        { label: 'List Customer Statuses', id: 'linear_list_customer_statuses' },
+        // Customer Tier Operations
+        { label: 'Create Customer Tier', id: 'linear_create_customer_tier' },
+        { label: 'Update Customer Tier', id: 'linear_update_customer_tier' },
+        { label: 'Delete Customer Tier', id: 'linear_delete_customer_tier' },
+        { label: 'List Customer Tiers', id: 'linear_list_customer_tiers' },
+        // Project Management Operations
+        { label: 'Delete Project', id: 'linear_delete_project' },
+        // Project Label Operations
+        { label: 'Create Project Label', id: 'linear_create_project_label' },
+        { label: 'Update Project Label', id: 'linear_update_project_label' },
+        { label: 'Delete Project Label', id: 'linear_delete_project_label' },
+        { label: 'List Project Labels', id: 'linear_list_project_labels' },
+        { label: 'Add Label to Project', id: 'linear_add_label_to_project' },
+        { label: 'Remove Label from Project', id: 'linear_remove_label_from_project' },
+        // Project Milestone Operations
+        { label: 'Create Project Milestone', id: 'linear_create_project_milestone' },
+        { label: 'Update Project Milestone', id: 'linear_update_project_milestone' },
+        { label: 'Delete Project Milestone', id: 'linear_delete_project_milestone' },
+        { label: 'List Project Milestones', id: 'linear_list_project_milestones' },
+        // Project Status Operations
+        { label: 'Create Project Status', id: 'linear_create_project_status' },
+        { label: 'Update Project Status', id: 'linear_update_project_status' },
+        { label: 'Delete Project Status', id: 'linear_delete_project_status' },
+        { label: 'List Project Statuses', id: 'linear_list_project_statuses' },
       ],
       value: () => 'linear_read_issues',
     },
@@ -158,7 +201,14 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
       mode: 'basic',
       condition: {
         field: 'operation',
-        value: ['linear_read_issues', 'linear_create_issue'],
+        value: [
+          'linear_read_issues',
+          'linear_create_issue',
+          'linear_get_project',
+          'linear_update_project',
+          'linear_archive_project',
+          'linear_list_project_updates',
+        ],
       },
     },
     // Manual project ID input (advanced mode)
@@ -177,6 +227,7 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
           'linear_get_project',
           'linear_update_project',
           'linear_archive_project',
+          'linear_delete_project',
           'linear_create_project_update',
           'linear_list_project_updates',
           'linear_create_project_link',
@@ -536,6 +587,28 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
         value: ['linear_create_favorite'],
       },
     },
+    // Pagination - First (for list operations)
+    {
+      id: 'first',
+      title: 'Limit',
+      type: 'short-input',
+      placeholder: 'Number of items to return (default: 50)',
+      condition: {
+        field: 'operation',
+        value: ['linear_list_favorites'],
+      },
+    },
+    // Pagination - After (for list operations)
+    {
+      id: 'after',
+      title: 'After Cursor',
+      type: 'short-input',
+      placeholder: 'Cursor for pagination',
+      condition: {
+        field: 'operation',
+        value: ['linear_list_favorites'],
+      },
+    },
     // Project health (for project updates)
     {
       id: 'health',
@@ -614,6 +687,438 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
         value: ['linear_update_project'],
       },
     },
+    // Customer name (for creating/updating customer)
+    {
+      id: 'customerName',
+      title: 'Customer Name',
+      type: 'short-input',
+      placeholder: 'Enter customer name',
+      required: true,
+      condition: {
+        field: 'operation',
+        value: ['linear_create_customer', 'linear_update_customer'],
+      },
+    },
+    // Customer domains
+    {
+      id: 'customerDomains',
+      title: 'Domains',
+      type: 'long-input',
+      placeholder: 'Enter domains (comma-separated)',
+      condition: {
+        field: 'operation',
+        value: ['linear_create_customer', 'linear_update_customer'],
+      },
+    },
+    // Customer external IDs
+    {
+      id: 'customerExternalIds',
+      title: 'External IDs',
+      type: 'long-input',
+      placeholder: 'Enter external IDs (comma-separated)',
+      condition: {
+        field: 'operation',
+        value: ['linear_create_customer', 'linear_update_customer'],
+      },
+    },
+    // Customer logo URL
+    {
+      id: 'customerLogoUrl',
+      title: 'Logo URL',
+      type: 'short-input',
+      placeholder: 'Enter logo URL',
+      condition: {
+        field: 'operation',
+        value: ['linear_create_customer', 'linear_update_customer'],
+      },
+    },
+    // Customer owner ID
+    {
+      id: 'customerOwnerId',
+      title: 'Owner User ID',
+      type: 'short-input',
+      placeholder: 'Enter owner user ID',
+      condition: {
+        field: 'operation',
+        value: ['linear_create_customer', 'linear_update_customer'],
+      },
+    },
+    // Customer revenue
+    {
+      id: 'customerRevenue',
+      title: 'Annual Revenue',
+      type: 'short-input',
+      placeholder: 'Enter annual revenue (number)',
+      condition: {
+        field: 'operation',
+        value: ['linear_create_customer', 'linear_update_customer'],
+      },
+    },
+    // Customer size
+    {
+      id: 'customerSize',
+      title: 'Organization Size',
+      type: 'short-input',
+      placeholder: 'Enter organization size (number)',
+      condition: {
+        field: 'operation',
+        value: ['linear_create_customer', 'linear_update_customer'],
+      },
+    },
+    // Customer ID (for customer request operations)
+    {
+      id: 'customerId',
+      title: 'Customer ID',
+      type: 'short-input',
+      placeholder: 'Enter customer ID',
+      required: true,
+      condition: {
+        field: 'operation',
+        value: ['linear_create_customer_request', 'linear_update_customer_request'],
+      },
+    },
+    // Customer request ID (for updating)
+    {
+      id: 'customerNeedId',
+      title: 'Customer Request ID',
+      type: 'short-input',
+      placeholder: 'Enter customer request ID',
+      required: true,
+      condition: {
+        field: 'operation',
+        value: ['linear_update_customer_request'],
+      },
+    },
+    // Customer request body/description
+    {
+      id: 'requestBody',
+      title: 'Request Description',
+      type: 'long-input',
+      placeholder: 'Enter customer request description',
+      condition: {
+        field: 'operation',
+        value: ['linear_create_customer_request', 'linear_update_customer_request'],
+      },
+    },
+    // Customer request priority/urgency
+    {
+      id: 'priority',
+      title: 'Urgency',
+      type: 'dropdown',
+      options: [
+        { label: 'Not Important (0)', id: '0' },
+        { label: 'Important (1)', id: '1' },
+      ],
+      value: () => '0',
+      condition: {
+        field: 'operation',
+        value: ['linear_create_customer_request', 'linear_update_customer_request'],
+      },
+    },
+    // Link customer request to issue
+    {
+      id: 'linkedIssueId',
+      title: 'Link to Issue (Optional)',
+      type: 'short-input',
+      placeholder: 'Enter issue ID to link',
+      condition: {
+        field: 'operation',
+        value: ['linear_create_customer_request', 'linear_update_customer_request'],
+      },
+    },
+    // Pagination - first
+    {
+      id: 'first',
+      title: 'Limit',
+      type: 'short-input',
+      placeholder: 'Number of items (default: 50)',
+      condition: {
+        field: 'operation',
+        value: ['linear_list_customers', 'linear_list_customer_requests'],
+      },
+    },
+    // Pagination - after
+    {
+      id: 'after',
+      title: 'After Cursor',
+      type: 'short-input',
+      placeholder: 'Cursor for pagination',
+      condition: {
+        field: 'operation',
+        value: ['linear_list_customers', 'linear_list_customer_requests'],
+      },
+    },
+    // Customer ID for get/update/delete/merge operations
+    {
+      id: 'customerIdTarget',
+      title: 'Customer ID',
+      type: 'short-input',
+      placeholder: 'Enter customer ID',
+      required: true,
+      condition: {
+        field: 'operation',
+        value: ['linear_get_customer', 'linear_update_customer', 'linear_delete_customer'],
+      },
+    },
+    // Source and target customer IDs for merge
+    {
+      id: 'sourceCustomerId',
+      title: 'Source Customer ID (to merge from)',
+      type: 'short-input',
+      placeholder: 'Customer ID to merge and delete',
+      required: true,
+      condition: {
+        field: 'operation',
+        value: ['linear_merge_customers'],
+      },
+    },
+    {
+      id: 'targetCustomerId',
+      title: 'Target Customer ID (to merge into)',
+      type: 'short-input',
+      placeholder: 'Customer ID to keep',
+      required: true,
+      condition: {
+        field: 'operation',
+        value: ['linear_merge_customers'],
+      },
+    },
+    // Customer status/tier fields
+    {
+      id: 'statusName',
+      title: 'Status Name',
+      type: 'short-input',
+      placeholder: 'Enter status name',
+      required: true,
+      condition: {
+        field: 'operation',
+        value: ['linear_create_customer_status'],
+      },
+    },
+    {
+      id: 'statusColor',
+      title: 'Status Color',
+      type: 'short-input',
+      placeholder: 'Enter hex color (e.g., #FF0000)',
+      required: true,
+      condition: {
+        field: 'operation',
+        value: [
+          'linear_create_customer_status',
+          'linear_create_customer_tier',
+          'linear_create_project_status',
+          'linear_create_project_label',
+        ],
+      },
+    },
+    {
+      id: 'statusId',
+      title: 'Status ID',
+      type: 'short-input',
+      placeholder: 'Enter status ID',
+      required: true,
+      condition: {
+        field: 'operation',
+        value: ['linear_update_customer_status', 'linear_delete_customer_status'],
+      },
+    },
+    {
+      id: 'tierName',
+      title: 'Tier Name',
+      type: 'short-input',
+      placeholder: 'Enter tier name (e.g., Enterprise, Pro)',
+      required: true,
+      condition: {
+        field: 'operation',
+        value: ['linear_create_customer_tier'],
+      },
+    },
+    {
+      id: 'tierId',
+      title: 'Tier ID',
+      type: 'short-input',
+      placeholder: 'Enter tier ID',
+      required: true,
+      condition: {
+        field: 'operation',
+        value: ['linear_update_customer_tier', 'linear_delete_customer_tier'],
+      },
+    },
+    // Project label fields
+    {
+      id: 'projectLabelName',
+      title: 'Label Name',
+      type: 'short-input',
+      placeholder: 'Enter project label name',
+      required: true,
+      condition: {
+        field: 'operation',
+        value: ['linear_create_project_label', 'linear_update_project_label'],
+      },
+    },
+    {
+      id: 'projectLabelDescription',
+      title: 'Label Description',
+      type: 'long-input',
+      placeholder: 'Enter project label description (optional)',
+      condition: {
+        field: 'operation',
+        value: ['linear_create_project_label', 'linear_update_project_label'],
+      },
+    },
+    {
+      id: 'projectLabelIsGroup',
+      title: 'Is Label Group',
+      type: 'dropdown',
+      options: [
+        { label: 'No', id: 'false' },
+        { label: 'Yes', id: 'true' },
+      ],
+      value: () => 'false',
+      condition: {
+        field: 'operation',
+        value: ['linear_create_project_label'],
+      },
+    },
+    {
+      id: 'projectLabelParentId',
+      title: 'Parent Label ID',
+      type: 'short-input',
+      placeholder: 'Enter parent label ID (for nested labels)',
+      condition: {
+        field: 'operation',
+        value: ['linear_create_project_label'],
+      },
+    },
+    {
+      id: 'projectLabelId',
+      title: 'Label ID',
+      type: 'short-input',
+      placeholder: 'Enter project label ID',
+      required: true,
+      condition: {
+        field: 'operation',
+        value: [
+          'linear_update_project_label',
+          'linear_delete_project_label',
+          'linear_add_label_to_project',
+          'linear_remove_label_from_project',
+        ],
+      },
+    },
+    // Project milestone fields
+    {
+      id: 'milestoneName',
+      title: 'Milestone Name',
+      type: 'short-input',
+      placeholder: 'Enter milestone name',
+      required: true,
+      condition: {
+        field: 'operation',
+        value: ['linear_create_project_milestone'],
+      },
+    },
+    {
+      id: 'milestoneDescription',
+      title: 'Milestone Description',
+      type: 'long-input',
+      placeholder: 'Enter milestone description',
+      condition: {
+        field: 'operation',
+        value: ['linear_create_project_milestone', 'linear_update_project_milestone'],
+      },
+    },
+    {
+      id: 'milestoneId',
+      title: 'Milestone ID',
+      type: 'short-input',
+      placeholder: 'Enter milestone ID',
+      required: true,
+      condition: {
+        field: 'operation',
+        value: ['linear_update_project_milestone', 'linear_delete_project_milestone'],
+      },
+    },
+    {
+      id: 'milestoneTargetDate',
+      title: 'Target Date',
+      type: 'short-input',
+      placeholder: 'YYYY-MM-DD',
+      condition: {
+        field: 'operation',
+        value: ['linear_create_project_milestone', 'linear_update_project_milestone'],
+      },
+    },
+    // Project status fields
+    {
+      id: 'projectStatusName',
+      title: 'Status Name',
+      type: 'short-input',
+      placeholder: 'Enter project status name',
+      required: true,
+      condition: {
+        field: 'operation',
+        value: ['linear_create_project_status'],
+      },
+    },
+    {
+      id: 'projectStatusId',
+      title: 'Status ID',
+      type: 'short-input',
+      placeholder: 'Enter project status ID',
+      required: true,
+      condition: {
+        field: 'operation',
+        value: ['linear_update_project_status', 'linear_delete_project_status'],
+      },
+    },
+    {
+      id: 'projectStatusIndefinite',
+      title: 'Can Stay Indefinitely',
+      type: 'dropdown',
+      options: [
+        { label: 'No', id: 'false' },
+        { label: 'Yes', id: 'true' },
+      ],
+      value: () => 'false',
+      condition: {
+        field: 'operation',
+        value: ['linear_create_project_status', 'linear_update_project_status'],
+      },
+    },
+    // Project ID for milestone/label operations
+    {
+      id: 'projectIdForMilestone',
+      title: 'Project ID',
+      type: 'short-input',
+      placeholder: 'Enter project ID',
+      required: true,
+      condition: {
+        field: 'operation',
+        value: [
+          'linear_create_project_milestone',
+          'linear_list_project_milestones',
+          'linear_add_label_to_project',
+          'linear_remove_label_from_project',
+        ],
+      },
+    },
+    // Trigger SubBlocks
+    ...getTrigger('linear_issue_created').subBlocks,
+    ...getTrigger('linear_issue_updated').subBlocks,
+    ...getTrigger('linear_issue_removed').subBlocks,
+    ...getTrigger('linear_comment_created').subBlocks,
+    ...getTrigger('linear_comment_updated').subBlocks,
+    ...getTrigger('linear_project_created').subBlocks,
+    ...getTrigger('linear_project_updated').subBlocks,
+    ...getTrigger('linear_cycle_created').subBlocks,
+    ...getTrigger('linear_cycle_updated').subBlocks,
+    ...getTrigger('linear_label_created').subBlocks,
+    ...getTrigger('linear_label_updated').subBlocks,
+    ...getTrigger('linear_project_update_created').subBlocks,
+    ...getTrigger('linear_customer_request_created').subBlocks,
+    ...getTrigger('linear_customer_request_updated').subBlocks,
+    ...getTrigger('linear_webhook').subBlocks,
   ],
   tools: {
     access: [
@@ -664,6 +1169,38 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
       'linear_create_project_link',
       'linear_list_notifications',
       'linear_update_notification',
+      'linear_create_customer',
+      'linear_list_customers',
+      'linear_create_customer_request',
+      'linear_update_customer_request',
+      'linear_list_customer_requests',
+      'linear_get_customer',
+      'linear_update_customer',
+      'linear_delete_customer',
+      'linear_merge_customers',
+      'linear_create_customer_status',
+      'linear_update_customer_status',
+      'linear_delete_customer_status',
+      'linear_list_customer_statuses',
+      'linear_create_customer_tier',
+      'linear_update_customer_tier',
+      'linear_delete_customer_tier',
+      'linear_list_customer_tiers',
+      'linear_delete_project',
+      'linear_create_project_label',
+      'linear_update_project_label',
+      'linear_delete_project_label',
+      'linear_list_project_labels',
+      'linear_add_label_to_project',
+      'linear_remove_label_from_project',
+      'linear_create_project_milestone',
+      'linear_update_project_milestone',
+      'linear_delete_project_milestone',
+      'linear_list_project_milestones',
+      'linear_create_project_status',
+      'linear_update_project_status',
+      'linear_delete_project_status',
+      'linear_list_project_statuses',
     ],
     config: {
       tool: (params) => {
@@ -1049,7 +1586,11 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
             }
 
           case 'linear_list_favorites':
-            return baseParams
+            return {
+              ...baseParams,
+              first: params.first ? Number(params.first) : undefined,
+              after: params.after,
+            }
 
           case 'linear_create_project_update':
             if (!effectiveProjectId || !params.body?.trim()) {
@@ -1094,6 +1635,342 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
               notificationId: params.notificationId.trim(),
               readAt: params.markAsRead ? new Date().toISOString() : null,
             }
+
+          case 'linear_create_customer':
+            if (!params.customerName?.trim()) {
+              throw new Error('Customer name is required.')
+            }
+            return {
+              ...baseParams,
+              name: params.customerName.trim(),
+              domains: params.customerDomains
+                ? params.customerDomains
+                    .split(',')
+                    .map((d: string) => d.trim())
+                    .filter(Boolean)
+                : undefined,
+            }
+
+          case 'linear_list_customers':
+            return {
+              ...baseParams,
+              first: params.first ? Number(params.first) : undefined,
+              after: params.after,
+              includeArchived: false,
+            }
+
+          case 'linear_create_customer_request':
+            if (!params.customerId?.trim()) {
+              throw new Error('Customer ID is required.')
+            }
+            return {
+              ...baseParams,
+              customerId: params.customerId.trim(),
+              body: params.requestBody?.trim(),
+              priority: params.priority !== undefined ? Number(params.priority) : 0,
+              issueId: params.linkedIssueId?.trim(),
+              projectId: effectiveProjectId || undefined,
+            }
+
+          case 'linear_update_customer_request':
+            if (!params.customerNeedId?.trim()) {
+              throw new Error('Customer Request ID is required.')
+            }
+            return {
+              ...baseParams,
+              customerNeedId: params.customerNeedId.trim(),
+              customerId: params.customerId?.trim(),
+              body: params.requestBody?.trim(),
+              priority: params.priority !== undefined ? Number(params.priority) : undefined,
+              issueId: params.linkedIssueId?.trim(),
+              projectId: effectiveProjectId || undefined,
+            }
+
+          case 'linear_list_customer_requests':
+            return {
+              ...baseParams,
+              first: params.first ? Number(params.first) : undefined,
+              after: params.after,
+              includeArchived: false,
+            }
+
+          // Customer Management Operations
+          case 'linear_get_customer':
+            if (!params.customerIdTarget?.trim()) {
+              throw new Error('Customer ID is required.')
+            }
+            return {
+              ...baseParams,
+              customerId: params.customerIdTarget.trim(),
+            }
+
+          case 'linear_update_customer':
+            if (!params.customerIdTarget?.trim()) {
+              throw new Error('Customer ID is required.')
+            }
+            return {
+              ...baseParams,
+              customerId: params.customerIdTarget.trim(),
+              name: params.customerName?.trim() || undefined,
+              domains: params.customerDomains?.trim()
+                ? params.customerDomains.split(',').map((d: string) => d.trim())
+                : undefined,
+              externalIds: params.customerExternalIds?.trim()
+                ? params.customerExternalIds.split(',').map((id: string) => id.trim())
+                : undefined,
+              logoUrl: params.customerLogoUrl?.trim() || undefined,
+              ownerId: params.customerOwnerId?.trim() || undefined,
+              revenue: params.customerRevenue ? Number(params.customerRevenue) : undefined,
+              size: params.customerSize ? Number(params.customerSize) : undefined,
+              statusId: params.statusId?.trim() || undefined,
+              tierId: params.tierId?.trim() || undefined,
+            }
+
+          case 'linear_delete_customer':
+            if (!params.customerIdTarget?.trim()) {
+              throw new Error('Customer ID is required.')
+            }
+            return {
+              ...baseParams,
+              customerId: params.customerIdTarget.trim(),
+            }
+
+          case 'linear_merge_customers':
+            if (!params.sourceCustomerId?.trim() || !params.targetCustomerId?.trim()) {
+              throw new Error('Both source and target customer IDs are required.')
+            }
+            return {
+              ...baseParams,
+              sourceCustomerId: params.sourceCustomerId.trim(),
+              targetCustomerId: params.targetCustomerId.trim(),
+            }
+
+          // Customer Status Operations
+          case 'linear_create_customer_status':
+            if (!params.statusName?.trim() || !params.statusColor?.trim()) {
+              throw new Error('Status name and color are required.')
+            }
+            return {
+              ...baseParams,
+              name: params.statusName.trim(),
+              displayName: params.statusDisplayName?.trim() || params.statusName.trim(),
+              color: params.statusColor.trim(),
+              description: params.statusDescription?.trim() || undefined,
+            }
+
+          case 'linear_update_customer_status':
+            if (!params.statusId?.trim()) {
+              throw new Error('Status ID is required.')
+            }
+            return {
+              ...baseParams,
+              statusId: params.statusId.trim(),
+              name: params.statusName?.trim() || undefined,
+              displayName: params.statusDisplayName?.trim() || undefined,
+              color: params.statusColor?.trim() || undefined,
+              description: params.statusDescription?.trim() || undefined,
+            }
+
+          case 'linear_delete_customer_status':
+            if (!params.statusId?.trim()) {
+              throw new Error('Status ID is required.')
+            }
+            return {
+              ...baseParams,
+              statusId: params.statusId.trim(),
+            }
+
+          case 'linear_list_customer_statuses':
+            return baseParams
+
+          // Customer Tier Operations
+          case 'linear_create_customer_tier':
+            if (!params.tierName?.trim() || !params.statusColor?.trim()) {
+              throw new Error('Tier name and color are required.')
+            }
+            return {
+              ...baseParams,
+              name: params.tierName.trim(),
+              displayName: params.tierDisplayName?.trim() || params.tierName.trim(),
+              color: params.statusColor.trim(),
+              description: params.tierDescription?.trim() || undefined,
+            }
+
+          case 'linear_update_customer_tier':
+            if (!params.tierId?.trim()) {
+              throw new Error('Tier ID is required.')
+            }
+            return {
+              ...baseParams,
+              tierId: params.tierId.trim(),
+              name: params.tierName?.trim() || undefined,
+              displayName: params.tierDisplayName?.trim() || undefined,
+              color: params.statusColor?.trim() || undefined,
+              description: params.tierDescription?.trim() || undefined,
+            }
+
+          case 'linear_delete_customer_tier':
+            if (!params.tierId?.trim()) {
+              throw new Error('Tier ID is required.')
+            }
+            return {
+              ...baseParams,
+              tierId: params.tierId.trim(),
+            }
+
+          case 'linear_list_customer_tiers':
+            return baseParams
+
+          // Project Management Operations
+          case 'linear_delete_project':
+            if (!effectiveProjectId) {
+              throw new Error('Project ID is required.')
+            }
+            return {
+              ...baseParams,
+              projectId: effectiveProjectId,
+            }
+
+          // Project Label Operations
+          case 'linear_create_project_label':
+            if (!params.projectLabelName?.trim()) {
+              throw new Error('Project label name is required.')
+            }
+            return {
+              ...baseParams,
+              name: params.projectLabelName.trim(),
+              description: params.projectLabelDescription?.trim() || undefined,
+              color: params.statusColor?.trim() || undefined,
+              isGroup: params.projectLabelIsGroup === 'true',
+              parentId: params.projectLabelParentId?.trim() || undefined,
+            }
+
+          case 'linear_update_project_label':
+            if (!params.projectLabelId?.trim()) {
+              throw new Error('Project label ID is required.')
+            }
+            return {
+              ...baseParams,
+              labelId: params.projectLabelId.trim(),
+              name: params.projectLabelName?.trim() || undefined,
+              description: params.projectLabelDescription?.trim() || undefined,
+              color: params.statusColor?.trim() || undefined,
+            }
+
+          case 'linear_delete_project_label':
+            if (!params.projectLabelId?.trim()) {
+              throw new Error('Project label ID is required.')
+            }
+            return {
+              ...baseParams,
+              labelId: params.projectLabelId.trim(),
+            }
+
+          case 'linear_list_project_labels':
+            return baseParams
+
+          case 'linear_add_label_to_project':
+            if (!effectiveProjectId || !params.projectLabelId?.trim()) {
+              throw new Error('Project ID and label ID are required.')
+            }
+            return {
+              ...baseParams,
+              projectId: effectiveProjectId,
+              labelId: params.projectLabelId.trim(),
+            }
+
+          case 'linear_remove_label_from_project':
+            if (!effectiveProjectId || !params.projectLabelId?.trim()) {
+              throw new Error('Project ID and label ID are required.')
+            }
+            return {
+              ...baseParams,
+              projectId: effectiveProjectId,
+              labelId: params.projectLabelId.trim(),
+            }
+
+          // Project Milestone Operations
+          case 'linear_create_project_milestone':
+            if (!params.projectIdForMilestone?.trim() || !params.milestoneName?.trim()) {
+              throw new Error('Project ID and milestone name are required.')
+            }
+            return {
+              ...baseParams,
+              projectId: params.projectIdForMilestone.trim(),
+              name: params.milestoneName.trim(),
+              description: params.milestoneDescription?.trim() || undefined,
+              targetDate: params.milestoneTargetDate?.trim() || undefined,
+            }
+
+          case 'linear_update_project_milestone':
+            if (!params.milestoneId?.trim()) {
+              throw new Error('Milestone ID is required.')
+            }
+            return {
+              ...baseParams,
+              milestoneId: params.milestoneId.trim(),
+              name: params.milestoneName?.trim() || undefined,
+              description: params.milestoneDescription?.trim() || undefined,
+              targetDate: params.milestoneTargetDate?.trim() || undefined,
+            }
+
+          case 'linear_delete_project_milestone':
+            if (!params.milestoneId?.trim()) {
+              throw new Error('Milestone ID is required.')
+            }
+            return {
+              ...baseParams,
+              milestoneId: params.milestoneId.trim(),
+            }
+
+          case 'linear_list_project_milestones':
+            if (!params.projectIdForMilestone?.trim()) {
+              throw new Error('Project ID is required.')
+            }
+            return {
+              ...baseParams,
+              projectId: params.projectIdForMilestone.trim(),
+            }
+
+          // Project Status Operations
+          case 'linear_create_project_status':
+            if (!params.projectStatusName?.trim() || !params.statusColor?.trim()) {
+              throw new Error('Project status name and color are required.')
+            }
+            return {
+              ...baseParams,
+              name: params.projectStatusName.trim(),
+              color: params.statusColor.trim(),
+              description: params.projectStatusDescription?.trim() || undefined,
+              indefinite: params.projectStatusIndefinite === 'true',
+            }
+
+          case 'linear_update_project_status':
+            if (!params.projectStatusId?.trim()) {
+              throw new Error('Project status ID is required.')
+            }
+            return {
+              ...baseParams,
+              statusId: params.projectStatusId.trim(),
+              name: params.projectStatusName?.trim() || undefined,
+              color: params.statusColor?.trim() || undefined,
+              description: params.projectStatusDescription?.trim() || undefined,
+              indefinite: params.projectStatusIndefinite
+                ? params.projectStatusIndefinite === 'true'
+                : undefined,
+            }
+
+          case 'linear_delete_project_status':
+            if (!params.projectStatusId?.trim()) {
+              throw new Error('Project status ID is required.')
+            }
+            return {
+              ...baseParams,
+              statusId: params.projectStatusId.trim(),
+            }
+
+          case 'linear_list_project_statuses':
+            return baseParams
 
           default:
             return baseParams
@@ -1140,6 +2017,56 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
     workflowType: { type: 'string', description: 'Workflow state type' },
     leadId: { type: 'string', description: 'Project lead identifier' },
     projectState: { type: 'string', description: 'Project state' },
+    first: { type: 'number', description: 'Number of items to return for pagination' },
+    after: { type: 'string', description: 'Cursor for pagination' },
+    customerName: { type: 'string', description: 'Customer name' },
+    customerDomains: { type: 'string', description: 'Customer domains (comma-separated)' },
+    customerId: { type: 'string', description: 'Customer identifier' },
+    customerNeedId: { type: 'string', description: 'Customer request identifier' },
+    requestBody: { type: 'string', description: 'Customer request description' },
+    linkedIssueId: { type: 'string', description: 'Issue ID to link to customer request' },
+    // New customer management inputs
+    customerIdTarget: { type: 'string', description: 'Customer ID for operations' },
+    sourceCustomerId: { type: 'string', description: 'Source customer ID for merge' },
+    targetCustomerId: { type: 'string', description: 'Target customer ID for merge' },
+    customerExternalIds: { type: 'string', description: 'Customer external IDs (comma-separated)' },
+    customerLogoUrl: { type: 'string', description: 'Customer logo URL' },
+    customerOwnerId: { type: 'string', description: 'Customer owner user ID' },
+    customerRevenue: { type: 'number', description: 'Customer annual revenue' },
+    customerSize: { type: 'number', description: 'Customer organization size' },
+    // Customer status and tier inputs
+    statusId: { type: 'string', description: 'Status identifier' },
+    statusName: { type: 'string', description: 'Status name' },
+    statusDisplayName: { type: 'string', description: 'Status display name' },
+    statusColor: { type: 'string', description: 'Status color in hex format' },
+    statusDescription: { type: 'string', description: 'Status description' },
+    tierId: { type: 'string', description: 'Tier identifier' },
+    tierName: { type: 'string', description: 'Tier name' },
+    tierDisplayName: { type: 'string', description: 'Tier display name' },
+    tierDescription: { type: 'string', description: 'Tier description' },
+    // Project label inputs
+    projectLabelId: { type: 'string', description: 'Project label identifier' },
+    projectLabelName: { type: 'string', description: 'Project label name' },
+    projectLabelDescription: { type: 'string', description: 'Project label description' },
+    projectLabelIsGroup: { type: 'string', description: 'Whether label is a group (true/false)' },
+    projectLabelParentId: {
+      type: 'string',
+      description: 'Parent label ID for hierarchical labels',
+    },
+    // Project milestone inputs
+    projectIdForMilestone: { type: 'string', description: 'Project ID for milestone operations' },
+    milestoneId: { type: 'string', description: 'Milestone identifier' },
+    milestoneName: { type: 'string', description: 'Milestone name' },
+    milestoneDescription: { type: 'string', description: 'Milestone description' },
+    milestoneTargetDate: { type: 'string', description: 'Milestone target date (YYYY-MM-DD)' },
+    // Project status inputs
+    projectStatusId: { type: 'string', description: 'Project status identifier' },
+    projectStatusName: { type: 'string', description: 'Project status name' },
+    projectStatusDescription: { type: 'string', description: 'Project status description' },
+    projectStatusIndefinite: {
+      type: 'string',
+      description: 'Whether status can persist indefinitely (true/false)',
+    },
   },
   outputs: {
     // Issue outputs
@@ -1184,6 +2111,26 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
     // Notification outputs
     notification: { type: 'json', description: 'Notification data' },
     notifications: { type: 'json', description: 'Notifications list' },
+    // Customer outputs
+    customer: { type: 'json', description: 'Customer data' },
+    customers: { type: 'json', description: 'Customers list' },
+    // Customer request outputs
+    customerNeed: { type: 'json', description: 'Customer request data' },
+    customerNeeds: { type: 'json', description: 'Customer requests list' },
+    // Customer status and tier outputs
+    customerStatus: { type: 'json', description: 'Customer status data' },
+    customerStatuses: { type: 'json', description: 'Customer statuses list' },
+    customerTier: { type: 'json', description: 'Customer tier data' },
+    customerTiers: { type: 'json', description: 'Customer tiers list' },
+    // Project label outputs
+    projectLabel: { type: 'json', description: 'Project label data' },
+    projectLabels: { type: 'json', description: 'Project labels list' },
+    // Project milestone outputs
+    projectMilestone: { type: 'json', description: 'Project milestone data' },
+    projectMilestones: { type: 'json', description: 'Project milestones list' },
+    // Project status outputs
+    projectStatus: { type: 'json', description: 'Project status data' },
+    projectStatuses: { type: 'json', description: 'Project statuses list' },
     // Pagination
     pageInfo: {
       type: 'json',
@@ -1191,5 +2138,41 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
     },
     // Success indicators
     success: { type: 'boolean', description: 'Operation success status' },
+    // Trigger outputs
+    action: { type: 'string', description: 'Webhook action (create, update, remove)' },
+    type: {
+      type: 'string',
+      description: 'Entity type from webhook (Issue, Comment, Project, etc.)',
+    },
+    webhookId: { type: 'string', description: 'Webhook identifier' },
+    webhookTimestamp: { type: 'number', description: 'Webhook timestamp in milliseconds' },
+    organizationId: { type: 'string', description: 'Organization identifier' },
+    createdAt: { type: 'string', description: 'Event creation timestamp' },
+    actor: { type: 'json', description: 'User who triggered the event' },
+    data: { type: 'json', description: 'Complete entity data from webhook' },
+    updatedFrom: {
+      type: 'json',
+      description: 'Previous values for changed fields (update events only)',
+    },
+  },
+  triggers: {
+    enabled: true,
+    available: [
+      'linear_issue_created',
+      'linear_issue_updated',
+      'linear_issue_removed',
+      'linear_comment_created',
+      'linear_comment_updated',
+      'linear_project_created',
+      'linear_project_updated',
+      'linear_cycle_created',
+      'linear_cycle_updated',
+      'linear_label_created',
+      'linear_label_updated',
+      'linear_project_update_created',
+      'linear_customer_request_created',
+      'linear_customer_request_updated',
+      'linear_webhook',
+    ],
   },
 }

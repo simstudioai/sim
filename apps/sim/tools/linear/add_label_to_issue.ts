@@ -47,6 +47,9 @@ export const linearAddLabelToIssueTool: ToolConfig<
         mutation AddLabelToIssue($issueId: String!, $labelId: String!) {
           issueAddLabel(id: $issueId, labelId: $labelId) {
             success
+            issue {
+              id
+            }
           }
         }
       `,
@@ -68,11 +71,12 @@ export const linearAddLabelToIssueTool: ToolConfig<
       }
     }
 
+    const result = data.data.issueAddLabel
     return {
-      success: data.data.issueAddLabel.success,
+      success: result.success,
       output: {
-        success: data.data.issueAddLabel.success,
-        issueId: response.ok ? data.data.issueAddLabel.success : '',
+        success: result.success,
+        issueId: result.issue?.id || '',
       },
     }
   },

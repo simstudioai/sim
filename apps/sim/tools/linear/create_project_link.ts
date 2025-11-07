@@ -57,7 +57,8 @@ export const linearCreateProjectLinkTool: ToolConfig<
         url: params.url,
       }
 
-      if (params.label !== undefined) input.label = params.label
+      if (params.label !== undefined && params.label !== null && params.label !== '')
+        input.label = params.label
 
       return {
         query: `

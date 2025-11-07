@@ -60,9 +60,10 @@ export const discordUpdateMemberTool: ToolConfig<
     }),
     body: (params: DiscordUpdateMemberParams) => {
       const body: any = {}
-      if (params.nick !== undefined) body.nick = params.nick
-      if (params.mute !== undefined) body.mute = params.mute
-      if (params.deaf !== undefined) body.deaf = params.deaf
+      // Note: nick can be null to remove nickname, so we allow null but not empty string
+      if (params.nick !== undefined && params.nick !== '') body.nick = params.nick
+      if (params.mute !== undefined && params.mute !== null) body.mute = params.mute
+      if (params.deaf !== undefined && params.deaf !== null) body.deaf = params.deaf
       return body
     },
   },

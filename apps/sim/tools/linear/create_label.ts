@@ -57,9 +57,16 @@ export const linearCreateLabelTool: ToolConfig<LinearCreateLabelParams, LinearCr
           name: params.name,
         }
 
-        if (params.color !== undefined) input.color = params.color
-        if (params.description !== undefined) input.description = params.description
-        if (params.teamId !== undefined) input.teamId = params.teamId
+        if (params.color !== undefined && params.color !== null && params.color !== '')
+          input.color = params.color
+        if (
+          params.description !== undefined &&
+          params.description !== null &&
+          params.description !== ''
+        )
+          input.description = params.description
+        if (params.teamId !== undefined && params.teamId !== null && params.teamId !== '')
+          input.teamId = params.teamId
 
         return {
           query: `

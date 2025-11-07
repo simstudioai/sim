@@ -23,6 +23,7 @@ const GmailSendSchema = z.object({
   to: z.string().min(1, 'Recipient email is required'),
   subject: z.string().optional().nullable(),
   body: z.string().min(1, 'Email body is required'),
+  contentType: z.enum(['text', 'html']).optional().nullable(),
   threadId: z.string().optional().nullable(),
   replyToMessageId: z.string().optional().nullable(),
   cc: z.string().optional().nullable(),
@@ -123,6 +124,7 @@ export async function POST(request: NextRequest) {
           bcc: validatedData.bcc ?? undefined,
           subject: validatedData.subject || originalSubject || '',
           body: validatedData.body,
+          contentType: validatedData.contentType || 'text',
           inReplyTo: originalMessageId,
           references: originalReferences,
           attachments: attachmentBuffers,
@@ -140,6 +142,7 @@ export async function POST(request: NextRequest) {
         bcc: validatedData.bcc,
         subject: validatedData.subject || originalSubject,
         body: validatedData.body,
+        contentType: validatedData.contentType || 'text',
         inReplyTo: originalMessageId,
         references: originalReferences,
       })

@@ -128,23 +128,31 @@ export const updateTaskTool: ToolConfig<
     body: (params) => {
       const body: Partial<PlannerTask> = {}
 
-      if (params.title) {
+      if (params.title !== undefined && params.title !== null && params.title !== '') {
         body.title = params.title
       }
 
-      if (params.bucketId) {
+      if (params.bucketId !== undefined && params.bucketId !== null && params.bucketId !== '') {
         body.bucketId = params.bucketId
       }
 
-      if (params.dueDateTime) {
+      if (
+        params.dueDateTime !== undefined &&
+        params.dueDateTime !== null &&
+        params.dueDateTime !== ''
+      ) {
         body.dueDateTime = params.dueDateTime
       }
 
-      if (params.startDateTime) {
+      if (
+        params.startDateTime !== undefined &&
+        params.startDateTime !== null &&
+        params.startDateTime !== ''
+      ) {
         body.startDateTime = params.startDateTime
       }
 
-      if (params.percentComplete !== undefined) {
+      if (params.percentComplete !== undefined && params.percentComplete !== null) {
         body.percentComplete = params.percentComplete
       }
 
@@ -152,7 +160,11 @@ export const updateTaskTool: ToolConfig<
         body.priority = Number(params.priority)
       }
 
-      if (params.assigneeUserId) {
+      if (
+        params.assigneeUserId !== undefined &&
+        params.assigneeUserId !== null &&
+        params.assigneeUserId !== ''
+      ) {
         body.assignments = {
           [params.assigneeUserId]: {
             '@odata.type': 'microsoft.graph.plannerAssignment',

@@ -55,15 +55,12 @@ export const linearListProjectsTool: ToolConfig<
       }
     },
     body: (params) => {
-      const filter: Record<string, any> = {}
-      if (params.teamId) {
-        filter.team = { id: { eq: params.teamId } }
-      }
-
+      // Note: ProjectFilter does not support filtering by team directly
+      // We need to filter projects client-side by team if teamId is provided
       return {
         query: `
-          query ListProjects($filter: ProjectFilter, $first: Int, $after: String, $includeArchived: Boolean) {
-            projects(filter: $filter, first: $first, after: $after, includeArchived: $includeArchived) {
+          query ListProjects($first: Int, $after: String, $includeArchived: Boolean) {
+            projects(first: $first, after: $after, includeArchived: $includeArchived) {
               nodes {
                 id
                 name
@@ -95,8 +92,7 @@ export const linearListProjectsTool: ToolConfig<
           }
         `,
         variables: {
-          filter: Object.keys(filter).length > 0 ? filter : undefined,
-          first: params.first ? Number(params.first) : 50,
+          first: params.first || 50,
           after: params.after,
           includeArchived: params.includeArchived || false,
         },
@@ -104,7 +100,7 @@ export const linearListProjectsTool: ToolConfig<
     },
   },
 
-  transformResponse: async (response) => {
+  transformResponse: async (response, params) => {
     const data = await response.json()
 
     if (data.errors) {
@@ -116,24 +112,33 @@ export const linearListProjectsTool: ToolConfig<
     }
 
     const result = data.data.projects
+    let projects = result.nodes.map((project: any) => ({
+      id: project.id,
+      name: project.name,
+      description: project.description,
+      state: project.state,
+      priority: project.priority,
+      startDate: project.startDate,
+      targetDate: project.targetDate,
+      completedAt: project.completedAt,
+      canceledAt: project.canceledAt,
+      archivedAt: project.archivedAt,
+      url: project.url,
+      lead: project.lead,
+      teams: project.teams?.nodes || [],
+    }))
+
+    // Filter by teamId client-side if provided
+    if (params?.teamId) {
+      projects = projects.filter((project: any) =>
+        project.teams.some((team: any) => team.id === params.teamId)
+      )
+    }
+
     return {
       success: true,
       output: {
-        projects: result.nodes.map((project: any) => ({
-          id: project.id,
-          name: project.name,
-          description: project.description,
-          state: project.state,
-          priority: project.priority,
-          startDate: project.startDate,
-          targetDate: project.targetDate,
-          completedAt: project.completedAt,
-          canceledAt: project.canceledAt,
-          archivedAt: project.archivedAt,
-          url: project.url,
-          lead: project.lead,
-          teams: project.teams?.nodes || [],
-        })),
+        projects,
         pageInfo: {
           hasNextPage: result.pageInfo.hasNextPage,
           endCursor: result.pageInfo.endCursor,

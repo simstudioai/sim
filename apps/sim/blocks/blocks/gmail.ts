@@ -84,6 +84,19 @@ export const GmailBlock: BlockConfig<GmailToolResponse> = {
       condition: { field: 'operation', value: ['send_gmail', 'draft_gmail'] },
       required: true,
     },
+    {
+      id: 'contentType',
+      title: 'Content Type',
+      type: 'dropdown',
+      layout: 'full',
+      options: [
+        { label: 'Plain Text', id: 'text' },
+        { label: 'HTML', id: 'html' },
+      ],
+      condition: { field: 'operation', value: ['send_gmail', 'draft_gmail'] },
+      value: () => 'text',
+      required: false,
+    },
     // File upload (basic mode)
     {
       id: 'attachmentFiles',
@@ -482,6 +495,7 @@ export const GmailBlock: BlockConfig<GmailToolResponse> = {
     to: { type: 'string', description: 'Recipient email address' },
     subject: { type: 'string', description: 'Email subject' },
     body: { type: 'string', description: 'Email content' },
+    contentType: { type: 'string', description: 'Content type (text or html)' },
     threadId: { type: 'string', description: 'Thread ID to reply to (for threading)' },
     replyToMessageId: {
       type: 'string',

@@ -146,12 +146,25 @@ export async function PUT(request: Request) {
         number: currentVersion + 1,
         message: version?.message || 'Updated via API',
       },
-      title: title,
-      body: {
-        representation: 'storage',
-        value: pageBody?.value || '',
-      },
       status: 'current',
+    }
+
+    if (title !== undefined && title !== null && title !== '') {
+      updateBody.title = title
+    } else {
+      updateBody.title = currentPage.title
+    }
+
+    if (pageBody?.value !== undefined && pageBody?.value !== null && pageBody?.value !== '') {
+      updateBody.body = {
+        representation: 'storage',
+        value: pageBody.value,
+      }
+    } else {
+      updateBody.body = {
+        representation: 'storage',
+        value: currentPage.body?.storage?.value || '',
+      }
     }
 
     const response = await fetch(currentPageUrl, {
