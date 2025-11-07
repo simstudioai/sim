@@ -182,7 +182,7 @@ export default function Templates({
                 variant='ghost'
                 size='sm'
                 onClick={handleBackToWorkspace}
-                className='mb-4 -ml-2 text-muted-foreground hover:text-foreground'
+                className='-ml-2 mb-4 text-muted-foreground hover:text-foreground'
               >
                 <ArrowLeft className='mr-2 h-4 w-4' />
                 Back to Workspace
@@ -228,7 +228,7 @@ export default function Templates({
             </div>
           ) : activeTab === 'your' ? (
             filteredOwnedTemplates.length === 0 && filteredStarredTemplates.length === 0 ? (
-              <div className='flex h-64 items-center justify-center rounded-lg border border-dashed border-muted-foreground/25 bg-muted/20'>
+              <div className='flex h-64 items-center justify-center rounded-lg border border-muted-foreground/25 border-dashed bg-muted/20'>
                 <div className='text-center'>
                   <p className='font-medium text-muted-foreground text-sm'>
                     {searchQuery ? 'No templates found' : 'No templates yet'}
@@ -264,7 +264,7 @@ export default function Templates({
           ) : (
             <div className='grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'>
               {(activeTab === 'gallery' ? galleryTemplates : pendingTemplates).length === 0 ? (
-                <div className='col-span-full flex h-64 items-center justify-center rounded-lg border border-dashed border-muted-foreground/25 bg-muted/20'>
+                <div className='col-span-full flex h-64 items-center justify-center rounded-lg border border-muted-foreground/25 border-dashed bg-muted/20'>
                   <div className='text-center'>
                     <p className='font-medium text-muted-foreground text-sm'>
                       {searchQuery

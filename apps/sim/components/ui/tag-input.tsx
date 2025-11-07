@@ -58,8 +58,8 @@ export function TagInput({
   return (
     <div
       className={cn(
-        'flex flex-wrap gap-1.5 rounded-md border border-input bg-background p-2 min-h-[2.5rem]',
-        disabled && 'opacity-50 cursor-not-allowed',
+        'flex min-h-[2.5rem] flex-wrap gap-1.5 rounded-md border border-input bg-background p-2',
+        disabled && 'cursor-not-allowed opacity-50',
         className
       )}
       onClick={() => !disabled && inputRef.current?.focus()}
@@ -68,7 +68,7 @@ export function TagInput({
         <Badge
           key={tag}
           variant='secondary'
-          className='h-7 pl-2.5 pr-1.5 gap-1.5 bg-muted/60 hover:bg-muted/80 border-0'
+          className='h-7 gap-1.5 border-0 bg-muted/60 pr-1.5 pl-2.5 hover:bg-muted/80'
         >
           <span className='text-xs'>{tag}</span>
           {!disabled && (
@@ -78,7 +78,7 @@ export function TagInput({
                 e.stopPropagation()
                 removeTag(tag)
               }}
-              className='ml-auto rounded-full hover:bg-muted-foreground/20 p-0.5'
+              className='ml-auto rounded-full p-0.5 hover:bg-muted-foreground/20'
             >
               <X className='h-3 w-3' />
             </button>
@@ -95,7 +95,7 @@ export function TagInput({
           onBlur={handleBlur}
           placeholder={value.length === 0 ? placeholder : ''}
           disabled={disabled}
-          className='flex-1 min-w-[120px] h-7 border-0 p-0 px-1 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 placeholder:text-muted-foreground/60 text-sm'
+          className='h-7 min-w-[120px] flex-1 border-0 p-0 px-1 text-sm shadow-none placeholder:text-muted-foreground/60 focus-visible:ring-0 focus-visible:ring-offset-0'
         />
       )}
     </div>

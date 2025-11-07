@@ -255,14 +255,14 @@ export function TemplateDeploy({ workflowId, onDeploymentComplete }: TemplateDep
           <div className='flex items-center gap-3'>
             <CheckCircle2 className='h-4 w-4 text-green-600 dark:text-green-400' />
             <div className='flex items-center gap-2'>
-              <span className='text-sm font-medium'>Template Connected</span>
+              <span className='font-medium text-sm'>Template Connected</span>
               {existingTemplate.status === 'pending' && (
-                <span className='rounded-md bg-yellow-100 px-2 py-0.5 text-xs font-medium text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300'>
+                <span className='rounded-md bg-yellow-100 px-2 py-0.5 font-medium text-xs text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300'>
                   Under Review
                 </span>
               )}
               {existingTemplate.status === 'approved' && existingTemplate.views > 0 && (
-                <span className='text-xs text-muted-foreground'>
+                <span className='text-muted-foreground text-xs'>
                   • {existingTemplate.views} views
                   {existingTemplate.stars > 0 && ` • ${existingTemplate.stars} stars`}
                 </span>
@@ -359,7 +359,7 @@ export function TemplateDeploy({ workflowId, onDeploymentComplete }: TemplateDep
                     disabled={isSubmitting}
                   />
                 </FormControl>
-                <p className='text-xs text-muted-foreground'>
+                <p className='text-muted-foreground text-xs'>
                   Add up to 10 tags to help users discover your template
                 </p>
                 <FormMessage />
@@ -424,7 +424,7 @@ export function TemplateDeploy({ workflowId, onDeploymentComplete }: TemplateDep
       {/* Template State Preview Dialog */}
       {showPreviewDialog && (
         <Dialog open={showPreviewDialog} onOpenChange={setShowPreviewDialog}>
-          <DialogContent className='max-w-5xl max-h-[80vh] overflow-auto'>
+          <DialogContent className='max-h-[80vh] max-w-5xl overflow-auto'>
             <DialogHeader>
               <DialogTitle>Template State Preview</DialogTitle>
             </DialogHeader>

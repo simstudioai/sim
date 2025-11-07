@@ -54,20 +54,23 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       isStarred = starResult.length > 0
     }
 
-    // Increment the view count (don't fail if this errors)
-    try {
-      await db
-        .update(templates)
-        .set({
-          views: sql`${templates.views} + 1`,
-          updatedAt: new Date(),
-        })
-        .where(eq(templates.id, id))
+    const shouldIncrementView = template.status === 'approved'
 
-      logger.debug(`[${requestId}] Incremented view count for template: ${id}`)
-    } catch (viewError) {
-      // Log the error but don't fail the request
-      logger.warn(`[${requestId}] Failed to increment view count for template: ${id}`, viewError)
+    if (shouldIncrementView) {
+      try {
+        await db
+          .update(templates)
+          .set({
+            views: sql`${templates.views} + 1`,
+            updatedAt: new Date(),
+          })
+          .where(eq(templates.id, id))
+
+        logger.debug(`[${requestId}] Incremented view count for template: ${id}`)
+      } catch (viewError) {
+        // Log the error but don't fail the request
+        logger.warn(`[${requestId}] Failed to increment view count for template: ${id}`, viewError)
+      }
     }
 
     logger.info(`[${requestId}] Successfully retrieved template: ${id}`)
@@ -75,7 +78,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     return NextResponse.json({
       data: {
         ...template,
-        views: template.views + 1, // Return the incremented view count
+        views: template.views + (shouldIncrementView ? 1 : 0),
         isStarred,
       },
     })

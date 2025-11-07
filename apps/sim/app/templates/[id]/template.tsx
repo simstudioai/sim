@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { formatDistanceToNow } from 'date-fns'
 import {
   ArrowLeft,
   Award,
@@ -12,6 +13,7 @@ import {
   Briefcase,
   Calculator,
   ChevronDown,
+  Clock,
   Cloud,
   Code,
   Cpu,
@@ -488,12 +490,12 @@ export default function TemplateDetails() {
                   </p>
                   {/* Tags */}
                   {template.tags && template.tags.length > 0 && (
-                    <div className='flex flex-wrap gap-2 mt-3'>
+                    <div className='mt-3 flex flex-wrap gap-2'>
                       {template.tags.map((tag, index) => (
                         <Badge
                           key={index}
                           variant='secondary'
-                          className='px-2.5 py-0.5 text-sm bg-muted/60 hover:bg-muted/80 border-0'
+                          className='border-0 bg-muted/60 px-2.5 py-0.5 text-sm hover:bg-muted/80'
                         >
                           {tag}
                         </Badge>
@@ -691,6 +693,19 @@ export default function TemplateDetails() {
                   <span>Organization</span>
                 </div>
               )}
+
+              {/* Last Updated */}
+              {template.updatedAt && (
+                <div className='flex items-center gap-1 rounded-full bg-secondary px-3 py-1'>
+                  <Clock className='h-3 w-3' />
+                  <span>
+                    Last updated{' '}
+                    {formatDistanceToNow(new Date(template.updatedAt), {
+                      addSuffix: true,
+                    })}
+                  </span>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -705,7 +720,7 @@ export default function TemplateDetails() {
               template.requiredCredentials.length > 0 && (
                 <div className='mt-8'>
                   <h3 className='mb-3 font-semibold text-lg'>Credentials Needed</h3>
-                  <ul className='list-disc pl-6 space-y-1 text-sm text-muted-foreground'>
+                  <ul className='list-disc space-y-1 pl-6 text-muted-foreground text-sm'>
                     {template.requiredCredentials.map(
                       (cred: CredentialRequirement, idx: number) => {
                         // Get block name from registry or format blockType

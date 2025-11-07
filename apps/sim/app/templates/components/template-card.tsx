@@ -384,12 +384,12 @@ export function TemplateCard({
 
           {/* Tags */}
           {tags && tags.length > 0 && (
-            <div className='flex flex-wrap gap-1 mt-1'>
+            <div className='mt-1 flex flex-wrap gap-1'>
               {tags.slice(0, 3).map((tag, index) => (
                 <Badge
                   key={index}
                   variant='secondary'
-                  className='h-5 px-1.5 text-[10px] bg-muted/60 hover:bg-muted/80 border-0'
+                  className='h-5 border-0 bg-muted/60 px-1.5 text-[10px] hover:bg-muted/80'
                 >
                   {tag}
                 </Badge>
@@ -397,7 +397,7 @@ export function TemplateCard({
               {tags.length > 3 && (
                 <Badge
                   variant='secondary'
-                  className='h-5 px-1.5 text-[10px] bg-muted/60 hover:bg-muted/80 border-0'
+                  className='h-5 border-0 bg-muted/60 px-1.5 text-[10px] hover:bg-muted/80'
                 >
                   +{tags.length - 3}
                 </Badge>
