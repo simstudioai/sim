@@ -266,7 +266,13 @@ function buildUnifiedStartOutput(workflowInput: unknown): NormalizedBlockOutput 
   }
 
   if (!Object.hasOwn(output, 'input')) {
-    output.input = ''
+    const fallbackInput =
+      isPlainObject(workflowInput) && typeof workflowInput.input !== 'undefined'
+        ? ensureString(workflowInput.input)
+        : ''
+    output.input = fallbackInput ? fallbackInput : undefined
+  } else if (typeof output.input === 'string' && output.input.length === 0) {
+    output.input = undefined
   }
 
   if (!Object.hasOwn(output, 'conversationId')) {
