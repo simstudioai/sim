@@ -718,7 +718,7 @@ export function evaluateScopeCoverage(
     grantedScopes: normalizedGranted,
     missingScopes,
     extraScopes,
-    requiresReauthorization: missingScopes.length > 0 || extraScopes.length > 0,
+    requiresReauthorization: missingScopes.length > 0,
   }
 }
 
