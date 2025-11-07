@@ -745,3 +745,205 @@ telemetry:
     endpoint: "http://otlp-collector:4317"
     tls:
       enabled: false
+
+# Copilot service configuration (optional microservice)
+copilot:
+  # Enable/disable the copilot service
+  enabled: false
+  
+  # Server deployment configuration
+  server:
+    # Image configuration
+    image:
+      repository: simstudioai/copilot
+      tag: latest
+      pullPolicy: Always
+    
+    # Number of replicas
+    replicaCount: 1
+    
+    # Resource limits and requests
+    resources:
+      limits:
+        memory: "2Gi"
+        cpu: "1000m"
+      requests:
+        memory: "1Gi"
+        cpu: "500m"
+    
+    # Node selector for pod scheduling
+    # Leave empty to run on same infrastructure as main Sim platform
+    # Or specify labels to isolate on dedicated nodes: { "workload-type": "copilot" }
+    nodeSelector: {}
+    
+    # Pod security context
+    podSecurityContext:
+      fsGroup: 1001
+    
+    # Container security context
+    securityContext:
+      runAsNonRoot: true
+      runAsUser: 1001
+    
+    # Environment variables (required and optional)
+    env:
+      PORT: "8080"
+      SERVICE_NAME: "copilot"
+      ENVIRONMENT: "production"
+      AGENT_API_DB_ENCRYPTION_KEY: ""
+      INTERNAL_API_SECRET: ""
+      LICENSE_KEY: ""
+      OPENAI_API_KEY_1: ""
+      ANTHROPIC_API_KEY_1: ""
+      SIM_BASE_URL: ""
+      SIM_AGENT_API_KEY: ""
+      REDIS_URL: ""
+      LOG_LEVEL: "info"
+      CORS_ALLOWED_ORIGINS: ""
+      OTEL_EXPORTER_OTLP_ENDPOINT: ""
+    
+    # Optional: additional static environment variables
+    extraEnv: []
+    
+    # Optional: references to existing ConfigMaps/Secrets
+    extraEnvFrom: []
+    
+    # Secret generation configuration (set create=false to use an existing secret)
+    secret:
+      create: true
+      name: ""
+      annotations: {}
+    
+    # Service configuration
+    service:
+      type: ClusterIP
+      port: 8080
+      targetPort: 8080
+    
+    # Health checks
+    readinessProbe:
+      httpGet:
+        path: /healthz
+        port: 8080
+      initialDelaySeconds: 5
+      periodSeconds: 10
+      timeoutSeconds: 5
+      failureThreshold: 3
+    
+    livenessProbe:
+      httpGet:
+        path: /healthz
+        port: 8080
+      initialDelaySeconds: 15
+      periodSeconds: 30
+      timeoutSeconds: 5
+      failureThreshold: 3
+  
+  # PostgreSQL database for copilot (separate from main Sim database)
+  postgresql:
+    # Enable/disable internal PostgreSQL for copilot
+    enabled: true
+    
+    # Image configuration
+    image:
+      repository: postgres
+      tag: 16-alpine
+      pullPolicy: IfNotPresent
+    
+    # Authentication configuration
+    auth:
+      username: copilot
+      password: ""  # REQUIRED - set via --set flag or external secret manager
+      database: copilot
+    
+    # Node selector for database pod scheduling
+    # Leave empty to run on same infrastructure as main Sim platform
+    # Or specify labels to isolate on dedicated nodes: { "workload-type": "copilot" }
+    nodeSelector: {}
+    
+    # Resource limits and requests
+    resources:
+      limits:
+        memory: "1Gi"
+        cpu: "500m"
+      requests:
+        memory: "512Mi"
+        cpu: "250m"
+    
+    # Pod security context
+    podSecurityContext:
+      fsGroup: 999
+    
+    # Container security context
+    securityContext:
+      runAsUser: 999
+    
+    # Persistence configuration
+    persistence:
+      enabled: true
+      storageClass: ""
+      size: 10Gi
+      accessModes:
+        - ReadWriteOnce
+    
+    # Service configuration
+    service:
+      type: ClusterIP
+      port: 5432
+      targetPort: 5432
+    
+    # Health checks
+    livenessProbe:
+      exec:
+        command: ["pg_isready", "-U", "copilot", "-d", "copilot"]
+      initialDelaySeconds: 10
+      periodSeconds: 5
+      timeoutSeconds: 5
+      failureThreshold: 10
+    
+    readinessProbe:
+      exec:
+        command: ["pg_isready", "-U", "copilot", "-d", "copilot"]
+      initialDelaySeconds: 5
+      periodSeconds: 3
+      timeoutSeconds: 5
+      failureThreshold: 10
+  
+  # External database configuration (use when connecting to a managed database)
+  database:
+    existingSecretName: ""
+    secretKey: DATABASE_URL
+    url: ""
+  
+  # Migration job configuration
+  migrations:
+    # Enable/disable migrations job
+    enabled: true
+    
+    # Image configuration (same as server)
+    image:
+      repository: sidstudio/copilot
+      tag: latest
+      pullPolicy: Always
+    
+    # Resource limits and requests
+    resources:
+      limits:
+        memory: "512Mi"
+        cpu: "500m"
+      requests:
+        memory: "256Mi"
+        cpu: "100m"
+    
+    # Pod security context
+    podSecurityContext:
+      fsGroup: 1001
+    
+    # Container security context
+    securityContext:
+      runAsNonRoot: true
+      runAsUser: 1001
+    
+    # Job configuration
+    backoffLimit: 3
+    restartPolicy: OnFailure
