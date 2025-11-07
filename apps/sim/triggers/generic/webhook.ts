@@ -52,7 +52,6 @@ export const genericWebhookTrigger: TriggerConfig = {
       id: 'inputFormat',
       title: 'Input Format',
       type: 'input-format',
-      layout: 'full',
       description:
         'Define the expected JSON input schema for this webhook (optional). Use type "files" for file uploads.',
       mode: 'trigger',

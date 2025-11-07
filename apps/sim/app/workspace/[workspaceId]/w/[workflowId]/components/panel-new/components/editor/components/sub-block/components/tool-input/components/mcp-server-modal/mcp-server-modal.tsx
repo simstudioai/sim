@@ -307,7 +307,7 @@ export function McpServerModal({
                   if (testResult) clearTestResult()
                   setFormData((prev) => ({
                     ...prev,
-                    transport: value,
+                    transport: value as McpTransport,
                   }))
                 }}
               >

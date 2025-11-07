@@ -956,12 +956,7 @@ export function Sidebar() {
           top: `${toolbarTop}px`,
           bottom: `${navigationBottom + SIDEBAR_HEIGHTS.NAVIGATION + SIDEBAR_GAP + (isBillingEnabled ? SIDEBAR_HEIGHTS.USAGE_INDICATOR + SIDEBAR_GAP : 0)}px`, // Navigation height + gap + UsageIndicator height + gap (if billing enabled)
         }}
-      >
-        <Toolbar
-          userPermissions={userPermissions}
-          isWorkspaceSelectorVisible={isWorkspaceSelectorVisible}
-        />
-      </div>
+      />
 
       {/* Floating Logs Filters - Only on logs page */}
       <div

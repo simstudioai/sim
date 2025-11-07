@@ -21,7 +21,6 @@ export const TwilioVoiceBlock: BlockConfig<ToolResponse> = {
       id: 'operation',
       title: 'Operation',
       type: 'dropdown',
-      layout: 'full',
       options: [
         { label: 'Make Call', id: 'make_call' },
         { label: 'List Calls', id: 'list_calls' },
@@ -33,7 +32,6 @@ export const TwilioVoiceBlock: BlockConfig<ToolResponse> = {
       id: 'accountSid',
       title: 'Twilio Account SID',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx',
       required: true,
     },
@@ -41,7 +39,6 @@ export const TwilioVoiceBlock: BlockConfig<ToolResponse> = {
       id: 'authToken',
       title: 'Auth Token',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Your Twilio Auth Token',
       password: true,
       required: true,
@@ -50,7 +47,6 @@ export const TwilioVoiceBlock: BlockConfig<ToolResponse> = {
       id: 'to',
       title: 'To Phone Number',
       type: 'short-input',
-      layout: 'half',
       placeholder: '+14155551234',
       condition: {
         field: 'operation',
@@ -62,7 +58,6 @@ export const TwilioVoiceBlock: BlockConfig<ToolResponse> = {
       id: 'from',
       title: 'From Twilio Number',
       type: 'short-input',
-      layout: 'half',
       placeholder: '+14155556789',
       condition: {
         field: 'operation',
@@ -74,7 +69,6 @@ export const TwilioVoiceBlock: BlockConfig<ToolResponse> = {
       id: 'url',
       title: 'TwiML URL',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'https://example.com/twiml',
       condition: {
         field: 'operation',
@@ -85,7 +79,6 @@ export const TwilioVoiceBlock: BlockConfig<ToolResponse> = {
       id: 'twiml',
       title: 'TwiML Instructions',
       type: 'long-input',
-      layout: 'full',
       placeholder: '[Response][Say]Hello from Twilio![/Say][/Response]',
       description:
         'Use square brackets instead of angle brackets (e.g., [Response] instead of <Response>)',
@@ -98,7 +91,6 @@ export const TwilioVoiceBlock: BlockConfig<ToolResponse> = {
       id: 'record',
       title: 'Record Call',
       type: 'switch',
-      layout: 'half',
       condition: {
         field: 'operation',
         value: 'make_call',
@@ -108,7 +100,6 @@ export const TwilioVoiceBlock: BlockConfig<ToolResponse> = {
       id: 'timeout',
       title: 'Timeout (seconds)',
       type: 'short-input',
-      layout: 'half',
       placeholder: '60',
       condition: {
         field: 'operation',
@@ -119,7 +110,6 @@ export const TwilioVoiceBlock: BlockConfig<ToolResponse> = {
       id: 'statusCallback',
       title: 'Status Callback URL',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'https://example.com/status',
       condition: {
         field: 'operation',
@@ -130,7 +120,6 @@ export const TwilioVoiceBlock: BlockConfig<ToolResponse> = {
       id: 'machineDetection',
       title: 'Machine Detection',
       type: 'dropdown',
-      layout: 'full',
       options: [
         { label: 'Disabled', id: '' },
         { label: 'Enable', id: 'Enable' },
@@ -145,7 +134,6 @@ export const TwilioVoiceBlock: BlockConfig<ToolResponse> = {
       id: 'listTo',
       title: 'To Number',
       type: 'short-input',
-      layout: 'half',
       placeholder: '+14155551234',
       condition: {
         field: 'operation',
@@ -156,7 +144,6 @@ export const TwilioVoiceBlock: BlockConfig<ToolResponse> = {
       id: 'listFrom',
       title: 'From Number',
       type: 'short-input',
-      layout: 'half',
       placeholder: '+14155556789',
       condition: {
         field: 'operation',
@@ -167,7 +154,6 @@ export const TwilioVoiceBlock: BlockConfig<ToolResponse> = {
       id: 'listStatus',
       title: 'Status',
       type: 'dropdown',
-      layout: 'half',
       options: [
         { label: 'All', id: '' },
         { label: 'Queued', id: 'queued' },
@@ -188,7 +174,6 @@ export const TwilioVoiceBlock: BlockConfig<ToolResponse> = {
       id: 'listPageSize',
       title: 'Page Size',
       type: 'short-input',
-      layout: 'half',
       placeholder: '50',
       condition: {
         field: 'operation',
@@ -199,7 +184,6 @@ export const TwilioVoiceBlock: BlockConfig<ToolResponse> = {
       id: 'startTimeAfter',
       title: 'After (YYYY-MM-DD)',
       type: 'short-input',
-      layout: 'half',
       placeholder: '2025-01-01',
       condition: {
         field: 'operation',
@@ -210,7 +194,6 @@ export const TwilioVoiceBlock: BlockConfig<ToolResponse> = {
       id: 'startTimeBefore',
       title: 'Before (YYYY-MM-DD)',
       type: 'short-input',
-      layout: 'half',
       placeholder: '2025-12-31',
       condition: {
         field: 'operation',
@@ -221,7 +204,6 @@ export const TwilioVoiceBlock: BlockConfig<ToolResponse> = {
       id: 'recordingSid',
       title: 'Recording SID',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'RExxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx',
       condition: {
         field: 'operation',
