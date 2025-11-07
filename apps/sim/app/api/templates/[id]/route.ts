@@ -1,6 +1,6 @@
 import { db } from '@sim/db'
-import { templates, workflowDeploymentVersion } from '@sim/db/schema'
-import { and, eq, sql } from 'drizzle-orm'
+import { templates } from '@sim/db/schema'
+import { eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
@@ -82,11 +82,12 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 }
 
 const updateTemplateSchema = z.object({
-  name: z.string().min(1).max(100),
-  description: z.string().min(1).max(500),
-  author: z.string().min(1).max(100),
+  name: z.string().min(1).max(100).optional(),
+  description: z.string().min(1).max(500).optional(),
+  author: z.string().min(1).max(100).optional(),
   authorType: z.enum(['user', 'organization']).optional(),
   organizationId: z.string().optional(),
+  updateState: z.boolean().optional(), // Explicitly request state update from current workflow
 })
 
 // PUT /api/templates/[id] - Update a template
@@ -112,7 +113,8 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       )
     }
 
-    const { name, description, author, authorType, organizationId } = validationResult.data
+    const { name, description, author, authorType, organizationId, updateState } =
+      validationResult.data
 
     // Check if template exists
     const existingTemplate = await db.select().from(templates).where(eq(templates.id, id)).limit(1)
@@ -128,33 +130,40 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.json({ error: 'Access denied' }, { status: 403 })
     }
 
-    // Prepare update data
+    // Prepare update data - only include fields that were provided
     const updateData: any = {
-      name,
-      description,
-      author,
       updatedAt: new Date(),
     }
+
+    // Only update fields that were provided
+    if (name !== undefined) updateData.name = name
+    if (description !== undefined) updateData.description = description
+    if (author !== undefined) updateData.author = author
 
     // Optional fields
     if (authorType) updateData.authorType = authorType
     if (organizationId !== undefined) updateData.organizationId = organizationId
 
-    // If the template has a connected workflow, update the state from the latest deployment
-    if (existingTemplate[0].workflowId) {
-      const activeVersion = await db
-        .select({ state: workflowDeploymentVersion.state })
-        .from(workflowDeploymentVersion)
-        .where(
-          and(
-            eq(workflowDeploymentVersion.workflowId, existingTemplate[0].workflowId),
-            eq(workflowDeploymentVersion.isActive, true)
-          )
-        )
-        .limit(1)
+    // Only update the state if explicitly requested and the template has a connected workflow
+    if (updateState && existingTemplate[0].workflowId) {
+      // Load the current workflow state from normalized tables
+      const { loadWorkflowFromNormalizedTables } = await import('@/lib/workflows/db-helpers')
+      const normalizedData = await loadWorkflowFromNormalizedTables(existingTemplate[0].workflowId)
 
-      if (activeVersion.length > 0) {
-        updateData.state = activeVersion[0].state
+      if (normalizedData) {
+        const currentState = {
+          blocks: normalizedData.blocks,
+          edges: normalizedData.edges,
+          loops: normalizedData.loops,
+          parallels: normalizedData.parallels,
+          lastSaved: Date.now(),
+        }
+        updateData.state = currentState
+        logger.info(
+          `[${requestId}] Updating template state from current workflow: ${existingTemplate[0].workflowId}`
+        )
+      } else {
+        logger.warn(`[${requestId}] Could not load workflow state for template: ${id}`)
       }
     }
 

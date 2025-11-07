@@ -1,6 +1,6 @@
+import crypto from 'crypto'
 import {
   db,
-  templates,
   workflow,
   workflowBlocks,
   workflowDeploymentVersion,
@@ -448,14 +448,8 @@ export async function deployWorkflow(params: {
 
       await tx.update(workflow).set(updateData).where(eq(workflow.id, workflowId))
 
-      // Update any connected templates with the new state
-      await tx
-        .update(templates)
-        .set({
-          state: currentState,
-          updatedAt: now,
-        })
-        .where(eq(templates.workflowId, workflowId))
+      // Note: Templates are NOT automatically updated on deployment
+      // Template updates must be done explicitly through the "Update Template" button
 
       return nextVersion
     })
@@ -500,5 +494,131 @@ export async function deployWorkflow(params: {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error',
     }
+  }
+}
+
+/**
+ * Regenerates all IDs in a workflow state to avoid conflicts when duplicating or using templates
+ * Returns a new state with all IDs regenerated and references updated
+ */
+export function regenerateWorkflowStateIds(state: any): any {
+  // Create ID mappings
+  const blockIdMapping = new Map<string, string>()
+  const edgeIdMapping = new Map<string, string>()
+  const loopIdMapping = new Map<string, string>()
+  const parallelIdMapping = new Map<string, string>()
+
+  // First pass: Create all ID mappings
+  // Map block IDs
+  Object.keys(state.blocks || {}).forEach((oldId) => {
+    blockIdMapping.set(oldId, crypto.randomUUID())
+  })
+
+  // Map edge IDs
+
+  ;(state.edges || []).forEach((edge: any) => {
+    edgeIdMapping.set(edge.id, crypto.randomUUID())
+  })
+
+  // Map loop IDs
+  Object.keys(state.loops || {}).forEach((oldId) => {
+    loopIdMapping.set(oldId, crypto.randomUUID())
+  })
+
+  // Map parallel IDs
+  Object.keys(state.parallels || {}).forEach((oldId) => {
+    parallelIdMapping.set(oldId, crypto.randomUUID())
+  })
+
+  // Second pass: Create new state with regenerated IDs and updated references
+  const newBlocks: Record<string, any> = {}
+  const newEdges: any[] = []
+  const newLoops: Record<string, any> = {}
+  const newParallels: Record<string, any> = {}
+
+  // Regenerate blocks with updated references
+  Object.entries(state.blocks || {}).forEach(([oldId, block]: [string, any]) => {
+    const newId = blockIdMapping.get(oldId)!
+    const newBlock = { ...block, id: newId }
+
+    // Update parentId reference if it exists
+    if (newBlock.data?.parentId) {
+      const newParentId = blockIdMapping.get(newBlock.data.parentId)
+      if (newParentId) {
+        newBlock.data.parentId = newParentId
+      }
+    }
+
+    // Update any block references in subBlocks
+    if (newBlock.subBlocks) {
+      const updatedSubBlocks: Record<string, any> = {}
+      Object.entries(newBlock.subBlocks).forEach(([subId, subBlock]: [string, any]) => {
+        const updatedSubBlock = { ...subBlock }
+
+        // If subblock value contains block references, update them
+        if (
+          typeof updatedSubBlock.value === 'string' &&
+          blockIdMapping.has(updatedSubBlock.value)
+        ) {
+          updatedSubBlock.value = blockIdMapping.get(updatedSubBlock.value)
+        }
+
+        updatedSubBlocks[subId] = updatedSubBlock
+      })
+      newBlock.subBlocks = updatedSubBlocks
+    }
+
+    newBlocks[newId] = newBlock
+  })
+
+  // Regenerate edges with updated source/target references
+
+  ;(state.edges || []).forEach((edge: any) => {
+    const newId = edgeIdMapping.get(edge.id)!
+    const newSource = blockIdMapping.get(edge.source) || edge.source
+    const newTarget = blockIdMapping.get(edge.target) || edge.target
+
+    newEdges.push({
+      ...edge,
+      id: newId,
+      source: newSource,
+      target: newTarget,
+    })
+  })
+
+  // Regenerate loops with updated node references
+  Object.entries(state.loops || {}).forEach(([oldId, loop]: [string, any]) => {
+    const newId = loopIdMapping.get(oldId)!
+    const newLoop = { ...loop, id: newId }
+
+    // Update nodes array with new block IDs
+    if (newLoop.nodes) {
+      newLoop.nodes = newLoop.nodes.map((nodeId: string) => blockIdMapping.get(nodeId) || nodeId)
+    }
+
+    newLoops[newId] = newLoop
+  })
+
+  // Regenerate parallels with updated node references
+  Object.entries(state.parallels || {}).forEach(([oldId, parallel]: [string, any]) => {
+    const newId = parallelIdMapping.get(oldId)!
+    const newParallel = { ...parallel, id: newId }
+
+    // Update nodes array with new block IDs
+    if (newParallel.nodes) {
+      newParallel.nodes = newParallel.nodes.map(
+        (nodeId: string) => blockIdMapping.get(nodeId) || nodeId
+      )
+    }
+
+    newParallels[newId] = newParallel
+  })
+
+  return {
+    blocks: newBlocks,
+    edges: newEdges,
+    loops: newLoops,
+    parallels: newParallels,
+    lastSaved: state.lastSaved || Date.now(),
   }
 }

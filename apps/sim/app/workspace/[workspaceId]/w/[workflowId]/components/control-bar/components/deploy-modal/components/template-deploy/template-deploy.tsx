@@ -2,11 +2,15 @@
 
 import { useEffect, useState } from 'react'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Loader2, Star, Trash2 } from 'lucide-react'
+import { CheckCircle2, Loader2, Trash2 } from 'lucide-react'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import {
   Button,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
   Form,
   FormControl,
   FormField,
@@ -23,6 +27,8 @@ import {
 } from '@/components/ui'
 import { useSession } from '@/lib/auth-client'
 import { createLogger } from '@/lib/logs/console/logger'
+import { WorkflowPreview } from '@/app/workspace/[workspaceId]/w/components/workflow-preview/workflow-preview'
+import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('TemplateDeploy')
 
@@ -54,6 +60,7 @@ export function TemplateDeploy({ workflowId, onDeploymentComplete }: TemplateDep
   const [isDeleting, setIsDeleting] = useState(false)
   const [authorOptions, setAuthorOptions] = useState<AuthorOption[]>([])
   const [loadingAuthors, setLoadingAuthors] = useState(false)
+  const [showPreviewDialog, setShowPreviewDialog] = useState(false)
 
   const form = useForm<TemplateFormData>({
     resolver: zodResolver(templateSchema),
@@ -151,12 +158,10 @@ export function TemplateDeploy({ workflowId, onDeploymentComplete }: TemplateDep
       const organizationId = authorType === 'organization' ? data.authorId : undefined
 
       const templateData: any = {
-        workflowId,
         name: data.name,
         description: data.description || '',
         author: authorName,
         authorType,
-        // Note: template state is handled by the API (copies from active deployment version)
       }
 
       // Only include organizationId if it's defined
@@ -166,16 +171,21 @@ export function TemplateDeploy({ workflowId, onDeploymentComplete }: TemplateDep
 
       let response
       if (existingTemplate) {
+        // Update template metadata AND state from current workflow
         response = await fetch(`/api/templates/${existingTemplate.id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(templateData),
+          body: JSON.stringify({
+            ...templateData,
+            updateState: true, // Update state from current workflow
+          }),
         })
       } else {
+        // Create new template with workflowId
         response = await fetch('/api/templates', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(templateData),
+          body: JSON.stringify({ ...templateData, workflowId }),
         })
       }
 
@@ -236,42 +246,34 @@ export function TemplateDeploy({ workflowId, onDeploymentComplete }: TemplateDep
   return (
     <div className='space-y-4'>
       {existingTemplate && (
-        <>
-          <div className='flex items-center justify-between rounded-lg border bg-muted/40 p-4'>
-            <div className='flex items-center gap-3'>
-              <div className='text-sm'>
-                <div className='flex items-center gap-2'>
-                  <span className='font-medium'>Template Published</span>
-                  {existingTemplate.status === 'pending' && (
-                    <span className='rounded-md bg-yellow-100 px-2 py-0.5 text-xs font-medium text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300'>
-                      Under Review
-                    </span>
-                  )}
-                </div>
-                <div className='text-muted-foreground text-xs'>
-                  {existingTemplate.stars > 0 && (
-                    <>
-                      <Star className='mr-1 inline h-3 w-3' />
-                      {existingTemplate.stars} stars
-                    </>
-                  )}
-                  {existingTemplate.views > 0 && (
-                    <span className='ml-2'>{existingTemplate.views} views</span>
-                  )}
-                </div>
-              </div>
+        <div className='flex items-center justify-between rounded-lg border border-border/50 bg-muted/30 px-4 py-3'>
+          <div className='flex items-center gap-3'>
+            <CheckCircle2 className='h-4 w-4 text-green-600 dark:text-green-400' />
+            <div className='flex items-center gap-2'>
+              <span className='text-sm font-medium'>Template Connected</span>
+              {existingTemplate.status === 'pending' && (
+                <span className='rounded-md bg-yellow-100 px-2 py-0.5 text-xs font-medium text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300'>
+                  Under Review
+                </span>
+              )}
+              {existingTemplate.status === 'approved' && existingTemplate.views > 0 && (
+                <span className='text-xs text-muted-foreground'>
+                  • {existingTemplate.views} views
+                  {existingTemplate.stars > 0 && ` • ${existingTemplate.stars} stars`}
+                </span>
+              )}
             </div>
-            <Button
-              variant='outline'
-              size='sm'
-              onClick={() => setShowDeleteDialog(true)}
-              className='text-red-600 hover:bg-red-50'
-            >
-              <Trash2 className='mr-2 h-4 w-4' />
-              Delete
-            </Button>
           </div>
-        </>
+          <Button
+            type='button'
+            variant='ghost'
+            size='sm'
+            onClick={() => setShowDeleteDialog(true)}
+            className='h-8 px-2 text-muted-foreground hover:text-red-600 dark:hover:text-red-400'
+          >
+            <Trash2 className='h-4 w-4' />
+          </Button>
+        </div>
       )}
 
       <Form {...form}>
@@ -337,16 +339,15 @@ export function TemplateDeploy({ workflowId, onDeploymentComplete }: TemplateDep
             )}
           />
 
-          <div className='flex justify-end gap-2 pt-4'>
+          <div className='flex justify-end gap-2 border-t pt-4'>
             {existingTemplate && (
               <Button
                 type='button'
                 variant='outline'
-                onClick={() => setShowDeleteDialog(true)}
-                className='text-red-600 hover:bg-red-50'
+                onClick={() => setShowPreviewDialog(true)}
+                disabled={!existingTemplate?.state}
               >
-                <Trash2 className='mr-2 h-4 w-4' />
-                Delete Template
+                View Current
               </Button>
             )}
             <Button
@@ -390,6 +391,54 @@ export function TemplateDeploy({ workflowId, onDeploymentComplete }: TemplateDep
             </div>
           </div>
         </div>
+      )}
+
+      {/* Template State Preview Dialog */}
+      {showPreviewDialog && (
+        <Dialog open={showPreviewDialog} onOpenChange={setShowPreviewDialog}>
+          <DialogContent className='max-w-5xl max-h-[80vh] overflow-auto'>
+            <DialogHeader>
+              <DialogTitle>Template State Preview</DialogTitle>
+            </DialogHeader>
+            <div className='mt-4'>
+              {(() => {
+                if (!existingTemplate?.state || !existingTemplate.state.blocks) {
+                  return (
+                    <div className='flex flex-col items-center gap-4 py-8'>
+                      <div className='text-center text-muted-foreground'>
+                        <p className='mb-2'>No template state available yet.</p>
+                        <p className='text-sm'>
+                          Click "Update Template" to capture the current workflow state.
+                        </p>
+                      </div>
+                    </div>
+                  )
+                }
+
+                // Ensure the state has the right structure
+                const workflowState: WorkflowState = {
+                  blocks: existingTemplate.state.blocks || {},
+                  edges: existingTemplate.state.edges || [],
+                  loops: existingTemplate.state.loops || {},
+                  parallels: existingTemplate.state.parallels || {},
+                  lastSaved: existingTemplate.state.lastSaved || Date.now(),
+                }
+
+                return (
+                  <div className='h-[500px] w-full'>
+                    <WorkflowPreview
+                      key={`template-preview-${existingTemplate.id}-${Date.now()}`}
+                      workflowState={workflowState}
+                      showSubBlocks={true}
+                      height='100%'
+                      width='100%'
+                    />
+                  </div>
+                )
+              })()}
+            </div>
+          </DialogContent>
+        </Dialog>
       )}
     </div>
   )

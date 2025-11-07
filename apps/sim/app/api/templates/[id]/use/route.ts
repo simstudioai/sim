@@ -7,6 +7,7 @@ import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getBaseUrl } from '@/lib/urls/utils'
 import { generateRequestId } from '@/lib/utils'
+import { regenerateWorkflowStateIds } from '@/lib/workflows/db-helpers'
 
 const logger = createLogger('TemplateUseAPI')
 
@@ -79,7 +80,14 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       deployedAt: connectToTemplate && !templateData.workflowId ? now : null,
     })
 
-    // Step 2: Save the workflow state using the existing state endpoint (like imports do)
+    // Step 2: Regenerate IDs when creating a copy (not when connecting/editing template)
+    // When connecting to template (edit mode), keep original IDs
+    // When using template (copy mode), regenerate all IDs to avoid conflicts
+    const workflowState = connectToTemplate
+      ? templateData.state
+      : regenerateWorkflowStateIds(templateData.state)
+
+    // Step 3: Save the workflow state using the existing state endpoint (like imports do)
     const stateResponse = await fetch(`${getBaseUrl()}/api/workflows/${newWorkflowId}/state`, {
       method: 'PUT',
       headers: {
@@ -87,7 +95,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         // Forward the session cookie for authentication
         cookie: request.headers.get('cookie') || '',
       },
-      body: JSON.stringify(templateData.state),
+      body: JSON.stringify(workflowState),
     })
 
     if (!stateResponse.ok) {
