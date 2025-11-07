@@ -71,9 +71,21 @@ export class BlockExecutor {
 
     try {
       resolvedInputs = this.resolver.resolveInputs(ctx, node.id, block.config.params, block)
-    } finally {
+    } catch (error) {
       cleanupSelfReference?.()
+      return this.handleBlockError(
+        error,
+        ctx,
+        node,
+        block,
+        startTime,
+        blockLog,
+        resolvedInputs,
+        isSentinel,
+        'input_resolution'
+      )
     }
+    cleanupSelfReference?.()
 
     try {
       const output = handler.executeWithNode
@@ -120,58 +132,17 @@ export class BlockExecutor {
 
       return normalizedOutput
     } catch (error) {
-      const duration = Date.now() - startTime
-      const errorMessage = normalizeError(error)
-
-      if (blockLog) {
-        blockLog.endedAt = new Date().toISOString()
-        blockLog.durationMs = duration
-        blockLog.success = false
-        blockLog.error = errorMessage
-      }
-
-      const errorOutput: NormalizedBlockOutput = {
-        error: errorMessage,
-      }
-
-      this.state.setBlockOutput(node.id, errorOutput, duration)
-
-      logger.error('Block execution failed', {
-        blockId: node.id,
-        blockType: block.metadata?.id,
-        error: errorMessage,
-      })
-
-      if (!isSentinel) {
-        this.callOnBlockComplete(ctx, node, block, resolvedInputs, errorOutput, duration)
-      }
-
-      const hasErrorPort = this.hasErrorPortEdge(node)
-
-      if (hasErrorPort) {
-        logger.info('Block has error port - returning error output instead of throwing', {
-          blockId: node.id,
-          error: errorMessage,
-        })
-        return errorOutput
-      }
-
-      let errorToThrow: Error | string
-      if (error instanceof Error) {
-        errorToThrow = error
-      } else {
-        errorToThrow = errorMessage
-      }
-
-      throw buildBlockExecutionError({
+      return this.handleBlockError(
+        error,
+        ctx,
+        node,
         block,
-        error: errorToThrow,
-        context: ctx,
-        additionalInfo: {
-          nodeId: node.id,
-          executionTime: duration,
-        },
-      })
+        startTime,
+        blockLog,
+        resolvedInputs,
+        isSentinel,
+        'execution'
+      )
     }
   }
 
@@ -194,6 +165,68 @@ export class BlockExecutor {
 
   private findHandler(block: SerializedBlock): BlockHandler | undefined {
     return this.blockHandlers.find((h) => h.canHandle(block))
+  }
+
+  private handleBlockError(
+    error: unknown,
+    ctx: ExecutionContext,
+    node: DAGNode,
+    block: SerializedBlock,
+    startTime: number,
+    blockLog: BlockLog | undefined,
+    resolvedInputs: Record<string, any>,
+    isSentinel: boolean,
+    phase: 'input_resolution' | 'execution'
+  ): NormalizedBlockOutput {
+    const duration = Date.now() - startTime
+    const errorMessage = normalizeError(error)
+
+    if (blockLog) {
+      blockLog.endedAt = new Date().toISOString()
+      blockLog.durationMs = duration
+      blockLog.success = false
+      blockLog.error = errorMessage
+    }
+
+    const errorOutput: NormalizedBlockOutput = {
+      error: errorMessage,
+    }
+
+    this.state.setBlockOutput(node.id, errorOutput, duration)
+
+    logger.error(
+      phase === 'input_resolution' ? 'Failed to resolve block inputs' : 'Block execution failed',
+      {
+        blockId: node.id,
+        blockType: block.metadata?.id,
+        error: errorMessage,
+      }
+    )
+
+    if (!isSentinel) {
+      this.callOnBlockComplete(ctx, node, block, resolvedInputs, errorOutput, duration)
+    }
+
+    const hasErrorPort = this.hasErrorPortEdge(node)
+    if (hasErrorPort) {
+      logger.info('Block has error port - returning error output instead of throwing', {
+        blockId: node.id,
+        error: errorMessage,
+      })
+      return errorOutput
+    }
+
+    const errorToThrow = error instanceof Error ? error : new Error(errorMessage)
+
+    throw buildBlockExecutionError({
+      block,
+      error: errorToThrow,
+      context: ctx,
+      additionalInfo: {
+        nodeId: node.id,
+        executionTime: duration,
+      },
+    })
   }
 
   private hasErrorPortEdge(node: DAGNode): boolean {

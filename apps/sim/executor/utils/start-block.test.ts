@@ -71,8 +71,8 @@ describe('start-block utilities', () => {
     })
 
     expect(output.payload).toBe('value')
-    expect(output.input).toBe('')
-    expect(output.conversationId).toBe('')
+    expect(output.input).toBeUndefined()
+    expect(output.conversationId).toBeUndefined()
   })
 
   it('buildStartBlockOutput uses trigger schema for API triggers', () => {
@@ -101,8 +101,6 @@ describe('start-block utilities', () => {
         size: 42,
         type: 'text/plain',
         key: 'file-key',
-        uploadedAt: new Date().toISOString(),
-        expiresAt: new Date(Date.now() + 1000).toISOString(),
       },
     ]
 
