@@ -172,10 +172,10 @@ export const stripeWebhookTrigger: TriggerConfig = {
       type: 'text',
       defaultValue: [
         'Go to your Stripe Dashboard at <a href="https://dashboard.stripe.com/webhooks" target="_blank" rel="noopener noreferrer">https://dashboard.stripe.com/webhooks</a>',
-        'Click "Add endpoint" button',
-        'Paste the <strong>Webhook URL</strong> above into the "Endpoint URL" field',
+        'Click "Add destination" button',
         'In "Events to send", select the events you want to listen to (must match the events selected above, or select "Select all events" to receive everything)',
-        'Click "Add endpoint" to save',
+        'Select `Webhook Endpoint`, press continue, and paste the <strong>Webhook URL</strong> above into the "Endpoint URL" field',
+        'Click "Create Destination" to save',
         'After creating the endpoint, click "Reveal" next to "Signing secret" and copy it',
         'Paste the signing secret into the <strong>Webhook Signing Secret</strong> field above',
         'Click "Save" to activate your webhook trigger',
