@@ -87,7 +87,7 @@ export const linearUpdateProjectTool: ToolConfig<
       if (params.leadId !== undefined) input.leadId = params.leadId
       if (params.startDate !== undefined) input.startDate = params.startDate
       if (params.targetDate !== undefined) input.targetDate = params.targetDate
-      if (params.priority !== undefined) input.priority = params.priority
+      if (params.priority !== undefined) input.priority = Number(params.priority)
 
       return {
         query: `

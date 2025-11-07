@@ -90,9 +90,9 @@ export const mapTool: ToolConfig<TavilyMapParams, MapResponse> = {
       }
 
       if (params.instructions) body.instructions = params.instructions
-      if (params.max_depth) body.max_depth = params.max_depth
-      if (params.max_breadth) body.max_breadth = params.max_breadth
-      if (params.limit) body.limit = params.limit
+      if (params.max_depth) body.max_depth = Number(params.max_depth)
+      if (params.max_breadth) body.max_breadth = Number(params.max_breadth)
+      if (params.limit) body.limit = Number(params.limit)
       if (params.select_paths) {
         body.select_paths = params.select_paths.split(',').map((p) => p.trim())
       }

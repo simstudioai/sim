@@ -98,7 +98,7 @@ export const gmailReadTool: ToolConfig<GmailReadParams, GmailToolResponse> = {
       }
 
       // Set max results (default to 1 for simplicity, max 10)
-      const maxResults = params.maxResults ? Math.min(params.maxResults, 10) : 1
+      const maxResults = params.maxResults ? Math.min(Number(params.maxResults), 10) : 1
       url.searchParams.append('maxResults', maxResults.toString())
 
       return url.toString()
@@ -135,7 +135,7 @@ export const gmailReadTool: ToolConfig<GmailReadParams, GmailToolResponse> = {
 
       // For agentic workflows, we'll fetch the first message by default
       // If maxResults > 1, we'll return a summary of messages found
-      const maxResults = params?.maxResults ? Math.min(params.maxResults, 10) : 1
+      const maxResults = params?.maxResults ? Math.min(Number(params.maxResults), 10) : 1
 
       if (maxResults === 1) {
         try {

@@ -141,7 +141,8 @@ export const crawlTool: ToolConfig<FirecrawlCrawlParams, FirecrawlCrawlResponse>
 
       // Add all optional crawl-specific parameters if provided
       if (params.prompt !== undefined) body.prompt = params.prompt
-      if (params.maxDiscoveryDepth !== undefined) body.maxDiscoveryDepth = params.maxDiscoveryDepth
+      if (params.maxDiscoveryDepth !== undefined)
+        body.maxDiscoveryDepth = Number(params.maxDiscoveryDepth)
       if (params.sitemap !== undefined) body.sitemap = params.sitemap
       if (params.crawlEntireDomain !== undefined) body.crawlEntireDomain = params.crawlEntireDomain
       if (params.allowExternalLinks !== undefined)
@@ -149,8 +150,8 @@ export const crawlTool: ToolConfig<FirecrawlCrawlParams, FirecrawlCrawlResponse>
       if (params.allowSubdomains !== undefined) body.allowSubdomains = params.allowSubdomains
       if (params.ignoreQueryParameters !== undefined)
         body.ignoreQueryParameters = params.ignoreQueryParameters
-      if (params.delay !== undefined) body.delay = params.delay
-      if (params.maxConcurrency !== undefined) body.maxConcurrency = params.maxConcurrency
+      if (params.delay !== undefined) body.delay = Number(params.delay)
+      if (params.maxConcurrency !== undefined) body.maxConcurrency = Number(params.maxConcurrency)
       if (params.excludePaths !== undefined) body.excludePaths = params.excludePaths
       if (params.includePaths !== undefined) body.includePaths = params.includePaths
       if (params.webhook !== undefined) body.webhook = params.webhook

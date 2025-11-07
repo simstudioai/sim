@@ -132,7 +132,7 @@ export const updateTaskTool: ToolConfig<
       }
 
       if (params.priority !== undefined) {
-        body.priority = params.priority
+        body.priority = Number(params.priority)
       }
 
       if (params.assigneeUserId) {

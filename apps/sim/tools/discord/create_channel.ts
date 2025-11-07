@@ -65,7 +65,7 @@ export const discordCreateChannelTool: ToolConfig<
       const body: any = {
         name: params.name,
       }
-      if (params.type !== undefined) body.type = params.type
+      if (params.type !== undefined) body.type = Number(params.type)
       if (params.topic) body.topic = params.topic
       if (params.parentId) body.parent_id = params.parentId
       return body

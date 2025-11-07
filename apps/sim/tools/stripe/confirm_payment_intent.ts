@@ -14,7 +14,7 @@ export const stripeConfirmPaymentIntentTool: ToolConfig<
     apiKey: {
       type: 'string',
       required: true,
-      visibility: 'hidden',
+      visibility: 'user-only',
       description: 'Stripe API key (secret key)',
     },
     id: {
@@ -39,9 +39,9 @@ export const stripeConfirmPaymentIntentTool: ToolConfig<
       'Content-Type': 'application/x-www-form-urlencoded',
     }),
     body: (params) => {
-      const body: Record<string, any> = {}
-      if (params.payment_method) body.payment_method = params.payment_method
-      return body
+      const formData = new URLSearchParams()
+      if (params.payment_method) formData.append('payment_method', params.payment_method)
+      return { body: formData.toString() }
     },
   },
 

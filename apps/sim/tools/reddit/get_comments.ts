@@ -122,18 +122,20 @@ export const getCommentsTool: ToolConfig<RedditCommentsParams, RedditCommentsRes
       })
 
       // Add comment-specific parameters if provided
-      if (params.depth !== undefined) urlParams.append('depth', params.depth.toString())
-      if (params.context !== undefined) urlParams.append('context', params.context.toString())
+      if (params.depth !== undefined) urlParams.append('depth', Number(params.depth).toString())
+      if (params.context !== undefined)
+        urlParams.append('context', Number(params.context).toString())
       if (params.showedits !== undefined) urlParams.append('showedits', params.showedits.toString())
       if (params.showmore !== undefined) urlParams.append('showmore', params.showmore.toString())
       if (params.showtitle !== undefined) urlParams.append('showtitle', params.showtitle.toString())
       if (params.threaded !== undefined) urlParams.append('threaded', params.threaded.toString())
-      if (params.truncate !== undefined) urlParams.append('truncate', params.truncate.toString())
+      if (params.truncate !== undefined)
+        urlParams.append('truncate', Number(params.truncate).toString())
 
       // Add pagination parameters if provided
       if (params.after) urlParams.append('after', params.after)
       if (params.before) urlParams.append('before', params.before)
-      if (params.count !== undefined) urlParams.append('count', params.count.toString())
+      if (params.count !== undefined) urlParams.append('count', Number(params.count).toString())
 
       // Build URL using OAuth endpoint
       return `https://oauth.reddit.com/r/${subreddit}/comments/${params.postId}?${urlParams.toString()}`

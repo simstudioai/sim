@@ -11,7 +11,7 @@ export const stripeFinalizeInvoiceTool: ToolConfig<FinalizeInvoiceParams, Invoic
     apiKey: {
       type: 'string',
       required: true,
-      visibility: 'hidden',
+      visibility: 'user-only',
       description: 'Stripe API key (secret key)',
     },
     id: {
@@ -36,11 +36,13 @@ export const stripeFinalizeInvoiceTool: ToolConfig<FinalizeInvoiceParams, Invoic
       'Content-Type': 'application/x-www-form-urlencoded',
     }),
     body: (params) => {
-      const body: Record<string, any> = {}
+      const formData = new URLSearchParams()
+
       if (params.auto_advance !== undefined) {
-        body.auto_advance = params.auto_advance.toString()
+        formData.append('auto_advance', String(params.auto_advance))
       }
-      return body
+
+      return { body: formData.toString() }
     },
   },
 

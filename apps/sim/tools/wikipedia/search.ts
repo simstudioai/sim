@@ -32,7 +32,7 @@ export const searchTool: ToolConfig<WikipediaSearchParams, WikipediaSearchRespon
       searchParams.append('format', 'json')
       searchParams.append('namespace', '0')
       if (params.searchLimit) {
-        searchParams.append('limit', Math.min(params.searchLimit, 50).toString())
+        searchParams.append('limit', Math.min(Number(params.searchLimit), 50).toString())
       } else {
         searchParams.append('limit', '10')
       }

@@ -58,8 +58,8 @@ export const domainSearchTool: ToolConfig<HunterDomainSearchParams, HunterDomain
       url.searchParams.append('domain', params.domain)
       url.searchParams.append('api_key', params.apiKey)
 
-      if (params.limit) url.searchParams.append('limit', params.limit.toString())
-      if (params.offset) url.searchParams.append('offset', params.offset.toString())
+      if (params.limit) url.searchParams.append('limit', Number(params.limit).toString())
+      if (params.offset) url.searchParams.append('offset', Number(params.offset).toString())
       if (params.type && params.type !== 'all') url.searchParams.append('type', params.type)
       if (params.seniority && params.seniority !== 'all')
         url.searchParams.append('seniority', params.seniority)

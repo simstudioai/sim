@@ -11,7 +11,7 @@ export const stripeUpdateChargeTool: ToolConfig<UpdateChargeParams, ChargeRespon
     apiKey: {
       type: 'string',
       required: true,
-      visibility: 'hidden',
+      visibility: 'user-only',
       description: 'Stripe API key (secret key)',
     },
     id: {
@@ -42,17 +42,17 @@ export const stripeUpdateChargeTool: ToolConfig<UpdateChargeParams, ChargeRespon
       'Content-Type': 'application/x-www-form-urlencoded',
     }),
     body: (params) => {
-      const body: Record<string, any> = {}
+      const formData = new URLSearchParams()
 
-      if (params.description) body.description = params.description
+      if (params.description) formData.append('description', params.description)
 
       if (params.metadata) {
         Object.entries(params.metadata).forEach(([key, value]) => {
-          body[`metadata[${key}]`] = String(value)
+          formData.append(`metadata[${key}]`, String(value))
         })
       }
 
-      return body
+      return { body: formData.toString() }
     },
   },
 

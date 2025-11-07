@@ -77,7 +77,7 @@ export const jiraAddWorklogTool: ToolConfig<JiraAddWorklogParams, JiraAddWorklog
     },
     body: (params: JiraAddWorklogParams) => {
       return {
-        timeSpentSeconds: params.timeSpentSeconds,
+        timeSpentSeconds: Number(params.timeSpentSeconds),
         comment: params.comment
           ? {
               type: 'doc',
@@ -113,7 +113,7 @@ export const jiraAddWorklogTool: ToolConfig<JiraAddWorklogParams, JiraAddWorklog
           Authorization: `Bearer ${params?.accessToken}`,
         },
         body: JSON.stringify({
-          timeSpentSeconds: params?.timeSpentSeconds,
+          timeSpentSeconds: params?.timeSpentSeconds ? Number(params.timeSpentSeconds) : 0,
           comment: params?.comment
             ? {
                 type: 'doc',
@@ -152,7 +152,7 @@ export const jiraAddWorklogTool: ToolConfig<JiraAddWorklogParams, JiraAddWorklog
           ts: new Date().toISOString(),
           issueKey: params?.issueKey || 'unknown',
           worklogId: data?.id || 'unknown',
-          timeSpentSeconds: params?.timeSpentSeconds || 0,
+          timeSpentSeconds: params?.timeSpentSeconds ? Number(params.timeSpentSeconds) : 0 || 0,
           success: true,
         },
       }
@@ -176,7 +176,7 @@ export const jiraAddWorklogTool: ToolConfig<JiraAddWorklogParams, JiraAddWorklog
         ts: new Date().toISOString(),
         issueKey: params?.issueKey || 'unknown',
         worklogId: data?.id || 'unknown',
-        timeSpentSeconds: params?.timeSpentSeconds || 0,
+        timeSpentSeconds: params?.timeSpentSeconds ? Number(params.timeSpentSeconds) : 0 || 0,
         success: true,
       },
     }

@@ -11,7 +11,7 @@ export const stripeSendInvoiceTool: ToolConfig<SendInvoiceParams, InvoiceRespons
     apiKey: {
       type: 'string',
       required: true,
-      visibility: 'hidden',
+      visibility: 'user-only',
       description: 'Stripe API key (secret key)',
     },
     id: {

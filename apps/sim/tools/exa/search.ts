@@ -121,7 +121,7 @@ export const searchTool: ToolConfig<ExaSearchParams, ExaSearchResponse> = {
       }
 
       // Add optional parameters if provided
-      if (params.numResults) body.numResults = params.numResults
+      if (params.numResults) body.numResults = Number(params.numResults)
       if (params.useAutoprompt !== undefined) body.useAutoprompt = params.useAutoprompt
       if (params.type) body.type = params.type
 

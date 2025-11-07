@@ -78,7 +78,7 @@ export const linearCreateWorkflowStateTool: ToolConfig<
       }
 
       if (params.description !== undefined) input.description = params.description
-      if (params.position !== undefined) input.position = params.position
+      if (params.position !== undefined) input.position = Number(params.position)
 
       return {
         query: `

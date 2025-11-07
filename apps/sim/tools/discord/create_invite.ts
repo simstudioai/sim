@@ -60,8 +60,8 @@ export const discordCreateInviteTool: ToolConfig<
     }),
     body: (params: DiscordCreateInviteParams) => {
       const body: any = {}
-      if (params.maxAge !== undefined) body.max_age = params.maxAge
-      if (params.maxUses !== undefined) body.max_uses = params.maxUses
+      if (params.maxAge !== undefined) body.max_age = Number(params.maxAge)
+      if (params.maxUses !== undefined) body.max_uses = Number(params.maxUses)
       if (params.temporary !== undefined) body.temporary = params.temporary
       return body
     },

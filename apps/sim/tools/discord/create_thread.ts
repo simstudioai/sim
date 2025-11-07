@@ -66,7 +66,7 @@ export const discordCreateThreadTool: ToolConfig<
         name: params.name,
       }
       if (params.autoArchiveDuration) {
-        body.auto_archive_duration = params.autoArchiveDuration
+        body.auto_archive_duration = Number(params.autoArchiveDuration)
       }
       return body
     },

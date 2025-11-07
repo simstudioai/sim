@@ -91,13 +91,13 @@ export const searchTool: ToolConfig<SearchParams, SearchResponse> = {
       }
 
       // Add all optional parameters if provided
-      if (params.limit !== undefined) body.limit = params.limit
+      if (params.limit !== undefined) body.limit = Number(params.limit)
       if (params.sources !== undefined) body.sources = params.sources
       if (params.categories !== undefined) body.categories = params.categories
       if (params.tbs !== undefined) body.tbs = params.tbs
       if (params.location !== undefined) body.location = params.location
       if (params.country !== undefined) body.country = params.country
-      if (params.timeout !== undefined) body.timeout = params.timeout
+      if (params.timeout !== undefined) body.timeout = Number(params.timeout)
       if (params.ignoreInvalidURLs !== undefined) body.ignoreInvalidURLs = params.ignoreInvalidURLs
       if (params.scrapeOptions !== undefined) body.scrapeOptions = params.scrapeOptions
 

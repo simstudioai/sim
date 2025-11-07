@@ -11,7 +11,7 @@ export const stripeUpdateProductTool: ToolConfig<UpdateProductParams, ProductRes
     apiKey: {
       type: 'string',
       required: true,
-      visibility: 'hidden',
+      visibility: 'user-only',
       description: 'Stripe API key (secret key)',
     },
     id: {
@@ -60,25 +60,25 @@ export const stripeUpdateProductTool: ToolConfig<UpdateProductParams, ProductRes
       'Content-Type': 'application/x-www-form-urlencoded',
     }),
     body: (params) => {
-      const body: Record<string, any> = {}
+      const formData = new URLSearchParams()
 
-      if (params.name) body.name = params.name
-      if (params.description) body.description = params.description
-      if (params.active !== undefined) body.active = String(params.active)
+      if (params.name) formData.append('name', params.name)
+      if (params.description) formData.append('description', params.description)
+      if (params.active !== undefined) formData.append('active', String(params.active))
 
       if (params.images) {
         params.images.forEach((image: string, index: number) => {
-          body[`images[${index}]`] = image
+          formData.append(`images[${index}]`, image)
         })
       }
 
       if (params.metadata) {
         Object.entries(params.metadata).forEach(([key, value]) => {
-          body[`metadata[${key}]`] = String(value)
+          formData.append(`metadata[${key}]`, String(value))
         })
       }
 
-      return body
+      return { body: formData.toString() }
     },
   },
 

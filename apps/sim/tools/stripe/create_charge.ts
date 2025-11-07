@@ -11,7 +11,7 @@ export const stripeCreateChargeTool: ToolConfig<CreateChargeParams, ChargeRespon
     apiKey: {
       type: 'string',
       required: true,
-      visibility: 'hidden',
+      visibility: 'user-only',
       description: 'Stripe API key (secret key)',
     },
     amount: {
@@ -66,22 +66,22 @@ export const stripeCreateChargeTool: ToolConfig<CreateChargeParams, ChargeRespon
       'Content-Type': 'application/x-www-form-urlencoded',
     }),
     body: (params) => {
-      const body: Record<string, any> = {}
-      body.amount = params.amount.toString()
-      body.currency = params.currency
+      const formData = new URLSearchParams()
+      formData.append('amount', Number(params.amount).toString())
+      formData.append('currency', params.currency)
 
-      if (params.customer) body.customer = params.customer
-      if (params.source) body.source = params.source
-      if (params.description) body.description = params.description
-      if (params.capture !== undefined) body.capture = String(params.capture)
+      if (params.customer) formData.append('customer', params.customer)
+      if (params.source) formData.append('source', params.source)
+      if (params.description) formData.append('description', params.description)
+      if (params.capture !== undefined) formData.append('capture', String(params.capture))
 
       if (params.metadata) {
         Object.entries(params.metadata).forEach(([key, value]) => {
-          body[`metadata[${key}]`] = String(value)
+          formData.append(`metadata[${key}]`, String(value))
         })
       }
 
-      return body
+      return { body: formData.toString() }
     },
   },
 

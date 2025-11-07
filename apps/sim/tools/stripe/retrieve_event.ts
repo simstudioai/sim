@@ -11,7 +11,7 @@ export const stripeRetrieveEventTool: ToolConfig<RetrieveEventParams, EventRespo
     apiKey: {
       type: 'string',
       required: true,
-      visibility: 'hidden',
+      visibility: 'user-only',
       description: 'Stripe API key (secret key)',
     },
     id: {

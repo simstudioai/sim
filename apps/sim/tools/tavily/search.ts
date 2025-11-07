@@ -132,7 +132,7 @@ export const searchTool: ToolConfig<TavilySearchParams, TavilySearchResponse> = 
       }
 
       // Only include optional parameters if explicitly set
-      if (params.max_results) body.max_results = params.max_results
+      if (params.max_results) body.max_results = Number(params.max_results)
       if (params.topic) body.topic = params.topic
       if (params.search_depth) body.search_depth = params.search_depth
       if (params.include_answer) body.include_answer = params.include_answer
@@ -141,7 +141,7 @@ export const searchTool: ToolConfig<TavilySearchParams, TavilySearchResponse> = 
       if (params.include_image_descriptions !== undefined)
         body.include_image_descriptions = params.include_image_descriptions
       if (params.include_favicon !== undefined) body.include_favicon = params.include_favicon
-      if (params.chunks_per_source) body.chunks_per_source = params.chunks_per_source
+      if (params.chunks_per_source) body.chunks_per_source = Number(params.chunks_per_source)
       if (params.time_range) body.time_range = params.time_range
       if (params.start_date) body.start_date = params.start_date
       if (params.end_date) body.end_date = params.end_date

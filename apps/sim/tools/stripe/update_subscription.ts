@@ -14,7 +14,7 @@ export const stripeUpdateSubscriptionTool: ToolConfig<
     apiKey: {
       type: 'string',
       required: true,
-      visibility: 'hidden',
+      visibility: 'user-only',
       description: 'Stripe API key (secret key)',
     },
     id: {
@@ -51,28 +51,28 @@ export const stripeUpdateSubscriptionTool: ToolConfig<
       'Content-Type': 'application/x-www-form-urlencoded',
     }),
     body: (params) => {
-      const body: Record<string, any> = {}
+      const formData = new URLSearchParams()
 
       if (params.items && Array.isArray(params.items)) {
         params.items.forEach((item, index) => {
-          body[`items[${index}][price]`] = item.price
+          formData.append(`items[${index}][price]`, item.price)
           if (item.quantity) {
-            body[`items[${index}][quantity]`] = item.quantity
+            formData.append(`items[${index}][quantity]`, String(item.quantity))
           }
         })
       }
 
       if (params.cancel_at_period_end !== undefined) {
-        body.cancel_at_period_end = params.cancel_at_period_end
+        formData.append('cancel_at_period_end', String(params.cancel_at_period_end))
       }
 
       if (params.metadata) {
         Object.entries(params.metadata).forEach(([key, value]) => {
-          body[`metadata[${key}]`] = String(value)
+          formData.append(`metadata[${key}]`, String(value))
         })
       }
 
-      return body
+      return { body: formData.toString() }
     },
   },
 

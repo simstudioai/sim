@@ -14,7 +14,7 @@ export const stripeCancelSubscriptionTool: ToolConfig<
     apiKey: {
       type: 'string',
       required: true,
-      visibility: 'hidden',
+      visibility: 'user-only',
       description: 'Stripe API key (secret key)',
     },
     id: {
@@ -45,16 +45,16 @@ export const stripeCancelSubscriptionTool: ToolConfig<
       'Content-Type': 'application/x-www-form-urlencoded',
     }),
     body: (params) => {
-      const body: Record<string, any> = {}
+      const formData = new URLSearchParams()
 
       if (params.prorate !== undefined) {
-        body.prorate = params.prorate
+        formData.append('prorate', String(params.prorate))
       }
       if (params.invoice_now !== undefined) {
-        body.invoice_now = params.invoice_now
+        formData.append('invoice_now', String(params.invoice_now))
       }
 
-      return body
+      return { body: formData.toString() }
     },
   },
 

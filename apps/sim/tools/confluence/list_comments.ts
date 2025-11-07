@@ -84,7 +84,7 @@ export const confluenceListCommentsTool: ToolConfig<
         accessToken: params.accessToken,
         cloudId: params.cloudId,
         pageId: params.pageId,
-        limit: params.limit || 25,
+        limit: params.limit ? Number(params.limit) : 25,
       }
     },
   },

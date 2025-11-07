@@ -84,7 +84,7 @@ export const jiraUpdateWorklogTool: ToolConfig<JiraUpdateWorklogParams, JiraUpda
       },
       body: (params: JiraUpdateWorklogParams) => {
         return {
-          timeSpentSeconds: params.timeSpentSeconds,
+          timeSpentSeconds: Number(params.timeSpentSeconds),
           comment: params.comment
             ? {
                 type: 'doc',
@@ -120,7 +120,7 @@ export const jiraUpdateWorklogTool: ToolConfig<JiraUpdateWorklogParams, JiraUpda
             Authorization: `Bearer ${params?.accessToken}`,
           },
           body: JSON.stringify({
-            timeSpentSeconds: params?.timeSpentSeconds,
+            timeSpentSeconds: params?.timeSpentSeconds ? Number(params.timeSpentSeconds) : 0,
             comment: params?.comment
               ? {
                   type: 'doc',

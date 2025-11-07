@@ -11,7 +11,7 @@ export const stripePayInvoiceTool: ToolConfig<PayInvoiceParams, InvoiceResponse>
     apiKey: {
       type: 'string',
       required: true,
-      visibility: 'hidden',
+      visibility: 'user-only',
       description: 'Stripe API key (secret key)',
     },
     id: {
@@ -36,11 +36,11 @@ export const stripePayInvoiceTool: ToolConfig<PayInvoiceParams, InvoiceResponse>
       'Content-Type': 'application/x-www-form-urlencoded',
     }),
     body: (params) => {
-      const body: Record<string, any> = {}
+      const formData = new URLSearchParams()
       if (params.paid_out_of_band !== undefined) {
-        body.paid_out_of_band = params.paid_out_of_band.toString()
+        formData.append('paid_out_of_band', String(params.paid_out_of_band))
       }
-      return body
+      return { body: formData.toString() }
     },
   },
 

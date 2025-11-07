@@ -118,7 +118,7 @@ export const findSimilarLinksTool: ToolConfig<
       }
 
       // Add optional parameters if provided
-      if (params.numResults) body.numResults = params.numResults
+      if (params.numResults) body.numResults = Number(params.numResults)
 
       // Domain filtering
       if (params.includeDomains) {

@@ -44,7 +44,7 @@ export const youtubeCommentsTool: ToolConfig<YouTubeCommentsParams, YouTubeComme
   request: {
     url: (params: YouTubeCommentsParams) => {
       let url = `https://www.googleapis.com/youtube/v3/commentThreads?part=snippet,replies&videoId=${params.videoId}&key=${params.apiKey}`
-      url += `&maxResults=${params.maxResults || 20}`
+      url += `&maxResults=${Number(params.maxResults || 20)}`
       url += `&order=${params.order || 'relevance'}`
       if (params.pageToken) {
         url += `&pageToken=${params.pageToken}`

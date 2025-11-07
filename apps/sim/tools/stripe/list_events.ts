@@ -11,7 +11,7 @@ export const stripeListEventsTool: ToolConfig<ListEventsParams, EventListRespons
     apiKey: {
       type: 'string',
       required: true,
-      visibility: 'hidden',
+      visibility: 'user-only',
       description: 'Stripe API key (secret key)',
     },
     limit: {

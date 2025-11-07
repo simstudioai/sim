@@ -11,7 +11,7 @@ export const stripeUpdateInvoiceTool: ToolConfig<UpdateInvoiceParams, InvoiceRes
     apiKey: {
       type: 'string',
       required: true,
-      visibility: 'hidden',
+      visibility: 'user-only',
       description: 'Stripe API key (secret key)',
     },
     id: {
@@ -48,20 +48,20 @@ export const stripeUpdateInvoiceTool: ToolConfig<UpdateInvoiceParams, InvoiceRes
       'Content-Type': 'application/x-www-form-urlencoded',
     }),
     body: (params) => {
-      const body: Record<string, any> = {}
+      const formData = new URLSearchParams()
 
-      if (params.description) body.description = params.description
+      if (params.description) formData.append('description', params.description)
       if (params.auto_advance !== undefined) {
-        body.auto_advance = params.auto_advance
+        formData.append('auto_advance', String(params.auto_advance))
       }
 
       if (params.metadata) {
         Object.entries(params.metadata).forEach(([key, value]) => {
-          body[`metadata[${key}]`] = String(value)
+          formData.append(`metadata[${key}]`, String(value))
         })
       }
 
-      return body
+      return { body: formData.toString() }
     },
   },
 

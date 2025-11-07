@@ -77,8 +77,8 @@ export const storageListTool: ToolConfig<SupabaseStorageListParams, SupabaseStor
     body: (params) => {
       const payload: any = {
         prefix: params.path || '',
-        limit: params.limit || 100,
-        offset: params.offset || 0,
+        limit: params.limit ? Number(params.limit) : 100,
+        offset: params.offset ? Number(params.offset) : 0,
       }
 
       if (params.sortBy) {

@@ -11,7 +11,7 @@ export const stripeUpdatePriceTool: ToolConfig<UpdatePriceParams, PriceResponse>
     apiKey: {
       type: 'string',
       required: true,
-      visibility: 'hidden',
+      visibility: 'user-only',
       description: 'Stripe API key (secret key)',
     },
     id: {
@@ -42,17 +42,17 @@ export const stripeUpdatePriceTool: ToolConfig<UpdatePriceParams, PriceResponse>
       'Content-Type': 'application/x-www-form-urlencoded',
     }),
     body: (params) => {
-      const body: Record<string, any> = {}
+      const formData = new URLSearchParams()
 
-      if (params.active !== undefined) body.active = params.active.toString()
+      if (params.active !== undefined) formData.append('active', String(params.active))
 
       if (params.metadata) {
         Object.entries(params.metadata).forEach(([key, value]) => {
-          body[`metadata[${key}]`] = String(value)
+          formData.append(`metadata[${key}]`, String(value))
         })
       }
 
-      return body
+      return { body: formData.toString() }
     },
   },
 

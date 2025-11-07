@@ -33,8 +33,8 @@ export const discordGetMessagesTool: ToolConfig<
 
   request: {
     url: (params: DiscordGetMessagesParams) => {
-      const limit = Math.min(params.limit || 10, 100)
-      return `https://discord.com/api/v10/channels/${params.channelId}/messages?limit=${limit}`
+      const limit = params.limit ? Number(params.limit) : 10
+      return `https://discord.com/api/v10/channels/${params.channelId}/messages?limit=${Math.min(limit, 100)}`
     },
     method: 'GET',
     headers: (params) => {

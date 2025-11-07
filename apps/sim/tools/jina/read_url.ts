@@ -208,7 +208,7 @@ export const readUrlTool: ToolConfig<ReadUrlParams, ReadUrlResponse> = {
         headers['X-Remove-Selector'] = params.removeSelector
       }
       if (params.timeout) {
-        headers['X-Timeout'] = params.timeout.toString()
+        headers['X-Timeout'] = Number(params.timeout).toString()
       }
       if (params.withImagesummary === true) {
         headers['X-With-Images-Summary'] = 'true'
@@ -242,13 +242,13 @@ export const readUrlTool: ToolConfig<ReadUrlParams, ReadUrlResponse> = {
         headers['X-Engine'] = params.engine
       }
       if (params.tokenBudget) {
-        headers['X-Token-Budget'] = params.tokenBudget.toString()
+        headers['X-Token-Budget'] = Number(params.tokenBudget).toString()
       }
       if (params.noCache === true) {
         headers['X-No-Cache'] = 'true'
       }
       if (params.cacheTolerance) {
-        headers['X-Cache-Tolerance'] = params.cacheTolerance.toString()
+        headers['X-Cache-Tolerance'] = Number(params.cacheTolerance).toString()
       }
 
       // Advanced options

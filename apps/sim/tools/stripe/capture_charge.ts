@@ -11,7 +11,7 @@ export const stripeCaptureChargeTool: ToolConfig<CaptureChargeParams, ChargeResp
     apiKey: {
       type: 'string',
       required: true,
-      visibility: 'hidden',
+      visibility: 'user-only',
       description: 'Stripe API key (secret key)',
     },
     id: {
@@ -36,11 +36,11 @@ export const stripeCaptureChargeTool: ToolConfig<CaptureChargeParams, ChargeResp
       'Content-Type': 'application/x-www-form-urlencoded',
     }),
     body: (params) => {
-      const body: Record<string, any> = {}
+      const formData = new URLSearchParams()
       if (params.amount) {
-        body.amount = params.amount.toString()
+        formData.append('amount', Number(params.amount).toString())
       }
-      return body
+      return { body: formData.toString() }
     },
   },
 

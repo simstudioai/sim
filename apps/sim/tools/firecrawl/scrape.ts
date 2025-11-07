@@ -155,13 +155,13 @@ export const scrapeTool: ToolConfig<ScrapeParams, ScrapeResponse> = {
       if (params.onlyMainContent !== undefined) body.onlyMainContent = params.onlyMainContent
       if (params.includeTags !== undefined) body.includeTags = params.includeTags
       if (params.excludeTags !== undefined) body.excludeTags = params.excludeTags
-      if (params.maxAge !== undefined) body.maxAge = params.maxAge
+      if (params.maxAge !== undefined) body.maxAge = Number(params.maxAge)
       if (params.headers !== undefined) body.headers = params.headers
-      if (params.waitFor !== undefined) body.waitFor = params.waitFor
+      if (params.waitFor !== undefined) body.waitFor = Number(params.waitFor)
       if (params.mobile !== undefined) body.mobile = params.mobile
       if (params.skipTlsVerification !== undefined)
         body.skipTlsVerification = params.skipTlsVerification
-      if (params.timeout !== undefined) body.timeout = params.timeout
+      if (params.timeout !== undefined) body.timeout = Number(params.timeout)
       if (params.parsers !== undefined) body.parsers = params.parsers
       if (params.actions !== undefined) body.actions = params.actions
       if (params.location !== undefined) body.location = params.location

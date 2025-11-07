@@ -11,7 +11,7 @@ export const stripeCreateCustomerTool: ToolConfig<CreateCustomerParams, Customer
     apiKey: {
       type: 'string',
       required: true,
-      visibility: 'hidden',
+      visibility: 'user-only',
       description: 'Stripe API key (secret key)',
     },
     email: {
@@ -66,27 +66,27 @@ export const stripeCreateCustomerTool: ToolConfig<CreateCustomerParams, Customer
       'Content-Type': 'application/x-www-form-urlencoded',
     }),
     body: (params) => {
-      const body: Record<string, any> = {}
+      const formData = new URLSearchParams()
 
-      if (params.email) body.email = params.email
-      if (params.name) body.name = params.name
-      if (params.phone) body.phone = params.phone
-      if (params.description) body.description = params.description
-      if (params.payment_method) body.payment_method = params.payment_method
+      if (params.email) formData.append('email', params.email)
+      if (params.name) formData.append('name', params.name)
+      if (params.phone) formData.append('phone', params.phone)
+      if (params.description) formData.append('description', params.description)
+      if (params.payment_method) formData.append('payment_method', params.payment_method)
 
       if (params.address) {
         Object.entries(params.address).forEach(([key, value]) => {
-          if (value) body[`address[${key}]`] = String(value)
+          if (value) formData.append(`address[${key}]`, String(value))
         })
       }
 
       if (params.metadata) {
         Object.entries(params.metadata).forEach(([key, value]) => {
-          body[`metadata[${key}]`] = String(value)
+          formData.append(`metadata[${key}]`, String(value))
         })
       }
 
-      return body
+      return { body: formData.toString() }
     },
   },
 

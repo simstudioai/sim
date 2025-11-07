@@ -76,7 +76,7 @@ export const linearListProjectUpdatesTool: ToolConfig<
       `,
       variables: {
         projectId: params.projectId,
-        first: params.first || 50,
+        first: params.first ? Number(params.first) : 50,
         after: params.after,
       },
     }),

@@ -14,7 +14,7 @@ export const stripeCapturePaymentIntentTool: ToolConfig<
     apiKey: {
       type: 'string',
       required: true,
-      visibility: 'hidden',
+      visibility: 'user-only',
       description: 'Stripe API key (secret key)',
     },
     id: {
@@ -39,11 +39,11 @@ export const stripeCapturePaymentIntentTool: ToolConfig<
       'Content-Type': 'application/x-www-form-urlencoded',
     }),
     body: (params) => {
-      const body: Record<string, any> = {}
+      const formData = new URLSearchParams()
       if (params.amount_to_capture) {
-        body.amount_to_capture = params.amount_to_capture
+        formData.append('amount_to_capture', Number(params.amount_to_capture).toString())
       }
-      return body
+      return { body: formData.toString() }
     },
   },
 

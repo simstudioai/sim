@@ -109,7 +109,7 @@ export const searchTool: ToolConfig<RedditSearchParams, RedditPostsResponse> = {
       // Add pagination parameters if provided
       if (params.after) urlParams.append('after', params.after)
       if (params.before) urlParams.append('before', params.before)
-      if (params.count !== undefined) urlParams.append('count', params.count.toString())
+      if (params.count !== undefined) urlParams.append('count', Number(params.count).toString())
       if (params.show) urlParams.append('show', params.show)
 
       return `https://oauth.reddit.com/r/${subreddit}/search?${urlParams.toString()}`

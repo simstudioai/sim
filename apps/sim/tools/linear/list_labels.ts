@@ -74,7 +74,7 @@ export const linearListLabelsTool: ToolConfig<LinearListLabelsParams, LinearList
         `,
         variables: {
           filter: Object.keys(filter).length > 0 ? filter : undefined,
-          first: params.first || 50,
+          first: params.first ? Number(params.first) : 50,
           after: params.after,
         },
       }

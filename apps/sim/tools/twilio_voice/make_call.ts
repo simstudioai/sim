@@ -155,7 +155,7 @@ export const makeCallTool: ToolConfig<TwilioMakeCallParams, TwilioCallOutput> = 
         formData.append('RecordingStatusCallback', params.recordingStatusCallback)
       }
       if (params.timeout) {
-        formData.append('Timeout', params.timeout.toString())
+        formData.append('Timeout', Number(params.timeout).toString())
       }
       if (params.machineDetection) {
         formData.append('MachineDetection', params.machineDetection)

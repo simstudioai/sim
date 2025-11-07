@@ -60,7 +60,7 @@ export const discordCreateRoleTool: ToolConfig<DiscordCreateRoleParams, DiscordC
         const body: any = {
           name: params.name,
         }
-        if (params.color !== undefined) body.color = params.color
+        if (params.color !== undefined) body.color = Number(params.color)
         if (params.hoist !== undefined) body.hoist = params.hoist
         if (params.mentionable !== undefined) body.mentionable = params.mentionable
         return body

@@ -14,7 +14,7 @@ export const stripeRetrieveSubscriptionTool: ToolConfig<
     apiKey: {
       type: 'string',
       required: true,
-      visibility: 'hidden',
+      visibility: 'user-only',
       description: 'Stripe API key (secret key)',
     },
     id: {

@@ -14,7 +14,7 @@ export const stripeCreateSubscriptionTool: ToolConfig<
     apiKey: {
       type: 'string',
       required: true,
-      visibility: 'hidden',
+      visibility: 'user-only',
       description: 'Stripe API key (secret key)',
     },
     customer: {
@@ -63,36 +63,36 @@ export const stripeCreateSubscriptionTool: ToolConfig<
       'Content-Type': 'application/x-www-form-urlencoded',
     }),
     body: (params) => {
-      const body: Record<string, any> = {
-        customer: params.customer,
-      }
+      const formData = new URLSearchParams()
+
+      formData.append('customer', params.customer)
 
       if (params.items && Array.isArray(params.items)) {
         params.items.forEach((item, index) => {
-          body[`items[${index}][price]`] = item.price
+          formData.append(`items[${index}][price]`, item.price)
           if (item.quantity) {
-            body[`items[${index}][quantity]`] = item.quantity
+            formData.append(`items[${index}][quantity]`, Number(item.quantity).toString())
           }
         })
       }
 
       if (params.trial_period_days !== undefined) {
-        body.trial_period_days = params.trial_period_days
+        formData.append('trial_period_days', Number(params.trial_period_days).toString())
       }
       if (params.default_payment_method) {
-        body.default_payment_method = params.default_payment_method
+        formData.append('default_payment_method', params.default_payment_method)
       }
       if (params.cancel_at_period_end !== undefined) {
-        body.cancel_at_period_end = params.cancel_at_period_end
+        formData.append('cancel_at_period_end', String(params.cancel_at_period_end))
       }
 
       if (params.metadata) {
         Object.entries(params.metadata).forEach(([key, value]) => {
-          body[`metadata[${key}]`] = String(value)
+          formData.append(`metadata[${key}]`, String(value))
         })
       }
 
-      return body
+      return { body: formData.toString() }
     },
   },
 

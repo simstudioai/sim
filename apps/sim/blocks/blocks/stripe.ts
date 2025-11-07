@@ -20,7 +20,6 @@ export const StripeBlock: BlockConfig<StripeResponse> = {
       id: 'operation',
       title: 'Operation',
       type: 'dropdown',
-      layout: 'full',
       options: [
         // Payment Intents
         { label: 'Create Payment Intent', id: 'create_payment_intent' },
@@ -87,7 +86,6 @@ export const StripeBlock: BlockConfig<StripeResponse> = {
       id: 'apiKey',
       title: 'Stripe API Key',
       type: 'short-input',
-      layout: 'full',
       password: true,
       placeholder: 'Enter your Stripe secret key (sk_test_... or sk_live_...)',
       required: true,
@@ -97,7 +95,6 @@ export const StripeBlock: BlockConfig<StripeResponse> = {
       id: 'id',
       title: 'ID',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter the ID',
       condition: {
         field: 'operation',
@@ -134,92 +131,122 @@ export const StripeBlock: BlockConfig<StripeResponse> = {
       },
       required: true,
     },
-    // Payment Intent specific fields
+    // Payment Intent specific fields - CREATE (amount required)
     {
       id: 'amount',
       title: 'Amount (in cents)',
       type: 'short-input',
-      layout: 'half',
       placeholder: 'e.g., 1000 for $10.00',
       condition: {
         field: 'operation',
-        value: [
-          'create_payment_intent',
-          'update_payment_intent',
-          'capture_payment_intent',
-          'create_charge',
-          'capture_charge',
-        ],
+        value: ['create_payment_intent', 'create_charge'],
+      },
+      required: true,
+    },
+    // Payment Intent specific fields - UPDATE/CAPTURE (amount optional)
+    {
+      id: 'amount',
+      title: 'Amount (in cents)',
+      type: 'short-input',
+      placeholder: 'e.g., 1000 for $10.00',
+      condition: {
+        field: 'operation',
+        value: ['update_payment_intent', 'capture_payment_intent', 'capture_charge'],
       },
     },
+    // Currency - REQUIRED for create operations
     {
       id: 'currency',
       title: 'Currency',
       type: 'short-input',
-      layout: 'half',
       placeholder: 'e.g., usd, eur, gbp',
       condition: {
         field: 'operation',
-        value: ['create_payment_intent', 'update_payment_intent', 'create_charge', 'create_price'],
+        value: ['create_payment_intent', 'create_charge', 'create_price'],
+      },
+      required: true,
+    },
+    // Currency - OPTIONAL for update operations
+    {
+      id: 'currency',
+      title: 'Currency',
+      type: 'short-input',
+      placeholder: 'e.g., usd, eur, gbp',
+      condition: {
+        field: 'operation',
+        value: ['update_payment_intent'],
       },
     },
     {
       id: 'payment_method',
       title: 'Payment Method ID',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'e.g., pm_1234567890',
       condition: {
         field: 'operation',
         value: ['create_payment_intent', 'confirm_payment_intent', 'create_customer'],
       },
     },
-    // Customer specific fields
+    // Customer specific fields - REQUIRED for create_subscription and create_invoice
     {
       id: 'customer',
       title: 'Customer ID',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'e.g., cus_1234567890',
       condition: {
         field: 'operation',
-        value: [
-          'create_payment_intent',
-          'update_payment_intent',
-          'create_subscription',
-          'create_invoice',
-          'create_charge',
-          'list_charges',
-        ],
+        value: ['create_subscription', 'create_invoice'],
+      },
+      required: true,
+    },
+    // Customer specific fields - OPTIONAL for other operations
+    {
+      id: 'customer',
+      title: 'Customer ID',
+      type: 'short-input',
+      placeholder: 'e.g., cus_1234567890',
+      condition: {
+        field: 'operation',
+        value: ['create_payment_intent', 'update_payment_intent', 'create_charge', 'list_charges'],
       },
     },
     {
       id: 'email',
       title: 'Email',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'customer@example.com',
       condition: {
         field: 'operation',
         value: ['create_customer', 'update_customer'],
       },
     },
+    // Name - REQUIRED for create_product
     {
       id: 'name',
       title: 'Name',
       type: 'short-input',
-      layout: 'full',
-      placeholder: 'Customer Name',
+      placeholder: 'Product Name',
       condition: {
         field: 'operation',
-        value: ['create_customer', 'update_customer', 'create_product', 'update_product'],
+        value: ['create_product'],
+      },
+      required: true,
+    },
+    // Name - OPTIONAL for customers and update_product
+    {
+      id: 'name',
+      title: 'Name',
+      type: 'short-input',
+      placeholder: 'Customer or Product Name',
+      condition: {
+        field: 'operation',
+        value: ['create_customer', 'update_customer', 'update_product'],
       },
     },
     {
       id: 'phone',
       title: 'Phone',
       type: 'short-input',
-      layout: 'full',
       placeholder: '+1234567890',
       condition: {
         field: 'operation',
@@ -230,30 +257,39 @@ export const StripeBlock: BlockConfig<StripeResponse> = {
       id: 'address',
       title: 'Address (JSON)',
       type: 'code',
-      layout: 'full',
       placeholder: '{"line1": "123 Main St", "city": "New York", "country": "US"}',
       condition: {
         field: 'operation',
         value: ['create_customer', 'update_customer'],
       },
     },
-    // Subscription specific fields
+    // Subscription specific fields - REQUIRED for create_subscription
     {
       id: 'items',
       title: 'Items (JSON Array)',
       type: 'code',
-      layout: 'full',
       placeholder: '[{"price": "price_1234567890", "quantity": 1}]',
       condition: {
         field: 'operation',
-        value: ['create_subscription', 'update_subscription'],
+        value: ['create_subscription'],
+      },
+      required: true,
+    },
+    // Items - OPTIONAL for update_subscription
+    {
+      id: 'items',
+      title: 'Items (JSON Array)',
+      type: 'code',
+      placeholder: '[{"price": "price_1234567890", "quantity": 1}]',
+      condition: {
+        field: 'operation',
+        value: ['update_subscription'],
       },
     },
     {
       id: 'trial_period_days',
       title: 'Trial Period (days)',
       type: 'short-input',
-      layout: 'half',
       placeholder: 'e.g., 14',
       condition: {
         field: 'operation',
@@ -264,7 +300,6 @@ export const StripeBlock: BlockConfig<StripeResponse> = {
       id: 'default_payment_method',
       title: 'Default Payment Method',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'e.g., pm_1234567890',
       condition: {
         field: 'operation',
@@ -275,7 +310,6 @@ export const StripeBlock: BlockConfig<StripeResponse> = {
       id: 'cancel_at_period_end',
       title: 'Cancel at Period End',
       type: 'dropdown',
-      layout: 'half',
       options: [
         { label: 'Yes', id: 'true' },
         { label: 'No', id: 'false' },
@@ -290,7 +324,6 @@ export const StripeBlock: BlockConfig<StripeResponse> = {
       id: 'collection_method',
       title: 'Collection Method',
       type: 'dropdown',
-      layout: 'full',
       options: [
         { label: 'Charge Automatically', id: 'charge_automatically' },
         { label: 'Send Invoice', id: 'send_invoice' },
@@ -304,7 +337,6 @@ export const StripeBlock: BlockConfig<StripeResponse> = {
       id: 'auto_advance',
       title: 'Auto Advance',
       type: 'dropdown',
-      layout: 'half',
       options: [
         { label: 'Yes', id: 'true' },
         { label: 'No', id: 'false' },
@@ -319,7 +351,6 @@ export const StripeBlock: BlockConfig<StripeResponse> = {
       id: 'source',
       title: 'Payment Source',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'e.g., tok_visa, card ID',
       condition: {
         field: 'operation',
@@ -330,7 +361,6 @@ export const StripeBlock: BlockConfig<StripeResponse> = {
       id: 'capture',
       title: 'Capture Immediately',
       type: 'dropdown',
-      layout: 'half',
       options: [
         { label: 'Yes', id: 'true' },
         { label: 'No', id: 'false' },
@@ -345,7 +375,6 @@ export const StripeBlock: BlockConfig<StripeResponse> = {
       id: 'active',
       title: 'Active',
       type: 'dropdown',
-      layout: 'half',
       options: [
         { label: 'Yes', id: 'true' },
         { label: 'No', id: 'false' },
@@ -359,7 +388,6 @@ export const StripeBlock: BlockConfig<StripeResponse> = {
       id: 'images',
       title: 'Images (JSON Array)',
       type: 'code',
-      layout: 'full',
       placeholder: '["https://example.com/image1.jpg", "https://example.com/image2.jpg"]',
       condition: {
         field: 'operation',
@@ -371,7 +399,6 @@ export const StripeBlock: BlockConfig<StripeResponse> = {
       id: 'product',
       title: 'Product ID',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'e.g., prod_1234567890',
       condition: {
         field: 'operation',
@@ -383,7 +410,6 @@ export const StripeBlock: BlockConfig<StripeResponse> = {
       id: 'unit_amount',
       title: 'Unit Amount (in cents)',
       type: 'short-input',
-      layout: 'half',
       placeholder: 'e.g., 1000 for $10.00',
       condition: {
         field: 'operation',
@@ -394,7 +420,6 @@ export const StripeBlock: BlockConfig<StripeResponse> = {
       id: 'recurring',
       title: 'Recurring (JSON)',
       type: 'code',
-      layout: 'full',
       placeholder: '{"interval": "month", "interval_count": 1}',
       condition: {
         field: 'operation',
@@ -406,7 +431,6 @@ export const StripeBlock: BlockConfig<StripeResponse> = {
       id: 'description',
       title: 'Description',
       type: 'long-input',
-      layout: 'full',
       placeholder: 'Enter description',
       condition: {
         field: 'operation',
@@ -429,7 +453,6 @@ export const StripeBlock: BlockConfig<StripeResponse> = {
       id: 'metadata',
       title: 'Metadata (JSON)',
       type: 'code',
-      layout: 'full',
       placeholder: '{"key1": "value1", "key2": "value2"}',
       condition: {
         field: 'operation',
@@ -456,7 +479,6 @@ export const StripeBlock: BlockConfig<StripeResponse> = {
       id: 'limit',
       title: 'Limit',
       type: 'short-input',
-      layout: 'half',
       placeholder: 'Max results (default: 10)',
       condition: {
         field: 'operation',
@@ -483,7 +505,6 @@ export const StripeBlock: BlockConfig<StripeResponse> = {
       id: 'query',
       title: 'Search Query',
       type: 'long-input',
-      layout: 'full',
       placeholder: 'Enter Stripe search query',
       condition: {
         field: 'operation',
@@ -504,7 +525,6 @@ export const StripeBlock: BlockConfig<StripeResponse> = {
       id: 'status',
       title: 'Status',
       type: 'short-input',
-      layout: 'half',
       placeholder: 'e.g., succeeded, pending',
       condition: {
         field: 'operation',
@@ -515,7 +535,6 @@ export const StripeBlock: BlockConfig<StripeResponse> = {
       id: 'receipt_email',
       title: 'Receipt Email',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'customer@example.com',
       condition: {
         field: 'operation',
@@ -526,7 +545,6 @@ export const StripeBlock: BlockConfig<StripeResponse> = {
       id: 'cancellation_reason',
       title: 'Cancellation Reason',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'e.g., requested_by_customer',
       condition: {
         field: 'operation',
@@ -537,7 +555,6 @@ export const StripeBlock: BlockConfig<StripeResponse> = {
       id: 'amount_to_capture',
       title: 'Amount to Capture (in cents)',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Leave empty to capture full amount',
       condition: {
         field: 'operation',
@@ -548,7 +565,6 @@ export const StripeBlock: BlockConfig<StripeResponse> = {
       id: 'prorate',
       title: 'Prorate',
       type: 'dropdown',
-      layout: 'half',
       options: [
         { label: 'Yes', id: 'true' },
         { label: 'No', id: 'false' },
@@ -562,7 +578,6 @@ export const StripeBlock: BlockConfig<StripeResponse> = {
       id: 'invoice_now',
       title: 'Invoice Now',
       type: 'dropdown',
-      layout: 'half',
       options: [
         { label: 'Yes', id: 'true' },
         { label: 'No', id: 'false' },
@@ -576,7 +591,6 @@ export const StripeBlock: BlockConfig<StripeResponse> = {
       id: 'paid_out_of_band',
       title: 'Paid Out of Band',
       type: 'dropdown',
-      layout: 'half',
       options: [
         { label: 'Yes', id: 'true' },
         { label: 'No', id: 'false' },
@@ -590,7 +604,6 @@ export const StripeBlock: BlockConfig<StripeResponse> = {
       id: 'type',
       title: 'Event Type',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'e.g., payment_intent.succeeded',
       condition: {
         field: 'operation',

@@ -11,7 +11,7 @@ export const stripeSearchInvoicesTool: ToolConfig<SearchInvoicesParams, InvoiceL
     apiKey: {
       type: 'string',
       required: true,
-      visibility: 'hidden',
+      visibility: 'user-only',
       description: 'Stripe API key (secret key)',
     },
     query: {

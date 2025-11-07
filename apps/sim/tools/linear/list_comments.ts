@@ -74,7 +74,7 @@ export const linearListCommentsTool: ToolConfig<
       `,
       variables: {
         issueId: params.issueId,
-        first: params.first || 50,
+        first: params.first ? Number(params.first) : 50,
         after: params.after,
       },
     }),

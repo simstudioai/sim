@@ -14,7 +14,7 @@ export const stripeCancelPaymentIntentTool: ToolConfig<
     apiKey: {
       type: 'string',
       required: true,
-      visibility: 'hidden',
+      visibility: 'user-only',
       description: 'Stripe API key (secret key)',
     },
     id: {
@@ -40,11 +40,11 @@ export const stripeCancelPaymentIntentTool: ToolConfig<
       'Content-Type': 'application/x-www-form-urlencoded',
     }),
     body: (params) => {
-      const body: Record<string, any> = {}
+      const formData = new URLSearchParams()
       if (params.cancellation_reason) {
-        body.cancellation_reason = params.cancellation_reason
+        formData.append('cancellation_reason', params.cancellation_reason)
       }
-      return body
+      return { body: formData.toString() }
     },
   },
 

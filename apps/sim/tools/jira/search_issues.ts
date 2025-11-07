@@ -80,8 +80,8 @@ export const jiraSearchIssuesTool: ToolConfig<JiraSearchIssuesParams, JiraSearch
     body: (params: JiraSearchIssuesParams) => {
       return {
         jql: params.jql,
-        startAt: params.startAt || 0,
-        maxResults: params.maxResults || 50,
+        startAt: params.startAt ? Number(params.startAt) : 0,
+        maxResults: params.maxResults ? Number(params.maxResults) : 50,
         fields: params.fields || ['summary', 'status', 'assignee', 'created', 'updated'],
       }
     },
@@ -100,8 +100,8 @@ export const jiraSearchIssuesTool: ToolConfig<JiraSearchIssuesParams, JiraSearch
         },
         body: JSON.stringify({
           jql: params?.jql,
-          startAt: params?.startAt || 0,
-          maxResults: params?.maxResults || 50,
+          startAt: params?.startAt ? Number(params.startAt) : 0,
+          maxResults: params?.maxResults ? Number(params.maxResults) : 50,
           fields: params?.fields || ['summary', 'status', 'assignee', 'created', 'updated'],
         }),
       })

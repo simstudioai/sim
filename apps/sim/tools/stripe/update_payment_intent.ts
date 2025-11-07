@@ -14,7 +14,7 @@ export const stripeUpdatePaymentIntentTool: ToolConfig<
     apiKey: {
       type: 'string',
       required: true,
-      visibility: 'hidden',
+      visibility: 'user-only',
       description: 'Stripe API key (secret key)',
     },
     id: {
@@ -63,20 +63,20 @@ export const stripeUpdatePaymentIntentTool: ToolConfig<
       'Content-Type': 'application/x-www-form-urlencoded',
     }),
     body: (params) => {
-      const body: Record<string, any> = {}
+      const formData = new URLSearchParams()
 
-      if (params.amount) body.amount = params.amount
-      if (params.currency) body.currency = params.currency
-      if (params.customer) body.customer = params.customer
-      if (params.description) body.description = params.description
+      if (params.amount) formData.append('amount', Number(params.amount).toString())
+      if (params.currency) formData.append('currency', params.currency)
+      if (params.customer) formData.append('customer', params.customer)
+      if (params.description) formData.append('description', params.description)
 
       if (params.metadata) {
         Object.entries(params.metadata).forEach(([key, value]) => {
-          body[`metadata[${key}]`] = String(value)
+          formData.append(`metadata[${key}]`, String(value))
         })
       }
 
-      return body
+      return { body: formData.toString() }
     },
   },
 

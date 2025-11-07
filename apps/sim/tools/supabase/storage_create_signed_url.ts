@@ -64,7 +64,7 @@ export const storageCreateSignedUrlTool: ToolConfig<
     }),
     body: (params) => {
       const payload: any = {
-        expiresIn: params.expiresIn,
+        expiresIn: Number(params.expiresIn),
       }
 
       if (params.download !== undefined) {

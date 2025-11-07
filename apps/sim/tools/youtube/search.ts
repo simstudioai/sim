@@ -108,7 +108,7 @@ export const youtubeSearchTool: ToolConfig<YouTubeSearchParams, YouTubeSearchRes
       let url = `https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&key=${params.apiKey}&q=${encodeURIComponent(
         params.query
       )}`
-      url += `&maxResults=${params.maxResults || 5}`
+      url += `&maxResults=${Number(params.maxResults || 5)}`
 
       // Add Priority 1 filters if provided
       if (params.channelId) {

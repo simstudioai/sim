@@ -195,7 +195,7 @@ export const searchTool: ToolConfig<SearchParams, SearchResponse> = {
         headers['X-Engine'] = params.engine
       }
       if (params.timeout) {
-        headers['X-Timeout'] = params.timeout.toString()
+        headers['X-Timeout'] = Number(params.timeout).toString()
       }
       if (params.setCookie) {
         headers['X-Set-Cookie'] = params.setCookie
@@ -220,10 +220,10 @@ export const searchTool: ToolConfig<SearchParams, SearchResponse> = {
 
       // Pagination headers
       if (params.num) {
-        headers['X-Num'] = params.num.toString()
+        headers['X-Num'] = Number(params.num).toString()
       }
       if (params.page) {
-        headers['X-Page'] = params.page.toString()
+        headers['X-Page'] = Number(params.page).toString()
       }
 
       return headers

@@ -11,7 +11,7 @@ export const stripeCreatePriceTool: ToolConfig<CreatePriceParams, PriceResponse>
     apiKey: {
       type: 'string',
       required: true,
-      visibility: 'hidden',
+      visibility: 'user-only',
       description: 'Stripe API key (secret key)',
     },
     product: {
@@ -60,27 +60,28 @@ export const stripeCreatePriceTool: ToolConfig<CreatePriceParams, PriceResponse>
       'Content-Type': 'application/x-www-form-urlencoded',
     }),
     body: (params) => {
-      const body: Record<string, any> = {}
+      const formData = new URLSearchParams()
 
-      body.product = params.product
-      body.currency = params.currency
+      formData.append('product', params.product)
+      formData.append('currency', params.currency)
 
-      if (params.unit_amount !== undefined) body.unit_amount = params.unit_amount.toString()
-      if (params.billing_scheme) body.billing_scheme = params.billing_scheme
+      if (params.unit_amount !== undefined)
+        formData.append('unit_amount', Number(params.unit_amount).toString())
+      if (params.billing_scheme) formData.append('billing_scheme', params.billing_scheme)
 
       if (params.recurring) {
         Object.entries(params.recurring).forEach(([key, value]) => {
-          if (value) body[`recurring[${key}]`] = String(value)
+          if (value) formData.append(`recurring[${key}]`, String(value))
         })
       }
 
       if (params.metadata) {
         Object.entries(params.metadata).forEach(([key, value]) => {
-          body[`metadata[${key}]`] = String(value)
+          formData.append(`metadata[${key}]`, String(value))
         })
       }
 
-      return body
+      return { body: formData.toString() }
     },
   },
 

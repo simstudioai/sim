@@ -77,7 +77,7 @@ export const confluenceListSpacesTool: ToolConfig<
         domain: params.domain,
         accessToken: params.accessToken,
         cloudId: params.cloudId,
-        limit: params.limit || 25,
+        limit: params.limit ? Number(params.limit) : 25,
       }
     },
   },

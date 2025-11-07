@@ -58,7 +58,7 @@ export const discordBanMemberTool: ToolConfig<DiscordBanMemberParams, DiscordBan
     body: (params: DiscordBanMemberParams) => {
       const body: any = {}
       if (params.deleteMessageDays !== undefined) {
-        body.delete_message_days = params.deleteMessageDays
+        body.delete_message_days = Number(params.deleteMessageDays)
       }
       return body
     },

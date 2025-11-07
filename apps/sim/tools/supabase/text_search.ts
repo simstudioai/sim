@@ -71,7 +71,7 @@ export const textSearchTool: ToolConfig<SupabaseTextSearchParams, SupabaseTextSe
 
       // Add limit if provided
       if (params.limit) {
-        url += `&limit=${params.limit}`
+        url += `&limit=${Number(params.limit)}`
       }
 
       return url

@@ -94,7 +94,7 @@ export const getContentsTool: ToolConfig<ExaGetContentsParams, ExaGetContentsRes
 
       // Subpages crawling
       if (params.subpages !== undefined) {
-        body.subpages = params.subpages
+        body.subpages = Number(params.subpages)
       }
 
       if (params.subpageTarget) {

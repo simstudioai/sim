@@ -62,11 +62,26 @@ export function formatRequestParams(tool: ToolConfig, params: Record<string, any
   const isPreformattedContent =
     headers['Content-Type'] === 'application/x-ndjson' ||
     headers['Content-Type'] === 'application/x-www-form-urlencoded'
-  const body = hasBody
-    ? isPreformattedContent && typeof bodyResult === 'string'
-      ? bodyResult
-      : JSON.stringify(bodyResult)
-    : undefined
+
+  let body: string | undefined
+  if (hasBody) {
+    if (isPreformattedContent) {
+      // Check if bodyResult is a string
+      if (typeof bodyResult === 'string') {
+        body = bodyResult
+      }
+      // Check if bodyResult is an object with a 'body' property (Twilio pattern)
+      else if (bodyResult && typeof bodyResult === 'object' && 'body' in bodyResult) {
+        body = bodyResult.body
+      }
+      // Otherwise JSON stringify it
+      else {
+        body = JSON.stringify(bodyResult)
+      }
+    } else {
+      body = JSON.stringify(bodyResult)
+    }
+  }
 
   return { url, method, headers, body }
 }

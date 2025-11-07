@@ -83,7 +83,7 @@ export const confluenceSearchTool: ToolConfig<ConfluenceSearchParams, Confluence
         accessToken: params.accessToken,
         cloudId: params.cloudId,
         query: params.query,
-        limit: params.limit || 25,
+        limit: params.limit ? Number(params.limit) : 25,
       }
     },
   },

@@ -82,8 +82,8 @@ export const mapTool: ToolConfig<MapParams, MapResponse> = {
       if (params.includeSubdomains !== undefined) body.includeSubdomains = params.includeSubdomains
       if (params.ignoreQueryParameters !== undefined)
         body.ignoreQueryParameters = params.ignoreQueryParameters
-      if (params.limit !== undefined) body.limit = params.limit
-      if (params.timeout !== undefined) body.timeout = params.timeout
+      if (params.limit !== undefined) body.limit = Number(params.limit)
+      if (params.timeout !== undefined) body.timeout = Number(params.timeout)
       if (params.location !== undefined) body.location = params.location
 
       return body

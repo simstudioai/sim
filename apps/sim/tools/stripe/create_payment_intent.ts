@@ -14,7 +14,7 @@ export const stripeCreatePaymentIntentTool: ToolConfig<
     apiKey: {
       type: 'string',
       required: true,
-      visibility: 'hidden',
+      visibility: 'user-only',
       description: 'Stripe API key (secret key)',
     },
     amount: {
@@ -75,27 +75,27 @@ export const stripeCreatePaymentIntentTool: ToolConfig<
       'Content-Type': 'application/x-www-form-urlencoded',
     }),
     body: (params) => {
-      const body: Record<string, any> = {
-        amount: params.amount,
-        currency: params.currency,
-      }
+      const formData = new URLSearchParams()
 
-      if (params.customer) body.customer = params.customer
-      if (params.payment_method) body.payment_method = params.payment_method
-      if (params.description) body.description = params.description
-      if (params.receipt_email) body.receipt_email = params.receipt_email
+      formData.append('amount', Number(params.amount).toString())
+      formData.append('currency', params.currency)
+
+      if (params.customer) formData.append('customer', params.customer)
+      if (params.payment_method) formData.append('payment_method', params.payment_method)
+      if (params.description) formData.append('description', params.description)
+      if (params.receipt_email) formData.append('receipt_email', params.receipt_email)
 
       if (params.metadata) {
         Object.entries(params.metadata).forEach(([key, value]) => {
-          body[`metadata[${key}]`] = String(value)
+          formData.append(`metadata[${key}]`, String(value))
         })
       }
 
       if (params.automatic_payment_methods?.enabled) {
-        body['automatic_payment_methods[enabled]'] = 'true'
+        formData.append('automatic_payment_methods[enabled]', 'true')
       }
 
-      return body
+      return { body: formData.toString() }
     },
   },
 

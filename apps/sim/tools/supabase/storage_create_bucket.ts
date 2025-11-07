@@ -70,7 +70,7 @@ export const storageCreateBucketTool: ToolConfig<
       }
 
       if (params.fileSizeLimit) {
-        payload.file_size_limit = params.fileSizeLimit
+        payload.file_size_limit = Number(params.fileSizeLimit)
       }
 
       if (params.allowedMimeTypes && params.allowedMimeTypes.length > 0) {

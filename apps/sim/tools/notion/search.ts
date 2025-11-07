@@ -77,7 +77,7 @@ export const notionSearchTool: ToolConfig<NotionSearchParams, NotionResponse> = 
 
       // Add page size if provided
       if (params.pageSize) {
-        body.page_size = Math.min(params.pageSize, 100)
+        body.page_size = Math.min(Number(params.pageSize), 100)
       }
 
       return body

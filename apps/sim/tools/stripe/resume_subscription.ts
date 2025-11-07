@@ -14,7 +14,7 @@ export const stripeResumeSubscriptionTool: ToolConfig<
     apiKey: {
       type: 'string',
       required: true,
-      visibility: 'hidden',
+      visibility: 'user-only',
       description: 'Stripe API key (secret key)',
     },
     id: {
@@ -33,7 +33,8 @@ export const stripeResumeSubscriptionTool: ToolConfig<
       'Content-Type': 'application/x-www-form-urlencoded',
     }),
     body: () => {
-      return {}
+      const formData = new URLSearchParams()
+      return { body: formData.toString() }
     },
   },
 
