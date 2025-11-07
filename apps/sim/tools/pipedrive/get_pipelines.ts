@@ -23,10 +23,45 @@ export const pipedriveGetPipelinesTool: ToolConfig<
       visibility: 'hidden',
       description: 'The access token for the Pipedrive API',
     },
+    sort_by: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description: 'Field to sort by: id, update_time, add_time (default: id)',
+    },
+    sort_direction: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description: 'Sorting direction: asc, desc (default: asc)',
+    },
+    limit: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description: 'Number of results to return (default: 100, max: 500)',
+    },
+    cursor: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description: 'For pagination, the marker representing the first item on the next page',
+    },
   },
 
   request: {
-    url: () => 'https://api.pipedrive.com/v1/pipelines',
+    url: (params) => {
+      const baseUrl = 'https://api.pipedrive.com/v1/pipelines'
+      const queryParams = new URLSearchParams()
+
+      if (params.sort_by) queryParams.append('sort_by', params.sort_by)
+      if (params.sort_direction) queryParams.append('sort_direction', params.sort_direction)
+      if (params.limit) queryParams.append('limit', params.limit)
+      if (params.cursor) queryParams.append('cursor', params.cursor)
+
+      const queryString = queryParams.toString()
+      return queryString ? `${baseUrl}?${queryString}` : baseUrl
+    },
     method: 'GET',
     headers: (params) => {
       if (!params.accessToken) {

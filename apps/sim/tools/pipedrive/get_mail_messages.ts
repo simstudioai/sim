@@ -12,9 +12,14 @@ export const pipedriveGetMailMessagesTool: ToolConfig<
   PipedriveGetMailMessagesResponse
 > = {
   id: 'pipedrive_get_mail_messages',
-  name: 'Get Mail Messages from Pipedrive',
-  description: 'Retrieve mail messages from Pipedrive with optional filters',
+  name: 'Get Mail Threads from Pipedrive',
+  description: 'Retrieve mail threads from Pipedrive mailbox',
   version: '1.0.0',
+
+  oauth: {
+    required: true,
+    provider: 'pipedrive',
+  },
 
   params: {
     accessToken: {
@@ -23,40 +28,26 @@ export const pipedriveGetMailMessagesTool: ToolConfig<
       visibility: 'hidden',
       description: 'The access token for the Pipedrive API',
     },
-    deal_id: {
+    folder: {
       type: 'string',
       required: false,
       visibility: 'user-only',
-      description: 'Filter messages by deal ID',
-    },
-    person_id: {
-      type: 'string',
-      required: false,
-      visibility: 'user-only',
-      description: 'Filter messages by person ID',
-    },
-    org_id: {
-      type: 'string',
-      required: false,
-      visibility: 'user-only',
-      description: 'Filter messages by organization ID',
+      description: 'Filter by folder: inbox, drafts, sent, archive (default: inbox)',
     },
     limit: {
       type: 'string',
       required: false,
       visibility: 'user-only',
-      description: 'Number of results to return (default: 100, max: 500)',
+      description: 'Number of results to return (default: 50)',
     },
   },
 
   request: {
     url: (params) => {
-      const baseUrl = 'https://api.pipedrive.com/v1/mailbox/mailMessages'
+      const baseUrl = 'https://api.pipedrive.com/v1/mailbox/mailThreads'
       const queryParams = new URLSearchParams()
 
-      if (params.deal_id) queryParams.append('deal_id', params.deal_id)
-      if (params.person_id) queryParams.append('person_id', params.person_id)
-      if (params.org_id) queryParams.append('org_id', params.org_id)
+      if (params.folder) queryParams.append('folder', params.folder)
       if (params.limit) queryParams.append('limit', params.limit)
 
       const queryString = queryParams.toString()
@@ -80,18 +71,18 @@ export const pipedriveGetMailMessagesTool: ToolConfig<
 
     if (!data.success) {
       logger.error('Pipedrive API request failed', { data })
-      throw new Error(data.error || 'Failed to fetch mail messages from Pipedrive')
+      throw new Error(data.error || 'Failed to fetch mail threads from Pipedrive')
     }
 
-    const messages = data.data || []
+    const threads = data.data || []
 
     return {
       success: true,
       output: {
-        messages,
+        messages: threads,
         metadata: {
           operation: 'get_mail_messages' as const,
-          totalItems: messages.length,
+          totalItems: threads.length,
         },
         success: true,
       },
@@ -102,11 +93,11 @@ export const pipedriveGetMailMessagesTool: ToolConfig<
     success: { type: 'boolean', description: 'Operation success status' },
     output: {
       type: 'object',
-      description: 'Mail messages data',
+      description: 'Mail threads data',
       properties: {
         messages: {
           type: 'array',
-          description: 'Array of mail message objects from Pipedrive',
+          description: 'Array of mail thread objects from Pipedrive mailbox',
         },
         metadata: {
           type: 'object',

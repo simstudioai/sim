@@ -98,12 +98,12 @@ export const pipedriveCreateDealTool: ToolConfig<
         title: params.title,
       }
 
-      if (params.value) body.value = params.value
+      if (params.value) body.value = Number(params.value)
       if (params.currency) body.currency = params.currency
-      if (params.person_id) body.person_id = params.person_id
-      if (params.org_id) body.org_id = params.org_id
-      if (params.pipeline_id) body.pipeline_id = params.pipeline_id
-      if (params.stage_id) body.stage_id = params.stage_id
+      if (params.person_id) body.person_id = Number(params.person_id)
+      if (params.org_id) body.org_id = Number(params.org_id)
+      if (params.pipeline_id) body.pipeline_id = Number(params.pipeline_id)
+      if (params.stage_id) body.stage_id = Number(params.stage_id)
       if (params.status) body.status = params.status
       if (params.expected_close_date) body.expected_close_date = params.expected_close_date
 

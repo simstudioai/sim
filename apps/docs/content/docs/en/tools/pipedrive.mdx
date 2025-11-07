@@ -11,25 +11,42 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   icon={true}
   iconSvg={`<svg className="block-icon"
       
-      xmlns="http://www.w3.org/2000/svg"
+      xmlns='http://www.w3.org/2000/svg'
       
       
-      viewBox="0 0 304 304"
+      viewBox='0 0 304 304'
     >
       <defs>
         <path
-          id="path-1"
-          d="M59.6807,81.1772 C59.6807,101.5343 70.0078,123.4949 92.7336,123.4949 C109.5872,123.4949 126.6277,110.3374 126.6277,80.8785 C126.6277,55.0508 113.232,37.7119 93.2944,37.7119 C77.0483,37.7119 59.6807,49.1244 59.6807,81.1772 Z M101.3006,0 C142.0482,0 169.4469,32.2728 169.4469,80.3126 C169.4469,127.5978 140.584,160.60942 99.3224,160.60942 C79.6495,160.60942 67.0483,152.1836 60.4595,146.0843 C60.5063,147.5305 60.5374,149.1497 60.5374,150.8788 L60.5374,215 L18.32565,215 L18.32565,44.157 C18.32565,41.6732 17.53126,40.8873 15.07021,40.8873 L0.5531,40.8873 L0.5531,3.4741 L35.9736,3.4741 C52.282,3.4741 56.4564,11.7741 57.2508,18.1721 C63.8708,10.7524 77.5935,0 101.3006,0 Z"
+          id='path-1'
+          d='M59.6807,81.1772 C59.6807,101.5343 70.0078,123.4949 92.7336,123.4949 C109.5872,123.4949 126.6277,110.3374 126.6277,80.8785 C126.6277,55.0508 113.232,37.7119 93.2944,37.7119 C77.0483,37.7119 59.6807,49.1244 59.6807,81.1772 Z M101.3006,0 C142.0482,0 169.4469,32.2728 169.4469,80.3126 C169.4469,127.5978 140.584,160.60942 99.3224,160.60942 C79.6495,160.60942 67.0483,152.1836 60.4595,146.0843 C60.5063,147.5305 60.5374,149.1497 60.5374,150.8788 L60.5374,215 L18.32565,215 L18.32565,44.157 C18.32565,41.6732 17.53126,40.8873 15.07021,40.8873 L0.5531,40.8873 L0.5531,3.4741 L35.9736,3.4741 C52.282,3.4741 56.4564,11.7741 57.2508,18.1721 C63.8708,10.7524 77.5935,0 101.3006,0 Z'
         />
       </defs>
-      <g transform="translate(67,44)">
-        <mask id="mask-2" fill="#fff">
-          <use href="#path-1" />
+      <g transform='translate(67,44)'>
+        <mask id='mask-2' fill='#fff'>
+          <use href='#path-1' />
         </mask>
-        <use fill="#26292C" href="#path-1" />
+        <use fill='#26292C' href='#path-1' />
       </g>
     </svg>`}
 />
+
+{/* MANUAL-CONTENT-START:intro */}
+[Pipedrive](https://www.pipedrive.com) is a powerful sales-focused CRM platform designed to help sales teams manage leads, track deals, and optimize their sales pipeline. Built with simplicity and effectiveness in mind, Pipedrive has become a favorite among sales professionals and growing businesses worldwide for its intuitive visual pipeline management and actionable sales insights.
+
+Pipedrive provides a comprehensive suite of tools for managing the entire sales process from lead capture to deal closure. With its robust API and extensive integration capabilities, Pipedrive enables sales teams to automate repetitive tasks, maintain data consistency, and focus on what matters most—closing deals.
+
+Key features of Pipedrive include:
+
+- Visual Sales Pipeline: Intuitive drag-and-drop interface for managing deals through customizable sales stages
+- Lead Management: Comprehensive lead inbox for capturing, qualifying, and converting potential opportunities
+- Activity Tracking: Sophisticated system for scheduling and tracking calls, meetings, emails, and tasks
+- Project Management: Built-in project tracking capabilities for post-sale customer success and delivery
+- Email Integration: Native mailbox integration for seamless communication tracking within the CRM
+
+In Sim, the Pipedrive integration allows your AI agents to seamlessly interact with your sales workflow. This creates opportunities for automated lead qualification, deal creation and updates, activity scheduling, and pipeline management as part of your AI-powered sales processes. The integration enables agents to create, retrieve, update, and manage deals, leads, activities, and projects programmatically, facilitating intelligent sales automation and ensuring that critical customer information is properly tracked and acted upon. By connecting Sim with Pipedrive, you can build AI agents that maintain sales pipeline visibility, automate routine CRM tasks, qualify leads intelligently, and ensure no opportunities slip through the cracks—enhancing sales team productivity and driving consistent revenue growth.
+{/* MANUAL-CONTENT-END */}
+
 
 ## Usage Instructions
 
@@ -147,23 +164,21 @@ Retrieve files from Pipedrive with optional filters
 
 ### `pipedrive_get_mail_messages`
 
-Retrieve mail messages from Pipedrive with optional filters
+Retrieve mail threads from Pipedrive mailbox
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `deal_id` | string | No | Filter messages by deal ID |
-| `person_id` | string | No | Filter messages by person ID |
-| `org_id` | string | No | Filter messages by organization ID |
-| `limit` | string | No | Number of results to return \(default: 100, max: 500\) |
+| `folder` | string | No | Filter by folder: inbox, drafts, sent, archive \(default: inbox\) |
+| `limit` | string | No | Number of results to return \(default: 50\) |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `success` | boolean | Operation success status |
-| `output` | object | Mail messages data |
+| `output` | object | Mail threads data |
 
 ### `pipedrive_get_mail_thread`
 
@@ -190,6 +205,10 @@ Retrieve all pipelines from Pipedrive
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `sort_by` | string | No | Field to sort by: id, update_time, add_time \(default: id\) |
+| `sort_direction` | string | No | Sorting direction: asc, desc \(default: asc\) |
+| `limit` | string | No | Number of results to return \(default: 100, max: 500\) |
+| `cursor` | string | No | For pagination, the marker representing the first item on the next page |
 
 #### Output
 
@@ -220,38 +239,22 @@ Retrieve all deals in a specific pipeline
 
 ### `pipedrive_get_projects`
 
-Retrieve all projects from Pipedrive
+Retrieve all projects or a specific project from Pipedrive
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `status` | string | No | Filter by project status: open, completed, deleted |
-| `limit` | string | No | Number of results to return \(default: 100, max: 500\) |
+| `project_id` | string | No | Optional: ID of a specific project to retrieve |
+| `status` | string | No | Filter by project status: open, completed, deleted \(only for listing all\) |
+| `limit` | string | No | Number of results to return \(default: 100, max: 500, only for listing all\) |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `success` | boolean | Operation success status |
-| `output` | object | Projects data |
-
-### `pipedrive_get_project`
-
-Retrieve detailed information about a specific project
-
-#### Input
-
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `project_id` | string | Yes | The ID of the project to retrieve |
-
-#### Output
-
-| Parameter | Type | Description |
-| --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Project details |
+| `output` | object | Projects data or single project details |
 
 ### `pipedrive_create_project`
 
@@ -342,6 +345,94 @@ Update an existing activity (task) in Pipedrive
 | --------- | ---- | ----------- |
 | `success` | boolean | Operation success status |
 | `output` | object | Updated activity details |
+
+### `pipedrive_get_leads`
+
+Retrieve all leads or a specific lead from Pipedrive
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `lead_id` | string | No | Optional: ID of a specific lead to retrieve |
+| `archived` | string | No | Get archived leads instead of active ones |
+| `owner_id` | string | No | Filter by owner user ID |
+| `person_id` | string | No | Filter by person ID |
+| `organization_id` | string | No | Filter by organization ID |
+| `limit` | string | No | Number of results to return \(default: 100, max: 500\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation success status |
+| `output` | object | Leads data or single lead details |
+
+### `pipedrive_create_lead`
+
+Create a new lead in Pipedrive
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `title` | string | Yes | The name of the lead |
+| `person_id` | string | No | ID of the person \(REQUIRED unless organization_id is provided\) |
+| `organization_id` | string | No | ID of the organization \(REQUIRED unless person_id is provided\) |
+| `owner_id` | string | No | ID of the user who will own the lead |
+| `value_amount` | string | No | Potential value amount |
+| `value_currency` | string | No | Currency code \(e.g., USD, EUR\) |
+| `expected_close_date` | string | No | Expected close date in YYYY-MM-DD format |
+| `visible_to` | string | No | Visibility: 1 \(Owner & followers\), 3 \(Entire company\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation success status |
+| `output` | object | Created lead details |
+
+### `pipedrive_update_lead`
+
+Update an existing lead in Pipedrive
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `lead_id` | string | Yes | The ID of the lead to update |
+| `title` | string | No | New name for the lead |
+| `person_id` | string | No | New person ID |
+| `organization_id` | string | No | New organization ID |
+| `owner_id` | string | No | New owner user ID |
+| `value_amount` | string | No | New value amount |
+| `value_currency` | string | No | New currency code \(e.g., USD, EUR\) |
+| `expected_close_date` | string | No | New expected close date in YYYY-MM-DD format |
+| `is_archived` | string | No | Archive the lead: true or false |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation success status |
+| `output` | object | Updated lead details |
+
+### `pipedrive_delete_lead`
+
+Delete a specific lead from Pipedrive
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `lead_id` | string | Yes | The ID of the lead to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation success status |
+| `output` | object | Deletion result |
 
 
 

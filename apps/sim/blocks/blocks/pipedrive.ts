@@ -26,16 +26,19 @@ export const PipedriveBlock: BlockConfig<PipedriveResponse> = {
         { label: 'Create Deal', id: 'create_deal' },
         { label: 'Update Deal', id: 'update_deal' },
         { label: 'Get Files', id: 'get_files' },
-        { label: 'Get Mail Messages', id: 'get_mail_messages' },
-        { label: 'Get Mail Thread', id: 'get_mail_thread' },
+        { label: 'Get Mail Threads', id: 'get_mail_messages' },
+        { label: 'Get Mail Thread Messages', id: 'get_mail_thread' },
         { label: 'Get Pipelines', id: 'get_pipelines' },
         { label: 'Get Pipeline Deals', id: 'get_pipeline_deals' },
         { label: 'Get Projects', id: 'get_projects' },
-        { label: 'Get Project', id: 'get_project' },
         { label: 'Create Project', id: 'create_project' },
         { label: 'Get Activities', id: 'get_activities' },
         { label: 'Create Activity', id: 'create_activity' },
         { label: 'Update Activity', id: 'update_activity' },
+        { label: 'Get Leads', id: 'get_leads' },
+        { label: 'Create Lead', id: 'create_lead' },
+        { label: 'Update Lead', id: 'update_lead' },
+        { label: 'Delete Lead', id: 'delete_lead' },
       ],
       value: () => 'get_all_deals',
     },
@@ -248,27 +251,17 @@ export const PipedriveBlock: BlockConfig<PipedriveResponse> = {
       condition: { field: 'operation', value: ['get_files'] },
     },
     {
-      id: 'deal_id',
-      title: 'Deal ID',
-      type: 'short-input',
+      id: 'folder',
+      title: 'Folder',
+      type: 'dropdown',
       layout: 'full',
-      placeholder: 'Filter by deal ID ',
-      condition: { field: 'operation', value: ['get_mail_messages'] },
-    },
-    {
-      id: 'person_id',
-      title: 'Person ID',
-      type: 'short-input',
-      layout: 'full',
-      placeholder: 'Filter by person ID ',
-      condition: { field: 'operation', value: ['get_mail_messages'] },
-    },
-    {
-      id: 'org_id',
-      title: 'Organization ID',
-      type: 'short-input',
-      layout: 'full',
-      placeholder: 'Filter by organization ID ',
+      options: [
+        { label: 'Inbox', id: 'inbox' },
+        { label: 'Drafts', id: 'drafts' },
+        { label: 'Sent', id: 'sent' },
+        { label: 'Archive', id: 'archive' },
+      ],
+      value: () => 'inbox',
       condition: { field: 'operation', value: ['get_mail_messages'] },
     },
     {
@@ -276,7 +269,7 @@ export const PipedriveBlock: BlockConfig<PipedriveResponse> = {
       title: 'Limit',
       type: 'short-input',
       layout: 'full',
-      placeholder: 'Number of results (default 100, max 500)',
+      placeholder: 'Number of results (default 50)',
       condition: { field: 'operation', value: ['get_mail_messages'] },
     },
     {
@@ -287,6 +280,47 @@ export const PipedriveBlock: BlockConfig<PipedriveResponse> = {
       placeholder: 'Enter mail thread ID',
       required: true,
       condition: { field: 'operation', value: ['get_mail_thread'] },
+    },
+    {
+      id: 'sort_by',
+      title: 'Sort By',
+      type: 'dropdown',
+      layout: 'full',
+      options: [
+        { label: 'ID', id: 'id' },
+        { label: 'Update Time', id: 'update_time' },
+        { label: 'Add Time', id: 'add_time' },
+      ],
+      value: () => 'id',
+      condition: { field: 'operation', value: ['get_pipelines'] },
+    },
+    {
+      id: 'sort_direction',
+      title: 'Sort Direction',
+      type: 'dropdown',
+      layout: 'full',
+      options: [
+        { label: 'Ascending', id: 'asc' },
+        { label: 'Descending', id: 'desc' },
+      ],
+      value: () => 'asc',
+      condition: { field: 'operation', value: ['get_pipelines'] },
+    },
+    {
+      id: 'limit',
+      title: 'Limit',
+      type: 'short-input',
+      layout: 'full',
+      placeholder: 'Number of results (default 100, max 500)',
+      condition: { field: 'operation', value: ['get_pipelines'] },
+    },
+    {
+      id: 'cursor',
+      title: 'Cursor',
+      type: 'short-input',
+      layout: 'full',
+      placeholder: 'Pagination cursor (optional)',
+      condition: { field: 'operation', value: ['get_pipelines'] },
     },
     {
       id: 'pipeline_id',
@@ -328,6 +362,14 @@ export const PipedriveBlock: BlockConfig<PipedriveResponse> = {
       condition: { field: 'operation', value: ['get_pipeline_deals'] },
     },
     {
+      id: 'project_id',
+      title: 'Project ID',
+      type: 'short-input',
+      layout: 'full',
+      placeholder: 'Project ID',
+      condition: { field: 'operation', value: ['get_projects'] },
+    },
+    {
       id: 'status',
       title: 'Status',
       type: 'dropdown',
@@ -347,15 +389,6 @@ export const PipedriveBlock: BlockConfig<PipedriveResponse> = {
       layout: 'full',
       placeholder: 'Number of results (default 100, max 500)',
       condition: { field: 'operation', value: ['get_projects'] },
-    },
-    {
-      id: 'project_id',
-      title: 'Project ID',
-      type: 'short-input',
-      layout: 'full',
-      placeholder: 'Enter project ID',
-      required: true,
-      condition: { field: 'operation', value: ['get_project'] },
     },
     {
       id: 'title',
@@ -532,6 +565,111 @@ export const PipedriveBlock: BlockConfig<PipedriveResponse> = {
       value: () => '0',
       condition: { field: 'operation', value: ['update_activity'] },
     },
+    {
+      id: 'lead_id',
+      title: 'Lead ID',
+      type: 'short-input',
+      layout: 'full',
+      placeholder: 'Lead ID',
+      condition: { field: 'operation', value: ['get_leads', 'update_lead', 'delete_lead'] },
+    },
+    {
+      id: 'archived',
+      title: 'Archived',
+      type: 'dropdown',
+      layout: 'full',
+      options: [
+        { label: 'Active Leads', id: 'false' },
+        { label: 'Archived Leads', id: 'true' },
+      ],
+      value: () => 'false',
+      condition: { field: 'operation', value: ['get_leads'] },
+    },
+    {
+      id: 'title',
+      title: 'Title',
+      type: 'short-input',
+      layout: 'full',
+      placeholder: 'Enter lead title',
+      required: true,
+      condition: { field: 'operation', value: ['create_lead'] },
+    },
+    {
+      id: 'title',
+      title: 'New Title',
+      type: 'short-input',
+      layout: 'full',
+      placeholder: 'New lead title',
+      condition: { field: 'operation', value: ['update_lead'] },
+    },
+    {
+      id: 'person_id',
+      title: 'Person ID',
+      type: 'short-input',
+      layout: 'full',
+      placeholder: 'Person ID to link lead to',
+      condition: { field: 'operation', value: ['create_lead', 'update_lead', 'get_leads'] },
+    },
+    {
+      id: 'organization_id',
+      title: 'Organization ID',
+      type: 'short-input',
+      layout: 'full',
+      placeholder: 'Organization ID to link lead to',
+      condition: { field: 'operation', value: ['create_lead', 'update_lead', 'get_leads'] },
+    },
+    {
+      id: 'owner_id',
+      title: 'Owner ID',
+      type: 'short-input',
+      layout: 'full',
+      placeholder: 'Owner user ID',
+      condition: { field: 'operation', value: ['create_lead', 'update_lead', 'get_leads'] },
+    },
+    {
+      id: 'value_amount',
+      title: 'Value Amount',
+      type: 'short-input',
+      layout: 'full',
+      placeholder: 'Potential value amount',
+      condition: { field: 'operation', value: ['create_lead', 'update_lead'] },
+    },
+    {
+      id: 'value_currency',
+      title: 'Value Currency',
+      type: 'short-input',
+      layout: 'full',
+      placeholder: 'Currency code (e.g., USD, EUR)',
+      condition: { field: 'operation', value: ['create_lead', 'update_lead'] },
+    },
+    {
+      id: 'expected_close_date',
+      title: 'Expected Close Date',
+      type: 'short-input',
+      layout: 'full',
+      placeholder: 'YYYY-MM-DD',
+      condition: { field: 'operation', value: ['create_lead', 'update_lead'] },
+    },
+    {
+      id: 'is_archived',
+      title: 'Archive Lead',
+      type: 'dropdown',
+      layout: 'full',
+      options: [
+        { label: 'No', id: 'false' },
+        { label: 'Yes', id: 'true' },
+      ],
+      value: () => 'false',
+      condition: { field: 'operation', value: ['update_lead'] },
+    },
+    {
+      id: 'limit',
+      title: 'Limit',
+      type: 'short-input',
+      layout: 'full',
+      placeholder: 'Number of results (default 100)',
+      condition: { field: 'operation', value: ['get_leads'] },
+    },
   ],
   tools: {
     access: [
@@ -545,11 +683,14 @@ export const PipedriveBlock: BlockConfig<PipedriveResponse> = {
       'pipedrive_get_pipelines',
       'pipedrive_get_pipeline_deals',
       'pipedrive_get_projects',
-      'pipedrive_get_project',
       'pipedrive_create_project',
       'pipedrive_get_activities',
       'pipedrive_create_activity',
       'pipedrive_update_activity',
+      'pipedrive_get_leads',
+      'pipedrive_create_lead',
+      'pipedrive_update_lead',
+      'pipedrive_delete_lead',
     ],
     config: {
       tool: (params) => {
@@ -574,8 +715,6 @@ export const PipedriveBlock: BlockConfig<PipedriveResponse> = {
             return 'pipedrive_get_pipeline_deals'
           case 'get_projects':
             return 'pipedrive_get_projects'
-          case 'get_project':
-            return 'pipedrive_get_project'
           case 'create_project':
             return 'pipedrive_create_project'
           case 'get_activities':
@@ -584,6 +723,14 @@ export const PipedriveBlock: BlockConfig<PipedriveResponse> = {
             return 'pipedrive_create_activity'
           case 'update_activity':
             return 'pipedrive_update_activity'
+          case 'get_leads':
+            return 'pipedrive_get_leads'
+          case 'create_lead':
+            return 'pipedrive_create_lead'
+          case 'update_lead':
+            return 'pipedrive_update_lead'
+          case 'delete_lead':
+            return 'pipedrive_delete_lead'
           default:
             throw new Error(`Unknown operation: ${params.operation}`)
         }
@@ -620,7 +767,11 @@ export const PipedriveBlock: BlockConfig<PipedriveResponse> = {
     expected_close_date: { type: 'string', description: 'Expected close date' },
     updated_since: { type: 'string', description: 'Updated since timestamp' },
     limit: { type: 'string', description: 'Result limit' },
+    folder: { type: 'string', description: 'Mail folder' },
     thread_id: { type: 'string', description: 'Mail thread ID' },
+    sort_by: { type: 'string', description: 'Field to sort by' },
+    sort_direction: { type: 'string', description: 'Sorting direction' },
+    cursor: { type: 'string', description: 'Pagination cursor' },
     project_id: { type: 'string', description: 'Project ID' },
     description: { type: 'string', description: 'Description' },
     start_date: { type: 'string', description: 'Start date' },
@@ -633,6 +784,11 @@ export const PipedriveBlock: BlockConfig<PipedriveResponse> = {
     duration: { type: 'string', description: 'Duration' },
     done: { type: 'string', description: 'Completion status' },
     note: { type: 'string', description: 'Notes' },
+    lead_id: { type: 'string', description: 'Lead ID' },
+    archived: { type: 'string', description: 'Archived status' },
+    value_amount: { type: 'string', description: 'Value amount' },
+    value_currency: { type: 'string', description: 'Value currency' },
+    is_archived: { type: 'string', description: 'Archive status' },
   },
   outputs: {
     deals: { type: 'json', description: 'Array of deal objects' },
@@ -644,6 +800,8 @@ export const PipedriveBlock: BlockConfig<PipedriveResponse> = {
     project: { type: 'json', description: 'Single project object' },
     activities: { type: 'json', description: 'Array of activity objects' },
     activity: { type: 'json', description: 'Single activity object' },
+    leads: { type: 'json', description: 'Array of lead objects' },
+    lead: { type: 'json', description: 'Single lead object' },
     metadata: { type: 'json', description: 'Operation metadata' },
     success: { type: 'boolean', description: 'Operation success status' },
   },

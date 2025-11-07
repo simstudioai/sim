@@ -1,6 +1,23 @@
 import type { ToolResponse } from '@/tools/types'
 
 // Common Pipedrive types
+export interface PipedriveLead {
+  id: string
+  title: string
+  person_id?: number
+  organization_id?: number
+  owner_id: number
+  value?: {
+    amount: number
+    currency: string
+  }
+  expected_close_date?: string
+  is_archived: boolean
+  was_seen: boolean
+  add_time: string
+  update_time: string
+}
+
 export interface PipedriveDeal {
   id: number
   title: string
@@ -202,12 +219,9 @@ export interface PipedriveGetFilesResponse extends ToolResponse {
   output: PipedriveGetFilesOutput
 }
 
-// GET Mail Messages
 export interface PipedriveGetMailMessagesParams {
   accessToken: string
-  deal_id?: string
-  person_id?: string
-  org_id?: string
+  folder?: string
   limit?: string
 }
 
@@ -247,6 +261,10 @@ export interface PipedriveGetMailThreadResponse extends ToolResponse {
 // GET All Pipelines
 export interface PipedriveGetPipelinesParams {
   accessToken: string
+  sort_by?: string
+  sort_direction?: string
+  limit?: string
+  cursor?: string
 }
 
 export interface PipedriveGetPipelinesOutput {
@@ -285,42 +303,26 @@ export interface PipedriveGetPipelineDealsResponse extends ToolResponse {
   output: PipedriveGetPipelineDealsOutput
 }
 
-// GET All Projects
+// GET All Projects (or single project if project_id provided)
 export interface PipedriveGetProjectsParams {
   accessToken: string
+  project_id?: string
   status?: string
   limit?: string
 }
 
 export interface PipedriveGetProjectsOutput {
-  projects: PipedriveProject[]
+  projects?: PipedriveProject[]
+  project?: PipedriveProject
   metadata: {
     operation: 'get_projects'
-    totalItems: number
+    totalItems?: number
   }
   success: boolean
 }
 
 export interface PipedriveGetProjectsResponse extends ToolResponse {
   output: PipedriveGetProjectsOutput
-}
-
-// GET Project
-export interface PipedriveGetProjectParams {
-  accessToken: string
-  project_id: string
-}
-
-export interface PipedriveGetProjectOutput {
-  project: PipedriveProject
-  metadata: {
-    operation: 'get_project'
-  }
-  success: boolean
-}
-
-export interface PipedriveGetProjectResponse extends ToolResponse {
-  output: PipedriveGetProjectOutput
 }
 
 // CREATE Project
@@ -418,6 +420,100 @@ export interface PipedriveUpdateActivityResponse extends ToolResponse {
   output: PipedriveUpdateActivityOutput
 }
 
+// GET Leads
+export interface PipedriveGetLeadsParams {
+  accessToken: string
+  lead_id?: string
+  archived?: string
+  owner_id?: string
+  person_id?: string
+  organization_id?: string
+  limit?: string
+}
+
+export interface PipedriveGetLeadsOutput {
+  leads?: PipedriveLead[]
+  lead?: PipedriveLead
+  metadata: {
+    operation: 'get_leads'
+    totalItems?: number
+  }
+  success: boolean
+}
+
+export interface PipedriveGetLeadsResponse extends ToolResponse {
+  output: PipedriveGetLeadsOutput
+}
+
+// CREATE Lead
+export interface PipedriveCreateLeadParams {
+  accessToken: string
+  title: string
+  person_id?: string
+  organization_id?: string
+  owner_id?: string
+  value_amount?: string
+  value_currency?: string
+  expected_close_date?: string
+  visible_to?: string
+}
+
+export interface PipedriveCreateLeadOutput {
+  lead: PipedriveLead
+  metadata: {
+    operation: 'create_lead'
+  }
+  success: boolean
+}
+
+export interface PipedriveCreateLeadResponse extends ToolResponse {
+  output: PipedriveCreateLeadOutput
+}
+
+// UPDATE Lead
+export interface PipedriveUpdateLeadParams {
+  accessToken: string
+  lead_id: string
+  title?: string
+  person_id?: string
+  organization_id?: string
+  owner_id?: string
+  value_amount?: string
+  value_currency?: string
+  expected_close_date?: string
+  is_archived?: string
+}
+
+export interface PipedriveUpdateLeadOutput {
+  lead: PipedriveLead
+  metadata: {
+    operation: 'update_lead'
+  }
+  success: boolean
+}
+
+export interface PipedriveUpdateLeadResponse extends ToolResponse {
+  output: PipedriveUpdateLeadOutput
+}
+
+// DELETE Lead
+export interface PipedriveDeleteLeadParams {
+  accessToken: string
+  lead_id: string
+}
+
+export interface PipedriveDeleteLeadOutput {
+  data: any
+  metadata: {
+    operation: 'delete_lead'
+  }
+  success: boolean
+}
+
+export interface PipedriveDeleteLeadResponse extends ToolResponse {
+  output: PipedriveDeleteLeadOutput
+}
+
 // Union type of all responses
 export type PipedriveResponse =
   | PipedriveGetAllDealsResponse
@@ -430,8 +526,11 @@ export type PipedriveResponse =
   | PipedriveGetPipelinesResponse
   | PipedriveGetPipelineDealsResponse
   | PipedriveGetProjectsResponse
-  | PipedriveGetProjectResponse
   | PipedriveCreateProjectResponse
   | PipedriveGetActivitiesResponse
   | PipedriveCreateActivityResponse
   | PipedriveUpdateActivityResponse
+  | PipedriveGetLeadsResponse
+  | PipedriveCreateLeadResponse
+  | PipedriveUpdateLeadResponse
+  | PipedriveDeleteLeadResponse

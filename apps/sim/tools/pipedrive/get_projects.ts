@@ -13,7 +13,7 @@ export const pipedriveGetProjectsTool: ToolConfig<
 > = {
   id: 'pipedrive_get_projects',
   name: 'Get Projects from Pipedrive',
-  description: 'Retrieve all projects from Pipedrive',
+  description: 'Retrieve all projects or a specific project from Pipedrive',
   version: '1.0.0',
 
   params: {
@@ -23,22 +23,34 @@ export const pipedriveGetProjectsTool: ToolConfig<
       visibility: 'hidden',
       description: 'The access token for the Pipedrive API',
     },
+    project_id: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description: 'Optional: ID of a specific project to retrieve',
+    },
     status: {
       type: 'string',
       required: false,
       visibility: 'user-only',
-      description: 'Filter by project status: open, completed, deleted',
+      description: 'Filter by project status: open, completed, deleted (only for listing all)',
     },
     limit: {
       type: 'string',
       required: false,
       visibility: 'user-only',
-      description: 'Number of results to return (default: 100, max: 500)',
+      description: 'Number of results to return (default: 100, max: 500, only for listing all)',
     },
   },
 
   request: {
     url: (params) => {
+      // If project_id is provided, get specific project
+      if (params.project_id) {
+        return `https://api.pipedrive.com/v1/projects/${params.project_id}`
+      }
+
+      // Otherwise, get all projects with optional filters
       const baseUrl = 'https://api.pipedrive.com/v1/projects'
       const queryParams = new URLSearchParams()
 
@@ -61,14 +73,29 @@ export const pipedriveGetProjectsTool: ToolConfig<
     },
   },
 
-  transformResponse: async (response: Response) => {
+  transformResponse: async (response: Response, params) => {
     const data = await response.json()
 
     if (!data.success) {
       logger.error('Pipedrive API request failed', { data })
-      throw new Error(data.error || 'Failed to fetch projects from Pipedrive')
+      throw new Error(data.error || 'Failed to fetch project(s) from Pipedrive')
     }
 
+    // If project_id was provided, return single project
+    if (params?.project_id) {
+      return {
+        success: true,
+        output: {
+          project: data.data,
+          metadata: {
+            operation: 'get_projects' as const,
+          },
+          success: true,
+        },
+      }
+    }
+
+    // Otherwise, return list of projects
     const projects = data.data || []
 
     return {
@@ -88,11 +115,15 @@ export const pipedriveGetProjectsTool: ToolConfig<
     success: { type: 'boolean', description: 'Operation success status' },
     output: {
       type: 'object',
-      description: 'Projects data',
+      description: 'Projects data or single project details',
       properties: {
         projects: {
           type: 'array',
-          description: 'Array of project objects from Pipedrive',
+          description: 'Array of project objects (when listing all)',
+        },
+        project: {
+          type: 'object',
+          description: 'Single project object (when project_id is provided)',
         },
         metadata: {
           type: 'object',

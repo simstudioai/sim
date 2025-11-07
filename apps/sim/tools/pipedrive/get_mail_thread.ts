@@ -12,9 +12,14 @@ export const pipedriveGetMailThreadTool: ToolConfig<
   PipedriveGetMailThreadResponse
 > = {
   id: 'pipedrive_get_mail_thread',
-  name: 'Get Mail Thread from Pipedrive',
+  name: 'Get Mail Thread Messages from Pipedrive',
   description: 'Retrieve all messages from a specific mail thread',
   version: '1.0.0',
+
+  oauth: {
+    required: true,
+    provider: 'pipedrive',
+  },
 
   params: {
     accessToken: {

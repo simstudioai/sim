@@ -1,20 +1,25 @@
 import { createLogger } from '@/lib/logs/console/logger'
 import type {
-  PipedriveUpdateDealParams,
-  PipedriveUpdateDealResponse,
+  PipedriveUpdateLeadParams,
+  PipedriveUpdateLeadResponse,
 } from '@/tools/pipedrive/types'
 import type { ToolConfig } from '@/tools/types'
 
-const logger = createLogger('PipedriveUpdateDeal')
+const logger = createLogger('PipedriveUpdateLead')
 
-export const pipedriveUpdateDealTool: ToolConfig<
-  PipedriveUpdateDealParams,
-  PipedriveUpdateDealResponse
+export const pipedriveUpdateLeadTool: ToolConfig<
+  PipedriveUpdateLeadParams,
+  PipedriveUpdateLeadResponse
 > = {
-  id: 'pipedrive_update_deal',
-  name: 'Update Deal in Pipedrive',
-  description: 'Update an existing deal in Pipedrive',
+  id: 'pipedrive_update_lead',
+  name: 'Update Lead in Pipedrive',
+  description: 'Update an existing lead in Pipedrive',
   version: '1.0.0',
+
+  oauth: {
+    required: true,
+    provider: 'pipedrive',
+  },
 
   params: {
     accessToken: {
@@ -23,35 +28,47 @@ export const pipedriveUpdateDealTool: ToolConfig<
       visibility: 'hidden',
       description: 'The access token for the Pipedrive API',
     },
-    deal_id: {
+    lead_id: {
       type: 'string',
       required: true,
       visibility: 'user-only',
-      description: 'The ID of the deal to update',
+      description: 'The ID of the lead to update',
     },
     title: {
       type: 'string',
       required: false,
       visibility: 'user-only',
-      description: 'New title for the deal',
+      description: 'New name for the lead',
     },
-    value: {
+    person_id: {
       type: 'string',
       required: false,
       visibility: 'user-only',
-      description: 'New monetary value for the deal',
+      description: 'New person ID',
     },
-    status: {
+    organization_id: {
       type: 'string',
       required: false,
       visibility: 'user-only',
-      description: 'New status: open, won, lost',
+      description: 'New organization ID',
     },
-    stage_id: {
+    owner_id: {
       type: 'string',
       required: false,
       visibility: 'user-only',
-      description: 'New stage ID for the deal',
+      description: 'New owner user ID',
+    },
+    value_amount: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description: 'New value amount',
+    },
+    value_currency: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description: 'New currency code (e.g., USD, EUR)',
     },
     expected_close_date: {
       type: 'string',
@@ -59,10 +76,16 @@ export const pipedriveUpdateDealTool: ToolConfig<
       visibility: 'user-only',
       description: 'New expected close date in YYYY-MM-DD format',
     },
+    is_archived: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description: 'Archive the lead: true or false',
+    },
   },
 
   request: {
-    url: (params) => `https://api.pipedrive.com/api/v2/deals/${params.deal_id}`,
+    url: (params) => `https://api.pipedrive.com/v1/leads/${params.lead_id}`,
     method: 'PATCH',
     headers: (params) => {
       if (!params.accessToken) {
@@ -79,10 +102,20 @@ export const pipedriveUpdateDealTool: ToolConfig<
       const body: Record<string, any> = {}
 
       if (params.title) body.title = params.title
-      if (params.value) body.value = Number(params.value)
-      if (params.status) body.status = params.status
-      if (params.stage_id) body.stage_id = Number(params.stage_id)
+      if (params.person_id) body.person_id = Number(params.person_id)
+      if (params.organization_id) body.organization_id = Number(params.organization_id)
+      if (params.owner_id) body.owner_id = Number(params.owner_id)
+
+      // Build value object if both amount and currency are provided
+      if (params.value_amount && params.value_currency) {
+        body.value = {
+          amount: Number(params.value_amount),
+          currency: params.value_currency,
+        }
+      }
+
       if (params.expected_close_date) body.expected_close_date = params.expected_close_date
+      if (params.is_archived) body.is_archived = params.is_archived === 'true'
 
       return body
     },
@@ -93,15 +126,15 @@ export const pipedriveUpdateDealTool: ToolConfig<
 
     if (!data.success) {
       logger.error('Pipedrive API request failed', { data })
-      throw new Error(data.error || 'Failed to update deal in Pipedrive')
+      throw new Error(data.error || 'Failed to update lead in Pipedrive')
     }
 
     return {
       success: true,
       output: {
-        deal: data.data,
+        lead: data.data,
         metadata: {
-          operation: 'update_deal' as const,
+          operation: 'update_lead' as const,
         },
         success: true,
       },
@@ -112,11 +145,11 @@ export const pipedriveUpdateDealTool: ToolConfig<
     success: { type: 'boolean', description: 'Operation success status' },
     output: {
       type: 'object',
-      description: 'Updated deal details',
+      description: 'Updated lead details',
       properties: {
-        deal: {
+        lead: {
           type: 'object',
-          description: 'The updated deal object',
+          description: 'The updated lead object',
         },
         metadata: {
           type: 'object',
