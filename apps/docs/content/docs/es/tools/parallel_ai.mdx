@@ -1,6 +1,6 @@
 ---
 title: Parallel AI
-description: Buscar con Parallel AI
+description: Investigación web con Parallel AI
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -70,7 +70,7 @@ En Sim, la integración con Parallel AI permite a tus agentes realizar búsqueda
 
 ## Instrucciones de uso
 
-Integra Parallel AI en el flujo de trabajo. Puede buscar en la web. Requiere clave API.
+Integra Parallel AI en el flujo de trabajo. Puede buscar en la web, extraer información de URLs y realizar investigaciones profundas.
 
 ## Herramientas
 
@@ -94,6 +94,51 @@ Busca en la web usando Parallel AI. Proporciona resultados de búsqueda completo
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
 | `results` | array | Resultados de búsqueda con extractos de páginas relevantes |
+
+### `parallel_extract`
+
+Extrae información específica de URLs concretas utilizando Parallel AI. Procesa las URLs proporcionadas para obtener contenido relevante basado en tu objetivo.
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ---------- | ----------- |
+| `urls` | string | Sí | Lista de URLs separadas por comas para extraer información |
+| `objective` | string | Sí | Qué información extraer de las URLs proporcionadas |
+| `excerpts` | boolean | Sí | Incluir extractos relevantes del contenido |
+| `full_content` | boolean | Sí | Incluir contenido completo de la página |
+| `apiKey` | string | Sí | Clave API de Parallel AI |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `results` | array | Información extraída de las URLs proporcionadas |
+
+### `parallel_deep_research`
+
+Realiza investigaciones exhaustivas y profundas en la web utilizando Parallel AI. Sintetiza información de múltiples fuentes con citas. Puede tardar hasta 15 minutos en completarse.
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ---------- | ----------- |
+| `input` | string | Sí | Consulta o pregunta de investigación \(hasta 15.000 caracteres\) |
+| `processor` | string | No | Nivel de cómputo: base, lite, pro, ultra, ultra2x, ultra4x, ultra8x \(predeterminado: base\) |
+| `output_schema` | string | No | Descripción del formato de salida deseado. Usa "text" para informes en markdown con citas, o describe un formato JSON estructurado |
+| `include_domains` | string | No | Lista de dominios separados por comas para restringir la investigación \(política de fuentes\) |
+| `exclude_domains` | string | No | Lista de dominios separados por comas para excluir de la investigación \(política de fuentes\) |
+| `apiKey` | string | Sí | Clave API de Parallel AI |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `status` | string | Estado de la tarea (en ejecución, completada, fallida) |
+| `run_id` | string | ID único para esta tarea de investigación |
+| `message` | string | Mensaje de estado (para tareas en ejecución) |
+| `content` | object | Resultados de la investigación (estructurados según output_schema) |
+| `basis` | array | Citas y fuentes con extractos y niveles de confianza |
 
 ## Notas
 

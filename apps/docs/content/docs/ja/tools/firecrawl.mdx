@@ -1,6 +1,6 @@
 ---
 title: Firecrawl
-description: ウェブをスクレイピングまたは検索
+description: ウェブデータのスクレイピング、検索、クロール、マッピング、抽出
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -58,7 +58,7 @@ Simでは、Firecrawl統合によりエージェントがワークフローの�
 
 ## 使用方法
 
-Firecrawlをワークフローに統合します。ウェブサイトの検索、スクレイピング、クローリングが可能です。APIキーが必要です。
+Firecrawlをワークフローに統合。AIを使用してページのスクレイピング、ウェブ検索、ウェブサイト全体のクロール、URL構造のマッピング、構造化データの抽出が可能。
 
 ## ツール
 
@@ -71,7 +71,25 @@ Firecrawlをワークフローに統合します。ウェブサイトの検索�
 | パラメータ | 型 | 必須 | 説明 |
 | --------- | ---- | -------- | ----------- |
 | `url` | string | はい | コンテンツをスクレイピングするURL |
-| `scrapeOptions` | json | いいえ | コンテンツスクレイピングのオプション |
+| `formats` | json | いいえ | 出力形式（markdown、html、rawHtml、links、images、screenshot）。デフォルト：["markdown"] |
+| `onlyMainContent` | boolean | いいえ | ヘッダー、ナビゲーション、フッターを除くメインコンテンツのみを抽出（デフォルト：true） |
+| `includeTags` | json | いいえ | 出力に保持するHTMLタグ |
+| `excludeTags` | json | いいえ | 出力から削除するHTMLタグ |
+| `maxAge` | number | いいえ | このミリ秒数より新しい場合はキャッシュバージョンを返す（デフォルト：172800000） |
+| `headers` | json | いいえ | カスタムリクエストヘッダー（クッキー、ユーザーエージェントなど） |
+| `waitFor` | number | いいえ | 取得前の遅延（ミリ秒）（デフォルト：0） |
+| `mobile` | boolean | いいえ | モバイルデバイスをエミュレート（デフォルト：false） |
+| `skipTlsVerification` | boolean | いいえ | TLS証明書の検証をスキップ（デフォルト：true） |
+| `timeout` | number | いいえ | リクエストタイムアウト（ミリ秒） |
+| `parsers` | json | いいえ | ファイル処理コントロール（例：["pdf"]） |
+| `actions` | json | いいえ | スクレイピング前の操作（待機、クリック、スクロール、スクリーンショットなど） |
+| `location` | json | いいえ | 地理的設定（国、言語） |
+| `removeBase64Images` | boolean | いいえ | 出力からbase64画像を削除（デフォルト：true） |
+| `blockAds` | boolean | いいえ | 広告とポップアップのブロックを有効化（デフォルト：true） |
+| `proxy` | string | いいえ | プロキシタイプ：basic、stealth、またはauto（デフォルト：auto） |
+| `storeInCache` | boolean | いいえ | ページをキャッシュする（デフォルト：true） |
+| `zeroDataRetention` | boolean | いいえ | ゼロデータ保持モードを有効化（デフォルト：false） |
+| `scrapeOptions` | json | いいえ | コンテンツスクレイピングのオプション（レガシー、トップレベルパラメータを推奨） |
 | `apiKey` | string | はい | Firecrawl APIキー |
 
 #### 出力
@@ -91,6 +109,15 @@ Firecrawlを使用してウェブ上の情報を検索します
 | パラメータ | 型 | 必須 | 説明 |
 | --------- | ---- | -------- | ----------- |
 | `query` | string | はい | 使用する検索クエリ |
+| `limit` | number | いいえ | 返す結果の最大数（1-100、デフォルト：5） |
+| `sources` | json | いいえ | 検索ソース：["web"]、["images"]、または["news"]（デフォルト：["web"]） |
+| `categories` | json | いいえ | カテゴリによるフィルタリング：["github"]、["research"]、または["pdf"] |
+| `tbs` | string | いいえ | 時間ベースの検索：qdr:h（時間）、qdr:d（日）、qdr:w（週）、qdr:m（月）、qdr:y（年） |
+| `location` | string | いいえ | 結果の地理的位置（例："San Francisco, California, United States"） |
+| `country` | string | いいえ | 地理的ターゲティング用のISO国コード（デフォルト：US） |
+| `timeout` | number | いいえ | タイムアウト（ミリ秒単位、デフォルト：60000） |
+| `ignoreInvalidURLs` | boolean | いいえ | 結果から無効なURLを除外する（デフォルト：false） |
+| `scrapeOptions` | json | いいえ | 検索結果の高度なスクレイピング設定 |
 | `apiKey` | string | はい | Firecrawl APIキー |
 
 #### 出力
@@ -107,9 +134,23 @@ Firecrawlを使用してウェブ上の情報を検索します
 
 | パラメータ | 型 | 必須 | 説明 |
 | --------- | ---- | -------- | ----------- |
-| `url` | string | はい | クロールするウェブサイトURL |
-| `limit` | number | いいえ | クロールする最大ページ数（デフォルト：100） |
+| `url` | string | はい | クロールするウェブサイトのURL |
+| `limit` | number | いいえ | クロールするページの最大数（デフォルト：100） |
 | `onlyMainContent` | boolean | いいえ | ページからメインコンテンツのみを抽出する |
+| `prompt` | string | いいえ | クローラーオプションを自動生成するための自然言語指示 |
+| `maxDiscoveryDepth` | number | いいえ | URL発見の深さ制限（ルートページの深さは0） |
+| `sitemap` | string | いいえ | サイトマップデータの使用方法："skip"または"include"（デフォルト："include"） |
+| `crawlEntireDomain` | boolean | いいえ | 兄弟/親URLをフォローするか、子パスのみをフォローするか（デフォルト：false） |
+| `allowExternalLinks` | boolean | いいえ | 外部ウェブサイトリンクをフォローする（デフォルト：false） |
+| `allowSubdomains` | boolean | いいえ | サブドメインリンクをフォローする（デフォルト：false） |
+| `ignoreQueryParameters` | boolean | いいえ | 異なるクエリパラメータを持つ同じパスの再スクレイピングを防止する（デフォルト：false） |
+| `delay` | number | いいえ | レート制限遵守のためのスクレイプ間の秒数 |
+| `maxConcurrency` | number | いいえ | 同時スクレイプ制限 |
+| `excludePaths` | json | いいえ | 除外するURLの正規表現パターンの配列 |
+| `includePaths` | json | いいえ | 排他的に含めるURLの正規表現パターンの配列 |
+| `webhook` | json | いいえ | クロール通知用のWebhook設定 |
+| `scrapeOptions` | json | いいえ | 高度なスクレイピング設定 |
+| `zeroDataRetention` | boolean | いいえ | ゼロデータ保持を有効にする（デフォルト：false） |
 | `apiKey` | string | はい | Firecrawl APIキー |
 
 #### 出力
@@ -117,6 +158,58 @@ Firecrawlを使用してウェブ上の情報を検索します
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
 | `pages` | array | クロールされたページとそのコンテンツおよびメタデータの配列 |
+
+### `firecrawl_map`
+
+任意のウェブサイトからURLの完全なリストを迅速かつ確実に取得します。サイト上のすべてのページをクロールせずに発見するのに役立ちます。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `url` | string | はい | リンクを発見・マッピングするベースURL |
+| `search` | string | いいえ | 検索語に関連する結果でフィルタリング（例：「blog」） |
+| `sitemap` | string | いいえ | サイトマップの使用方法：「skip」、「include」（デフォルト）、または「only」 |
+| `includeSubdomains` | boolean | いいえ | サブドメインからのURLを含めるかどうか（デフォルト：true） |
+| `ignoreQueryParameters` | boolean | いいえ | クエリ文字列を含むURLを除外する（デフォルト：true） |
+| `limit` | number | いいえ | 返すリンクの最大数（最大：100,000、デフォルト：5,000） |
+| `timeout` | number | いいえ | リクエストタイムアウト（ミリ秒） |
+| `location` | json | いいえ | プロキシの地理的コンテキスト（国、言語） |
+| `apiKey` | string | はい | Firecrawl APIキー |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | マッピング操作が成功したかどうか |
+| `links` | array | ウェブサイトから発見されたURLの配列 |
+
+### `firecrawl_extract`
+
+自然言語プロンプトとJSONスキーマを使用して、ウェブページ全体から構造化データを抽出します。インテリジェントなデータ抽出のための強力なエージェント機能です。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `urls` | json | はい | データを抽出するURLの配列（glob形式をサポート） |
+| `prompt` | string | いいえ | 抽出プロセスのための自然言語ガイダンス |
+| `schema` | json | いいえ | 抽出するデータの構造を定義するJSONスキーマ |
+| `enableWebSearch` | boolean | いいえ | 補足情報を見つけるためのウェブ検索を有効にする（デフォルト：false） |
+| `ignoreSitemap` | boolean | いいえ | スキャン中にsitemap.xmlファイルを無視する（デフォルト：false） |
+| `includeSubdomains` | boolean | いいえ | サブドメインにスキャンを拡張する（デフォルト：true） |
+| `showSources` | boolean | いいえ | レスポンスにデータソースを含める（デフォルト：false） |
+| `ignoreInvalidURLs` | boolean | いいえ | 配列内の無効なURLをスキップする（デフォルト：true） |
+| `scrapeOptions` | json | いいえ | 高度なスクレイピング設定オプション |
+| `apiKey` | string | はい | Firecrawl APIキー |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 抽出操作が成功したかどうか |
+| `data` | object | スキーマまたはプロンプトに従って抽出された構造化データ |
+| `sources` | array | データソース（showSourcesが有効な場合のみ） |
 
 ## 注意事項
 

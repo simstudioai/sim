@@ -42,7 +42,7 @@ In Sim ermöglicht die Confluence-Integration Ihren Agenten den Zugriff auf die 
 
 ## Nutzungsanweisungen
 
-Integriert Confluence in den Workflow. Kann Seiten lesen und aktualisieren. Erfordert OAuth.
+Integrieren Sie Confluence in den Workflow. Kann Seiten lesen, erstellen, aktualisieren, löschen, Kommentare verwalten, Anhänge hinzufügen, Labels vergeben und Inhalte durchsuchen.
 
 ## Tools
 
@@ -90,6 +90,298 @@ Aktualisiert eine Confluence-Seite über die Confluence-API.
 | `pageId` | string | Confluence-Seiten-ID |
 | `title` | string | Aktualisierter Seitentitel |
 | `success` | boolean | Erfolgsstatus der Aktualisierungsoperation |
+
+### `confluence_create_page`
+
+Erstellen Sie eine neue Seite in einem Confluence-Space.
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Ja | Ihre Confluence-Domain (z.B. ihrfirma.atlassian.net) |
+| `spaceId` | string | Ja | Confluence-Space-ID, in dem die Seite erstellt wird |
+| `title` | string | Ja | Titel der neuen Seite |
+| `content` | string | Ja | Seiteninhalt im Confluence-Speicherformat (HTML) |
+| `parentId` | string | Nein | Übergeordnete Seiten-ID, wenn eine Unterseite erstellt wird |
+| `cloudId` | string | Nein | Confluence Cloud-ID für die Instanz. Wenn nicht angegeben, wird sie über die Domain abgerufen. |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `ts` | string | Zeitstempel der Erstellung |
+| `pageId` | string | Erstellte Seiten-ID |
+| `title` | string | Seitentitel |
+| `url` | string | Seiten-URL |
+
+### `confluence_delete_page`
+
+Löschen einer Confluence-Seite (verschiebt sie in den Papierkorb, wo sie wiederhergestellt werden kann).
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Ja | Ihre Confluence-Domain (z.B. ihrfirma.atlassian.net) |
+| `pageId` | string | Ja | Confluence-Seiten-ID zum Löschen |
+| `cloudId` | string | Nein | Confluence Cloud-ID für die Instanz. Wenn nicht angegeben, wird sie über die Domain abgerufen. |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `ts` | string | Zeitstempel der Löschung |
+| `pageId` | string | Gelöschte Seiten-ID |
+| `deleted` | boolean | Löschstatus |
+
+### `confluence_search`
+
+Suche nach Inhalten in Confluence-Seiten, Blog-Beiträgen und anderen Inhalten.
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Ja | Ihre Confluence-Domain (z.B. ihrfirma.atlassian.net) |
+| `query` | string | Ja | Suchabfragestring |
+| `limit` | number | Nein | Maximale Anzahl der zurückzugebenden Ergebnisse (Standard: 25) |
+| `cloudId` | string | Nein | Confluence Cloud-ID für die Instanz. Wenn nicht angegeben, wird sie über die Domain abgerufen. |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `ts` | string | Zeitstempel der Suche |
+| `results` | array | Suchergebnisse |
+
+### `confluence_create_comment`
+
+Einen Kommentar zu einer Confluence-Seite hinzufügen.
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Ja | Ihre Confluence-Domain (z.B. ihrfirma.atlassian.net) |
+| `pageId` | string | Ja | Confluence-Seiten-ID, zu der ein Kommentar hinzugefügt werden soll |
+| `comment` | string | Ja | Kommentartext im Confluence-Speicherformat |
+| `cloudId` | string | Nein | Confluence Cloud-ID für die Instanz. Wenn nicht angegeben, wird sie über die Domain abgerufen. |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `ts` | string | Zeitstempel der Erstellung |
+| `commentId` | string | Erstellte Kommentar-ID |
+| `pageId` | string | Seiten-ID |
+
+### `confluence_list_comments`
+
+Listet alle Kommentare auf einer Confluence-Seite auf.
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Ja | Ihre Confluence-Domain (z.B. ihrfirma.atlassian.net) |
+| `pageId` | string | Ja | Confluence-Seiten-ID, von der Kommentare aufgelistet werden sollen |
+| `limit` | number | Nein | Maximale Anzahl der zurückzugebenden Kommentare (Standard: 25) |
+| `cloudId` | string | Nein | Confluence Cloud-ID für die Instanz. Wenn nicht angegeben, wird sie über die Domain abgerufen. |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `ts` | string | Zeitstempel des Abrufs |
+| `comments` | array | Liste der Kommentare |
+
+### `confluence_update_comment`
+
+Aktualisiert einen vorhandenen Kommentar auf einer Confluence-Seite.
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Ja | Ihre Confluence-Domain (z.B. ihrfirma.atlassian.net) |
+| `commentId` | string | Ja | Confluence-Kommentar-ID zum Aktualisieren |
+| `comment` | string | Ja | Aktualisierter Kommentartext im Confluence-Speicherformat |
+| `cloudId` | string | Nein | Confluence Cloud-ID für die Instanz. Wenn nicht angegeben, wird sie über die Domain abgerufen. |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `ts` | string | Zeitstempel der Aktualisierung |
+| `commentId` | string | Aktualisierte Kommentar-ID |
+| `updated` | boolean | Aktualisierungsstatus |
+
+### `confluence_delete_comment`
+
+Löscht einen Kommentar von einer Confluence-Seite.
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Ja | Ihre Confluence-Domain (z.B. ihrfirma.atlassian.net) |
+| `commentId` | string | Ja | Confluence-Kommentar-ID zum Löschen |
+| `cloudId` | string | Nein | Confluence Cloud-ID für die Instanz. Wenn nicht angegeben, wird sie über die Domain abgerufen. |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `ts` | string | Zeitstempel der Löschung |
+| `commentId` | string | Gelöschte Kommentar-ID |
+| `deleted` | boolean | Löschstatus |
+
+### `confluence_list_attachments`
+
+Listet alle Anhänge einer Confluence-Seite auf.
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Ja | Ihre Confluence-Domain (z.B. ihrfirma.atlassian.net) |
+| `pageId` | string | Ja | Confluence-Seiten-ID, von der Anhänge aufgelistet werden sollen |
+| `limit` | number | Nein | Maximale Anzahl der zurückzugebenden Anhänge (Standard: 25) |
+| `cloudId` | string | Nein | Confluence Cloud-ID für die Instanz. Wenn nicht angegeben, wird sie über die Domain abgerufen. |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `ts` | string | Zeitstempel des Abrufs |
+| `attachments` | array | Liste der Anhänge |
+
+### `confluence_delete_attachment`
+
+Löscht einen Anhang von einer Confluence-Seite (wird in den Papierkorb verschoben).
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Ja | Ihre Confluence-Domain (z.B. ihrfirma.atlassian.net) |
+| `attachmentId` | string | Ja | Confluence-Anhangs-ID zum Löschen |
+| `cloudId` | string | Nein | Confluence Cloud-ID für die Instanz. Wenn nicht angegeben, wird sie über die Domain abgerufen. |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `ts` | string | Zeitstempel der Löschung |
+| `attachmentId` | string | Gelöschte Anhangs-ID |
+| `deleted` | boolean | Löschstatus |
+
+### `confluence_add_label`
+
+Fügt einer Confluence-Seite ein Label hinzu.
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Ja | Ihre Confluence-Domain (z.B. ihrfirma.atlassian.net) |
+| `pageId` | string | Ja | Confluence-Seiten-ID, zu der das Label hinzugefügt werden soll |
+| `labelName` | string | Ja | Labelname zum Hinzufügen |
+| `cloudId` | string | Nein | Confluence Cloud-ID für die Instanz. Wenn nicht angegeben, wird sie über die Domain abgerufen. |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `ts` | string | Zeitstempel des Vorgangs |
+| `pageId` | string | Seiten-ID |
+| `labelName` | string | Label-Name |
+| `added` | boolean | Hinzufügungsstatus |
+
+### `confluence_list_labels`
+
+Alle Labels einer Confluence-Seite auflisten.
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Ja | Ihre Confluence-Domain (z.B. ihrfirma.atlassian.net) |
+| `pageId` | string | Ja | Confluence-Seiten-ID, von der Labels aufgelistet werden sollen |
+| `cloudId` | string | Nein | Confluence Cloud-ID für die Instanz. Wenn nicht angegeben, wird sie über die Domain abgerufen. |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `ts` | string | Zeitstempel des Abrufs |
+| `labels` | array | Liste der Labels |
+
+### `confluence_remove_label`
+
+Ein Label von einer Confluence-Seite entfernen.
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Ja | Ihre Confluence-Domain (z.B. ihrfirma.atlassian.net) |
+| `pageId` | string | Ja | Confluence-Seiten-ID, von der ein Label entfernt werden soll |
+| `labelName` | string | Ja | Zu entfernender Label-Name |
+| `cloudId` | string | Nein | Confluence Cloud-ID für die Instanz. Wenn nicht angegeben, wird sie über die Domain abgerufen. |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `ts` | string | Zeitstempel des Vorgangs |
+| `pageId` | string | Seiten-ID |
+| `labelName` | string | Label-Name |
+| `removed` | boolean | Entfernungsstatus |
+
+### `confluence_get_space`
+
+Details zu einem bestimmten Confluence-Space abrufen.
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Ja | Ihre Confluence-Domain (z.B. ihrfirma.atlassian.net) |
+| `spaceId` | string | Ja | Confluence-Space-ID zum Abrufen |
+| `cloudId` | string | Nein | Confluence Cloud-ID für die Instanz. Wenn nicht angegeben, wird sie über die Domain abgerufen. |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `ts` | string | Zeitstempel des Abrufs |
+| `spaceId` | string | Space-ID |
+| `name` | string | Space-Name |
+| `key` | string | Space-Schlüssel |
+| `type` | string | Space-Typ |
+| `status` | string | Space-Status |
+| `url` | string | Space-URL |
+
+### `confluence_list_spaces`
+
+Alle für den Benutzer zugänglichen Confluence-Spaces auflisten.
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Ja | Ihre Confluence-Domain (z.B. ihrfirma.atlassian.net) |
+| `limit` | number | Nein | Maximale Anzahl der zurückzugebenden Spaces (Standard: 25) |
+| `cloudId` | string | Nein | Confluence Cloud-ID für die Instanz. Wenn nicht angegeben, wird sie über die Domain abgerufen. |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `ts` | string | Zeitstempel des Abrufs |
+| `spaces` | array | Liste der Bereiche |
 
 ## Hinweise
 

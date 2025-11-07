@@ -53,11 +53,18 @@ Busca información en la web usando Linkup
 #### Entrada
 
 | Parámetro | Tipo | Obligatorio | Descripción |
-| --------- | ---- | -------- | ----------- |
+| --------- | ---- | ---------- | ----------- |
 | `q` | string | Sí | La consulta de búsqueda |
 | `depth` | string | Sí | Profundidad de búsqueda \(debe ser "standard" o "deep"\) |
 | `outputType` | string | Sí | Tipo de salida a devolver \(debe ser "sourcedAnswer" o "searchResults"\) |
 | `apiKey` | string | Sí | Introduce tu clave API de Linkup |
+| `includeImages` | boolean | No | Si se deben incluir imágenes en los resultados de búsqueda |
+| `fromDate` | string | No | Fecha de inicio para filtrar resultados \(formato AAAA-MM-DD\) |
+| `toDate` | string | No | Fecha de fin para filtrar resultados \(formato AAAA-MM-DD\) |
+| `excludeDomains` | string | No | Lista separada por comas de nombres de dominio a excluir de los resultados de búsqueda |
+| `includeDomains` | string | No | Lista separada por comas de nombres de dominio a los que restringir los resultados de búsqueda |
+| `includeInlineCitations` | boolean | No | Añadir citas en línea a las respuestas \(solo se aplica cuando outputType es "sourcedAnswer"\) |
+| `includeSources` | boolean | No | Incluir fuentes en la respuesta |
 
 #### Salida
 

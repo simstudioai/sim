@@ -1,6 +1,6 @@
 ---
 title: Linear
-description: Lire et créer des tickets dans Linear
+description: Interagissez avec les tickets, projets et plus dans Linear
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -38,7 +38,7 @@ Dans Sim, l'intégration de Linear permet à vos agents d'interagir de manière 
 
 ## Instructions d'utilisation
 
-Intégrez Linear dans votre flux de travail. Permet de lire et créer des tickets. Nécessite OAuth.
+Intégrez Linear dans le flux de travail. Peut gérer les tickets, commentaires, projets, étiquettes, états de flux de travail, cycles, pièces jointes, et plus encore.
 
 ## Outils
 
@@ -59,6 +59,22 @@ Récupérer et filtrer les tickets depuis Linear
 | --------- | ---- | ----------- |
 | `issues` | tableau | Tableau des tickets du projet et de l'équipe Linear spécifiés, chacun contenant id, titre, description, état, teamId et projectId |
 
+### `linear_get_issue`
+
+Obtenir un ticket unique par ID depuis Linear avec tous les détails
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `issueId` | chaîne | Oui | ID du ticket Linear |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `issue` | objet | Le ticket avec tous les détails |
+
 ### `linear_create_issue`
 
 Créer un nouveau ticket dans Linear
@@ -77,6 +93,797 @@ Créer un nouveau ticket dans Linear
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
 | `issue` | objet | Le ticket créé contenant id, titre, description, état, teamId et projectId |
+
+### `linear_update_issue`
+
+Mettre à jour un ticket existant dans Linear
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `issueId` | chaîne | Oui | ID du ticket Linear à mettre à jour |
+| `title` | chaîne | Non | Nouveau titre du ticket |
+| `description` | chaîne | Non | Nouvelle description du ticket |
+| `stateId` | chaîne | Non | ID de l'état du flux de travail \(statut\) |
+| `assigneeId` | chaîne | Non | ID de l'utilisateur à qui assigner le ticket |
+| `priority` | nombre | Non | Priorité \(0=Pas de priorité, 1=Urgent, 2=Élevée, 3=Normale, 4=Faible\) |
+| `estimate` | nombre | Non | Estimation en points |
+| `labelIds` | tableau | Non | Tableau des IDs d'étiquettes à définir sur le ticket |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `issue` | objet | Le ticket mis à jour |
+
+### `linear_archive_issue`
+
+Archiver un ticket dans Linear
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `issueId` | chaîne | Oui | ID du ticket Linear à archiver |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | booléen | Indique si l'opération d'archivage a réussi |
+| `issueId` | chaîne | L'ID du ticket archivé |
+
+### `linear_unarchive_issue`
+
+Désarchiver (restaurer) un ticket archivé dans Linear
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `issueId` | chaîne | Oui | ID du ticket Linear à désarchiver |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | booléen | Indique si l'opération de désarchivage a réussi |
+| `issueId` | chaîne | L'ID du ticket désarchivé |
+
+### `linear_delete_issue`
+
+Supprimer (mettre à la corbeille) un ticket dans Linear
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `issueId` | chaîne | Oui | ID du ticket Linear à supprimer |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | booléen | Indique si l'opération de suppression a réussi |
+
+### `linear_search_issues`
+
+Rechercher des tickets dans Linear en utilisant la recherche en texte intégral
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `query` | chaîne | Oui | Chaîne de requête de recherche |
+| `teamId` | chaîne | Non | Filtrer par ID d'équipe |
+| `includeArchived` | booléen | Non | Inclure les tickets archivés dans les résultats de recherche |
+| `first` | nombre | Non | Nombre de résultats à retourner \(par défaut : 50\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `issues` | tableau | Tableau des tickets correspondants |
+
+### `linear_add_label_to_issue`
+
+Ajouter une étiquette à un ticket dans Linear
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `issueId` | chaîne | Oui | ID du ticket Linear |
+| `labelId` | chaîne | Oui | ID de l'étiquette à ajouter au ticket |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | booléen | Indique si l'étiquette a été ajoutée avec succès |
+| `issueId` | chaîne | L'ID du ticket |
+
+### `linear_remove_label_from_issue`
+
+Supprimer une étiquette d'un ticket dans Linear
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `issueId` | chaîne | Oui | ID du ticket Linear |
+| `labelId` | chaîne | Oui | ID de l'étiquette à supprimer du ticket |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | booléen | Indique si l'étiquette a été supprimée avec succès |
+| `issueId` | chaîne | L'ID du ticket |
+
+### `linear_create_comment`
+
+Ajouter un commentaire à un ticket dans Linear
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `issueId` | chaîne | Oui | ID du ticket Linear à commenter |
+| `body` | chaîne | Oui | Texte du commentaire \(supporte le Markdown\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `comment` | objet | Le commentaire créé |
+
+### `linear_update_comment`
+
+Modifier un commentaire dans Linear
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `commentId` | chaîne | Oui | ID du commentaire à mettre à jour |
+| `body` | chaîne | Oui | Nouveau texte du commentaire \(supporte le Markdown\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `comment` | objet | Le commentaire mis à jour |
+
+### `linear_delete_comment`
+
+Supprimer un commentaire de Linear
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `commentId` | chaîne | Oui | ID du commentaire à supprimer |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | booléen | Indique si l'opération de suppression a réussi |
+
+### `linear_list_comments`
+
+Lister tous les commentaires sur un ticket dans Linear
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `issueId` | chaîne | Oui | ID du ticket Linear |
+| `first` | nombre | Non | Nombre de commentaires à retourner \(par défaut : 50\) |
+| `after` | chaîne | Non | Curseur pour la pagination |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `comments` | tableau | Tableau des commentaires sur le ticket |
+
+### `linear_list_projects`
+
+Lister les projets dans Linear avec filtrage optionnel
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `teamId` | chaîne | Non | Filtrer par ID d'équipe |
+| `includeArchived` | booléen | Non | Inclure les projets archivés |
+| `first` | nombre | Non | Nombre de projets à retourner \(par défaut : 50\) |
+| `after` | chaîne | Non | Curseur pour la pagination |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `projects` | tableau | Tableau des projets |
+
+### `linear_get_project`
+
+Obtenir un projet unique par ID depuis Linear
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `projectId` | chaîne | Oui | ID du projet Linear |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `project` | objet | Le projet avec tous les détails |
+
+### `linear_create_project`
+
+Créer un nouveau projet dans Linear
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `teamId` | chaîne | Oui | ID de l'équipe dans laquelle créer le projet |
+| `name` | chaîne | Oui | Nom du projet |
+| `description` | chaîne | Non | Description du projet |
+| `leadId` | chaîne | Non | ID de l'utilisateur responsable du projet |
+| `startDate` | chaîne | Non | Date de début du projet \(format ISO\) |
+| `targetDate` | chaîne | Non | Date cible du projet \(format ISO\) |
+| `priority` | nombre | Non | Priorité du projet \(0-4\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `project` | objet | Le projet créé |
+
+### `linear_update_project`
+
+Mettre à jour un projet existant dans Linear
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `projectId` | chaîne | Oui | ID du projet à mettre à jour |
+| `name` | chaîne | Non | Nouveau nom du projet |
+| `description` | chaîne | Non | Nouvelle description du projet |
+| `state` | chaîne | Non | État du projet \(planned, started, completed, canceled\) |
+| `leadId` | chaîne | Non | ID de l'utilisateur responsable du projet |
+| `startDate` | chaîne | Non | Date de début du projet \(format ISO\) |
+| `targetDate` | chaîne | Non | Date cible du projet \(format ISO\) |
+| `priority` | nombre | Non | Priorité du projet \(0-4\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `project` | objet | Le projet mis à jour |
+
+### `linear_archive_project`
+
+Archiver un projet dans Linear
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `projectId` | chaîne | Oui | ID du projet à archiver |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | booléen | Indique si l'opération d'archivage a réussi |
+| `projectId` | chaîne | L'ID du projet archivé |
+
+### `linear_list_users`
+
+Lister tous les utilisateurs dans l'espace de travail Linear
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `includeDisabled` | booléen | Non | Inclure les utilisateurs désactivés/inactifs |
+| `first` | nombre | Non | Nombre d'utilisateurs à retourner \(par défaut : 50\) |
+| `after` | chaîne | Non | Curseur pour la pagination |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `users` | tableau | Tableau des utilisateurs de l'espace de travail |
+
+### `linear_list_teams`
+
+Lister toutes les équipes dans l'espace de travail Linear
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `first` | nombre | Non | Nombre d'équipes à retourner \(par défaut : 50\) |
+| `after` | chaîne | Non | Curseur pour la pagination |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `teams` | tableau | Tableau des équipes |
+
+### `linear_get_viewer`
+
+Obtenir les informations de l'utilisateur actuellement authentifié (visiteur)
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `user` | objet | L'utilisateur actuellement authentifié |
+
+### `linear_list_labels`
+
+Lister tous les labels dans l'espace de travail ou l'équipe Linear
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `teamId` | chaîne | Non | Filtrer par ID d'équipe |
+| `first` | nombre | Non | Nombre de labels à retourner \(par défaut : 50\) |
+| `after` | chaîne | Non | Curseur pour la pagination |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `labels` | tableau | Tableau des labels |
+
+### `linear_create_label`
+
+Créer un nouveau label dans Linear
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `name` | chaîne | Oui | Nom du label |
+| `color` | chaîne | Non | Couleur du label \(format hexadécimal, ex. : "#ff0000"\) |
+| `description` | chaîne | Non | Description du label |
+| `teamId` | chaîne | Non | ID de l'équipe \(si omis, crée un label d'espace de travail\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `label` | objet | L'étiquette créée |
+
+### `linear_update_label`
+
+Mettre à jour une étiquette existante dans Linear
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `labelId` | chaîne | Oui | ID de l'étiquette à mettre à jour |
+| `name` | chaîne | Non | Nouveau nom de l'étiquette |
+| `color` | chaîne | Non | Nouvelle couleur de l'étiquette \(format hexadécimal\) |
+| `description` | chaîne | Non | Nouvelle description de l'étiquette |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `label` | objet | L'étiquette mise à jour |
+
+### `linear_archive_label`
+
+Archiver une étiquette dans Linear
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `labelId` | chaîne | Oui | ID de l'étiquette à archiver |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | booléen | Indique si l'opération d'archivage a réussi |
+| `labelId` | chaîne | L'ID de l'étiquette archivée |
+
+### `linear_list_workflow_states`
+
+Lister tous les états de workflow (statuts) dans Linear
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `teamId` | chaîne | Non | Filtrer par ID d'équipe |
+| `first` | nombre | Non | Nombre d'états à retourner \(par défaut : 50\) |
+| `after` | chaîne | Non | Curseur pour la pagination |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `states` | tableau | Tableau des états de workflow |
+
+### `linear_create_workflow_state`
+
+Créer un nouvel état de workflow (statut) dans Linear
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `teamId` | chaîne | Oui | ID de l'équipe dans laquelle créer l'état |
+| `name` | chaîne | Oui | Nom de l'état \(ex., "En révision"\) |
+| `color` | chaîne | Oui | Couleur de l'état \(format hexadécimal\) |
+| `type` | chaîne | Oui | Type d'état : "backlog", "unstarted", "started", "completed", ou "canceled" |
+| `description` | chaîne | Non | Description de l'état |
+| `position` | nombre | Non | Position dans le workflow |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `state` | objet | L'état de workflow créé |
+
+### `linear_update_workflow_state`
+
+Mettre à jour un état de workflow existant dans Linear
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `stateId` | chaîne | Oui | ID de l'état de workflow à mettre à jour |
+| `name` | chaîne | Non | Nouveau nom de l'état |
+| `color` | chaîne | Non | Nouvelle couleur de l'état \(format hexadécimal\) |
+| `description` | chaîne | Non | Nouvelle description de l'état |
+| `position` | nombre | Non | Nouvelle position dans le workflow |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `state` | objet | L'état du workflow mis à jour |
+
+### `linear_list_cycles`
+
+Lister les cycles (sprints/itérations) dans Linear
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `teamId` | chaîne | Non | Filtrer par ID d'équipe |
+| `first` | nombre | Non | Nombre de cycles à retourner \(par défaut : 50\) |
+| `after` | chaîne | Non | Curseur pour la pagination |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `cycles` | tableau | Tableau de cycles |
+
+### `linear_get_cycle`
+
+Obtenir un cycle unique par ID depuis Linear
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `cycleId` | chaîne | Oui | ID du cycle |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `cycle` | objet | Le cycle avec tous les détails |
+
+### `linear_create_cycle`
+
+Créer un nouveau cycle (sprint/itération) dans Linear
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `teamId` | chaîne | Oui | ID de l'équipe dans laquelle créer le cycle |
+| `startsAt` | chaîne | Oui | Date de début du cycle \(format ISO\) |
+| `endsAt` | chaîne | Oui | Date de fin du cycle \(format ISO\) |
+| `name` | chaîne | Non | Nom du cycle \(optionnel, sera généré automatiquement si non fourni\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `cycle` | objet | Le cycle créé |
+
+### `linear_get_active_cycle`
+
+Obtenir le cycle actuellement actif pour une équipe
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `teamId` | chaîne | Oui | ID de l'équipe |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `cycle` | objet | Le cycle actif \(null si aucun cycle actif\) |
+
+### `linear_create_attachment`
+
+Ajouter une pièce jointe à un ticket dans Linear
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `issueId` | chaîne | Oui | ID du ticket auquel joindre la pièce |
+| `url` | chaîne | Oui | URL de la pièce jointe |
+| `title` | chaîne | Non | Titre de la pièce jointe |
+| `subtitle` | chaîne | Non | Sous-titre/description de la pièce jointe |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `attachment` | objet | La pièce jointe créée |
+
+### `linear_list_attachments`
+
+Lister toutes les pièces jointes d'un ticket dans Linear
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `issueId` | chaîne | Oui | ID du ticket |
+| `first` | nombre | Non | Nombre de pièces jointes à retourner \(par défaut : 50\) |
+| `after` | chaîne | Non | Curseur pour la pagination |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `attachments` | tableau | Tableau des pièces jointes |
+
+### `linear_update_attachment`
+
+Mettre à jour les métadonnées d'une pièce jointe dans Linear
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `attachmentId` | chaîne | Oui | ID de la pièce jointe à mettre à jour |
+| `title` | chaîne | Non | Nouveau titre de la pièce jointe |
+| `subtitle` | chaîne | Non | Nouveau sous-titre de la pièce jointe |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `attachment` | objet | La pièce jointe mise à jour |
+
+### `linear_delete_attachment`
+
+Supprimer une pièce jointe de Linear
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `attachmentId` | chaîne | Oui | ID de la pièce jointe à supprimer |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | booléen | Indique si l'opération de suppression a réussi |
+
+### `linear_create_issue_relation`
+
+Lier deux tickets ensemble dans Linear (bloque, est lié à, duplique)
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `issueId` | chaîne | Oui | ID du ticket source |
+| `relatedIssueId` | chaîne | Oui | ID du ticket cible à lier |
+| `type` | chaîne | Oui | Type de relation : "blocks", "blocked", "duplicate", "related" |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `relation` | objet | La relation de ticket créée |
+
+### `linear_list_issue_relations`
+
+Lister toutes les relations (dépendances) pour un ticket dans Linear
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `issueId` | chaîne | Oui | ID du ticket |
+| `first` | nombre | Non | Nombre de relations à retourner \(par défaut : 50\) |
+| `after` | chaîne | Non | Curseur pour la pagination |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `relations` | tableau | Tableau des relations de tickets |
+
+### `linear_delete_issue_relation`
+
+Supprimer une relation entre deux tickets dans Linear
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `relationId` | chaîne | Oui | ID de la relation à supprimer |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | booléen | Indique si l'opération de suppression a réussi |
+
+### `linear_create_favorite`
+
+Mettre en favori un ticket, un projet, un cycle ou une étiquette dans Linear
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `issueId` | chaîne | Non | ID du ticket à mettre en favori |
+| `projectId` | chaîne | Non | ID du projet à mettre en favori |
+| `cycleId` | chaîne | Non | ID du cycle à mettre en favori |
+| `labelId` | chaîne | Non | ID de l'étiquette à mettre en favori |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `favorite` | objet | Le favori créé |
+
+### `linear_list_favorites`
+
+Liste tous les éléments mis en favoris pour l'utilisateur actuel dans Linear
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `first` | nombre | Non | Nombre de favoris à retourner \(par défaut : 50\) |
+| `after` | chaîne | Non | Curseur pour la pagination |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `favorites` | tableau | Tableau d'éléments mis en favoris |
+
+### `linear_create_project_update`
+
+Publier une mise à jour de statut pour un projet dans Linear
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `projectId` | chaîne | Oui | ID du projet pour lequel publier la mise à jour |
+| `body` | chaîne | Oui | Message de mise à jour \(supporte le Markdown\) |
+| `health` | chaîne | Non | Santé du projet : "onTrack", "atRisk", ou "offTrack" |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `update` | objet | La mise à jour du projet créée |
+
+### `linear_list_project_updates`
+
+Lister toutes les mises à jour de statut pour un projet dans Linear
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `projectId` | chaîne | Oui | ID du projet |
+| `first` | nombre | Non | Nombre de mises à jour à retourner \(par défaut : 50\) |
+| `after` | chaîne | Non | Curseur pour la pagination |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `updates` | tableau | Tableau des mises à jour du projet |
+
+### `linear_create_project_link`
+
+Ajouter un lien externe à un projet dans Linear
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `projectId` | chaîne | Oui | ID du projet auquel ajouter le lien |
+| `url` | chaîne | Oui | URL du lien externe |
+| `label` | chaîne | Non | Libellé/titre du lien |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `link` | objet | Le lien de projet créé |
+
+### `linear_list_notifications`
+
+Lister les notifications pour l'utilisateur actuel dans Linear
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `first` | nombre | Non | Nombre de notifications à retourner (par défaut : 50) |
+| `after` | chaîne | Non | Curseur pour la pagination |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `notifications` | tableau | Tableau des notifications |
+
+### `linear_update_notification`
+
+Marquer une notification comme lue ou non lue dans Linear
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `notificationId` | chaîne | Oui | ID de la notification à mettre à jour |
+| `readAt` | chaîne | Non | Horodatage pour marquer comme lu (format ISO). Passez null ou omettez pour marquer comme non lu |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `notification` | objet | La notification mise à jour |
 
 ## Remarques
 

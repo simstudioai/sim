@@ -1,0 +1,1066 @@
+---
+title: Stripe
+description: Traiter les paiements et gérer les données Stripe
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="stripe"
+  color="#635BFF"
+  icon={true}
+  iconSvg={`<svg className="block-icon"
+      
+      
+      
+      viewBox='0 0 360 151'
+      fill='none'
+      xmlns='http://www.w3.org/2000/svg'
+    >
+      <path
+        fillRule='evenodd'
+        clipRule='evenodd'
+        d='M360 78.0002C360 52.4002 347.6 32.2002 323.9 32.2002C300.1 32.2002 285.7 52.4002 285.7 77.8002C285.7 107.9 302.7 123.1 327.1 123.1C339 123.1 348 120.4 354.8 116.6V96.6002C348 100 340.2 102.1 330.3 102.1C320.6 102.1 312 98.7002 310.9 86.9002H359.8C359.8 85.6002 360 80.4002 360 78.0002ZM310.6 68.5002C310.6 57.2002 317.5 52.5002 323.8 52.5002C329.9 52.5002 336.4 57.2002 336.4 68.5002H310.6Z'
+        fill='white'
+      />
+      <path
+        fillRule='evenodd'
+        clipRule='evenodd'
+        d='M247.1 32.2002C237.3 32.2002 231 36.8002 227.5 40.0002L226.2 33.8002H204.2V150.4L229.2 145.1L229.3 116.8C232.9 119.4 238.2 123.1 247 123.1C264.9 123.1 281.2 108.7 281.2 77.0002C281.1 48.0002 264.6 32.2002 247.1 32.2002ZM241.1 101.1C235.2 101.1 231.7 99.0002 229.3 96.4002L229.2 59.3002C231.8 56.4002 235.4 54.4002 241.1 54.4002C250.2 54.4002 256.5 64.6002 256.5 77.7002C256.5 91.1002 250.3 101.1 241.1 101.1Z'
+        fill='white'
+      />
+      <path
+        fillRule='evenodd'
+        clipRule='evenodd'
+        d='M169.8 26.3001L194.9 20.9001V0.600098L169.8 5.9001V26.3001Z'
+        fill='white'
+      />
+      <path d='M194.9 33.9001H169.8V121.4H194.9V33.9001Z' fill='white' />
+      <path
+        fill-rule='evenodd'
+        clipRule='evenodd'
+        d='M142.9 41.3001L141.3 33.9001H119.7V121.4H144.7V62.1001C150.6 54.4001 160.6 55.8001 163.7 56.9001V33.9001C160.5 32.7001 148.8 30.5001 142.9 41.3001Z'
+        fill='white'
+      />
+      <path
+        fill-rule='evenodd'
+        clipRule='evenodd'
+        d='M92.8999 12.2002L68.4999 17.4002L68.3999 97.5002C68.3999 112.3 79.4999 123.2 94.2999 123.2C102.5 123.2 108.5 121.7 111.8 119.9V99.6002C108.6 100.9 92.7999 105.5 92.7999 90.7002V55.2002H111.8V33.9002H92.7999L92.8999 12.2002Z'
+        fill='white'
+      />
+      <path
+        fillRule='evenodd'
+        clipRule='evenodd'
+        d='M25.3 59.3002C25.3 55.4002 28.5 53.9002 33.8 53.9002C41.4 53.9002 51 56.2002 58.6 60.3002V36.8002C50.3 33.5002 42.1 32.2002 33.8 32.2002C13.5 32.2002 0 42.8002 0 60.5002C0 88.1002 38 83.7002 38 95.6002C38 100.2 34 101.7 28.4 101.7C20.1 101.7 9.5 98.3002 1.1 93.7002V117.5C10.4 121.5 19.8 123.2 28.4 123.2C49.2 123.2 63.5 112.9 63.5 95.0002C63.4 65.2002 25.3 70.5002 25.3 59.3002Z'
+        fill='white'
+      />
+    </svg>`}
+/>
+
+## Instructions d'utilisation
+
+Intègre Stripe dans le flux de travail. Gérez les intents de paiement, les clients, les abonnements, les factures, les charges, les produits, les prix et les événements. Peut être utilisé en mode déclencheur pour lancer un flux de travail lorsqu'un événement Stripe se produit.
+
+## Outils
+
+### `stripe_create_payment_intent`
+
+Créer une nouvelle intention de paiement pour traiter un paiement
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Oui | Clé API Stripe (clé secrète) |
+| `amount` | number | Oui | Montant en centimes (par ex., 2000 pour 20,00 €) |
+| `currency` | string | Oui | Code de devise ISO à trois lettres (par ex., usd, eur) |
+| `customer` | string | Non | ID du client à associer à ce paiement |
+| `payment_method` | string | Non | ID de la méthode de paiement |
+| `description` | string | Non | Description du paiement |
+| `receipt_email` | string | Non | Adresse e-mail pour l'envoi du reçu |
+| `metadata` | json | Non | Ensemble de paires clé-valeur pour stocker des informations supplémentaires |
+| `automatic_payment_methods` | json | Non | Activer les méthodes de paiement automatiques (par ex., {"enabled": true}) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `payment_intent` | json | L'objet d'intention de paiement créé |
+| `metadata` | json | Métadonnées de l'intention de paiement incluant l'ID, le statut, le montant et la devise |
+
+### `stripe_retrieve_payment_intent`
+
+Récupérer une intention de paiement existante par ID
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Oui | Clé API Stripe (clé secrète) |
+| `id` | string | Oui | ID de l'intention de paiement (par ex., pi_1234567890) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `payment_intent` | json | L'objet Payment Intent récupéré |
+| `metadata` | json | Métadonnées du Payment Intent incluant ID, statut, montant et devise |
+
+### `stripe_update_payment_intent`
+
+Mettre à jour un Payment Intent existant
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Oui | Clé API Stripe (clé secrète) |
+| `id` | string | Oui | ID du Payment Intent (ex. pi_1234567890) |
+| `amount` | number | Non | Montant mis à jour en centimes |
+| `currency` | string | Non | Code devise ISO à trois lettres |
+| `customer` | string | Non | ID du client |
+| `description` | string | Non | Description mise à jour |
+| `metadata` | json | Non | Métadonnées mises à jour |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `payment_intent` | json | L'objet Payment Intent mis à jour |
+| `metadata` | json | Métadonnées du Payment Intent incluant ID, statut, montant et devise |
+
+### `stripe_confirm_payment_intent`
+
+Confirmer un Payment Intent pour finaliser le paiement
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Oui | Clé API Stripe (clé secrète) |
+| `id` | string | Oui | ID du Payment Intent (ex. pi_1234567890) |
+| `payment_method` | string | Non | ID de la méthode de paiement à confirmer |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `payment_intent` | json | L'objet Payment Intent confirmé |
+| `metadata` | json | Métadonnées du Payment Intent incluant ID, statut, montant et devise |
+
+### `stripe_capture_payment_intent`
+
+Capturer un Payment Intent autorisé
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `apiKey` | string | Oui | Clé API Stripe (clé secrète) |
+| `id` | string | Oui | ID du Payment Intent (ex. pi_1234567890) |
+| `amount_to_capture` | number | Non | Montant à capturer en centimes (par défaut, montant total) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `payment_intent` | json | L'objet Payment Intent capturé |
+| `metadata` | json | Métadonnées du Payment Intent incluant ID, statut, montant et devise |
+
+### `stripe_cancel_payment_intent`
+
+Annuler un Payment Intent
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `apiKey` | string | Oui | Clé API Stripe (clé secrète) |
+| `id` | string | Oui | ID du Payment Intent (ex. pi_1234567890) |
+| `cancellation_reason` | string | Non | Motif d'annulation (duplicate, fraudulent, requested_by_customer, abandoned) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `payment_intent` | json | L'objet Payment Intent annulé |
+| `metadata` | json | Métadonnées du Payment Intent incluant ID, statut, montant et devise |
+
+### `stripe_list_payment_intents`
+
+Lister tous les paiements (Payment Intents)
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Oui | Clé API Stripe \(clé secrète\) |
+| `limit` | number | Non | Nombre de résultats à retourner \(par défaut 10, max 100\) |
+| `customer` | string | Non | Filtrer par ID client |
+| `created` | json | Non | Filtrer par date de création \(ex., \{"gt": 1633024800\}\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `payment_intents` | json | Tableau d'objets Payment Intent |
+| `metadata` | json | Métadonnées de liste incluant le nombre et has_more |
+
+### `stripe_search_payment_intents`
+
+Rechercher des paiements (Payment Intents) en utilisant la syntaxe de requête
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Oui | Clé API Stripe \(clé secrète\) |
+| `query` | string | Oui | Requête de recherche \(ex., \"status:'succeeded' AND currency:'usd'\"\) |
+| `limit` | number | Non | Nombre de résultats à retourner \(par défaut 10, max 100\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `payment_intents` | json | Tableau d'objets Payment Intent correspondants |
+| `metadata` | json | Métadonnées de recherche incluant le nombre et has_more |
+
+### `stripe_create_customer`
+
+Créer un nouvel objet client
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Oui | Clé API Stripe \(clé secrète\) |
+| `email` | string | Non | Adresse e-mail du client |
+| `name` | string | Non | Nom complet du client |
+| `phone` | string | Non | Numéro de téléphone du client |
+| `description` | string | Non | Description du client |
+| `address` | json | Non | Objet adresse du client |
+| `metadata` | json | Non | Ensemble de paires clé-valeur |
+| `payment_method` | string | Non | ID de la méthode de paiement à associer |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `customer` | json | L'objet client créé |
+| `metadata` | json | Métadonnées du client |
+
+### `stripe_retrieve_customer`
+
+Récupérer un client existant par ID
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `apiKey` | string | Oui | Clé API Stripe (clé secrète) |
+| `id` | string | Oui | ID du client (ex. : cus_1234567890) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `customer` | json | L'objet client récupéré |
+| `metadata` | json | Métadonnées du client |
+
+### `stripe_update_customer`
+
+Mettre à jour un client existant
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `apiKey` | string | Oui | Clé API Stripe (clé secrète) |
+| `id` | string | Oui | ID du client (ex. : cus_1234567890) |
+| `email` | string | Non | Adresse e-mail mise à jour |
+| `name` | string | Non | Nom mis à jour |
+| `phone` | string | Non | Numéro de téléphone mis à jour |
+| `description` | string | Non | Description mise à jour |
+| `address` | json | Non | Objet adresse mis à jour |
+| `metadata` | json | Non | Métadonnées mises à jour |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `customer` | json | L'objet client mis à jour |
+| `metadata` | json | Métadonnées du client |
+
+### `stripe_delete_customer`
+
+Supprimer définitivement un client
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `apiKey` | chaîne | Oui | Clé API Stripe (clé secrète) |
+| `id` | chaîne | Oui | ID du client (ex. cus_1234567890) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | booléen | Indique si le client a été supprimé |
+| `id` | chaîne | L'ID du client supprimé |
+| `metadata` | json | Métadonnées de suppression |
+
+### `stripe_list_customers`
+
+Lister tous les clients
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `apiKey` | chaîne | Oui | Clé API Stripe (clé secrète) |
+| `limit` | nombre | Non | Nombre de résultats à retourner (par défaut 10, max 100) |
+| `email` | chaîne | Non | Filtrer par adresse e-mail |
+| `created` | json | Non | Filtrer par date de création |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `customers` | json | Tableau d'objets client |
+| `metadata` | json | Métadonnées de liste |
+
+### `stripe_search_customers`
+
+Rechercher des clients en utilisant la syntaxe de requête
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `apiKey` | chaîne | Oui | Clé API Stripe (clé secrète) |
+| `query` | chaîne | Oui | Requête de recherche (ex. "email:\'customer@example.com\'") |
+| `limit` | nombre | Non | Nombre de résultats à retourner (par défaut 10, max 100) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `customers` | json | Tableau d'objets client correspondants |
+| `metadata` | json | Métadonnées de recherche |
+
+### `stripe_create_subscription`
+
+Créer un nouvel abonnement pour un client
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Oui | Clé API Stripe (clé secrète) |
+| `customer` | string | Oui | ID du client à abonner |
+| `items` | json | Oui | Tableau d'articles avec IDs de prix (ex., \[\{"price": "price_xxx", "quantity": 1\}\]) |
+| `trial_period_days` | number | Non | Nombre de jours d'essai |
+| `default_payment_method` | string | Non | ID de la méthode de paiement |
+| `cancel_at_period_end` | boolean | Non | Annuler l'abonnement à la fin de la période |
+| `metadata` | json | Non | Ensemble de paires clé-valeur pour stocker des informations supplémentaires |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `subscription` | json | L'objet d'abonnement créé |
+| `metadata` | json | Métadonnées d'abonnement incluant ID, statut et client |
+
+### `stripe_retrieve_subscription`
+
+Récupérer un abonnement existant par ID
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Oui | Clé API Stripe (clé secrète) |
+| `id` | string | Oui | ID d'abonnement (ex., sub_1234567890) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `subscription` | json | L'objet d'abonnement récupéré |
+| `metadata` | json | Métadonnées d'abonnement incluant ID, statut et client |
+
+### `stripe_update_subscription`
+
+Mettre à jour un abonnement existant
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Oui | Clé API Stripe (clé secrète) |
+| `id` | string | Oui | ID d'abonnement (ex. sub_1234567890) |
+| `items` | json | Non | Tableau mis à jour d'articles avec IDs de prix |
+| `cancel_at_period_end` | boolean | Non | Annuler l'abonnement à la fin de la période |
+| `metadata` | json | Non | Métadonnées mises à jour |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `subscription` | json | L'objet d'abonnement mis à jour |
+| `metadata` | json | Métadonnées d'abonnement incluant ID, statut et client |
+
+### `stripe_cancel_subscription`
+
+Annuler un abonnement
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Oui | Clé API Stripe (clé secrète) |
+| `id` | string | Oui | ID d'abonnement (ex. sub_1234567890) |
+| `prorate` | boolean | Non | Si l'annulation doit être calculée au prorata |
+| `invoice_now` | boolean | Non | Si la facturation doit être immédiate |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `subscription` | json | L'objet d'abonnement annulé |
+| `metadata` | json | Métadonnées d'abonnement incluant ID, statut et client |
+
+### `stripe_resume_subscription`
+
+Reprendre un abonnement qui était programmé pour annulation
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Oui | Clé API Stripe \(clé secrète\) |
+| `id` | string | Oui | ID d'abonnement \(ex., sub_1234567890\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `subscription` | json | L'objet d'abonnement repris |
+| `metadata` | json | Métadonnées d'abonnement incluant ID, statut et client |
+
+### `stripe_list_subscriptions`
+
+Lister tous les abonnements
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Oui | Clé API Stripe \(clé secrète\) |
+| `limit` | number | Non | Nombre de résultats à retourner \(par défaut 10, max 100\) |
+| `customer` | string | Non | Filtrer par ID client |
+| `status` | string | Non | Filtrer par statut \(active, past_due, unpaid, canceled, incomplete, incomplete_expired, trialing, all\) |
+| `price` | string | Non | Filtrer par ID de prix |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `subscriptions` | json | Tableau d'objets d'abonnement |
+| `metadata` | json | Métadonnées de liste |
+
+### `stripe_search_subscriptions`
+
+Rechercher des abonnements en utilisant la syntaxe de requête
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Oui | Clé API Stripe \(clé secrète\) |
+| `query` | string | Oui | Requête de recherche \(ex., \"status:'active' AND customer:'cus_xxx'\"\) |
+| `limit` | number | Non | Nombre de résultats à retourner \(par défaut 10, max 100\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `subscriptions` | json | Tableau d'objets d'abonnement correspondants |
+| `metadata` | json | Métadonnées de recherche |
+
+### `stripe_create_invoice`
+
+Créer une nouvelle facture
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Oui | Clé API Stripe \(clé secrète\) |
+| `customer` | string | Oui | ID du client \(ex., cus_1234567890\) |
+| `description` | string | Non | Description de la facture |
+| `metadata` | json | Non | Ensemble de paires clé-valeur |
+| `auto_advance` | boolean | Non | Finalisation automatique de la facture |
+| `collection_method` | string | Non | Méthode de recouvrement : charge_automatically ou send_invoice |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `invoice` | json | L'objet facture créé |
+| `metadata` | json | Métadonnées de la facture |
+
+### `stripe_retrieve_invoice`
+
+Récupérer une facture existante par ID
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Oui | Clé API Stripe \(clé secrète\) |
+| `id` | string | Oui | ID de la facture \(ex., in_1234567890\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `invoice` | json | L'objet facture récupéré |
+| `metadata` | json | Métadonnées de la facture |
+
+### `stripe_update_invoice`
+
+Mettre à jour une facture existante
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `apiKey` | chaîne | Oui | Clé API Stripe \(clé secrète\) |
+| `id` | chaîne | Oui | ID de facture \(ex., in_1234567890\) |
+| `description` | chaîne | Non | Description de la facture |
+| `metadata` | json | Non | Ensemble de paires clé-valeur |
+| `auto_advance` | booléen | Non | Finaliser automatiquement la facture |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `invoice` | json | L'objet facture mis à jour |
+| `metadata` | json | Métadonnées de la facture |
+
+### `stripe_delete_invoice`
+
+Supprimer définitivement une facture en brouillon
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `apiKey` | chaîne | Oui | Clé API Stripe \(clé secrète\) |
+| `id` | chaîne | Oui | ID de facture \(ex., in_1234567890\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | booléen | Si la facture a été supprimée |
+| `id` | chaîne | L'ID de la facture supprimée |
+| `metadata` | json | Métadonnées de suppression |
+
+### `stripe_finalize_invoice`
+
+Finaliser une facture en brouillon
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `apiKey` | chaîne | Oui | Clé API Stripe \(clé secrète\) |
+| `id` | chaîne | Oui | ID de facture \(ex., in_1234567890\) |
+| `auto_advance` | booléen | Non | Faire avancer automatiquement la facture |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `invoice` | json | L'objet facture finalisé |
+| `metadata` | json | Métadonnées de la facture |
+
+### `stripe_pay_invoice`
+
+Payer une facture
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Oui | Clé API Stripe (clé secrète) |
+| `id` | string | Oui | ID de la facture (ex. : in_1234567890) |
+| `paid_out_of_band` | boolean | Non | Marquer la facture comme payée hors système |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `invoice` | json | L'objet facture payée |
+| `metadata` | json | Métadonnées de la facture |
+
+### `stripe_void_invoice`
+
+Annuler une facture
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Oui | Clé API Stripe (clé secrète) |
+| `id` | string | Oui | ID de la facture (ex. : in_1234567890) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `invoice` | json | L'objet facture annulée |
+| `metadata` | json | Métadonnées de la facture |
+
+### `stripe_send_invoice`
+
+Envoyer une facture au client
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Oui | Clé API Stripe (clé secrète) |
+| `id` | string | Oui | ID de la facture (ex. : in_1234567890) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `invoice` | json | L'objet facture envoyé |
+| `metadata` | json | Métadonnées de la facture |
+
+### `stripe_list_invoices`
+
+Lister toutes les factures
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `apiKey` | string | Oui | Clé API Stripe (clé secrète) |
+| `limit` | number | Non | Nombre de résultats à retourner (10 par défaut, 100 max) |
+| `customer` | string | Non | Filtrer par ID client |
+| `status` | string | Non | Filtrer par statut de facture |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `invoices` | json | Tableau d'objets facture |
+| `metadata` | json | Métadonnées de la liste |
+
+### `stripe_search_invoices`
+
+Rechercher des factures en utilisant la syntaxe de requête
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `apiKey` | string | Oui | Clé API Stripe (clé secrète) |
+| `query` | string | Oui | Requête de recherche (ex. : "customer:\'cus_1234567890\'"\) |
+| `limit` | number | Non | Nombre de résultats à retourner (10 par défaut, 100 max) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `invoices` | json | Tableau d'objets facture correspondants |
+| `metadata` | json | Métadonnées de recherche |
+
+### `stripe_create_charge`
+
+Créer une nouvelle transaction pour traiter un paiement
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `apiKey` | string | Oui | Clé API Stripe \(clé secrète\) |
+| `amount` | number | Oui | Montant en centimes \(ex., 2000 pour 20,00 €\) |
+| `currency` | string | Oui | Code de devise ISO à trois lettres \(ex., usd, eur\) |
+| `customer` | string | Non | ID du client à associer à cette transaction |
+| `source` | string | Non | ID de la source de paiement \(ex., jeton de carte ou ID de carte enregistrée\) |
+| `description` | string | Non | Description de la transaction |
+| `metadata` | json | Non | Ensemble de paires clé-valeur pour stocker des informations supplémentaires |
+| `capture` | boolean | Non | Indique s'il faut capturer immédiatement la transaction \(par défaut : true\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `charge` | json | L'objet Charge créé |
+| `metadata` | json | Métadonnées de la transaction incluant ID, statut, montant, devise et statut de paiement |
+
+### `stripe_retrieve_charge`
+
+Récupérer une transaction existante par ID
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `apiKey` | string | Oui | Clé API Stripe \(clé secrète\) |
+| `id` | string | Oui | ID de la transaction \(ex., ch_1234567890\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `charge` | json | L'objet Charge récupéré |
+| `metadata` | json | Métadonnées de la transaction incluant ID, statut, montant, devise et statut de paiement |
+
+### `stripe_update_charge`
+
+Mettre à jour une transaction existante
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Oui | Clé API Stripe \(clé secrète\) |
+| `id` | string | Oui | ID de la transaction \(ex., ch_1234567890\) |
+| `description` | string | Non | Description mise à jour |
+| `metadata` | json | Non | Métadonnées mises à jour |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `charge` | json | L'objet Charge mis à jour |
+| `metadata` | json | Métadonnées de la transaction incluant ID, statut, montant, devise et statut de paiement |
+
+### `stripe_capture_charge`
+
+Capturer une transaction non capturée
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Oui | Clé API Stripe \(clé secrète\) |
+| `id` | string | Oui | ID de la transaction \(ex., ch_1234567890\) |
+| `amount` | number | Non | Montant à capturer en centimes \(par défaut le montant total\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `charge` | json | L'objet Charge capturé |
+| `metadata` | json | Métadonnées de la transaction incluant ID, statut, montant, devise et statut de paiement |
+
+### `stripe_list_charges`
+
+Lister toutes les transactions
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Oui | Clé API Stripe \(clé secrète\) |
+| `limit` | number | Non | Nombre de résultats à retourner \(10 par défaut, max 100\) |
+| `customer` | string | Non | Filtrer par ID client |
+| `created` | json | Non | Filtrer par date de création \(ex., \{"gt": 1633024800\}\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `charges` | json | Tableau d'objets Charge |
+| `metadata` | json | Métadonnées de liste incluant le nombre et has_more |
+
+### `stripe_search_charges`
+
+Rechercher des frais en utilisant la syntaxe de requête
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Oui | Clé API Stripe (clé secrète) |
+| `query` | string | Oui | Requête de recherche (par ex., "status:'succeeded' AND currency:'usd'") |
+| `limit` | number | Non | Nombre de résultats à retourner (par défaut 10, max 100) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `charges` | json | Tableau d'objets Charge correspondants |
+| `metadata` | json | Métadonnées de recherche incluant le nombre et has_more |
+
+### `stripe_create_product`
+
+Créer un nouvel objet produit
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Oui | Clé API Stripe (clé secrète) |
+| `name` | string | Oui | Nom du produit |
+| `description` | string | Non | Description du produit |
+| `active` | boolean | Non | Si le produit est actif |
+| `images` | json | Non | Tableau d'URLs d'images pour le produit |
+| `metadata` | json | Non | Ensemble de paires clé-valeur |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `product` | json | L'objet produit créé |
+| `metadata` | json | Métadonnées du produit |
+
+### `stripe_retrieve_product`
+
+Récupérer un produit existant par ID
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `apiKey` | string | Oui | Clé API Stripe (clé secrète) |
+| `id` | string | Oui | ID du produit (ex. : prod_1234567890) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `product` | json | L'objet produit récupéré |
+| `metadata` | json | Métadonnées du produit |
+
+### `stripe_update_product`
+
+Mettre à jour un produit existant
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `apiKey` | string | Oui | Clé API Stripe (clé secrète) |
+| `id` | string | Oui | ID du produit (ex. : prod_1234567890) |
+| `name` | string | Non | Nom du produit mis à jour |
+| `description` | string | Non | Description du produit mise à jour |
+| `active` | boolean | Non | Statut actif mis à jour |
+| `images` | json | Non | Tableau mis à jour des URLs d'images |
+| `metadata` | json | Non | Métadonnées mises à jour |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `product` | json | L'objet produit mis à jour |
+| `metadata` | json | Métadonnées du produit |
+
+### `stripe_delete_product`
+
+Supprimer définitivement un produit
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `apiKey` | string | Oui | Clé API Stripe \(clé secrète\) |
+| `id` | string | Oui | ID du produit \(ex. : prod_1234567890\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Indique si le produit a été supprimé |
+| `id` | string | L'ID du produit supprimé |
+| `metadata` | json | Métadonnées de suppression |
+
+### `stripe_list_products`
+
+Lister tous les produits
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `apiKey` | string | Oui | Clé API Stripe \(clé secrète\) |
+| `limit` | number | Non | Nombre de résultats à retourner \(par défaut 10, max 100\) |
+| `active` | boolean | Non | Filtrer par statut actif |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `products` | json | Tableau d'objets produit |
+| `metadata` | json | Métadonnées de liste |
+
+### `stripe_search_products`
+
+Rechercher des produits avec une syntaxe de requête
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `apiKey` | string | Oui | Clé API Stripe \(clé secrète\) |
+| `query` | string | Oui | Requête de recherche \(ex. : "name:\'shirt\'"\) |
+| `limit` | number | Non | Nombre de résultats à retourner \(par défaut 10, max 100\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `products` | json | Tableau d'objets de produits correspondants |
+| `metadata` | json | Métadonnées de recherche |
+
+### `stripe_create_price`
+
+Créer un nouveau prix pour un produit
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Oui | Clé API Stripe (clé secrète) |
+| `product` | string | Oui | ID du produit (ex. : prod_1234567890) |
+| `currency` | string | Oui | Code de devise ISO à trois lettres (ex. : usd, eur) |
+| `unit_amount` | number | Non | Montant en centimes (ex. : 1000 pour 10,00 €) |
+| `recurring` | json | Non | Configuration de facturation récurrente (intervalle : jour/semaine/mois/année) |
+| `metadata` | json | Non | Ensemble de paires clé-valeur |
+| `billing_scheme` | string | Non | Schéma de facturation (par_unité ou par_palier) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `price` | json | L'objet prix créé |
+| `metadata` | json | Métadonnées du prix |
+
+### `stripe_retrieve_price`
+
+Récupérer un prix existant par ID
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Oui | Clé API Stripe (clé secrète) |
+| `id` | string | Oui | ID du prix (ex. : price_1234567890) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `price` | json | L'objet prix récupéré |
+| `metadata` | json | Métadonnées du prix |
+
+### `stripe_update_price`
+
+Mettre à jour un prix existant
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `apiKey` | string | Oui | Clé API Stripe (clé secrète) |
+| `id` | string | Oui | ID du prix (ex. price_1234567890) |
+| `active` | boolean | Non | Indique si le prix est actif |
+| `metadata` | json | Non | Métadonnées mises à jour |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `price` | json | L'objet prix mis à jour |
+| `metadata` | json | Métadonnées du prix |
+
+### `stripe_list_prices`
+
+Lister tous les prix
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `apiKey` | string | Oui | Clé API Stripe (clé secrète) |
+| `limit` | number | Non | Nombre de résultats à retourner (par défaut 10, max 100) |
+| `product` | string | Non | Filtrer par ID de produit |
+| `active` | boolean | Non | Filtrer par statut actif |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `prices` | json | Tableau d'objets prix |
+| `metadata` | json | Métadonnées de la liste |
+
+### `stripe_search_prices`
+
+Rechercher des prix en utilisant la syntaxe de requête
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `apiKey` | string | Oui | Clé API Stripe (clé secrète) |
+| `query` | string | Oui | Requête de recherche (ex. "active:'true' AND currency:'usd'") |
+| `limit` | number | Non | Nombre de résultats à retourner (par défaut 10, max 100) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `prices` | json | Tableau d'objets de prix correspondants |
+| `metadata` | json | Métadonnées de recherche |
+
+### `stripe_retrieve_event`
+
+Récupérer un événement existant par ID
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Oui | Clé API Stripe (clé secrète) |
+| `id` | string | Oui | ID de l'événement (ex. : evt_1234567890) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `event` | json | L'objet événement récupéré |
+| `metadata` | json | Métadonnées de l'événement incluant l'ID, le type et l'horodatage de création |
+
+### `stripe_list_events`
+
+Lister tous les événements
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Oui | Clé API Stripe (clé secrète) |
+| `limit` | number | Non | Nombre de résultats à retourner (par défaut 10, max 100) |
+| `type` | string | Non | Filtrer par type d'événement (ex. : payment_intent.created) |
+| `created` | json | Non | Filtrer par date de création (ex. : {"gt": 1633024800}) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `events` | json | Tableau d'objets événement |
+| `metadata` | json | Métadonnées de liste incluant le nombre et has_more |
+
+## Notes
+
+- Catégorie : `tools`
+- Type : `stripe`

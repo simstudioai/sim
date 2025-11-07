@@ -1,6 +1,6 @@
 ---
 title: Parallel AI
-description: Parallel AIで検索
+description: Parallel AIによるウェブリサーチ
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -70,7 +70,7 @@ Simでは、Parallel AI統合によりエージェントがプログラムでウ
 
 ## 使用方法
 
-Parallel AIをワークフローに統合します。ウェブ検索が可能です。APIキーが必要です。
+Parallel AIをワークフローに統合します。ウェブ検索、URLからの情報抽出、詳細な調査を行うことができます。
 
 ## ツール
 
@@ -94,6 +94,51 @@ Parallel AIを使用してウェブを検索します。インテリジェント
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
 | `results` | array | 関連ページからの抜粋を含む検索結果 |
+
+### `parallel_extract`
+
+Parallel AIを使用して特定のURLから対象情報を抽出します。提供されたURLを処理し、目的に基づいて関連コンテンツを取得します。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `urls` | string | はい | 情報を抽出するURLのカンマ区切りリスト |
+| `objective` | string | はい | 提供されたURLから抽出する情報 |
+| `excerpts` | boolean | はい | コンテンツから関連する抜粋を含めるかどうか |
+| `full_content` | boolean | はい | ページの全コンテンツを含めるかどうか |
+| `apiKey` | string | はい | Parallel AI APIキー |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `results` | array | 提供されたURLから抽出された情報 |
+
+### `parallel_deep_research`
+
+Parallel AIを使用してウェブ全体で包括的な詳細調査を実施します。引用付きで複数のソースからの情報を統合します。完了までに最大15分かかる場合があります。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `input` | string | はい | 調査クエリまたは質問（最大15,000文字） |
+| `processor` | string | いいえ | 計算レベル: base、lite、pro、ultra、ultra2x、ultra4x、ultra8x（デフォルト: base） |
+| `output_schema` | string | いいえ | 希望する出力形式の説明。引用付きのマークダウンレポートには「text」を使用するか、構造化されたJSON形式を記述 |
+| `include_domains` | string | いいえ | 調査を制限するドメインのカンマ区切りリスト（ソースポリシー） |
+| `exclude_domains` | string | いいえ | 調査から除外するドメインのカンマ区切りリスト（ソースポリシー） |
+| `apiKey` | string | はい | Parallel AI APIキー |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `status` | string | タスクのステータス（実行中、完了、失敗） |
+| `run_id` | string | この調査タスクの一意のID |
+| `message` | string | ステータスメッセージ（実行中のタスク用） |
+| `content` | object | 調査結果（output_schemaに基づいて構造化） |
+| `basis` | array | 引用と情報源（抜粋と信頼度レベルを含む） |
 
 ## 注意事項
 

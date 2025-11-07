@@ -1,6 +1,6 @@
 ---
 title: Microsoft Teams
-description: メッセージの読み取り、作成、送信
+description: Teams でメッセージ、リアクション、メンバーを管理する
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -97,7 +97,7 @@ Simでは、Microsoft Teams統合により、エージェントがプログラ�
 
 ## 使用手順
 
-Microsoft Teamsをワークフローに統合します。チャットメッセージの読み書き、およびチャネルメッセージの読み書きが可能です。チャットやチャネルにメッセージが送信されたときにワークフローをトリガーするトリガーモードで使用できます。メッセージでユーザーにメンションするには、名前を `<at>` タグで囲みます: `<at>userName</at>`
+Microsoft Teams をワークフローに統合します。チャットやチャネルのメッセージの読み取り、書き込み、更新、削除ができます。メッセージへの返信、リアクションの追加、チーム/チャネルメンバーの一覧表示が可能です。チャットやチャネルにメッセージが送信されたときにワークフローをトリガーするトリガーモードでも使用できます。メッセージでユーザーにメンションするには、名前を `<at>` タグで囲みます: `<at>userName</at>`
 
 ## ツール
 
@@ -198,6 +198,209 @@ Microsoft Teamsチャネルにメッセージを書き込むまたは送信す�
 | `createdTime` | string | メッセージが作成されたタイムスタンプ |
 | `url` | string | メッセージへのウェブURL |
 | `updatedContent` | boolean | コンテンツが正常に更新されたかどうか |
+
+### `microsoft_teams_update_chat_message`
+
+Microsoft Teams チャットの既存メッセージを更新する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `chatId` | string | はい | メッセージを含むチャットのID |
+| `messageId` | string | はい | 更新するメッセージのID |
+| `content` | string | はい | メッセージの新しい内容 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 更新が成功したかどうか |
+| `messageId` | string | 更新されたメッセージのID |
+| `updatedContent` | boolean | コンテンツが正常に更新されたかどうか |
+
+### `microsoft_teams_update_channel_message`
+
+Microsoft Teams チャネルの既存メッセージを更新する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `teamId` | string | はい | チームのID |
+| `channelId` | string | はい | メッセージを含むチャネルのID |
+| `messageId` | string | はい | 更新するメッセージのID |
+| `content` | string | はい | メッセージの新しい内容 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 更新が成功したかどうか |
+| `messageId` | string | 更新されたメッセージのID |
+| `updatedContent` | boolean | コンテンツが正常に更新されたかどうか |
+
+### `microsoft_teams_delete_chat_message`
+
+Microsoft Teamsチャットでメッセージをソフト削除する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `chatId` | string | はい | メッセージを含むチャットのID |
+| `messageId` | string | はい | 削除するメッセージのID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 削除が成功したかどうか |
+| `deleted` | boolean | 削除の確認 |
+| `messageId` | string | 削除されたメッセージのID |
+
+### `microsoft_teams_delete_channel_message`
+
+Microsoft Teamsチャネルでメッセージをソフト削除する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `teamId` | string | はい | チームのID |
+| `channelId` | string | はい | メッセージを含むチャネルのID |
+| `messageId` | string | はい | 削除するメッセージのID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 削除が成功したかどうか |
+| `deleted` | boolean | 削除の確認 |
+| `messageId` | string | 削除されたメッセージのID |
+
+### `microsoft_teams_reply_to_message`
+
+Microsoft Teamsチャネルの既存のメッセージに返信する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `teamId` | string | はい | チームのID |
+| `channelId` | string | はい | チャネルのID |
+| `messageId` | string | はい | 返信するメッセージのID |
+| `content` | string | はい | 返信の内容 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 返信が成功したかどうか |
+| `messageId` | string | 返信メッセージのID |
+| `updatedContent` | boolean | コンテンツが正常に送信されたかどうか |
+
+### `microsoft_teams_get_message`
+
+Microsoft Teamsのチャットまたはチャネルから特定のメッセージを取得する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `teamId` | string | いいえ | チームのID（チャネルメッセージの場合） |
+| `channelId` | string | いいえ | チャネルのID（チャネルメッセージの場合） |
+| `chatId` | string | いいえ | チャットのID（チャットメッセージの場合） |
+| `messageId` | string | はい | 取得するメッセージのID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 取得が成功したかどうか |
+| `content` | string | メッセージの内容 |
+| `metadata` | object | 送信者、タイムスタンプなどを含むメッセージのメタデータ |
+
+### `microsoft_teams_set_reaction`
+
+Microsoft Teamsのメッセージに絵文字リアクションを追加する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `teamId` | string | いいえ | チームのID（チャネルメッセージの場合） |
+| `channelId` | string | いいえ | チャネルのID（チャネルメッセージの場合） |
+| `chatId` | string | いいえ | チャットのID（チャットメッセージの場合） |
+| `messageId` | string | はい | リアクションするメッセージのID |
+| `reactionType` | string | はい | 絵文字リアクション（例：❤️、👍、😊） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | リアクションが正常に追加されたかどうか |
+| `reactionType` | string | 追加された絵文字 |
+| `messageId` | string | メッセージのID |
+
+### `microsoft_teams_unset_reaction`
+
+Microsoft Teamsのメッセージから絵文字リアクションを削除する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `teamId` | string | いいえ | チームのID（チャネルメッセージの場合） |
+| `channelId` | string | いいえ | チャネルのID（チャネルメッセージの場合） |
+| `chatId` | string | いいえ | チャットのID（チャットメッセージの場合） |
+| `messageId` | string | はい | メッセージのID |
+| `reactionType` | string | はい | 削除する絵文字リアクション（例：❤️、👍、😊） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | リアクションが正常に削除されたかどうか |
+| `reactionType` | string | 削除された絵文字 |
+| `messageId` | string | メッセージのID |
+
+### `microsoft_teams_list_team_members`
+
+Microsoft Teamsチームのすべてのメンバーを一覧表示する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `teamId` | string | はい | チームのID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 一覧表示が成功したかどうか |
+| `members` | array | チームメンバーの配列 |
+| `memberCount` | number | メンバーの総数 |
+
+### `microsoft_teams_list_channel_members`
+
+Microsoft Teamsチャネルのすべてのメンバーを一覧表示する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `teamId` | string | はい | チームのID |
+| `channelId` | string | はい | チャネルのID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 一覧表示が成功したかどうか |
+| `members` | array | チャネルメンバーの配列 |
+| `memberCount` | number | メンバーの総数 |
 
 ## 注意事項
 

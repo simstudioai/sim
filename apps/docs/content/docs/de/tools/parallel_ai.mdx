@@ -1,6 +1,6 @@
 ---
 title: Parallel AI
-description: Suche mit Parallel AI
+description: Webrecherche mit Parallel AI
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -70,7 +70,7 @@ In Sim ermöglicht die Parallel AI-Integration Ihren Agenten, Websuchen durchzuf
 
 ## Gebrauchsanweisung
 
-Integrieren Sie Parallel AI in den Workflow. Kann im Web suchen. Benötigt API-Schlüssel.
+Integrieren Sie Parallel AI in den Workflow. Kann im Web suchen, Informationen aus URLs extrahieren und tiefgehende Recherchen durchführen.
 
 ## Tools
 
@@ -94,6 +94,51 @@ Durchsuchen Sie das Web mit Parallel AI. Bietet umfassende Suchergebnisse mit in
 | Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
 | `results` | array | Suchergebnisse mit Auszügen aus relevanten Seiten |
+
+### `parallel_extract`
+
+Extrahieren Sie gezielte Informationen aus bestimmten URLs mit Parallel AI. Verarbeitet bereitgestellte URLs, um relevante Inhalte basierend auf Ihrem Ziel zu extrahieren.
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `urls` | string | Ja | Durch Kommas getrennte Liste von URLs, aus denen Informationen extrahiert werden sollen |
+| `objective` | string | Ja | Welche Informationen aus den bereitgestellten URLs extrahiert werden sollen |
+| `excerpts` | boolean | Ja | Relevante Auszüge aus dem Inhalt einschließen |
+| `full_content` | boolean | Ja | Vollständigen Seiteninhalt einschließen |
+| `apiKey` | string | Ja | Parallel AI API-Schlüssel |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `results` | array | Extrahierte Informationen aus den bereitgestellten URLs |
+
+### `parallel_deep_research`
+
+Führen Sie umfassende tiefgehende Recherchen im Web mit Parallel AI durch. Synthetisiert Informationen aus mehreren Quellen mit Zitaten. Kann bis zu 15 Minuten dauern.
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `input` | string | Ja | Rechercheanfrage oder Frage \(bis zu 15.000 Zeichen\) |
+| `processor` | string | Nein | Berechnungsstufe: base, lite, pro, ultra, ultra2x, ultra4x, ultra8x \(Standard: base\) |
+| `output_schema` | string | Nein | Beschreibung des gewünschten Ausgabeformats. Verwenden Sie "text" für Markdown-Berichte mit Zitaten oder beschreiben Sie ein strukturiertes JSON-Format |
+| `include_domains` | string | Nein | Durch Kommas getrennte Liste von Domains, auf die die Recherche beschränkt werden soll \(Quellenrichtlinie\) |
+| `exclude_domains` | string | Nein | Durch Kommas getrennte Liste von Domains, die von der Recherche ausgeschlossen werden sollen \(Quellenrichtlinie\) |
+| `apiKey` | string | Ja | Parallel AI API-Schlüssel |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `status` | string | Aufgabenstatus (laufend, abgeschlossen, fehlgeschlagen) |
+| `run_id` | string | Eindeutige ID für diese Rechercheaufgabe |
+| `message` | string | Statusmeldung (für laufende Aufgaben) |
+| `content` | object | Rechercheergebnisse (strukturiert basierend auf output_schema) |
+| `basis` | array | Zitate und Quellen mit Auszügen und Vertrauensstufen |
 
 ## Hinweise
 

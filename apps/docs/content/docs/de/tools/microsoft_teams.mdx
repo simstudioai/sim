@@ -1,6 +1,6 @@
 ---
 title: Microsoft Teams
-description: Nachrichten lesen, schreiben und erstellen
+description: Nachrichten, Reaktionen und Mitglieder in Teams verwalten
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -97,7 +97,7 @@ In Sim ermöglicht die Microsoft Teams-Integration Ihren Agenten, direkt program
 
 ## Gebrauchsanweisung
 
-Microsoft Teams in den Workflow integrieren. Kann Chat-Nachrichten lesen und schreiben sowie Kanal-Nachrichten lesen und schreiben. Kann im Trigger-Modus verwendet werden, um einen Workflow auszulösen, wenn eine Nachricht an einen Chat oder Kanal gesendet wird. Um Benutzer in Nachrichten zu erwähnen, umschließen Sie ihren Namen mit `<at>` Tags: `<at>userName</at>`
+Microsoft Teams in den Workflow integrieren. Chat- und Kanalnachrichten lesen, schreiben, aktualisieren und löschen. Auf Nachrichten antworten, Reaktionen hinzufügen und Team-/Kanalmitglieder auflisten. Kann im Trigger-Modus verwendet werden, um einen Workflow auszulösen, wenn eine Nachricht an einen Chat oder Kanal gesendet wird. Um Benutzer in Nachrichten zu erwähnen, umschließen Sie ihren Namen mit `<at>` Tags: `<at>userName</at>`
 
 ## Tools
 
@@ -198,6 +198,209 @@ Schreiben oder senden einer Nachricht an einen Microsoft Teams-Kanal
 | `createdTime` | string | Zeitstempel der Nachrichtenerstellung |
 | `url` | string | Web-URL zur Nachricht |
 | `updatedContent` | boolean | Ob der Inhalt erfolgreich aktualisiert wurde |
+
+### `microsoft_teams_update_chat_message`
+
+Eine bestehende Nachricht in einem Microsoft Teams-Chat aktualisieren
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `chatId` | string | Ja | Die ID des Chats, der die Nachricht enthält |
+| `messageId` | string | Ja | Die ID der zu aktualisierenden Nachricht |
+| `content` | string | Ja | Der neue Inhalt für die Nachricht |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Ob die Aktualisierung erfolgreich war |
+| `messageId` | string | ID der aktualisierten Nachricht |
+| `updatedContent` | boolean | Ob der Inhalt erfolgreich aktualisiert wurde |
+
+### `microsoft_teams_update_channel_message`
+
+Eine bestehende Nachricht in einem Microsoft Teams-Kanal aktualisieren
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `teamId` | string | Ja | Die ID des Teams |
+| `channelId` | string | Ja | Die ID des Kanals, der die Nachricht enthält |
+| `messageId` | string | Ja | Die ID der zu aktualisierenden Nachricht |
+| `content` | string | Ja | Der neue Inhalt für die Nachricht |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Ob die Aktualisierung erfolgreich war |
+| `messageId` | string | ID der aktualisierten Nachricht |
+| `updatedContent` | boolean | Ob der Inhalt erfolgreich aktualisiert wurde |
+
+### `microsoft_teams_delete_chat_message`
+
+Soft-Delete einer Nachricht in einem Microsoft Teams-Chat
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `chatId` | string | Ja | Die ID des Chats, der die Nachricht enthält |
+| `messageId` | string | Ja | Die ID der zu löschenden Nachricht |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Ob das Löschen erfolgreich war |
+| `deleted` | boolean | Bestätigung des Löschvorgangs |
+| `messageId` | string | ID der gelöschten Nachricht |
+
+### `microsoft_teams_delete_channel_message`
+
+Soft-Delete einer Nachricht in einem Microsoft Teams-Kanal
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `teamId` | string | Ja | Die ID des Teams |
+| `channelId` | string | Ja | Die ID des Kanals, der die Nachricht enthält |
+| `messageId` | string | Ja | Die ID der zu löschenden Nachricht |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Ob das Löschen erfolgreich war |
+| `deleted` | boolean | Bestätigung des Löschvorgangs |
+| `messageId` | string | ID der gelöschten Nachricht |
+
+### `microsoft_teams_reply_to_message`
+
+Auf eine bestehende Nachricht in einem Microsoft Teams-Kanal antworten
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `teamId` | string | Ja | Die ID des Teams |
+| `channelId` | string | Ja | Die ID des Kanals |
+| `messageId` | string | Ja | Die ID der Nachricht, auf die geantwortet werden soll |
+| `content` | string | Ja | Der Antwortinhalt |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Ob die Antwort erfolgreich war |
+| `messageId` | string | ID der Antwortnachricht |
+| `updatedContent` | boolean | Ob der Inhalt erfolgreich gesendet wurde |
+
+### `microsoft_teams_get_message`
+
+Eine bestimmte Nachricht aus einem Microsoft Teams-Chat oder -Kanal abrufen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `teamId` | string | Nein | Die ID des Teams \(für Kanalnachrichten\) |
+| `channelId` | string | Nein | Die ID des Kanals \(für Kanalnachrichten\) |
+| `chatId` | string | Nein | Die ID des Chats \(für Chatnachrichten\) |
+| `messageId` | string | Ja | Die ID der abzurufenden Nachricht |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Ob der Abruf erfolgreich war |
+| `content` | string | Der Nachrichteninhalt |
+| `metadata` | object | Nachrichtenmetadaten einschließlich Absender, Zeitstempel usw. |
+
+### `microsoft_teams_set_reaction`
+
+Eine Emoji-Reaktion zu einer Nachricht in Microsoft Teams hinzufügen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `teamId` | string | Nein | Die ID des Teams (für Kanalnachrichten) |
+| `channelId` | string | Nein | Die ID des Kanals (für Kanalnachrichten) |
+| `chatId` | string | Nein | Die ID des Chats (für Chatnachrichten) |
+| `messageId` | string | Ja | Die ID der Nachricht, auf die reagiert werden soll |
+| `reactionType` | string | Ja | Die Emoji-Reaktion (z.B. ❤️, 👍, 😊) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Ob die Reaktion erfolgreich hinzugefügt wurde |
+| `reactionType` | string | Das Emoji, das hinzugefügt wurde |
+| `messageId` | string | ID der Nachricht |
+
+### `microsoft_teams_unset_reaction`
+
+Eine Emoji-Reaktion von einer Nachricht in Microsoft Teams entfernen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `teamId` | string | Nein | Die ID des Teams (für Kanalnachrichten) |
+| `channelId` | string | Nein | Die ID des Kanals (für Kanalnachrichten) |
+| `chatId` | string | Nein | Die ID des Chats (für Chatnachrichten) |
+| `messageId` | string | Ja | Die ID der Nachricht |
+| `reactionType` | string | Ja | Die zu entfernende Emoji-Reaktion (z.B. ❤️, 👍, 😊) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Ob die Reaktion erfolgreich entfernt wurde |
+| `reactionType` | string | Das Emoji, das entfernt wurde |
+| `messageId` | string | ID der Nachricht |
+
+### `microsoft_teams_list_team_members`
+
+Alle Mitglieder eines Microsoft Teams-Teams auflisten
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `teamId` | string | Ja | Die ID des Teams |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Ob die Auflistung erfolgreich war |
+| `members` | array | Array der Teammitglieder |
+| `memberCount` | number | Gesamtzahl der Mitglieder |
+
+### `microsoft_teams_list_channel_members`
+
+Alle Mitglieder eines Microsoft Teams-Kanals auflisten
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `teamId` | string | Ja | Die ID des Teams |
+| `channelId` | string | Ja | Die ID des Kanals |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Ob die Auflistung erfolgreich war |
+| `members` | array | Array der Kanalmitglieder |
+| `memberCount` | number | Gesamtzahl der Mitglieder |
 
 ## Hinweise
 

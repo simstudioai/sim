@@ -1,6 +1,6 @@
 ---
 title: Parallel AI
-description: 使用 Parallel AI 搜索
+description: 使用 Parallel AI 进行网页研究
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -70,7 +70,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 ## 使用说明
 
-将 Parallel AI 集成到工作流程中。可以搜索网页。需要 API 密钥。
+将 Parallel AI 集成到工作流程中。可以搜索网页、从 URL 中提取信息并进行深入研究。
 
 ## 工具
 
@@ -94,6 +94,51 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
 | `results` | array | 包含相关页面摘录的搜索结果 |
+
+### `parallel_extract`
+
+使用 Parallel AI 从特定 URL 中提取目标信息。根据您的目标处理提供的 URL，以提取相关内容。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `urls` | string | 是 | 以逗号分隔的 URL 列表，用于提取信息 |
+| `objective` | string | 是 | 从提供的 URL 中提取的信息内容 |
+| `excerpts` | boolean | 是 | 是否包含内容中的相关摘录 |
+| `full_content` | boolean | 是 | 是否包含完整页面内容 |
+| `apiKey` | string | 是 | Parallel AI API 密钥 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `results` | array | 从提供的 URL 中提取的信息 |
+
+### `parallel_deep_research`
+
+使用 Parallel AI 在整个网络上进行全面深入的研究。从多个来源综合信息并附带引用。可能需要长达 15 分钟完成。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `input` | string | 是 | 研究查询或问题 \(最多 15,000 个字符\) |
+| `processor` | string | 否 | 计算级别：base、lite、pro、ultra、ultra2x、ultra4x、ultra8x \(默认值：base\) |
+| `output_schema` | string | 否 | 所需的输出格式描述。使用 "text" 表示带有引用的 markdown 报告，或描述结构化 JSON 格式 |
+| `include_domains` | string | 否 | 限制研究的域名列表，以逗号分隔 \(来源策略\) |
+| `exclude_domains` | string | 否 | 排除研究的域名列表，以逗号分隔 \(来源策略\) |
+| `apiKey` | string | 是 | Parallel AI API 密钥 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `status` | string | 任务状态（运行中、已完成、失败） |
+| `run_id` | string | 此研究任务的唯一 ID |
+| `message` | string | 状态消息（针对运行中的任务） |
+| `content` | object | 研究结果（基于 output_schema 结构化） |
+| `basis` | array | 引用和来源，包括摘录和置信度等级 |
 
 ## 注意
 

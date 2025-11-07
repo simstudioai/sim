@@ -1,6 +1,6 @@
 ---
 title: Jina
-description: Konvertiere Website-Inhalte in Text
+description: Durchsuche das Web oder extrahiere Inhalte aus URLs
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -62,7 +62,7 @@ Diese Integration ist besonders wertvoll für die Erstellung von Agenten, die In
 
 ## Gebrauchsanweisung
 
-Integrieren Sie Jina in den Workflow. Extrahiert Inhalte von Websites. Erfordert API-Schlüssel.
+Integriere Jina AI in den Workflow. Durchsuche das Web und erhalte LLM-freundliche Ergebnisse oder extrahiere saubere Inhalte aus bestimmten URLs mit erweiterten Parsing-Optionen.
 
 ## Tools
 
@@ -74,17 +74,77 @@ Extrahieren und verarbeiten Sie Webinhalte in sauberen, LLM-freundlichen Text mi
 
 | Parameter | Typ | Erforderlich | Beschreibung |
 | --------- | ---- | -------- | ----------- |
-| `url` | string | Ja | Die URL, die gelesen und in Markdown konvertiert werden soll |
-| `useReaderLMv2` | boolean | Nein | Ob ReaderLM-v2 für bessere Qualität verwendet werden soll |
+| `url` | string | Ja | Die URL, die gelesen und in Markdown umgewandelt werden soll |
+| `useReaderLMv2` | boolean | Nein | Ob ReaderLM-v2 für bessere Qualität verwendet werden soll \(3-fache Token-Kosten\) |
 | `gatherLinks` | boolean | Nein | Ob alle Links am Ende gesammelt werden sollen |
 | `jsonResponse` | boolean | Nein | Ob die Antwort im JSON-Format zurückgegeben werden soll |
-| `apiKey` | string | Ja | Ihr Jina AI API-Schlüssel |
+| `apiKey` | string | Ja | Dein Jina AI API-Schlüssel |
+| `targetSelector` | string | Nein | CSS-Selektor, um bestimmte Seitenelemente anzusprechen \(z.B. "#main-content"\) |
+| `waitForSelector` | string | Nein | CSS-Selektor, auf den vor der Extraktion gewartet werden soll \(nützlich für dynamische Seiten\) |
+| `removeSelector` | string | Nein | CSS-Selektor für auszuschließende Elemente \(z.B. "header, footer, .ad"\) |
+| `timeout` | number | Nein | Maximale Sekunden, die auf das Laden der Seite gewartet wird |
+| `withImagesummary` | boolean | Nein | Alle Bilder der Seite mit Metadaten sammeln |
+| `retainImages` | string | Nein | Steuerung der Bildeinbindung: "none" entfernt alle, "all" behält alle |
+| `returnFormat` | string | Nein | Ausgabeformat: markdown, html, text, screenshot oder pageshot |
+| `withIframe` | boolean | Nein | Iframe-Inhalte in die Extraktion einbeziehen |
+| `withShadowDom` | boolean | Nein | Shadow-DOM-Inhalte extrahieren |
+| `setCookie` | string | Nein | Authentifizierungs-Cookies weiterleiten \(deaktiviert Caching\) |
+| `proxyUrl` | string | Nein | HTTP-Proxy-URL für Request-Routing |
+| `proxy` | string | Nein | Ländercode für Proxy \(z.B. "US", "UK"\) oder "auto"/"none" |
+| `engine` | string | Nein | Rendering-Engine: browser, direct oder cf-browser-rendering |
+| `tokenBudget` | number | Nein | Maximale Tokens für die Anfrage \(Kostenkontrolle\) |
+| `noCache` | boolean | Nein | Zwischengespeicherte Inhalte umgehen für Echtzeit-Abruf |
+| `cacheTolerance` | number | Nein | Benutzerdefinierte Cache-Lebensdauer in Sekunden |
+| `withGeneratedAlt` | boolean | Nein | Alt-Text für Bilder mit VLM generieren |
+| `baseUrl` | string | Nein | Auf "final" setzen, um Weiterleitungskette zu folgen |
+| `locale` | string | Nein | Browser-Gebietsschema für das Rendering \(z.B. "de-DE"\) |
+| `robotsTxt` | string | Nein | Bot User-Agent für robots.txt-Prüfung |
+| `dnt` | boolean | Nein | Do Not Track - verhindert Caching/Tracking |
+| `noGfm` | boolean | Nein | GitHub Flavored Markdown deaktivieren |
 
 #### Ausgabe
 
 | Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
-| `content` | string | Der extrahierte Inhalt von der URL, verarbeitet in sauberen, LLM-freundlichen Text |
+| `content` | string | Der extrahierte Inhalt von der URL, verarbeitet zu sauberem, LLM-freundlichem Text |
+| `links` | array | Liste der auf der Seite gefundenen Links (wenn gatherLinks oder withLinksummary aktiviert ist) |
+| `images` | array | Liste der auf der Seite gefundenen Bilder (wenn withImagesummary aktiviert ist) |
+
+### `jina_search`
+
+Durchsucht das Web und gibt die Top 5 Ergebnisse mit LLM-freundlichem Inhalt zurück. Jedes Ergebnis wird automatisch über die Jina Reader API verarbeitet. Unterstützt geografische Filterung, Website-Einschränkungen und Paginierung.
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `q` | string | Ja | Suchanfrage |
+| `apiKey` | string | Ja | Ihr Jina AI API-Schlüssel |
+| `gl` | string | Nein | Zweistelliger Ländercode für geografisch spezifische Ergebnisse (z.B. "US", "UK", "JP") |
+| `location` | string | Nein | Standort auf Stadtebene für lokalisierte Suchergebnisse |
+| `hl` | string | Nein | Zweistelliger Sprachcode für Ergebnisse (z.B. "en", "es", "fr") |
+| `num` | number | Nein | Maximale Anzahl von Ergebnissen pro Seite (Standard: 5) |
+| `page` | number | Nein | Seitennummer für Paginierung (Offset) |
+| `site` | string | Nein | Beschränkt Ergebnisse auf bestimmte Domain(s). Kann durch Kommas getrennt werden für mehrere Websites (z.B. "jina.ai,github.com") |
+| `withFavicon` | boolean | Nein | Fügt Website-Favicons in den Ergebnissen hinzu |
+| `withImagesummary` | boolean | Nein | Sammelt alle Bilder von Ergebnisseiten mit Metadaten |
+| `withLinksummary` | boolean | Nein | Sammelt alle Links von Ergebnisseiten |
+| `retainImages` | string | Nein | Steuerung der Bildeinbindung: "none" entfernt alle, "all" behält alle bei |
+| `noCache` | boolean | Nein | Umgeht zwischengespeicherte Inhalte für Echtzeit-Abruf |
+| `withGeneratedAlt` | boolean | Nein | Generiert Alt-Text für Bilder mit VLM |
+| `respondWith` | string | Nein | Auf "no-content" setzen, um nur Metadaten ohne Seiteninhalt zu erhalten |
+| `returnFormat` | string | Nein | Ausgabeformat: markdown, html, text, screenshot oder pageshot |
+| `engine` | string | Nein | Rendering-Engine: browser oder direct |
+| `timeout` | number | Nein | Maximale Sekunden für das Laden der Seite |
+| `setCookie` | string | Nein | Authentifizierungs-Cookies weiterleiten |
+| `proxyUrl` | string | Nein | HTTP-Proxy-URL für Request-Routing |
+| `locale` | string | Nein | Browser-Locale für Rendering (z.B. "en-US") |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `results` | array | Array von Suchergebnissen, die jeweils Titel, Beschreibung, URL und LLM-freundlichen Inhalt enthalten |
 
 ## Hinweise
 
