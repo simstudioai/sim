@@ -65,6 +65,7 @@ export type SubBlockType =
   | 'mcp-server-selector' // MCP server selector
   | 'mcp-tool-selector' // MCP tool selector
   | 'mcp-dynamic-args' // MCP dynamic arguments based on tool schema
+  | 'openapi-dynamic-inputs' // Generic OpenAPI dynamic inputs (reusable for Replicate, HuggingFace, etc.)
   | 'input-format' // Input structure format
   | 'response-format' // Response structure format
   | 'trigger-save' // Trigger save button with validation
@@ -179,6 +180,9 @@ export interface SubBlockConfig {
   generationType?: GenerationType
   collapsible?: boolean // Whether the code block can be collapsed
   defaultCollapsed?: boolean // Whether the code block is collapsed by default
+  // Props for generic components (e.g., openapi-dynamic-inputs)
+  schema?: any // OpenAPI schema for dynamic inputs
+  props?: Record<string, any> // Additional props passed to component
   // OAuth specific properties
   provider?: string
   serviceId?: string
