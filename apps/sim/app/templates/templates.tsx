@@ -10,10 +10,10 @@ import type { CredentialRequirement } from '@/lib/workflows/credential-extractor
 import { NavigationTabs } from '@/app/templates/components/navigation-tabs'
 import { TemplateCard, TemplateCardSkeleton } from '@/app/templates/components/template-card'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
+import type { CreatorProfileDetails } from '@/types/creator-profile'
 
 const logger = createLogger('TemplatesPage')
 
-// Template data structure
 export interface Template {
   id: string
   workflowId: string | null
@@ -27,11 +27,7 @@ export interface Template {
     id: string
     name: string
     profileImageUrl?: string | null
-    about?: string | null
-    xUrl?: string | null
-    linkedinUrl?: string | null
-    websiteUrl?: string | null
-    contactEmail?: string | null
+    details?: CreatorProfileDetails | null
     referenceType: 'user' | 'organization'
     referenceId: string
   } | null
@@ -39,7 +35,7 @@ export interface Template {
   stars: number
   status: 'pending' | 'approved' | 'rejected'
   tags: string[]
-  requiredCredentials: CredentialRequirement[] // Array of credential requirements
+  requiredCredentials: CredentialRequirement[]
   state: WorkflowState
   createdAt: Date | string
   updatedAt: Date | string

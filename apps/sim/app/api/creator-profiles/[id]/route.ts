@@ -9,14 +9,18 @@ import { generateRequestId } from '@/lib/utils'
 
 const logger = createLogger('CreatorProfileByIdAPI')
 
-const UpdateCreatorProfileSchema = z.object({
-  name: z.string().min(1, 'Name is required').max(100, 'Max 100 characters').optional(),
-  profileImageUrl: z.string().optional().or(z.literal('')),
-  about: z.string().max(2000, 'Max 2000 characters').optional().or(z.literal('')),
+const CreatorProfileDetailsSchema = z.object({
+  about: z.string().max(2000, 'Max 2000 characters').optional(),
   xUrl: z.string().url().optional().or(z.literal('')),
   linkedinUrl: z.string().url().optional().or(z.literal('')),
   websiteUrl: z.string().url().optional().or(z.literal('')),
   contactEmail: z.string().email().optional().or(z.literal('')),
+})
+
+const UpdateCreatorProfileSchema = z.object({
+  name: z.string().min(1, 'Name is required').max(100, 'Max 100 characters').optional(),
+  profileImageUrl: z.string().optional().or(z.literal('')),
+  details: CreatorProfileDetailsSchema.optional(),
 })
 
 // Helper to check if user has permission to manage profile
@@ -100,18 +104,13 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.json({ error: 'Access denied' }, { status: 403 })
     }
 
-    // Update the profile
     const updateData: any = {
       updatedAt: new Date(),
     }
 
     if (data.name !== undefined) updateData.name = data.name
     if (data.profileImageUrl !== undefined) updateData.profileImageUrl = data.profileImageUrl
-    if (data.about !== undefined) updateData.about = data.about
-    if (data.xUrl !== undefined) updateData.xUrl = data.xUrl
-    if (data.linkedinUrl !== undefined) updateData.linkedinUrl = data.linkedinUrl
-    if (data.websiteUrl !== undefined) updateData.websiteUrl = data.websiteUrl
-    if (data.contactEmail !== undefined) updateData.contactEmail = data.contactEmail
+    if (data.details !== undefined) updateData.details = data.details
 
     const updated = await db
       .update(templateCreators)

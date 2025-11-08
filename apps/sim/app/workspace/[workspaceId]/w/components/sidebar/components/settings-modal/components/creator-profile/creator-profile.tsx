@@ -28,6 +28,7 @@ import {
 import { useSession } from '@/lib/auth-client'
 import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
+import type { CreatorProfileDetails } from '@/types/creator-profile'
 import { useProfilePictureUpload } from '../account/hooks/use-profile-picture-upload'
 
 const logger = createLogger('CreatorProfile')
@@ -133,17 +134,18 @@ export function CreatorProfile() {
           const data = await response.json()
           if (data.profiles && data.profiles.length > 0) {
             const profile = data.profiles[0]
+            const details = profile.details as CreatorProfileDetails | null
             setExistingProfile(profile)
             form.reset({
               referenceType: profile.referenceType,
               referenceId: profile.referenceId,
               name: profile.name || '',
               profileImageUrl: profile.profileImageUrl || '',
-              about: profile.about || '',
-              xUrl: profile.xUrl || '',
-              linkedinUrl: profile.linkedinUrl || '',
-              websiteUrl: profile.websiteUrl || '',
-              contactEmail: profile.contactEmail || '',
+              about: details?.about || '',
+              xUrl: details?.xUrl || '',
+              linkedinUrl: details?.linkedinUrl || '',
+              websiteUrl: details?.websiteUrl || '',
+              contactEmail: details?.contactEmail || '',
             })
           }
         }
@@ -162,6 +164,21 @@ export function CreatorProfile() {
 
     setSaveStatus('saving')
     try {
+      const details: CreatorProfileDetails = {}
+      if (data.about) details.about = data.about
+      if (data.xUrl) details.xUrl = data.xUrl
+      if (data.linkedinUrl) details.linkedinUrl = data.linkedinUrl
+      if (data.websiteUrl) details.websiteUrl = data.websiteUrl
+      if (data.contactEmail) details.contactEmail = data.contactEmail
+
+      const payload = {
+        referenceType: data.referenceType,
+        referenceId: data.referenceId,
+        name: data.name,
+        profileImageUrl: data.profileImageUrl,
+        details: Object.keys(details).length > 0 ? details : undefined,
+      }
+
       const url = existingProfile
         ? `/api/creator-profiles/${existingProfile.id}`
         : '/api/creator-profiles'
@@ -170,7 +187,7 @@ export function CreatorProfile() {
       const response = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
+        body: JSON.stringify(payload),
       })
 
       if (response.ok) {

@@ -864,21 +864,21 @@ export default function TemplateDetails() {
                     {/* Creator Info */}
                     <div className='flex-1'>
                       <h4 className='font-semibold text-lg'>{template.creator.name}</h4>
-                      {template.creator.about && (
+                      {template.creator.details?.about && (
                         <p className='mt-2 text-muted-foreground text-sm leading-relaxed'>
-                          {template.creator.about}
+                          {template.creator.details.about}
                         </p>
                       )}
 
                       {/* Social Links */}
-                      {(template.creator.xUrl ||
-                        template.creator.linkedinUrl ||
-                        template.creator.websiteUrl ||
-                        template.creator.contactEmail) && (
+                      {(template.creator.details?.xUrl ||
+                        template.creator.details?.linkedinUrl ||
+                        template.creator.details?.websiteUrl ||
+                        template.creator.details?.contactEmail) && (
                         <div className='mt-4 flex flex-wrap gap-3'>
-                          {template.creator.xUrl && (
+                          {template.creator.details.xUrl && (
                             <a
-                              href={template.creator.xUrl}
+                              href={template.creator.details.xUrl}
                               target='_blank'
                               rel='noopener noreferrer'
                               className='inline-flex items-center gap-1.5 text-muted-foreground text-sm transition-colors hover:text-foreground'
@@ -887,9 +887,9 @@ export default function TemplateDetails() {
                               <span>X</span>
                             </a>
                           )}
-                          {template.creator.linkedinUrl && (
+                          {template.creator.details.linkedinUrl && (
                             <a
-                              href={template.creator.linkedinUrl}
+                              href={template.creator.details.linkedinUrl}
                               target='_blank'
                               rel='noopener noreferrer'
                               className='inline-flex items-center gap-1.5 text-muted-foreground text-sm transition-colors hover:text-foreground'
@@ -898,9 +898,9 @@ export default function TemplateDetails() {
                               <span>LinkedIn</span>
                             </a>
                           )}
-                          {template.creator.websiteUrl && (
+                          {template.creator.details.websiteUrl && (
                             <a
-                              href={template.creator.websiteUrl}
+                              href={template.creator.details.websiteUrl}
                               target='_blank'
                               rel='noopener noreferrer'
                               className='inline-flex items-center gap-1.5 text-muted-foreground text-sm transition-colors hover:text-foreground'
@@ -909,9 +909,9 @@ export default function TemplateDetails() {
                               <span>Website</span>
                             </a>
                           )}
-                          {template.creator.contactEmail && (
+                          {template.creator.details.contactEmail && (
                             <a
-                              href={`mailto:${template.creator.contactEmail}`}
+                              href={`mailto:${template.creator.details.contactEmail}`}
                               className='inline-flex items-center gap-1.5 text-muted-foreground text-sm transition-colors hover:text-foreground'
                             >
                               <Mail className='h-4 w-4' />

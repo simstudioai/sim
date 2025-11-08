@@ -318,6 +318,58 @@ export const workflowExecutionLogs = pgTable(
   })
 )
 
+export const pausedExecutions = pgTable(
+  'paused_executions',
+  {
+    id: text('id').primaryKey(),
+    workflowId: text('workflow_id')
+      .notNull()
+      .references(() => workflow.id, { onDelete: 'cascade' }),
+    executionId: text('execution_id').notNull(),
+    executionSnapshot: jsonb('execution_snapshot').notNull(),
+    pausePoints: jsonb('pause_points').notNull(),
+    totalPauseCount: integer('total_pause_count').notNull(),
+    resumedCount: integer('resumed_count').notNull().default(0),
+    status: text('status').notNull().default('paused'),
+    metadata: jsonb('metadata').notNull().default(sql`'{}'::jsonb`),
+    pausedAt: timestamp('paused_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+    expiresAt: timestamp('expires_at'),
+  },
+  (table) => ({
+    workflowIdx: index('paused_executions_workflow_id_idx').on(table.workflowId),
+    statusIdx: index('paused_executions_status_idx').on(table.status),
+    executionUnique: uniqueIndex('paused_executions_execution_id_unique').on(table.executionId),
+  })
+)
+
+export const resumeQueue = pgTable(
+  'resume_queue',
+  {
+    id: text('id').primaryKey(),
+    pausedExecutionId: text('paused_execution_id')
+      .notNull()
+      .references(() => pausedExecutions.id, { onDelete: 'cascade' }),
+    parentExecutionId: text('parent_execution_id').notNull(),
+    newExecutionId: text('new_execution_id').notNull(),
+    contextId: text('context_id').notNull(),
+    resumeInput: jsonb('resume_input'),
+    status: text('status').notNull().default('pending'),
+    queuedAt: timestamp('queued_at').notNull().defaultNow(),
+    claimedAt: timestamp('claimed_at'),
+    completedAt: timestamp('completed_at'),
+    failureReason: text('failure_reason'),
+  },
+  (table) => ({
+    parentStatusIdx: index('resume_queue_parent_status_idx').on(
+      table.parentExecutionId,
+      table.status,
+      table.queuedAt
+    ),
+    newExecutionIdx: index('resume_queue_new_execution_idx').on(table.newExecutionId),
+  })
+)
+
 export const environment = pgTable('environment', {
   id: text('id').primaryKey(), // Use the user id as the key
   userId: text('user_id')
@@ -1266,11 +1318,7 @@ export const templateCreators = pgTable(
     referenceId: text('reference_id').notNull(),
     name: text('name').notNull(),
     profileImageUrl: text('profile_image_url'),
-    about: text('about'),
-    xUrl: text('x_url'),
-    linkedinUrl: text('linkedin_url'),
-    websiteUrl: text('website_url'),
-    contactEmail: text('contact_email'),
+    details: jsonb('details'),
     createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
