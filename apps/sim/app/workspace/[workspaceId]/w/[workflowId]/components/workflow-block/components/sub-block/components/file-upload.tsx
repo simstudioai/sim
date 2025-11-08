@@ -219,6 +219,7 @@ export function FileUpload({
           // Create FormData for upload
           const formData = new FormData()
           formData.append('file', file)
+          formData.append('context', 'workspace')
 
           // Add workspace ID for workspace-scoped storage
           if (workspaceId) {
