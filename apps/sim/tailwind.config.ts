@@ -11,6 +11,14 @@ export default {
   ],
   theme: {
     extend: {
+      fontFamily: {
+        season: ['var(--font-season)'],
+      },
+      fontSize: {
+        xs: '11px',
+        small: '13px', // Override default 14px to 13px
+        base: '15px', // Override default 16px to 15px
+      },
       colors: {
         background: 'hsl(var(--background))',
         foreground: 'hsl(var(--foreground))',
@@ -56,10 +64,24 @@ export default {
           primary: 'hsl(var(--gradient-primary))',
           secondary: 'hsl(var(--gradient-secondary))',
         },
+        gray: {
+          50: '#fafafa',
+          100: '#f5f5f5',
+          200: '#e5e5e5',
+          300: '#d4d4d4',
+          400: '#a3a3a3',
+          500: '#737373',
+          600: '#525252',
+          700: '#404040',
+          800: '#262626',
+          900: '#171717',
+          950: '#0a0a0a',
+        },
       },
       fontWeight: {
-        medium: '460',
-        semibold: '540',
+        base: '450',
+        medium: '480',
+        semibold: '550',
       },
       borderRadius: {
         lg: 'var(--radius)',

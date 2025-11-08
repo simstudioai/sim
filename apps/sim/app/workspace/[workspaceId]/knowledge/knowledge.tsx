@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react'
 import { Check, ChevronDown, LibraryBig, Plus } from 'lucide-react'
 import { useParams } from 'next/navigation'
+import { Tooltip } from '@/components/emcn'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -11,7 +12,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import {
   BaseOverview,
   CreateModal,
@@ -143,8 +143,8 @@ export function Knowledge() {
                     </DropdownMenu>
 
                     {/* Create Button */}
-                    <Tooltip>
-                      <TooltipTrigger asChild>
+                    <Tooltip.Root>
+                      <Tooltip.Trigger asChild>
                         <PrimaryButton
                           onClick={() => setIsCreateModalOpen(true)}
                           disabled={userPermissions.canEdit !== true}
@@ -152,13 +152,13 @@ export function Knowledge() {
                           <Plus className='h-3.5 w-3.5' />
                           <span>Create</span>
                         </PrimaryButton>
-                      </TooltipTrigger>
+                      </Tooltip.Trigger>
                       {userPermissions.canEdit !== true && (
-                        <TooltipContent>
+                        <Tooltip.Content>
                           Write permission required to create knowledge bases
-                        </TooltipContent>
+                        </Tooltip.Content>
                       )}
-                    </Tooltip>
+                    </Tooltip.Root>
                   </div>
                 </div>
 

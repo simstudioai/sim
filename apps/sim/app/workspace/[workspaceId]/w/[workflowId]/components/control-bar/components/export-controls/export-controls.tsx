@@ -2,8 +2,8 @@
 
 import { useState } from 'react'
 import { ArrowDownToLine } from 'lucide-react'
+import { Tooltip } from '@/components/emcn'
 import { Button } from '@/components/ui/button'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { createLogger } from '@/lib/logs/console/logger'
 import { useWorkflowJsonStore } from '@/stores/workflows/json/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -72,8 +72,8 @@ export function ExportControls({ disabled = false }: ExportControlsProps) {
   }
 
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>
+    <Tooltip.Root>
+      <Tooltip.Trigger asChild>
         <Button
           variant='outline'
           onClick={handleExportJson}
@@ -83,8 +83,8 @@ export function ExportControls({ disabled = false }: ExportControlsProps) {
           <ArrowDownToLine className='h-5 w-5' />
           <span className='sr-only'>Export</span>
         </Button>
-      </TooltipTrigger>
-      <TooltipContent>{getTooltipText()}</TooltipContent>
-    </Tooltip>
+      </Tooltip.Trigger>
+      <Tooltip.Content>{getTooltipText()}</Tooltip.Content>
+    </Tooltip.Root>
   )
 }

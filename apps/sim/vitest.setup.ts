@@ -57,6 +57,15 @@ vi.mock('@/stores/console/store', () => ({
   },
 }))
 
+vi.mock('@/stores/terminal', () => ({
+  useTerminalConsoleStore: {
+    getState: vi.fn().mockReturnValue({
+      addConsole: vi.fn(),
+      updateConsole: vi.fn(),
+    }),
+  },
+}))
+
 vi.mock('@/stores/execution/store', () => ({
   useExecutionStore: {
     getState: vi.fn().mockReturnValue({

@@ -244,7 +244,7 @@ function computeFieldDiff(
   const unchangedFields: string[] = []
 
   // Check basic fields
-  const fieldsToCheck = ['type', 'name', 'enabled', 'triggerMode', 'horizontalHandles', 'isWide']
+  const fieldsToCheck = ['type', 'name', 'enabled', 'triggerMode', 'horizontalHandles']
   for (const field of fieldsToCheck) {
     const currentValue = (currentBlock as any)[field]
     const proposedValue = (proposedBlock as any)[field]
@@ -720,10 +720,6 @@ export class WorkflowDiffEngine {
 
               if (typeof layoutBlock.height === 'number') {
                 finalBlocks[id].height = layoutBlock.height
-              }
-
-              if (typeof layoutBlock.isWide === 'boolean') {
-                finalBlocks[id].isWide = layoutBlock.isWide
               }
             }
           })

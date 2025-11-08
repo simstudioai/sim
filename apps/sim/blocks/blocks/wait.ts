@@ -26,7 +26,6 @@ export const WaitBlock: BlockConfig = {
       id: 'timeValue',
       title: 'Wait Amount',
       type: 'short-input',
-      layout: 'half',
       description: 'Max: 600 seconds or 10 minutes',
       placeholder: '10',
       value: () => '10',
@@ -36,7 +35,6 @@ export const WaitBlock: BlockConfig = {
       id: 'timeUnit',
       title: 'Unit',
       type: 'dropdown',
-      layout: 'half',
       options: [
         { label: 'Seconds', id: 'seconds' },
         { label: 'Minutes', id: 'minutes' },

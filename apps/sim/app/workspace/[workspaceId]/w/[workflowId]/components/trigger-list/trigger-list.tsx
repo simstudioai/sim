@@ -2,8 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Info, Plus, Search, X } from 'lucide-react'
+import { Tooltip } from '@/components/emcn'
 import { Input } from '@/components/ui/input'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
 import { getAllTriggerBlocks, getTriggerDisplayName } from '@/lib/workflows/trigger-utils'
@@ -105,16 +105,16 @@ export function TriggerList({ onSelect, className }: TriggerListProps) {
             {getTriggerDisplayName(trigger.id)}
           </span>
         </div>
-        <Tooltip delayDuration={300}>
-          <TooltipTrigger asChild>
+        <Tooltip.Root delayDuration={300}>
+          <Tooltip.Trigger asChild>
             <button
               onClick={(e) => e.stopPropagation()}
               className='flex h-6 w-6 items-center justify-center rounded-md'
             >
               <Info className='h-3.5 w-3.5 text-muted-foreground' />
             </button>
-          </TooltipTrigger>
-          <TooltipContent
+          </Tooltip.Trigger>
+          <Tooltip.Content
             side='top'
             sideOffset={5}
             className='z-[9999] max-w-[200px]'
@@ -122,8 +122,8 @@ export function TriggerList({ onSelect, className }: TriggerListProps) {
             avoidCollisions={false}
           >
             <p className='text-xs'>{trigger.description}</p>
-          </TooltipContent>
-        </Tooltip>
+          </Tooltip.Content>
+        </Tooltip.Root>
       </div>
     )
   }

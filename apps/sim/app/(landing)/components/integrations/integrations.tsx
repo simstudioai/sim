@@ -1,5 +1,5 @@
 import * as Icons from '@/components/icons'
-import { inter } from '@/app/fonts/inter'
+import { inter } from '@/app/fonts/inter/inter'
 
 // AI models and providers
 const modelProviderIcons = [

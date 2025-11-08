@@ -43,7 +43,7 @@ export class MarkTodoInProgressClientTool extends BaseClientTool {
       }
 
       try {
-        const { useCopilotStore } = await import('@/stores/copilot/store')
+        const { useCopilotStore } = await import('@/stores/panel-new/copilot/store')
         const store = useCopilotStore.getState()
         if (store.updatePlanTodoStatus) {
           store.updatePlanTodoStatus(todoId, 'executing')

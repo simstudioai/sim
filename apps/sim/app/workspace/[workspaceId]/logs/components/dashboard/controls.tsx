@@ -1,8 +1,8 @@
 import type { ReactNode } from 'react'
 import { Loader2, RefreshCw, Search } from 'lucide-react'
+import { Tooltip } from '@/components/emcn'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 import { soehne } from '@/app/fonts/soehne/soehne'
 import Timeline from '@/app/workspace/[workspaceId]/logs/components/filters/components/timeline'
@@ -73,8 +73,8 @@ export function Controls({
       )}
 
       <div className='ml-auto flex flex-shrink-0 items-center gap-3'>
-        <Tooltip>
-          <TooltipTrigger asChild>
+        <Tooltip.Root>
+          <Tooltip.Trigger asChild>
             <Button
               variant='ghost'
               size='icon'
@@ -89,12 +89,12 @@ export function Controls({
               )}
               <span className='sr-only'>Refresh</span>
             </Button>
-          </TooltipTrigger>
-          <TooltipContent>{isRefetching ? 'Refreshing...' : 'Refresh'}</TooltipContent>
-        </Tooltip>
+          </Tooltip.Trigger>
+          <Tooltip.Content>{isRefetching ? 'Refreshing...' : 'Refresh'}</Tooltip.Content>
+        </Tooltip.Root>
 
-        <Tooltip>
-          <TooltipTrigger asChild>
+        <Tooltip.Root>
+          <Tooltip.Trigger asChild>
             <Button
               variant='ghost'
               size='icon'
@@ -116,9 +116,9 @@ export function Controls({
               </svg>
               <span className='sr-only'>Export CSV</span>
             </Button>
-          </TooltipTrigger>
-          <TooltipContent>Export CSV</TooltipContent>
-        </Tooltip>
+          </Tooltip.Trigger>
+          <Tooltip.Content>Export CSV</Tooltip.Content>
+        </Tooltip.Root>
 
         <div className='inline-flex h-9 items-center rounded-[11px] border bg-card p-1 shadow-sm'>
           <Button
@@ -170,9 +170,7 @@ export function Controls({
       </div>
 
       <div className='sm:hidden'>
-        <TooltipProvider>
-          <Timeline />
-        </TooltipProvider>
+        <Timeline />
       </div>
     </div>
   )

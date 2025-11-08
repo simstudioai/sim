@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { FileCode } from 'lucide-react'
+import { Tooltip } from '@/components/emcn'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -11,7 +12,6 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
 import { applyWorkflowDiff } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-text-editor/workflow-applier'
@@ -108,8 +108,8 @@ export function WorkflowTextEditorModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={handleOpenChange}>
-      <Tooltip>
-        <TooltipTrigger asChild>
+      <Tooltip.Root>
+        <Tooltip.Trigger asChild>
           <DialogTrigger asChild>
             {isDisabled ? (
               <div className='inline-flex h-10 w-10 cursor-not-allowed items-center justify-center gap-2 whitespace-nowrap rounded-md font-medium text-sm opacity-50 ring-offset-background transition-colors [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0'>
@@ -126,15 +126,15 @@ export function WorkflowTextEditorModal({
               </Button>
             )}
           </DialogTrigger>
-        </TooltipTrigger>
-        <TooltipContent>
+        </Tooltip.Trigger>
+        <Tooltip.Content>
           {isDisabled
             ? disabled
               ? 'Text editor not available'
               : 'No active workflow'
             : 'Edit as Text'}
-        </TooltipContent>
-      </Tooltip>
+        </Tooltip.Content>
+      </Tooltip.Root>
 
       <DialogContent className='flex h-[85vh] w-[90vw] max-w-6xl flex-col p-0'>
         <DialogHeader className='flex-shrink-0 border-b px-6 py-4'>

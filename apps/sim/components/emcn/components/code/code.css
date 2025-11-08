@@ -1,0 +1,78 @@
+/**
+ * Code editor syntax token theme (VSCode Dark+ inspired).
+ * Only token colors are in CSS; all other styling uses Tailwind.
+ * Applied to elements with .code-editor-theme class.
+ */
+
+/* Token colors with deep, vibrant palette */
+.code-editor-theme .token.comment,
+.code-editor-theme .token.block-comment,
+.code-editor-theme .token.prolog,
+.code-editor-theme .token.doctype,
+.code-editor-theme .token.cdata {
+  color: #8bc985 !important;
+}
+
+.code-editor-theme .token.punctuation {
+  color: #eeeeee !important;
+}
+
+.code-editor-theme .token.property,
+.code-editor-theme .token.attr-name,
+.code-editor-theme .token.variable {
+  color: #5fc9cb !important;
+}
+
+.code-editor-theme .token.tag,
+.code-editor-theme .token.boolean,
+.code-editor-theme .token.number,
+.code-editor-theme .token.constant {
+  color: #ffc857 !important;
+}
+
+.code-editor-theme .token.string,
+.code-editor-theme .token.char,
+.code-editor-theme .token.builtin,
+.code-editor-theme .token.inserted {
+  color: #ff6b6b !important;
+}
+
+.code-editor-theme .token.operator,
+.code-editor-theme .token.entity,
+.code-editor-theme .token.url {
+  color: #eeeeee !important;
+}
+
+.code-editor-theme .token.atrule,
+.code-editor-theme .token.attr-value,
+.code-editor-theme .token.keyword {
+  color: #d896d8 !important;
+}
+
+.code-editor-theme .token.function,
+.code-editor-theme .token.class-name {
+  color: #ffc857 !important;
+}
+
+.code-editor-theme .token.regex,
+.code-editor-theme .token.important {
+  color: #ff6b6b !important;
+}
+
+.code-editor-theme .token.symbol {
+  color: #eeeeee !important;
+}
+
+.code-editor-theme .token.deleted {
+  color: #ff6b6b !important;
+}
+
+/* Blue accents for <var> and {{ENV}} placeholders */
+.code-editor-theme .text-blue-500 {
+  color: #68c5ff !important;
+}
+
+/* Ensure transparent backgrounds */
+.code-editor-theme .token {
+  background: transparent !important;
+}

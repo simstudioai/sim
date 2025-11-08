@@ -33,7 +33,6 @@ export const PauseResumeBlock: BlockConfig<ResponseBlockOutput> = {
       id: 'builderData',
       title: 'Paused Output',
       type: 'response-format',
-      layout: 'full',
       // condition: { field: 'operation', value: 'human' }, // Always shown since we only support human mode
       description:
         'Define the structure of your response data. Use <variable.name> in field names to reference workflow variables.',
@@ -42,7 +41,6 @@ export const PauseResumeBlock: BlockConfig<ResponseBlockOutput> = {
       id: 'notification',
       title: 'Notification',
       type: 'tool-input',
-      layout: 'full',
       // condition: { field: 'operation', value: 'human' }, // Always shown since we only support human mode
       description: 'Configure notification tools to alert approvers (e.g., Slack, Email)',
       defaultValue: [],
@@ -65,7 +63,6 @@ export const PauseResumeBlock: BlockConfig<ResponseBlockOutput> = {
       id: 'inputFormat',
       title: 'Resume Input',
       type: 'input-format',
-      layout: 'full',
       // condition: { field: 'operation', value: 'human' }, // Always shown since we only support human mode
       description: 'Define the fields the approver can fill in when resuming',
     },

@@ -145,7 +145,6 @@ function createBlockFromParams(blockId: string, params: any, parentId?: string):
     position: { x: 0, y: 0 },
     enabled: params.enabled !== undefined ? params.enabled : true,
     horizontalHandles: true,
-    isWide: false,
     advancedMode: params.advancedMode || false,
     height: 0,
     triggerMode: triggerMode,

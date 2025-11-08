@@ -44,7 +44,6 @@ export const BlockOperationSchema = z.object({
     extent: z.enum(['parent']).nullable().optional(),
     enabled: z.boolean().optional(),
     horizontalHandles: z.boolean().optional(),
-    isWide: z.boolean().optional(),
     advancedMode: z.boolean().optional(),
     triggerMode: z.boolean().optional(),
     height: z.number().optional(),

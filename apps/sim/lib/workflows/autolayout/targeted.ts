@@ -316,14 +316,13 @@ export function transferBlockHeights(
   targetBlocks: Record<string, BlockState>
 ): void {
   // Build a map of block type+name to heights from source
-  const heightMap = new Map<string, { height: number; width: number; isWide: boolean }>()
+  const heightMap = new Map<string, { height: number; width: number }>()
 
   for (const [id, block] of Object.entries(sourceBlocks)) {
     const key = `${block.type}:${block.name}`
     heightMap.set(key, {
       height: block.height || 100,
-      width: block.layout?.measuredWidth || (block.isWide ? 480 : 350),
-      isWide: block.isWide || false,
+      width: block.layout?.measuredWidth || 350,
     })
   }
 
@@ -334,7 +333,6 @@ export function transferBlockHeights(
 
     if (measurements) {
       block.height = measurements.height
-      block.isWide = measurements.isWide
 
       if (!block.layout) {
         block.layout = {}

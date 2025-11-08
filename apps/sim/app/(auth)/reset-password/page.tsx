@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createLogger } from '@/lib/logs/console/logger'
 import { SetNewPasswordForm } from '@/app/(auth)/reset-password/reset-password-form'
-import { inter } from '@/app/fonts/inter'
+import { inter } from '@/app/fonts/inter/inter'
 import { soehne } from '@/app/fonts/soehne/soehne'
 
 const logger = createLogger('ResetPasswordPage')

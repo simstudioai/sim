@@ -144,7 +144,7 @@ export function CreateChunkModal({
           </DialogHeader>
 
           <div className='flex flex-1 flex-col overflow-hidden'>
-            <div className='scrollbar-thin scrollbar-thumb-muted-foreground/20 hover:scrollbar-thumb-muted-foreground/25 scrollbar-track-transparent min-h-0 flex-1 overflow-y-auto px-6'>
+            <div className='min-h-0 flex-1 overflow-y-auto px-6'>
               <div className='flex min-h-full flex-col py-4'>
                 {/* Document Info Section - Fixed at top */}
                 <div className='flex-shrink-0 space-y-4'>

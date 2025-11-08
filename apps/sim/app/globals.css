@@ -3,6 +3,39 @@
 @tailwind utilities;
 
 /* ==========================================================================
+   SIDEBAR WIDTH PERSISTENCE
+   ========================================================================== */
+/**
+ * CSS-based sidebar width to prevent SSR hydration mismatches.
+ *
+ * How it works:
+ * 1. Default width set here in CSS (232px)
+ * 2. Blocking script in layout.tsx updates this before React hydrates
+ * 3. Store updates this variable when user resizes
+ *
+ * This approach ensures server and client always render identical HTML.
+ */
+:root {
+  --sidebar-width: 232px;
+  --panel-width: 244px;
+  --toolbar-triggers-height: 300px;
+  --editor-connections-height: 200px;
+  --terminal-height: 30px;
+}
+
+.sidebar-container {
+  width: var(--sidebar-width);
+}
+
+.panel-container {
+  width: var(--panel-width);
+}
+
+.terminal-container {
+  height: var(--terminal-height);
+}
+
+/* ==========================================================================
    WORKFLOW COMPONENT Z-INDEX FIXES
    ========================================================================== */
 .workflow-container .react-flow__edges {
@@ -29,6 +62,19 @@
 
 .workflow-container .react-flow__edge-labels {
   z-index: 60 !important;
+}
+
+/* Workflow canvas background */
+.workflow-container,
+.workflow-container .react-flow__pane,
+.workflow-container .react-flow__renderer {
+  background-color: #e4e4e4 !important;
+}
+
+.dark .workflow-container,
+.dark .workflow-container .react-flow__pane,
+.dark .workflow-container .react-flow__renderer {
+  background-color: #1b1b1b !important;
 }
 
 /* ==========================================================================
@@ -97,6 +143,7 @@
     /* Border & Input Colors */
     --border: 0 0% 89.8%;
     --input: 0 0% 89.8%;
+    --input-background: 0 0% 79.22%;
     --ring: 0 0% 3.9%;
 
     /* Border Radius */
@@ -110,7 +157,6 @@
 
     /* Workflow Properties */
     --workflow-background: 0 0% 100%;
-    --workflow-dots: 0 0% 94.5%;
     --card-background: 0 0% 99.2%;
     --card-border: 0 0% 89.8%;
     --card-text: 0 0% 3.9%;
@@ -137,7 +183,7 @@
   /* Dark Mode Theme */
   .dark {
     /* Core Colors */
-    --background: 0 0% 3.9%;
+    --background: 0 0% 10.59%;
     --foreground: 0 0% 98%;
 
     /* Card Colors */
@@ -171,6 +217,7 @@
     /* Border & Input Colors */
     --border: 0 0% 16.1%;
     --input: 0 0% 16.1%;
+    --input-background: 0 0% 20.78%;
     --ring: 0 0% 83.9%;
 
     /* Scrollbar Properties */
@@ -179,8 +226,7 @@
     --scrollbar-thumb-hover: 0 0% 40%;
 
     /* Workflow Properties */
-    --workflow-background: 0 0% 3.9%;
-    --workflow-dots: 0 0% 7.5%;
+    --workflow-background: 0 0% 10.59%;
     --card-background: 0 0% 9.0%;
     --card-border: 0 0% 22.7%;
     --card-text: 0 0% 98%;
@@ -214,6 +260,10 @@
     overscroll-behavior-x: none;
   }
 
+  *:focus {
+    outline: none;
+  }
+
   body {
     @apply bg-background text-foreground;
     overscroll-behavior-x: none;
@@ -223,6 +273,12 @@
     scrollbar-gutter: stable;
     /* Improve animation performance */
     text-rendering: optimizeSpeed;
+    /* Default text styles */
+    letter-spacing: 0.28px;
+  }
+
+  .dark body {
+    @apply antialiased;
   }
 
   /* Global Scrollbar Styling */
@@ -232,7 +288,7 @@
   }
 
   ::-webkit-scrollbar-track {
-    background: transparent;
+    background: #f5f5f5;
   }
 
   ::-webkit-scrollbar-thumb {
@@ -241,25 +297,36 @@
   }
 
   ::-webkit-scrollbar-thumb:hover {
+    background-color: hsl(var(--muted-foreground) / 0.4);
+  }
+
+  /* Dark Mode Global Scrollbar */
+  .dark ::-webkit-scrollbar-track {
+    background: #272727;
+  }
+
+  .dark ::-webkit-scrollbar-thumb {
     background-color: hsl(var(--muted-foreground) / 0.3);
   }
 
-  /* For Firefox */
+  .dark ::-webkit-scrollbar-thumb:hover {
+    background-color: hsl(var(--muted-foreground) / 0.4);
+  }
+
+  /* Firefox Scrollbar */
   * {
     scrollbar-width: thin;
-    scrollbar-color: hsl(var(--muted-foreground) / 0.3) transparent;
+    scrollbar-color: hsl(var(--muted-foreground) / 0.3) #f5f5f5;
   }
-}
 
-/* ==========================================================================
-   TYPOGRAPHY
-   ========================================================================== */
-.font-geist-sans {
-  font-family: var(--font-geist-sans);
-}
+  .dark * {
+    scrollbar-color: hsl(var(--muted-foreground) / 0.3) #272727;
+  }
 
-.font-geist-mono {
-  font-family: var(--font-geist-mono);
+  /* Copilot Scrollbar - Ensure stable gutter */
+  .copilot-scrollable {
+    scrollbar-gutter: stable;
+  }
 }
 
 /* ==========================================================================
@@ -386,6 +453,11 @@ input[type="search"]::-ms-clear {
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
+  }
+
+  /* Input Background Utility */
+  .bg-input-background {
+    background-color: hsl(var(--input-background));
   }
 
   /* Brand Color Utilities */
@@ -629,5 +701,64 @@ input[type="search"]::-ms-clear {
     50% {
       opacity: 0.8;
     }
+  }
+
+  /**
+   * Panel tab visibility - prevent flash on hydration
+   * Before React hydrates, use data attribute set by blocking script
+   * to show the correct tab content and button states
+   */
+  html[data-panel-active-tab="copilot"] .panel-container [data-tab-content="toolbar"],
+  html[data-panel-active-tab="copilot"] .panel-container [data-tab-content="editor"] {
+    display: none !important;
+  }
+
+  html[data-panel-active-tab="toolbar"] .panel-container [data-tab-content="copilot"],
+  html[data-panel-active-tab="toolbar"] .panel-container [data-tab-content="editor"] {
+    display: none !important;
+  }
+
+  html[data-panel-active-tab="editor"] .panel-container [data-tab-content="copilot"],
+  html[data-panel-active-tab="editor"] .panel-container [data-tab-content="toolbar"] {
+    display: none !important;
+  }
+
+  /**
+   * Style active and inactive tab buttons before hydration
+   * Ensure only the correct tab shows as active
+   * Note: Colors match the ghost button variant for consistency
+   */
+
+  /* Make only copilot active when it's the active tab */
+  html[data-panel-active-tab="copilot"] .panel-container [data-tab-button="copilot"] {
+    background-color: rgb(53 53 53) !important;
+    color: rgb(230 230 230) !important;
+  }
+  html[data-panel-active-tab="copilot"] .panel-container [data-tab-button="toolbar"],
+  html[data-panel-active-tab="copilot"] .panel-container [data-tab-button="editor"] {
+    background-color: transparent !important;
+    color: rgb(174 174 174) !important; /* Muted gray for inactive tabs */
+  }
+
+  /* Make only toolbar active when it's the active tab */
+  html[data-panel-active-tab="toolbar"] .panel-container [data-tab-button="toolbar"] {
+    background-color: rgb(53 53 53) !important;
+    color: rgb(230 230 230) !important;
+  }
+  html[data-panel-active-tab="toolbar"] .panel-container [data-tab-button="copilot"],
+  html[data-panel-active-tab="toolbar"] .panel-container [data-tab-button="editor"] {
+    background-color: transparent !important;
+    color: rgb(174 174 174) !important; /* Muted gray for inactive tabs */
+  }
+
+  /* Make only editor active when it's the active tab */
+  html[data-panel-active-tab="editor"] .panel-container [data-tab-button="editor"] {
+    background-color: rgb(53 53 53) !important;
+    color: rgb(230 230 230) !important;
+  }
+  html[data-panel-active-tab="editor"] .panel-container [data-tab-button="copilot"],
+  html[data-panel-active-tab="editor"] .panel-container [data-tab-button="toolbar"] {
+    background-color: transparent !important;
+    color: rgb(174 174 174) !important; /* Muted gray for inactive tabs */
   }
 }

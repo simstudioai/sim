@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { AlertTriangle, Check, ChevronDown } from 'lucide-react'
+import { Tooltip } from '@/components/emcn'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -9,7 +10,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { createLogger } from '@/lib/logs/console/logger'
 import {
   commandListClass,
@@ -125,12 +125,12 @@ export function WorkspaceSelector({
     <div className='flex items-center gap-2'>
       {/* Warning icon for unassigned knowledge bases */}
       {!hasWorkspace && (
-        <Tooltip>
-          <TooltipTrigger asChild>
+        <Tooltip.Root>
+          <Tooltip.Trigger asChild>
             <AlertTriangle className='h-4 w-4 text-amber-500' />
-          </TooltipTrigger>
-          <TooltipContent side='top'>Not assigned to workspace</TooltipContent>
-        </Tooltip>
+          </Tooltip.Trigger>
+          <Tooltip.Content side='top'>Not assigned to workspace</Tooltip.Content>
+        </Tooltip.Root>
       )}
 
       {/* Workspace selector dropdown */}

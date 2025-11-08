@@ -1,12 +1,20 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { AlertCircle, CheckCircle2, Mail, RotateCcw, ShieldX, UserPlus, Users2 } from 'lucide-react'
+import {
+  AlertCircle,
+  CheckCircle2,
+  Loader2,
+  Mail,
+  RotateCcw,
+  ShieldX,
+  UserPlus,
+  Users2,
+} from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
-import { LoadingAgent } from '@/components/ui/loading-agent'
 import { useBrandConfig } from '@/lib/branding/branding'
-import { inter } from '@/app/fonts/inter'
+import { inter } from '@/app/fonts/inter/inter'
 import { soehne } from '@/app/fonts/soehne/soehne'
 
 interface InviteStatusCardProps {
@@ -96,7 +104,7 @@ export function InviteStatusCard({
           </p>
         </div>
         <div className='flex w-full items-center justify-center py-8'>
-          <LoadingAgent size='lg' />
+          <Loader2 className='h-8 w-8 animate-spin text-[var(--brand-primary-hex)]' />
         </div>
 
         <div
@@ -156,7 +164,7 @@ export function InviteStatusCard({
             >
               {action.loading ? (
                 <>
-                  <LoadingAgent size='sm' />
+                  <Loader2 className='mr-2 h-4 w-4 animate-spin' />
                   {action.label}...
                 </>
               ) : (

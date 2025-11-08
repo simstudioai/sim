@@ -321,8 +321,7 @@ In addition, you will need to update the registries:
        {
          id: 'operation',
          title: 'Operation',
-         type: 'dropdown',
-         layout: 'full',
+         type: 'dropdown'
          required: true,
          options: [
            { label: 'Generate Embeddings', id: 'generate' },
@@ -333,8 +332,7 @@ In addition, you will need to update the registries:
        {
          id: 'apiKey',
          title: 'API Key',
-         type: 'short-input',
-         layout: 'full',
+         type: 'short-input'
          placeholder: 'Your Pinecone API key',
          password: true,
          required: true,

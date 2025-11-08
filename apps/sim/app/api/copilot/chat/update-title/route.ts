@@ -1,3 +1,8 @@
+/**
+ * @deprecated This route is not currently in use
+ * @remarks Kept for reference - may be removed in future cleanup
+ */
+
 import { db } from '@sim/db'
 import { copilotChats } from '@sim/db/schema'
 import { eq } from 'drizzle-orm'

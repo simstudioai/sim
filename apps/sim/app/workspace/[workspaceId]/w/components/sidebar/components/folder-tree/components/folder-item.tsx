@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import clsx from 'clsx'
 import { Folder, FolderOpen, Pencil, Trash2 } from 'lucide-react'
 import { useParams } from 'next/navigation'
+import { Tooltip } from '@/components/emcn'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -15,7 +16,6 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { createLogger } from '@/lib/logs/console/logger'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { type FolderTreeNode, useFolderStore } from '@/stores/folders/store'
@@ -183,8 +183,8 @@ export function FolderItem({
   if (isCollapsed) {
     return (
       <>
-        <Tooltip>
-          <TooltipTrigger asChild>
+        <Tooltip.Root>
+          <Tooltip.Trigger asChild>
             <div
               className={clsx(
                 'group mx-auto mb-1 flex h-8 w-8 cursor-pointer items-center justify-center',
@@ -212,11 +212,11 @@ export function FolderItem({
                 )}
               </div>
             </div>
-          </TooltipTrigger>
-          <TooltipContent side='right'>
+          </Tooltip.Trigger>
+          <Tooltip.Content side='right'>
             <p className='max-w-[200px] break-words'>{folder.name}</p>
-          </TooltipContent>
-        </Tooltip>
+          </Tooltip.Content>
+        </Tooltip.Root>
 
         {/* Delete Confirmation Dialog */}
         <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>

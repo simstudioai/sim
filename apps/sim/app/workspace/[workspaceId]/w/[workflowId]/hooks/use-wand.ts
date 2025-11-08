@@ -61,7 +61,7 @@ export interface WandConfig {
 }
 
 interface UseWandProps {
-  wandConfig: WandConfig
+  wandConfig?: WandConfig
   currentValue?: string
   onGeneratedContent: (content: string) => void
   onStreamChunk?: (chunk: string) => void
@@ -131,7 +131,7 @@ export function useWand({
         return
       }
 
-      if (!wandConfig.enabled) {
+      if (!wandConfig?.enabled) {
         setError('Wand is not enabled.')
         return
       }
@@ -150,10 +150,10 @@ export function useWand({
 
       try {
         // Build context-aware message
-        const contextInfo = buildContextInfo(currentValue, wandConfig.generationType)
+        const contextInfo = buildContextInfo(currentValue, wandConfig?.generationType)
 
         // Build the system prompt with context information
-        let systemPrompt = wandConfig.prompt
+        let systemPrompt = wandConfig?.prompt || ''
         if (systemPrompt.includes('{context}')) {
           systemPrompt = systemPrompt.replace('{context}', contextInfo)
         }
@@ -174,7 +174,7 @@ export function useWand({
             prompt: userMessage,
             systemPrompt: systemPrompt, // Send the processed system prompt with context
             stream: true,
-            history: wandConfig.maintainHistory ? conversationHistory : [], // Include history if enabled
+            history: wandConfig?.maintainHistory ? conversationHistory : [], // Include history if enabled
           }),
           signal: abortControllerRef.current.signal,
           cache: 'no-store',
@@ -239,7 +239,7 @@ export function useWand({
         if (accumulatedContent) {
           onGeneratedContent(accumulatedContent)
 
-          if (wandConfig.maintainHistory) {
+          if (wandConfig?.maintainHistory) {
             setConversationHistory((prev) => [
               ...prev,
               { role: 'user', content: currentPrompt },

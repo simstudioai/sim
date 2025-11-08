@@ -1,0 +1,67 @@
+/**
+ * Copy icon animation
+ * Creates a continuous flow where elements cycle through positions:
+ * 1. Top-left segment moves away and disappears
+ * 2. Bottom-right block slides to the top-left position
+ * 3. New block appears in the bottom-right position
+ */
+
+@keyframes segment-cycle {
+  0% {
+    transform: translate(0, 0);
+    opacity: 1;
+  }
+  25% {
+    transform: translate(-8px, -8px);
+    opacity: 0;
+  }
+  25.01% {
+    transform: translate(4px, 4px);
+    opacity: 0;
+  }
+  50% {
+    transform: translate(4px, 4px);
+    opacity: 0;
+  }
+  75% {
+    transform: translate(0, 0);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(0, 0);
+    opacity: 1;
+  }
+}
+
+@keyframes block-slide {
+  0% {
+    transform: translate(0, 0);
+    opacity: 1;
+  }
+  25% {
+    transform: translate(0, 0);
+    opacity: 1;
+  }
+  50% {
+    transform: translate(-4px, -4px);
+    opacity: 1;
+  }
+  75% {
+    transform: translate(0, 0);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(0, 0);
+    opacity: 1;
+  }
+}
+
+.animated-copy-svg .rect-bottom-right {
+  animation: block-slide 2s ease-in-out infinite;
+  transform-box: fill-box;
+}
+
+.animated-copy-svg .rect-top-left {
+  animation: segment-cycle 2s ease-in-out infinite;
+  transform-box: fill-box;
+}

@@ -55,7 +55,6 @@ export const useWorkflowStore = create<WorkflowStore>()(
         blockProperties?: {
           enabled?: boolean
           horizontalHandles?: boolean
-          isWide?: boolean
           advancedMode?: boolean
           triggerMode?: boolean
           height?: number
@@ -82,7 +81,6 @@ export const useWorkflowStore = create<WorkflowStore>()(
                 outputs: {},
                 enabled: blockProperties?.enabled ?? true,
                 horizontalHandles: blockProperties?.horizontalHandles ?? true,
-                isWide: blockProperties?.isWide ?? false,
                 advancedMode: blockProperties?.advancedMode ?? false,
                 triggerMode: blockProperties?.triggerMode ?? false,
                 height: blockProperties?.height ?? 0,
@@ -133,7 +131,6 @@ export const useWorkflowStore = create<WorkflowStore>()(
               outputs,
               enabled: blockProperties?.enabled ?? true,
               horizontalHandles: blockProperties?.horizontalHandles ?? true,
-              isWide: blockProperties?.isWide ?? false,
               advancedMode: blockProperties?.advancedMode ?? false,
               triggerMode: triggerMode,
               height: blockProperties?.height ?? 0,
@@ -643,38 +640,6 @@ export const useWorkflowStore = create<WorkflowStore>()(
         // Note: Socket.IO handles real-time sync automatically
 
         return true
-      },
-
-      toggleBlockWide: (id: string) => {
-        set((state) => ({
-          blocks: {
-            ...state.blocks,
-            [id]: {
-              ...state.blocks[id],
-              isWide: !state.blocks[id].isWide,
-            },
-          },
-          edges: [...state.edges],
-          loops: { ...state.loops },
-        }))
-        get().updateLastSaved()
-        // Note: Socket.IO handles real-time sync automatically
-      },
-
-      setBlockWide: (id: string, isWide: boolean) => {
-        set((state) => ({
-          blocks: {
-            ...state.blocks,
-            [id]: {
-              ...state.blocks[id],
-              isWide,
-            },
-          },
-          edges: [...state.edges],
-          loops: { ...state.loops },
-        }))
-        get().updateLastSaved()
-        // Note: Socket.IO handles real-time sync automatically
       },
 
       setBlockAdvancedMode: (id: string, advancedMode: boolean) => {

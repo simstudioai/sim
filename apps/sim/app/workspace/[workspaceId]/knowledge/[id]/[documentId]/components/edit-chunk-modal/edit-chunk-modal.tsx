@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { AlertCircle, ChevronDown, ChevronUp, Loader2, X } from 'lucide-react'
+import { Tooltip } from '@/components/emcn'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -16,7 +17,6 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { createLogger } from '@/lib/logs/console/logger'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import type { ChunkData, DocumentData } from '@/stores/knowledge/store'
@@ -193,8 +193,8 @@ export function EditChunkModal({
 
                 {/* Navigation Controls */}
                 <div className='flex items-center gap-1'>
-                  <Tooltip>
-                    <TooltipTrigger
+                  <Tooltip.Root>
+                    <Tooltip.Trigger
                       asChild
                       onFocus={(e) => e.preventDefault()}
                       onBlur={(e) => e.preventDefault()}
@@ -208,15 +208,15 @@ export function EditChunkModal({
                       >
                         <ChevronUp className='h-4 w-4' />
                       </Button>
-                    </TooltipTrigger>
-                    <TooltipContent side='bottom'>
+                    </Tooltip.Trigger>
+                    <Tooltip.Content side='bottom'>
                       Previous chunk{' '}
                       {currentPage > 1 && currentChunkIndex === 0 ? '(previous page)' : ''}
-                    </TooltipContent>
-                  </Tooltip>
+                    </Tooltip.Content>
+                  </Tooltip.Root>
 
-                  <Tooltip>
-                    <TooltipTrigger
+                  <Tooltip.Root>
+                    <Tooltip.Trigger
                       asChild
                       onFocus={(e) => e.preventDefault()}
                       onBlur={(e) => e.preventDefault()}
@@ -230,14 +230,14 @@ export function EditChunkModal({
                       >
                         <ChevronDown className='h-4 w-4' />
                       </Button>
-                    </TooltipTrigger>
-                    <TooltipContent side='bottom'>
+                    </Tooltip.Trigger>
+                    <Tooltip.Content side='bottom'>
                       Next chunk{' '}
                       {currentPage < totalPages && currentChunkIndex === allChunks.length - 1
                         ? '(next page)'
                         : ''}
-                    </TooltipContent>
-                  </Tooltip>
+                    </Tooltip.Content>
+                  </Tooltip.Root>
                 </div>
               </div>
 
@@ -254,7 +254,7 @@ export function EditChunkModal({
           </DialogHeader>
 
           <div className='flex flex-1 flex-col overflow-hidden'>
-            <div className='scrollbar-thin scrollbar-thumb-muted-foreground/20 hover:scrollbar-thumb-muted-foreground/25 scrollbar-track-transparent min-h-0 flex-1 overflow-y-auto px-6'>
+            <div className='min-h-0 flex-1 overflow-y-auto px-6'>
               <div className='flex min-h-full flex-col py-4'>
                 {/* Document Info Section - Fixed at top */}
                 <div className='flex-shrink-0 space-y-4'>

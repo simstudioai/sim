@@ -76,7 +76,6 @@ describe('FunctionBlockHandler', () => {
     const expectedToolParams = {
       code: inputs.code,
       language: 'javascript',
-      useLocalVM: true,
       timeout: inputs.timeout,
       envVars: {},
       workflowVariables: {},
@@ -110,7 +109,6 @@ describe('FunctionBlockHandler', () => {
     const expectedToolParams = {
       code: expectedCode,
       language: 'javascript',
-      useLocalVM: true,
       timeout: inputs.timeout,
       envVars: {},
       workflowVariables: {},
@@ -137,7 +135,6 @@ describe('FunctionBlockHandler', () => {
     const expectedToolParams = {
       code: inputs.code,
       language: 'javascript',
-      useLocalVM: true,
       timeout: DEFAULT_EXECUTION_TIMEOUT_MS,
       envVars: {},
       workflowVariables: {},

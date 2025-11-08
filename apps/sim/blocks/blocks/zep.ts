@@ -18,7 +18,6 @@ export const ZepBlock: BlockConfig<ZepResponse> = {
       id: 'operation',
       title: 'Operation',
       type: 'dropdown',
-      layout: 'half',
       options: [
         { label: 'Create Thread', id: 'create_thread' },
         { label: 'Add Messages', id: 'add_messages' },
@@ -37,7 +36,6 @@ export const ZepBlock: BlockConfig<ZepResponse> = {
       id: 'threadId',
       title: 'Thread ID',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter unique thread identifier',
       condition: {
         field: 'operation',
@@ -49,7 +47,6 @@ export const ZepBlock: BlockConfig<ZepResponse> = {
       id: 'userId',
       title: 'User ID',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter user identifier',
       condition: {
         field: 'operation',
@@ -61,7 +58,6 @@ export const ZepBlock: BlockConfig<ZepResponse> = {
       id: 'email',
       title: 'Email',
       type: 'short-input',
-      layout: 'half',
       placeholder: 'user@example.com',
       condition: {
         field: 'operation',
@@ -72,7 +68,6 @@ export const ZepBlock: BlockConfig<ZepResponse> = {
       id: 'firstName',
       title: 'First Name',
       type: 'short-input',
-      layout: 'half',
       placeholder: 'John',
       condition: {
         field: 'operation',
@@ -83,7 +78,6 @@ export const ZepBlock: BlockConfig<ZepResponse> = {
       id: 'lastName',
       title: 'Last Name',
       type: 'short-input',
-      layout: 'half',
       placeholder: 'Doe',
       condition: {
         field: 'operation',
@@ -94,7 +88,6 @@ export const ZepBlock: BlockConfig<ZepResponse> = {
       id: 'metadata',
       title: 'Metadata',
       type: 'code',
-      layout: 'full',
       placeholder: '{"key": "value"}',
       language: 'json',
       condition: {
@@ -106,7 +99,6 @@ export const ZepBlock: BlockConfig<ZepResponse> = {
       id: 'messages',
       title: 'Messages',
       type: 'code',
-      layout: 'full',
       placeholder: '[{"role": "user", "content": "Hello!"}]',
       language: 'json',
       condition: {
@@ -119,7 +111,6 @@ export const ZepBlock: BlockConfig<ZepResponse> = {
       id: 'mode',
       title: 'Context Mode',
       type: 'dropdown',
-      layout: 'half',
       options: [
         { label: 'Summary (Natural Language)', id: 'summary' },
         { label: 'Basic (Raw Facts)', id: 'basic' },
@@ -135,7 +126,6 @@ export const ZepBlock: BlockConfig<ZepResponse> = {
       id: 'apiKey',
       title: 'API Key',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter your Zep API key',
       password: true,
       required: true,
@@ -144,7 +134,6 @@ export const ZepBlock: BlockConfig<ZepResponse> = {
       id: 'limit',
       title: 'Result Limit',
       type: 'slider',
-      layout: 'full',
       min: 1,
       max: 100,
       step: 1,

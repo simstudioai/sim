@@ -3,6 +3,7 @@
 import React, { type KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Loader2, RotateCw, X } from 'lucide-react'
 import { useParams } from 'next/navigation'
+import { Tooltip } from '@/components/emcn'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -16,7 +17,6 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { useSession } from '@/lib/auth-client'
 import { quickValidateEmail } from '@/lib/email/validation'
 import { createLogger } from '@/lib/logs/console/logger'
@@ -367,8 +367,8 @@ const PermissionsTable = ({
                       currentUserIsAdmin &&
                       user.invitationId &&
                       onResendInvitation && (
-                        <Tooltip>
-                          <TooltipTrigger asChild>
+                        <Tooltip.Root>
+                          <Tooltip.Trigger asChild>
                             <span className='inline-flex'>
                               <Button
                                 variant='ghost'
@@ -390,23 +390,23 @@ const PermissionsTable = ({
                                 <span className='sr-only'>Resend invite</span>
                               </Button>
                             </span>
-                          </TooltipTrigger>
-                          <TooltipContent>
+                          </Tooltip.Trigger>
+                          <Tooltip.Content>
                             <p>
                               {resendCooldowns?.[user.invitationId!]
                                 ? `Resend in ${resendCooldowns[user.invitationId!]}s`
                                 : 'Resend invite'}
                             </p>
-                          </TooltipContent>
-                        </Tooltip>
+                          </Tooltip.Content>
+                        </Tooltip.Root>
                       )}
                     {((canShowRemoveButton && onRemoveMember) ||
                       (isPendingInvitation &&
                         currentUserIsAdmin &&
                         user.invitationId &&
                         onRemoveInvitation)) && (
-                      <Tooltip>
-                        <TooltipTrigger asChild>
+                      <Tooltip.Root>
+                        <Tooltip.Trigger asChild>
                           <Button
                             variant='ghost'
                             size='icon'
@@ -429,11 +429,11 @@ const PermissionsTable = ({
                               {isPendingInvitation ? 'Revoke invite' : 'Remove member'}
                             </span>
                           </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>
+                        </Tooltip.Trigger>
+                        <Tooltip.Content>
                           <p>{isPendingInvitation ? 'Revoke invite' : 'Remove member'}</p>
-                        </TooltipContent>
-                      </Tooltip>
+                        </Tooltip.Content>
+                      </Tooltip.Root>
                     )}
                   </div>
                 </div>
@@ -1059,126 +1059,124 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
       }}
     >
       <AlertDialogContent className='flex max-h-[80vh] flex-col gap-0 sm:max-w-[560px]'>
-        <TooltipProvider>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Invite members to {workspaceName || 'Workspace'}</AlertDialogTitle>
-          </AlertDialogHeader>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Invite members to {workspaceName || 'Workspace'}</AlertDialogTitle>
+        </AlertDialogHeader>
 
-          <form ref={formRef} onSubmit={handleSubmit} className='mt-5'>
-            <div className='space-y-2'>
-              <label htmlFor='emails' className='font-medium text-sm'>
-                Email Addresses
-              </label>
-              <div className='scrollbar-hide flex max-h-32 min-h-9 flex-wrap items-center gap-x-2 gap-y-1 overflow-y-auto rounded-[8px] border px-2 py-1 focus-within:outline-none focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 focus-within:ring-offset-background'>
-                {invalidEmails.map((email, index) => (
-                  <EmailTag
-                    key={`invalid-${index}`}
-                    email={email}
-                    onRemove={() => removeInvalidEmail(index)}
-                    disabled={isSubmitting || !userPerms.canAdmin}
-                    isInvalid={true}
-                  />
-                ))}
-                {emails.map((email, index) => (
-                  <EmailTag
-                    key={`valid-${index}`}
-                    email={email}
-                    onRemove={() => removeEmail(index)}
-                    disabled={isSubmitting || !userPerms.canAdmin}
-                  />
-                ))}
-                <Input
-                  id='emails'
-                  type='text'
-                  value={inputValue}
-                  onChange={(e) => setInputValue(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  onPaste={handlePaste}
-                  onBlur={() => inputValue.trim() && addEmail(inputValue)}
-                  placeholder={
-                    !userPerms.canAdmin
-                      ? 'Only administrators can invite new members'
-                      : emails.length > 0 || invalidEmails.length > 0
-                        ? 'Add another email'
-                        : 'Enter emails'
-                  }
-                  className={cn(
-                    'h-6 min-w-[180px] flex-1 border-none focus-visible:ring-0 focus-visible:ring-offset-0',
-                    emails.length > 0 || invalidEmails.length > 0 ? 'pl-1' : 'pl-1'
-                  )}
-                  autoFocus={userPerms.canAdmin}
+        <form ref={formRef} onSubmit={handleSubmit} className='mt-5'>
+          <div className='space-y-2'>
+            <label htmlFor='emails' className='font-medium text-sm'>
+              Email Addresses
+            </label>
+            <div className='scrollbar-hide flex max-h-32 min-h-9 flex-wrap items-center gap-x-2 gap-y-1 overflow-y-auto rounded-[8px] border px-2 py-1 focus-within:outline-none focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 focus-within:ring-offset-background'>
+              {invalidEmails.map((email, index) => (
+                <EmailTag
+                  key={`invalid-${index}`}
+                  email={email}
+                  onRemove={() => removeInvalidEmail(index)}
+                  disabled={isSubmitting || !userPerms.canAdmin}
+                  isInvalid={true}
+                />
+              ))}
+              {emails.map((email, index) => (
+                <EmailTag
+                  key={`valid-${index}`}
+                  email={email}
+                  onRemove={() => removeEmail(index)}
                   disabled={isSubmitting || !userPerms.canAdmin}
                 />
-              </div>
-              {errorMessage && <p className='mt-1 text-destructive text-xs'>{errorMessage}</p>}
+              ))}
+              <Input
+                id='emails'
+                type='text'
+                value={inputValue}
+                onChange={(e) => setInputValue(e.target.value)}
+                onKeyDown={handleKeyDown}
+                onPaste={handlePaste}
+                onBlur={() => inputValue.trim() && addEmail(inputValue)}
+                placeholder={
+                  !userPerms.canAdmin
+                    ? 'Only administrators can invite new members'
+                    : emails.length > 0 || invalidEmails.length > 0
+                      ? 'Add another email'
+                      : 'Enter emails'
+                }
+                className={cn(
+                  'h-6 min-w-[180px] flex-1 border-none focus-visible:ring-0 focus-visible:ring-offset-0',
+                  emails.length > 0 || invalidEmails.length > 0 ? 'pl-1' : 'pl-1'
+                )}
+                autoFocus={userPerms.canAdmin}
+                disabled={isSubmitting || !userPerms.canAdmin}
+              />
             </div>
+            {errorMessage && <p className='mt-1 text-destructive text-xs'>{errorMessage}</p>}
+          </div>
 
-            {/* Line separator */}
-            <div className='mt-6 mb-4 border-t' />
+          {/* Line separator */}
+          <div className='mt-6 mb-4 border-t' />
 
-            <PermissionsTable
-              userPermissions={userPermissions}
-              onPermissionChange={handlePermissionChange}
-              onRemoveMember={handleRemoveMemberClick}
-              onRemoveInvitation={handleRemoveInvitationClick}
-              onResendInvitation={handleResendInvitation}
-              disabled={isSubmitting || isSaving || isRemovingMember || isRemovingInvitation}
-              existingUserPermissionChanges={existingUserPermissionChanges}
-              isSaving={isSaving}
-              workspacePermissions={workspacePermissions}
-              permissionsLoading={permissionsLoading}
-              pendingInvitations={pendingInvitations}
-              isPendingInvitationsLoading={isPendingInvitationsLoading}
-              resendingInvitationIds={resendingInvitationIds}
-              resentInvitationIds={resentInvitationIds}
-              resendCooldowns={resendCooldowns}
-            />
-          </form>
+          <PermissionsTable
+            userPermissions={userPermissions}
+            onPermissionChange={handlePermissionChange}
+            onRemoveMember={handleRemoveMemberClick}
+            onRemoveInvitation={handleRemoveInvitationClick}
+            onResendInvitation={handleResendInvitation}
+            disabled={isSubmitting || isSaving || isRemovingMember || isRemovingInvitation}
+            existingUserPermissionChanges={existingUserPermissionChanges}
+            isSaving={isSaving}
+            workspacePermissions={workspacePermissions}
+            permissionsLoading={permissionsLoading}
+            pendingInvitations={pendingInvitations}
+            isPendingInvitationsLoading={isPendingInvitationsLoading}
+            resendingInvitationIds={resendingInvitationIds}
+            resentInvitationIds={resentInvitationIds}
+            resendCooldowns={resendCooldowns}
+          />
+        </form>
 
-          {/* Consistent spacing below user list to match spacing above */}
-          <div className='mb-4' />
+        {/* Consistent spacing below user list to match spacing above */}
+        <div className='mb-4' />
 
-          <AlertDialogFooter className='flex justify-between'>
-            {hasPendingChanges && userPerms.canAdmin && (
-              <>
-                <Button
-                  type='button'
-                  variant='outline'
-                  disabled={isSaving || isSubmitting}
-                  onClick={handleRestoreChanges}
-                  className='h-9 gap-2 rounded-[8px] font-medium'
-                >
-                  Restore Changes
-                </Button>
-                <Button
-                  type='button'
-                  variant='outline'
-                  disabled={isSaving || isSubmitting}
-                  onClick={handleSaveChanges}
-                  className='h-9 gap-2 rounded-[8px] font-medium'
-                >
-                  {isSaving && <Loader2 className='h-4 w-4 animate-spin' />}
-                  Save Changes
-                </Button>
-              </>
+        <AlertDialogFooter className='flex justify-between'>
+          {hasPendingChanges && userPerms.canAdmin && (
+            <>
+              <Button
+                type='button'
+                variant='outline'
+                disabled={isSaving || isSubmitting}
+                onClick={handleRestoreChanges}
+                className='h-9 gap-2 rounded-[8px] font-medium'
+              >
+                Restore Changes
+              </Button>
+              <Button
+                type='button'
+                variant='outline'
+                disabled={isSaving || isSubmitting}
+                onClick={handleSaveChanges}
+                className='h-9 gap-2 rounded-[8px] font-medium'
+              >
+                {isSaving && <Loader2 className='h-4 w-4 animate-spin' />}
+                Save Changes
+              </Button>
+            </>
+          )}
+
+          <Button
+            type='button'
+            onClick={() => formRef.current?.requestSubmit()}
+            disabled={
+              !userPerms.canAdmin || isSubmitting || isSaving || !workspaceId || !hasNewInvites
+            }
+            className={cn(
+              'ml-auto flex h-9 items-center justify-center gap-2 rounded-[8px] px-4 py-2 font-medium transition-all duration-200',
+              'bg-[var(--brand-primary-hex)] text-white shadow-[0_0_0_0_var(--brand-primary-hex)] hover:bg-[var(--brand-primary-hover-hex)] hover:shadow-[0_0_0_4px_rgba(112,31,252,0.15)] disabled:opacity-50 disabled:hover:bg-[var(--brand-primary-hex)] disabled:hover:shadow-none'
             )}
-
-            <Button
-              type='button'
-              onClick={() => formRef.current?.requestSubmit()}
-              disabled={
-                !userPerms.canAdmin || isSubmitting || isSaving || !workspaceId || !hasNewInvites
-              }
-              className={cn(
-                'ml-auto flex h-9 items-center justify-center gap-2 rounded-[8px] px-4 py-2 font-medium transition-all duration-200',
-                'bg-[var(--brand-primary-hex)] text-white shadow-[0_0_0_0_var(--brand-primary-hex)] hover:bg-[var(--brand-primary-hover-hex)] hover:shadow-[0_0_0_4px_rgba(112,31,252,0.15)] disabled:opacity-50 disabled:hover:bg-[var(--brand-primary-hex)] disabled:hover:shadow-none'
-              )}
-            >
-              {isSubmitting && <Loader2 className='h-4 w-4 animate-spin' />}
-              {!userPerms.canAdmin ? 'Admin Access Required' : 'Send Invite'}
-            </Button>
-          </AlertDialogFooter>
-        </TooltipProvider>
+          >
+            {isSubmitting && <Loader2 className='h-4 w-4 animate-spin' />}
+            {!userPerms.canAdmin ? 'Admin Access Required' : 'Send Invite'}
+          </Button>
+        </AlertDialogFooter>
       </AlertDialogContent>
 
       {/* Remove Member Confirmation Dialog */}

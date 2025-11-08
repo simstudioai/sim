@@ -23,7 +23,6 @@ export const VariablesBlock: BlockConfig = {
       id: 'variables',
       title: 'Variable Assignments',
       type: 'variables-input',
-      layout: 'full',
       description:
         'Select workflow variables and update their values during execution. Access them anywhere using <variable.variableName> syntax.',
       required: false,

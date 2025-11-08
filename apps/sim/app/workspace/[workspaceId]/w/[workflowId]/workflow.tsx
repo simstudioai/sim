@@ -3,7 +3,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import ReactFlow, {
-  Background,
   ConnectionLineType,
   type Edge,
   type EdgeTypes,
@@ -15,39 +14,35 @@ import 'reactflow/dist/style.css'
 import { createLogger } from '@/lib/logs/console/logger'
 import { TriggerUtils } from '@/lib/workflows/triggers'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
+import { DiffControls } from '@/app/workspace/[workspaceId]/w/[workflowId]/components'
 import { UserAvatarStack } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/control-bar/components/user-avatar-stack/user-avatar-stack'
-import { ControlBar } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/control-bar/control-bar'
-import { DiffControls } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/diff-controls'
 import { ErrorBoundary } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/error/index'
-import { FloatingControls } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/floating-controls/floating-controls'
-import { Panel } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/panel'
+import { Panel } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/panel-new'
 import { SubflowNodeComponent } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/subflow-node'
+import { Terminal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/terminal'
 import { TrainingControls } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/training-controls/training-controls'
 import { TriggerList } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/trigger-list/trigger-list'
 import {
   TriggerWarningDialog,
   TriggerWarningType,
-} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/trigger-warning-dialog'
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/trigger-warning-dialog/trigger-warning-dialog'
 import { WorkflowBlock } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/workflow-block'
 import { WorkflowEdge } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-edge/workflow-edge'
 import { CollaboratorCursorLayer } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-presence/collaborator-cursor-layer'
-import { useCurrentWorkflow } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
-import { filterEdgesFromTriggerBlocks } from '@/app/workspace/[workspaceId]/w/[workflowId]/lib/workflow-execution-utils'
 import {
-  getNodeAbsolutePosition,
-  getNodeDepth,
-  getNodeHierarchy,
-  isPointInLoopNode,
-  resizeLoopNodes,
-  updateNodeParent as updateNodeParentUtil,
-} from '@/app/workspace/[workspaceId]/w/[workflowId]/utils'
+  useAutoLayout,
+  useCurrentWorkflow,
+  useNodeUtilities,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
+import { filterEdgesFromTriggerBlocks } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/workflow-execution-utils'
 import { getBlock } from '@/blocks'
 import { useSocket } from '@/contexts/socket-context'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { useStreamCleanup } from '@/hooks/use-stream-cleanup'
 import { useWorkspacePermissions } from '@/hooks/use-workspace-permissions'
-import { useCopilotStore } from '@/stores/copilot/store'
 import { useExecutionStore } from '@/stores/execution/store'
+import { useCopilotStore } from '@/stores/panel-new/copilot/store'
+import { usePanelEditorStore } from '@/stores/panel-new/editor/store'
 import { useEnvironmentStore } from '@/stores/settings/environment/store'
 import { useGeneralStore } from '@/stores/settings/general/store'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
@@ -69,11 +64,6 @@ const edgeTypes: EdgeTypes = {
 
 // Memoized ReactFlow props to prevent unnecessary re-renders
 const defaultEdgeOptions = { type: 'custom' }
-const connectionLineStyle = {
-  stroke: '#94a3b8',
-  strokeWidth: 2,
-  strokeDasharray: '5,5',
-}
 const snapGrid: [number, number] = [20, 20]
 
 interface SelectedEdgeInfo {
@@ -113,6 +103,9 @@ const WorkflowContent = React.memo(() => {
     type: TriggerWarningType.DUPLICATE_TRIGGER,
   })
 
+  // Track whether the active connection drag started from an error handle
+  const [isErrorConnectionDrag, setIsErrorConnectionDrag] = useState(false)
+
   // Hooks
   const params = useParams()
   const router = useRouter()
@@ -143,6 +136,20 @@ const WorkflowContent = React.memo(() => {
 
   // Extract workflow data from the abstraction
   const { blocks, edges, isDiffMode, lastSaved } = currentWorkflow
+
+  // Node utilities hook for position/hierarchy calculations (requires blocks)
+  const {
+    getNodeDepth,
+    getNodeHierarchy,
+    getNodeAbsolutePosition,
+    isPointInLoopNode,
+    resizeLoopNodes,
+    updateNodeParent: updateNodeParentUtil,
+    getNodeAnchorPosition,
+  } = useNodeUtilities(blocks)
+
+  // Auto-layout hook
+  const { applyAutoLayoutAndUpdateStore } = useAutoLayout(activeWorkflowId || null)
 
   // Check if workflow is empty (no blocks)
   const isWorkflowEmpty = useMemo(() => {
@@ -263,6 +270,17 @@ const WorkflowContent = React.memo(() => {
   const { activeBlockIds, pendingBlocks, isDebugging } = useExecutionStore()
   const [dragStartParentId, setDragStartParentId] = useState<string | null>(null)
 
+  /**
+   * Dynamic connection line style that changes color based on the source handle
+   * Error handles render red connection lines to match error edges
+   */
+  const connectionLineStyle = useMemo(() => {
+    return {
+      stroke: isErrorConnectionDrag ? '#EF4444' : '#434343',
+      strokeWidth: 2,
+    }
+  }, [isErrorConnectionDrag])
+
   // Helper function to validate workflow for nested subflows
   const validateNestedSubflows = useCallback(() => {
     const errors = new Set<string>()
@@ -329,13 +347,6 @@ const WorkflowContent = React.memo(() => {
 
       let newPosition = oldPosition
       if (newParentId) {
-        const getNodeAbsolutePosition = (id: string): { x: number; y: number } => {
-          const n = getNodes().find((node: any) => node.id === id)
-          if (!n) return { x: 0, y: 0 }
-          if (!n.parentId) return n.position
-          const parentPos = getNodeAbsolutePosition(n.parentId)
-          return { x: parentPos.x + n.position.x, y: parentPos.y + n.position.y }
-        }
         const nodeAbsPos = getNodeAbsolutePosition(nodeId)
         const parentAbsPos = getNodeAbsolutePosition(newParentId)
         newPosition = {
@@ -343,24 +354,15 @@ const WorkflowContent = React.memo(() => {
           y: nodeAbsPos.y - parentAbsPos.y,
         }
       } else if (oldParentId) {
-        const getNodeAbsolutePosition = (id: string): { x: number; y: number } => {
-          const n = getNodes().find((node: any) => node.id === id)
-          if (!n) return { x: 0, y: 0 }
-          if (!n.parentId) return n.position
-          const parentPos = getNodeAbsolutePosition(n.parentId)
-          return { x: parentPos.x + n.position.x, y: parentPos.y + n.position.y }
-        }
         newPosition = getNodeAbsolutePosition(nodeId)
       }
 
       const result = updateNodeParentUtil(
         nodeId,
         newParentId,
-        getNodes,
-        blocks,
         collaborativeUpdateBlockPosition,
         updateParentId,
-        () => resizeLoopNodes(getNodes, updateNodeDimensions, blocks)
+        () => resizeLoopNodes(updateNodeDimensions)
       )
 
       if (oldParentId !== newParentId) {
@@ -387,87 +389,23 @@ const WorkflowContent = React.memo(() => {
       updateNodeDimensions,
       blocks,
       edgesForDisplay,
+      getNodeAbsolutePosition,
+      updateNodeParentUtil,
+      resizeLoopNodes,
     ]
   )
 
-  // Function to resize all loop nodes with improved hierarchy handling
+  // Wrapper to call resizeLoopNodes with updateNodeDimensions
   const resizeLoopNodesWrapper = useCallback(() => {
-    return resizeLoopNodes(getNodes, updateNodeDimensions, blocks)
-  }, [getNodes, updateNodeDimensions, blocks])
+    return resizeLoopNodes(updateNodeDimensions)
+  }, [resizeLoopNodes, updateNodeDimensions])
 
-  // Wrapper functions that use the utilities but provide the getNodes function
-  const getNodeDepthWrapper = useCallback(
-    (nodeId: string): number => {
-      return getNodeDepth(nodeId, getNodes, blocks)
-    },
-    [getNodes, blocks]
-  )
-
-  const getNodeHierarchyWrapper = useCallback(
-    (nodeId: string): string[] => {
-      return getNodeHierarchy(nodeId, getNodes, blocks)
-    },
-    [getNodes, blocks]
-  )
-
-  const getNodeAbsolutePositionWrapper = useCallback(
-    (nodeId: string): { x: number; y: number } => {
-      return getNodeAbsolutePosition(nodeId, getNodes, blocks)
-    },
-    [getNodes, blocks]
-  )
-
-  const isPointInLoopNodeWrapper = useCallback(
-    (position: { x: number; y: number }) => {
-      return isPointInLoopNode(position, getNodes, blocks)
-    },
-    [getNodes, blocks]
-  )
-
-  // Compute the absolute position of a node's source anchor (right-middle)
-  const getNodeAnchorPosition = useCallback(
-    (nodeId: string): { x: number; y: number } => {
-      const node = getNodes().find((n) => n.id === nodeId)
-      const absPos = getNodeAbsolutePositionWrapper(nodeId)
-
-      if (!node) {
-        return absPos
-      }
-
-      // Use known defaults per node type without type casting
-      const isSubflow = node.type === 'subflowNode'
-      const width = isSubflow
-        ? typeof node.data?.width === 'number'
-          ? node.data.width
-          : 500
-        : typeof node.width === 'number'
-          ? node.width
-          : 350
-      const height = isSubflow
-        ? typeof node.data?.height === 'number'
-          ? node.data.height
-          : 300
-        : typeof node.height === 'number'
-          ? node.height
-          : 100
-
-      return {
-        x: absPos.x + width,
-        y: absPos.y + height / 2,
-      }
-    },
-    [getNodes, getNodeAbsolutePositionWrapper]
-  )
-
-  // Auto-layout handler - now uses frontend auto layout for immediate updates
+  // Auto-layout handler - uses the hook for immediate frontend updates
   const handleAutoLayout = useCallback(async () => {
     if (Object.keys(blocks).length === 0) return
 
     try {
-      // Use the shared auto layout utility for immediate frontend updates
-      const { applyAutoLayoutAndUpdateStore } = await import('./utils/auto-layout')
-
-      const result = await applyAutoLayoutAndUpdateStore(activeWorkflowId!)
+      const result = await applyAutoLayoutAndUpdateStore()
 
       if (result.success) {
         logger.info('Auto layout completed successfully')
@@ -477,7 +415,7 @@ const WorkflowContent = React.memo(() => {
     } catch (error) {
       logger.error('Auto layout error:', error)
     }
-  }, [activeWorkflowId, blocks])
+  }, [blocks, applyAutoLayoutAndUpdateStore])
 
   const debouncedAutoLayout = useCallback(() => {
     const debounceTimer = setTimeout(() => {
@@ -569,7 +507,7 @@ const WorkflowContent = React.memo(() => {
   const findClosestOutput = useCallback(
     (newNodePosition: { x: number; y: number }): BlockData | null => {
       // Determine if drop is inside a container; if not, exclude child nodes from candidates
-      const containerAtPoint = isPointInLoopNodeWrapper(newNodePosition)
+      const containerAtPoint = isPointInLoopNode(newNodePosition)
       const nodeIndex = new Map(getNodes().map((n) => [n.id, n]))
 
       const candidates = Object.entries(blocks)
@@ -598,7 +536,7 @@ const WorkflowContent = React.memo(() => {
 
       return candidates[0] || null
     },
-    [blocks, getNodes, getNodeAnchorPosition, isPointInLoopNodeWrapper]
+    [blocks, getNodes, getNodeAnchorPosition, isPointInLoopNode]
   )
 
   // Determine the appropriate source handle based on block type
@@ -790,6 +728,23 @@ const WorkflowContent = React.memo(() => {
     setTriggerWarning,
   ])
 
+  /**
+   * Recenter canvas when diff appears
+   * Tracks when diff becomes ready to automatically fit the view with smooth animation
+   */
+  const prevDiffReadyRef = useRef(false)
+  useEffect(() => {
+    // Only recenter when diff transitions from not ready to ready
+    if (isDiffReady && !prevDiffReadyRef.current && diffAnalysis) {
+      logger.info('Diff ready - recentering canvas to show changes')
+      // Use a small delay to ensure the diff has fully rendered
+      setTimeout(() => {
+        fitView({ padding: 0.3, duration: 600 })
+      }, 100)
+    }
+    prevDiffReadyRef.current = isDiffReady
+  }, [isDiffReady, diffAnalysis, fitView])
+
   // Handler for trigger selection from list
   const handleTriggerSelect = useCallback(
     (triggerId: string, enableTriggerMode?: boolean) => {
@@ -832,7 +787,7 @@ const WorkflowContent = React.memo(() => {
         })
 
         // Check if dropping inside a container node (loop or parallel)
-        const containerInfo = isPointInLoopNodeWrapper(position)
+        const containerInfo = isPointInLoopNode(position)
 
         // Clear any drag-over styling
         document
@@ -1066,7 +1021,7 @@ const WorkflowContent = React.memo(() => {
       addEdge,
       findClosestOutput,
       determineSourceHandle,
-      isPointInLoopNodeWrapper,
+      isPointInLoopNode,
       getNodes,
       setTriggerWarning,
     ]
@@ -1113,7 +1068,7 @@ const WorkflowContent = React.memo(() => {
         })
 
         // Check if hovering over a container node
-        const containerInfo = isPointInLoopNodeWrapper(position)
+        const containerInfo = isPointInLoopNode(position)
 
         // Clear any previous highlighting
         document
@@ -1148,7 +1103,7 @@ const WorkflowContent = React.memo(() => {
         logger.error('Error in onDragOver', { err })
       }
     },
-    [project, isPointInLoopNodeWrapper, getNodes]
+    [project, isPointInLoopNode, getNodes]
   )
 
   // Initialize workflow when it exists in registry and isn't active
@@ -1269,7 +1224,7 @@ const WorkflowContent = React.memo(() => {
     const hash = Object.values(blocks)
       .map(
         (b) =>
-          `${b.id}:${b.type}:${b.name}:${b.position.x.toFixed(0)}:${b.position.y.toFixed(0)}:${b.isWide}:${b.height}:${b.data?.parentId || ''}`
+          `${b.id}:${b.type}:${b.name}:${b.position.x.toFixed(0)}:${b.position.y.toFixed(0)}:${b.height}:${b.data?.parentId || ''}`
       )
       .join('|')
 
@@ -1337,7 +1292,7 @@ const WorkflowContent = React.memo(() => {
           isPending,
         },
         // Include dynamic dimensions for container resizing calculations
-        width: block.isWide ? 450 : 350, // Standard width based on isWide state
+        width: 350, // Standard width
         height: Math.max(block.height || 100, 100), // Use actual height with minimum
       })
     })
@@ -1398,14 +1353,14 @@ const WorkflowContent = React.memo(() => {
         })
 
         // Fix the node by removing its parent reference and calculating absolute position
-        const absolutePosition = getNodeAbsolutePositionWrapper(id)
+        const absolutePosition = getNodeAbsolutePosition(id)
 
         // Update the node to remove parent reference and use absolute position
         collaborativeUpdateBlockPosition(id, absolutePosition)
         updateParentId(id, '', 'parent')
       }
     })
-  }, [blocks, collaborativeUpdateBlockPosition, updateParentId, getNodeAbsolutePositionWrapper])
+  }, [blocks, collaborativeUpdateBlockPosition, updateParentId, getNodeAbsolutePosition])
 
   // Validate nested subflows whenever blocks change
   useEffect(() => {
@@ -1423,6 +1378,22 @@ const WorkflowContent = React.memo(() => {
     },
     [removeEdge]
   )
+
+  /**
+   * Captures the source handle when a connection drag starts
+   */
+  const onConnectStart = useCallback((_event: any, params: any) => {
+    const handleId: string | undefined = params?.handleId
+    // Treat explicit error handle (id === 'error') as error connection
+    setIsErrorConnectionDrag(handleId === 'error')
+  }, [])
+
+  /**
+   * Resets the source handle when connection drag ends
+   */
+  const onConnectEnd = useCallback(() => {
+    setIsErrorConnectionDrag(false)
+  }, [])
 
   // Handle connections with improved parent tracking
   const onConnect = useCallback(
@@ -1540,7 +1511,7 @@ const WorkflowContent = React.memo(() => {
       }
 
       // Get the node's absolute position to properly calculate intersections
-      const nodeAbsolutePos = getNodeAbsolutePositionWrapper(node.id)
+      const nodeAbsolutePos = getNodeAbsolutePosition(node.id)
 
       // Find intersections with container nodes using absolute coordinates
       const intersectingNodes = getNodes()
@@ -1554,7 +1525,7 @@ const WorkflowContent = React.memo(() => {
           // Skip self-nesting: prevent a container from becoming its own descendant
           if (node.type === 'subflowNode') {
             // Get the full hierarchy of the potential parent
-            const hierarchy = getNodeHierarchyWrapper(n.id)
+            const hierarchy = getNodeHierarchy(n.id)
 
             // If the dragged node is in the hierarchy, this would create a circular reference
             if (hierarchy.includes(node.id)) {
@@ -1563,7 +1534,7 @@ const WorkflowContent = React.memo(() => {
           }
 
           // Get the container's absolute position
-          const containerAbsolutePos = getNodeAbsolutePositionWrapper(n.id)
+          const containerAbsolutePos = getNodeAbsolutePosition(n.id)
 
           // Get dimensions based on node type
           const nodeWidth =
@@ -1606,7 +1577,7 @@ const WorkflowContent = React.memo(() => {
         // Add more information for sorting
         .map((n) => ({
           container: n,
-          depth: getNodeDepthWrapper(n.id),
+          depth: getNodeDepth(n.id),
           // Calculate size for secondary sorting
           size: (n.data?.width || 500) * (n.data?.height || 300),
         }))
@@ -1627,7 +1598,7 @@ const WorkflowContent = React.memo(() => {
         const bestContainerMatch = sortedContainers[0]
 
         // Add a check to see if the bestContainerMatch is a part of the hierarchy of the node being dragged
-        const hierarchy = getNodeHierarchyWrapper(node.id)
+        const hierarchy = getNodeHierarchy(node.id)
         if (hierarchy.includes(bestContainerMatch.container.id)) {
           setPotentialParentId(null)
           return
@@ -1670,9 +1641,9 @@ const WorkflowContent = React.memo(() => {
       getNodes,
       potentialParentId,
       blocks,
-      getNodeHierarchyWrapper,
-      getNodeAbsolutePositionWrapper,
-      getNodeDepthWrapper,
+      getNodeHierarchy,
+      getNodeAbsolutePosition,
+      getNodeDepth,
       collaborativeUpdateBlockPosition,
     ]
   )
@@ -1749,7 +1720,7 @@ const WorkflowContent = React.memo(() => {
       // If we're dragging a container node, do additional checks to prevent circular references
       if (node.type === 'subflowNode' && potentialParentId) {
         // Get the hierarchy of the potential parent container
-        const parentHierarchy = getNodeHierarchyWrapper(potentialParentId)
+        const parentHierarchy = getNodeHierarchy(potentialParentId)
 
         // If the dragged node is in the parent's hierarchy, it would create a circular reference
         if (parentHierarchy.includes(node.id)) {
@@ -1766,8 +1737,8 @@ const WorkflowContent = React.memo(() => {
       // Update the node's parent relationship
       if (potentialParentId) {
         // Compute relative position BEFORE updating parent to avoid stale state
-        const containerAbsPosBefore = getNodeAbsolutePositionWrapper(potentialParentId)
-        const nodeAbsPosBefore = getNodeAbsolutePositionWrapper(node.id)
+        const containerAbsPosBefore = getNodeAbsolutePosition(potentialParentId)
+        const nodeAbsPosBefore = getNodeAbsolutePosition(node.id)
         const relativePositionBefore = {
           x: nodeAbsPosBefore.x - containerAbsPosBefore.x,
           y: nodeAbsPosBefore.y - containerAbsPosBefore.y,
@@ -1850,12 +1821,12 @@ const WorkflowContent = React.memo(() => {
       dragStartParentId,
       potentialParentId,
       updateNodeParent,
-      getNodeHierarchyWrapper,
+      getNodeHierarchy,
       collaborativeUpdateBlockPosition,
       addEdge,
       determineSourceHandle,
       blocks,
-      getNodeAbsolutePositionWrapper,
+      getNodeAbsolutePosition,
       getDragStartPosition,
       setDragStartPosition,
     ]
@@ -1864,6 +1835,10 @@ const WorkflowContent = React.memo(() => {
   // Update onPaneClick to only handle edge selection
   const onPaneClick = useCallback(() => {
     setSelectedEdgeInfo(null)
+    try {
+      // Clear current design selection when clicking on empty canvas
+      usePanelEditorStore.getState().clearCurrentBlock()
+    } catch {}
   }, [])
 
   // Edge selection
@@ -1908,10 +1883,13 @@ const WorkflowContent = React.memo(() => {
     return {
       ...edge,
       data: {
+        // Preserve original edge data
+        ...edge.data,
         // Send only necessary data to the edge component
         isSelected,
         isInsideLoop,
         parentLoopId,
+        sourceHandle: edge.sourceHandle,
         onDelete: (edgeId: string) => {
           // Log deletion for debugging
 
@@ -1969,22 +1947,11 @@ const WorkflowContent = React.memo(() => {
     return (
       <div className='flex h-screen w-full flex-col overflow-hidden'>
         <div className='relative h-full w-full flex-1 transition-all duration-200'>
-          <div className='pointer-events-none absolute top-6 left-64 z-40 ml-4 sm:top-8 sm:ml-6'>
-            <UserAvatarStack className='pointer-events-auto w-fit max-w-xs' />
-          </div>
-          <div className='fixed top-0 right-0 z-10'>
-            <Panel />
-          </div>
-          <ControlBar hasValidationErrors={nestedSubflowErrors.size > 0} />
-          <div className='workflow-container h-full'>
-            <Background
-              color='hsl(var(--workflow-dots))'
-              size={4}
-              gap={40}
-              style={{ backgroundColor: 'hsl(var(--workflow-background))' }}
-            />
-          </div>
+          <div className='workflow-container h-full' />
+          <UserAvatarStack className='pointer-events-auto w-fit max-w-xs' />
         </div>
+        <Panel />
+        <Terminal />
       </div>
     )
   }
@@ -1992,21 +1959,10 @@ const WorkflowContent = React.memo(() => {
   return (
     <div className='flex h-screen w-full flex-col overflow-hidden'>
       <div className='relative h-full w-full flex-1 transition-all duration-200'>
-        <div className='pointer-events-none absolute top-6 left-64 z-40 ml-4 sm:top-8 sm:ml-6'>
-          <UserAvatarStack className='pointer-events-auto w-fit max-w-xs' />
-        </div>
-        <div className='fixed top-0 right-0 z-10'>
-          <Panel />
-        </div>
-
-        {/* Floating Control Bar */}
-        <ControlBar hasValidationErrors={nestedSubflowErrors.size > 0} />
-
-        {/* Floating Controls (Zoom, Undo, Redo) */}
-        <FloatingControls />
-
         {/* Training Controls - for recording workflow edits */}
         <TrainingControls />
+
+        <UserAvatarStack className='pointer-events-auto w-fit max-w-xs' />
 
         <ReactFlow
           nodes={nodes}
@@ -2014,6 +1970,8 @@ const WorkflowContent = React.memo(() => {
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
           onConnect={effectivePermissions.canEdit ? onConnect : undefined}
+          onConnectStart={effectivePermissions.canEdit ? onConnectStart : undefined}
+          onConnectEnd={effectivePermissions.canEdit ? onConnectEnd : undefined}
           nodeTypes={nodeTypes}
           edgeTypes={edgeTypes}
           onDrop={effectivePermissions.canEdit ? onDrop : undefined}
@@ -2060,15 +2018,9 @@ const WorkflowContent = React.memo(() => {
           elevateNodesOnSelect={true}
           autoPanOnConnect={effectivePermissions.canEdit}
           autoPanOnNodeDrag={effectivePermissions.canEdit}
-        >
-          <CollaboratorCursorLayer />
-          <Background
-            color='hsl(var(--workflow-dots))'
-            size={4}
-            gap={40}
-            style={{ backgroundColor: 'hsl(var(--workflow-background))' }}
-          />
-        </ReactFlow>
+        />
+
+        <CollaboratorCursorLayer />
 
         {/* Show DiffControls if diff is available (regardless of current view mode) */}
         <DiffControls />
@@ -2085,7 +2037,11 @@ const WorkflowContent = React.memo(() => {
         {isWorkflowReady && isWorkflowEmpty && effectivePermissions.canEdit && (
           <TriggerList onSelect={handleTriggerSelect} />
         )}
+
+        <Panel />
       </div>
+
+      <Terminal />
     </div>
   )
 })

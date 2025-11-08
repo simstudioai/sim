@@ -5,8 +5,8 @@ import clsx from 'clsx'
 import { Pencil } from 'lucide-react'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
+import { Tooltip } from '@/components/emcn'
 import { Button } from '@/components/ui/button'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { createLogger } from '@/lib/logs/console/logger'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { useFolderStore, useIsWorkflowSelected } from '@/stores/folders/store'
@@ -232,8 +232,8 @@ export function WorkflowItem({
               spellCheck='false'
             />
           ) : !isDragging ? (
-            <Tooltip delayDuration={1000}>
-              <TooltipTrigger asChild>
+            <Tooltip.Root delayDuration={1000}>
+              <Tooltip.Trigger asChild>
                 <span
                   className={clsx(
                     'min-w-0 flex-1 select-none truncate pr-1 font-medium font-sans text-sm',
@@ -245,14 +245,14 @@ export function WorkflowItem({
                   {workflow.name}
                   {isMarketplace && ' (Preview)'}
                 </span>
-              </TooltipTrigger>
-              <TooltipContent side='top' align='start' sideOffset={10}>
+              </Tooltip.Trigger>
+              <Tooltip.Content side='top' align='start' sideOffset={10}>
                 <p>
                   {workflow.name}
                   {isMarketplace && ' (Preview)'}
                 </p>
-              </TooltipContent>
-            </Tooltip>
+              </Tooltip.Content>
+            </Tooltip.Root>
           ) : (
             <span
               className={clsx(

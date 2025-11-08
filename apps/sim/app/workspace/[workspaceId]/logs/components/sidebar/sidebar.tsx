@@ -2,10 +2,10 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { ChevronDown, ChevronUp, Eye, Loader2, X } from 'lucide-react'
+import { Tooltip } from '@/components/emcn'
 import { Button } from '@/components/ui/button'
 import { CopyButton } from '@/components/ui/copy-button'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { BASE_EXECUTION_CHARGE } from '@/lib/billing/constants'
 import { FrozenCanvasModal } from '@/app/workspace/[workspaceId]/logs/components/frozen-canvas/frozen-canvas-modal'
 import { FileDownload } from '@/app/workspace/[workspaceId]/logs/components/sidebar/components/file-download'
@@ -336,41 +336,36 @@ export function Sidebar({
           <div className='flex items-center justify-between px-3 pt-3 pb-1'>
             <h2 className='font-[450] text-base text-card-foreground'>Log Details</h2>
             <div className='flex items-center gap-2'>
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant='ghost'
-                      size='icon'
-                      className='h-8 w-8 p-0'
-                      onClick={() => hasPrev && handleNavigate(onNavigatePrev!)}
-                      disabled={!hasPrev}
-                      aria-label='Previous log'
-                    >
-                      <ChevronUp className='h-4 w-4' />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent side='bottom'>Previous log</TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant='ghost'
-                      size='icon'
-                      className='h-8 w-8 p-0'
-                      onClick={() => hasNext && handleNavigate(onNavigateNext!)}
-                      disabled={!hasNext}
-                      aria-label='Next log'
-                    >
-                      <ChevronDown className='h-4 w-4' />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent side='bottom'>Next log</TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
+              <Tooltip.Root>
+                <Tooltip.Trigger asChild>
+                  <Button
+                    variant='ghost'
+                    size='icon'
+                    className='h-8 w-8 p-0'
+                    onClick={() => hasPrev && handleNavigate(onNavigatePrev!)}
+                    disabled={!hasPrev}
+                    aria-label='Previous log'
+                  >
+                    <ChevronUp className='h-4 w-4' />
+                  </Button>
+                </Tooltip.Trigger>
+                <Tooltip.Content side='bottom'>Previous log</Tooltip.Content>
+              </Tooltip.Root>
+              <Tooltip.Root>
+                <Tooltip.Trigger asChild>
+                  <Button
+                    variant='ghost'
+                    size='icon'
+                    className='h-8 w-8 p-0'
+                    onClick={() => hasNext && handleNavigate(onNavigateNext!)}
+                    disabled={!hasNext}
+                    aria-label='Next log'
+                  >
+                    <ChevronDown className='h-4 w-4' />
+                  </Button>
+                </Tooltip.Trigger>
+                <Tooltip.Content side='bottom'>Next log</Tooltip.Content>
+              </Tooltip.Root>
 
               <Button
                 variant='ghost'

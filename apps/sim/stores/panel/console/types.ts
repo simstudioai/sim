@@ -6,18 +6,17 @@ export interface ConsoleEntry {
   timestamp: string
   workflowId: string
   blockId: string
+  blockName: string
+  blockType: string
   executionId?: string
-  blockName?: string
-  blockType?: string
   startedAt?: string
   endedAt?: string
   durationMs?: number
-  success: boolean
-  output?: NormalizedBlockOutput
+  success?: boolean
   input?: any
-  error?: string
+  output?: NormalizedBlockOutput
+  error?: string | Error | null
   warning?: string
-  // Iteration context for loops and parallels
   iterationCurrent?: number
   iterationTotal?: number
   iterationType?: SubflowType

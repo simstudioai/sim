@@ -45,7 +45,7 @@ export class PlanClientTool extends BaseClientTool {
             completed: false,
             executing: false,
           }))
-          const { useCopilotStore } = await import('@/stores/copilot/store')
+          const { useCopilotStore } = await import('@/stores/panel-new/copilot/store')
           const store = useCopilotStore.getState()
           if (store.setPlanTodos) {
             store.setPlanTodos(todos)

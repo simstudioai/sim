@@ -1,4 +1,5 @@
-import { Button, Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui'
+import { Tooltip } from '@/components/emcn'
+import { Button } from '@/components/ui'
 import { cn } from '@/lib/utils'
 
 interface NavigationItemProps {
@@ -41,25 +42,27 @@ export const NavigationItem = ({ item }: NavigationItemProps) => {
 
   if (item.href && !item.disabled) {
     return (
-      <Tooltip>
-        <TooltipTrigger asChild>
+      <Tooltip.Root>
+        <Tooltip.Trigger asChild>
           <a href={item.href} className='inline-block'>
             {content}
           </a>
-        </TooltipTrigger>
-        <TooltipContent side='top' command={item.shortcut}>
+        </Tooltip.Trigger>
+        <Tooltip.Content side='top'>
           {item.tooltip}
-        </TooltipContent>
-      </Tooltip>
+          {item.shortcut && <span className='ml-1 text-xs opacity-75'> ({item.shortcut})</span>}
+        </Tooltip.Content>
+      </Tooltip.Root>
     )
   }
 
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>{content}</TooltipTrigger>
-      <TooltipContent side='top' command={item.shortcut}>
+    <Tooltip.Root>
+      <Tooltip.Trigger asChild>{content}</Tooltip.Trigger>
+      <Tooltip.Content side='top'>
         {item.tooltip}
-      </TooltipContent>
-    </Tooltip>
+        {item.shortcut && <span className='ml-1 text-xs opacity-75'> ({item.shortcut})</span>}
+      </Tooltip.Content>
+    </Tooltip.Root>
   )
 }

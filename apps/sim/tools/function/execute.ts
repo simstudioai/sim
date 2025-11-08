@@ -24,14 +24,6 @@ export const functionExecuteTool: ToolConfig<CodeExecutionInput, CodeExecutionOu
       description: 'Language to execute (javascript or python)',
       default: DEFAULT_CODE_LANGUAGE,
     },
-    useLocalVM: {
-      type: 'boolean',
-      required: false,
-      visibility: 'user-only',
-      description:
-        'If true, execute JavaScript in local VM for faster execution. If false, use remote E2B execution.',
-      default: false,
-    },
     timeout: {
       type: 'number',
       required: false,
@@ -83,7 +75,6 @@ export const functionExecuteTool: ToolConfig<CodeExecutionInput, CodeExecutionOu
       return {
         code: codeContent,
         language: params.language || DEFAULT_CODE_LANGUAGE,
-        useLocalVM: params.useLocalVM || false,
         timeout: params.timeout || DEFAULT_EXECUTION_TIMEOUT_MS,
         envVars: params.envVars || {},
         workflowVariables: params.workflowVariables || {},

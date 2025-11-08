@@ -8,6 +8,7 @@ import { useSocket } from '@/contexts/socket-context'
 import { useUndoRedo } from '@/hooks/use-undo-redo'
 import { registerEmitFunctions, useOperationQueue } from '@/stores/operation-queue/store'
 import { useVariablesStore } from '@/stores/panel/variables/store'
+import { usePanelEditorStore } from '@/stores/panel-new/editor/store'
 import { useUndoRedoStore } from '@/stores/undo-redo'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -164,7 +165,6 @@ export function useCollaborativeWorkflow() {
                 {
                   enabled: payload.enabled,
                   horizontalHandles: payload.horizontalHandles,
-                  isWide: payload.isWide,
                   advancedMode: payload.advancedMode,
                   triggerMode: payload.triggerMode ?? false,
                   height: payload.height,
@@ -257,9 +257,6 @@ export function useCollaborativeWorkflow() {
             case 'update-parent':
               workflowStore.updateParentId(payload.id, payload.parentId, payload.extent)
               break
-            case 'update-wide':
-              workflowStore.setBlockWide(payload.id, payload.isWide)
-              break
             case 'update-advanced-mode':
               workflowStore.setBlockAdvancedMode(payload.id, payload.advancedMode)
               break
@@ -285,7 +282,6 @@ export function useCollaborativeWorkflow() {
                 {
                   enabled: payload.enabled,
                   horizontalHandles: payload.horizontalHandles,
-                  isWide: payload.isWide,
                   advancedMode: payload.advancedMode,
                   triggerMode: payload.triggerMode ?? false,
                   height: payload.height,
@@ -707,7 +703,6 @@ export function useCollaborativeWorkflow() {
           outputs: {},
           enabled: true,
           horizontalHandles: true,
-          isWide: false,
           advancedMode: false,
           triggerMode: triggerMode || false,
           height: 0,
@@ -716,7 +711,7 @@ export function useCollaborativeWorkflow() {
           autoConnectEdge, // Include edge data for atomic operation
         }
 
-        // Skip if applying remote changes
+        // Skip if applying remote changes (don't auto-select blocks added by other users)
         if (isApplyingRemoteChange.current) {
           workflowStore.addBlock(id, type, name, position, data, parentId, extent, {
             triggerMode: triggerMode || false,
@@ -752,6 +747,9 @@ export function useCollaborativeWorkflow() {
 
         // Record for undo AFTER adding (pass the autoConnectEdge explicitly)
         undoRedo.recordAddBlock(id, autoConnectEdge)
+
+        // Automatically select the newly added block (opens editor tab)
+        usePanelEditorStore.getState().setCurrentBlockId(id)
 
         return
       }
@@ -789,7 +787,6 @@ export function useCollaborativeWorkflow() {
         outputs,
         enabled: true,
         horizontalHandles: true,
-        isWide: false,
         advancedMode: false,
         triggerMode: isTriggerMode,
         height: 0, // Default height, will be set by the UI
@@ -798,7 +795,7 @@ export function useCollaborativeWorkflow() {
         autoConnectEdge, // Include edge data for atomic operation
       }
 
-      // Skip if applying remote changes
+      // Skip if applying remote changes (don't auto-select blocks added by other users)
       if (isApplyingRemoteChange.current) return
 
       // Generate operation ID
@@ -826,6 +823,9 @@ export function useCollaborativeWorkflow() {
 
       // Record for undo AFTER adding (pass the autoConnectEdge explicitly)
       undoRedo.recordAddBlock(id, autoConnectEdge)
+
+      // Automatically select the newly added block (opens editor tab)
+      usePanelEditorStore.getState().setCurrentBlockId(id)
     },
     [
       workflowStore,
@@ -916,22 +916,6 @@ export function useCollaborativeWorkflow() {
     (id: string, parentId: string, extent: 'parent') => {
       executeQueuedOperation('update-parent', 'block', { id, parentId, extent }, () =>
         workflowStore.updateParentId(id, parentId, extent)
-      )
-    },
-    [executeQueuedOperation, workflowStore]
-  )
-
-  const collaborativeToggleBlockWide = useCallback(
-    (id: string) => {
-      // Get the current state before toggling
-      const currentBlock = workflowStore.blocks[id]
-      if (!currentBlock) return
-
-      // Calculate the new isWide value
-      const newIsWide = !currentBlock.isWide
-
-      executeQueuedOperation('update-wide', 'block', { id, isWide: newIsWide }, () =>
-        workflowStore.toggleBlockWide(id)
       )
     },
     [executeQueuedOperation, workflowStore]
@@ -1215,7 +1199,6 @@ export function useCollaborativeWorkflow() {
         extent: sourceBlock.data?.extent || null,
         enabled: sourceBlock.enabled ?? true,
         horizontalHandles: sourceBlock.horizontalHandles ?? true,
-        isWide: sourceBlock.isWide ?? false,
         advancedMode: sourceBlock.advancedMode ?? false,
         triggerMode: sourceBlock.triggerMode ?? false,
         height: sourceBlock.height || 0,
@@ -1232,7 +1215,6 @@ export function useCollaborativeWorkflow() {
         {
           enabled: sourceBlock.enabled,
           horizontalHandles: sourceBlock.horizontalHandles,
-          isWide: sourceBlock.isWide,
           advancedMode: sourceBlock.advancedMode,
           triggerMode: sourceBlock.triggerMode ?? false,
           height: sourceBlock.height,
@@ -1251,7 +1233,6 @@ export function useCollaborativeWorkflow() {
           {
             enabled: sourceBlock.enabled,
             horizontalHandles: sourceBlock.horizontalHandles,
-            isWide: sourceBlock.isWide,
             advancedMode: sourceBlock.advancedMode,
             triggerMode: sourceBlock.triggerMode ?? false,
             height: sourceBlock.height,
@@ -1553,7 +1534,6 @@ export function useCollaborativeWorkflow() {
     collaborativeRemoveBlock,
     collaborativeToggleBlockEnabled,
     collaborativeUpdateParentId,
-    collaborativeToggleBlockWide,
     collaborativeToggleBlockAdvancedMode,
     collaborativeToggleBlockTriggerMode,
     collaborativeToggleBlockHandles,

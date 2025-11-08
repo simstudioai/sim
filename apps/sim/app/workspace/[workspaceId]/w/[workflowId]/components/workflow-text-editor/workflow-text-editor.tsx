@@ -2,12 +2,12 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { AlertCircle, Check, FileCode, Save } from 'lucide-react'
+import { Tooltip } from '@/components/emcn'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
-import { CodeEditor } from '../workflow-block/components/sub-block/components/tool-input/components/code-editor/code-editor'
+import { CodeEditor } from '../panel-new/components/editor/components/sub-block/components/tool-input/components/code-editor/code-editor'
 
 const logger = createLogger('WorkflowTextEditor')
 
@@ -136,8 +136,8 @@ export function WorkflowTextEditor({
             <span className='font-semibold'>Workflow JSON Editor</span>
           </div>
           <div className='flex items-center gap-2'>
-            <Tooltip>
-              <TooltipTrigger asChild>
+            <Tooltip.Root>
+              <Tooltip.Trigger asChild>
                 <Button
                   onClick={handleSave}
                   disabled={!canSave || isSaving}
@@ -147,8 +147,8 @@ export function WorkflowTextEditor({
                   <Save className='h-4 w-4' />
                   {isSaving ? 'Saving...' : 'Save'}
                 </Button>
-              </TooltipTrigger>
-              <TooltipContent>
+              </Tooltip.Trigger>
+              <Tooltip.Content>
                 {!isValid
                   ? 'Fix validation errors to save'
                   : !hasUnsavedChanges
@@ -156,8 +156,8 @@ export function WorkflowTextEditor({
                     : disabled
                       ? 'Editor is disabled'
                       : 'Save changes to workflow'}
-              </TooltipContent>
-            </Tooltip>
+              </Tooltip.Content>
+            </Tooltip.Root>
           </div>
         </div>
 
@@ -181,7 +181,7 @@ export function WorkflowTextEditor({
 
       {/* Alerts section - fixed height, scrollable if needed */}
       {(validationErrors.length > 0 || saveResult) && (
-        <div className='scrollbar-thin scrollbar-thumb-muted-foreground/20 scrollbar-track-transparent max-h-32 flex-shrink-0 overflow-y-auto border-b bg-muted/20'>
+        <div className='max-h-32 flex-shrink-0 overflow-y-auto border-b bg-muted/20'>
           <div className='space-y-2 p-4'>
             {/* Validation errors */}
             {validationErrors.length > 0 && (

@@ -1,8 +1,8 @@
 'use client'
 
 import { Database, Pause } from 'lucide-react'
+import { Tooltip } from '@/components/emcn'
 import { Button } from '@/components/ui/button'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 import { useCopilotTrainingStore } from '@/stores/copilot-training/store'
 
@@ -38,8 +38,8 @@ export function TrainingFloatingButton({ isTraining, onToggleModal }: TrainingFl
 
   return (
     <div className='-translate-x-1/2 fixed bottom-32 left-1/2 z-30'>
-      <Tooltip>
-        <TooltipTrigger asChild>
+      <Tooltip.Root>
+        <Tooltip.Trigger asChild>
           <Button
             id='training-button'
             variant='outline'
@@ -66,13 +66,13 @@ export function TrainingFloatingButton({ isTraining, onToggleModal }: TrainingFl
               </>
             )}
           </Button>
-        </TooltipTrigger>
-        <TooltipContent>
+        </Tooltip.Trigger>
+        <Tooltip.Content>
           {isTraining
             ? 'Stop recording and save training dataset'
             : 'Start recording workflow changes for training'}
-        </TooltipContent>
-      </Tooltip>
+        </Tooltip.Content>
+      </Tooltip.Root>
     </div>
   )
 }
