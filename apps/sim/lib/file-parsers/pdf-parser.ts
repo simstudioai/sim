@@ -1,5 +1,4 @@
 import { readFile } from 'fs/promises'
-import { PDFParse } from 'pdf-parse'
 import type { FileParseResult, FileParser } from '@/lib/file-parsers/types'
 import { createLogger } from '@/lib/logs/console/logger'
 
@@ -29,6 +28,8 @@ export class PdfParser implements FileParser {
     try {
       logger.info('Starting to parse buffer, size:', dataBuffer.length)
 
+      const { PDFParse } = await import('pdf-parse')
+
       const parser = new PDFParse({ data: dataBuffer })
       const textResult = await parser.getText()
       const infoResult = await parser.getInfo()
@@ -41,7 +42,6 @@ export class PdfParser implements FileParser {
         textResult.text.length
       )
 
-      // Remove null bytes from content (PostgreSQL JSONB doesn't allow them)
       const cleanContent = textResult.text.replace(/\u0000/g, '')
 
       return {

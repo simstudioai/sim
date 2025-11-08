@@ -51,10 +51,9 @@ export async function POST(request: NextRequest) {
     const hasAccess = await verifyFileAccess(
       key,
       userId,
-      isExecutionFile ? 'execution' : null,
-      undefined,
-      storageContext,
-      !hasCloudStorage()
+      undefined, // customConfig
+      storageContext, // context
+      !hasCloudStorage() // isLocal
     )
 
     if (!hasAccess) {

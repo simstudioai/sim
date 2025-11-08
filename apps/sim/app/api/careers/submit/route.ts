@@ -11,7 +11,6 @@ export const dynamic = 'force-dynamic'
 
 const logger = createLogger('CareersAPI')
 
-// Max file size: 10MB
 const MAX_FILE_SIZE = 10 * 1024 * 1024
 const ALLOWED_FILE_TYPES = [
   'application/pdf',
@@ -37,7 +36,6 @@ export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData()
 
-    // Extract form fields
     const data = {
       name: formData.get('name') as string,
       email: formData.get('email') as string,
@@ -50,7 +48,6 @@ export async function POST(request: NextRequest) {
       message: formData.get('message') as string,
     }
 
-    // Extract and validate resume file
     const resumeFile = formData.get('resume') as File | null
     if (!resumeFile) {
       return NextResponse.json(
@@ -63,7 +60,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Validate file size
     if (resumeFile.size > MAX_FILE_SIZE) {
       return NextResponse.json(
         {
@@ -75,7 +71,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Validate file type
     if (!ALLOWED_FILE_TYPES.includes(resumeFile.type)) {
       return NextResponse.json(
         {
@@ -87,7 +82,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Convert file to base64 for email attachment
     const resumeBuffer = await resumeFile.arrayBuffer()
     const resumeBase64 = Buffer.from(resumeBuffer).toString('base64')
 
@@ -126,7 +120,6 @@ export async function POST(request: NextRequest) {
       })
     )
 
-    // Send email with resume attachment
     const careersEmailResult = await sendEmail({
       to: 'careers@sim.ai',
       subject: `New Career Application: ${validatedData.name} - ${validatedData.position}`,

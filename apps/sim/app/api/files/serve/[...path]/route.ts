@@ -62,11 +62,11 @@ export async function GET(
 
     const userId = authResult.userId
 
-    if (isUsingCloudStorage() || isCloudPath) {
-      return await handleCloudProxy(cloudKey, userId, contextParam, legacyBucketType)
+    if (isUsingCloudStorage()) {
+      return await handleCloudProxy(cloudKey, userId, contextParam)
     }
 
-    return await handleLocalFile(fullPath, userId)
+    return await handleLocalFile(cloudKey, userId)
   } catch (error) {
     logger.error('Error serving file:', error)
 
@@ -87,10 +87,9 @@ async function handleLocalFile(filename: string, userId: string): Promise<NextRe
     const hasAccess = await verifyFileAccess(
       filename,
       userId,
-      null,
-      undefined,
-      contextParam,
-      true // isLocal = true
+      undefined, // customConfig
+      contextParam, // context
+      true // isLocal
     )
 
     if (!hasAccess) {
@@ -123,8 +122,7 @@ async function handleLocalFile(filename: string, userId: string): Promise<NextRe
 async function handleCloudProxy(
   cloudKey: string,
   userId: string,
-  contextParam?: string | null,
-  legacyBucketType?: string | null
+  contextParam?: string | null
 ): Promise<NextResponse> {
   try {
     let context: StorageContext
@@ -132,9 +130,6 @@ async function handleCloudProxy(
     if (contextParam) {
       context = contextParam as StorageContext
       logger.info(`Using explicit context: ${context} for key: ${cloudKey}`)
-    } else if (legacyBucketType === 'copilot') {
-      context = 'copilot'
-      logger.info(`Using legacy bucket parameter for copilot context: ${cloudKey}`)
     } else {
       context = inferContextFromKey(cloudKey)
       logger.info(`Inferred context: ${context} from key pattern: ${cloudKey}`)
@@ -143,10 +138,9 @@ async function handleCloudProxy(
     const hasAccess = await verifyFileAccess(
       cloudKey,
       userId,
-      legacyBucketType || null,
-      undefined,
-      context,
-      false // isLocal = false
+      undefined, // customConfig
+      context, // context
+      false // isLocal
     )
 
     if (!hasAccess) {

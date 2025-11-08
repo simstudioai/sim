@@ -1,19 +1,27 @@
 /**
  * Storage usage tracking
  * Updates storage_used_bytes for users and organizations
+ * Only tracks when billing is enabled
  */
 
 import { db } from '@sim/db'
 import { organization, userStats } from '@sim/db/schema'
 import { eq, sql } from 'drizzle-orm'
+import { isBillingEnabled } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('StorageTracking')
 
 /**
  * Increment storage usage after successful file upload
+ * Only tracks if billing is enabled
  */
 export async function incrementStorageUsage(userId: string, bytes: number): Promise<void> {
+  if (!isBillingEnabled) {
+    logger.debug('Billing disabled, skipping storage increment')
+    return
+  }
+
   try {
     // Check if user is in a team/enterprise org
     const { getHighestPrioritySubscription } = await import('@/lib/billing/core/subscription')
@@ -48,8 +56,14 @@ export async function incrementStorageUsage(userId: string, bytes: number): Prom
 
 /**
  * Decrement storage usage after file deletion
+ * Only tracks if billing is enabled
  */
 export async function decrementStorageUsage(userId: string, bytes: number): Promise<void> {
+  if (!isBillingEnabled) {
+    logger.debug('Billing disabled, skipping storage decrement')
+    return
+  }
+
   try {
     // Check if user is in a team/enterprise org
     const { getHighestPrioritySubscription } = await import('@/lib/billing/core/subscription')

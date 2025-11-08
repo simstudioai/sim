@@ -12,7 +12,6 @@ export * as CopilotFiles from '@/lib/uploads/contexts/copilot'
 export * as ExecutionFiles from '@/lib/uploads/contexts/execution'
 export * as WorkspaceFiles from '@/lib/uploads/contexts/workspace'
 export {
-  type FileInfo,
   getFileMetadata,
   getServePathPrefix,
   getStorageProvider,

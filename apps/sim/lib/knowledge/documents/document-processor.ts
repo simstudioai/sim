@@ -189,11 +189,17 @@ async function handleFileForOCR(
       ...(workspaceId && { workspaceId }),
     }
 
+    const timestamp = Date.now()
+    const uniqueId = Math.random().toString(36).substring(2, 9)
+    const safeFileName = filename.replace(/[^a-zA-Z0-9.-]/g, '_')
+    const customKey = `kb/${timestamp}-${uniqueId}-${safeFileName}`
+
     const cloudResult = await StorageService.uploadFile({
       file: buffer,
       fileName: filename,
       contentType: mimeType,
       context: 'knowledge-base',
+      customKey,
       metadata,
     })
 

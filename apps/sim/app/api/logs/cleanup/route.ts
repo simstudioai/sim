@@ -123,6 +123,8 @@ export async function GET(request: NextRequest) {
             fileName: enhancedLogKey,
             contentType: 'application/json',
             context: 'logs',
+            preserveKey: true,
+            customKey: enhancedLogKey,
             metadata: {
               logId: String(log.id),
               workflowId: String(log.workflowId),

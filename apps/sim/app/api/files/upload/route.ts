@@ -137,6 +137,10 @@ export async function POST(request: NextRequest) {
 
         logger.info(`Uploading knowledge-base file: ${originalName}`)
 
+        const timestamp = Date.now()
+        const safeFileName = originalName.replace(/\s+/g, '-')
+        const storageKey = `kb/${timestamp}-${safeFileName}`
+
         const metadata: Record<string, string> = {
           originalName: originalName,
           uploadedAt: new Date().toISOString(),
@@ -150,9 +154,11 @@ export async function POST(request: NextRequest) {
 
         const fileInfo = await storageService.uploadFile({
           file: buffer,
-          fileName: originalName,
+          fileName: storageKey,
           contentType: file.type,
           context: 'knowledge-base',
+          preserveKey: true,
+          customKey: storageKey,
           metadata,
         })
 

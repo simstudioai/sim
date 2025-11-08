@@ -7,7 +7,6 @@ import { getStorageProvider, USE_BLOB_STORAGE, USE_S3_STORAGE } from '@/lib/uplo
 
 const logger = createLogger('UploadsSetup')
 
-// Server-only upload directory path
 const PROJECT_ROOT = path.resolve(process.cwd())
 export const UPLOAD_DIR_SERVER = join(PROJECT_ROOT, 'uploads')
 

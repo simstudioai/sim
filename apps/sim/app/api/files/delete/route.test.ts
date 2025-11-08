@@ -59,7 +59,7 @@ describe('File Delete API Route', () => {
     })
 
     const req = createMockRequest('POST', {
-      filePath: '/api/files/serve/s3/workspace/test-workspace-id/1234567890-test-file.txt',
+      filePath: '/api/files/serve/workspace/test-workspace-id/1234567890-test-file.txt',
     })
 
     const { POST } = await import('@/app/api/files/delete/route')
@@ -85,7 +85,7 @@ describe('File Delete API Route', () => {
     })
 
     const req = createMockRequest('POST', {
-      filePath: '/api/files/serve/blob/workspace/test-workspace-id/1234567890-test-document.pdf',
+      filePath: '/api/files/serve/workspace/test-workspace-id/1234567890-test-document.pdf',
     })
 
     const { POST } = await import('@/app/api/files/delete/route')

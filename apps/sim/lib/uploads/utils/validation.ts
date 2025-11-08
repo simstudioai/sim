@@ -80,11 +80,13 @@ export function validateFileType(fileName: string, mimeType: string): FileValida
     }
   }
 
+  const baseMimeType = mimeType.split(';')[0].trim()
+
   const allowedMimeTypes = SUPPORTED_MIME_TYPES[extension]
-  if (!allowedMimeTypes.includes(mimeType)) {
+  if (!allowedMimeTypes.includes(baseMimeType)) {
     return {
       code: 'MIME_TYPE_MISMATCH',
-      message: `MIME type ${mimeType} does not match file extension ${extension}. Expected: ${allowedMimeTypes.join(', ')}`,
+      message: `MIME type ${baseMimeType} does not match file extension ${extension}. Expected: ${allowedMimeTypes.join(', ')}`,
       supportedTypes: allowedMimeTypes,
     }
   }

@@ -214,12 +214,6 @@ export function extractStorageKey(filePath: string): string {
     // If URL parsing fails, use the original path
   }
 
-  if (pathWithoutQuery.includes('/api/files/serve/s3/')) {
-    return decodeURIComponent(pathWithoutQuery.split('/api/files/serve/s3/')[1])
-  }
-  if (pathWithoutQuery.includes('/api/files/serve/blob/')) {
-    return decodeURIComponent(pathWithoutQuery.split('/api/files/serve/blob/')[1])
-  }
   if (pathWithoutQuery.startsWith('/api/files/serve/')) {
     return decodeURIComponent(pathWithoutQuery.substring('/api/files/serve/'.length))
   }
@@ -421,11 +415,30 @@ export function sanitizeStorageMetadata(
 /**
  * Sanitize a file key/path for local storage
  * Removes dangerous characters and prevents path traversal
+ * Preserves forward slashes for structured paths (e.g., kb/file.json, workspace/id/file.json)
+ * All keys must have a context prefix structure
  * @param key Original file key/path
  * @returns Sanitized key safe for filesystem use
  */
 export function sanitizeFileKey(key: string): string {
-  return key.replace(/[^a-zA-Z0-9.-]/g, '_').replace(/\.\./g, '')
+  if (!key.includes('/')) {
+    throw new Error('File key must include a context prefix (e.g., kb/, workspace/, execution/)')
+  }
+
+  const segments = key.split('/')
+
+  const sanitizedSegments = segments.map((segment, index) => {
+    if (segment === '..' || segment === '.') {
+      throw new Error('Path traversal detected in file key')
+    }
+
+    if (index === segments.length - 1) {
+      return segment.replace(/[^a-zA-Z0-9.-]/g, '_')
+    }
+    return segment.replace(/[^a-zA-Z0-9-]/g, '_')
+  })
+
+  return sanitizedSegments.join('/')
 }
 
 /**

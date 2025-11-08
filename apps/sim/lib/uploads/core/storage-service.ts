@@ -101,6 +101,7 @@ export async function uploadFile(options: UploadFileOptions): Promise<FileInfo> 
       contentType,
       createBlobConfig(config),
       file.length,
+      preserveKey,
       metadata
     )
 
@@ -144,24 +145,32 @@ export async function uploadFile(options: UploadFileOptions): Promise<FileInfo> 
     return uploadResult
   }
 
-  const { writeFile } = await import('fs/promises')
-  const { join } = await import('path')
-  const { v4: uuidv4 } = await import('uuid')
+  const { writeFile, mkdir } = await import('fs/promises')
+  const { join, dirname } = await import('path')
   const { UPLOAD_DIR_SERVER } = await import('./setup.server')
 
-  const safeKey = sanitizeFileKey(keyToUse)
-  const uniqueKey = `${uuidv4()}-${safeKey}`
-  const filePath = join(UPLOAD_DIR_SERVER, uniqueKey)
+  const storageKey = keyToUse
+  const safeKey = sanitizeFileKey(keyToUse) // Validates and preserves path structure
+  const filesystemPath = join(UPLOAD_DIR_SERVER, safeKey)
 
-  await writeFile(filePath, file)
+  await mkdir(dirname(filesystemPath), { recursive: true })
+
+  await writeFile(filesystemPath, file)
 
   if (metadata) {
-    await insertFileMetadataHelper(uniqueKey, metadata, context, fileName, contentType, file.length)
+    await insertFileMetadataHelper(
+      storageKey,
+      metadata,
+      context,
+      fileName,
+      contentType,
+      file.length
+    )
   }
 
   return {
-    path: `/api/files/serve/${uniqueKey}`,
-    key: uniqueKey,
+    path: `/api/files/serve/${storageKey}`,
+    key: storageKey,
     name: fileName,
     size: file.length,
     type: contentType,
@@ -188,8 +197,14 @@ export async function downloadFile(options: DownloadFileOptions): Promise<Buffer
     }
   }
 
-  const { downloadFile: defaultDownload } = await import('./storage-client')
-  return defaultDownload(key)
+  const { readFile } = await import('fs/promises')
+  const { join } = await import('path')
+  const { UPLOAD_DIR_SERVER } = await import('./setup.server')
+
+  const safeKey = sanitizeFileKey(key)
+  const filePath = join(UPLOAD_DIR_SERVER, safeKey)
+
+  return readFile(filePath)
 }
 
 /**
@@ -212,8 +227,14 @@ export async function deleteFile(options: DeleteFileOptions): Promise<void> {
     }
   }
 
-  const { deleteFile: defaultDelete } = await import('@/lib/uploads/core/storage-client')
-  return defaultDelete(key)
+  const { unlink } = await import('fs/promises')
+  const { join } = await import('path')
+  const { UPLOAD_DIR_SERVER } = await import('./setup.server')
+
+  const safeKey = sanitizeFileKey(key)
+  const filePath = join(UPLOAD_DIR_SERVER, safeKey)
+
+  await unlink(filePath)
 }
 
 /**
@@ -423,7 +444,9 @@ export async function generatePresignedDownloadUrl(
     return getPresignedUrlWithConfig(key, createBlobConfig(config), expirationSeconds)
   }
 
-  return `/api/files/serve/${encodeURIComponent(key)}`
+  const { getBaseUrl } = await import('@/lib/urls/utils')
+  const baseUrl = getBaseUrl()
+  return `${baseUrl}/api/files/serve/${encodeURIComponent(key)}`
 }
 
 /**
@@ -431,13 +454,4 @@ export async function generatePresignedDownloadUrl(
  */
 export function hasCloudStorage(): boolean {
   return USE_BLOB_STORAGE || USE_S3_STORAGE
-}
-
-/**
- * Get the current storage provider name
- */
-export function getStorageProviderName(): 'Azure Blob' | 'S3' | 'Local' {
-  if (USE_BLOB_STORAGE) return 'Azure Blob'
-  if (USE_S3_STORAGE) return 'S3'
-  return 'Local'
 }
