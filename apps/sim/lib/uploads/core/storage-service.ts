@@ -144,24 +144,32 @@ export async function uploadFile(options: UploadFileOptions): Promise<FileInfo> 
     return uploadResult
   }
 
-  const { writeFile } = await import('fs/promises')
-  const { join } = await import('path')
-  const { v4: uuidv4 } = await import('uuid')
+  const { writeFile, mkdir } = await import('fs/promises')
+  const { join, dirname } = await import('path')
   const { UPLOAD_DIR_SERVER } = await import('./setup.server')
 
-  const safeKey = sanitizeFileKey(keyToUse)
-  const uniqueKey = `${uuidv4()}-${safeKey}`
-  const filePath = join(UPLOAD_DIR_SERVER, uniqueKey)
+  const storageKey = keyToUse
+  const safeKey = sanitizeFileKey(keyToUse) // Validates and preserves path structure
+  const filesystemPath = join(UPLOAD_DIR_SERVER, safeKey)
 
-  await writeFile(filePath, file)
+  await mkdir(dirname(filesystemPath), { recursive: true })
+
+  await writeFile(filesystemPath, file)
 
   if (metadata) {
-    await insertFileMetadataHelper(uniqueKey, metadata, context, fileName, contentType, file.length)
+    await insertFileMetadataHelper(
+      storageKey,
+      metadata,
+      context,
+      fileName,
+      contentType,
+      file.length
+    )
   }
 
   return {
-    path: `/api/files/serve/${uniqueKey}`,
-    key: uniqueKey,
+    path: `/api/files/serve/${storageKey}`,
+    key: storageKey,
     name: fileName,
     size: file.length,
     type: contentType,

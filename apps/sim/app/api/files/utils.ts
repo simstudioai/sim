@@ -142,24 +142,44 @@ function sanitizeFilename(filename: string): string {
     throw new Error('Invalid filename provided')
   }
 
-  const sanitized = filename.replace(/\.\./g, '').replace(/[/\\]/g, '').replace(/^\./g, '').trim()
-
-  if (!sanitized || sanitized.length === 0) {
-    throw new Error('Invalid or empty filename after sanitization')
+  // All files must have structured paths (context prefix)
+  if (!filename.includes('/')) {
+    throw new Error('File key must include a context prefix (e.g., kb/, workspace/, execution/)')
   }
 
-  if (
-    sanitized.includes(':') ||
-    sanitized.includes('|') ||
-    sanitized.includes('?') ||
-    sanitized.includes('*') ||
-    sanitized.includes('\x00') ||
-    /[\x00-\x1F\x7F]/.test(sanitized)
-  ) {
-    throw new Error('Filename contains invalid characters')
-  }
+  // Split into path segments
+  const segments = filename.split('/')
 
-  return sanitized
+  // Sanitize each segment separately
+  const sanitizedSegments = segments.map((segment) => {
+    // Prevent path traversal
+    if (segment === '..' || segment === '.') {
+      throw new Error('Path traversal detected')
+    }
+
+    const sanitized = segment.replace(/\.\./g, '').replace(/[\\]/g, '').replace(/^\./g, '').trim()
+
+    if (!sanitized) {
+      throw new Error('Invalid or empty path segment after sanitization')
+    }
+
+    // Check for invalid characters in this segment
+    if (
+      sanitized.includes(':') ||
+      sanitized.includes('|') ||
+      sanitized.includes('?') ||
+      sanitized.includes('*') ||
+      sanitized.includes('\x00') ||
+      /[\x00-\x1F\x7F]/.test(sanitized)
+    ) {
+      throw new Error('Path segment contains invalid characters')
+    }
+
+    return sanitized
+  })
+
+  // Join with platform-specific separator for local filesystem
+  return sanitizedSegments.join(sep)
 }
 
 export function findLocalFile(filename: string): string | null {
