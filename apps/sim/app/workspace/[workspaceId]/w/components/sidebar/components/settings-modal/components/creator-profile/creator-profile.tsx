@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Camera, Globe, Linkedin, Mail, Twitter, User, Users } from 'lucide-react'
+import { Camera, Check, Globe, Linkedin, Mail, Save, Twitter, User, Users } from 'lucide-react'
 import Image from 'next/image'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
@@ -27,9 +27,12 @@ import {
 } from '@/components/ui'
 import { useSession } from '@/lib/auth-client'
 import { createLogger } from '@/lib/logs/console/logger'
+import { cn } from '@/lib/utils'
 import { useProfilePictureUpload } from '../account/hooks/use-profile-picture-upload'
 
 const logger = createLogger('CreatorProfile')
+
+type SaveStatus = 'idle' | 'saving' | 'saved' | 'error'
 
 const creatorProfileSchema = z.object({
   referenceType: z.enum(['user', 'organization']),
@@ -54,7 +57,7 @@ interface Organization {
 export function CreatorProfile() {
   const { data: session } = useSession()
   const [loading, setLoading] = useState(false)
-  const [saving, setSaving] = useState(false)
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle')
   const [organizations, setOrganizations] = useState<Organization[]>([])
   const [existingProfile, setExistingProfile] = useState<any>(null)
   const [uploadError, setUploadError] = useState<string | null>(null)
@@ -157,7 +160,7 @@ export function CreatorProfile() {
   const onSubmit = async (data: CreatorProfileFormData) => {
     if (!session?.user?.id) return
 
-    setSaving(true)
+    setSaveStatus('saving')
     try {
       const url = existingProfile
         ? `/api/creator-profiles/${existingProfile.id}`
@@ -174,13 +177,25 @@ export function CreatorProfile() {
         const result = await response.json()
         setExistingProfile(result.data)
         logger.info('Creator profile saved successfully')
+        setSaveStatus('saved')
+
+        // Reset to idle after 2 seconds
+        setTimeout(() => {
+          setSaveStatus('idle')
+        }, 2000)
       } else {
         logger.error('Failed to save creator profile')
+        setSaveStatus('error')
+        setTimeout(() => {
+          setSaveStatus('idle')
+        }, 3000)
       }
     } catch (error) {
       logger.error('Error saving creator profile:', error)
-    } finally {
-      setSaving(false)
+      setSaveStatus('error')
+      setTimeout(() => {
+        setSaveStatus('idle')
+      }, 3000)
     }
   }
 
@@ -457,8 +472,34 @@ export function CreatorProfile() {
               />
             </div>
 
-            <Button type='submit' disabled={saving} className='w-full'>
-              {saving ? 'Saving...' : existingProfile ? 'Update Profile' : 'Create Profile'}
+            <Button
+              type='submit'
+              disabled={saveStatus === 'saving'}
+              className={cn(
+                'w-full transition-all duration-200',
+                saveStatus === 'saved' && 'bg-green-600 hover:bg-green-700',
+                saveStatus === 'error' && 'bg-red-600 hover:bg-red-700'
+              )}
+            >
+              {saveStatus === 'saving' && (
+                <>
+                  <div className='mr-2 h-4 w-4 animate-spin rounded-full border-[1.5px] border-current border-t-transparent' />
+                  Saving...
+                </>
+              )}
+              {saveStatus === 'saved' && (
+                <>
+                  <Check className='mr-2 h-4 w-4' />
+                  Saved
+                </>
+              )}
+              {saveStatus === 'error' && <>Error Saving</>}
+              {saveStatus === 'idle' && (
+                <>
+                  <Save className='mr-2 h-4 w-4' />
+                  {existingProfile ? 'Update Profile' : 'Create Profile'}
+                </>
+              )}
             </Button>
           </form>
         </Form>

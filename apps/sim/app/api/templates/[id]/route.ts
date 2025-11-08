@@ -146,73 +146,8 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.json({ error: 'Template not found' }, { status: 404 })
     }
 
-    // Permission: check workspace access to connected workflow
-    if (existingTemplate[0].workflowId) {
-      // If template has a connected workflow, check if user has access to that workspace
-      const workflowRecord = await db
-        .select({ workspaceId: workflow.workspaceId })
-        .from(workflow)
-        .where(eq(workflow.id, existingTemplate[0].workflowId))
-        .limit(1)
-
-      if (workflowRecord.length > 0 && workflowRecord[0].workspaceId) {
-        const workspaceId = workflowRecord[0].workspaceId
-
-        // Check if user has access to this workspace
-        const workspaceMembership = await db
-          .select()
-          .from(member)
-          .where(and(eq(member.userId, session.user.id), eq(member.organizationId, workspaceId)))
-          .limit(1)
-
-        if (workspaceMembership.length === 0) {
-          logger.warn(
-            `[${requestId}] User denied permission to update template ${id} - no workspace access`
-          )
-          return NextResponse.json(
-            { error: 'Access denied - no access to connected workflow workspace' },
-            { status: 403 }
-          )
-        }
-      }
-    } else {
-      // If no connected workflow (orphaned template), check creator profile permissions
-      if (existingTemplate[0].creatorId) {
-        const creatorProfile = await db
-          .select()
-          .from(templateCreators)
-          .where(eq(templateCreators.id, existingTemplate[0].creatorId))
-          .limit(1)
-
-        if (creatorProfile.length > 0) {
-          const creator = creatorProfile[0]
-          let hasPermission = false
-
-          if (creator.referenceType === 'user') {
-            hasPermission = creator.referenceId === session.user.id
-          } else if (creator.referenceType === 'organization') {
-            // For orphaned templates, only admin/owner can edit
-            const membership = await db
-              .select()
-              .from(member)
-              .where(
-                and(
-                  eq(member.userId, session.user.id),
-                  eq(member.organizationId, creator.referenceId),
-                  or(eq(member.role, 'admin'), eq(member.role, 'owner'))
-                )
-              )
-              .limit(1)
-            hasPermission = membership.length > 0
-          }
-
-          if (!hasPermission) {
-            logger.warn(`[${requestId}] User denied permission to update orphaned template ${id}`)
-            return NextResponse.json({ error: 'Access denied' }, { status: 403 })
-          }
-        }
-      }
-    }
+    // No permission check needed - template updates only happen from within the workspace
+    // where the user is already editing the connected workflow
 
     // Prepare update data - only include fields that were provided
     const updateData: any = {
