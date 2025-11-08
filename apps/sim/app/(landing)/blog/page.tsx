@@ -17,9 +17,11 @@ export default async function BlogIndex({
 
   const all = await getAllPostMeta()
   const filtered = tag ? all.filter((p) => p.tags.includes(tag)) : all
-  const totalPages = Math.max(1, Math.ceil(filtered.length / perPage))
+  const featured = pageNum === 1 ? filtered.find((p) => p.featured) || filtered[0] : null
+  const listBase = featured ? filtered.filter((p) => p.slug !== featured.slug) : filtered
+  const totalPages = Math.max(1, Math.ceil(listBase.length / perPage))
   const start = (pageNum - 1) * perPage
-  const posts = filtered.slice(start, start + perPage)
+  const posts = listBase.slice(start, start + perPage)
   // Tag filter chips are intentionally disabled for now.
   // const tags = await getAllTags()
   const blogJsonLd = {
@@ -30,7 +32,7 @@ export default async function BlogIndex({
     description: 'Announcements, insights, and guides for building AI agent workflows.',
   }
 
-  const [featured, ...rest] = posts
+  const rest = posts
 
   return (
     <main className={`${soehne.className} mx-auto max-w-[1200px] px-6 py-12 sm:px-8 md:px-12`}>

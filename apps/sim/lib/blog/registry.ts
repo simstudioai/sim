@@ -75,6 +75,7 @@ async function scanFrontmatters(): Promise<BlogMeta[]> {
       timeRequired: fm.timeRequired,
       faq: fm.faq,
       draft: fm.draft,
+      featured: fm.featured ?? false,
     })
   }
   cachedMeta = results.sort(byDateDesc)

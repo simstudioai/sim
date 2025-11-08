@@ -36,6 +36,7 @@ export const BlogFrontmatterSchema = z
       .optional(),
     canonical: z.string().url(),
     draft: z.boolean().default(false),
+    featured: z.boolean().default(false),
   })
   .strict()
 
@@ -58,6 +59,7 @@ export interface BlogMeta {
   faq?: { q: string; a: string }[]
   canonical: string
   draft: boolean
+  featured: boolean
   sourcePath?: string
 }
 

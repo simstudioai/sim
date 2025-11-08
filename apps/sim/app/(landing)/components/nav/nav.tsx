@@ -71,7 +71,7 @@ export default function Nav({ hideAuthButtons = false, variant = 'landing' }: Na
       </li>
       <li>
         <Link
-          href='#pricing'
+          href='/?from=nav#pricing'
           className='text-[16px] text-muted-foreground transition-colors hover:text-foreground'
           scroll={true}
         >
@@ -87,6 +87,14 @@ export default function Nav({ hideAuthButtons = false, variant = 'landing' }: Na
         >
           Enterprise
         </button>
+      </li>
+      <li>
+        <Link
+          href='/careers'
+          className='text-[16px] text-muted-foreground transition-colors hover:text-foreground'
+        >
+          Careers
+        </Link>
       </li>
       <li>
         <a
