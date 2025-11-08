@@ -168,9 +168,9 @@ export function getBlockOutputs(
   }
 
   if (blockType === 'approval') {
-    // Start with only uiUrl (apiUrl commented out - not accessible as output)
+    // Start with only url (apiUrl commented out - not accessible as output)
     const pauseResumeOutputs: Record<string, any> = {
-      uiUrl: { type: 'string', description: 'Resume UI URL' },
+      url: { type: 'string', description: 'Resume UI URL' },
       // apiUrl: { type: 'string', description: 'Resume API URL' }, // Commented out - not accessible as output
     }
 
