@@ -6,7 +6,8 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { createLogger } from '@/lib/logs/console/logger'
-import { parseProvider } from '@/lib/oauth/oauth'
+import type { OAuthService } from '@/lib/oauth/oauth'
+import { evaluateScopeCoverage, parseProvider } from '@/lib/oauth/oauth'
 import { getUserEntityPermissions } from '@/lib/permissions/utils'
 import { generateRequestId } from '@/lib/utils'
 
@@ -206,12 +207,20 @@ export async function GET(request: NextRequest) {
           displayName = `${acc.accountId} (${baseProvider})`
         }
 
+        const grantedScopes = acc.scope ? acc.scope.split(/\s+/).filter(Boolean) : []
+        const scopeEvaluation = evaluateScopeCoverage(acc.providerId, grantedScopes)
+
         return {
           id: acc.id,
           name: displayName,
           provider: acc.providerId,
           lastUsed: acc.updatedAt.toISOString(),
           isDefault: featureType === 'default',
+          scopes: scopeEvaluation.grantedScopes,
+          canonicalScopes: scopeEvaluation.canonicalScopes,
+          missingScopes: scopeEvaluation.missingScopes,
+          extraScopes: scopeEvaluation.extraScopes,
+          requiresReauthorization: scopeEvaluation.requiresReauthorization,
         }
       })
     )
