@@ -1,9 +1,9 @@
 import type { MetadataRoute } from 'next'
+import { getAllPostMeta } from '@/lib/blog/registry'
 
-export default function sitemap(): MetadataRoute.Sitemap {
+export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const baseUrl = 'https://sim.ai'
 
-  // Static pages
   const staticPages = [
     {
       url: baseUrl,
@@ -37,15 +37,13 @@ export default function sitemap(): MetadataRoute.Sitemap {
     },
   ]
 
-  // Blog posts and content pages
-  const blogPages = [
-    {
-      url: `${baseUrl}/blog/openai-vs-n8n-vs-sim`,
-      lastModified: new Date('2025-10-11'),
-      changeFrequency: 'monthly' as const,
-      priority: 0.9,
-    },
-  ]
+  const posts = await getAllPostMeta()
+  const blogPages = posts.map((p) => ({
+    url: p.canonical,
+    lastModified: new Date(p.updated ?? p.date),
+    changeFrequency: 'monthly' as const,
+    priority: 0.9 as const,
+  }))
 
   return [...staticPages, ...blogPages]
 }
