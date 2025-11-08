@@ -421,7 +421,7 @@ export function Panel() {
               }
               data-tab-content='toolbar'
             >
-              <Toolbar />
+              <Toolbar isActive={activeTab === 'toolbar'} />
             </div>
           </div>
         </div>

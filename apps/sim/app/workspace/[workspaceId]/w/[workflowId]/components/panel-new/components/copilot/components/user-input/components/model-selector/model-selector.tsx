@@ -10,7 +10,7 @@ import {
   PopoverScrollArea,
 } from '@/components/emcn'
 import { getProviderIcon } from '@/providers/utils'
-import { MODEL_OPTIONS } from '../constants'
+import { MODEL_OPTIONS } from '../../constants'
 
 interface ModelSelectorProps {
   /** Currently selected model */
@@ -120,7 +120,7 @@ export function ModelSelector({ selectedModel, isNearTop, onModelSelect }: Model
         align='start'
         sideOffset={4}
         maxHeight={280}
-        className='w-[220px]'
+        className='w-[180px]'
         onOpenAutoFocus={(e) => e.preventDefault()}
         onCloseAutoFocus={(e) => e.preventDefault()}
       >

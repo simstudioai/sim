@@ -10,9 +10,9 @@ import {
   PopoverItem,
   PopoverScrollArea,
 } from '@/components/emcn'
-import type { useMentionData } from '../hooks/use-mention-data'
-import type { useMentionMenu } from '../hooks/use-mention-menu'
-import { formatTimestamp } from '../utils'
+import type { useMentionData } from '../../hooks/use-mention-data'
+import type { useMentionMenu } from '../../hooks/use-mention-menu'
+import { formatTimestamp } from '../../utils'
 
 /**
  * Common text styling for loading and empty states
@@ -50,7 +50,7 @@ interface AggregatedItem {
   icon?: React.ReactNode
 }
 
-interface MentionMenuPortalProps {
+interface MentionMenuProps {
   mentionMenu: ReturnType<typeof useMentionMenu>
   mentionData: ReturnType<typeof useMentionData>
   message: string
@@ -67,19 +67,19 @@ interface MentionMenuPortalProps {
 }
 
 /**
- * Portal component for mention menu dropdown.
+ * MentionMenu component for mention menu dropdown.
  * Handles rendering of mention options, submenus, and aggregated search results.
  * Manages keyboard navigation and selection of mentions.
  *
  * @param props - Component props
- * @returns Rendered mention menu portal
+ * @returns Rendered mention menu
  */
-export function MentionMenuPortal({
+export function MentionMenu({
   mentionMenu,
   mentionData,
   message,
   insertHandlers,
-}: MentionMenuPortalProps) {
+}: MentionMenuProps) {
   const {
     mentionMenuRef,
     menuListRef,

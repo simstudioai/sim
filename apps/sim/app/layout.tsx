@@ -114,7 +114,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                     var toolbarParsed = JSON.parse(toolbarStored);
                     var toolbarState = toolbarParsed?.state;
                     var toolbarTriggersHeight = toolbarState?.toolbarTriggersHeight;
-                    if (toolbarTriggersHeight !== undefined && toolbarTriggersHeight >= 100 && toolbarTriggersHeight <= 800) {
+                    if (toolbarTriggersHeight !== undefined && toolbarTriggersHeight >= 30 && toolbarTriggersHeight <= 800) {
                       document.documentElement.style.setProperty('--toolbar-triggers-height', toolbarTriggersHeight + 'px');
                     }
                   }

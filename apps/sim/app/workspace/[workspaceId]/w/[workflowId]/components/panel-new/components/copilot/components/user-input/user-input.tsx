@@ -21,7 +21,7 @@ import type { ChatContext } from '@/stores/panel-new/copilot/types'
 import {
   AttachedFilesDisplay,
   ContextPills,
-  MentionMenuPortal,
+  MentionMenu,
   ModelSelector,
   ModeSelector,
 } from './components'
@@ -642,7 +642,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
             {/* Mention Menu Portal */}
             {mentionMenu.showMentionMenu &&
               createPortal(
-                <MentionMenuPortal
+                <MentionMenu
                   mentionMenu={mentionMenu}
                   mentionData={mentionData}
                   message={message}
