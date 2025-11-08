@@ -25,6 +25,7 @@ import {
   OutlookIcon,
   PipedriveIcon,
   RedditIcon,
+  SalesforceIcon,
   SlackIcon,
   SupabaseIcon,
   TrelloIcon,
@@ -57,6 +58,7 @@ export type OAuthProvider =
   | 'asana'
   | 'pipedrive'
   | 'hubspot'
+  | 'salesforce'
   | string
 
 export type OAuthService =
@@ -91,6 +93,7 @@ export type OAuthService =
   | 'asana'
   | 'pipedrive'
   | 'hubspot'
+  | 'salesforce'
 export interface OAuthProviderConfig {
   id: OAuthProvider
   name: string
@@ -737,6 +740,23 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     },
     defaultService: 'hubspot',
   },
+  salesforce: {
+    id: 'salesforce',
+    name: 'Salesforce',
+    icon: (props) => SalesforceIcon(props),
+    services: {
+      salesforce: {
+        id: 'salesforce',
+        name: 'Salesforce',
+        description: 'Access and manage your Salesforce CRM data.',
+        providerId: 'salesforce',
+        icon: (props) => SalesforceIcon(props),
+        baseProviderIcon: (props) => SalesforceIcon(props),
+        scopes: ['api', 'full', 'openid', 'refresh_token', 'offline_access'],
+      },
+    },
+    defaultService: 'salesforce',
+  },
 }
 
 export function getServiceByProviderAndId(
@@ -775,8 +795,6 @@ export function getServiceIdFromScopes(provider: OAuthProvider, scopes: string[]
     if (normalizedScopes.some((scope) => hints.some((hint) => scope.includes(hint)))) {
       return service.id
     }
-<<<<<<< HEAD
-=======
     if (scopes.some((scope) => scope.includes('drive'))) {
       return 'google-drive'
     }
@@ -833,7 +851,12 @@ export function getServiceIdFromScopes(provider: OAuthProvider, scopes: string[]
     return 'webflow'
   } else if (provider === 'asana') {
     return 'asana'
->>>>>>> d7ba07183 (added asana integration)
+  } else if (provider === 'pipedrive') {
+    return 'pipedrive'
+  } else if (provider === 'hubspot') {
+    return 'hubspot'
+  } else if (provider === 'salesforce') {
+    return 'salesforce'
   }
 
   return providerConfig.defaultService
@@ -1246,6 +1269,19 @@ function getProviderAuthConfig(provider: string): ProviderAuthConfig {
         clientSecret,
         useBasicAuth: false,
         supportsRefreshTokenRotation: true,
+      }
+    }
+    case 'salesforce': {
+      const { clientId, clientSecret } = getCredentials(
+        env.SALESFORCE_CLIENT_ID,
+        env.SALESFORCE_CLIENT_SECRET
+      )
+      return {
+        tokenEndpoint: 'https://login.salesforce.com/services/oauth2/token',
+        clientId,
+        clientSecret,
+        useBasicAuth: false,
+        supportsRefreshTokenRotation: false,
       }
     }
     default:

@@ -5,6 +5,14 @@ import {
   airtableUpdateRecordTool,
 } from '@/tools/airtable'
 import { arxivGetAuthorPapersTool, arxivGetPaperTool, arxivSearchTool } from '@/tools/arxiv'
+import {
+  asanaAddCommentTool,
+  asanaCreateTaskTool,
+  asanaGetProjectsTool,
+  asanaGetTaskTool,
+  asanaSearchTasksTool,
+  asanaUpdateTaskTool,
+} from '@/tools/asana'
 import { browserUseRunTaskTool } from '@/tools/browser_use'
 import { clayPopulateTool } from '@/tools/clay'
 import {
@@ -173,6 +181,20 @@ import {
 } from '@/tools/google_vault'
 import { guardrailsValidateTool } from '@/tools/guardrails'
 import { requestTool as httpRequest } from '@/tools/http'
+import {
+  hubspotCreateCompanyTool,
+  hubspotCreateContactTool,
+  hubspotGetCompanyTool,
+  hubspotGetContactTool,
+  hubspotGetUsersTool,
+  hubspotListCompaniesTool,
+  hubspotListContactsTool,
+  hubspotListDealsTool,
+  hubspotSearchCompaniesTool,
+  hubspotSearchContactsTool,
+  hubspotUpdateCompanyTool,
+  hubspotUpdateContactTool,
+} from '@/tools/hubspot'
 import { huggingfaceChatTool } from '@/tools/huggingface'
 import {
   hunterCompaniesFindTool,
@@ -385,6 +407,26 @@ import {
   pineconeUpsertTextTool,
 } from '@/tools/pinecone'
 import {
+  pipedriveCreateActivityTool,
+  pipedriveCreateDealTool,
+  pipedriveCreateLeadTool,
+  pipedriveCreateProjectTool,
+  pipedriveDeleteLeadTool,
+  pipedriveGetActivitiesTool,
+  pipedriveGetAllDealsTool,
+  pipedriveGetDealTool,
+  pipedriveGetFilesTool,
+  pipedriveGetLeadsTool,
+  pipedriveGetMailMessagesTool,
+  pipedriveGetMailThreadTool,
+  pipedriveGetPipelineDealsTool,
+  pipedriveGetPipelinesTool,
+  pipedriveGetProjectsTool,
+  pipedriveUpdateActivityTool,
+  pipedriveUpdateDealTool,
+  pipedriveUpdateLeadTool,
+} from '@/tools/pipedrive'
+import {
   deleteTool as postgresDeleteTool,
   executeTool as postgresExecuteTool,
   insertTool as postgresInsertTool,
@@ -415,6 +457,7 @@ import {
   s3ListObjectsTool,
   s3PutObjectTool,
 } from '@/tools/s3'
+import { salesforceGetAccountsTool } from '@/tools/salesforce'
 import { searchTool as serperSearch } from '@/tools/serper'
 import {
   sharepointAddListItemTool,
@@ -596,6 +639,12 @@ export const tools: Record<string, ToolConfig> = {
   arxiv_search: arxivSearchTool,
   arxiv_get_paper: arxivGetPaperTool,
   arxiv_get_author_papers: arxivGetAuthorPapersTool,
+  asana_get_task: asanaGetTaskTool,
+  asana_create_task: asanaCreateTaskTool,
+  asana_update_task: asanaUpdateTaskTool,
+  asana_get_projects: asanaGetProjectsTool,
+  asana_search_tasks: asanaSearchTasksTool,
+  asana_add_comment: asanaAddCommentTool,
   browser_use_run_task: browserUseRunTaskTool,
   openai_embeddings: openAIEmbeddings,
   http_request: httpRequest,
@@ -717,6 +766,24 @@ export const tools: Record<string, ToolConfig> = {
   pinecone_search_text: pineconeSearchTextTool,
   pinecone_search_vector: pineconeSearchVectorTool,
   pinecone_upsert_text: pineconeUpsertTextTool,
+  pipedrive_create_activity: pipedriveCreateActivityTool,
+  pipedrive_create_deal: pipedriveCreateDealTool,
+  pipedrive_create_lead: pipedriveCreateLeadTool,
+  pipedrive_create_project: pipedriveCreateProjectTool,
+  pipedrive_delete_lead: pipedriveDeleteLeadTool,
+  pipedrive_get_activities: pipedriveGetActivitiesTool,
+  pipedrive_get_all_deals: pipedriveGetAllDealsTool,
+  pipedrive_get_deal: pipedriveGetDealTool,
+  pipedrive_get_files: pipedriveGetFilesTool,
+  pipedrive_get_leads: pipedriveGetLeadsTool,
+  pipedrive_get_mail_messages: pipedriveGetMailMessagesTool,
+  pipedrive_get_mail_thread: pipedriveGetMailThreadTool,
+  pipedrive_get_pipeline_deals: pipedriveGetPipelineDealsTool,
+  pipedrive_get_pipelines: pipedriveGetPipelinesTool,
+  pipedrive_get_projects: pipedriveGetProjectsTool,
+  pipedrive_update_activity: pipedriveUpdateActivityTool,
+  pipedrive_update_deal: pipedriveUpdateDealTool,
+  pipedrive_update_lead: pipedriveUpdateLeadTool,
   postgresql_query: postgresQueryTool,
   postgresql_insert: postgresInsertTool,
   postgresql_update: postgresUpdateTool,
@@ -1079,6 +1146,18 @@ export const tools: Record<string, ToolConfig> = {
   hunter_email_verifier: hunterEmailVerifierTool,
   hunter_companies_find: hunterCompaniesFindTool,
   hunter_email_count: hunterEmailCountTool,
+  hubspot_create_company: hubspotCreateCompanyTool,
+  hubspot_create_contact: hubspotCreateContactTool,
+  hubspot_get_company: hubspotGetCompanyTool,
+  hubspot_get_contact: hubspotGetContactTool,
+  hubspot_get_users: hubspotGetUsersTool,
+  hubspot_list_companies: hubspotListCompaniesTool,
+  hubspot_list_contacts: hubspotListContactsTool,
+  hubspot_list_deals: hubspotListDealsTool,
+  hubspot_search_companies: hubspotSearchCompaniesTool,
+  hubspot_search_contacts: hubspotSearchContactsTool,
+  hubspot_update_company: hubspotUpdateCompanyTool,
+  hubspot_update_contact: hubspotUpdateContactTool,
   sharepoint_create_page: sharepointCreatePageTool,
   sharepoint_read_page: sharepointReadPageTool,
   sharepoint_list_sites: sharepointListSitesTool,
@@ -1137,4 +1216,5 @@ export const tools: Record<string, ToolConfig> = {
   stripe_search_prices: stripeSearchPricesTool,
   stripe_retrieve_event: stripeRetrieveEventTool,
   stripe_list_events: stripeListEventsTool,
+  salesforce_get_accounts: salesforceGetAccountsTool,
 }

@@ -107,20 +107,18 @@ export async function POST(request: Request) {
 
     const params = new URLSearchParams()
 
-    if (workspace) {
-      const workspaceValidation = validateAlphanumericId(workspace, 'workspace', 100)
-      if (!workspaceValidation.isValid) {
-        return NextResponse.json({ error: workspaceValidation.error }, { status: 400 })
-      }
-      params.append('workspace', workspace)
-    }
-
     if (project) {
       const projectValidation = validateAlphanumericId(project, 'project', 100)
       if (!projectValidation.isValid) {
         return NextResponse.json({ error: projectValidation.error }, { status: 400 })
       }
       params.append('project', project)
+    } else if (workspace) {
+      const workspaceValidation = validateAlphanumericId(workspace, 'workspace', 100)
+      if (!workspaceValidation.isValid) {
+        return NextResponse.json({ error: workspaceValidation.error }, { status: 400 })
+      }
+      params.append('workspace', workspace)
     }
 
     if (limit) {

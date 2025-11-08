@@ -793,6 +793,55 @@ export const auth = betterAuth({
           },
         },
 
+        // Salesforce provider
+        {
+          providerId: 'salesforce',
+          clientId: env.SALESFORCE_CLIENT_ID as string,
+          clientSecret: env.SALESFORCE_CLIENT_SECRET as string,
+          authorizationUrl: 'https://login.salesforce.com/services/oauth2/authorize',
+          tokenUrl: 'https://login.salesforce.com/services/oauth2/token',
+          userInfoUrl: 'https://login.salesforce.com/services/oauth2/userinfo',
+          scopes: ['api', 'full', 'openid', 'refresh_token', 'offline_access'],
+          pkce: true,
+          redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/salesforce`,
+          getUserInfo: async (tokens) => {
+            try {
+              logger.info('Fetching Salesforce user profile')
+
+              const response = await fetch(
+                'https://login.salesforce.com/services/oauth2/userinfo',
+                {
+                  headers: {
+                    Authorization: `Bearer ${tokens.accessToken}`,
+                  },
+                }
+              )
+
+              if (!response.ok) {
+                logger.error('Failed to fetch Salesforce user info', {
+                  status: response.status,
+                })
+                throw new Error('Failed to fetch user info')
+              }
+
+              const data = await response.json()
+
+              return {
+                id: data.user_id || data.sub,
+                name: data.name || 'Salesforce User',
+                email: data.email || `salesforce-${data.user_id}@salesforce.com`,
+                emailVerified: data.email_verified || true,
+                image: data.picture || undefined,
+                createdAt: new Date(),
+                updatedAt: new Date(),
+              }
+            } catch (error) {
+              logger.error('Error creating Salesforce user profile:', { error })
+              return null
+            }
+          },
+        },
+
         // Supabase provider
         {
           providerId: 'supabase',
