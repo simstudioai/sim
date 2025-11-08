@@ -28,7 +28,7 @@ import { Separator } from '@/components/ui/separator'
 import { Textarea } from '@/components/ui/textarea'
 import { useBrandConfig } from '@/lib/branding/branding'
 import Nav from '@/app/(landing)/components/nav/nav'
-import { inter } from '@/app/fonts/inter'
+import { inter } from '@/app/fonts/inter/inter'
 import { soehne } from '@/app/fonts/soehne/soehne'
 import type { ResumeStatus } from '@/executor/types'
 

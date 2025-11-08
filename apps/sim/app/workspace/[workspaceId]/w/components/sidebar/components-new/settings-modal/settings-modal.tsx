@@ -8,7 +8,6 @@ import {
   Account,
   ApiKeys,
   Copilot,
-  CreatorProfile,
   Credentials,
   CustomTools,
   EnvironmentVariables,
@@ -21,6 +20,7 @@ import {
   Subscription,
   TeamManagement,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/components-new/settings-modal/components'
+import { CreatorProfile } from '@/app/workspace/[workspaceId]/w/components/sidebar/components-new/settings-modal/components/components/creator-profile/creator-profile'
 import { useOrganizationStore } from '@/stores/organization'
 import { useGeneralStore } from '@/stores/settings/general/store'
 

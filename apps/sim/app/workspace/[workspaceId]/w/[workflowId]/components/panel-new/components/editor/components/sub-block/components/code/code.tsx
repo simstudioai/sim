@@ -16,7 +16,11 @@ import { Button } from '@/components/ui/button'
 import { CodeLanguage } from '@/lib/execution/languages'
 import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
-import { isLikelyReferenceSegment, SYSTEM_REFERENCE_PREFIXES, splitReferenceSegment } from '@/lib/workflows/references'
+import {
+  isLikelyReferenceSegment,
+  SYSTEM_REFERENCE_PREFIXES,
+  splitReferenceSegment,
+} from '@/lib/workflows/references'
 import {
   checkEnvVarTrigger,
   EnvVarDropdown,

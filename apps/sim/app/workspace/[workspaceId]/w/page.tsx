@@ -3,8 +3,8 @@
 import { useEffect, useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
-import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { createLogger } from '@/lib/logs/console/logger'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 const logger = createLogger('WorkflowsPage')
 

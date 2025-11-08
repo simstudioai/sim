@@ -28,8 +28,8 @@ import {
 import { useSession } from '@/lib/auth-client'
 import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
+import { useProfilePictureUpload } from '@/app/workspace/[workspaceId]/w/components/sidebar/components-new/settings-modal/components/account/hooks/use-profile-picture-upload'
 import type { CreatorProfileDetails } from '@/types/creator-profile'
-import { useProfilePictureUpload } from '../account/hooks/use-profile-picture-upload'
 
 const logger = createLogger('CreatorProfile')
 

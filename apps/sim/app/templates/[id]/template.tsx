@@ -51,6 +51,7 @@ import {
 } from 'lucide-react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import ReactMarkdown from 'react-markdown'
+import { Tooltip } from '@/components/emcn'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -59,7 +60,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
 import type { CredentialRequirement } from '@/lib/workflows/credential-extractor'
@@ -537,400 +537,394 @@ export default function TemplateDetails() {
   }
 
   return (
-    <TooltipProvider delayDuration={100} skipDelayDuration={0}>
-      <div className='flex min-h-screen flex-col'>
-        {/* Header */}
-        <div className='border-b bg-background p-6'>
-          <div className='mx-auto max-w-7xl'>
-            {/* Back button */}
-            <button
-              onClick={handleBack}
-              className='mb-6 flex items-center gap-2 text-muted-foreground transition-colors hover:text-foreground'
-            >
-              <ArrowLeft className='h-4 w-4' />
-              <span className='text-sm'>Back to templates</span>
-            </button>
+    <div className='flex min-h-screen flex-col'>
+      {/* Header */}
+      <div className='border-b bg-background p-6'>
+        <div className='mx-auto max-w-7xl'>
+          {/* Back button */}
+          <button
+            onClick={handleBack}
+            className='mb-6 flex items-center gap-2 text-muted-foreground transition-colors hover:text-foreground'
+          >
+            <ArrowLeft className='h-4 w-4' />
+            <span className='text-sm'>Back to templates</span>
+          </button>
 
-            {/* Template header */}
-            <div className='flex items-start justify-between'>
-              <div className='flex items-start gap-4'>
-                {/* Icon */}
+          {/* Template header */}
+          <div className='flex items-start justify-between'>
+            <div className='flex items-start gap-4'>
+              {/* Icon */}
 
-                {/* Title and description */}
-                <div>
-                  <h1 className='font-bold text-3xl text-foreground'>{template.name}</h1>
-                  {template.details?.tagline && (
-                    <p className='mt-2 max-w-3xl text-lg text-muted-foreground'>
-                      {template.details.tagline}
-                    </p>
-                  )}
-                  {/* Tags */}
-                  {template.tags && template.tags.length > 0 && (
-                    <div className='mt-3 flex flex-wrap gap-2'>
-                      {template.tags.map((tag, index) => (
-                        <Badge
-                          key={index}
-                          variant='secondary'
-                          className='border-0 bg-muted/60 px-2.5 py-0.5 text-sm hover:bg-muted/80'
-                        >
-                          {tag}
-                        </Badge>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Action buttons */}
-              <div className='flex items-center gap-3'>
-                {/* Super user approve/reject buttons for pending templates */}
-                {isSuperUser && template.status === 'pending' && (
-                  <>
-                    <Button
-                      onClick={handleApprove}
-                      disabled={isApproving}
-                      className='bg-green-600 text-white hover:bg-green-700'
-                    >
-                      {isApproving ? 'Approving...' : 'Approve'}
-                    </Button>
-                    <Button
-                      onClick={handleReject}
-                      disabled={isRejecting}
-                      variant='outline'
-                      className='border-red-600 text-red-600 hover:bg-red-50'
-                    >
-                      {isRejecting ? 'Rejecting...' : 'Reject'}
-                    </Button>
-                  </>
+              {/* Title and description */}
+              <div>
+                <h1 className='font-bold text-3xl text-foreground'>{template.name}</h1>
+                {template.details?.tagline && (
+                  <p className='mt-2 max-w-3xl text-lg text-muted-foreground'>
+                    {template.details.tagline}
+                  </p>
                 )}
-
-                {/* Star button - only for logged-in non-owners and non-pending templates */}
-                {currentUserId && !canEditTemplate && template.status !== 'pending' && (
-                  <Button
-                    variant='outline'
-                    size='sm'
-                    onClick={handleStarToggle}
-                    disabled={isStarring}
-                    className={cn(
-                      'transition-colors',
-                      isStarred &&
-                        'border-yellow-200 bg-yellow-50 text-yellow-700 hover:bg-yellow-100'
-                    )}
-                  >
-                    <Star className={cn('mr-2 h-4 w-4', isStarred && 'fill-current')} />
-                    {starCount}
-                  </Button>
-                )}
-
-                {/* Edit button - for template owners (approved or pending) */}
-                {canEditTemplate && currentUserId && (
-                  <>
-                    {template.workflowId && !showWorkspaceSelectorForEdit ? (
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <span>
-                              <Button
-                                onClick={handleEditTemplate}
-                                disabled={isEditing || hasWorkspaceAccess === false}
-                                className={
-                                  hasWorkspaceAccess === false
-                                    ? 'cursor-not-allowed opacity-50'
-                                    : 'bg-blue-600 text-white hover:bg-blue-700'
-                                }
-                              >
-                                {isEditing ? 'Opening...' : 'Edit Template'}
-                              </Button>
-                            </span>
-                          </TooltipTrigger>
-                          {hasWorkspaceAccess === false && (
-                            <TooltipContent>
-                              <p>Don't have access to workspace to edit template</p>
-                            </TooltipContent>
-                          )}
-                        </Tooltip>
-                      </TooltipProvider>
-                    ) : (
-                      <DropdownMenu
-                        open={showWorkspaceSelectorForEdit}
-                        onOpenChange={setShowWorkspaceSelectorForEdit}
+                {/* Tags */}
+                {template.tags && template.tags.length > 0 && (
+                  <div className='mt-3 flex flex-wrap gap-2'>
+                    {template.tags.map((tag, index) => (
+                      <Badge
+                        key={index}
+                        variant='secondary'
+                        className='border-0 bg-muted/60 px-2.5 py-0.5 text-sm hover:bg-muted/80'
                       >
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            onClick={() =>
-                              !template.workflowId && setShowWorkspaceSelectorForEdit(true)
-                            }
-                            disabled={isUsing || isLoadingWorkspaces}
-                            className='bg-blue-600 text-white hover:bg-blue-700'
-                          >
-                            {isUsing
-                              ? 'Importing...'
-                              : isLoadingWorkspaces
-                                ? 'Loading...'
-                                : 'Edit Template'}
-                            <ChevronDown className='ml-2 h-4 w-4' />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align='end' className='w-56'>
-                          {workspaces.length === 0 ? (
-                            <DropdownMenuItem disabled className='text-muted-foreground text-sm'>
-                              No workspaces with write access
-                            </DropdownMenuItem>
-                          ) : (
-                            workspaces.map((workspace) => (
-                              <DropdownMenuItem
-                                key={workspace.id}
-                                onClick={() => handleWorkspaceSelectForEdit(workspace.id)}
-                                className='flex cursor-pointer items-center justify-between'
-                              >
-                                <div className='flex flex-col'>
-                                  <span className='font-medium text-sm'>{workspace.name}</span>
-                                  <span className='text-muted-foreground text-xs capitalize'>
-                                    {workspace.permissions} access
-                                  </span>
-                                </div>
-                              </DropdownMenuItem>
-                            ))
-                          )}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    )}
-                  </>
-                )}
-
-                {/* Use template button - only for approved templates and non-owners */}
-                {template.status === 'approved' && !canEditTemplate && (
-                  <>
-                    {!currentUserId ? (
-                      <Button
-                        onClick={() => {
-                          const callbackUrl = encodeURIComponent(`/templates/${template.id}`)
-                          router.push(`/login?callbackUrl=${callbackUrl}`)
-                        }}
-                        className='bg-purple-600 text-white hover:bg-purple-700'
-                      >
-                        Sign in to use
-                      </Button>
-                    ) : (
-                      <DropdownMenu
-                        open={showWorkspaceSelectorForUse}
-                        onOpenChange={setShowWorkspaceSelectorForUse}
-                      >
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            onClick={() => setShowWorkspaceSelectorForUse(true)}
-                            disabled={isUsing || isLoadingWorkspaces}
-                            className='bg-purple-600 text-white hover:bg-purple-700'
-                          >
-                            {isUsing
-                              ? 'Creating...'
-                              : isLoadingWorkspaces
-                                ? 'Loading...'
-                                : 'Use this template'}
-                            <ChevronDown className='ml-2 h-4 w-4' />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align='end' className='w-56'>
-                          {workspaces.length === 0 ? (
-                            <DropdownMenuItem disabled className='text-muted-foreground text-sm'>
-                              No workspaces with write access
-                            </DropdownMenuItem>
-                          ) : (
-                            workspaces.map((workspace) => (
-                              <DropdownMenuItem
-                                key={workspace.id}
-                                onClick={() => handleWorkspaceSelectForUse(workspace.id)}
-                                className='flex cursor-pointer items-center justify-between'
-                              >
-                                <div className='flex flex-col'>
-                                  <span className='font-medium text-sm'>{workspace.name}</span>
-                                  <span className='text-muted-foreground text-xs capitalize'>
-                                    {workspace.permissions} access
-                                  </span>
-                                </div>
-                              </DropdownMenuItem>
-                            ))
-                          )}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    )}
-                  </>
+                        {tag}
+                      </Badge>
+                    ))}
+                  </div>
                 )}
               </div>
             </div>
 
-            {/* Tags */}
-            <div className='mt-6 flex items-center gap-3 text-muted-foreground text-sm'>
-              {/* Views */}
-              <div className='flex items-center gap-1 rounded-full bg-secondary px-3 py-1'>
-                <Eye className='h-3 w-3' />
-                <span>{template.views} views</span>
-              </div>
-
-              {/* Stars */}
-              <div className='flex items-center gap-1 rounded-full bg-secondary px-3 py-1'>
-                <Star className='h-3 w-3' />
-                <span>{starCount} stars</span>
-              </div>
-
-              {/* Author */}
-              <div className='flex items-center gap-1 rounded-full bg-secondary px-3 py-1'>
-                <User className='h-3 w-3' />
-                <span>by {template.creator?.name || 'Unknown'}</span>
-              </div>
-
-              {/* Author Type - show if organization */}
-              {template.creator?.referenceType === 'organization' && (
-                <div className='flex items-center gap-1 rounded-full bg-secondary px-3 py-1'>
-                  <Users className='h-3 w-3' />
-                  <span>Organization</span>
-                </div>
+            {/* Action buttons */}
+            <div className='flex items-center gap-3'>
+              {/* Super user approve/reject buttons for pending templates */}
+              {isSuperUser && template.status === 'pending' && (
+                <>
+                  <Button
+                    onClick={handleApprove}
+                    disabled={isApproving}
+                    className='bg-green-600 text-white hover:bg-green-700'
+                  >
+                    {isApproving ? 'Approving...' : 'Approve'}
+                  </Button>
+                  <Button
+                    onClick={handleReject}
+                    disabled={isRejecting}
+                    variant='outline'
+                    className='border-red-600 text-red-600 hover:bg-red-50'
+                  >
+                    {isRejecting ? 'Rejecting...' : 'Reject'}
+                  </Button>
+                </>
               )}
 
-              {/* Last Updated */}
-              {template.updatedAt && (
-                <div className='flex items-center gap-1 rounded-full bg-secondary px-3 py-1'>
-                  <Clock className='h-3 w-3' />
-                  <span>
-                    Last updated{' '}
-                    {formatDistanceToNow(new Date(template.updatedAt), {
-                      addSuffix: true,
-                    })}
-                  </span>
-                </div>
+              {/* Star button - only for logged-in non-owners and non-pending templates */}
+              {currentUserId && !canEditTemplate && template.status !== 'pending' && (
+                <Button
+                  variant='outline'
+                  size='sm'
+                  onClick={handleStarToggle}
+                  disabled={isStarring}
+                  className={cn(
+                    'transition-colors',
+                    isStarred &&
+                      'border-yellow-200 bg-yellow-50 text-yellow-700 hover:bg-yellow-100'
+                  )}
+                >
+                  <Star className={cn('mr-2 h-4 w-4', isStarred && 'fill-current')} />
+                  {starCount}
+                </Button>
+              )}
+
+              {/* Edit button - for template owners (approved or pending) */}
+              {canEditTemplate && currentUserId && (
+                <>
+                  {template.workflowId && !showWorkspaceSelectorForEdit ? (
+                    <Tooltip.Root>
+                      <Tooltip.Trigger asChild>
+                        <span>
+                          <Button
+                            onClick={handleEditTemplate}
+                            disabled={isEditing || hasWorkspaceAccess === false}
+                            className={
+                              hasWorkspaceAccess === false
+                                ? 'cursor-not-allowed opacity-50'
+                                : 'bg-blue-600 text-white hover:bg-blue-700'
+                            }
+                          >
+                            {isEditing ? 'Opening...' : 'Edit Template'}
+                          </Button>
+                        </span>
+                      </Tooltip.Trigger>
+                      {hasWorkspaceAccess === false && (
+                        <Tooltip.Content>
+                          <p>Don't have access to workspace to edit template</p>
+                        </Tooltip.Content>
+                      )}
+                    </Tooltip.Root>
+                  ) : (
+                    <DropdownMenu
+                      open={showWorkspaceSelectorForEdit}
+                      onOpenChange={setShowWorkspaceSelectorForEdit}
+                    >
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          onClick={() =>
+                            !template.workflowId && setShowWorkspaceSelectorForEdit(true)
+                          }
+                          disabled={isUsing || isLoadingWorkspaces}
+                          className='bg-blue-600 text-white hover:bg-blue-700'
+                        >
+                          {isUsing
+                            ? 'Importing...'
+                            : isLoadingWorkspaces
+                              ? 'Loading...'
+                              : 'Edit Template'}
+                          <ChevronDown className='ml-2 h-4 w-4' />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align='end' className='w-56'>
+                        {workspaces.length === 0 ? (
+                          <DropdownMenuItem disabled className='text-muted-foreground text-sm'>
+                            No workspaces with write access
+                          </DropdownMenuItem>
+                        ) : (
+                          workspaces.map((workspace) => (
+                            <DropdownMenuItem
+                              key={workspace.id}
+                              onClick={() => handleWorkspaceSelectForEdit(workspace.id)}
+                              className='flex cursor-pointer items-center justify-between'
+                            >
+                              <div className='flex flex-col'>
+                                <span className='font-medium text-sm'>{workspace.name}</span>
+                                <span className='text-muted-foreground text-xs capitalize'>
+                                  {workspace.permissions} access
+                                </span>
+                              </div>
+                            </DropdownMenuItem>
+                          ))
+                        )}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  )}
+                </>
+              )}
+
+              {/* Use template button - only for approved templates and non-owners */}
+              {template.status === 'approved' && !canEditTemplate && (
+                <>
+                  {!currentUserId ? (
+                    <Button
+                      onClick={() => {
+                        const callbackUrl = encodeURIComponent(`/templates/${template.id}`)
+                        router.push(`/login?callbackUrl=${callbackUrl}`)
+                      }}
+                      className='bg-purple-600 text-white hover:bg-purple-700'
+                    >
+                      Sign in to use
+                    </Button>
+                  ) : (
+                    <DropdownMenu
+                      open={showWorkspaceSelectorForUse}
+                      onOpenChange={setShowWorkspaceSelectorForUse}
+                    >
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          onClick={() => setShowWorkspaceSelectorForUse(true)}
+                          disabled={isUsing || isLoadingWorkspaces}
+                          className='bg-purple-600 text-white hover:bg-purple-700'
+                        >
+                          {isUsing
+                            ? 'Creating...'
+                            : isLoadingWorkspaces
+                              ? 'Loading...'
+                              : 'Use this template'}
+                          <ChevronDown className='ml-2 h-4 w-4' />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align='end' className='w-56'>
+                        {workspaces.length === 0 ? (
+                          <DropdownMenuItem disabled className='text-muted-foreground text-sm'>
+                            No workspaces with write access
+                          </DropdownMenuItem>
+                        ) : (
+                          workspaces.map((workspace) => (
+                            <DropdownMenuItem
+                              key={workspace.id}
+                              onClick={() => handleWorkspaceSelectForUse(workspace.id)}
+                              className='flex cursor-pointer items-center justify-between'
+                            >
+                              <div className='flex flex-col'>
+                                <span className='font-medium text-sm'>{workspace.name}</span>
+                                <span className='text-muted-foreground text-xs capitalize'>
+                                  {workspace.permissions} access
+                                </span>
+                              </div>
+                            </DropdownMenuItem>
+                          ))
+                        )}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  )}
+                </>
               )}
             </div>
           </div>
-        </div>
 
-        {/* Workflow preview */}
-        <div className='flex-1 p-6'>
-          <div className='mx-auto max-w-7xl'>
-            <h2 className='mb-4 font-semibold text-xl'>Workflow Preview</h2>
-            <div className='h-[600px] w-full'>{renderWorkflowPreview()}</div>
+          {/* Tags */}
+          <div className='mt-6 flex items-center gap-3 text-muted-foreground text-sm'>
+            {/* Views */}
+            <div className='flex items-center gap-1 rounded-full bg-secondary px-3 py-1'>
+              <Eye className='h-3 w-3' />
+              <span>{template.views} views</span>
+            </div>
 
-            {Array.isArray(template.requiredCredentials) &&
-              template.requiredCredentials.length > 0 && (
-                <div className='mt-8'>
-                  <h3 className='mb-3 font-semibold text-lg'>Credentials Needed</h3>
-                  <ul className='list-disc space-y-1 pl-6 text-muted-foreground text-sm'>
-                    {template.requiredCredentials.map(
-                      (cred: CredentialRequirement, idx: number) => {
-                        // Get block name from registry or format blockType
-                        const blockName =
-                          getBlock(cred.blockType)?.name ||
-                          cred.blockType.charAt(0).toUpperCase() + cred.blockType.slice(1)
-                        const alreadyHasBlock = cred.label
-                          .toLowerCase()
-                          .includes(` for ${blockName.toLowerCase()}`)
-                        const text = alreadyHasBlock ? cred.label : `${cred.label} for ${blockName}`
-                        return <li key={idx}>{text}</li>
-                      }
-                    )}
-                  </ul>
-                </div>
-              )}
+            {/* Stars */}
+            <div className='flex items-center gap-1 rounded-full bg-secondary px-3 py-1'>
+              <Star className='h-3 w-3' />
+              <span>{starCount} stars</span>
+            </div>
 
-            {/* About this Workflow */}
-            {template.details?.about && (
-              <div className='mt-8'>
-                <h3 className='mb-3 font-semibold text-lg'>About this Workflow</h3>
-                <div className='prose prose-sm dark:prose-invert max-w-none'>
-                  <ReactMarkdown>{template.details.about}</ReactMarkdown>
-                </div>
+            {/* Author */}
+            <div className='flex items-center gap-1 rounded-full bg-secondary px-3 py-1'>
+              <User className='h-3 w-3' />
+              <span>by {template.creator?.name || 'Unknown'}</span>
+            </div>
+
+            {/* Author Type - show if organization */}
+            {template.creator?.referenceType === 'organization' && (
+              <div className='flex items-center gap-1 rounded-full bg-secondary px-3 py-1'>
+                <Users className='h-3 w-3' />
+                <span>Organization</span>
               </div>
             )}
 
-            {/* Creator Profile */}
-            {template.creator && (
-              <div className='mt-8'>
-                <h3 className='mb-4 font-semibold text-lg'>About the Creator</h3>
-                <div className='rounded-lg border bg-card p-6'>
-                  <div className='flex items-start gap-4'>
-                    {/* Profile Picture */}
-                    <div className='flex-shrink-0'>
-                      {template.creator.profileImageUrl ? (
-                        <div className='relative h-20 w-20 overflow-hidden rounded-full'>
-                          <img
-                            src={template.creator.profileImageUrl}
-                            alt={template.creator.name}
-                            className='h-full w-full object-cover'
-                          />
-                        </div>
-                      ) : (
-                        <div className='flex h-20 w-20 items-center justify-center rounded-full bg-[#802FFF]'>
-                          <User className='h-10 w-10 text-white' />
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Creator Info */}
-                    <div className='flex-1'>
-                      <h4 className='font-semibold text-lg'>{template.creator.name}</h4>
-                      {template.creator.details?.about && (
-                        <p className='mt-2 text-muted-foreground text-sm leading-relaxed'>
-                          {template.creator.details.about}
-                        </p>
-                      )}
-
-                      {/* Social Links */}
-                      {(template.creator.details?.xUrl ||
-                        template.creator.details?.linkedinUrl ||
-                        template.creator.details?.websiteUrl ||
-                        template.creator.details?.contactEmail) && (
-                        <div className='mt-4 flex flex-wrap gap-3'>
-                          {template.creator.details.xUrl && (
-                            <a
-                              href={template.creator.details.xUrl}
-                              target='_blank'
-                              rel='noopener noreferrer'
-                              className='inline-flex items-center gap-1.5 text-muted-foreground text-sm transition-colors hover:text-foreground'
-                            >
-                              <Twitter className='h-4 w-4' />
-                              <span>X</span>
-                            </a>
-                          )}
-                          {template.creator.details.linkedinUrl && (
-                            <a
-                              href={template.creator.details.linkedinUrl}
-                              target='_blank'
-                              rel='noopener noreferrer'
-                              className='inline-flex items-center gap-1.5 text-muted-foreground text-sm transition-colors hover:text-foreground'
-                            >
-                              <Linkedin className='h-4 w-4' />
-                              <span>LinkedIn</span>
-                            </a>
-                          )}
-                          {template.creator.details.websiteUrl && (
-                            <a
-                              href={template.creator.details.websiteUrl}
-                              target='_blank'
-                              rel='noopener noreferrer'
-                              className='inline-flex items-center gap-1.5 text-muted-foreground text-sm transition-colors hover:text-foreground'
-                            >
-                              <Globe className='h-4 w-4' />
-                              <span>Website</span>
-                            </a>
-                          )}
-                          {template.creator.details.contactEmail && (
-                            <a
-                              href={`mailto:${template.creator.details.contactEmail}`}
-                              className='inline-flex items-center gap-1.5 text-muted-foreground text-sm transition-colors hover:text-foreground'
-                            >
-                              <Mail className='h-4 w-4' />
-                              <span>Contact</span>
-                            </a>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
+            {/* Last Updated */}
+            {template.updatedAt && (
+              <div className='flex items-center gap-1 rounded-full bg-secondary px-3 py-1'>
+                <Clock className='h-3 w-3' />
+                <span>
+                  Last updated{' '}
+                  {formatDistanceToNow(new Date(template.updatedAt), {
+                    addSuffix: true,
+                  })}
+                </span>
               </div>
             )}
           </div>
         </div>
       </div>
-    </TooltipProvider>
+
+      {/* Workflow preview */}
+      <div className='flex-1 p-6'>
+        <div className='mx-auto max-w-7xl'>
+          <h2 className='mb-4 font-semibold text-xl'>Workflow Preview</h2>
+          <div className='h-[600px] w-full'>{renderWorkflowPreview()}</div>
+
+          {Array.isArray(template.requiredCredentials) &&
+            template.requiredCredentials.length > 0 && (
+              <div className='mt-8'>
+                <h3 className='mb-3 font-semibold text-lg'>Credentials Needed</h3>
+                <ul className='list-disc space-y-1 pl-6 text-muted-foreground text-sm'>
+                  {template.requiredCredentials.map((cred: CredentialRequirement, idx: number) => {
+                    // Get block name from registry or format blockType
+                    const blockName =
+                      getBlock(cred.blockType)?.name ||
+                      cred.blockType.charAt(0).toUpperCase() + cred.blockType.slice(1)
+                    const alreadyHasBlock = cred.label
+                      .toLowerCase()
+                      .includes(` for ${blockName.toLowerCase()}`)
+                    const text = alreadyHasBlock ? cred.label : `${cred.label} for ${blockName}`
+                    return <li key={idx}>{text}</li>
+                  })}
+                </ul>
+              </div>
+            )}
+
+          {/* About this Workflow */}
+          {template.details?.about && (
+            <div className='mt-8'>
+              <h3 className='mb-3 font-semibold text-lg'>About this Workflow</h3>
+              <div className='prose prose-sm dark:prose-invert max-w-none'>
+                <ReactMarkdown>{template.details.about}</ReactMarkdown>
+              </div>
+            </div>
+          )}
+
+          {/* Creator Profile */}
+          {template.creator && (
+            <div className='mt-8'>
+              <h3 className='mb-4 font-semibold text-lg'>About the Creator</h3>
+              <div className='rounded-lg border bg-card p-6'>
+                <div className='flex items-start gap-4'>
+                  {/* Profile Picture */}
+                  <div className='flex-shrink-0'>
+                    {template.creator.profileImageUrl ? (
+                      <div className='relative h-20 w-20 overflow-hidden rounded-full'>
+                        <img
+                          src={template.creator.profileImageUrl}
+                          alt={template.creator.name}
+                          className='h-full w-full object-cover'
+                        />
+                      </div>
+                    ) : (
+                      <div className='flex h-20 w-20 items-center justify-center rounded-full bg-[#802FFF]'>
+                        <User className='h-10 w-10 text-white' />
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Creator Info */}
+                  <div className='flex-1'>
+                    <h4 className='font-semibold text-lg'>{template.creator.name}</h4>
+                    {template.creator.details?.about && (
+                      <p className='mt-2 text-muted-foreground text-sm leading-relaxed'>
+                        {template.creator.details.about}
+                      </p>
+                    )}
+
+                    {/* Social Links */}
+                    {(template.creator.details?.xUrl ||
+                      template.creator.details?.linkedinUrl ||
+                      template.creator.details?.websiteUrl ||
+                      template.creator.details?.contactEmail) && (
+                      <div className='mt-4 flex flex-wrap gap-3'>
+                        {template.creator.details.xUrl && (
+                          <a
+                            href={template.creator.details.xUrl}
+                            target='_blank'
+                            rel='noopener noreferrer'
+                            className='inline-flex items-center gap-1.5 text-muted-foreground text-sm transition-colors hover:text-foreground'
+                          >
+                            <Twitter className='h-4 w-4' />
+                            <span>X</span>
+                          </a>
+                        )}
+                        {template.creator.details.linkedinUrl && (
+                          <a
+                            href={template.creator.details.linkedinUrl}
+                            target='_blank'
+                            rel='noopener noreferrer'
+                            className='inline-flex items-center gap-1.5 text-muted-foreground text-sm transition-colors hover:text-foreground'
+                          >
+                            <Linkedin className='h-4 w-4' />
+                            <span>LinkedIn</span>
+                          </a>
+                        )}
+                        {template.creator.details.websiteUrl && (
+                          <a
+                            href={template.creator.details.websiteUrl}
+                            target='_blank'
+                            rel='noopener noreferrer'
+                            className='inline-flex items-center gap-1.5 text-muted-foreground text-sm transition-colors hover:text-foreground'
+                          >
+                            <Globe className='h-4 w-4' />
+                            <span>Website</span>
+                          </a>
+                        )}
+                        {template.creator.details.contactEmail && (
+                          <a
+                            href={`mailto:${template.creator.details.contactEmail}`}
+                            className='inline-flex items-center gap-1.5 text-muted-foreground text-sm transition-colors hover:text-foreground'
+                          >
+                            <Mail className='h-4 w-4' />
+                            <span>Contact</span>
+                          </a>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
   )
 }
