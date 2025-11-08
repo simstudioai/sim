@@ -119,6 +119,9 @@ export default function TemplateDetails() {
   const [template, setTemplate] = useState<Template | null>(null)
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const [currentUserOrgs, setCurrentUserOrgs] = useState<string[]>([])
+  const [currentUserOrgRoles, setCurrentUserOrgRoles] = useState<
+    Array<{ organizationId: string; role: string }>
+  >([])
   const [isSuperUser, setIsSuperUser] = useState(false)
   const [loading, setLoading] = useState(true)
   const [isStarred, setIsStarred] = useState(false)
@@ -176,8 +179,14 @@ export default function TemplateDetails() {
         const response = await fetch('/api/organizations')
         if (response.ok) {
           const data = await response.json()
-          const orgIds = data.organizations?.map((org: any) => org.id) || []
+          const orgs = data.organizations || []
+          const orgIds = orgs.map((org: any) => org.id)
+          const orgRoles = orgs.map((org: any) => ({
+            organizationId: org.id,
+            role: org.role,
+          }))
           setCurrentUserOrgs(orgIds)
+          setCurrentUserOrgRoles(orgRoles)
         }
       } catch (error) {
         console.error('Error fetching organizations:', error)
@@ -239,15 +248,36 @@ export default function TemplateDetails() {
     }
   }, [searchParams, currentUserId, template, router])
 
-  // Check if user can edit template (based on creator profile)
-  const canEditTemplate =
-    currentUserId &&
-    template?.creator &&
-    ((template.creator.referenceType === 'user' &&
-      template.creator.referenceId === currentUserId) ||
-      (template.creator.referenceType === 'organization' &&
-        template.creator.referenceId &&
-        currentUserOrgs.includes(template.creator.referenceId)))
+  // Check if user can edit template
+  const canEditTemplate = (() => {
+    if (!currentUserId || !template?.creator) return false
+
+    // For user creator profiles: must be the user themselves
+    if (template.creator.referenceType === 'user') {
+      return template.creator.referenceId === currentUserId
+    }
+
+    // For organization creator profiles:
+    if (template.creator.referenceType === 'organization' && template.creator.referenceId) {
+      const isOrgMember = currentUserOrgs.includes(template.creator.referenceId)
+
+      // If template has a connected workflow, any org member with workspace access can edit
+      if (template.workflowId) {
+        return isOrgMember
+      }
+
+      // If template is orphaned, only admin/owner can edit
+      // We need to check the user's role in the organization
+      const orgMembership = currentUserOrgRoles.find(
+        (org) => org.organizationId === template.creator?.referenceId
+      )
+      const isAdminOrOwner = orgMembership?.role === 'admin' || orgMembership?.role === 'owner'
+
+      return isOrgMember && isAdminOrOwner
+    }
+
+    return false
+  })()
 
   // Check workspace access for connected workflow
   useEffect(() => {

@@ -1,6 +1,6 @@
 import { db } from '@sim/db'
 import { member, templateCreators, templates, workflow } from '@sim/db/schema'
-import { and, eq, sql } from 'drizzle-orm'
+import { and, eq, or, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
@@ -146,38 +146,70 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.json({ error: 'Template not found' }, { status: 404 })
     }
 
-    // Permission: check via creator profile
-    if (existingTemplate[0].creatorId) {
-      const creatorProfile = await db
-        .select()
-        .from(templateCreators)
-        .where(eq(templateCreators.id, existingTemplate[0].creatorId))
+    // Permission: check workspace access to connected workflow
+    if (existingTemplate[0].workflowId) {
+      // If template has a connected workflow, check if user has access to that workspace
+      const workflowRecord = await db
+        .select({ workspaceId: workflow.workspaceId })
+        .from(workflow)
+        .where(eq(workflow.id, existingTemplate[0].workflowId))
         .limit(1)
 
-      if (creatorProfile.length > 0) {
-        const creator = creatorProfile[0]
-        let hasPermission = false
+      if (workflowRecord.length > 0 && workflowRecord[0].workspaceId) {
+        const workspaceId = workflowRecord[0].workspaceId
 
-        if (creator.referenceType === 'user') {
-          hasPermission = creator.referenceId === session.user.id
-        } else if (creator.referenceType === 'organization') {
-          // Check if user is a member of the organization
-          const membership = await db
-            .select()
-            .from(member)
-            .where(
-              and(
-                eq(member.userId, session.user.id),
-                eq(member.organizationId, creator.referenceId)
-              )
-            )
-            .limit(1)
-          hasPermission = membership.length > 0
+        // Check if user has access to this workspace
+        const workspaceMembership = await db
+          .select()
+          .from(member)
+          .where(and(eq(member.userId, session.user.id), eq(member.organizationId, workspaceId)))
+          .limit(1)
+
+        if (workspaceMembership.length === 0) {
+          logger.warn(
+            `[${requestId}] User denied permission to update template ${id} - no workspace access`
+          )
+          return NextResponse.json(
+            { error: 'Access denied - no access to connected workflow workspace' },
+            { status: 403 }
+          )
         }
+      }
+    } else {
+      // If no connected workflow (orphaned template), check creator profile permissions
+      if (existingTemplate[0].creatorId) {
+        const creatorProfile = await db
+          .select()
+          .from(templateCreators)
+          .where(eq(templateCreators.id, existingTemplate[0].creatorId))
+          .limit(1)
 
-        if (!hasPermission) {
-          logger.warn(`[${requestId}] User denied permission to update template ${id}`)
-          return NextResponse.json({ error: 'Access denied' }, { status: 403 })
+        if (creatorProfile.length > 0) {
+          const creator = creatorProfile[0]
+          let hasPermission = false
+
+          if (creator.referenceType === 'user') {
+            hasPermission = creator.referenceId === session.user.id
+          } else if (creator.referenceType === 'organization') {
+            // For orphaned templates, only admin/owner can edit
+            const membership = await db
+              .select()
+              .from(member)
+              .where(
+                and(
+                  eq(member.userId, session.user.id),
+                  eq(member.organizationId, creator.referenceId),
+                  or(eq(member.role, 'admin'), eq(member.role, 'owner'))
+                )
+              )
+              .limit(1)
+            hasPermission = membership.length > 0
+          }
+
+          if (!hasPermission) {
+            logger.warn(`[${requestId}] User denied permission to update orphaned template ${id}`)
+            return NextResponse.json({ error: 'Access denied' }, { status: 403 })
+          }
         }
       }
     }
@@ -275,7 +307,7 @@ export async function DELETE(
 
     const template = existing[0]
 
-    // Permission: check via creator profile
+    // Permission: Only admin/owner of creator profile can delete
     if (template.creatorId) {
       const creatorProfile = await db
         .select()
@@ -290,14 +322,15 @@ export async function DELETE(
         if (creator.referenceType === 'user') {
           hasPermission = creator.referenceId === session.user.id
         } else if (creator.referenceType === 'organization') {
-          // Check if user is a member of the organization
+          // For delete, require admin/owner role
           const membership = await db
             .select()
             .from(member)
             .where(
               and(
                 eq(member.userId, session.user.id),
-                eq(member.organizationId, creator.referenceId)
+                eq(member.organizationId, creator.referenceId),
+                or(eq(member.role, 'admin'), eq(member.role, 'owner'))
               )
             )
             .limit(1)

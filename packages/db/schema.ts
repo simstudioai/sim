@@ -1271,9 +1271,7 @@ export const templateCreators = pgTable(
     linkedinUrl: text('linkedin_url'),
     websiteUrl: text('website_url'),
     contactEmail: text('contact_email'),
-    createdBy: text('created_by')
-      .notNull()
-      .references(() => user.id, { onDelete: 'cascade' }),
+    createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
