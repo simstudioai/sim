@@ -53,30 +53,46 @@ describe('Scheduled Workflow Execution API Route', () => {
       and: vi.fn((...conditions) => ({ type: 'and', conditions })),
       eq: vi.fn((field, value) => ({ field, value, type: 'eq' })),
       lte: vi.fn((field, value) => ({ field, value, type: 'lte' })),
+      lt: vi.fn((field, value) => ({ field, value, type: 'lt' })),
       not: vi.fn((condition) => ({ type: 'not', condition })),
+      isNull: vi.fn((field) => ({ type: 'isNull', field })),
+      or: vi.fn((...conditions) => ({ type: 'or', conditions })),
     }))
 
     vi.doMock('@sim/db', () => {
-      const mockDb = {
-        select: vi.fn().mockImplementation(() => ({
-          from: vi.fn().mockImplementation(() => ({
-            where: vi.fn().mockImplementation(() => [
-              {
-                id: 'schedule-1',
-                workflowId: 'workflow-1',
-                blockId: null,
-                cronExpression: null,
-                lastRanAt: null,
-                failedCount: 0,
-              },
-            ]),
-          })),
-        })),
-      }
+      const returningSchedules = [
+        {
+          id: 'schedule-1',
+          workflowId: 'workflow-1',
+          blockId: null,
+          cronExpression: null,
+          lastRanAt: null,
+          failedCount: 0,
+          nextRunAt: new Date('2025-01-01T00:00:00.000Z'),
+          lastQueuedAt: undefined,
+        },
+      ]
+
+      const mockReturning = vi.fn().mockReturnValue(returningSchedules)
+      const mockWhere = vi.fn().mockReturnValue({ returning: mockReturning })
+      const mockSet = vi.fn().mockReturnValue({ where: mockWhere })
+      const mockUpdate = vi.fn().mockReturnValue({ set: mockSet })
 
       return {
-        db: mockDb,
-        workflowSchedule: {},
+        db: {
+          update: mockUpdate,
+        },
+        workflowSchedule: {
+          id: 'id',
+          workflowId: 'workflowId',
+          blockId: 'blockId',
+          cronExpression: 'cronExpression',
+          lastRanAt: 'lastRanAt',
+          failedCount: 'failedCount',
+          status: 'status',
+          nextRunAt: 'nextRunAt',
+          lastQueuedAt: 'lastQueuedAt',
+        },
       }
     })
 
@@ -114,30 +130,46 @@ describe('Scheduled Workflow Execution API Route', () => {
       and: vi.fn((...conditions) => ({ type: 'and', conditions })),
       eq: vi.fn((field, value) => ({ field, value, type: 'eq' })),
       lte: vi.fn((field, value) => ({ field, value, type: 'lte' })),
+      lt: vi.fn((field, value) => ({ field, value, type: 'lt' })),
       not: vi.fn((condition) => ({ type: 'not', condition })),
+      isNull: vi.fn((field) => ({ type: 'isNull', field })),
+      or: vi.fn((...conditions) => ({ type: 'or', conditions })),
     }))
 
     vi.doMock('@sim/db', () => {
-      const mockDb = {
-        select: vi.fn().mockImplementation(() => ({
-          from: vi.fn().mockImplementation(() => ({
-            where: vi.fn().mockImplementation(() => [
-              {
-                id: 'schedule-1',
-                workflowId: 'workflow-1',
-                blockId: null,
-                cronExpression: null,
-                lastRanAt: null,
-                failedCount: 0,
-              },
-            ]),
-          })),
-        })),
-      }
+      const returningSchedules = [
+        {
+          id: 'schedule-1',
+          workflowId: 'workflow-1',
+          blockId: null,
+          cronExpression: null,
+          lastRanAt: null,
+          failedCount: 0,
+          nextRunAt: new Date('2025-01-01T00:00:00.000Z'),
+          lastQueuedAt: undefined,
+        },
+      ]
+
+      const mockReturning = vi.fn().mockReturnValue(returningSchedules)
+      const mockWhere = vi.fn().mockReturnValue({ returning: mockReturning })
+      const mockSet = vi.fn().mockReturnValue({ where: mockWhere })
+      const mockUpdate = vi.fn().mockReturnValue({ set: mockSet })
 
       return {
-        db: mockDb,
-        workflowSchedule: {},
+        db: {
+          update: mockUpdate,
+        },
+        workflowSchedule: {
+          id: 'id',
+          workflowId: 'workflowId',
+          blockId: 'blockId',
+          cronExpression: 'cronExpression',
+          lastRanAt: 'lastRanAt',
+          failedCount: 'failedCount',
+          status: 'status',
+          nextRunAt: 'nextRunAt',
+          lastQueuedAt: 'lastQueuedAt',
+        },
       }
     })
 
@@ -170,21 +202,33 @@ describe('Scheduled Workflow Execution API Route', () => {
       and: vi.fn((...conditions) => ({ type: 'and', conditions })),
       eq: vi.fn((field, value) => ({ field, value, type: 'eq' })),
       lte: vi.fn((field, value) => ({ field, value, type: 'lte' })),
+      lt: vi.fn((field, value) => ({ field, value, type: 'lt' })),
       not: vi.fn((condition) => ({ type: 'not', condition })),
+      isNull: vi.fn((field) => ({ type: 'isNull', field })),
+      or: vi.fn((...conditions) => ({ type: 'or', conditions })),
     }))
 
     vi.doMock('@sim/db', () => {
-      const mockDb = {
-        select: vi.fn().mockImplementation(() => ({
-          from: vi.fn().mockImplementation(() => ({
-            where: vi.fn().mockImplementation(() => []),
-          })),
-        })),
-      }
+      const mockReturning = vi.fn().mockReturnValue([])
+      const mockWhere = vi.fn().mockReturnValue({ returning: mockReturning })
+      const mockSet = vi.fn().mockReturnValue({ where: mockWhere })
+      const mockUpdate = vi.fn().mockReturnValue({ set: mockSet })
 
       return {
-        db: mockDb,
-        workflowSchedule: {},
+        db: {
+          update: mockUpdate,
+        },
+        workflowSchedule: {
+          id: 'id',
+          workflowId: 'workflowId',
+          blockId: 'blockId',
+          cronExpression: 'cronExpression',
+          lastRanAt: 'lastRanAt',
+          failedCount: 'failedCount',
+          status: 'status',
+          nextRunAt: 'nextRunAt',
+          lastQueuedAt: 'lastQueuedAt',
+        },
       }
     })
 
@@ -217,38 +261,56 @@ describe('Scheduled Workflow Execution API Route', () => {
       and: vi.fn((...conditions) => ({ type: 'and', conditions })),
       eq: vi.fn((field, value) => ({ field, value, type: 'eq' })),
       lte: vi.fn((field, value) => ({ field, value, type: 'lte' })),
+      lt: vi.fn((field, value) => ({ field, value, type: 'lt' })),
       not: vi.fn((condition) => ({ type: 'not', condition })),
+      isNull: vi.fn((field) => ({ type: 'isNull', field })),
+      or: vi.fn((...conditions) => ({ type: 'or', conditions })),
     }))
 
     vi.doMock('@sim/db', () => {
-      const mockDb = {
-        select: vi.fn().mockImplementation(() => ({
-          from: vi.fn().mockImplementation(() => ({
-            where: vi.fn().mockImplementation(() => [
-              {
-                id: 'schedule-1',
-                workflowId: 'workflow-1',
-                blockId: null,
-                cronExpression: null,
-                lastRanAt: null,
-                failedCount: 0,
-              },
-              {
-                id: 'schedule-2',
-                workflowId: 'workflow-2',
-                blockId: null,
-                cronExpression: null,
-                lastRanAt: null,
-                failedCount: 0,
-              },
-            ]),
-          })),
-        })),
-      }
+      const returningSchedules = [
+        {
+          id: 'schedule-1',
+          workflowId: 'workflow-1',
+          blockId: null,
+          cronExpression: null,
+          lastRanAt: null,
+          failedCount: 0,
+          nextRunAt: new Date('2025-01-01T00:00:00.000Z'),
+          lastQueuedAt: undefined,
+        },
+        {
+          id: 'schedule-2',
+          workflowId: 'workflow-2',
+          blockId: null,
+          cronExpression: null,
+          lastRanAt: null,
+          failedCount: 0,
+          nextRunAt: new Date('2025-01-01T01:00:00.000Z'),
+          lastQueuedAt: undefined,
+        },
+      ]
+
+      const mockReturning = vi.fn().mockReturnValue(returningSchedules)
+      const mockWhere = vi.fn().mockReturnValue({ returning: mockReturning })
+      const mockSet = vi.fn().mockReturnValue({ where: mockWhere })
+      const mockUpdate = vi.fn().mockReturnValue({ set: mockSet })
 
       return {
-        db: mockDb,
-        workflowSchedule: {},
+        db: {
+          update: mockUpdate,
+        },
+        workflowSchedule: {
+          id: 'id',
+          workflowId: 'workflowId',
+          blockId: 'blockId',
+          cronExpression: 'cronExpression',
+          lastRanAt: 'lastRanAt',
+          failedCount: 'failedCount',
+          status: 'status',
+          nextRunAt: 'nextRunAt',
+          lastQueuedAt: 'lastQueuedAt',
+        },
       }
     })
 

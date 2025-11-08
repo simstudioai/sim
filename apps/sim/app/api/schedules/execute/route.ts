@@ -1,6 +1,6 @@
 import { db, workflowSchedule } from '@sim/db'
 import { tasks } from '@trigger.dev/sdk'
-import { and, eq, lte, not } from 'drizzle-orm'
+import { and, eq, isNull, lt, lte, not, or } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { verifyCronAuth } from '@/lib/auth/internal'
 import { env, isTruthy } from '@/lib/env'
@@ -21,15 +21,35 @@ export async function GET(request: NextRequest) {
     return authError
   }
 
-  const now = new Date()
+  const queuedAt = new Date()
 
   try {
     const dueSchedules = await db
-      .select()
-      .from(workflowSchedule)
+      .update(workflowSchedule)
+      .set({
+        lastQueuedAt: queuedAt,
+        updatedAt: queuedAt,
+      })
       .where(
-        and(lte(workflowSchedule.nextRunAt, now), not(eq(workflowSchedule.status, 'disabled')))
+        and(
+          lte(workflowSchedule.nextRunAt, queuedAt),
+          not(eq(workflowSchedule.status, 'disabled')),
+          or(
+            isNull(workflowSchedule.lastQueuedAt),
+            lt(workflowSchedule.lastQueuedAt, workflowSchedule.nextRunAt)
+          )
+        )
       )
+      .returning({
+        id: workflowSchedule.id,
+        workflowId: workflowSchedule.workflowId,
+        blockId: workflowSchedule.blockId,
+        cronExpression: workflowSchedule.cronExpression,
+        lastRanAt: workflowSchedule.lastRanAt,
+        failedCount: workflowSchedule.failedCount,
+        nextRunAt: workflowSchedule.nextRunAt,
+        lastQueuedAt: workflowSchedule.lastQueuedAt,
+      })
 
     logger.debug(`[${requestId}] Successfully queried schedules: ${dueSchedules.length} found`)
     logger.info(`[${requestId}] Processing ${dueSchedules.length} due scheduled workflows`)
@@ -38,6 +58,8 @@ export async function GET(request: NextRequest) {
 
     if (useTrigger) {
       const triggerPromises = dueSchedules.map(async (schedule) => {
+        const queueTime = schedule.lastQueuedAt ?? queuedAt
+
         try {
           const payload = {
             scheduleId: schedule.id,
@@ -46,7 +68,8 @@ export async function GET(request: NextRequest) {
             cronExpression: schedule.cronExpression || undefined,
             lastRanAt: schedule.lastRanAt?.toISOString(),
             failedCount: schedule.failedCount || 0,
-            now: now.toISOString(),
+            now: queueTime.toISOString(),
+            scheduledFor: schedule.nextRunAt?.toISOString(),
           }
 
           const handle = await tasks.trigger('schedule-execution', payload)
@@ -68,6 +91,8 @@ export async function GET(request: NextRequest) {
       logger.info(`[${requestId}] Queued ${dueSchedules.length} schedule executions to Trigger.dev`)
     } else {
       const directExecutionPromises = dueSchedules.map(async (schedule) => {
+        const queueTime = schedule.lastQueuedAt ?? queuedAt
+
         const payload = {
           scheduleId: schedule.id,
           workflowId: schedule.workflowId,
@@ -75,7 +100,8 @@ export async function GET(request: NextRequest) {
           cronExpression: schedule.cronExpression || undefined,
           lastRanAt: schedule.lastRanAt?.toISOString(),
           failedCount: schedule.failedCount || 0,
-          now: now.toISOString(),
+          now: queueTime.toISOString(),
+          scheduledFor: schedule.nextRunAt?.toISOString(),
         }
 
         void executeScheduleJob(payload).catch((error) => {
