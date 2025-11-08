@@ -1,7 +1,7 @@
 import { useCallback, useRef, useState } from 'react'
 import { ChevronDown } from 'lucide-react'
-import { highlight, languages } from 'prismjs'
 import Editor from 'react-simple-code-editor'
+import { highlight, languages } from '@/components/emcn'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
@@ -14,7 +14,6 @@ import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import 'prismjs/components/prism-javascript'
 import 'prismjs/themes/prism.css'
-
 import {
   isLikelyReferenceSegment,
   SYSTEM_REFERENCE_PREFIXES,

@@ -11,12 +11,8 @@ import {
   Plus,
   Trash,
 } from 'lucide-react'
-import { highlight, languages } from 'prismjs'
-import 'prismjs/components/prism-javascript'
-import 'prismjs/themes/prism.css'
-
 import Editor from 'react-simple-code-editor'
-import { Tooltip } from '@/components/emcn'
+import { highlight, languages, Tooltip } from '@/components/emcn'
 import {
   Button,
   DropdownMenu,

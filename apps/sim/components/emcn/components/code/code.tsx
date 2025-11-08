@@ -1,6 +1,15 @@
-import type { ReactNode } from 'react'
+import { Fragment, type ReactNode } from 'react'
+import { highlight, languages } from 'prismjs'
+import 'prismjs/components/prism-javascript'
+import 'prismjs/components/prism-python'
 import { cn } from '@/lib/utils'
 import './code.css'
+
+/**
+ * Re-export Prism.js highlighting utilities for use across the app.
+ * Components can import these instead of importing from prismjs directly.
+ */
+export { highlight, languages }
 
 /**
  * Code editor configuration and constants.
@@ -12,7 +21,7 @@ export const CODE_LINE_HEIGHT_PX = 21
  * Gutter width values based on the number of digits in line numbers.
  * Provides consistent spacing across all code editors.
  */
-const GUTTER_WIDTHS = [20, 24, 30, 38, 46, 54] as const
+const GUTTER_WIDTHS = [20, 20, 30, 38, 46, 54] as const
 
 /**
  * Calculates the dynamic gutter width based on the number of lines.
@@ -163,13 +172,15 @@ interface CodeGutterProps {
   width: number
   /** Additional CSS classes */
   className?: string
+  /** Inline styles */
+  style?: React.CSSProperties
 }
 
 /**
  * Code editor gutter for line numbers.
  * Provides consistent styling for the line number column.
  */
-function Gutter({ children, width, className }: CodeGutterProps) {
+function Gutter({ children, width, className, style }: CodeGutterProps) {
   return (
     <div
       className={cn(
@@ -179,7 +190,7 @@ function Gutter({ children, width, className }: CodeGutterProps) {
         'pr-0.5',
         className
       )}
-      style={{ width: `${width}px`, paddingTop: '8.5px' }}
+      style={{ width: `${width}px`, paddingTop: '8.5px', ...style }}
       aria-hidden='true'
     >
       {children}
@@ -238,9 +249,150 @@ function Placeholder({ children, gutterWidth, show, className }: CodePlaceholder
   )
 }
 
+/**
+ * Props for the Code.Viewer component (readonly code display).
+ */
+interface CodeViewerProps {
+  /** Code content to display */
+  code: string
+  /** Whether to show line numbers gutter */
+  showGutter?: boolean
+  /** Language for syntax highlighting (default: 'json') */
+  language?: 'javascript' | 'json' | 'python'
+  /** Additional CSS classes for the container */
+  className?: string
+  /** Left padding offset (useful for terminal alignment) */
+  paddingLeft?: number
+  /** Inline styles for the gutter (e.g., to override background) */
+  gutterStyle?: React.CSSProperties
+  /** Whether to wrap text instead of using horizontal scroll */
+  wrapText?: boolean
+}
+
+/**
+ * Readonly code viewer with optional gutter and syntax highlighting.
+ * Handles all complexity internally - line numbers, gutter width calculation, and highlighting.
+ *
+ * @example
+ * ```tsx
+ * <Code.Viewer
+ *   code={JSON.stringify(data, null, 2)}
+ *   showGutter
+ *   language="json"
+ * />
+ * ```
+ */
+function Viewer({
+  code,
+  showGutter = false,
+  language = 'json',
+  className,
+  paddingLeft = 0,
+  gutterStyle,
+  wrapText = false,
+}: CodeViewerProps) {
+  // Apply syntax highlighting using the specified language
+  const highlightedCode = highlight(code, languages[language] || languages.javascript, language)
+
+  // Determine whitespace class based on wrap setting
+  const whitespaceClass = wrapText ? 'whitespace-pre-wrap break-words' : 'whitespace-pre'
+
+  // Special rendering path: when wrapping with gutter, render per-line rows so gutter stays aligned.
+  // This mimics editors that show a single line number for a logical line and "empty" gutter area for wrapped lines.
+  if (showGutter && wrapText) {
+    const lines = code.split('\n')
+    const gutterWidth = calculateGutterWidth(lines.length)
+
+    return (
+      <Container className={className}>
+        <Content className='code-editor-theme'>
+          <div
+            style={{
+              paddingLeft,
+              paddingTop: '8px',
+              paddingBottom: '8px',
+              display: 'grid',
+              gridTemplateColumns: `${gutterWidth}px 1fr`,
+            }}
+          >
+            {lines.map((line, idx) => {
+              const perLineHighlighted = highlight(
+                line,
+                languages[language] || languages.javascript,
+                language
+              )
+              return (
+                <Fragment key={idx}>
+                  <div
+                    className='select-none pr-0.5 text-right text-[#a8a8a8] text-xs tabular-nums leading-[21px]'
+                    style={{ transform: 'translateY(0.25px)', ...gutterStyle }}
+                  >
+                    {idx + 1}
+                  </div>
+                  <pre
+                    className='m-0 min-w-0 whitespace-pre-wrap pr-2 pl-2 font-mono text-[#eeeeee] text-[13px] leading-[21px]'
+                    // Using per-line highlighting keeps the gutter height in sync with wrapped content
+                    dangerouslySetInnerHTML={{ __html: perLineHighlighted || '&nbsp;' }}
+                  />
+                </Fragment>
+              )
+            })}
+          </div>
+        </Content>
+      </Container>
+    )
+  }
+
+  if (!showGutter) {
+    // Simple display without gutter
+    return (
+      <Container className={className}>
+        <Content className='code-editor-theme'>
+          <pre
+            className={cn(
+              whitespaceClass,
+              'p-2 font-mono text-[#eeeeee] text-[13px] leading-[21px]'
+            )}
+            dangerouslySetInnerHTML={{ __html: highlightedCode }}
+          />
+        </Content>
+      </Container>
+    )
+  }
+
+  // Calculate line numbers
+  const lineCount = code.split('\n').length
+  const gutterWidth = calculateGutterWidth(lineCount)
+
+  // Render line numbers
+  const lineNumbers = []
+  for (let i = 1; i <= lineCount; i++) {
+    lineNumbers.push(
+      <div key={i} className='text-right text-[#a8a8a8] text-xs tabular-nums leading-[21px]'>
+        {i}
+      </div>
+    )
+  }
+
+  return (
+    <Container className={className}>
+      <Gutter width={gutterWidth} style={{ left: `${paddingLeft}px`, ...gutterStyle }}>
+        {lineNumbers}
+      </Gutter>
+      <Content className='code-editor-theme' paddingLeft={`${gutterWidth + paddingLeft}px`}>
+        <pre
+          className={cn(whitespaceClass, 'p-2 font-mono text-[#eeeeee] text-[13px] leading-[21px]')}
+          dangerouslySetInnerHTML={{ __html: highlightedCode }}
+        />
+      </Content>
+    </Container>
+  )
+}
+
 export const Code = {
   Container,
   Content,
   Gutter,
   Placeholder,
+  Viewer,
 }

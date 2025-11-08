@@ -3,7 +3,7 @@
 import { useCallback } from 'react'
 import clsx from 'clsx'
 import { ChevronDown } from 'lucide-react'
-import { Badge, buttonVariants } from '@/components/emcn'
+import { Badge } from '@/components/emcn'
 import { createLogger } from '@/lib/logs/console/logger'
 import type { ConnectedBlock } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/hooks/use-block-connections'
 
@@ -36,8 +36,8 @@ export const TREE_SPACING = {
   INDENT_PER_LEVEL: 20,
   BASE_INDENT: 20,
   VERTICAL_LINE_LEFT_OFFSET: 4,
-  ITEM_GAP: 4,
-  ITEM_HEIGHT: 26,
+  ITEM_GAP: 0,
+  ITEM_HEIGHT: 25,
 } as const
 
 /**
@@ -91,19 +91,25 @@ export function FieldItem({
       onDragStart={handleDragStart}
       onClick={handleClick}
       className={clsx(
-        buttonVariants({ variant: 'active' }),
-        'group !px-[8px] inline-flex h-[26px] gap-[8px] rounded-[6px] text-[14px]',
-        'cursor-grab active:cursor-grabbing',
+        'group flex h-[25px] cursor-grab items-center gap-[8px] rounded-[8px] px-[8px] text-[14px] hover:bg-[#2C2C2C] active:cursor-grabbing dark:hover:bg-[#2C2C2C]',
         hasChildren && 'cursor-pointer'
       )}
       style={{ marginLeft: `${indent}px` }}
     >
-      <span className='truncate'>{field.name}</span>
+      <span
+        className={clsx(
+          'flex-1 truncate font-medium',
+          'text-[#AEAEAE] group-hover:text-[#E6E6E6] dark:text-[#AEAEAE] dark:group-hover:text-[#E6E6E6]'
+        )}
+      >
+        {field.name}
+      </span>
       <Badge className='rounded-[2px] px-[4px] py-[1px] font-mono text-[10px]'>{field.type}</Badge>
       {hasChildren && (
         <ChevronDown
           className={clsx(
-            'h-4 w-4 flex-shrink-0 opacity-50 transition-transform',
+            'h-3.5 w-3.5 flex-shrink-0 transition-transform',
+            'text-[#AEAEAE] group-hover:text-[#E6E6E6] dark:text-[#AEAEAE] dark:group-hover:text-[#E6E6E6]',
             isExpanded && 'rotate-180'
           )}
         />

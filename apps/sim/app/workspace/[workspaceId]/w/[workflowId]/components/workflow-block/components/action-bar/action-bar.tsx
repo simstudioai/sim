@@ -1,6 +1,6 @@
 import { memo, useCallback } from 'react'
 import { ArrowLeftRight, ArrowUpDown, Circle, CircleOff, LogOut } from 'lucide-react'
-import { Button, Duplicate, Tooltip, Trash } from '@/components/emcn'
+import { Button, Duplicate, Tooltip, Trash2 } from '@/components/emcn'
 import { cn } from '@/lib/utils'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
@@ -183,7 +183,7 @@ export const ActionBar = memo(
                 className='h-[30px] w-[30px] rounded-[8px] bg-[#363636] p-0 text-[#868686] hover:bg-[#33B4FF] hover:text-[#1B1B1B] dark:text-[#868686] dark:hover:bg-[#33B4FF] dark:hover:text-[#1B1B1B]'
                 disabled={disabled}
               >
-                <Trash className='h-[14px] w-[14px]' />
+                <Trash2 className='h-[14px] w-[14px]' />
               </Button>
             </Tooltip.Trigger>
             <Tooltip.Content side='right'>{getTooltipMessage('Delete Block')}</Tooltip.Content>

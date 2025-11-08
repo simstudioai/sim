@@ -4,11 +4,11 @@ import { useEffect } from 'react'
 import { createLogger } from '@/lib/logs/console/logger'
 import { useCustomToolsStore } from '@/stores/custom-tools/store'
 import { useExecutionStore } from '@/stores/execution/store'
-import { useConsoleStore } from '@/stores/panel/console/store'
 import { useVariablesStore } from '@/stores/panel/variables/store'
 import { useCopilotStore } from '@/stores/panel-new/copilot/store'
 import { useEnvironmentStore } from '@/stores/settings/environment/store'
 import { useSubscriptionStore } from '@/stores/subscription/store'
+import { useTerminalConsoleStore } from '@/stores/terminal'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
@@ -195,7 +195,7 @@ export {
   useWorkflowRegistry,
   useEnvironmentStore,
   useExecutionStore,
-  useConsoleStore,
+  useTerminalConsoleStore,
   useCopilotStore,
   useCustomToolsStore,
   useVariablesStore,
@@ -216,7 +216,7 @@ export const resetAllStores = () => {
   useSubBlockStore.getState().clear()
   useEnvironmentStore.getState().reset()
   useExecutionStore.getState().reset()
-  useConsoleStore.setState({ entries: [], isOpen: false })
+  useTerminalConsoleStore.setState({ entries: [], isOpen: false })
   useCopilotStore.setState({ messages: [], isSendingMessage: false, error: null })
   useCustomToolsStore.getState().reset()
   // Variables store has no tracking to reset; registry hydrates
@@ -230,7 +230,7 @@ export const logAllStores = () => {
     workflowRegistry: useWorkflowRegistry.getState(),
     environment: useEnvironmentStore.getState(),
     execution: useExecutionStore.getState(),
-    console: useConsoleStore.getState(),
+    console: useTerminalConsoleStore.getState(),
     copilot: useCopilotStore.getState(),
     customTools: useCustomToolsStore.getState(),
     subBlock: useSubBlockStore.getState(),

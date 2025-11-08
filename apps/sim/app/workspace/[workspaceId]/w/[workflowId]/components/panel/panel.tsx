@@ -11,9 +11,9 @@ import {
 import { LandingPromptStorage } from '@/lib/browser-storage'
 import { createLogger } from '@/lib/logs/console/logger'
 import { useChatStore } from '@/stores/panel/chat/store'
-import { useConsoleStore } from '@/stores/panel/console/store'
 import { usePanelStore } from '@/stores/panel/store'
 import { useCopilotStore } from '@/stores/panel-new/copilot/store'
+import { useTerminalConsoleStore } from '@/stores/terminal'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { Copilot } from '../panel-new/components/copilot/copilot'
 import { Chat } from './components/chat/chat'
@@ -44,8 +44,8 @@ export function Panel() {
   const panelWidth = usePanelStore((state) => state.panelWidth)
   const setPanelWidth = usePanelStore((state) => state.setPanelWidth)
 
-  const clearConsole = useConsoleStore((state) => state.clearConsole)
-  const exportConsoleCSV = useConsoleStore((state) => state.exportConsoleCSV)
+  const clearConsole = useTerminalConsoleStore((state) => state.clearConsole)
+  const exportConsoleCSV = useTerminalConsoleStore((state) => state.exportConsoleCSV)
   const clearChat = useChatStore((state) => state.clearChat)
   const exportChatCSV = useChatStore((state) => state.exportChatCSV)
   const { activeWorkflowId } = useWorkflowRegistry()

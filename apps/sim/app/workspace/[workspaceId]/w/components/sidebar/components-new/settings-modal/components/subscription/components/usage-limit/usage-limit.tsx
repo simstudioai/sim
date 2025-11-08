@@ -5,7 +5,7 @@ import { Check, Pencil, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
-import { useSubscriptionStore } from '@/stores/subscription/store'
+import { useUsageLimits } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/hooks'
 
 const logger = createLogger('UsageLimit')
 
@@ -37,13 +37,17 @@ export const UsageLimit = forwardRef<UsageLimitRef, UsageLimitProps>(
     ref
   ) => {
     const [inputValue, setInputValue] = useState(currentLimit.toString())
-    const [isSaving, setIsSaving] = useState(false)
     const [hasError, setHasError] = useState(false)
     const [errorType, setErrorType] = useState<'general' | 'belowUsage' | null>(null)
     const [isEditing, setIsEditing] = useState(false)
     const inputRef = useRef<HTMLInputElement>(null)
 
-    const { updateUsageLimit } = useSubscriptionStore()
+    // Use centralized usage limits hook
+    const { updateLimit, isUpdating } = useUsageLimits({
+      context,
+      organizationId,
+      autoRefresh: false, // Don't auto-refresh, we receive values via props
+    })
 
     const handleStartEdit = () => {
       if (!canEdit) return
@@ -105,50 +109,26 @@ export const UsageLimit = forwardRef<UsageLimitRef, UsageLimitProps>(
         return
       }
 
-      setIsSaving(true)
+      // Use the centralized hook to update the limit
+      const result = await updateLimit(newLimit)
 
-      try {
-        if (context === 'organization') {
-          if (!organizationId) {
-            throw new Error('Organization ID is required')
-          }
-
-          const response = await fetch('/api/usage', {
-            method: 'PUT',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ context: 'organization', organizationId, limit: newLimit }),
-          })
-
-          const data = await response.json()
-          if (!response.ok) {
-            throw new Error(data.error || 'Failed to update limit')
-          }
-        } else {
-          const result = await updateUsageLimit(newLimit)
-          if (!result.success) {
-            throw new Error(result.error || 'Failed to update limit')
-          }
-        }
-
+      if (result.success) {
         setInputValue(newLimit.toString())
         onLimitUpdated?.(newLimit)
         setIsEditing(false)
         setErrorType(null)
-      } catch (error) {
-        logger.error('Failed to update usage limit', { error })
+        setHasError(false)
+      } else {
+        logger.error('Failed to update usage limit', { error: result.error })
 
         // Check if the error is about being below current usage
-        if (error instanceof Error && error.message.includes('below current usage')) {
+        if (result.error?.includes('below current usage')) {
           setErrorType('belowUsage')
         } else {
           setErrorType('general')
         }
 
         setHasError(true)
-      } finally {
-        setIsSaving(false)
       }
     }
 
@@ -196,7 +176,7 @@ export const UsageLimit = forwardRef<UsageLimitRef, UsageLimitProps>(
               )}
               min={minimumLimit}
               step='1'
-              disabled={isSaving}
+              disabled={isUpdating}
               autoComplete='off'
               autoCorrect='off'
               autoCapitalize='off'
@@ -218,7 +198,7 @@ export const UsageLimit = forwardRef<UsageLimitRef, UsageLimitProps>(
                 : 'text-muted-foreground hover:text-foreground'
             )}
             onClick={isEditing ? handleSubmit : handleStartEdit}
-            disabled={isSaving}
+            disabled={isUpdating}
           >
             {isEditing ? (
               hasError ? (

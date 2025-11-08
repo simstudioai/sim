@@ -2,7 +2,7 @@
 
 import { useCallback, useState } from 'react'
 import clsx from 'clsx'
-import { Database, FileText, HelpCircle, Layout, Settings } from 'lucide-react'
+import { Database, HelpCircle, Layout, LibraryBig, Settings } from 'lucide-react'
 import Link from 'next/link'
 import { useParams, usePathname } from 'next/navigation'
 import { HelpModal } from '../help-modal'
@@ -35,7 +35,7 @@ export function FooterNavigation() {
     {
       id: 'logs',
       label: 'Logs',
-      icon: FileText,
+      icon: LibraryBig,
       href: `/workspace/${workspaceId}/logs`,
     },
     {
@@ -79,7 +79,7 @@ export function FooterNavigation() {
 
   return (
     <>
-      <div className='flex flex-shrink-0 flex-col gap-[2px] border-t px-[8px] pt-[8px] pb-[8px] dark:border-[#2C2C2C]'>
+      <div className='flex flex-shrink-0 flex-col gap-[2px] border-t px-[7.75px] pt-[8px] pb-[8px] dark:border-[#2C2C2C]'>
         {navigationItems.map((item) => {
           const Icon = item.icon
           const active = item.href ? isActive(item.href) : false

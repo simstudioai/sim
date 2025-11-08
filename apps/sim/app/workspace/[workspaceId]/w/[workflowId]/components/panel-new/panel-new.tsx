@@ -1,11 +1,33 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
-import { BubbleChatPreview, Button, MoreHorizontal, Play, Rocket } from '@/components/emcn'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { Braces, Square } from 'lucide-react'
+import { useParams, useRouter } from 'next/navigation'
+import {
+  BubbleChatPreview,
+  Button,
+  Copy,
+  Layout,
+  MoreHorizontal,
+  Play,
+  Popover,
+  PopoverContent,
+  PopoverItem,
+  PopoverTrigger,
+  Rocket,
+  Trash,
+} from '@/components/emcn'
+import { createLogger } from '@/lib/logs/console/logger'
+import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { usePanelStore } from '@/stores/panel-new/store'
 import type { PanelTab } from '@/stores/panel-new/types'
+import { useWorkflowJsonStore } from '@/stores/workflows/json/store'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import { Copilot, Editor, Toolbar } from './components'
-import { usePanelResize } from './hooks/use-panel-resize'
+import { usePanelResize, useRunWorkflow, useUsageLimits } from './hooks'
+
+const logger = createLogger('Panel')
 /**
  * Panel component with resizable width and tab navigation that persists across page refreshes.
  *
@@ -24,6 +46,10 @@ import { usePanelResize } from './hooks/use-panel-resize'
  * @returns Panel on the right side of the workflow
  */
 export function Panel() {
+  const router = useRouter()
+  const params = useParams()
+  const workspaceId = params.workspaceId as string
+
   const panelRef = useRef<HTMLElement>(null)
   const { activeTab, setActiveTab, panelWidth, _hasHydrated, setHasHydrated } = usePanelStore()
   const copilotRef = useRef<{
@@ -31,8 +57,36 @@ export function Panel() {
     setInputValueAndFocus: (value: string) => void
   }>(null)
 
+  // State
+  const [isMenuOpen, setIsMenuOpen] = useState(false)
+  const [isAutoLayouting, setIsAutoLayouting] = useState(false)
+  const [isExporting, setIsExporting] = useState(false)
+  const [isDuplicating, setIsDuplicating] = useState(false)
+
+  // Hooks
+  const userPermissions = useUserPermissionsContext()
+  const {
+    workflows,
+    activeWorkflowId,
+    duplicateWorkflow,
+    isLoading: isRegistryLoading,
+  } = useWorkflowRegistry()
+  const { getJson } = useWorkflowJsonStore()
+  const { blocks } = useWorkflowStore()
+
+  // Usage limits hook
+  const { usageExceeded } = useUsageLimits({
+    context: 'user',
+    autoRefresh: !isRegistryLoading,
+  })
+
+  // Run workflow hook
+  const { runWorkflow, cancelWorkflow, isExecuting } = useRunWorkflow({ usageExceeded })
+
   // Panel resize hook
   const { handleMouseDown } = usePanelResize()
+
+  const currentWorkflow = activeWorkflowId ? workflows[activeWorkflowId] : null
 
   /**
    * Mark hydration as complete on mount
@@ -49,6 +103,117 @@ export function Panel() {
     setActiveTab(tab)
   }
 
+  /**
+   * Downloads a file with the given content
+   */
+  const downloadFile = useCallback((content: string, filename: string, mimeType: string) => {
+    try {
+      const blob = new Blob([content], { type: mimeType })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = filename
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+    } catch (error) {
+      logger.error('Failed to download file:', error)
+    }
+  }, [])
+
+  /**
+   * Handles auto-layout of workflow blocks
+   */
+  const handleAutoLayout = useCallback(async () => {
+    if (isExecuting || !userPermissions.canEdit || isAutoLayouting) {
+      return
+    }
+
+    setIsAutoLayouting(true)
+    try {
+      // Use the standalone auto layout utility for immediate frontend updates
+      const { applyAutoLayoutAndUpdateStore } = await import('../../utils')
+
+      const result = await applyAutoLayoutAndUpdateStore(activeWorkflowId!)
+
+      if (result.success) {
+        logger.info('Auto layout completed successfully')
+      } else {
+        logger.error('Auto layout failed:', result.error)
+      }
+    } catch (error) {
+      logger.error('Auto layout error:', error)
+    } finally {
+      setIsAutoLayouting(false)
+    }
+  }, [isExecuting, userPermissions.canEdit, isAutoLayouting, activeWorkflowId])
+
+  /**
+   * Handles exporting workflow as JSON
+   */
+  const handleExportJson = useCallback(async () => {
+    if (!currentWorkflow || !activeWorkflowId) {
+      logger.warn('No active workflow to export')
+      return
+    }
+
+    setIsExporting(true)
+    try {
+      // Get the JSON from the store
+      const jsonContent = await getJson()
+
+      if (!jsonContent) {
+        throw new Error('Failed to generate JSON')
+      }
+
+      const filename = `${currentWorkflow.name.replace(/[^a-z0-9]/gi, '-')}.json`
+      downloadFile(jsonContent, filename, 'application/json')
+      logger.info('Workflow exported as JSON')
+    } catch (error) {
+      logger.error('Failed to export workflow as JSON:', error)
+    } finally {
+      setIsExporting(false)
+      setIsMenuOpen(false)
+    }
+  }, [currentWorkflow, activeWorkflowId, getJson, downloadFile])
+
+  /**
+   * Handles duplicating the current workflow
+   */
+  const handleDuplicateWorkflow = useCallback(async () => {
+    if (!activeWorkflowId || !userPermissions.canEdit || isDuplicating) {
+      return
+    }
+
+    setIsDuplicating(true)
+    try {
+      const newWorkflow = await duplicateWorkflow(activeWorkflowId)
+      if (newWorkflow) {
+        router.push(`/workspace/${workspaceId}/w/${newWorkflow}`)
+      }
+    } catch (error) {
+      logger.error('Error duplicating workflow:', error)
+    } finally {
+      setIsDuplicating(false)
+      setIsMenuOpen(false)
+    }
+  }, [
+    activeWorkflowId,
+    userPermissions.canEdit,
+    isDuplicating,
+    duplicateWorkflow,
+    router,
+    workspaceId,
+  ])
+
+  // Compute run button state
+  const canRun = userPermissions.canRead // Running only requires read permissions
+  const isLoadingPermissions = userPermissions.isLoading
+  const hasValidationErrors = false // TODO: Add validation logic if needed
+  const isWorkflowBlocked = isExecuting || hasValidationErrors
+  const isButtonDisabled = !isExecuting && (isWorkflowBlocked || (!canRun && !isLoadingPermissions))
+
   return (
     <>
       <aside
@@ -59,21 +224,72 @@ export function Panel() {
         <div className='flex h-full flex-col border-l pt-[14px] dark:border-[#2C2C2C]'>
           {/* Header */}
           <div className='flex flex-shrink-0 items-center justify-between px-[8px]'>
+            {/* More and Chat */}
             <div className='flex gap-[4px]'>
-              <Button className='h-[32px] w-[32px]'>
-                <MoreHorizontal />
-              </Button>
+              <Popover open={isMenuOpen} onOpenChange={setIsMenuOpen}>
+                <PopoverTrigger asChild>
+                  <Button className='h-[32px] w-[32px]'>
+                    <MoreHorizontal />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent align='start' side='bottom' sideOffset={8}>
+                  <PopoverItem
+                    onClick={handleAutoLayout}
+                    disabled={isExecuting || !userPermissions.canEdit || isAutoLayouting}
+                  >
+                    <Layout className='h-3 w-3' animate={isAutoLayouting} variant='clockwise' />
+                    <span>Auto layout</span>
+                  </PopoverItem>
+                  {/* <PopoverItem>
+                    <Bug className='h-3 w-3' />
+                    <span>Debug</span>
+                  </PopoverItem> */}
+                  {/* <PopoverItem onClick={() => setIsMenuOpen(false)}>
+                    <Webhook className='h-3 w-3' />
+                    <span>Log webhook</span>
+                  </PopoverItem> */}
+                  <PopoverItem
+                    onClick={handleExportJson}
+                    disabled={isExporting || !currentWorkflow}
+                  >
+                    <Braces className='h-3 w-3' />
+                    <span>Export JSON</span>
+                  </PopoverItem>
+                  <PopoverItem
+                    onClick={handleDuplicateWorkflow}
+                    disabled={!userPermissions.canEdit || isDuplicating}
+                  >
+                    <Copy className='h-3 w-3' animate={isDuplicating} />
+                    <span>Duplicate workflow</span>
+                  </PopoverItem>
+                  <PopoverItem onClick={() => setIsMenuOpen(false)}>
+                    <Trash className='h-3 w-3' />
+                    <span>Delete workflow</span>
+                  </PopoverItem>
+                </PopoverContent>
+              </Popover>
               <Button className='h-[32px] w-[32px]'>
                 <BubbleChatPreview />
               </Button>
             </div>
+
+            {/* Deploy and Run */}
             <div className='flex gap-[4px]'>
               <Button className='h-[32px] gap-[8px] px-[10px]' variant='active'>
                 <Rocket className='h-[13px] w-[13px]' />
                 Deploy
               </Button>
-              <Button className='h-[32px] gap-[8px] px-[10px]' variant='primary'>
-                <Play className='h-[11px] w-[11px]' />
+              <Button
+                className='h-[32px] w-[61.5px] gap-[8px]'
+                variant={isExecuting ? 'active' : 'primary'}
+                onClick={isExecuting ? cancelWorkflow : () => runWorkflow()}
+                disabled={!isExecuting && isButtonDisabled}
+              >
+                {isExecuting ? (
+                  <Square className='h-[11.5px] w-[11.5px] fill-current' />
+                ) : (
+                  <Play className='h-[11.5px] w-[11.5px]' />
+                )}
                 Run
               </Button>
             </div>

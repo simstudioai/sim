@@ -1,6 +1,13 @@
 export { Badge } from './badge/badge'
 export { Button, buttonVariants } from './button/button'
-export { CODE_LINE_HEIGHT_PX, Code, getCodeEditorProps } from './code/code'
+export {
+  CODE_LINE_HEIGHT_PX,
+  Code,
+  calculateGutterWidth,
+  getCodeEditorProps,
+  highlight,
+  languages,
+} from './code/code'
 export { Combobox, type ComboboxOption } from './combobox/combobox'
 export { Input } from './input/input'
 export { Label } from './label/label'

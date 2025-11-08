@@ -19,6 +19,7 @@ import { UserAvatarStack } from '@/app/workspace/[workspaceId]/w/[workflowId]/co
 import { ErrorBoundary } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/error/index'
 import { Panel } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/panel-new'
 import { SubflowNodeComponent } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/subflow-node'
+import { Terminal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/terminal'
 import { TrainingControls } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/training-controls/training-controls'
 import { TriggerList } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/trigger-list/trigger-list'
 import {
@@ -1950,6 +1951,7 @@ const WorkflowContent = React.memo(() => {
           <UserAvatarStack className='pointer-events-auto w-fit max-w-xs' />
         </div>
         <Panel />
+        <Terminal />
       </div>
     )
   }
@@ -2038,6 +2040,8 @@ const WorkflowContent = React.memo(() => {
 
         <Panel />
       </div>
+
+      <Terminal />
     </div>
   )
 })

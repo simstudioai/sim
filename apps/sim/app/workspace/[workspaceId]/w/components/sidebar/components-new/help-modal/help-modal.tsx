@@ -7,13 +7,13 @@ import { X } from 'lucide-react'
 import Image from 'next/image'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
+import { Button } from '@/components/emcn/components/button/button'
 import {
   AlertDialog,
   AlertDialogContent,
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
@@ -502,22 +502,27 @@ export function HelpModal({ open, onOpenChange }: HelpModalProps) {
             {/* Fixed Footer with Actions */}
             <div className='absolute inset-x-0 bottom-0 bg-background'>
               <div className='flex w-full items-center justify-between px-6 py-4'>
-                <Button variant='outline' onClick={handleClose} type='button'>
+                <Button
+                  variant='default'
+                  onClick={handleClose}
+                  type='button'
+                  className='min-w-[80px] px-[10px] py-[8px] text-[13px]'
+                >
                   Cancel
                 </Button>
                 <Button
                   type='submit'
                   disabled={isSubmitting || isProcessing}
                   variant={
-                    submitStatus === 'error' || submitStatus === 'success' ? 'outline' : 'default'
+                    submitStatus === 'error' || submitStatus === 'success' ? 'outline' : 'primary'
                   }
                   className={cn(
-                    'font-[480] transition-all duration-200',
+                    'min-w-[80px] px-[10px] py-[8px] text-[13px] transition-all duration-200',
                     submitStatus === 'error'
                       ? 'border border-red-500 bg-transparent text-red-500 hover:bg-red-500 hover:text-white dark:border-red-500 dark:text-red-500 dark:hover:bg-red-500'
                       : submitStatus === 'success'
                         ? 'border border-green-500 bg-transparent text-green-500 hover:bg-green-500 hover:text-white dark:border-green-500 dark:text-green-500 dark:hover:bg-green-500'
-                        : 'bg-[var(--brand-primary-hex)] text-muted-foreground shadow-[0_0_0_0_var(--brand-primary-hex)] hover:bg-[var(--brand-primary-hover-hex)] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)] disabled:opacity-50 disabled:hover:shadow-none'
+                        : ''
                   )}
                 >
                   {isSubmitting

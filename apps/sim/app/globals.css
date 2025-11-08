@@ -19,6 +19,8 @@
   --sidebar-width: 232px;
   --panel-width: 244px;
   --toolbar-triggers-height: 300px;
+  --editor-connections-height: 200px;
+  --terminal-height: 30px;
 }
 
 .sidebar-container {
@@ -27,6 +29,10 @@
 
 .panel-container {
   width: var(--panel-width);
+}
+
+.terminal-container {
+  height: var(--terminal-height);
 }
 
 /* ==========================================================================

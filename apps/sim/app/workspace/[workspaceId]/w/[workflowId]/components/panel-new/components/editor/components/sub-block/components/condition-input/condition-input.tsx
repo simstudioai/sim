@@ -2,9 +2,6 @@ import type { ReactElement } from 'react'
 import { useEffect, useRef, useState } from 'react'
 import { ChevronDown, ChevronUp, Plus } from 'lucide-react'
 import { useParams } from 'next/navigation'
-import { highlight, languages } from 'prismjs'
-import 'prismjs/components/prism-javascript'
-
 import Editor from 'react-simple-code-editor'
 import { useUpdateNodeInternals } from 'reactflow'
 import { Tooltip } from '@/components/emcn'
@@ -13,6 +10,8 @@ import {
   Code,
   calculateGutterWidth,
   getCodeEditorProps,
+  highlight,
+  languages,
 } from '@/components/emcn/components/code/code'
 import { Trash } from '@/components/emcn/icons/trash'
 import { createLogger } from '@/lib/logs/console/logger'

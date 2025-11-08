@@ -121,6 +121,42 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 } catch (e) {
                   // Fallback handled by CSS defaults
                 }
+                
+                // Set editor connections height
+                try {
+                  var editorStored = localStorage.getItem('panel-editor-state');
+                  if (editorStored) {
+                    var editorParsed = JSON.parse(editorStored);
+                    var editorState = editorParsed?.state;
+                    var connectionsHeight = editorState?.connectionsHeight;
+                    if (connectionsHeight !== undefined && connectionsHeight >= 30 && connectionsHeight <= 200) {
+                      document.documentElement.style.setProperty('--editor-connections-height', connectionsHeight + 'px');
+                    }
+                  }
+                } catch (e) {
+                  // Fallback handled by CSS defaults
+                }
+                
+                // Set terminal height
+                try {
+                  var terminalStored = localStorage.getItem('terminal-state');
+                  if (terminalStored) {
+                    var terminalParsed = JSON.parse(terminalStored);
+                    var terminalState = terminalParsed?.state;
+                    var terminalHeight = terminalState?.terminalHeight;
+                    var maxTerminalHeight = window.innerHeight * 0.5;
+                    
+                    // Cap stored height at 50% of viewport
+                    if (terminalHeight >= 30 && terminalHeight <= maxTerminalHeight) {
+                      document.documentElement.style.setProperty('--terminal-height', terminalHeight + 'px');
+                    } else if (terminalHeight > maxTerminalHeight) {
+                      // If stored height exceeds 50%, cap it
+                      document.documentElement.style.setProperty('--terminal-height', maxTerminalHeight + 'px');
+                    }
+                  }
+                } catch (e) {
+                  // Fallback handled by CSS defaults
+                }
               })();
             `,
           }}

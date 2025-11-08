@@ -1,7 +1,5 @@
 import type { ReactElement } from 'react'
 import { useEffect, useRef, useState } from 'react'
-import { highlight, languages } from 'prismjs'
-import 'prismjs/components/prism-javascript'
 import 'prismjs/components/prism-json'
 import { Wand2 } from 'lucide-react'
 import Editor from 'react-simple-code-editor'
@@ -10,6 +8,8 @@ import {
   Code,
   calculateGutterWidth,
   getCodeEditorProps,
+  highlight,
+  languages,
 } from '@/components/emcn/components/code/code'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'

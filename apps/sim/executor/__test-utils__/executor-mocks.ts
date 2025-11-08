@@ -94,8 +94,8 @@ export const setupStoreMocks = (options?: {
     },
   }))
 
-  vi.doMock('@/stores/panel/console/store', () => ({
-    useConsoleStore: {
+  vi.doMock('@/stores/terminal', () => ({
+    useTerminalConsoleStore: {
       getState: () => ({
         addConsole: consoleAddFn,
         updateConsole: consoleUpdateFn,

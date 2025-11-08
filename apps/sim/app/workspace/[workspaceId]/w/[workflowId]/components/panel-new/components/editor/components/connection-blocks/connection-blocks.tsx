@@ -3,7 +3,6 @@
 import { useCallback, useRef, useState } from 'react'
 import clsx from 'clsx'
 import { ChevronDown, RepeatIcon, SplitIcon } from 'lucide-react'
-import { buttonVariants, Label } from '@/components/emcn'
 import { createLogger } from '@/lib/logs/console/logger'
 import { extractFieldsFromSchema } from '@/lib/response-format'
 import type { ConnectedBlock } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/hooks/use-block-connections'
@@ -19,7 +18,8 @@ interface ConnectionBlocksProps {
 }
 
 const TREE_STYLES = {
-  LINE_COLOR: 'hsl(var(--muted-foreground) / 0.2)',
+  LINE_COLOR: '#2C2C2C',
+  LINE_OFFSET: 4,
 } as const
 
 const RESERVED_KEYS = new Set(['type', 'description'])
@@ -304,15 +304,13 @@ export function ConnectionBlocks({ connections, currentBlockId }: ConnectionBloc
                   className='pointer-events-none absolute'
                   style={{
                     left: `${TREE_SPACING.BASE_INDENT + level * TREE_SPACING.INDENT_PER_LEVEL + TREE_SPACING.VERTICAL_LINE_LEFT_OFFSET}px`,
-                    top: '0px',
+                    top: `${TREE_STYLES.LINE_OFFSET}px`,
                     width: '1px',
-                    height: `${calculateFieldsHeight(field.children, fieldPath, connection.id, isFieldExpanded)}px`,
+                    height: `${calculateFieldsHeight(field.children, fieldPath, connection.id, isFieldExpanded) - TREE_STYLES.LINE_OFFSET * 2}px`,
                     background: TREE_STYLES.LINE_COLOR,
                   }}
                 />
-                <div className='mt-[4px] space-y-[4px]'>
-                  {renderFieldTree(field.children!, fieldPath, level + 1, connection)}
-                </div>
+                <div>{renderFieldTree(field.children!, fieldPath, level + 1, connection)}</div>
               </div>
             )}
           </div>
@@ -327,97 +325,98 @@ export function ConnectionBlocks({ connections, currentBlockId }: ConnectionBloc
   }
 
   return (
-    <div className='rounded-[4px] px-[8px] pt-[1.5px] pb-[5px]'>
-      <Label className='pb-[8px] pl-[2px]'>Connections</Label>
-      <div
-        ref={scrollContainerRef}
-        className='-mr-[8px] max-h-[146px] space-y-[4px] overflow-y-auto pr-[8px]'
-      >
-        {connections.map((connection) => {
-          const blockConfig = getBlock(connection.type)
-          const isExpanded = expandedConnections.has(connection.id)
-          const fields = buildConnectionFields(connection)
-          const hasFields = fields.length > 0
+    <div ref={scrollContainerRef} className='space-y-[2px]'>
+      {connections.map((connection) => {
+        const blockConfig = getBlock(connection.type)
+        const isExpanded = expandedConnections.has(connection.id)
+        const fields = buildConnectionFields(connection)
+        const hasFields = fields.length > 0
 
-          let Icon = blockConfig?.icon
-          let bgColor = blockConfig?.bgColor || '#6B7280'
+        let Icon = blockConfig?.icon
+        let bgColor = blockConfig?.bgColor || '#6B7280'
 
-          if (!blockConfig) {
-            if (connection.type === 'loop') {
-              Icon = RepeatIcon as typeof Icon
-              bgColor = '#2FB3FF'
-            } else if (connection.type === 'parallel') {
-              Icon = SplitIcon as typeof Icon
-              bgColor = '#FEE12B'
-            }
+        if (!blockConfig) {
+          if (connection.type === 'loop') {
+            Icon = RepeatIcon as typeof Icon
+            bgColor = '#2FB3FF'
+          } else if (connection.type === 'parallel') {
+            Icon = SplitIcon as typeof Icon
+            bgColor = '#FEE12B'
           }
+        }
 
-          return (
+        return (
+          <div
+            key={connection.id}
+            className='mb-[2px] last:mb-0'
+            ref={(el) => {
+              if (el) {
+                connectionRefs.current.set(connection.id, el)
+              } else {
+                connectionRefs.current.delete(connection.id)
+              }
+            }}
+          >
             <div
-              key={connection.id}
-              ref={(el) => {
-                if (el) {
-                  connectionRefs.current.set(connection.id, el)
-                } else {
-                  connectionRefs.current.delete(connection.id)
-                }
-              }}
+              draggable
+              onDragStart={(e) => handleConnectionDragStart(e, connection)}
+              className={clsx(
+                'group flex h-[25px] cursor-grab items-center gap-[8px] rounded-[8px] px-[5.5px] text-[14px] hover:bg-[#2C2C2C] active:cursor-grabbing dark:hover:bg-[#2C2C2C]',
+                hasFields && 'cursor-pointer'
+              )}
+              onClick={() => hasFields && toggleConnectionExpansion(connection.id)}
             >
               <div
-                draggable
-                onDragStart={(e) => handleConnectionDragStart(e, connection)}
-                className={clsx(
-                  buttonVariants({ variant: 'active' }),
-                  'group !px-[5.5px] flex h-[26px] w-full gap-[8px] rounded-[6px] text-[14px]',
-                  'cursor-grab active:cursor-grabbing',
-                  hasFields && 'cursor-pointer'
-                )}
-                onClick={() => hasFields && toggleConnectionExpansion(connection.id)}
+                className='relative flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center overflow-hidden rounded-[4px]'
+                style={{ backgroundColor: bgColor }}
               >
-                <div
-                  className='relative flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center overflow-hidden rounded-[4px]'
-                  style={{ backgroundColor: bgColor }}
-                >
-                  {Icon && (
-                    <Icon
-                      className={clsx(
-                        'text-white transition-transform duration-200',
-                        hasFields && 'group-hover:scale-110',
-                        '!h-[10px] !w-[10px]'
-                      )}
-                    />
-                  )}
-                </div>
-                <span className='flex-1 truncate'>{connection.name}</span>
-                {hasFields && (
-                  <ChevronDown
+                {Icon && (
+                  <Icon
                     className={clsx(
-                      'h-4 w-4 flex-shrink-0 opacity-50 transition-transform',
-                      isExpanded && 'rotate-180'
+                      'text-white transition-transform duration-200',
+                      hasFields && 'group-hover:scale-110',
+                      '!h-[10px] !w-[10px]'
                     )}
                   />
                 )}
               </div>
-
-              {isExpanded && hasFields && (
-                <div className='relative space-y-[4px]'>
-                  <div
-                    className='pointer-events-none absolute'
-                    style={{
-                      left: `${TREE_SPACING.VERTICAL_LINE_LEFT_OFFSET}px`,
-                      top: '0px',
-                      width: '1px',
-                      height: `${calculateFieldsHeight(fields, '', connection.id, isFieldExpanded)}px`,
-                      background: TREE_STYLES.LINE_COLOR,
-                    }}
-                  />
-                  {renderFieldTree(fields, '', 0, connection)}
-                </div>
+              <span
+                className={clsx(
+                  'truncate font-medium',
+                  'text-[#AEAEAE] group-hover:text-[#E6E6E6] dark:text-[#AEAEAE] dark:group-hover:text-[#E6E6E6]'
+                )}
+              >
+                {connection.name}
+              </span>
+              {hasFields && (
+                <ChevronDown
+                  className={clsx(
+                    'h-3.5 w-3.5 flex-shrink-0 transition-transform',
+                    'text-[#AEAEAE] group-hover:text-[#E6E6E6] dark:text-[#AEAEAE] dark:group-hover:text-[#E6E6E6]',
+                    isExpanded && 'rotate-180'
+                  )}
+                />
               )}
             </div>
-          )
-        })}
-      </div>
+
+            {isExpanded && hasFields && (
+              <div className='relative'>
+                <div
+                  className='pointer-events-none absolute'
+                  style={{
+                    left: `${TREE_SPACING.VERTICAL_LINE_LEFT_OFFSET}px`,
+                    top: `${TREE_STYLES.LINE_OFFSET}px`,
+                    width: '1px',
+                    height: `${calculateFieldsHeight(fields, '', connection.id, isFieldExpanded) - TREE_STYLES.LINE_OFFSET * 2}px`,
+                    background: TREE_STYLES.LINE_COLOR,
+                  }}
+                />
+                {renderFieldTree(fields, '', 0, connection)}
+              </div>
+            )}
+          </div>
+        )
+      })}
     </div>
   )
 }

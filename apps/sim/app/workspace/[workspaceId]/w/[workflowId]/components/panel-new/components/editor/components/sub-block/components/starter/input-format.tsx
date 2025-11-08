@@ -1,6 +1,5 @@
 import { useRef } from 'react'
 import { Plus, Trash } from 'lucide-react'
-import { highlight, languages } from 'prismjs'
 import 'prismjs/components/prism-json'
 import Editor from 'react-simple-code-editor'
 import { Badge, Button, Combobox, Input } from '@/components/emcn'
@@ -8,6 +7,8 @@ import {
   Code,
   calculateGutterWidth,
   getCodeEditorProps,
+  highlight,
+  languages,
 } from '@/components/emcn/components/code/code'
 import type { ComboboxOption } from '@/components/emcn/components/combobox/combobox'
 import { Label } from '@/components/ui/label'

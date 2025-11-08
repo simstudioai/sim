@@ -3,7 +3,18 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ArrowDown, Plus, Search } from 'lucide-react'
 import { useParams } from 'next/navigation'
-import { Button, ChevronDown, FolderPlus, PanelLeft, Tooltip } from '@/components/emcn'
+import {
+  Button,
+  ChevronDown,
+  FolderPlus,
+  PanelLeft,
+  Popover,
+  PopoverContent,
+  PopoverItem,
+  PopoverSection,
+  PopoverTrigger,
+  Tooltip,
+} from '@/components/emcn'
 import { useSession } from '@/lib/auth-client'
 import { useFolderStore } from '@/stores/folders/store'
 import { FooterNavigation, WorkflowList } from './components-new'
@@ -41,12 +52,23 @@ export function SidebarNew() {
   // Import state
   const [isImporting, setIsImporting] = useState(false)
 
+  // Workspace popover state
+  const [isWorkspaceMenuOpen, setIsWorkspaceMenuOpen] = useState(false)
+
   // Workspace management hook
-  const { activeWorkspace, isWorkspacesLoading, fetchWorkspaces, isWorkspaceValid } =
-    useWorkspaceManagement({
-      workspaceId,
-      sessionUserId: sessionData?.user?.id,
-    })
+  const {
+    workspaces,
+    activeWorkspace,
+    isWorkspacesLoading,
+    fetchWorkspaces,
+    isWorkspaceValid,
+    switchWorkspace,
+    handleCreateWorkspace,
+    isCreatingWorkspace,
+  } = useWorkspaceManagement({
+    workspaceId,
+    sessionUserId: sessionData?.user?.id,
+  })
 
   // Sidebar resize hook
   const { handleMouseDown } = useSidebarResize()
@@ -161,6 +183,22 @@ export function SidebarNew() {
   }, [])
 
   /**
+   * Handle workspace switch from popover menu
+   */
+  const handleWorkspaceSwitch = useCallback(
+    async (workspace: { id: string; name: string; ownerId: string; role?: string }) => {
+      if (workspace.id === workspaceId) {
+        setIsWorkspaceMenuOpen(false)
+        return
+      }
+
+      await switchWorkspace(workspace)
+      setIsWorkspaceMenuOpen(false)
+    },
+    [workspaceId, switchWorkspace]
+  )
+
+  /**
    * Handle click on sidebar elements to revert to active workflow selection
    */
   const handleSidebarClick = useCallback(
@@ -200,17 +238,61 @@ export function SidebarNew() {
               {/* TODO: Solo/Team based on workspace members */}
               {/* <Badge className='flex-shrink-0 translate-y-[1px] whitespace-nowrap'>Solo</Badge> */}
             </div>
-            {/* Collapse/Expand */}
+            {/* Workspace Actions */}
             <div className='flex items-center gap-[14px]'>
-              {/* TODO: Add workspace dropdown */}
-              <Button
-                variant='ghost-secondary'
-                type='button'
-                aria-label='Collapse sidebar'
-                className='group -m-1 p-0 p-1'
-              >
-                <ChevronDown className='h-[8px] w-[12px]' />
-              </Button>
+              {/* Workspace Switcher Popover */}
+              <Popover open={isWorkspaceMenuOpen} onOpenChange={setIsWorkspaceMenuOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant='ghost-secondary'
+                    type='button'
+                    aria-label='Switch workspace'
+                    className='group -m-1 p-0 p-1'
+                  >
+                    <ChevronDown
+                      className={`h-[8px] w-[12px] transition-transform duration-200 ${
+                        isWorkspaceMenuOpen ? 'rotate-180' : ''
+                      }`}
+                    />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent align='end' side='bottom' sideOffset={8}>
+                  {isWorkspacesLoading ? (
+                    <PopoverItem disabled>
+                      <span>Loading workspaces...</span>
+                    </PopoverItem>
+                  ) : (
+                    <>
+                      {workspaces.length > 0 && (
+                        <>
+                          <PopoverSection>Workspaces</PopoverSection>
+                          {workspaces.map((workspace, index) => (
+                            <PopoverItem
+                              key={workspace.id}
+                              active={workspace.id === workspaceId}
+                              onClick={() => handleWorkspaceSwitch(workspace)}
+                              className={index > 0 ? 'mt-[2px]' : ''}
+                            >
+                              <span>{workspace.name}</span>
+                            </PopoverItem>
+                          ))}
+                        </>
+                      )}
+                      <PopoverItem
+                        onClick={async () => {
+                          await handleCreateWorkspace()
+                          setIsWorkspaceMenuOpen(false)
+                        }}
+                        disabled={isCreatingWorkspace}
+                        className={workspaces.length > 0 ? 'mt-[2px]' : ''}
+                      >
+                        <Plus className='h-3 w-3' />
+                        <span>Create a workspace</span>
+                      </PopoverItem>
+                    </>
+                  )}
+                </PopoverContent>
+              </Popover>
               {/* TODO: Add panel toggle */}
               <Button
                 variant='ghost-secondary'
@@ -295,7 +377,7 @@ export function SidebarNew() {
             {/* Scrollable workflow list */}
             <div
               ref={scrollContainerRef}
-              className='mt-[4px] flex-1 overflow-y-auto overflow-x-hidden px-[8px]'
+              className='mt-[6px] flex-1 overflow-y-auto overflow-x-hidden px-[8px]'
             >
               <WorkflowList
                 regularWorkflows={regularWorkflows}

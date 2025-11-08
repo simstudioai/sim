@@ -8,9 +8,9 @@ import type { BlockLog, ExecutionResult, StreamingExecution } from '@/executor/t
 import { useExecutionStream } from '@/hooks/use-execution-stream'
 import { Serializer, WorkflowValidationError } from '@/serializer'
 import { useExecutionStore } from '@/stores/execution/store'
-import { useConsoleStore } from '@/stores/panel/console/store'
 import { useVariablesStore } from '@/stores/panel/variables/store'
 import { useEnvironmentStore } from '@/stores/settings/environment/store'
+import { useTerminalConsoleStore } from '@/stores/terminal'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { mergeSubblockState } from '@/stores/workflows/utils'
 import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
@@ -78,7 +78,7 @@ function extractExecutionResult(error: unknown): ExecutionResult | null {
 export function useWorkflowExecution() {
   const currentWorkflow = useCurrentWorkflow()
   const { activeWorkflowId, workflows } = useWorkflowRegistry()
-  const { toggleConsole, addConsole } = useConsoleStore()
+  const { toggleConsole, addConsole } = useTerminalConsoleStore()
   const { getAllVariables, loadWorkspaceEnvironment } = useEnvironmentStore()
   const { getVariablesByWorkflowId, variables } = useVariablesStore()
   const {
@@ -535,7 +535,7 @@ export function useWorkflowExecution() {
                       // This ensures console logs match the block state structure
                       // Use replaceOutput to completely replace the output instead of merging
                       // Use the executionId from this execution context
-                      useConsoleStore.getState().updateConsole(
+                      useTerminalConsoleStore.getState().updateConsole(
                         log.blockId,
                         {
                           replaceOutput: log.output,
@@ -1096,7 +1096,7 @@ export function useWorkflowExecution() {
             blockType = error.blockType || blockType
           }
 
-          useConsoleStore.getState().addConsole({
+          useTerminalConsoleStore.getState().addConsole({
             input: {},
             output: {},
             success: false,

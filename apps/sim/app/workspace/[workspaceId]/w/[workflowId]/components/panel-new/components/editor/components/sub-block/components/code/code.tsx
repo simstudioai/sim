@@ -2,9 +2,6 @@ import type { ReactElement } from 'react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Check, Copy, Wand2 } from 'lucide-react'
 import { useParams } from 'next/navigation'
-import { highlight, languages } from 'prismjs'
-import 'prismjs/components/prism-javascript'
-import 'prismjs/themes/prism.css'
 import 'prismjs/components/prism-python'
 import Editor from 'react-simple-code-editor'
 import {
@@ -12,6 +9,8 @@ import {
   Code as CodeEditor,
   calculateGutterWidth,
   getCodeEditorProps,
+  highlight,
+  languages,
 } from '@/components/emcn/components/code/code'
 import { Button } from '@/components/ui/button'
 import { CodeLanguage } from '@/lib/execution/languages'

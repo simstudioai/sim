@@ -59,7 +59,7 @@ import { cn } from '@/lib/utils'
  * Ensures consistent height and styling across items, folders, and back button.
  */
 const POPOVER_ITEM_BASE_CLASSES =
-  'flex h-[25px] cursor-pointer items-center gap-[8px] rounded-[6px] px-[6px] font-base text-[#FFFFFF] text-[12px] transition-colors dark:text-[#FFFFFF] [&_svg]:transition-colors'
+  'flex h-[25px] cursor-pointer items-center gap-[8px] rounded-[6px] px-[6px] font-base text-[#E6E6E6] text-[12px] transition-colors dark:text-[#E6E6E6] [&_svg]:transition-colors disabled:pointer-events-none disabled:opacity-50 disabled:cursor-not-allowed'
 
 /**
  * Variant-specific active state styles for popover items.
@@ -68,7 +68,7 @@ const POPOVER_ITEM_ACTIVE_CLASSES = {
   primary:
     'bg-[#33B4FF] text-[#1B1B1B] dark:bg-[#33B4FF] dark:text-[#1B1B1B] [&_svg]:text-[#1B1B1B] dark:[&_svg]:text-[#1B1B1B]',
   default:
-    'bg-[#363636] text-[#FFFFFF] dark:bg-[#363636] dark:text-[#FFFFFF] [&_svg]:text-[#FFFFFF] dark:[&_svg]:text-[#FFFFFF]',
+    'bg-[#363636] text-[#E6E6E6] dark:bg-[#363636] dark:text-[#E6E6E6] [&_svg]:text-[#E6E6E6] dark:[&_svg]:text-[#E6E6E6]',
 }
 
 /**
@@ -78,7 +78,7 @@ const POPOVER_ITEM_HOVER_CLASSES = {
   primary:
     'hover:bg-[#33B4FF] hover:text-[#1B1B1B] dark:hover:bg-[#33B4FF] dark:hover:text-[#1B1B1B] hover:[&_svg]:text-[#1B1B1B] dark:hover:[&_svg]:text-[#1B1B1B]',
   default:
-    'hover:bg-[#363636] hover:text-[#FFFFFF] dark:hover:bg-[#363636] dark:hover:text-[#FFFFFF] hover:[&_svg]:text-[#FFFFFF] dark:hover:[&_svg]:text-[#FFFFFF]',
+    'hover:bg-[#363636] hover:text-[#E6E6E6] dark:hover:bg-[#363636] dark:hover:text-[#E6E6E6] hover:[&_svg]:text-[#E6E6E6] dark:hover:[&_svg]:text-[#E6E6E6]',
 }
 
 type PopoverVariant = 'default' | 'primary'
@@ -315,6 +315,10 @@ export interface PopoverItemProps extends React.HTMLAttributes<HTMLDivElement> {
    * If true, this item will only show when not inside any folder
    */
   rootOnly?: boolean
+  /**
+   * Whether this item is disabled
+   */
+  disabled?: boolean
 }
 
 /**
@@ -322,14 +326,14 @@ export interface PopoverItemProps extends React.HTMLAttributes<HTMLDivElement> {
  *
  * @example
  * ```tsx
- * <PopoverItem active={isActive} onClick={() => handleClick()}>
+ * <PopoverItem active={isActive} disabled={isDisabled} onClick={() => handleClick()}>
  *   <Icon className="h-4 w-4" />
  *   <span>Item label</span>
  * </PopoverItem>
  * ```
  */
 const PopoverItem = React.forwardRef<HTMLDivElement, PopoverItemProps>(
-  ({ className, active, rootOnly, ...props }, ref) => {
+  ({ className, active, rootOnly, disabled, ...props }, ref) => {
     // Try to get context - if not available, we're outside Popover (shouldn't happen)
     const context = React.useContext(PopoverContext)
     const variant = context?.variant || 'default'
@@ -344,11 +348,13 @@ const PopoverItem = React.forwardRef<HTMLDivElement, PopoverItemProps>(
         className={cn(
           POPOVER_ITEM_BASE_CLASSES,
           active ? POPOVER_ITEM_ACTIVE_CLASSES[variant] : POPOVER_ITEM_HOVER_CLASSES[variant],
+          disabled && 'pointer-events-none cursor-not-allowed opacity-50',
           className
         )}
         ref={ref}
         role='menuitem'
         aria-selected={active}
+        aria-disabled={disabled}
         {...props}
       />
     )

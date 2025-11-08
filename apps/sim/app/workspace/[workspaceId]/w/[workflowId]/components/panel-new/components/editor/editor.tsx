@@ -1,8 +1,7 @@
 'use client'
 
-import { useCallback } from 'react'
-import clsx from 'clsx'
-import { BookOpen, Crosshair, Settings } from 'lucide-react'
+import { useCallback, useRef } from 'react'
+import { BookOpen, ChevronUp, Crosshair, Settings } from 'lucide-react'
 import { Button, Tooltip } from '@/components/emcn'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { getSubBlockStableKey } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/utils'
@@ -14,7 +13,12 @@ import { usePanelEditorStore } from '@/stores/panel-new/editor/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { ConnectionBlocks, SubBlock } from './components'
-import { useBlockConnections, useEditorBlockProperties, useEditorSubblockLayout } from './hooks'
+import {
+  useBlockConnections,
+  useConnectionsResize,
+  useEditorBlockProperties,
+  useEditorSubblockLayout,
+} from './hooks'
 
 /**
  * Icon component for rendering block icons.
@@ -35,11 +39,14 @@ const IconComponent = ({ icon: Icon, className }: { icon: any; className?: strin
  * @returns Editor panel content
  */
 export function Editor() {
-  const { currentBlockId } = usePanelEditorStore()
+  const { currentBlockId, connectionsHeight, toggleConnectionsCollapsed } = usePanelEditorStore()
   const currentWorkflow = useCurrentWorkflow()
   const currentBlock = currentBlockId ? currentWorkflow.getBlockById(currentBlockId) : null
   const blockConfig = currentBlock ? getBlock(currentBlock.type) : null
   const title = currentBlock?.name || 'Editor'
+
+  // Refs for resize functionality
+  const subBlocksRef = useRef<HTMLDivElement>(null)
 
   // Get user permissions
   const userPermissions = useUserPermissionsContext()
@@ -77,6 +84,11 @@ export function Editor() {
   // Get block connections
   const { incomingConnections, hasIncomingConnections } = useBlockConnections(currentBlockId || '')
 
+  // Connections resize hook
+  const { handleMouseDown: handleConnectionsResizeMouseDown, isResizing } = useConnectionsResize({
+    subBlocksRef,
+  })
+
   // Collaborative actions
   const { collaborativeToggleBlockAdvancedMode } = useCollaborativeWorkflow()
 
@@ -105,6 +117,9 @@ export function Editor() {
 
   // Check if block has advanced mode or trigger mode available
   const hasAdvancedMode = blockConfig?.subBlocks?.some((sb) => sb.mode === 'advanced')
+
+  // Determine if connections are at minimum height (collapsed state)
+  const isConnectionsAtMinHeight = connectionsHeight <= 35
 
   return (
     <div className='flex h-full flex-col'>
@@ -184,59 +199,116 @@ export function Editor() {
         </div>
       </div>
 
-      {/* Connection Blocks Section */}
-      {currentBlock && hasIncomingConnections && (
-        <ConnectionBlocks connections={incomingConnections} currentBlockId={currentBlock.id} />
-      )}
-
-      {/* Content area - Subblocks */}
-      <div
-        className={clsx(
-          'flex-1 overflow-y-auto overflow-x-hidden px-[8px] pb-[8px]',
-          currentBlock && hasIncomingConnections ? 'pt-[4px]' : 'pt-[8px]'
-        )}
-      >
-        {!currentBlockId || !currentBlock ? (
-          <div className='flex h-full items-center justify-center text-muted-foreground text-sm'>
-            Select a block to edit
-          </div>
-        ) : subBlocks.length === 0 ? (
-          <div className='flex h-full items-center justify-center text-center text-muted-foreground text-sm'>
-            This block has no subblocks
-          </div>
-        ) : (
-          <div className='flex flex-col'>
-            {subBlocks.map((subBlock, index) => {
-              const stableKey = getSubBlockStableKey(currentBlockId || '', subBlock, subBlockState)
-
-              return (
-                <div key={stableKey}>
-                  <SubBlock
-                    blockId={currentBlockId}
-                    config={subBlock}
-                    isPreview={false}
-                    subBlockValues={undefined}
-                    disabled={!userPermissions.canEdit}
-                    fieldDiffStatus={undefined}
-                    allowExpandInPreview={false}
-                  />
-                  {index < subBlocks.length - 1 && (
-                    <div className='px-[2px] pt-[16px] pb-[13px]'>
-                      <div
-                        className='h-[1.25px]'
-                        style={{
-                          backgroundImage:
-                            'repeating-linear-gradient(to right, #2C2C2C 0px, #2C2C2C 6px, transparent 6px, transparent 12px)',
-                        }}
-                      />
-                    </div>
-                  )}
+      {!currentBlockId || !currentBlock ? (
+        <div className='flex flex-1 items-center justify-center text-muted-foreground text-sm'>
+          Select a block to edit
+        </div>
+      ) : (
+        <div className='flex flex-1 flex-col overflow-hidden pt-[0px]'>
+          {/* Subblocks Section */}
+          <div
+            ref={subBlocksRef}
+            className='subblocks-section flex flex-1 flex-col overflow-hidden'
+          >
+            <div className='flex-1 overflow-y-auto overflow-x-hidden px-[8px] pt-[8px] pb-[8px]'>
+              {subBlocks.length === 0 ? (
+                <div className='flex h-full items-center justify-center text-center text-muted-foreground text-sm'>
+                  This block has no subblocks
                 </div>
-              )
-            })}
+              ) : (
+                <div className='flex flex-col'>
+                  {subBlocks.map((subBlock, index) => {
+                    const stableKey = getSubBlockStableKey(
+                      currentBlockId || '',
+                      subBlock,
+                      subBlockState
+                    )
+
+                    return (
+                      <div key={stableKey}>
+                        <SubBlock
+                          blockId={currentBlockId}
+                          config={subBlock}
+                          isPreview={false}
+                          subBlockValues={undefined}
+                          disabled={!userPermissions.canEdit}
+                          fieldDiffStatus={undefined}
+                          allowExpandInPreview={false}
+                        />
+                        {index < subBlocks.length - 1 && (
+                          <div className='px-[2px] pt-[16px] pb-[13px]'>
+                            <div
+                              className='h-[1.25px]'
+                              style={{
+                                backgroundImage:
+                                  'repeating-linear-gradient(to right, #2C2C2C 0px, #2C2C2C 6px, transparent 6px, transparent 12px)',
+                              }}
+                            />
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
           </div>
-        )}
-      </div>
+
+          {/* Connections Section - Only show when there are connections */}
+          {hasIncomingConnections && (
+            <div
+              className={
+                'connections-section flex flex-shrink-0 flex-col overflow-hidden border-[#2C2C2C] border-t dark:border-[#2C2C2C]' +
+                (!isResizing ? ' transition-[height] duration-100 ease-out' : '')
+              }
+              style={{ height: `${connectionsHeight}px` }}
+            >
+              {/* Resize Handle */}
+              <div className='relative'>
+                <div
+                  className='absolute top-[-4px] right-0 left-0 z-30 h-[8px] cursor-ns-resize'
+                  onMouseDown={handleConnectionsResizeMouseDown}
+                />
+              </div>
+
+              {/* Connections Header with Chevron */}
+              <div
+                className='flex flex-shrink-0 cursor-pointer items-center gap-[8px] px-[10px] pt-[5px] pb-[5px]'
+                onClick={toggleConnectionsCollapsed}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault()
+                    toggleConnectionsCollapsed()
+                  }
+                }}
+                role='button'
+                tabIndex={0}
+                aria-label={
+                  isConnectionsAtMinHeight ? 'Expand connections' : 'Collapse connections'
+                }
+              >
+                <ChevronUp
+                  className={
+                    'h-[14px] w-[14px] transition-transform' +
+                    (!isConnectionsAtMinHeight ? ' rotate-180' : '')
+                  }
+                />
+                <div className='font-medium text-[#E6E6E6] text-[13px] dark:text-[#E6E6E6]'>
+                  Connections
+                </div>
+              </div>
+
+              {/* Connections Content - Always visible */}
+              <div className='flex-1 overflow-y-auto overflow-x-hidden px-[6px] pb-[8px]'>
+                <ConnectionBlocks
+                  connections={incomingConnections}
+                  currentBlockId={currentBlock.id}
+                />
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }
