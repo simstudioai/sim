@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import { createLogger } from '@/lib/logs/console/logger'
+import { withOptimisticUpdate } from '@/lib/utils'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 const logger = createLogger('FoldersStore')
@@ -282,62 +283,103 @@ export const useFolderStore = create<FolderState>()(
       },
 
       updateFolderAPI: async (id, updates) => {
-        const response = await fetch(`/api/folders/${id}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(updates),
+        const originalFolder = get().folders[id]
+        if (!originalFolder) {
+          throw new Error('Folder not found')
+        }
+
+        let updatedFolder: WorkflowFolder | null = null
+
+        await withOptimisticUpdate({
+          getCurrentState: () => originalFolder,
+          optimisticUpdate: () => {
+            get().updateFolder(id, { ...updates, updatedAt: new Date() })
+          },
+          apiCall: async () => {
+            const response = await fetch(`/api/folders/${id}`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(updates),
+            })
+
+            if (!response.ok) {
+              const error = await response.json()
+              throw new Error(error.error || 'Failed to update folder')
+            }
+
+            const { folder } = await response.json()
+            const processedFolder = {
+              ...folder,
+              createdAt: new Date(folder.createdAt),
+              updatedAt: new Date(folder.updatedAt),
+            }
+
+            get().updateFolder(id, processedFolder)
+            updatedFolder = processedFolder
+          },
+          rollback: (original) => {
+            get().updateFolder(id, original)
+          },
+          errorMessage: 'Failed to update folder',
         })
 
-        if (!response.ok) {
-          const error = await response.json()
-          throw new Error(error.error || 'Failed to update folder')
-        }
-
-        const { folder } = await response.json()
-        const processedFolder = {
-          ...folder,
-          createdAt: new Date(folder.createdAt),
-          updatedAt: new Date(folder.updatedAt),
-        }
-
-        get().updateFolder(id, processedFolder)
-
-        return processedFolder
+        return updatedFolder || { ...originalFolder, ...updates }
       },
 
       deleteFolder: async (id: string, workspaceId: string) => {
-        const response = await fetch(`/api/folders/${id}`, { method: 'DELETE' })
+        const getAllSubfolderIds = (parentId: string): string[] => {
+          const folders = get().folders
+          const childIds = Object.keys(folders).filter(
+            (folderId) => folders[folderId].parentId === parentId
+          )
+          const allIds = [...childIds]
 
-        if (!response.ok) {
-          const error = await response.json()
-          throw new Error(error.error || 'Failed to delete folder')
+          childIds.forEach((childId) => {
+            allIds.push(...getAllSubfolderIds(childId))
+          })
+
+          return allIds
         }
 
-        const responseData = await response.json()
+        const deletedFolderIds = [id, ...getAllSubfolderIds(id)]
 
-        // Remove the folder from local state
-        get().removeFolder(id)
+        await withOptimisticUpdate({
+          getCurrentState: () => ({
+            folders: { ...get().folders },
+            expandedFolders: new Set(get().expandedFolders),
+          }),
+          optimisticUpdate: () => {
+            deletedFolderIds.forEach((folderId) => {
+              get().removeFolder(folderId)
+            })
 
-        // Remove from expanded state
-        set((state) => {
-          const newExpanded = new Set(state.expandedFolders)
-          newExpanded.delete(id)
-          return { expandedFolders: newExpanded }
+            set((state) => {
+              const newExpanded = new Set(state.expandedFolders)
+              deletedFolderIds.forEach((folderId) => newExpanded.delete(folderId))
+              return { expandedFolders: newExpanded }
+            })
+          },
+          apiCall: async () => {
+            const response = await fetch(`/api/folders/${id}`, { method: 'DELETE' })
+
+            if (!response.ok) {
+              const error = await response.json()
+              throw new Error(error.error || 'Failed to delete folder')
+            }
+
+            const responseData = await response.json()
+            logger.info(
+              `Deleted ${responseData.deletedItems.workflows} workflow(s) and ${responseData.deletedItems.folders} folder(s)`
+            )
+
+            const workflowRegistry = useWorkflowRegistry.getState()
+            await workflowRegistry.loadWorkflows(workspaceId)
+          },
+          rollback: (originalState) => {
+            set({ folders: originalState.folders, expandedFolders: originalState.expandedFolders })
+          },
+          errorMessage: 'Failed to delete folder',
         })
-
-        // Remove subfolders from local state
-        get().removeSubfoldersRecursively(id)
-
-        // The backend has already deleted the workflows, so we just need to refresh
-        // the workflow registry to sync with the server state
-        const workflowRegistry = useWorkflowRegistry.getState()
-        if (workspaceId) {
-          await workflowRegistry.loadWorkflows(workspaceId)
-        }
-
-        logger.info(
-          `Deleted ${responseData.deletedItems.workflows} workflow(s) and ${responseData.deletedItems.folders} folder(s)`
-        )
       },
 
       isWorkflowInDeletedSubfolder: (workflow: Workflow, deletedFolderId: string) => {
@@ -372,6 +414,5 @@ export const useFolderStore = create<FolderState>()(
   )
 )
 
-// Selector hook for checking if a workflow is selected (avoids get() calls)
 export const useIsWorkflowSelected = (workflowId: string) =>
   useFolderStore((state) => state.selectedWorkflows.has(workflowId))

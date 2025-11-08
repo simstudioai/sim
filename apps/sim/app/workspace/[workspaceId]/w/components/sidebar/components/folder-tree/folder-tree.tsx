@@ -301,15 +301,24 @@ function useDragHandlers(
     if (workflowIdsData) {
       const workflowIds = JSON.parse(workflowIdsData) as string[]
 
-      try {
-        // Update workflows sequentially to avoid race conditions
-        for (const workflowId of workflowIds) {
-          await updateWorkflow(workflowId, { folderId: targetFolderId })
-        }
-        logger.info(logMessage || `Moved ${workflowIds.length} workflow(s)`)
-      } catch (error) {
-        logger.error('Failed to move workflows:', error)
-      }
+      Promise.allSettled(
+        workflowIds.map((workflowId) => updateWorkflow(workflowId, { folderId: targetFolderId }))
+      )
+        .then((results) => {
+          const failures = results.filter((r) => r.status === 'rejected')
+
+          if (failures.length === 0) {
+            logger.info(logMessage || `Moved ${workflowIds.length} workflow(s)`)
+          } else if (failures.length === workflowIds.length) {
+            logger.error('Failed to move all workflows')
+          } else {
+            const successCount = results.length - failures.length
+            logger.warn(`Partially moved workflows: ${successCount}/${workflowIds.length}`)
+          }
+        })
+        .catch((error) => {
+          logger.error('Unexpected error moving workflows:', error)
+        })
     }
 
     // Handle folder drops

@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { createLogger } from '@/lib/logs/console/logger'
+import { withOptimisticUpdate } from '@/lib/utils'
 import { API_ENDPOINTS } from '@/stores/constants'
 import type {
   CachedWorkspaceEnvData,
@@ -48,55 +49,53 @@ export const useEnvironmentStore = create<EnvironmentStore>()((set, get) => ({
   },
 
   saveEnvironmentVariables: async (variables: Record<string, string>) => {
-    try {
-      set({ isLoading: true, error: null })
+    const transformedVariables = Object.entries(variables).reduce(
+      (acc, [key, value]) => ({
+        ...acc,
+        [key]: { key, value },
+      }),
+      {}
+    )
 
-      const transformedVariables = Object.entries(variables).reduce(
-        (acc, [key, value]) => ({
-          ...acc,
-          [key]: { key, value },
-        }),
-        {}
-      )
+    await withOptimisticUpdate({
+      getCurrentState: () => get().variables,
+      optimisticUpdate: () => {
+        set({ variables: transformedVariables, isLoading: true, error: null })
+      },
+      apiCall: async () => {
+        const response = await fetch(API_ENDPOINTS.ENVIRONMENT, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            variables: Object.entries(transformedVariables).reduce(
+              (acc, [key, value]) => ({
+                ...acc,
+                [key]: (value as EnvironmentVariable).value,
+              }),
+              {}
+            ),
+          }),
+        })
 
-      set({ variables: transformedVariables })
+        if (!response.ok) {
+          throw new Error(`Failed to save environment variables: ${response.statusText}`)
+        }
 
-      const response = await fetch(API_ENDPOINTS.ENVIRONMENT, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          variables: Object.entries(transformedVariables).reduce(
-            (acc, [key, value]) => ({
-              ...acc,
-              [key]: (value as EnvironmentVariable).value,
-            }),
-            {}
-          ),
-        }),
-      })
-
-      if (!response.ok) {
-        throw new Error(`Failed to save environment variables: ${response.statusText}`)
-      }
-
-      set({ isLoading: false })
-
-      get().clearWorkspaceEnvCache()
-    } catch (error) {
-      logger.error('Error saving environment variables:', { error })
-      set({
-        error: error instanceof Error ? error.message : 'Unknown error',
-        isLoading: false,
-      })
-
-      get().loadEnvironmentVariables()
-    }
+        get().clearWorkspaceEnvCache()
+      },
+      rollback: (originalVariables) => {
+        set({ variables: originalVariables })
+      },
+      onComplete: () => {
+        set({ isLoading: false })
+      },
+      errorMessage: 'Error saving environment variables',
+    })
   },
 
   loadWorkspaceEnvironment: async (workspaceId: string) => {
-    // Check cache first
     const cached = get().workspaceEnvCache.get(workspaceId)
     if (cached) {
       return {
@@ -121,7 +120,6 @@ export const useEnvironmentStore = create<EnvironmentStore>()((set, get) => ({
         conflicts: string[]
       }
 
-      // Cache the result
       const cache = new Map(get().workspaceEnvCache)
       cache.set(workspaceId, {
         ...envData,
@@ -150,7 +148,6 @@ export const useEnvironmentStore = create<EnvironmentStore>()((set, get) => ({
       }
       set({ isLoading: false })
 
-      // Invalidate cache for this workspace
       get().clearWorkspaceEnvCache(workspaceId)
     } catch (error) {
       logger.error('Error updating workspace environment:', { error })
@@ -171,7 +168,6 @@ export const useEnvironmentStore = create<EnvironmentStore>()((set, get) => ({
       }
       set({ isLoading: false })
 
-      // Invalidate cache for this workspace
       get().clearWorkspaceEnvCache(workspaceId)
     } catch (error) {
       logger.error('Error removing workspace environment keys:', { error })
@@ -189,7 +185,6 @@ export const useEnvironmentStore = create<EnvironmentStore>()((set, get) => ({
       cache.delete(workspaceId)
       set({ workspaceEnvCache: cache })
     } else {
-      // Clear all caches
       set({ workspaceEnvCache: new Map() })
     }
   },

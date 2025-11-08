@@ -36,7 +36,25 @@ export function useEditorSubblockLayout(
     const blocks = useWorkflowStore.getState().blocks || {}
     const mergedMap = mergeSubblockState(blocks, activeWorkflowId || undefined, blockId)
     const mergedState = mergedMap ? mergedMap[blockId] : undefined
-    stateToUse = mergedState?.subBlocks || {}
+    const mergedSubBlocks = mergedState?.subBlocks || {}
+
+    stateToUse = Object.keys(mergedSubBlocks).reduce(
+      (acc, key) => {
+        const value =
+          blockSubBlockValues[key] !== undefined
+            ? blockSubBlockValues[key]
+            : (mergedSubBlocks[key]?.value ?? null)
+        acc[key] = { value }
+        return acc
+      },
+      {} as Record<string, { value: unknown }>
+    )
+
+    Object.keys(blockSubBlockValues).forEach((key) => {
+      if (!(key in stateToUse)) {
+        stateToUse[key] = { value: blockSubBlockValues[key] }
+      }
+    })
 
     // Filter visible blocks and those that meet their conditions
     const visibleSubBlocks = (config.subBlocks || []).filter((block) => {
@@ -59,12 +77,12 @@ export function useEditorSubblockLayout(
         if (block.mode === 'advanced' && !displayAdvancedMode) return false
         if (block.mode === 'trigger') {
           // Show trigger mode blocks only when in trigger mode
-          return displayTriggerMode
+          if (!displayTriggerMode) return false
         }
       }
 
       // When in trigger mode, hide blocks that don't have mode: 'trigger'
-      if (displayTriggerMode) {
+      if (displayTriggerMode && block.mode !== 'trigger') {
         return false
       }
 

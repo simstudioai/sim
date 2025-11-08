@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import { createLogger } from '@/lib/logs/console/logger'
 import { generateCreativeWorkflowName } from '@/lib/naming'
+import { withOptimisticUpdate } from '@/lib/utils'
 import { buildDefaultWorkflowArtifacts } from '@/lib/workflows/defaults'
 import { API_ENDPOINTS } from '@/stores/constants'
 import { useVariablesStore } from '@/stores/panel/variables/store'
@@ -753,100 +754,120 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
         return id
       },
 
-      // Delete workflow and clean up associated storage
       removeWorkflow: async (id: string) => {
-        const { workflows } = get()
+        const { workflows, activeWorkflowId } = get()
         const workflowToDelete = workflows[id]
 
         if (!workflowToDelete) {
           logger.warn(`Attempted to delete non-existent workflow: ${id}`)
           return
         }
-        set({ isLoading: true, error: null })
 
-        try {
-          // Call DELETE endpoint to remove from database
-          const response = await fetch(`/api/workflows/${id}`, {
-            method: 'DELETE',
-          })
+        const isDeletingActiveWorkflow = activeWorkflowId === id
 
-          if (!response.ok) {
-            const error = await response.json().catch(() => ({ error: 'Unknown error' }))
-            throw new Error(error.error || 'Failed to delete workflow')
-          }
+        await withOptimisticUpdate({
+          getCurrentState: () => ({
+            workflows: { ...get().workflows },
+            activeWorkflowId: get().activeWorkflowId,
+            subBlockValues: { ...useSubBlockStore.getState().workflowValues },
+            workflowStoreState: isDeletingActiveWorkflow
+              ? {
+                  blocks: { ...useWorkflowStore.getState().blocks },
+                  edges: [...useWorkflowStore.getState().edges],
+                  loops: { ...useWorkflowStore.getState().loops },
+                  parallels: { ...useWorkflowStore.getState().parallels },
+                  isDeployed: useWorkflowStore.getState().isDeployed,
+                  deployedAt: useWorkflowStore.getState().deployedAt,
+                  lastSaved: useWorkflowStore.getState().lastSaved,
+                }
+              : null,
+          }),
+          optimisticUpdate: () => {
+            const newWorkflows = { ...get().workflows }
+            delete newWorkflows[id]
 
-          logger.info(`Successfully deleted workflow ${id} from database`)
-        } catch (error) {
-          logger.error(`Failed to delete workflow ${id} from database:`, error)
-          set({
-            error: `Failed to delete workflow: ${error instanceof Error ? error.message : 'Unknown error'}`,
-            isLoading: false,
-          })
-          return
-        }
-
-        // Only update local state after successful deletion from database
-        set((state) => {
-          const newWorkflows = { ...state.workflows }
-          delete newWorkflows[id]
-
-          // Clean up subblock values for this workflow
-          useSubBlockStore.setState((subBlockState) => {
-            const newWorkflowValues = { ...subBlockState.workflowValues }
+            const currentSubBlockValues = useSubBlockStore.getState().workflowValues
+            const newWorkflowValues = { ...currentSubBlockValues }
             delete newWorkflowValues[id]
-            return { workflowValues: newWorkflowValues }
-          })
+            useSubBlockStore.setState({ workflowValues: newWorkflowValues })
 
-          // If deleting active workflow, clear active workflow ID immediately
-          // Don't automatically switch to another workflow to prevent race conditions
-          let newActiveWorkflowId = state.activeWorkflowId
-          if (state.activeWorkflowId === id) {
-            newActiveWorkflowId = null
+            let newActiveWorkflowId = get().activeWorkflowId
+            if (isDeletingActiveWorkflow) {
+              newActiveWorkflowId = null
 
-            // Clear workflow store state immediately when deleting active workflow
-            useWorkflowStore.setState({
-              blocks: {},
-              edges: [],
-              loops: {},
-              parallels: {},
-              isDeployed: false,
-              deployedAt: undefined,
-              lastSaved: Date.now(),
-            })
-
-            logger.info(
-              `Cleared active workflow ${id} - user will need to manually select another workflow`
-            )
-          }
-
-          // Cancel any schedule for this workflow (async, don't wait)
-          fetch(API_ENDPOINTS.SCHEDULE, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              workflowId: id,
-              state: {
+              useWorkflowStore.setState({
                 blocks: {},
                 edges: [],
                 loops: {},
-              },
-            }),
-          }).catch((error) => {
-            logger.error(`Error cancelling schedule for deleted workflow ${id}:`, error)
-          })
+                parallels: {},
+                isDeployed: false,
+                deployedAt: undefined,
+                lastSaved: Date.now(),
+              })
 
-          logger.info(`Removed workflow ${id} from local state`)
+              logger.info(
+                `Cleared active workflow ${id} - user will need to manually select another workflow`
+              )
+            }
 
-          return {
-            workflows: newWorkflows,
-            activeWorkflowId: newActiveWorkflowId,
-            error: null,
-            isLoading: false, // Clear loading state after successful deletion
-          }
+            set({
+              workflows: newWorkflows,
+              activeWorkflowId: newActiveWorkflowId,
+              isLoading: true,
+              error: null,
+            })
+
+            logger.info(`Removed workflow ${id} from local state (optimistic)`)
+          },
+          apiCall: async () => {
+            const response = await fetch(`/api/workflows/${id}`, {
+              method: 'DELETE',
+            })
+
+            if (!response.ok) {
+              const error = await response.json().catch(() => ({ error: 'Unknown error' }))
+              throw new Error(error.error || 'Failed to delete workflow')
+            }
+
+            logger.info(`Successfully deleted workflow ${id} from database`)
+
+            fetch(API_ENDPOINTS.SCHEDULE, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                workflowId: id,
+                state: {
+                  blocks: {},
+                  edges: [],
+                  loops: {},
+                },
+              }),
+            }).catch((error) => {
+              logger.error(`Error cancelling schedule for deleted workflow ${id}:`, error)
+            })
+          },
+          rollback: (originalState) => {
+            set({
+              workflows: originalState.workflows,
+              activeWorkflowId: originalState.activeWorkflowId,
+            })
+
+            useSubBlockStore.setState({ workflowValues: originalState.subBlockValues })
+
+            if (originalState.workflowStoreState) {
+              useWorkflowStore.setState(originalState.workflowStoreState)
+              logger.info(`Restored workflow store state for workflow ${id}`)
+            }
+
+            logger.info(`Rolled back deletion of workflow ${id}`)
+          },
+          onComplete: () => {
+            set({ isLoading: false })
+          },
+          errorMessage: `Failed to delete workflow ${id}`,
         })
       },
 
-      // Update workflow metadata
       updateWorkflow: async (id: string, metadata: Partial<WorkflowMetadata>) => {
         const { workflows } = get()
         const workflow = workflows[id]
@@ -855,71 +876,70 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
           return
         }
 
-        // Optimistically update local state first
-        set((state) => ({
-          workflows: {
-            ...state.workflows,
-            [id]: {
-              ...workflow,
-              ...metadata,
-              lastModified: new Date(),
-              createdAt: workflow.createdAt, // Preserve creation date
-            },
-          },
-          error: null,
-        }))
-
-        // Persist to database via API
-        try {
-          const response = await fetch(`/api/workflows/${id}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(metadata),
-          })
-
-          if (!response.ok) {
-            const error = await response.json()
-            throw new Error(error.error || 'Failed to update workflow')
-          }
-
-          const { workflow: updatedWorkflow } = await response.json()
-          logger.info(`Successfully updated workflow ${id} metadata`, metadata)
-
-          // Update with server response to ensure consistency
-          set((state) => ({
-            workflows: {
-              ...state.workflows,
-              [id]: {
-                ...state.workflows[id],
-                name: updatedWorkflow.name,
-                description: updatedWorkflow.description,
-                color: updatedWorkflow.color,
-                folderId: updatedWorkflow.folderId,
-                lastModified: new Date(updatedWorkflow.updatedAt),
-                createdAt: updatedWorkflow.createdAt
-                  ? new Date(updatedWorkflow.createdAt)
-                  : state.workflows[id].createdAt,
+        await withOptimisticUpdate({
+          getCurrentState: () => workflow,
+          optimisticUpdate: () => {
+            set((state) => ({
+              workflows: {
+                ...state.workflows,
+                [id]: {
+                  ...workflow,
+                  ...metadata,
+                  lastModified: new Date(),
+                  createdAt: workflow.createdAt, // Preserve creation date
+                },
               },
-            },
-          }))
-        } catch (error) {
-          logger.error(`Failed to update workflow ${id} metadata:`, error)
+              error: null,
+            }))
+          },
+          apiCall: async () => {
+            const response = await fetch(`/api/workflows/${id}`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(metadata),
+            })
 
-          // Revert optimistic update on error
-          set((state) => ({
-            workflows: {
-              ...state.workflows,
-              [id]: workflow, // Revert to original state
-            },
-            error: `Failed to update workflow: ${error instanceof Error ? error.message : 'Unknown error'}`,
-          }))
-        }
+            if (!response.ok) {
+              const error = await response.json()
+              throw new Error(error.error || 'Failed to update workflow')
+            }
+
+            const { workflow: updatedWorkflow } = await response.json()
+            logger.info(`Successfully updated workflow ${id} metadata`, metadata)
+
+            set((state) => ({
+              workflows: {
+                ...state.workflows,
+                [id]: {
+                  ...state.workflows[id],
+                  name: updatedWorkflow.name,
+                  description: updatedWorkflow.description,
+                  color: updatedWorkflow.color,
+                  folderId: updatedWorkflow.folderId,
+                  lastModified: new Date(updatedWorkflow.updatedAt),
+                  createdAt: updatedWorkflow.createdAt
+                    ? new Date(updatedWorkflow.createdAt)
+                    : state.workflows[id].createdAt,
+                },
+              },
+            }))
+          },
+          rollback: (originalWorkflow) => {
+            set((state) => ({
+              workflows: {
+                ...state.workflows,
+                [id]: originalWorkflow, // Revert to original state
+              },
+              error: `Failed to update workflow: ${metadata.name ? 'name' : 'metadata'}`,
+            }))
+          },
+          errorMessage: `Failed to update workflow ${id} metadata`,
+        })
       },
 
       logout: () => {
         logger.info('Logging out - clearing all workflow data')
 
-        // Clear all state
         resetWorkflowStores()
 
         set({
