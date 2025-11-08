@@ -4,12 +4,47 @@ export const SYSTEM_REFERENCE_PREFIXES = new Set(['start', 'loop', 'parallel', '
 
 const INVALID_REFERENCE_CHARS = /[+*/=<>!]/
 
-export function isLikelyReferenceSegment(segment: string): boolean {
+const LEADING_REFERENCE_PATTERN = /^[<>=!\s]*$/
+
+export function splitReferenceSegment(
+  segment: string
+): { leading: string; reference: string } | null {
   if (!segment.startsWith('<') || !segment.endsWith('>')) {
+    return null
+  }
+
+  const lastOpenBracket = segment.lastIndexOf('<')
+  if (lastOpenBracket === -1) {
+    return null
+  }
+
+  const leading = lastOpenBracket > 0 ? segment.slice(0, lastOpenBracket) : ''
+  const reference = segment.slice(lastOpenBracket)
+
+  if (!reference.startsWith('<') || !reference.endsWith('>')) {
+    return null
+  }
+
+  return { leading, reference }
+}
+
+export function isLikelyReferenceSegment(segment: string): boolean {
+  const split = splitReferenceSegment(segment)
+  if (!split) {
     return false
   }
 
-  const inner = segment.slice(1, -1)
+  const { leading, reference } = split
+
+  if (leading && !LEADING_REFERENCE_PATTERN.test(leading)) {
+    return false
+  }
+
+  const inner = reference.slice(1, -1)
+
+  if (!inner) {
+    return false
+  }
 
   if (inner.startsWith(' ')) {
     return false
@@ -55,18 +90,29 @@ export function extractReferencePrefixes(value: string): Array<{ raw: string; pr
   const references: Array<{ raw: string; prefix: string }> = []
 
   for (const match of matches) {
-    if (!isLikelyReferenceSegment(match)) {
+    const split = splitReferenceSegment(match)
+    if (!split) {
       continue
     }
 
-    const inner = match.slice(1, -1)
+    if (split.leading && !LEADING_REFERENCE_PATTERN.test(split.leading)) {
+      continue
+    }
+
+    const referenceSegment = split.reference
+
+    if (!isLikelyReferenceSegment(referenceSegment)) {
+      continue
+    }
+
+    const inner = referenceSegment.slice(1, -1)
     const [rawPrefix] = inner.split('.')
     if (!rawPrefix) {
       continue
     }
 
     const normalized = normalizeBlockName(rawPrefix)
-    references.push({ raw: match, prefix: normalized })
+    references.push({ raw: referenceSegment, prefix: normalized })
   }
 
   return references

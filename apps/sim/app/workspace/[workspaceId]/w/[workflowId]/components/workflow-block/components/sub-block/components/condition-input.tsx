@@ -14,7 +14,11 @@ import { checkTagTrigger, TagDropdown } from '@/components/ui/tag-dropdown'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
-import { isLikelyReferenceSegment, SYSTEM_REFERENCE_PREFIXES } from '@/lib/workflows/references'
+import {
+  isLikelyReferenceSegment,
+  SYSTEM_REFERENCE_PREFIXES,
+  splitReferenceSegment,
+} from '@/lib/workflows/references'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/hooks/use-sub-block-value'
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
 import { useTagSelection } from '@/hooks/use-tag-selection'
@@ -74,11 +78,18 @@ export function ConditionInput({
       return false
     }
 
+    const split = splitReferenceSegment(part)
+    if (!split) {
+      return false
+    }
+
+    const reference = split.reference
+
     if (!accessiblePrefixes) {
       return true
     }
 
-    const inner = part.slice(1, -1)
+    const inner = reference.slice(1, -1)
     const [prefix] = inner.split('.')
     const normalizedPrefix = normalizeBlockName(prefix)
 
