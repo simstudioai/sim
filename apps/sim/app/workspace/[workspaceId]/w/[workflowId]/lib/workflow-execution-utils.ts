@@ -56,7 +56,7 @@ export async function executeWorkflowWithFullLogging(
 }
 
 /**
- * Filter out edges between trigger blocks - triggers are independent entry points
+ * Filter out all incoming edges to trigger blocks - triggers are independent entry points
  * This ensures execution and UI only show edges that are actually connected in execution
  * @param blocks - Record of blocks keyed by block ID
  * @param edges - Array of edges to filter
@@ -67,23 +67,15 @@ export function filterEdgesFromTriggerBlocks(blocks: Record<string, any>, edges:
     const sourceBlock = blocks[edge.source]
     const targetBlock = blocks[edge.target]
 
-    // If either block not found, keep the edge (might be in a different state structure)
     if (!sourceBlock || !targetBlock) {
       return true
     }
-
-    const sourceIsTrigger = TriggerUtils.isTriggerBlock({
-      type: sourceBlock.type,
-      triggerMode: sourceBlock.triggerMode,
-    })
 
     const targetIsTrigger = TriggerUtils.isTriggerBlock({
       type: targetBlock.type,
       triggerMode: targetBlock.triggerMode,
     })
 
-    // Filter out edges where source is trigger AND target is trigger
-    // Keep edges from triggers to regular blocks
-    return !(sourceIsTrigger && targetIsTrigger)
+    return !targetIsTrigger
   })
 }

@@ -111,7 +111,7 @@ export function useBlockConnections(blockId: string) {
     return merged
   }
 
-  // Filter out edges between trigger blocks - triggers are independent entry points
+  // Filter out all incoming edges to trigger blocks - triggers are independent entry points
   // This ensures UI tags only show blocks that are actually connected in execution
   const filteredEdges = edges.filter((edge) => {
     const sourceBlock = blocks[edge.source]
@@ -122,19 +122,14 @@ export function useBlockConnections(blockId: string) {
       return true
     }
 
-    const sourceIsTrigger = TriggerUtils.isTriggerBlock({
-      type: sourceBlock.type,
-      triggerMode: sourceBlock.triggerMode,
-    })
-
     const targetIsTrigger = TriggerUtils.isTriggerBlock({
       type: targetBlock.type,
       triggerMode: targetBlock.triggerMode,
     })
 
-    // Filter out edges where source is trigger AND target is trigger
-    // Keep edges from triggers to regular blocks
-    return !(sourceIsTrigger && targetIsTrigger)
+    // Filter out ALL incoming edges to trigger blocks
+    // Triggers are independent entry points and should not have incoming connections
+    return !targetIsTrigger
   })
 
   // Find all blocks along paths leading to this block (using filtered edges)
