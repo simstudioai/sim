@@ -830,8 +830,8 @@ export function useWorkflowExecution() {
       const selectedCandidate = apiCandidates[0] ?? candidates[0]
 
       if (!selectedCandidate) {
-        const error = new Error('Manual run requires a Start Block')
-        logger.error('No manual/input or API triggers found for manual run')
+        const error = new Error('Workflow requires at least one trigger block to execute')
+        logger.error('No trigger blocks found for manual run')
         setIsExecuting(false)
         throw error
       }

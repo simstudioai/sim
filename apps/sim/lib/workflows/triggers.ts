@@ -37,6 +37,7 @@ const EXECUTION_PRIORITIES: Record<StartExecutionKind, StartBlockPath[]> = {
     StartBlockPath.SPLIT_INPUT,
     StartBlockPath.SPLIT_MANUAL,
     StartBlockPath.LEGACY_STARTER,
+    StartBlockPath.EXTERNAL_TRIGGER,
   ],
   api: [
     StartBlockPath.UNIFIED,
@@ -150,7 +151,8 @@ function supportsExecution(path: StartBlockPath, execution: StartExecutionKind):
   return (
     path === StartBlockPath.SPLIT_API ||
     path === StartBlockPath.SPLIT_INPUT ||
-    path === StartBlockPath.SPLIT_MANUAL
+    path === StartBlockPath.SPLIT_MANUAL ||
+    path === StartBlockPath.EXTERNAL_TRIGGER
   )
 }
 
