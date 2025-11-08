@@ -12,6 +12,17 @@ export { Combobox, type ComboboxOption } from './combobox/combobox'
 export { Input } from './input/input'
 export { Label } from './label/label'
 export {
+  Modal,
+  ModalClose,
+  ModalContent,
+  type ModalContentProps,
+  ModalDescription,
+  ModalFooter,
+  ModalHeader,
+  ModalTitle,
+  ModalTrigger,
+} from './modal/modal'
+export {
   Popover,
   PopoverAnchor,
   PopoverBackButton,

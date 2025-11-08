@@ -8,6 +8,12 @@ import {
   Button,
   Copy,
   Layout,
+  Modal,
+  ModalContent,
+  ModalDescription,
+  ModalFooter,
+  ModalHeader,
+  ModalTitle,
   MoreHorizontal,
   Play,
   Popover,
@@ -62,6 +68,8 @@ export function Panel() {
   const [isAutoLayouting, setIsAutoLayouting] = useState(false)
   const [isExporting, setIsExporting] = useState(false)
   const [isDuplicating, setIsDuplicating] = useState(false)
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
 
   // Hooks
   const userPermissions = useUserPermissionsContext()
@@ -207,6 +215,49 @@ export function Panel() {
     workspaceId,
   ])
 
+  /**
+   * Handles deleting the current workflow after confirmation
+   */
+  const handleDeleteWorkflow = useCallback(async () => {
+    if (!activeWorkflowId || !userPermissions.canEdit || isDeleting) {
+      return
+    }
+
+    setIsDeleting(true)
+    try {
+      // Find next workflow to navigate to
+      const sidebarWorkflows = Object.values(workflows).filter((w) => w.workspaceId === workspaceId)
+      const currentIndex = sidebarWorkflows.findIndex((w) => w.id === activeWorkflowId)
+
+      let nextWorkflowId: string | null = null
+      if (sidebarWorkflows.length > 1) {
+        if (currentIndex < sidebarWorkflows.length - 1) {
+          nextWorkflowId = sidebarWorkflows[currentIndex + 1].id
+        } else if (currentIndex > 0) {
+          nextWorkflowId = sidebarWorkflows[currentIndex - 1].id
+        }
+      }
+
+      // Navigate first
+      if (nextWorkflowId) {
+        router.push(`/workspace/${workspaceId}/w/${nextWorkflowId}`)
+      } else {
+        router.push(`/workspace/${workspaceId}`)
+      }
+
+      // Then delete
+      const { removeWorkflow: registryRemoveWorkflow } = useWorkflowRegistry.getState()
+      await registryRemoveWorkflow(activeWorkflowId)
+
+      setIsDeleteModalOpen(false)
+      logger.info('Workflow deleted successfully')
+    } catch (error) {
+      logger.error('Error deleting workflow:', error)
+    } finally {
+      setIsDeleting(false)
+    }
+  }, [activeWorkflowId, userPermissions.canEdit, isDeleting, workflows, workspaceId, router])
+
   // Compute run button state
   const canRun = userPermissions.canRead // Running only requires read permissions
   const isLoadingPermissions = userPermissions.isLoading
@@ -262,7 +313,13 @@ export function Panel() {
                     <Copy className='h-3 w-3' animate={isDuplicating} />
                     <span>Duplicate workflow</span>
                   </PopoverItem>
-                  <PopoverItem onClick={() => setIsMenuOpen(false)}>
+                  <PopoverItem
+                    onClick={() => {
+                      setIsMenuOpen(false)
+                      setIsDeleteModalOpen(true)
+                    }}
+                    disabled={!userPermissions.canEdit || Object.keys(workflows).length <= 1}
+                  >
                     <Trash className='h-3 w-3' />
                     <span>Delete workflow</span>
                   </PopoverItem>
@@ -378,6 +435,39 @@ export function Panel() {
         aria-orientation='vertical'
         aria-label='Resize panel'
       />
+
+      {/* Delete Confirmation Modal */}
+      <Modal open={isDeleteModalOpen} onOpenChange={setIsDeleteModalOpen}>
+        <ModalContent>
+          <ModalHeader>
+            <ModalTitle>Delete workflow?</ModalTitle>
+            <ModalDescription>
+              Deleting this workflow will permanently remove all associated blocks, executions, and
+              configuration.{' '}
+              <span className='text-[#EF4444] dark:text-[#EF4444]'>
+                This action cannot be undone.
+              </span>
+            </ModalDescription>
+          </ModalHeader>
+          <ModalFooter>
+            <Button
+              className='h-[32px] px-[12px]'
+              variant='outline'
+              onClick={() => setIsDeleteModalOpen(false)}
+              disabled={isDeleting}
+            >
+              Cancel
+            </Button>
+            <Button
+              className='h-[32px] bg-[#EF4444] px-[12px] text-[#FFFFFF] hover:bg-[#EF4444] hover:text-[#FFFFFF] dark:bg-[#EF4444] dark:text-[#FFFFFF] hover:dark:bg-[#EF4444] dark:hover:text-[#FFFFFF]'
+              onClick={handleDeleteWorkflow}
+              disabled={isDeleting}
+            >
+              {isDeleting ? 'Deleting...' : 'Delete'}
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
     </>
   )
 }
