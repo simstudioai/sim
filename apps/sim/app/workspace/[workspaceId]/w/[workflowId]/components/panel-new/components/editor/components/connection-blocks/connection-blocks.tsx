@@ -3,11 +3,14 @@
 import { useCallback, useRef, useState } from 'react'
 import clsx from 'clsx'
 import { ChevronDown, RepeatIcon, SplitIcon } from 'lucide-react'
+import { shallow } from 'zustand/shallow'
 import { createLogger } from '@/lib/logs/console/logger'
-import { extractFieldsFromSchema } from '@/lib/response-format'
 import type { ConnectedBlock } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/hooks/use-block-connections'
+import { useBlockOutputFields } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-block-output-fields'
 import { getBlock } from '@/blocks/registry'
-import { getTool } from '@/tools/utils'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import { useSubBlockStore } from '@/stores/workflows/subblock/store'
+import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import { FieldItem, type SchemaField, TREE_SPACING } from './components/field-item/field-item'
 
 const logger = createLogger('ConnectionBlocks')
@@ -21,144 +24,6 @@ const TREE_STYLES = {
   LINE_COLOR: '#2C2C2C',
   LINE_OFFSET: 4,
 } as const
-
-const RESERVED_KEYS = new Set(['type', 'description'])
-
-/**
- * Checks if a property is an object type
- */
-const isObject = (prop: any): boolean => prop && typeof prop === 'object'
-
-/**
- * Extracts nested fields from array or object properties
- */
-const extractChildFields = (prop: any): SchemaField[] | undefined => {
-  if (!isObject(prop)) return undefined
-
-  if (prop.properties && isObject(prop.properties)) {
-    return extractNestedFields(prop.properties)
-  }
-
-  if (prop.items?.properties && isObject(prop.items.properties)) {
-    return extractNestedFields(prop.items.properties)
-  }
-
-  if (!('type' in prop)) {
-    return extractNestedFields(prop)
-  }
-
-  if (prop.type === 'array') {
-    const itemDefs = Object.fromEntries(
-      Object.entries(prop).filter(([key]) => !RESERVED_KEYS.has(key))
-    )
-    if (Object.keys(itemDefs).length > 0) {
-      return extractNestedFields(itemDefs)
-    }
-  }
-
-  return undefined
-}
-
-/**
- * Recursively extracts nested fields from output properties
- */
-const extractNestedFields = (properties: Record<string, any>): SchemaField[] => {
-  return Object.entries(properties).map(([name, prop]) => {
-    const baseType = isObject(prop) && typeof prop.type === 'string' ? prop.type : 'string'
-    const type = isObject(prop) && !('type' in prop) ? 'object' : baseType
-
-    return {
-      name,
-      type,
-      description: isObject(prop) ? prop.description : undefined,
-      children: extractChildFields(prop),
-    }
-  })
-}
-
-/**
- * Gets tool outputs for a block's operation
- */
-const getToolOutputs = (blockConfig: any, connection: ConnectedBlock): Record<string, any> => {
-  if (!blockConfig?.tools?.config?.tool || !connection.operation) return {}
-
-  try {
-    const toolId = blockConfig.tools.config.tool({ operation: connection.operation })
-    if (!toolId) return {}
-
-    const toolConfig = getTool(toolId)
-    return toolConfig?.outputs || {}
-  } catch {
-    return {}
-  }
-}
-
-/**
- * Creates a schema field from an output definition
- */
-const createFieldFromOutput = (
-  name: string,
-  output: any,
-  responseFormatFields?: SchemaField[]
-): SchemaField => {
-  const hasExplicitType = isObject(output) && typeof output.type === 'string'
-  const type = hasExplicitType ? output.type : isObject(output) ? 'object' : 'string'
-
-  const field: SchemaField = {
-    name,
-    type,
-    description: isObject(output) && 'description' in output ? output.description : undefined,
-  }
-
-  if (name === 'data' && responseFormatFields && responseFormatFields.length > 0) {
-    field.children = responseFormatFields
-  } else {
-    field.children = extractChildFields(output)
-  }
-
-  return field
-}
-
-/**
- * Builds complete field list for a connection, combining base outputs and responseFormat
- */
-const buildConnectionFields = (connection: ConnectedBlock): SchemaField[] => {
-  const blockConfig = getBlock(connection.type)
-
-  if (!blockConfig && (connection.type === 'loop' || connection.type === 'parallel')) {
-    return [
-      {
-        name: 'results',
-        type: 'array',
-        description: 'Array of results from the loop/parallel execution',
-      },
-    ]
-  }
-
-  const toolOutputs = getToolOutputs(blockConfig, connection)
-  const baseOutputs =
-    Object.keys(toolOutputs).length > 0
-      ? toolOutputs
-      : connection.outputs || blockConfig?.outputs || {}
-
-  const responseFormatFields = extractFieldsFromSchema(connection.responseFormat)
-
-  if (responseFormatFields.length > 0 && Object.keys(baseOutputs).length === 0) {
-    return responseFormatFields
-  }
-
-  if (Object.keys(baseOutputs).length === 0) {
-    return []
-  }
-
-  return Object.entries(baseOutputs).map(([name, output]) =>
-    createFieldFromOutput(
-      name,
-      output,
-      responseFormatFields.length > 0 ? responseFormatFields : undefined
-    )
-  )
-}
 
 /**
  * Calculates total height of visible nested fields recursively
@@ -192,6 +57,125 @@ const calculateFieldsHeight = (
   return totalHeight
 }
 
+interface ConnectionItemProps {
+  connection: ConnectedBlock
+  isExpanded: boolean
+  onToggleExpand: (connectionId: string) => void
+  isFieldExpanded: (connectionId: string, fieldPath: string) => boolean
+  onConnectionDragStart: (e: React.DragEvent, connection: ConnectedBlock) => void
+  renderFieldTree: (
+    fields: SchemaField[],
+    parentPath: string,
+    level: number,
+    connection: ConnectedBlock
+  ) => React.ReactNode
+  connectionRef: (el: HTMLDivElement | null) => void
+  mergedSubBlocks: Record<string, any>
+  sourceBlock: { triggerMode?: boolean } | undefined
+}
+
+/**
+ * Individual connection item component that uses the hook
+ */
+function ConnectionItem({
+  connection,
+  isExpanded,
+  onToggleExpand,
+  isFieldExpanded,
+  onConnectionDragStart,
+  renderFieldTree,
+  connectionRef,
+  mergedSubBlocks,
+  sourceBlock,
+}: ConnectionItemProps) {
+  const blockConfig = getBlock(connection.type)
+
+  const fields = useBlockOutputFields({
+    blockId: connection.id,
+    blockType: connection.type,
+    mergedSubBlocks,
+    responseFormat: connection.responseFormat,
+    operation: connection.operation,
+    triggerMode: sourceBlock?.triggerMode,
+  })
+  const hasFields = fields.length > 0
+
+  let Icon = blockConfig?.icon
+  let bgColor = blockConfig?.bgColor || '#6B7280'
+
+  if (!blockConfig) {
+    if (connection.type === 'loop') {
+      Icon = RepeatIcon as typeof Icon
+      bgColor = '#2FB3FF'
+    } else if (connection.type === 'parallel') {
+      Icon = SplitIcon as typeof Icon
+      bgColor = '#FEE12B'
+    }
+  }
+
+  return (
+    <div className='mb-[2px] last:mb-0' ref={connectionRef}>
+      <div
+        draggable
+        onDragStart={(e) => onConnectionDragStart(e, connection)}
+        className={clsx(
+          'group flex h-[25px] cursor-grab items-center gap-[8px] rounded-[8px] px-[5.5px] text-[14px] hover:bg-[#2C2C2C] active:cursor-grabbing dark:hover:bg-[#2C2C2C]',
+          hasFields && 'cursor-pointer'
+        )}
+        onClick={() => hasFields && onToggleExpand(connection.id)}
+      >
+        <div
+          className='relative flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center overflow-hidden rounded-[4px]'
+          style={{ backgroundColor: bgColor }}
+        >
+          {Icon && (
+            <Icon
+              className={clsx(
+                'text-white transition-transform duration-200',
+                hasFields && 'group-hover:scale-110',
+                '!h-[10px] !w-[10px]'
+              )}
+            />
+          )}
+        </div>
+        <span
+          className={clsx(
+            'truncate font-medium',
+            'text-[#AEAEAE] group-hover:text-[#E6E6E6] dark:text-[#AEAEAE] dark:group-hover:text-[#E6E6E6]'
+          )}
+        >
+          {connection.name}
+        </span>
+        {hasFields && (
+          <ChevronDown
+            className={clsx(
+              'h-3.5 w-3.5 flex-shrink-0 transition-transform',
+              'text-[#AEAEAE] group-hover:text-[#E6E6E6] dark:text-[#AEAEAE] dark:group-hover:text-[#E6E6E6]',
+              isExpanded && 'rotate-180'
+            )}
+          />
+        )}
+      </div>
+
+      {isExpanded && hasFields && (
+        <div className='relative'>
+          <div
+            className='pointer-events-none absolute'
+            style={{
+              left: `${TREE_SPACING.VERTICAL_LINE_LEFT_OFFSET}px`,
+              top: `${TREE_STYLES.LINE_OFFSET}px`,
+              width: '1px',
+              height: `${calculateFieldsHeight(fields, '', connection.id, isFieldExpanded) - TREE_STYLES.LINE_OFFSET * 2}px`,
+              background: TREE_STYLES.LINE_COLOR,
+            }}
+          />
+          {renderFieldTree(fields, '', 0, connection)}
+        </div>
+      )}
+    </div>
+  )
+}
+
 /**
  * Connection blocks component that displays incoming connections with their schemas
  */
@@ -200,6 +184,31 @@ export function ConnectionBlocks({ connections, currentBlockId }: ConnectionBloc
   const [expandedFieldPaths, setExpandedFieldPaths] = useState<Set<string>>(new Set())
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const connectionRefs = useRef<Map<string, HTMLDivElement>>(new Map())
+
+  const { blocks } = useWorkflowStore(
+    (state) => ({
+      blocks: state.blocks,
+    }),
+    shallow
+  )
+
+  const workflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
+  const workflowSubBlockValues = useSubBlockStore((state) =>
+    workflowId ? (state.workflowValues[workflowId] ?? {}) : {}
+  )
+
+  const getMergedSubBlocks = useCallback(
+    (sourceBlockId: string): Record<string, any> => {
+      const base = blocks[sourceBlockId]?.subBlocks || {}
+      const live = workflowSubBlockValues?.[sourceBlockId] || {}
+      const merged: Record<string, any> = { ...base }
+      for (const [subId, liveVal] of Object.entries(live)) {
+        merged[subId] = { ...(base[subId] || {}), value: liveVal }
+      }
+      return merged
+    },
+    [blocks, workflowSubBlockValues]
+  )
 
   const toggleConnectionExpansion = useCallback((connectionId: string) => {
     setExpandedConnections((prev) => {
@@ -327,94 +336,28 @@ export function ConnectionBlocks({ connections, currentBlockId }: ConnectionBloc
   return (
     <div ref={scrollContainerRef} className='space-y-[2px]'>
       {connections.map((connection) => {
-        const blockConfig = getBlock(connection.type)
-        const isExpanded = expandedConnections.has(connection.id)
-        const fields = buildConnectionFields(connection)
-        const hasFields = fields.length > 0
-
-        let Icon = blockConfig?.icon
-        let bgColor = blockConfig?.bgColor || '#6B7280'
-
-        if (!blockConfig) {
-          if (connection.type === 'loop') {
-            Icon = RepeatIcon as typeof Icon
-            bgColor = '#2FB3FF'
-          } else if (connection.type === 'parallel') {
-            Icon = SplitIcon as typeof Icon
-            bgColor = '#FEE12B'
-          }
-        }
+        const mergedSubBlocks = getMergedSubBlocks(connection.id)
+        const sourceBlock = blocks[connection.id]
 
         return (
-          <div
+          <ConnectionItem
             key={connection.id}
-            className='mb-[2px] last:mb-0'
-            ref={(el) => {
+            connection={connection}
+            isExpanded={expandedConnections.has(connection.id)}
+            onToggleExpand={toggleConnectionExpansion}
+            isFieldExpanded={isFieldExpanded}
+            onConnectionDragStart={handleConnectionDragStart}
+            renderFieldTree={renderFieldTree}
+            connectionRef={(el) => {
               if (el) {
                 connectionRefs.current.set(connection.id, el)
               } else {
                 connectionRefs.current.delete(connection.id)
               }
             }}
-          >
-            <div
-              draggable
-              onDragStart={(e) => handleConnectionDragStart(e, connection)}
-              className={clsx(
-                'group flex h-[25px] cursor-grab items-center gap-[8px] rounded-[8px] px-[5.5px] text-[14px] hover:bg-[#2C2C2C] active:cursor-grabbing dark:hover:bg-[#2C2C2C]',
-                hasFields && 'cursor-pointer'
-              )}
-              onClick={() => hasFields && toggleConnectionExpansion(connection.id)}
-            >
-              <div
-                className='relative flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center overflow-hidden rounded-[4px]'
-                style={{ backgroundColor: bgColor }}
-              >
-                {Icon && (
-                  <Icon
-                    className={clsx(
-                      'text-white transition-transform duration-200',
-                      hasFields && 'group-hover:scale-110',
-                      '!h-[10px] !w-[10px]'
-                    )}
-                  />
-                )}
-              </div>
-              <span
-                className={clsx(
-                  'truncate font-medium',
-                  'text-[#AEAEAE] group-hover:text-[#E6E6E6] dark:text-[#AEAEAE] dark:group-hover:text-[#E6E6E6]'
-                )}
-              >
-                {connection.name}
-              </span>
-              {hasFields && (
-                <ChevronDown
-                  className={clsx(
-                    'h-3.5 w-3.5 flex-shrink-0 transition-transform',
-                    'text-[#AEAEAE] group-hover:text-[#E6E6E6] dark:text-[#AEAEAE] dark:group-hover:text-[#E6E6E6]',
-                    isExpanded && 'rotate-180'
-                  )}
-                />
-              )}
-            </div>
-
-            {isExpanded && hasFields && (
-              <div className='relative'>
-                <div
-                  className='pointer-events-none absolute'
-                  style={{
-                    left: `${TREE_SPACING.VERTICAL_LINE_LEFT_OFFSET}px`,
-                    top: `${TREE_STYLES.LINE_OFFSET}px`,
-                    width: '1px',
-                    height: `${calculateFieldsHeight(fields, '', connection.id, isFieldExpanded) - TREE_STYLES.LINE_OFFSET * 2}px`,
-                    background: TREE_STYLES.LINE_COLOR,
-                  }}
-                />
-                {renderFieldTree(fields, '', 0, connection)}
-              </div>
-            )}
-          </div>
+            mergedSubBlocks={mergedSubBlocks}
+            sourceBlock={sourceBlock}
+          />
         )
       })}
     </div>

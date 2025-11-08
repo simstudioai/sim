@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { devtools, persist } from 'zustand/middleware'
 import { createLogger } from '@/lib/logs/console/logger'
 import { syncThemeToNextThemes } from '@/lib/theme-sync'
+import { withOptimisticUpdate } from '@/lib/utils'
 import type { General, GeneralStore, UserSettings } from '@/stores/settings/general/types'
 
 const logger = createLogger('GeneralStore')
@@ -41,34 +42,28 @@ export const useGeneralStore = create<GeneralStore>()(
           isSuperUserModeLoading: false,
         }
 
-        // Optimistic update helper
         const updateSettingOptimistic = async <K extends keyof UserSettings>(
           key: K,
           value: UserSettings[K],
           loadingKey: keyof General,
           stateKey: keyof General
         ) => {
-          // Prevent multiple simultaneous updates
           if ((get() as any)[loadingKey]) return
 
-          const originalValue = (get() as any)[stateKey]
-
-          // Optimistic update
-          set({ [stateKey]: value, [loadingKey]: true } as any)
-
-          try {
-            await get().updateSetting(key, value)
-            set({ [loadingKey]: false } as any)
-          } catch (error) {
-            // Rollback on error
-            set({ [stateKey]: originalValue, [loadingKey]: false } as any)
-            logger.error(`Failed to update ${String(key)}, rolled back:`, error)
-          }
+          await withOptimisticUpdate({
+            getCurrentState: () => (get() as any)[stateKey],
+            optimisticUpdate: () => set({ [stateKey]: value, [loadingKey]: true } as any),
+            apiCall: async () => {
+              await get().updateSetting(key, value)
+            },
+            rollback: (originalValue) => set({ [stateKey]: originalValue } as any),
+            onComplete: () => set({ [loadingKey]: false } as any),
+            errorMessage: `Failed to update ${String(key)}, rolled back`,
+          })
         }
 
         return {
           ...store,
-          // Basic Actions with optimistic updates
           toggleAutoConnect: async () => {
             if (get().isAutoConnectLoading) return
             const newValue = !get().isAutoConnectEnabled
@@ -138,25 +133,22 @@ export const useGeneralStore = create<GeneralStore>()(
           setTheme: async (theme) => {
             if (get().isThemeLoading) return
 
-            const originalTheme = get().theme
-
-            // Optimistic update
-            set({ theme, isThemeLoading: true })
-
-            // Update next-themes immediately for instant feedback
-            syncThemeToNextThemes(theme)
-
-            try {
-              // Sync to DB for authenticated users
-              await get().updateSetting('theme', theme)
-              set({ isThemeLoading: false })
-            } catch (error) {
-              // Rollback on error
-              set({ theme: originalTheme, isThemeLoading: false })
-              syncThemeToNextThemes(originalTheme)
-              logger.error('Failed to sync theme to database:', error)
-              throw error
-            }
+            await withOptimisticUpdate({
+              getCurrentState: () => get().theme,
+              optimisticUpdate: () => {
+                set({ theme, isThemeLoading: true })
+                syncThemeToNextThemes(theme)
+              },
+              apiCall: async () => {
+                await get().updateSetting('theme', theme)
+              },
+              rollback: (originalTheme) => {
+                set({ theme: originalTheme })
+                syncThemeToNextThemes(originalTheme)
+              },
+              onComplete: () => set({ isThemeLoading: false }),
+              errorMessage: 'Failed to sync theme to database',
+            })
           },
 
           setTelemetryEnabled: async (enabled) => {

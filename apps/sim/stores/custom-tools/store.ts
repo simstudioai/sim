@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import { createLogger } from '@/lib/logs/console/logger'
+import { withOptimisticUpdate } from '@/lib/utils'
 import type { CustomToolsState, CustomToolsStore } from './types'
 
 const logger = createLogger('CustomToolsStore')
@@ -136,84 +137,108 @@ export const useCustomToolsStore = create<CustomToolsStore>()(
       },
 
       updateTool: async (workspaceId: string, id: string, updates) => {
-        set({ isLoading: true, error: null })
-
-        try {
-          const tool = get().tools.find((t) => t.id === id)
-          if (!tool) {
-            throw new Error('Tool not found')
-          }
-
-          logger.info(`Updating custom tool: ${id} in workspace ${workspaceId}`)
-
-          const response = await fetch(API_ENDPOINT, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              tools: [
-                {
-                  id,
-                  title: updates.title ?? tool.title,
-                  schema: updates.schema ?? tool.schema,
-                  code: updates.code ?? tool.code,
-                },
-              ],
-              workspaceId,
-            }),
-          })
-
-          const data = await response.json()
-
-          if (!response.ok) {
-            throw new ApiError(data.error || 'Failed to update tool', response.status)
-          }
-
-          if (!data.data || !Array.isArray(data.data)) {
-            throw new Error('Invalid API response: missing tools data')
-          }
-
-          set({ tools: data.data, isLoading: false })
-
-          logger.info(`Updated custom tool: ${id}`)
-        } catch (error) {
-          logger.error('Error updating custom tool:', error)
-          set({ isLoading: false })
-          throw error
+        const tool = get().tools.find((t) => t.id === id)
+        if (!tool) {
+          throw new Error('Tool not found')
         }
+
+        await withOptimisticUpdate({
+          getCurrentState: () => get().tools,
+          optimisticUpdate: () => {
+            set((state) => ({
+              tools: state.tools.map((t) =>
+                t.id === id
+                  ? {
+                      ...t,
+                      title: updates.title ?? t.title,
+                      schema: updates.schema ?? t.schema,
+                      code: updates.code ?? t.code,
+                    }
+                  : t
+              ),
+              isLoading: true,
+              error: null,
+            }))
+          },
+          apiCall: async () => {
+            logger.info(`Updating custom tool: ${id} in workspace ${workspaceId}`)
+
+            const response = await fetch(API_ENDPOINT, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                tools: [
+                  {
+                    id,
+                    title: updates.title ?? tool.title,
+                    schema: updates.schema ?? tool.schema,
+                    code: updates.code ?? tool.code,
+                  },
+                ],
+                workspaceId,
+              }),
+            })
+
+            const data = await response.json()
+
+            if (!response.ok) {
+              throw new ApiError(data.error || 'Failed to update tool', response.status)
+            }
+
+            if (!data.data || !Array.isArray(data.data)) {
+              throw new Error('Invalid API response: missing tools data')
+            }
+
+            set({ tools: data.data })
+            logger.info(`Updated custom tool: ${id}`)
+          },
+          rollback: (originalTools) => {
+            set({ tools: originalTools })
+          },
+          onComplete: () => {
+            set({ isLoading: false })
+          },
+          errorMessage: 'Error updating custom tool',
+        })
       },
 
       deleteTool: async (workspaceId: string | null, id: string) => {
-        set({ isLoading: true, error: null })
+        await withOptimisticUpdate({
+          getCurrentState: () => get().tools,
+          optimisticUpdate: () => {
+            set((state) => ({
+              tools: state.tools.filter((tool) => tool.id !== id),
+              isLoading: true,
+              error: null,
+            }))
+          },
+          apiCall: async () => {
+            logger.info(`Deleting custom tool: ${id}`)
 
-        try {
-          logger.info(`Deleting custom tool: ${id}`)
+            const url = workspaceId
+              ? `${API_ENDPOINT}?id=${id}&workspaceId=${workspaceId}`
+              : `${API_ENDPOINT}?id=${id}`
 
-          // Build URL with optional workspaceId (for user-scoped tools)
-          const url = workspaceId
-            ? `${API_ENDPOINT}?id=${id}&workspaceId=${workspaceId}`
-            : `${API_ENDPOINT}?id=${id}`
+            const response = await fetch(url, {
+              method: 'DELETE',
+            })
 
-          const response = await fetch(url, {
-            method: 'DELETE',
-          })
+            const data = await response.json()
 
-          const data = await response.json()
+            if (!response.ok) {
+              throw new Error(data.error || 'Failed to delete tool')
+            }
 
-          if (!response.ok) {
-            throw new Error(data.error || 'Failed to delete tool')
-          }
-
-          set((state) => ({
-            tools: state.tools.filter((tool) => tool.id !== id),
-            isLoading: false,
-          }))
-
-          logger.info(`Deleted custom tool: ${id}`)
-        } catch (error) {
-          logger.error('Error deleting custom tool:', error)
-          set({ isLoading: false })
-          throw error
-        }
+            logger.info(`Deleted custom tool: ${id}`)
+          },
+          rollback: (originalTools) => {
+            set({ tools: originalTools })
+          },
+          onComplete: () => {
+            set({ isLoading: false })
+          },
+          errorMessage: 'Error deleting custom tool',
+        })
       },
 
       getTool: (id: string) => {

@@ -493,7 +493,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
             (metric: { name: string }) => `${normalizedBlockName}.${metric.name.toLowerCase()}`
           )
         } else {
-          const outputPaths = generateOutputPaths(blockConfig.outputs)
+          const outputPaths = getBlockOutputPaths(sourceBlock.type, mergedSubBlocks)
           blockTags = outputPaths.map((path) => `${normalizedBlockName}.${path}`)
         }
       } else if (sourceBlock.type === 'variables') {
@@ -515,7 +515,11 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
         if (schemaFields.length > 0) {
           blockTags = schemaFields.map((field) => `${normalizedBlockName}.${field.name}`)
         } else {
-          const outputPaths = generateOutputPaths(blockConfig.outputs || {})
+          const outputPaths = getBlockOutputPaths(
+            sourceBlock.type,
+            mergedSubBlocks,
+            sourceBlock.triggerMode
+          )
           blockTags = outputPaths.map((path) => `${normalizedBlockName}.${path}`)
         }
       } else if (!blockConfig.outputs || Object.keys(blockConfig.outputs).length === 0) {
@@ -573,21 +577,19 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
           if (dynamicOutputs.length > 0) {
             blockTags = dynamicOutputs.map((path) => `${normalizedBlockName}.${path}`)
           } else {
-            const outputPaths = generateOutputPaths(blockConfig.outputs || {})
+            const outputPaths = getBlockOutputPaths(sourceBlock.type, mergedSubBlocks, true)
             blockTags = outputPaths.map((path) => `${normalizedBlockName}.${path}`)
           }
         } else if (sourceBlock.type === 'approval') {
-          // For approval block, use dynamic outputs based on inputFormat
           const dynamicOutputs = getBlockOutputPaths(sourceBlock.type, mergedSubBlocks)
 
-          // If it's a self-reference, only show url (available immediately)
           const isSelfReference = activeSourceBlockId === blockId
 
           if (dynamicOutputs.length > 0) {
             const allTags = dynamicOutputs.map((path) => `${normalizedBlockName}.${path}`)
             blockTags = isSelfReference ? allTags.filter((tag) => tag.endsWith('.url')) : allTags
           } else {
-            const outputPaths = generateOutputPaths(blockConfig.outputs || {})
+            const outputPaths = getBlockOutputPaths(sourceBlock.type, mergedSubBlocks)
             const allTags = outputPaths.map((path) => `${normalizedBlockName}.${path}`)
             blockTags = isSelfReference ? allTags.filter((tag) => tag.endsWith('.url')) : allTags
           }
@@ -601,7 +603,11 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
           if (toolOutputPaths.length > 0) {
             blockTags = toolOutputPaths.map((path) => `${normalizedBlockName}.${path}`)
           } else {
-            const outputPaths = generateOutputPaths(blockConfig.outputs || {})
+            const outputPaths = getBlockOutputPaths(
+              sourceBlock.type,
+              mergedSubBlocks,
+              sourceBlock.triggerMode
+            )
             blockTags = outputPaths.map((path) => `${normalizedBlockName}.${path}`)
           }
         }
@@ -845,7 +851,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
             (metric: { name: string }) => `${normalizedBlockName}.${metric.name.toLowerCase()}`
           )
         } else {
-          const outputPaths = generateOutputPaths(blockConfig.outputs)
+          const outputPaths = getBlockOutputPaths(accessibleBlock.type, mergedSubBlocks)
           blockTags = outputPaths.map((path) => `${normalizedBlockName}.${path}`)
         }
       } else if (accessibleBlock.type === 'variables') {
@@ -867,7 +873,11 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
         if (schemaFields.length > 0) {
           blockTags = schemaFields.map((field) => `${normalizedBlockName}.${field.name}`)
         } else {
-          const outputPaths = generateOutputPaths(blockConfig.outputs || {})
+          const outputPaths = getBlockOutputPaths(
+            accessibleBlock.type,
+            mergedSubBlocks,
+            accessibleBlock.triggerMode
+          )
           blockTags = outputPaths.map((path) => `${normalizedBlockName}.${path}`)
         }
       } else if (!blockConfig.outputs || Object.keys(blockConfig.outputs).length === 0) {
@@ -879,21 +889,19 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
           if (dynamicOutputs.length > 0) {
             blockTags = dynamicOutputs.map((path) => `${normalizedBlockName}.${path}`)
           } else {
-            const outputPaths = generateOutputPaths(blockConfig.outputs || {})
+            const outputPaths = getBlockOutputPaths(accessibleBlock.type, mergedSubBlocks, true)
             blockTags = outputPaths.map((path) => `${normalizedBlockName}.${path}`)
           }
         } else if (accessibleBlock.type === 'approval') {
-          // For approval block, use dynamic outputs based on inputFormat
           const dynamicOutputs = getBlockOutputPaths(accessibleBlock.type, mergedSubBlocks)
 
-          // If it's a self-reference, only show url (available immediately)
           const isSelfReference = accessibleBlockId === blockId
 
           if (dynamicOutputs.length > 0) {
             const allTags = dynamicOutputs.map((path) => `${normalizedBlockName}.${path}`)
             blockTags = isSelfReference ? allTags.filter((tag) => tag.endsWith('.url')) : allTags
           } else {
-            const outputPaths = generateOutputPaths(blockConfig.outputs || {})
+            const outputPaths = getBlockOutputPaths(accessibleBlock.type, mergedSubBlocks)
             const allTags = outputPaths.map((path) => `${normalizedBlockName}.${path}`)
             blockTags = isSelfReference ? allTags.filter((tag) => tag.endsWith('.url')) : allTags
           }
@@ -907,7 +915,11 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
           if (toolOutputPaths.length > 0) {
             blockTags = toolOutputPaths.map((path) => `${normalizedBlockName}.${path}`)
           } else {
-            const outputPaths = generateOutputPaths(blockConfig.outputs || {})
+            const outputPaths = getBlockOutputPaths(
+              accessibleBlock.type,
+              mergedSubBlocks,
+              accessibleBlock.triggerMode
+            )
             blockTags = outputPaths.map((path) => `${normalizedBlockName}.${path}`)
           }
         }
