@@ -216,6 +216,20 @@ const nextConfig: NextConfig = {
       permanent: true,
     })
 
+    // Move root feeds to blog namespace
+    redirects.push(
+      {
+        source: '/rss.xml',
+        destination: '/blog/rss.xml',
+        permanent: true,
+      },
+      {
+        source: '/sitemap-images.xml',
+        destination: '/blog/sitemap-images.xml',
+        permanent: true,
+      }
+    )
+
     // Only enable domain redirects for the hosted version
     if (isHosted) {
       redirects.push(
