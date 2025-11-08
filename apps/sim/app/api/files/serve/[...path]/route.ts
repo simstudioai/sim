@@ -31,6 +31,25 @@ export async function GET(
 
     logger.info('File serve request:', { path })
 
+    const fullPath = path.join('/')
+    const isS3Path = path[0] === 's3'
+    const isBlobPath = path[0] === 'blob'
+    const isCloudPath = isS3Path || isBlobPath
+    const cloudKey = isCloudPath ? path.slice(1).join('/') : fullPath
+
+    const contextParam = request.nextUrl.searchParams.get('context')
+    const legacyBucketType = request.nextUrl.searchParams.get('bucket')
+
+    const context = contextParam || (isCloudPath ? inferContextFromKey(cloudKey) : undefined)
+
+    if (context === 'profile-pictures') {
+      logger.info('Serving public profile picture:', { cloudKey })
+      if (isUsingCloudStorage() || isCloudPath) {
+        return await handleCloudProxyPublic(cloudKey, context, legacyBucketType)
+      }
+      return await handleLocalFilePublic(fullPath)
+    }
+
     const authResult = await checkHybridAuth(request, { requireWorkflowId: false })
 
     if (!authResult.success || !authResult.userId) {
@@ -42,14 +61,6 @@ export async function GET(
     }
 
     const userId = authResult.userId
-    const fullPath = path.join('/')
-    const isS3Path = path[0] === 's3'
-    const isBlobPath = path[0] === 'blob'
-    const isCloudPath = isS3Path || isBlobPath
-    const cloudKey = isCloudPath ? path.slice(1).join('/') : fullPath
-
-    const contextParam = request.nextUrl.searchParams.get('context')
-    const legacyBucketType = request.nextUrl.searchParams.get('bucket')
 
     if (isUsingCloudStorage() || isCloudPath) {
       return await handleCloudProxy(cloudKey, userId, contextParam, legacyBucketType)
@@ -171,6 +182,67 @@ async function handleCloudProxy(
     })
   } catch (error) {
     logger.error('Error downloading from cloud storage:', error)
+    throw error
+  }
+}
+
+async function handleCloudProxyPublic(
+  cloudKey: string,
+  context: StorageContext,
+  legacyBucketType?: string | null
+): Promise<NextResponse> {
+  try {
+    let fileBuffer: Buffer
+
+    if (context === 'copilot') {
+      fileBuffer = await CopilotFiles.downloadCopilotFile(cloudKey)
+    } else {
+      fileBuffer = await downloadFile({
+        key: cloudKey,
+        context,
+      })
+    }
+
+    const originalFilename = cloudKey.split('/').pop() || 'download'
+    const contentType = getContentType(originalFilename)
+
+    logger.info('Public cloud file served', {
+      key: cloudKey,
+      size: fileBuffer.length,
+      context,
+    })
+
+    return createFileResponse({
+      buffer: fileBuffer,
+      contentType,
+      filename: originalFilename,
+    })
+  } catch (error) {
+    logger.error('Error serving public cloud file:', error)
+    throw error
+  }
+}
+
+async function handleLocalFilePublic(filename: string): Promise<NextResponse> {
+  try {
+    const filePath = findLocalFile(filename)
+
+    if (!filePath) {
+      throw new FileNotFoundError(`File not found: ${filename}`)
+    }
+
+    const fileBuffer = await readFile(filePath)
+    const contentType = getContentType(filename)
+
+    logger.info('Public local file served', { filename, size: fileBuffer.length })
+
+    return createFileResponse({
+      buffer: fileBuffer,
+      contentType,
+      filename,
+    })
+  } catch (error) {
+    logger.error('Error reading public local file:', error)
     throw error
   }
 }

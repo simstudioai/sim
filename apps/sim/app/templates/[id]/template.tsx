@@ -167,10 +167,13 @@ export default function TemplateDetails() {
         const response = await fetch('/api/auth/get-session')
         if (response.ok) {
           const data = await response.json()
-          setCurrentUserId(data.user?.id || null)
+          setCurrentUserId(data?.user?.id || null)
+        } else {
+          setCurrentUserId(null)
         }
       } catch (error) {
         console.error('Error fetching session:', error)
+        setCurrentUserId(null)
       }
     }
 
