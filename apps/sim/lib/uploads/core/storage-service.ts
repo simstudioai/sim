@@ -444,7 +444,9 @@ export async function generatePresignedDownloadUrl(
     return getPresignedUrlWithConfig(key, createBlobConfig(config), expirationSeconds)
   }
 
-  return `/api/files/serve/${encodeURIComponent(key)}`
+  const { getBaseUrl } = await import('@/lib/urls/utils')
+  const baseUrl = getBaseUrl()
+  return `${baseUrl}/api/files/serve/${encodeURIComponent(key)}`
 }
 
 /**

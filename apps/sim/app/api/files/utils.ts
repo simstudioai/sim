@@ -3,6 +3,7 @@ import { join, resolve, sep } from 'path'
 import { NextResponse } from 'next/server'
 import { createLogger } from '@/lib/logs/console/logger'
 import { UPLOAD_DIR } from '@/lib/uploads/config'
+import { sanitizeFileKey } from '@/lib/uploads/utils/file-utils'
 
 const logger = createLogger('FilesUtils')
 
@@ -159,7 +160,12 @@ function sanitizeFilename(filename: string): string {
 
 export function findLocalFile(filename: string): string | null {
   try {
-    const sanitizedFilename = sanitizeFilename(filename)
+    const sanitizedFilename = sanitizeFileKey(filename)
+
+    // Reject if sanitized filename is empty or only contains path separators/dots
+    if (!sanitizedFilename || !sanitizedFilename.trim() || /^[/\\.\s]+$/.test(sanitizedFilename)) {
+      return null
+    }
 
     const possiblePaths = [
       join(UPLOAD_DIR, sanitizedFilename),
@@ -170,8 +176,9 @@ export function findLocalFile(filename: string): string | null {
       const resolvedPath = resolve(path)
       const allowedDirs = [resolve(UPLOAD_DIR), resolve(process.cwd(), 'uploads')]
 
+      // Must be within allowed directory but NOT the directory itself
       const isWithinAllowedDir = allowedDirs.some(
-        (allowedDir) => resolvedPath.startsWith(allowedDir + sep) || resolvedPath === allowedDir
+        (allowedDir) => resolvedPath.startsWith(allowedDir + sep) && resolvedPath !== allowedDir
       )
 
       if (!isWithinAllowedDir) {

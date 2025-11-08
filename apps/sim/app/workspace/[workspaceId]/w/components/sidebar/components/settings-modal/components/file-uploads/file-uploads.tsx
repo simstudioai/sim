@@ -38,8 +38,12 @@ const SUPPORTED_EXTENSIONS = [
   'htm',
   'pptx',
   'ppt',
+  'json',
+  'yaml',
+  'yml',
 ] as const
-const ACCEPT_ATTR = '.pdf,.csv,.doc,.docx,.txt,.md,.xlsx,.xls,.html,.htm,.pptx,.ppt'
+const ACCEPT_ATTR =
+  '.pdf,.csv,.doc,.docx,.txt,.md,.xlsx,.xls,.html,.htm,.pptx,.ppt,.json,.yaml,.yml'
 
 interface StorageInfo {
   usedBytes: number
