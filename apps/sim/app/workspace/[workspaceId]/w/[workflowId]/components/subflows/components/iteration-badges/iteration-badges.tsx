@@ -12,7 +12,14 @@ import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import 'prismjs/components/prism-javascript'
 import 'prismjs/themes/prism.css'
 
+import {
+  isLikelyReferenceSegment,
+  SYSTEM_REFERENCE_PREFIXES,
+  splitReferenceSegment,
+} from '@/lib/workflows/references'
 import type { LoopType, ParallelType } from '@/lib/workflows/types'
+import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
+import { normalizeBlockName } from '@/stores/workflows/utils'
 
 type IterationType = 'loop' | 'parallel'
 
@@ -130,6 +137,88 @@ export function IterationBadges({ nodeId, data, iterationType }: IterationBadges
     collaborativeUpdateIterationCount,
     collaborativeUpdateIterationCollection,
   } = useCollaborativeWorkflow()
+  const accessiblePrefixes = useAccessibleReferencePrefixes(nodeId)
+
+  const shouldHighlightReference = useCallback(
+    (part: string): boolean => {
+      if (!part.startsWith('<') || !part.endsWith('>')) {
+        return false
+      }
+
+      if (!isLikelyReferenceSegment(part)) {
+        return false
+      }
+
+      const split = splitReferenceSegment(part)
+      if (!split) {
+        return false
+      }
+
+      const reference = split.reference
+
+      if (!accessiblePrefixes) {
+        return true
+      }
+
+      const inner = reference.slice(1, -1)
+      const [prefix] = inner.split('.')
+      const normalizedPrefix = normalizeBlockName(prefix)
+
+      if (SYSTEM_REFERENCE_PREFIXES.has(normalizedPrefix)) {
+        return true
+      }
+
+      return accessiblePrefixes.has(normalizedPrefix)
+    },
+    [accessiblePrefixes]
+  )
+
+  const highlightWithReferences = useCallback(
+    (code: string): string => {
+      const placeholders: Array<{
+        placeholder: string
+        original: string
+        type: 'var' | 'env'
+      }> = []
+
+      let processedCode = code
+
+      processedCode = processedCode.replace(/\{\{([^}]+)\}\}/g, (match) => {
+        const placeholder = `__ENV_VAR_${placeholders.length}__`
+        placeholders.push({ placeholder, original: match, type: 'env' })
+        return placeholder
+      })
+
+      processedCode = processedCode.replace(/<[^>]+>/g, (match) => {
+        if (shouldHighlightReference(match)) {
+          const placeholder = `__VAR_REF_${placeholders.length}__`
+          placeholders.push({ placeholder, original: match, type: 'var' })
+          return placeholder
+        }
+        return match
+      })
+
+      let highlightedCode = highlight(processedCode, languages.javascript, 'javascript')
+
+      placeholders.forEach(({ placeholder, original, type }) => {
+        if (type === 'env') {
+          highlightedCode = highlightedCode.replace(
+            placeholder,
+            `<span class="text-blue-500">${original}</span>`
+          )
+        } else {
+          const escaped = original.replace(/</g, '&lt;').replace(/>/g, '&gt;')
+          highlightedCode = highlightedCode.replace(
+            placeholder,
+            `<span class="text-blue-500">${escaped}</span>`
+          )
+        }
+      })
+
+      return highlightedCode
+    },
+    [shouldHighlightReference]
+  )
 
   // Handle type change
   const handleTypeChange = useCallback(
@@ -325,7 +414,7 @@ export function IterationBadges({ nodeId, data, iterationType }: IterationBadges
                     <Editor
                       value={conditionString}
                       onValueChange={handleEditorChange}
-                      highlight={(code) => highlight(code, languages.javascript, 'javascript')}
+                      highlight={highlightWithReferences}
                       padding={0}
                       style={{
                         fontFamily: 'monospace',
@@ -363,7 +452,7 @@ export function IterationBadges({ nodeId, data, iterationType }: IterationBadges
                     <Editor
                       value={editorValue}
                       onValueChange={handleEditorChange}
-                      highlight={(code) => highlight(code, languages.javascript, 'javascript')}
+                      highlight={highlightWithReferences}
                       padding={0}
                       style={{
                         fontFamily: 'monospace',

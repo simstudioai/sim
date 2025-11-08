@@ -59,6 +59,27 @@ export const checkTagTrigger = (text: string, cursorPosition: number): { show: b
   return { show: false }
 }
 
+export const getTagSearchTerm = (text: string, cursorPosition: number): string => {
+  if (cursorPosition <= 0) {
+    return ''
+  }
+
+  const textBeforeCursor = text.slice(0, cursorPosition)
+  const lastOpenBracket = textBeforeCursor.lastIndexOf('<')
+
+  if (lastOpenBracket === -1) {
+    return ''
+  }
+
+  const lastCloseBracket = textBeforeCursor.lastIndexOf('>')
+
+  if (lastCloseBracket > lastOpenBracket) {
+    return ''
+  }
+
+  return textBeforeCursor.slice(lastOpenBracket + 1).toLowerCase()
+}
+
 const BLOCK_COLORS = {
   VARIABLE: '#2F8BFF',
   DEFAULT: '#2F55FF',
@@ -344,11 +365,10 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
   const getVariablesByWorkflowId = useVariablesStore((state) => state.getVariablesByWorkflowId)
   const workflowVariables = workflowId ? getVariablesByWorkflowId(workflowId) : []
 
-  const searchTerm = useMemo(() => {
-    const textBeforeCursor = inputValue.slice(0, cursorPosition)
-    const match = textBeforeCursor.match(/<([^>]*)$/)
-    return match ? match[1].toLowerCase() : ''
-  }, [inputValue, cursorPosition])
+  const searchTerm = useMemo(
+    () => getTagSearchTerm(inputValue, cursorPosition),
+    [inputValue, cursorPosition]
+  )
 
   const {
     tags,

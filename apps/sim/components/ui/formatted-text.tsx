@@ -1,6 +1,7 @@
 'use client'
 
 import type { ReactNode } from 'react'
+import { splitReferenceSegment } from '@/lib/workflows/references'
 import { normalizeBlockName } from '@/stores/workflows/utils'
 
 export interface HighlightContext {
@@ -17,8 +18,8 @@ const SYSTEM_PREFIXES = new Set(['start', 'loop', 'parallel', 'variable'])
 export function formatDisplayText(text: string, context?: HighlightContext): ReactNode[] {
   if (!text) return []
 
-  const shouldHighlightPart = (part: string): boolean => {
-    if (!part.startsWith('<') || !part.endsWith('>')) {
+  const shouldHighlightReference = (reference: string): boolean => {
+    if (!reference.startsWith('<') || !reference.endsWith('>')) {
       return false
     }
 
@@ -26,7 +27,7 @@ export function formatDisplayText(text: string, context?: HighlightContext): Rea
       return true
     }
 
-    const inner = part.slice(1, -1)
+    const inner = reference.slice(1, -1)
     const [prefix] = inner.split('.')
     const normalizedPrefix = normalizeBlockName(prefix)
 
@@ -41,17 +42,52 @@ export function formatDisplayText(text: string, context?: HighlightContext): Rea
     return false
   }
 
-  const parts = text.split(/(<[^>]+>|\{\{[^}]+\}\})/g)
+  const nodes: ReactNode[] = []
+  const regex = /<[^>]+>|\{\{[^}]+\}\}/g
+  let lastIndex = 0
+  let key = 0
 
-  return parts.map((part, index) => {
-    if (shouldHighlightPart(part) || part.match(/^\{\{[^}]+\}\}$/)) {
-      return (
-        <span key={index} className='text-blue-500'>
-          {part}
-        </span>
-      )
+  const pushPlainText = (value: string) => {
+    if (!value) return
+    nodes.push(<span key={key++}>{value}</span>)
+  }
+
+  let match: RegExpExecArray | null
+  while ((match = regex.exec(text)) !== null) {
+    const matchText = match[0]
+    const index = match.index
+
+    if (index > lastIndex) {
+      pushPlainText(text.slice(lastIndex, index))
     }
 
-    return <span key={index}>{part}</span>
-  })
+    if (matchText.startsWith('{{')) {
+      nodes.push(
+        <span key={key++} className='text-blue-500'>
+          {matchText}
+        </span>
+      )
+    } else {
+      const split = splitReferenceSegment(matchText)
+
+      if (split && shouldHighlightReference(split.reference)) {
+        pushPlainText(split.leading)
+        nodes.push(
+          <span key={key++} className='text-blue-500'>
+            {split.reference}
+          </span>
+        )
+      } else {
+        nodes.push(<span key={key++}>{matchText}</span>)
+      }
+    }
+
+    lastIndex = regex.lastIndex
+  }
+
+  if (lastIndex < text.length) {
+    pushPlainText(text.slice(lastIndex))
+  }
+
+  return nodes
 }

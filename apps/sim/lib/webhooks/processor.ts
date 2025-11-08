@@ -65,9 +65,10 @@ export async function parseWebhookBody(
     const requestClone = request.clone()
     rawBody = await requestClone.text()
 
+    // Allow empty body - some webhooks send empty payloads
     if (!rawBody || rawBody.length === 0) {
-      logger.warn(`[${requestId}] Rejecting request with empty body`)
-      return new NextResponse('Empty request body', { status: 400 })
+      logger.debug(`[${requestId}] Received request with empty body, treating as empty object`)
+      return { body: {}, rawBody: '' }
     }
   } catch (bodyError) {
     logger.error(`[${requestId}] Failed to read request body`, {
@@ -96,9 +97,9 @@ export async function parseWebhookBody(
       logger.debug(`[${requestId}] Parsed JSON webhook payload`)
     }
 
+    // Allow empty JSON objects - some webhooks send empty payloads
     if (Object.keys(body).length === 0) {
-      logger.warn(`[${requestId}] Rejecting empty JSON object`)
-      return new NextResponse('Empty JSON payload', { status: 400 })
+      logger.debug(`[${requestId}] Received empty JSON object`)
     }
   } catch (parseError) {
     logger.error(`[${requestId}] Failed to parse webhook body`, {

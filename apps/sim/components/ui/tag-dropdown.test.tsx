@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { checkTagTrigger } from '@/components/ui/tag-dropdown'
+import { checkTagTrigger, getTagSearchTerm } from '@/components/ui/tag-dropdown'
 import { extractFieldsFromSchema, parseResponseFormatSafely } from '@/lib/response-format'
 import type { BlockState } from '@/stores/workflows/workflow/types'
 import { generateLoopBlocks } from '@/stores/workflows/workflow/utils'
@@ -1002,14 +1002,11 @@ describe('TagDropdown Search and Filtering', () => {
       { input: 'Hello <loop.in', cursorPosition: 14, expected: 'loop.in' },
       { input: 'Hello world', cursorPosition: 11, expected: '' },
       { input: 'Hello <var> and <loo', cursorPosition: 20, expected: 'loo' },
+      { input: '<block.output> < <', cursorPosition: 18, expected: '' },
     ]
 
     testCases.forEach(({ input, cursorPosition, expected }) => {
-      const textBeforeCursor = input.slice(0, cursorPosition)
-      const match = textBeforeCursor.match(/<([^>]*)$/)
-      const searchTerm = match ? match[1].toLowerCase() : ''
-
-      expect(searchTerm).toBe(expected)
+      expect(getTagSearchTerm(input, cursorPosition)).toBe(expected)
     })
   })
 
