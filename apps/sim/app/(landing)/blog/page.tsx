@@ -1,3 +1,4 @@
+import { headers } from 'next/headers'
 import Image from 'next/image'
 import Link from 'next/link'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
@@ -11,6 +12,8 @@ export default async function BlogIndex({
 }: {
   searchParams: Promise<{ page?: string; tag?: string }>
 }) {
+  await headers()
+
   const { page, tag } = await searchParams
   const pageNum = Math.max(1, Number(page || 1))
   const perPage = 20

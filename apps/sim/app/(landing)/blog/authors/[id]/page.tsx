@@ -1,3 +1,4 @@
+import { headers } from 'next/headers'
 import Image from 'next/image'
 import Link from 'next/link'
 import { getAllPostMeta } from '@/lib/blog/registry'
@@ -6,6 +7,8 @@ import { soehne } from '@/app/fonts/soehne/soehne'
 export const revalidate = 3600
 
 export default async function AuthorPage({ params }: { params: Promise<{ id: string }> }) {
+  await headers()
+
   const { id } = await params
   const posts = (await getAllPostMeta()).filter((p) => p.author.id === id)
   const author = posts[0]?.author

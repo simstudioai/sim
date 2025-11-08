@@ -3,13 +3,14 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { FAQ } from '@/lib/blog/faq'
-import { getAllPostMeta, getPostBySlug, getRelatedPosts } from '@/lib/blog/registry'
+import { getPostBySlug, getRelatedPosts } from '@/lib/blog/registry'
 import { buildArticleJsonLd, buildBreadcrumbJsonLd, buildPostMetadata } from '@/lib/blog/seo'
 import { soehne } from '@/app/fonts/soehne/soehne'
 
 export async function generateStaticParams() {
-  const posts = await getAllPostMeta()
-  return posts.map((p) => ({ slug: p.slug }))
+  // Return empty array to skip build-time generation (avoids Bun+Turbopack bug)
+  // Pages will be generated on-demand with ISR
+  return []
 }
 
 export async function generateMetadata({

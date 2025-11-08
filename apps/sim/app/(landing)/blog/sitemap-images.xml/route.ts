@@ -1,9 +1,12 @@
+import { headers } from 'next/headers'
 import { NextResponse } from 'next/server'
 import { getAllPostMeta } from '@/lib/blog/registry'
 
 export const revalidate = 3600
 
 export async function GET() {
+  await headers()
+
   const posts = await getAllPostMeta()
   const base = 'https://sim.ai'
   const xml = `<?xml version="1.0" encoding="UTF-8"?>
