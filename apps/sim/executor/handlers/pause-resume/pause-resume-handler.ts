@@ -225,8 +225,8 @@ export class PauseResumeBlockHandler implements BlockHandler {
       }
 
       if (resumeLinks) {
-        output.uiUrl = resumeLinks.uiUrl
-        output.apiUrl = resumeLinks.apiUrl
+        output.url = resumeLinks.uiUrl
+        // output.apiUrl = resumeLinks.apiUrl // Hidden from output
       }
 
       return output
@@ -569,11 +569,11 @@ export class PauseResumeBlockHandler implements BlockHandler {
 
     if (context.resumeLinks) {
       if (context.resumeLinks.uiUrl) {
-        pauseOutput.uiUrl = context.resumeLinks.uiUrl
+        pauseOutput.url = context.resumeLinks.uiUrl
       }
-      if (context.resumeLinks.apiUrl) {
-        pauseOutput.apiUrl = context.resumeLinks.apiUrl
-      }
+      // if (context.resumeLinks.apiUrl) {
+      //   pauseOutput.apiUrl = context.resumeLinks.apiUrl
+      // } // Hidden from output
     }
 
     if (Array.isArray(context.inputFormat)) {

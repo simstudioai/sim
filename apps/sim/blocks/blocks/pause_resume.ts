@@ -163,7 +163,7 @@ export const PauseResumeBlock: BlockConfig<ResponseBlockOutput> = {
     },
   },
   outputs: {
-    uiUrl: { type: 'string', description: 'Resume UI URL' },
+    url: { type: 'string', description: 'Resume UI URL' },
     // apiUrl: { type: 'string', description: 'Resume API URL' }, // Commented out - not accessible as output
   },
 }
