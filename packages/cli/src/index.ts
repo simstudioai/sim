@@ -75,17 +75,28 @@ export function generateSecret(length: number = 32): string {
 }
 
 /**
- * Validates if a port is available (simple check via netstat-like command).
- * @param port - The port to check.
- * @returns True if port is available.
+ * Validates if a port is available on the local machine.
+ * Works on Linux, macOS and Windows.
  */
 export async function isPortAvailable(port: number): Promise<boolean> {
-  try {
-    execSync(`lsof -i :${port} || netstat -an | grep :${port} || ss -tuln | grep :${port}`, { stdio: 'ignore' })
-    return false // Port in use if command succeeds without error
-  } catch {
-    return true // Port available
-  }
+  return new Promise<boolean>((resolve) => {
+    const server = require('net').createServer();
+
+    server.once('error', (err: any) => {
+      if (err.code === 'EADDRINUSE') {
+        resolve(false);   // port taken
+      } else {
+        resolve(true);
+      }
+    });
+
+    server.once('listening', () => {
+      server.close(() => resolve(true)); // port free
+    });
+
+    // `::` binds to IPv6 + IPv4 on most systems
+    server.listen(port, '::');
+  });
 }
 
 /**
@@ -222,22 +233,33 @@ export async function startDatabase(config: Config): Promise<boolean> {
  * Waits for PostgreSQL to be ready with timeout.
  * @param containerName - DB container name.
  * @param timeoutMs - Timeout in milliseconds (default 5 minutes).
- * @returns Promise resolving to true if ready within timeout.
  */
-export async function waitForPgReady(containerName: string, timeoutMs: number = 300000): Promise<boolean> {
-  console.log(chalk.blue('⏳ Waiting for PostgreSQL to be ready...'))
-  const startTime = Date.now()
+export async function waitForPgReady(
+  containerName: string,
+  timeoutMs: number = 300_000   // 5 minutes = 300000 ms
+): Promise<boolean> {
+  console.log(chalk.blue('Waiting for PostgreSQL to be ready...'));
+  const startTime = Date.now();
+
   while (Date.now() - startTime < timeoutMs) {
     try {
-      execSync(`docker exec ${containerName} pg_isready -U ${DEFAULT_CONFIG.postgresUser!}`, { stdio: 'ignore' })
-      console.log(chalk.green('✅ PostgreSQL is ready!'))
-      return true
+      execSync(
+        `docker exec ${containerName} pg_isready -U ${DEFAULT_CONFIG.postgresUser!}`,
+        { stdio: 'ignore' }
+      );
+      console.log(chalk.green('PostgreSQL is ready!'));
+      return true;
     } catch {
-      // Wait 2s between checks
-      await new Promise(resolve => setTimeout(resolve, 2000))
+      await new Promise((r) => setTimeout(r, 2000));
     }
   }
-  return false
+
+  const minutes = Math.floor(timeoutMs / 60_000);
+  const seconds = (timeoutMs % 60_000) / 1_000;
+  console.error(
+    chalk.red(`PostgreSQL failed to become ready within ${minutes}m${seconds}s.`)
+  );
+  return false;
 }
 
 /**
