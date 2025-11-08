@@ -22,8 +22,6 @@ const createMockExecutionContext = (overrides?: Partial<ExecutionContext>): Exec
   metadata: { startTime: new Date().toISOString(), duration: 0 },
   environmentVariables: {},
   decisions: { router: new Map(), condition: new Map() },
-  loopIterations: new Map(),
-  loopItems: new Map(),
   completedLoops: new Set(),
   executedBlocks: new Set(),
   activeExecutionPath: new Set(),

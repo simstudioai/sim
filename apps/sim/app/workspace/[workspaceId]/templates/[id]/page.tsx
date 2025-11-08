@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { templateStars, templates, workflowDeploymentVersion } from '@sim/db/schema'
+import { templateCreators, templateStars, templates } from '@sim/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { notFound } from 'next/navigation'
 import { getSession } from '@/lib/auth'
@@ -19,37 +19,19 @@ export default async function TemplatePage({ params }: TemplatePageProps) {
   const { workspaceId, id } = await params
 
   try {
-    // Validate the template ID format (basic UUID validation)
     if (!id || typeof id !== 'string' || id.length !== 36) {
       notFound()
     }
 
     const session = await getSession()
 
-    // Fetch template data - no auth required for viewing
     const templateData = await db
       .select({
-        id: templates.id,
-        workflowId: templates.workflowId,
-        userId: templates.userId,
-        name: templates.name,
-        description: templates.description,
-        author: templates.author,
-        authorType: templates.authorType,
-        organizationId: templates.organizationId,
-        views: templates.views,
-        stars: templates.stars,
-        status: templates.status,
-        deploymentVersionId: templates.deploymentVersionId,
-        state: workflowDeploymentVersion.state,
-        createdAt: templates.createdAt,
-        updatedAt: templates.updatedAt,
+        template: templates,
+        creator: templateCreators,
       })
       .from(templates)
-      .leftJoin(
-        workflowDeploymentVersion,
-        eq(templates.deploymentVersionId, workflowDeploymentVersion.id)
-      )
+      .leftJoin(templateCreators, eq(templates.creatorId, templateCreators.id))
       .where(eq(templates.id, id))
       .limit(1)
 
@@ -57,24 +39,20 @@ export default async function TemplatePage({ params }: TemplatePageProps) {
       notFound()
     }
 
-    const template = templateData[0]
+    const { template, creator } = templateData[0]
 
-    // Only show approved templates to non-logged-in users
     if (!session?.user?.id && template.status !== 'approved') {
       notFound()
     }
 
-    // Validate that required fields are present
-    if (!template.id || !template.name || !template.author) {
+    if (!template.id || !template.name) {
       logger.error('Template missing required fields:', {
         id: template.id,
         name: template.name,
-        author: template.author,
       })
       notFound()
     }
 
-    // Check if user has starred this template (only if logged in)
     let isStarred = false
     if (session?.user?.id) {
       try {
@@ -90,53 +68,21 @@ export default async function TemplatePage({ params }: TemplatePageProps) {
           .limit(1)
         isStarred = starData.length > 0
       } catch {
-        // Continue with isStarred = false
-      }
-    }
-
-    // Ensure proper serialization of the template data with null checks
-    // Parse state if it's a string
-    let parsedState = template.state
-    if (typeof parsedState === 'string') {
-      try {
-        parsedState = JSON.parse(parsedState)
-      } catch (e) {
-        logger.error('Failed to parse template state', e)
+        isStarred = false
       }
     }
 
     const serializedTemplate = {
-      id: template.id,
-      workflowId: template.workflowId,
-      userId: template.userId,
-      name: template.name,
-      description: template.description,
-      author: template.author,
-      authorType: template.authorType,
-      organizationId: template.organizationId,
-      views: template.views,
-      stars: template.stars,
-      status: template.status,
-      deploymentVersionId: template.deploymentVersionId,
-      state: parsedState,
-      createdAt: template.createdAt ? template.createdAt.toISOString() : new Date().toISOString(),
-      updatedAt: template.updatedAt ? template.updatedAt.toISOString() : new Date().toISOString(),
+      ...template,
+      creator: creator || null,
+      createdAt: template.createdAt.toISOString(),
+      updatedAt: template.updatedAt.toISOString(),
       isStarred,
     }
 
-    // Deep serialize to ensure Next.js can pass it to client component
-    const fullySerializedTemplate = JSON.parse(JSON.stringify(serializedTemplate))
-
-    logger.info('Rendering template detail page', {
-      templateId: fullySerializedTemplate.id,
-      templateName: fullySerializedTemplate.name,
-      hasState: !!fullySerializedTemplate.state,
-      stateType: typeof fullySerializedTemplate.state,
-    })
-
     return (
       <TemplateDetails
-        template={fullySerializedTemplate}
+        template={JSON.parse(JSON.stringify(serializedTemplate))}
         workspaceId={workspaceId}
         currentUserId={session?.user?.id || null}
       />

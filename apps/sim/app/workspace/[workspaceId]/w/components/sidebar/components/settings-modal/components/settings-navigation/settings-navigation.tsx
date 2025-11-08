@@ -33,6 +33,7 @@ interface SettingsNavigationProps {
       | 'general'
       | 'environment'
       | 'account'
+      | 'creator-profile'
       | 'credentials'
       | 'apikeys'
       | 'files'
