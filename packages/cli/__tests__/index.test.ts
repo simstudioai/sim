@@ -32,8 +32,7 @@ describe('SimStudio CLI', () => {
             realtimePort: 3002,
             betterAuthSecret: 'test-secret-32chars-long-enough',
             encryptionKey: 'test-encryption-32chars-long',
-        }
-        as indexModule.Config;
+        } as indexModule.Config;
 
         mockHomedir.mockReturnValue('/home/user');
         mockJoin.mockImplementation((...args) => args.join('/'));
