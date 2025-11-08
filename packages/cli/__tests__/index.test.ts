@@ -27,11 +27,25 @@ describe('SimStudio CLI', () => {
         jest.clearAllMocks();
 
         config = {
-            ...indexModule.DEFAULT_CONFIG,
             port: 3000,
+            pullImages: true,
+            yes: false,
+            dataDir: '/home/user/.simstudio/data',
+            networkName: 'simstudio-network',
+            dbContainer: 'simstudio-db',
+            migrationsContainer: 'simstudio-migrations',
+            realtimeContainer: 'simstudio-realtime',
+            appContainer: 'simstudio-app',
+            dbImage: 'pgvector/pgvector:pg17',
+            migrationsImage: 'ghcr.io/simstudioai/migrations:latest',
+            realtimeImage: 'ghcr.io/simstudioai/realtime:latest',
+            appImage: 'ghcr.io/simstudioai/simstudio:latest',
+            postgresUser: 'postgres',
+            postgresPassword: 'postgres',
+            postgresDb: 'simstudio',
             realtimePort: 3002,
-            betterAuthSecret: 'test-secret-32chars-long-enough',
-            encryptionKey: 'test-encryption-32chars-long',
+            betterAuthSecret: 'test-secret-32chars-long-enough-1234567890',
+            encryptionKey: 'test-encryption-32chars-long-1234567890abcd',
         } as indexModule.Config;
 
         mockHomedir.mockReturnValue('/home/user');
@@ -69,20 +83,55 @@ describe('SimStudio CLI', () => {
     });
 
     describe('isPortAvailable', () => {
-        it('should return true if port is available (command throws)', async () => {
-            mockExecSync.mockImplementation(() => {
-                throw new Error('Port not in use');
+        let net: any;
+
+        beforeEach(() => {
+            net = require('net');
+        });
+
+        it('should return true if port is available', async () => {
+            jest.spyOn(net, 'createServer').mockImplementation(() => {
+                return {
+                    once: jest.fn().mockImplementation((event: string, cb: () => void) => {
+                        if (event === 'listening') setImmediate(cb);
+                    }),
+                    listen: jest.fn(),
+                    close: jest.fn().mockImplementation((cb: () => void) => cb && cb()),
+                } as any;
             });
 
             const available = await indexModule.isPortAvailable(3000);
             expect(available).toBe(true);
         });
 
-        it('should return false if port is in use (command succeeds)', async () => {
-            mockExecSync.mockReturnValue(Buffer.from('output'));
+        it('should return false if port is in use (EADDRINUSE)', async () => {
+            jest.spyOn(net, 'createServer').mockImplementation(() => {
+                return {
+                    once: jest.fn().mockImplementation((event: string, cb: (err?: any) => void) => {
+                        if (event === 'error') setImmediate(() => cb({ code: 'EADDRINUSE' }));
+                    }),
+                    listen: jest.fn(),
+                    close: jest.fn(),
+                } as any;
+            });
 
             const available = await indexModule.isPortAvailable(3000);
             expect(available).toBe(false);
+        });
+
+        it('should return true on any other error (cannot determine)', async () => {
+            jest.spyOn(net, 'createServer').mockImplementation(() => {
+                return {
+                    once: jest.fn().mockImplementation((event: string, cb: (err?: any) => void) => {
+                        if (event === 'error') setImmediate(() => cb({ code: 'EPERM' }));
+                    }),
+                    listen: jest.fn(),
+                    close: jest.fn(),
+                } as any;
+            });
+
+            const available = await indexModule.isPortAvailable(3000);
+            expect(available).toBe(true);
         });
     });
 
@@ -256,28 +305,28 @@ describe('SimStudio CLI', () => {
     });
 
     describe('waitForPgReady', () => {
-        it('should resolve true if PG becomes ready quickly', async () => {
+        it('should resolve true if PG becomes ready', async () => {
             let attempts = 0;
             mockExecSync.mockImplementation(() => {
                 attempts++;
-                if (attempts === 2) {
-                    return Buffer.from('ready');
-                }
+                if (attempts === 2) return Buffer.from('ready');
                 throw new Error('not ready');
             });
 
             const ready = await indexModule.waitForPgReady('test-db', 5000);
             expect(ready).toBe(true);
-            expect(mockExecSync).toHaveBeenCalled();
         });
 
-        it('should resolve false after timeout', async () => {
+        it('should resolve false after timeout and print correct message', async () => {
             mockExecSync.mockImplementation(() => {
                 throw new Error('not ready');
             });
 
-            const ready = await indexModule.waitForPgReady('test-db', 100);
+            const ready = await indexModule.waitForPgReady('test-db', 200);
             expect(ready).toBe(false);
+            expect(consoleErrorSpy).toHaveBeenCalledWith(
+                expect.stringContaining('failed to become ready within 0m0.2s')
+            );
         });
     });
 
