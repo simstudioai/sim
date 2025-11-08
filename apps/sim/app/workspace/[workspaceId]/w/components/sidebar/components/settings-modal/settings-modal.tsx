@@ -8,6 +8,7 @@ import {
   Account,
   ApiKeys,
   Copilot,
+  CreatorProfile,
   Credentials,
   CustomTools,
   EnvironmentVariables,
@@ -36,6 +37,7 @@ type SettingsSection =
   | 'general'
   | 'environment'
   | 'account'
+  | 'creator-profile'
   | 'credentials'
   | 'apikeys'
   | 'files'
@@ -152,6 +154,11 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
             {activeSection === 'account' && (
               <div className='h-full'>
                 <Account onOpenChange={onOpenChange} />
+              </div>
+            )}
+            {activeSection === 'creator-profile' && (
+              <div className='h-full'>
+                <CreatorProfile />
               </div>
             )}
             {activeSection === 'credentials' && (

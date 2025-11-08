@@ -1,4 +1,5 @@
 import type { Edge } from 'reactflow'
+import { sanitizeWorkflowForSharing } from '@/lib/workflows/credential-extractor'
 import type { BlockState, Loop, Parallel, WorkflowState } from '@/stores/workflows/workflow/types'
 
 /**
@@ -380,44 +381,24 @@ export function sanitizeForCopilot(state: WorkflowState): CopilotWorkflowState {
  * Users need positions to restore the visual layout when importing
  */
 export function sanitizeForExport(state: WorkflowState): ExportWorkflowState {
-  const clonedState = JSON.parse(
-    JSON.stringify({
-      blocks: state.blocks,
-      edges: state.edges,
-      loops: state.loops || {},
-      parallels: state.parallels || {},
-      metadata: state.metadata,
-      variables: state.variables,
-    })
-  )
+  // Preserve edges, loops, parallels, metadata, and variables
+  const fullState = {
+    blocks: state.blocks,
+    edges: state.edges,
+    loops: state.loops || {},
+    parallels: state.parallels || {},
+    metadata: state.metadata,
+    variables: state.variables,
+  }
 
-  Object.values(clonedState.blocks).forEach((block: any) => {
-    if (block.subBlocks) {
-      Object.entries(block.subBlocks).forEach(([key, subBlock]: [string, any]) => {
-        if (
-          /credential|oauth|api[_-]?key|token|secret|auth|password|bearer/i.test(key) ||
-          subBlock.type === 'oauth-input'
-        ) {
-          subBlock.value = ''
-        }
-        if (key === 'tagFilters' || key === 'documentTags') {
-          subBlock.value = ''
-        }
-      })
-    }
-
-    if (block.data) {
-      Object.entries(block.data).forEach(([key, value]: [string, any]) => {
-        if (/credential|oauth|api[_-]?key|token|secret|auth|password|bearer/i.test(key)) {
-          block.data[key] = ''
-        }
-      })
-    }
+  // Use unified sanitization with env var preservation for export
+  const sanitizedState = sanitizeWorkflowForSharing(fullState, {
+    preserveEnvVars: true, // Keep {{ENV_VAR}} references in exported workflows
   })
 
   return {
     version: '1.0',
     exportedAt: new Date().toISOString(),
-    state: clonedState,
+    state: sanitizedState,
   }
 }

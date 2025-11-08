@@ -7,6 +7,7 @@ import {
   Home,
   Key,
   LogIn,
+  Palette,
   Server,
   Settings,
   Shield,
@@ -32,6 +33,7 @@ interface SettingsNavigationProps {
       | 'general'
       | 'environment'
       | 'account'
+      | 'creator-profile'
       | 'credentials'
       | 'apikeys'
       | 'files'
@@ -51,6 +53,7 @@ type NavigationItem = {
     | 'general'
     | 'environment'
     | 'account'
+    | 'creator-profile'
     | 'credentials'
     | 'apikeys'
     | 'files'
@@ -99,6 +102,11 @@ const allNavigationItems: NavigationItem[] = [
     id: 'account',
     label: 'Account',
     icon: User,
+  },
+  {
+    id: 'creator-profile',
+    label: 'Creator Profile',
+    icon: Palette,
   },
   {
     id: 'apikeys',
@@ -231,6 +239,7 @@ export function SettingsNavigation({
                 }
               }}
               onClick={() => onSectionChange(item.id)}
+              data-section={item.id}
               className={cn(
                 'group flex h-9 w-full cursor-pointer items-center rounded-[8px] px-2 py-2 font-medium font-sans text-sm transition-colors',
                 activeSection === item.id ? 'bg-muted' : 'hover:bg-muted'

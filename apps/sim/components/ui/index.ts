@@ -132,6 +132,7 @@ export {
 } from './table'
 export { Tabs, TabsContent, TabsList, TabsTrigger } from './tabs'
 export { checkTagTrigger, TagDropdown } from './tag-dropdown'
+export { TagInput } from './tag-input'
 export { Textarea } from './textarea'
 export { Toggle, toggleVariants } from './toggle'
 export { ToolCallCompletion, ToolCallExecution } from './tool-call'

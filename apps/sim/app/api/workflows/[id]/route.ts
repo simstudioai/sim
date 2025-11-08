@@ -142,6 +142,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
           isDeployed: workflowData.isDeployed || false,
           deployedAt: workflowData.deployedAt,
         },
+        // Include workflow variables
+        variables: workflowData.variables || {},
       }
 
       logger.info(`[${requestId}] Loaded workflow ${workflowId} from normalized tables`)
@@ -218,7 +220,13 @@ export async function DELETE(
     if (checkTemplates) {
       // Return template information for frontend to handle
       const publishedTemplates = await db
-        .select()
+        .select({
+          id: templates.id,
+          name: templates.name,
+          views: templates.views,
+          stars: templates.stars,
+          status: templates.status,
+        })
         .from(templates)
         .where(eq(templates.workflowId, workflowId))
 

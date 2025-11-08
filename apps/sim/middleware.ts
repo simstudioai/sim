@@ -151,6 +151,11 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next()
   }
 
+  // Allow public access to template pages for SEO
+  if (url.pathname.startsWith('/templates')) {
+    return NextResponse.next()
+  }
+
   if (url.pathname.startsWith('/workspace')) {
     if (!hasActiveSession) {
       return NextResponse.redirect(new URL('/login', request.url))

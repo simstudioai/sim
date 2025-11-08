@@ -116,6 +116,12 @@ export async function verifyFileAccess(
     // Infer context from key if not explicitly provided
     const inferredContext = context || inferContextFromKey(cloudKey)
 
+    // 0. Profile pictures: Public access (anyone can view creator profile pictures)
+    if (inferredContext === 'profile-pictures') {
+      logger.info('Profile picture access allowed (public)', { cloudKey })
+      return true
+    }
+
     // 1. Workspace files: Check database first (most reliable for both local and cloud)
     if (inferredContext === 'workspace') {
       return await verifyWorkspaceFileAccess(cloudKey, userId, customConfig, isLocal)

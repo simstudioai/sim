@@ -1,5 +1,13 @@
 import { db } from '@sim/db'
-import { templateStars, templates, workflow } from '@sim/db/schema'
+import {
+  member,
+  templateCreators,
+  templateStars,
+  templates,
+  user,
+  workflow,
+  workflowDeploymentVersion,
+} from '@sim/db/schema'
 import { and, desc, eq, ilike, or, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
@@ -7,78 +15,43 @@ import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console/logger'
 import { generateRequestId } from '@/lib/utils'
+import {
+  extractRequiredCredentials,
+  sanitizeCredentials,
+} from '@/lib/workflows/credential-extractor'
 
 const logger = createLogger('TemplatesAPI')
 
 export const revalidate = 0
 
 // Function to sanitize sensitive data from workflow state
+// Now uses the more comprehensive sanitizeCredentials from credential-extractor
 function sanitizeWorkflowState(state: any): any {
-  const sanitizedState = JSON.parse(JSON.stringify(state)) // Deep clone
-
-  if (sanitizedState.blocks) {
-    Object.values(sanitizedState.blocks).forEach((block: any) => {
-      if (block.subBlocks) {
-        Object.entries(block.subBlocks).forEach(([key, subBlock]: [string, any]) => {
-          // Clear OAuth credentials and API keys using regex patterns
-          if (
-            /credential|oauth|api[_-]?key|token|secret|auth|password|bearer/i.test(key) ||
-            /credential|oauth|api[_-]?key|token|secret|auth|password|bearer/i.test(
-              subBlock.type || ''
-            ) ||
-            /credential|oauth|api[_-]?key|token|secret|auth|password|bearer/i.test(
-              subBlock.value || ''
-            )
-          ) {
-            subBlock.value = ''
-          }
-        })
-      }
-
-      // Also clear from data field if present
-      if (block.data) {
-        Object.entries(block.data).forEach(([key, value]: [string, any]) => {
-          if (/credential|oauth|api[_-]?key|token|secret|auth|password|bearer/i.test(key)) {
-            block.data[key] = ''
-          }
-        })
-      }
-    })
-  }
-
-  return sanitizedState
+  return sanitizeCredentials(state)
 }
 
 // Schema for creating a template
 const CreateTemplateSchema = z.object({
   workflowId: z.string().min(1, 'Workflow ID is required'),
   name: z.string().min(1, 'Name is required').max(100, 'Name must be less than 100 characters'),
-  description: z
-    .string()
-    .min(1, 'Description is required')
-    .max(500, 'Description must be less than 500 characters'),
-  author: z
-    .string()
-    .min(1, 'Author is required')
-    .max(100, 'Author must be less than 100 characters'),
-  category: z.string().min(1, 'Category is required'),
-  icon: z.string().min(1, 'Icon is required'),
-  color: z.string().regex(/^#[0-9A-F]{6}$/i, 'Color must be a valid hex color (e.g., #3972F6)'),
-  state: z.object({
-    blocks: z.record(z.any()),
-    edges: z.array(z.any()),
-    loops: z.record(z.any()),
-    parallels: z.record(z.any()),
-  }),
+  details: z
+    .object({
+      tagline: z.string().max(500, 'Tagline must be less than 500 characters').optional(),
+      about: z.string().optional(), // Markdown long description
+    })
+    .optional(),
+  creatorId: z.string().optional(), // Creator profile ID
+  tags: z.array(z.string()).max(10, 'Maximum 10 tags allowed').optional().default([]),
 })
 
 // Schema for query parameters
 const QueryParamsSchema = z.object({
-  category: z.string().optional(),
   limit: z.coerce.number().optional().default(50),
   offset: z.coerce.number().optional().default(0),
   search: z.string().optional(),
   workflowId: z.string().optional(),
+  status: z.enum(['pending', 'approved', 'rejected']).optional(),
+  includeAllStatuses: z.coerce.boolean().optional().default(false), // For super users
 })
 
 // GET /api/templates - Retrieve templates
@@ -97,25 +70,39 @@ export async function GET(request: NextRequest) {
 
     logger.debug(`[${requestId}] Fetching templates with params:`, params)
 
+    // Check if user is a super user
+    const currentUser = await db.select().from(user).where(eq(user.id, session.user.id)).limit(1)
+    const isSuperUser = currentUser[0]?.isSuperUser || false
+
     // Build query conditions
     const conditions = []
 
-    // Apply category filter if provided
-    if (params.category) {
-      conditions.push(eq(templates.category, params.category))
+    // Apply workflow filter if provided (for getting template by workflow)
+    // When fetching by workflowId, we want to get the template regardless of status
+    // This is used by the deploy modal to check if a template exists
+    if (params.workflowId) {
+      conditions.push(eq(templates.workflowId, params.workflowId))
+      // Don't apply status filter when fetching by workflowId - we want to show
+      // the template to its owner even if it's pending
+    } else {
+      // Apply status filter - only approved templates for non-super users
+      if (params.status) {
+        conditions.push(eq(templates.status, params.status))
+      } else if (!isSuperUser || !params.includeAllStatuses) {
+        // Non-super users and super users without includeAllStatuses flag see only approved templates
+        conditions.push(eq(templates.status, 'approved'))
+      }
     }
 
     // Apply search filter if provided
     if (params.search) {
       const searchTerm = `%${params.search}%`
       conditions.push(
-        or(ilike(templates.name, searchTerm), ilike(templates.description, searchTerm))
+        or(
+          ilike(templates.name, searchTerm),
+          sql`${templates.details}->>'tagline' ILIKE ${searchTerm}`
+        )
       )
-    }
-
-    // Apply workflow filter if provided (for getting template by workflow)
-    if (params.workflowId) {
-      conditions.push(eq(templates.workflowId, params.workflowId))
     }
 
     // Combine conditions
@@ -126,25 +113,27 @@ export async function GET(request: NextRequest) {
       .select({
         id: templates.id,
         workflowId: templates.workflowId,
-        userId: templates.userId,
         name: templates.name,
-        description: templates.description,
-        author: templates.author,
+        details: templates.details,
+        creatorId: templates.creatorId,
+        creator: templateCreators,
         views: templates.views,
         stars: templates.stars,
-        color: templates.color,
-        icon: templates.icon,
-        category: templates.category,
+        status: templates.status,
+        tags: templates.tags,
+        requiredCredentials: templates.requiredCredentials,
         state: templates.state,
         createdAt: templates.createdAt,
         updatedAt: templates.updatedAt,
         isStarred: sql<boolean>`CASE WHEN ${templateStars.id} IS NOT NULL THEN true ELSE false END`,
+        isSuperUser: sql<boolean>`${isSuperUser}`, // Include super user status in response
       })
       .from(templates)
       .leftJoin(
         templateStars,
         and(eq(templateStars.templateId, templates.id), eq(templateStars.userId, session.user.id))
       )
+      .leftJoin(templateCreators, eq(templates.creatorId, templateCreators.id))
       .where(whereCondition)
       .orderBy(desc(templates.views), desc(templates.createdAt))
       .limit(params.limit)
@@ -200,7 +189,6 @@ export async function POST(request: NextRequest) {
 
     logger.debug(`[${requestId}] Creating template:`, {
       name: data.name,
-      category: data.category,
       workflowId: data.workflowId,
     })
 
@@ -216,26 +204,116 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Workflow not found' }, { status: 404 })
     }
 
+    // Validate creator profile if provided
+    if (data.creatorId) {
+      // Verify the creator profile exists and user has access
+      const creatorProfile = await db
+        .select()
+        .from(templateCreators)
+        .where(eq(templateCreators.id, data.creatorId))
+        .limit(1)
+
+      if (creatorProfile.length === 0) {
+        logger.warn(`[${requestId}] Creator profile not found: ${data.creatorId}`)
+        return NextResponse.json({ error: 'Creator profile not found' }, { status: 404 })
+      }
+
+      const creator = creatorProfile[0]
+
+      // Verify user has permission to use this creator profile
+      if (creator.referenceType === 'user') {
+        if (creator.referenceId !== session.user.id) {
+          logger.warn(`[${requestId}] User cannot use creator profile: ${data.creatorId}`)
+          return NextResponse.json(
+            { error: 'You do not have permission to use this creator profile' },
+            { status: 403 }
+          )
+        }
+      } else if (creator.referenceType === 'organization') {
+        // Verify user is a member of the organization
+        const membership = await db
+          .select()
+          .from(member)
+          .where(
+            and(eq(member.userId, session.user.id), eq(member.organizationId, creator.referenceId))
+          )
+          .limit(1)
+
+        if (membership.length === 0) {
+          logger.warn(
+            `[${requestId}] User not a member of organization for creator: ${data.creatorId}`
+          )
+          return NextResponse.json(
+            { error: 'You must be a member of the organization to use its creator profile' },
+            { status: 403 }
+          )
+        }
+      }
+    }
+
     // Create the template
     const templateId = uuidv4()
     const now = new Date()
 
-    // Sanitize the workflow state to remove sensitive credentials
-    const sanitizedState = sanitizeWorkflowState(data.state)
+    // Get the active deployment version for the workflow to copy its state
+    const activeVersion = await db
+      .select({
+        id: workflowDeploymentVersion.id,
+        state: workflowDeploymentVersion.state,
+      })
+      .from(workflowDeploymentVersion)
+      .where(
+        and(
+          eq(workflowDeploymentVersion.workflowId, data.workflowId),
+          eq(workflowDeploymentVersion.isActive, true)
+        )
+      )
+      .limit(1)
+
+    if (activeVersion.length === 0) {
+      logger.warn(
+        `[${requestId}] No active deployment version found for workflow: ${data.workflowId}`
+      )
+      return NextResponse.json(
+        { error: 'Workflow must be deployed before creating a template' },
+        { status: 400 }
+      )
+    }
+
+    // Ensure the state includes workflow variables (if not already included)
+    let stateWithVariables = activeVersion[0].state as any
+    if (stateWithVariables && !stateWithVariables.variables) {
+      // Fetch workflow variables if not in deployment version
+      const [workflowRecord] = await db
+        .select({ variables: workflow.variables })
+        .from(workflow)
+        .where(eq(workflow.id, data.workflowId))
+        .limit(1)
+
+      stateWithVariables = {
+        ...stateWithVariables,
+        variables: workflowRecord?.variables || undefined,
+      }
+    }
+
+    // Extract credential requirements before sanitizing
+    const requiredCredentials = extractRequiredCredentials(stateWithVariables)
+
+    // Sanitize the workflow state to remove all credential values
+    const sanitizedState = sanitizeWorkflowState(stateWithVariables)
 
     const newTemplate = {
       id: templateId,
       workflowId: data.workflowId,
-      userId: session.user.id,
       name: data.name,
-      description: data.description || null,
-      author: data.author,
+      details: data.details || null,
+      creatorId: data.creatorId || null,
       views: 0,
       stars: 0,
-      color: data.color,
-      icon: data.icon,
-      category: data.category,
-      state: sanitizedState,
+      status: 'pending' as const, // All new templates start as pending
+      tags: data.tags || [],
+      requiredCredentials: requiredCredentials, // Store the extracted credential requirements
+      state: sanitizedState, // Store the sanitized state without credential values
       createdAt: now,
       updatedAt: now,
     }
@@ -247,7 +325,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         id: templateId,
-        message: 'Template created successfully',
+        message: 'Template submitted for approval successfully',
       },
       { status: 201 }
     )

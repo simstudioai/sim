@@ -26,6 +26,7 @@ export const NavigationItem = ({ item }: NavigationItemProps) => {
     <Button
       variant='outline'
       onClick={item.onClick}
+      data-settings-button={item.id === 'settings' ? '' : undefined}
       className={cn(
         'h-[42px] w-[42px] rounded-[10px] border bg-background text-foreground shadow-xs transition-all duration-200',
         isGrayHover && 'hover:bg-secondary',

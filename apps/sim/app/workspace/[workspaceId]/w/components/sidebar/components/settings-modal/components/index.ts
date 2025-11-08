@@ -1,6 +1,7 @@
 export { Account } from './account/account'
 export { ApiKeys } from './api-keys/api-keys'
 export { Copilot } from './copilot/copilot'
+export { CreatorProfile } from './creator-profile/creator-profile'
 export { Credentials } from './credentials/credentials'
 export { CustomTools } from './custom-tools/custom-tools'
 export { EnvironmentVariables } from './environment/environment'

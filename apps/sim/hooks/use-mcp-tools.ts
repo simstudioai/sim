@@ -57,6 +57,13 @@ export function useMcpTools(workspaceId: string): UseMcpToolsResult {
 
   const refreshTools = useCallback(
     async (forceRefresh = false) => {
+      // Skip if no workspaceId (e.g., on template preview pages)
+      if (!workspaceId) {
+        setMcpTools([])
+        setIsLoading(false)
+        return
+      }
+
       setIsLoading(true)
       setError(null)
 

@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { Info } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
@@ -12,6 +12,7 @@ import {
 import { Skeleton } from '@/components/ui/skeleton'
 import { Switch } from '@/components/ui/switch'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { useSession } from '@/lib/auth-client'
 import { getEnv, isTruthy } from '@/lib/env'
 import { useGeneralStore } from '@/stores/settings/general/store'
 
@@ -24,9 +25,15 @@ const TOOLTIPS = {
     'Show floating controls for zoom, undo, and redo at the bottom of the workflow canvas.',
   trainingControls:
     'Show training controls for recording workflow edits to build copilot training datasets.',
+  superUserMode:
+    'Toggle super user mode UI. When enabled, you can see and approve pending templates. Your super user status in the database remains unchanged.',
 }
 
 export function General() {
+  const { data: session } = useSession()
+  const [isSuperUser, setIsSuperUser] = useState(false)
+  const [loadingSuperUser, setLoadingSuperUser] = useState(true)
+
   const isLoading = useGeneralStore((state) => state.isLoading)
   const isTrainingEnabled = isTruthy(getEnv('NEXT_PUBLIC_COPILOT_TRAINING_ENABLED'))
   const theme = useGeneralStore((state) => state.theme)
@@ -36,6 +43,7 @@ export function General() {
   const isConsoleExpandedByDefault = useGeneralStore((state) => state.isConsoleExpandedByDefault)
   const showFloatingControls = useGeneralStore((state) => state.showFloatingControls)
   const showTrainingControls = useGeneralStore((state) => state.showTrainingControls)
+  const superUserModeEnabled = useGeneralStore((state) => state.superUserModeEnabled)
 
   // Loading states
   const isAutoConnectLoading = useGeneralStore((state) => state.isAutoConnectLoading)
@@ -47,6 +55,7 @@ export function General() {
   const isThemeLoading = useGeneralStore((state) => state.isThemeLoading)
   const isFloatingControlsLoading = useGeneralStore((state) => state.isFloatingControlsLoading)
   const isTrainingControlsLoading = useGeneralStore((state) => state.isTrainingControlsLoading)
+  const isSuperUserModeLoading = useGeneralStore((state) => state.isSuperUserModeLoading)
 
   const setTheme = useGeneralStore((state) => state.setTheme)
   const toggleAutoConnect = useGeneralStore((state) => state.toggleAutoConnect)
@@ -57,6 +66,34 @@ export function General() {
   )
   const toggleFloatingControls = useGeneralStore((state) => state.toggleFloatingControls)
   const toggleTrainingControls = useGeneralStore((state) => state.toggleTrainingControls)
+  const toggleSuperUserMode = useGeneralStore((state) => state.toggleSuperUserMode)
+
+  // Fetch super user status from database
+  useEffect(() => {
+    const fetchSuperUserStatus = async () => {
+      try {
+        const response = await fetch('/api/user/super-user')
+        if (response.ok) {
+          const data = await response.json()
+          setIsSuperUser(data.isSuperUser)
+        }
+      } catch (error) {
+        console.error('Failed to fetch super user status:', error)
+      } finally {
+        setLoadingSuperUser(false)
+      }
+    }
+
+    if (session?.user?.id) {
+      fetchSuperUserStatus()
+    }
+  }, [session?.user?.id])
+
+  const handleSuperUserModeToggle = async (checked: boolean) => {
+    if (checked !== superUserModeEnabled && !isSuperUserModeLoading) {
+      await toggleSuperUserMode()
+    }
+  }
 
   // Sync theme from store to next-themes when theme changes
   useEffect(() => {
@@ -324,6 +361,39 @@ export function General() {
                   checked={showTrainingControls}
                   onCheckedChange={handleTrainingControlsChange}
                   disabled={isLoading || isTrainingControlsLoading}
+                />
+              </div>
+            )}
+
+            {/* Super User Mode Toggle - Only visible to super users */}
+            {!loadingSuperUser && isSuperUser && (
+              <div className='flex items-center justify-between'>
+                <div className='flex items-center gap-2'>
+                  <Label htmlFor='super-user-mode' className='font-normal'>
+                    Super User Mode
+                  </Label>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant='ghost'
+                        size='sm'
+                        className='h-7 p-1 text-gray-500'
+                        aria-label='Learn more about super user mode'
+                        disabled={isLoading}
+                      >
+                        <Info className='h-5 w-5' />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side='top' className='max-w-[300px] p-3'>
+                      <p className='text-sm'>{TOOLTIPS.superUserMode}</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </div>
+                <Switch
+                  id='super-user-mode'
+                  checked={superUserModeEnabled}
+                  onCheckedChange={handleSuperUserModeToggle}
+                  disabled={isLoading || isSuperUserModeLoading}
                 />
               </div>
             )}

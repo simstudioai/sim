@@ -130,6 +130,8 @@ interface TemplateCardProps {
   onTemplateUsed?: () => void
   // Callback when star state changes (for parent state updates)
   onStarChange?: (templateId: string, isStarred: boolean, newStarCount: number) => void
+  // User authentication status
+  isAuthenticated?: boolean
 }
 
 // Skeleton component for loading states
@@ -249,6 +251,7 @@ export function TemplateCard({
   isStarred = false,
   onTemplateUsed,
   onStarChange,
+  isAuthenticated = true,
 }: TemplateCardProps) {
   const router = useRouter()
   const params = useParams()
@@ -320,52 +323,27 @@ export function TemplateCard({
     }
   }
 
-  // Handle use template
+  // Handle use click - just navigate to detail page
   const handleUseClick = async (e: React.MouseEvent) => {
     e.stopPropagation()
-    try {
-      const response = await fetch(`/api/templates/${id}/use`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          workspaceId: params.workspaceId,
-        }),
-      })
+    router.push(`/templates/${id}`)
+  }
 
-      if (response.ok) {
-        const data = await response.json()
-        logger.info('Template use API response:', data)
-
-        if (!data.workflowId) {
-          logger.error('No workflowId returned from API:', data)
-          return
-        }
-
-        const workflowUrl = `/workspace/${params.workspaceId}/w/${data.workflowId}`
-        logger.info('Template used successfully, navigating to:', workflowUrl)
-
-        // Call the callback if provided (for closing modals, etc.)
-        if (onTemplateUsed) {
-          onTemplateUsed()
-        }
-
-        // Use window.location.href for more reliable navigation
-        window.location.href = workflowUrl
-      } else {
-        const errorText = await response.text()
-        logger.error('Failed to use template:', response.statusText, errorText)
-      }
-    } catch (error) {
-      logger.error('Error using template:', error)
+  const handleCardClick = (e: React.MouseEvent) => {
+    // Don't navigate if clicking on action buttons
+    const target = e.target as HTMLElement
+    if (target.closest('button') || target.closest('[data-action]')) {
+      return
     }
+
+    router.push(`/templates/${id}`)
   }
 
   return (
     <div
+      onClick={handleCardClick}
       className={cn(
-        'group rounded-[8px] border bg-card shadow-xs transition-shadow duration-200 hover:border-border/80 hover:shadow-sm',
+        'group cursor-pointer rounded-[8px] border bg-card shadow-xs transition-shadow duration-200 hover:border-border/80 hover:shadow-sm',
         'flex h-[142px]',
         className
       )}
@@ -396,18 +374,21 @@ export function TemplateCard({
               </h3>
             </div>
 
-            {/* Star and Use button */}
-            <div className='flex flex-shrink-0 items-center gap-3'>
-              <Star
-                onClick={handleStarClick}
-                className={cn(
-                  'h-4 w-4 cursor-pointer transition-colors duration-50',
-                  localIsStarred
-                    ? 'fill-yellow-400 text-yellow-400'
-                    : 'text-muted-foreground hover:fill-yellow-400 hover:text-yellow-400',
-                  isStarLoading && 'opacity-50'
-                )}
-              />
+            {/* Actions */}
+            <div className='flex flex-shrink-0 items-center gap-2'>
+              {/* Star button - only for authenticated users */}
+              {isAuthenticated && (
+                <Star
+                  onClick={handleStarClick}
+                  className={cn(
+                    'h-4 w-4 cursor-pointer transition-colors duration-50',
+                    localIsStarred
+                      ? 'fill-yellow-400 text-yellow-400'
+                      : 'text-muted-foreground hover:fill-yellow-400 hover:text-yellow-400',
+                    isStarLoading && 'opacity-50'
+                  )}
+                />
+              )}
               <button
                 onClick={handleUseClick}
                 className={cn(
