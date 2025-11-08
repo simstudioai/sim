@@ -27,6 +27,7 @@ import { GoogleFormsBlock } from '@/blocks/blocks/google_form'
 import { GoogleSheetsBlock } from '@/blocks/blocks/google_sheets'
 import { GoogleVaultBlock } from '@/blocks/blocks/google_vault'
 import { GuardrailsBlock } from '@/blocks/blocks/guardrails'
+import { HubSpotBlock } from '@/blocks/blocks/hubspot'
 import { HuggingFaceBlock } from '@/blocks/blocks/huggingface'
 import { HunterBlock } from '@/blocks/blocks/hunter'
 import { ImageGeneratorBlock } from '@/blocks/blocks/image_generator'
@@ -125,6 +126,7 @@ export const registry: Record<string, BlockConfig> = {
   google_search: GoogleSearchBlock,
   google_sheets: GoogleSheetsBlock,
   google_vault: GoogleVaultBlock,
+  hubspot: HubSpotBlock,
   huggingface: HuggingFaceBlock,
   hunter: HunterBlock,
   image_generator: ImageGeneratorBlock,

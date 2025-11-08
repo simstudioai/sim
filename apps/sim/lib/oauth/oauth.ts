@@ -12,6 +12,7 @@ import {
   GoogleFormsIcon,
   GoogleIcon,
   GoogleSheetsIcon,
+  HubspotIcon,
   JiraIcon,
   LinearIcon,
   MicrosoftExcelIcon,
@@ -55,6 +56,7 @@ export type OAuthProvider =
   | 'webflow'
   | 'asana'
   | 'pipedrive'
+  | 'hubspot'
   | string
 
 export type OAuthService =
@@ -88,6 +90,7 @@ export type OAuthService =
   | 'trello'
   | 'asana'
   | 'pipedrive'
+  | 'hubspot'
 export interface OAuthProviderConfig {
   id: OAuthProvider
   name: string
@@ -693,6 +696,47 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     },
     defaultService: 'pipedrive',
   },
+  hubspot: {
+    id: 'hubspot',
+    name: 'HubSpot',
+    icon: (props) => HubspotIcon(props),
+    services: {
+      hubspot: {
+        id: 'hubspot',
+        name: 'HubSpot',
+        description: 'Access and manage your HubSpot CRM data.',
+        providerId: 'hubspot',
+        icon: (props) => HubspotIcon(props),
+        baseProviderIcon: (props) => HubspotIcon(props),
+        scopes: [
+          'crm.objects.contacts.read',
+          'crm.objects.contacts.write',
+          'crm.objects.companies.read',
+          'crm.objects.companies.write',
+          'crm.objects.deals.read',
+          'crm.objects.deals.write',
+          'crm.objects.owners.read',
+          'crm.objects.users.read',
+          'crm.objects.users.write',
+          'crm.objects.marketing_events.read',
+          'crm.objects.marketing_events.write',
+          'crm.objects.line_items.read',
+          'crm.objects.line_items.write',
+          'crm.objects.quotes.read',
+          'crm.objects.quotes.write',
+          'crm.objects.appointments.read',
+          'crm.objects.appointments.write',
+          'crm.objects.carts.read',
+          'crm.objects.carts.write',
+          'crm.import',
+          'crm.lists.read',
+          'crm.lists.write',
+          'tickets',
+        ],
+      },
+    },
+    defaultService: 'hubspot',
+  },
 }
 
 export function getServiceByProviderAndId(
@@ -1185,6 +1229,19 @@ function getProviderAuthConfig(provider: string): ProviderAuthConfig {
       )
       return {
         tokenEndpoint: 'https://oauth.pipedrive.com/oauth/token',
+        clientId,
+        clientSecret,
+        useBasicAuth: false,
+        supportsRefreshTokenRotation: true,
+      }
+    }
+    case 'hubspot': {
+      const { clientId, clientSecret } = getCredentials(
+        env.HUBSPOT_CLIENT_ID,
+        env.HUBSPOT_CLIENT_SECRET
+      )
+      return {
+        tokenEndpoint: 'https://api.hubapi.com/oauth/v1/token',
         clientId,
         clientSecret,
         useBasicAuth: false,

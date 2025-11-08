@@ -154,6 +154,8 @@ export const auth = betterAuth({
         'reddit',
         'webflow',
         'asana',
+        'pipedrive',
+        'hubspot',
 
         // Common SSO provider patterns
         ...SSO_TRUSTED_PROVIDERS,
@@ -719,6 +721,73 @@ export const auth = betterAuth({
               }
             } catch (error) {
               logger.error('Error creating Pipedrive user profile:', { error })
+              return null
+            }
+          },
+        },
+
+        // HubSpot provider
+        {
+          providerId: 'hubspot',
+          clientId: env.HUBSPOT_CLIENT_ID as string,
+          clientSecret: env.HUBSPOT_CLIENT_SECRET as string,
+          authorizationUrl: 'https://app.hubspot.com/oauth/authorize',
+          tokenUrl: 'https://api.hubapi.com/oauth/v1/token',
+          userInfoUrl: 'https://api.hubapi.com/oauth/v1/access-tokens',
+          scopes: [
+            'crm.objects.contacts.read',
+            'crm.objects.contacts.write',
+            'crm.objects.companies.read',
+            'crm.objects.companies.write',
+            'crm.objects.deals.read',
+            'crm.objects.deals.write',
+            'crm.objects.owners.read',
+            'crm.objects.users.read',
+            'crm.objects.users.write',
+            'crm.objects.marketing_events.read',
+            'crm.objects.marketing_events.write',
+            'crm.objects.line_items.read',
+            'crm.objects.line_items.write',
+            'crm.objects.quotes.read',
+            'crm.objects.quotes.write',
+            'crm.objects.appointments.read',
+            'crm.objects.appointments.write',
+            'crm.objects.carts.read',
+            'crm.objects.carts.write',
+            'crm.import',
+            'crm.lists.read',
+            'crm.lists.write',
+            'tickets',
+          ],
+          redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/hubspot`,
+          getUserInfo: async (tokens) => {
+            try {
+              logger.info('Fetching HubSpot user profile')
+
+              const response = await fetch(
+                `https://api.hubapi.com/oauth/v1/access-tokens/${tokens.accessToken}`
+              )
+
+              if (!response.ok) {
+                logger.error('Failed to fetch HubSpot user info', {
+                  status: response.status,
+                })
+                throw new Error('Failed to fetch user info')
+              }
+
+              const data = await response.json()
+
+              return {
+                id: data.user_id || data.hub_id.toString(),
+                name: data.user || 'HubSpot User',
+                email: data.user || `hubspot-${data.hub_id}@hubspot.com`,
+                emailVerified: true,
+                image: undefined,
+                createdAt: new Date(),
+                updatedAt: new Date(),
+              }
+            } catch (error) {
+              logger.error('Error creating HubSpot user profile:', { error })
               return null
             }
           },

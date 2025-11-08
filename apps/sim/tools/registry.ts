@@ -181,6 +181,20 @@ import {
 } from '@/tools/google_vault'
 import { guardrailsValidateTool } from '@/tools/guardrails'
 import { requestTool as httpRequest } from '@/tools/http'
+import {
+  hubspotCreateCompanyTool,
+  hubspotCreateContactTool,
+  hubspotGetCompanyTool,
+  hubspotGetContactTool,
+  hubspotGetUsersTool,
+  hubspotListCompaniesTool,
+  hubspotListContactsTool,
+  hubspotListDealsTool,
+  hubspotSearchCompaniesTool,
+  hubspotSearchContactsTool,
+  hubspotUpdateCompanyTool,
+  hubspotUpdateContactTool,
+} from '@/tools/hubspot'
 import { huggingfaceChatTool } from '@/tools/huggingface'
 import {
   hunterCompaniesFindTool,
@@ -634,6 +648,19 @@ export const tools: Record<string, ToolConfig> = {
   openai_embeddings: openAIEmbeddings,
   http_request: httpRequest,
   huggingface_chat: huggingfaceChatTool,
+  // HubSpot
+  hubspot_get_users: hubspotGetUsersTool,
+  hubspot_list_contacts: hubspotListContactsTool,
+  hubspot_get_contact: hubspotGetContactTool,
+  hubspot_create_contact: hubspotCreateContactTool,
+  hubspot_update_contact: hubspotUpdateContactTool,
+  hubspot_search_contacts: hubspotSearchContactsTool,
+  hubspot_list_companies: hubspotListCompaniesTool,
+  hubspot_get_company: hubspotGetCompanyTool,
+  hubspot_create_company: hubspotCreateCompanyTool,
+  hubspot_update_company: hubspotUpdateCompanyTool,
+  hubspot_search_companies: hubspotSearchCompaniesTool,
+  hubspot_list_deals: hubspotListDealsTool,
   function_execute: functionExecuteTool,
   vision_tool: visionTool,
   file_parser: fileParseTool,
