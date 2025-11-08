@@ -90,7 +90,7 @@ describe('S3 Client', () => {
       expect(mockSend).toHaveBeenCalledWith(expect.any(Object))
 
       expect(result).toEqual({
-        path: expect.stringContaining('/api/files/serve/s3/'),
+        path: expect.stringContaining('/api/files/serve/'),
         key: expect.stringContaining('test-file.txt'),
         name: 'test-file.txt',
         size: file.length,

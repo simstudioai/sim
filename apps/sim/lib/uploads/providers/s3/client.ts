@@ -69,16 +69,6 @@ export async function uploadToS3(
   size?: number,
   skipTimestampPrefix?: boolean,
   metadata?: Record<string, string>
-): Promise<FileInfo>
-
-export async function uploadToS3(
-  file: Buffer,
-  fileName: string,
-  contentType: string,
-  configOrSize?: S3Config | number,
-  size?: number,
-  skipTimestampPrefix?: boolean,
-  metadata?: Record<string, string>
 ): Promise<FileInfo> {
   let config: S3Config
   let fileSize: number
@@ -95,7 +85,7 @@ export async function uploadToS3(
   }
 
   const safeFileName = fileName.replace(/\s+/g, '-') // Replace spaces with hyphens
-  const uniqueKey = shouldSkipTimestamp ? safeFileName : `${Date.now()}-${safeFileName}`
+  const uniqueKey = shouldSkipTimestamp ? fileName : `${Date.now()}-${safeFileName}`
 
   const s3Client = getS3Client()
 
@@ -118,7 +108,7 @@ export async function uploadToS3(
     })
   )
 
-  const servePath = `/api/files/serve/s3/${encodeURIComponent(uniqueKey)}`
+  const servePath = `/api/files/serve/${encodeURIComponent(uniqueKey)}`
 
   return {
     path: servePath,
@@ -313,7 +303,7 @@ export async function completeS3MultipartUpload(
   const response = await s3Client.send(command)
   const location =
     response.Location || `https://${config.bucket}.s3.${config.region}.amazonaws.com/${key}`
-  const path = `/api/files/serve/s3/${encodeURIComponent(key)}`
+  const path = `/api/files/serve/${encodeURIComponent(key)}`
 
   return {
     location,

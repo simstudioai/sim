@@ -98,7 +98,6 @@ function extractWorkspaceIdFromKey(key: string): string | null {
  * Verify file access based on file path patterns and metadata
  * @param cloudKey The file key/path (e.g., "workspace_id/workflow_id/execution_id/filename" or "kb/filename")
  * @param userId The authenticated user ID
- * @param bucketType Optional bucket type (e.g., 'copilot', 'execution-files')
  * @param customConfig Optional custom storage configuration
  * @param context Optional explicit storage context
  * @param isLocal Optional flag indicating if this is local storage
@@ -107,7 +106,6 @@ function extractWorkspaceIdFromKey(key: string): string | null {
 export async function verifyFileAccess(
   cloudKey: string,
   userId: string,
-  bucketType?: string | null,
   customConfig?: StorageConfig,
   context?: StorageContext,
   isLocal?: boolean
@@ -128,12 +126,12 @@ export async function verifyFileAccess(
     }
 
     // 2. Execution files: workspace_id/workflow_id/execution_id/filename
-    if (inferredContext === 'execution' || (!context && isExecutionFile(cloudKey, bucketType))) {
+    if (inferredContext === 'execution') {
       return await verifyExecutionFileAccess(cloudKey, userId, customConfig)
     }
 
     // 3. Copilot files: Check database first, then metadata, then path pattern (legacy)
-    if (inferredContext === 'copilot' || bucketType === 'copilot') {
+    if (inferredContext === 'copilot') {
       return await verifyCopilotFileAccess(cloudKey, userId, customConfig)
     }
 
@@ -221,18 +219,6 @@ async function verifyWorkspaceFileAccess(
     logger.error('Error verifying workspace file access', { cloudKey, userId, error })
     return false
   }
-}
-
-/**
- * Check if file is an execution file based on path pattern
- * Execution files have format: workspace_id/workflow_id/execution_id/filename
- */
-function isExecutionFile(cloudKey: string, bucketType?: string | null): boolean {
-  if (bucketType === 'execution-files' || bucketType === 'execution') {
-    return true
-  }
-
-  return inferContextFromKey(cloudKey) === 'execution'
 }
 
 /**
@@ -590,7 +576,7 @@ export async function authorizeFileAccess(
   storageConfig?: StorageConfig,
   isLocal?: boolean
 ): Promise<AuthorizationResult> {
-  const granted = await verifyFileAccess(key, userId, null, storageConfig, context, isLocal)
+  const granted = await verifyFileAccess(key, userId, storageConfig, context, isLocal)
 
   if (granted) {
     let workspaceId: string | undefined

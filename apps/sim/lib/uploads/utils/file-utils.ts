@@ -214,12 +214,6 @@ export function extractStorageKey(filePath: string): string {
     // If URL parsing fails, use the original path
   }
 
-  if (pathWithoutQuery.includes('/api/files/serve/s3/')) {
-    return decodeURIComponent(pathWithoutQuery.split('/api/files/serve/s3/')[1])
-  }
-  if (pathWithoutQuery.includes('/api/files/serve/blob/')) {
-    return decodeURIComponent(pathWithoutQuery.split('/api/files/serve/blob/')[1])
-  }
   if (pathWithoutQuery.startsWith('/api/files/serve/')) {
     return decodeURIComponent(pathWithoutQuery.substring('/api/files/serve/'.length))
   }

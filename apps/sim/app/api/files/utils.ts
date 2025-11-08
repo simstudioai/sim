@@ -37,7 +37,6 @@ export class InvalidRequestError extends Error {
 }
 
 export const contentTypeMap: Record<string, string> = {
-  // Text formats
   txt: 'text/plain',
   csv: 'text/csv',
   json: 'application/json',
@@ -47,26 +46,20 @@ export const contentTypeMap: Record<string, string> = {
   css: 'text/css',
   js: 'application/javascript',
   ts: 'application/typescript',
-  // Document formats
   pdf: 'application/pdf',
   googleDoc: 'application/vnd.google-apps.document',
   doc: 'application/msword',
   docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  // Spreadsheet formats
   xls: 'application/vnd.ms-excel',
   xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   googleSheet: 'application/vnd.google-apps.spreadsheet',
-  // Presentation formats
   ppt: 'application/vnd.ms-powerpoint',
   pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-  // Image formats
   png: 'image/png',
   jpg: 'image/jpeg',
   jpeg: 'image/jpeg',
   gif: 'image/gif',
-  // Archive formats
   zip: 'application/zip',
-  // Folder format
   googleFolder: 'application/vnd.google-apps.folder',
 }
 
@@ -88,18 +81,6 @@ export const binaryExtensions = [
 export function getContentType(filename: string): string {
   const extension = filename.split('.').pop()?.toLowerCase() || ''
   return contentTypeMap[extension] || 'application/octet-stream'
-}
-
-export function isS3Path(path: string): boolean {
-  return path.includes('/api/files/serve/s3/')
-}
-
-export function isBlobPath(path: string): boolean {
-  return path.includes('/api/files/serve/blob/')
-}
-
-export function isCloudPath(path: string): boolean {
-  return isS3Path(path) || isBlobPath(path)
 }
 
 export function extractFilename(path: string): string {
@@ -142,17 +123,13 @@ function sanitizeFilename(filename: string): string {
     throw new Error('Invalid filename provided')
   }
 
-  // All files must have structured paths (context prefix)
   if (!filename.includes('/')) {
     throw new Error('File key must include a context prefix (e.g., kb/, workspace/, execution/)')
   }
 
-  // Split into path segments
   const segments = filename.split('/')
 
-  // Sanitize each segment separately
   const sanitizedSegments = segments.map((segment) => {
-    // Prevent path traversal
     if (segment === '..' || segment === '.') {
       throw new Error('Path traversal detected')
     }
@@ -163,7 +140,6 @@ function sanitizeFilename(filename: string): string {
       throw new Error('Invalid or empty path segment after sanitization')
     }
 
-    // Check for invalid characters in this segment
     if (
       sanitized.includes(':') ||
       sanitized.includes('|') ||
@@ -178,7 +154,6 @@ function sanitizeFilename(filename: string): string {
     return sanitized
   })
 
-  // Join with platform-specific separator for local filesystem
   return sanitizedSegments.join(sep)
 }
 
@@ -253,7 +228,6 @@ function getSecureFileHeaders(filename: string, originalContentType: string) {
 }
 
 function encodeFilenameForHeader(storageKey: string): string {
-  // Extract just the filename from the storage key (last segment after /)
   const filename = storageKey.split('/').pop() || storageKey
 
   const hasNonAscii = /[^\x00-\x7F]/.test(filename)

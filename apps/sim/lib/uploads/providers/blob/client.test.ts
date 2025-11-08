@@ -111,7 +111,7 @@ describe('Azure Blob Storage Client', () => {
       })
 
       expect(result).toEqual({
-        path: expect.stringContaining('/api/files/serve/blob/'),
+        path: expect.stringContaining('/api/files/serve/'),
         key: expect.stringContaining(fileName.replace(/\s+/g, '-')),
         name: fileName,
         size: testBuffer.length,

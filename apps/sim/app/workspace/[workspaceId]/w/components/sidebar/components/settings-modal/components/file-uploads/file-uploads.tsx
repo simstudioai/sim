@@ -13,6 +13,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { getEnv, isTruthy } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { getFileExtension } from '@/lib/uploads/utils/file-utils'
@@ -22,6 +23,7 @@ import { useUserPermissions } from '@/hooks/use-user-permissions'
 import { useWorkspacePermissions } from '@/hooks/use-workspace-permissions'
 
 const logger = createLogger('FileUploadsSettings')
+const isBillingEnabled = isTruthy(getEnv('NEXT_PUBLIC_BILLING_ENABLED'))
 
 const SUPPORTED_EXTENSIONS = [
   'pdf',
@@ -43,11 +45,6 @@ interface StorageInfo {
   usedBytes: number
   limitBytes: number
   percentUsed: number
-}
-
-interface UsageData {
-  plan: string
-  storage: StorageInfo
 }
 
 export function FileUploads() {
@@ -87,6 +84,11 @@ export function FileUploads() {
   }
 
   const loadStorageInfo = async () => {
+    if (!isBillingEnabled) {
+      setStorageLoading(false)
+      return
+    }
+
     try {
       setStorageLoading(true)
       const response = await fetch('/api/users/me/usage-limits')
@@ -158,7 +160,9 @@ export function FileUploads() {
       }
 
       await loadFiles()
-      await loadStorageInfo()
+      if (isBillingEnabled) {
+        await loadStorageInfo()
+      }
       if (unsupported.length) {
         lastError = `Unsupported file type: ${unsupported.join(', ')}`
       }
@@ -193,7 +197,7 @@ export function FileUploads() {
 
       setFiles((prev) => prev.filter((f) => f.id !== file.id))
 
-      if (storageInfo) {
+      if (isBillingEnabled && storageInfo) {
         const newUsedBytes = Math.max(0, storageInfo.usedBytes - file.size)
         const newPercentUsed = (newUsedBytes / storageInfo.limitBytes) * 100
         setStorageInfo({
@@ -217,7 +221,9 @@ export function FileUploads() {
     } catch (error) {
       logger.error('Error deleting file:', error)
       await loadFiles()
-      await loadStorageInfo()
+      if (isBillingEnabled) {
+        await loadStorageInfo()
+      }
     } finally {
       setDeletingFileId(null)
     }
@@ -283,31 +289,35 @@ export function FileUploads() {
           />
         </div>
         <div className='flex items-center gap-3'>
-          {storageLoading ? (
-            <Skeleton className='h-4 w-32' />
-          ) : storageInfo ? (
-            <div className='flex flex-col items-end gap-1'>
-              <div className='flex items-center gap-2 text-sm'>
-                <span
-                  className={cn(
-                    'font-medium',
-                    planName === 'free' ? 'text-foreground' : GRADIENT_TEXT_STYLES
-                  )}
-                >
-                  {displayPlanName}
-                </span>
-                <span className='text-muted-foreground tabular-nums'>
-                  {formatStorageSize(storageInfo.usedBytes)} /{' '}
-                  {formatStorageSize(storageInfo.limitBytes)}
-                </span>
-              </div>
-              <Progress
-                value={Math.min(storageInfo.percentUsed, 100)}
-                className='h-1 w-full'
-                indicatorClassName='bg-black dark:bg-white'
-              />
-            </div>
-          ) : null}
+          {isBillingEnabled && (
+            <>
+              {storageLoading ? (
+                <Skeleton className='h-4 w-32' />
+              ) : storageInfo ? (
+                <div className='flex flex-col items-end gap-1'>
+                  <div className='flex items-center gap-2 text-sm'>
+                    <span
+                      className={cn(
+                        'font-medium',
+                        planName === 'free' ? 'text-foreground' : GRADIENT_TEXT_STYLES
+                      )}
+                    >
+                      {displayPlanName}
+                    </span>
+                    <span className='text-muted-foreground tabular-nums'>
+                      {formatStorageSize(storageInfo.usedBytes)} /{' '}
+                      {formatStorageSize(storageInfo.limitBytes)}
+                    </span>
+                  </div>
+                  <Progress
+                    value={Math.min(storageInfo.percentUsed, 100)}
+                    className='h-1 w-full'
+                    indicatorClassName='bg-black dark:bg-white'
+                  />
+                </div>
+              ) : null}
+            </>
+          )}
           {userPermissions.canEdit && (
             <div className='flex items-center'>
               <input

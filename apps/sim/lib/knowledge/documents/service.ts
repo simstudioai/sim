@@ -3,11 +3,6 @@ import { db } from '@sim/db'
 import { document, embedding, knowledgeBase, knowledgeBaseTagDefinitions } from '@sim/db/schema'
 import { tasks } from '@trigger.dev/sdk'
 import { and, asc, desc, eq, inArray, isNull, sql } from 'drizzle-orm'
-import {
-  checkStorageQuota,
-  decrementStorageUsage,
-  incrementStorageUsage,
-} from '@/lib/billing/storage'
 import { generateEmbeddings } from '@/lib/embeddings/utils'
 import { env } from '@/lib/env'
 import { getSlotsForFieldType, type TAG_SLOT_CONFIG } from '@/lib/knowledge/consts'
@@ -696,13 +691,6 @@ export async function createDocumentRecords(
     if (kb.length === 0) {
       throw new Error('Knowledge base not found')
     }
-
-    // Always meter the knowledge base owner
-    const quotaCheck = await checkStorageQuota(kb[0].userId, totalSize)
-
-    if (!quotaCheck.allowed) {
-      throw new Error(quotaCheck.error || 'Storage limit exceeded')
-    }
   }
 
   return await db.transaction(async (tx) => {
@@ -787,21 +775,6 @@ export async function createDocumentRecords(
           .from(knowledgeBase)
           .where(eq(knowledgeBase.id, knowledgeBaseId))
           .limit(1)
-
-        if (kb.length > 0) {
-          // Always meter the knowledge base owner
-          try {
-            await incrementStorageUsage(kb[0].userId, totalSize)
-            logger.info(
-              `[${requestId}] Updated knowledge base owner storage usage for ${totalSize} bytes`
-            )
-          } catch (error) {
-            logger.error(
-              `[${requestId}] Failed to update knowledge base owner storage usage:`,
-              error
-            )
-          }
-        }
       }
     }
 
@@ -1037,13 +1010,6 @@ export async function createSingleDocument(
     if (kb.length === 0) {
       throw new Error('Knowledge base not found')
     }
-
-    // Always meter the knowledge base owner
-    const quotaCheck = await checkStorageQuota(kb[0].userId, documentData.fileSize)
-
-    if (!quotaCheck.allowed) {
-      throw new Error(quotaCheck.error || 'Storage limit exceeded')
-    }
   }
 
   const documentId = randomUUID()
@@ -1103,18 +1069,6 @@ export async function createSingleDocument(
       .from(knowledgeBase)
       .where(eq(knowledgeBase.id, knowledgeBaseId))
       .limit(1)
-
-    if (kb.length > 0) {
-      // Always meter the knowledge base owner
-      try {
-        await incrementStorageUsage(kb[0].userId, documentData.fileSize)
-        logger.info(
-          `[${requestId}] Updated knowledge base owner storage usage for ${documentData.fileSize} bytes`
-        )
-      } catch (error) {
-        logger.error(`[${requestId}] Failed to update knowledge base owner storage usage:`, error)
-      }
-    }
   }
 
   return newDocument as {
@@ -1226,28 +1180,6 @@ export async function bulkDocumentOperation(
         )
       )
       .returning({ id: document.id, deletedAt: document.deletedAt })
-
-    // Decrement storage usage tracking
-    if (userId && totalSize > 0) {
-      // Get knowledge base owner
-      const kb = await db
-        .select({ userId: knowledgeBase.userId })
-        .from(knowledgeBase)
-        .where(eq(knowledgeBase.id, knowledgeBaseId))
-        .limit(1)
-
-      if (kb.length > 0) {
-        // Always meter the knowledge base owner
-        try {
-          await decrementStorageUsage(kb[0].userId, totalSize)
-          logger.info(
-            `[${requestId}] Updated knowledge base owner storage usage for -${totalSize} bytes`
-          )
-        } catch (error) {
-          logger.error(`[${requestId}] Failed to update knowledge base owner storage usage:`, error)
-        }
-      }
-    }
   } else {
     // Handle bulk enable/disable
     const enabled = operation === 'enable'

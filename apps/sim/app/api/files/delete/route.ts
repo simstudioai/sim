@@ -13,9 +13,6 @@ import {
   extractFilename,
   FileNotFoundError,
   InvalidRequestError,
-  isBlobPath,
-  isCloudPath,
-  isS3Path,
 } from '@/app/api/files/utils'
 
 export const dynamic = 'force-dynamic'
@@ -54,9 +51,8 @@ export async function POST(request: NextRequest) {
       const hasAccess = await verifyFileAccess(
         key,
         userId,
-        null,
-        undefined,
-        storageContext,
+        undefined, // customConfig
+        storageContext, // context
         !hasCloudStorage() // isLocal
       )
 
@@ -99,15 +95,11 @@ export async function POST(request: NextRequest) {
  * Extract storage key from file path
  */
 function extractStorageKeyFromPath(filePath: string): string {
-  if (isS3Path(filePath) || isBlobPath(filePath) || filePath.startsWith('/api/files/serve/')) {
+  if (filePath.startsWith('/api/files/serve/')) {
     return extractStorageKey(filePath)
   }
 
-  if (!isCloudPath(filePath)) {
-    return extractFilename(filePath)
-  }
-
-  return filePath
+  return extractFilename(filePath)
 }
 
 /**

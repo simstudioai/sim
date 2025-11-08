@@ -101,6 +101,7 @@ export async function uploadFile(options: UploadFileOptions): Promise<FileInfo> 
       contentType,
       createBlobConfig(config),
       file.length,
+      preserveKey,
       metadata
     )
 
@@ -196,8 +197,14 @@ export async function downloadFile(options: DownloadFileOptions): Promise<Buffer
     }
   }
 
-  const { downloadFile: defaultDownload } = await import('./storage-client')
-  return defaultDownload(key)
+  const { readFile } = await import('fs/promises')
+  const { join } = await import('path')
+  const { UPLOAD_DIR_SERVER } = await import('./setup.server')
+
+  const safeKey = sanitizeFileKey(key)
+  const filePath = join(UPLOAD_DIR_SERVER, safeKey)
+
+  return readFile(filePath)
 }
 
 /**
@@ -220,8 +227,14 @@ export async function deleteFile(options: DeleteFileOptions): Promise<void> {
     }
   }
 
-  const { deleteFile: defaultDelete } = await import('@/lib/uploads/core/storage-client')
-  return defaultDelete(key)
+  const { unlink } = await import('fs/promises')
+  const { join } = await import('path')
+  const { UPLOAD_DIR_SERVER } = await import('./setup.server')
+
+  const safeKey = sanitizeFileKey(key)
+  const filePath = join(UPLOAD_DIR_SERVER, safeKey)
+
+  await unlink(filePath)
 }
 
 /**
@@ -439,13 +452,4 @@ export async function generatePresignedDownloadUrl(
  */
 export function hasCloudStorage(): boolean {
   return USE_BLOB_STORAGE || USE_S3_STORAGE
-}
-
-/**
- * Get the current storage provider name
- */
-export function getStorageProviderName(): 'Azure Blob' | 'S3' | 'Local' {
-  if (USE_BLOB_STORAGE) return 'Azure Blob'
-  if (USE_S3_STORAGE) return 'S3'
-  return 'Local'
 }

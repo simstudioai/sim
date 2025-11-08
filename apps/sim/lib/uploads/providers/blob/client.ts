@@ -47,6 +47,7 @@ export async function getBlobServiceClient(): Promise<BlobServiceClientInstance>
  * @param contentType MIME type of the file
  * @param configOrSize Custom Blob configuration OR file size in bytes (optional)
  * @param size File size in bytes (required if configOrSize is BlobConfig, optional otherwise)
+ * @param preserveKey Preserve the fileName as the storage key without adding timestamp prefix (default: false)
  * @param metadata Optional metadata to store with the file
  * @returns Object with file information
  */
@@ -56,23 +57,17 @@ export async function uploadToBlob(
   contentType: string,
   configOrSize?: BlobConfig | number,
   size?: number,
-  metadata?: Record<string, string>
-): Promise<FileInfo>
-
-export async function uploadToBlob(
-  file: Buffer,
-  fileName: string,
-  contentType: string,
-  configOrSize?: BlobConfig | number,
-  size?: number,
+  preserveKey?: boolean,
   metadata?: Record<string, string>
 ): Promise<FileInfo> {
   let config: BlobConfig
   let fileSize: number
+  let shouldPreserveKey: boolean
 
   if (typeof configOrSize === 'object') {
     config = configOrSize
     fileSize = size ?? file.length
+    shouldPreserveKey = preserveKey ?? false
   } else {
     config = {
       containerName: BLOB_CONFIG.containerName,
@@ -81,10 +76,11 @@ export async function uploadToBlob(
       connectionString: BLOB_CONFIG.connectionString,
     }
     fileSize = configOrSize ?? file.length
+    shouldPreserveKey = preserveKey ?? false
   }
 
   const safeFileName = fileName.replace(/\s+/g, '-') // Replace spaces with hyphens
-  const uniqueKey = `${Date.now()}-${safeFileName}`
+  const uniqueKey = shouldPreserveKey ? fileName : `${Date.now()}-${safeFileName}`
 
   const blobServiceClient = await getBlobServiceClient()
   const containerClient = blobServiceClient.getContainerClient(config.containerName)
@@ -106,7 +102,7 @@ export async function uploadToBlob(
     metadata: blobMetadata,
   })
 
-  const servePath = `/api/files/serve/blob/${encodeURIComponent(uniqueKey)}`
+  const servePath = `/api/files/serve/${encodeURIComponent(uniqueKey)}`
 
   return {
     path: servePath,
@@ -518,7 +514,7 @@ export async function completeMultipartUpload(
   })
 
   const location = blockBlobClient.url
-  const path = `/api/files/serve/blob/${encodeURIComponent(key)}`
+  const path = `/api/files/serve/${encodeURIComponent(key)}`
 
   return {
     location,

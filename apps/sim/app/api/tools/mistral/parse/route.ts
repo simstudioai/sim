@@ -62,9 +62,8 @@ export async function POST(request: NextRequest) {
         const hasAccess = await verifyFileAccess(
           storageKey,
           userId,
-          null,
-          undefined,
-          context,
+          undefined, // customConfig
+          context, // context
           false // isLocal
         )
 

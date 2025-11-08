@@ -54,8 +54,6 @@ describe('File Serve API Route', () => {
         })
       }),
       getContentType: vi.fn().mockReturnValue('text/plain'),
-      isS3Path: vi.fn().mockReturnValue(false),
-      isBlobPath: vi.fn().mockReturnValue(false),
       extractStorageKey: vi.fn().mockImplementation((path) => path.split('/').pop()),
       extractFilename: vi.fn().mockImplementation((path) => path.split('/').pop()),
       findLocalFile: vi.fn().mockReturnValue('/test/uploads/test-file.txt'),
@@ -112,8 +110,6 @@ describe('File Serve API Route', () => {
         })
       }),
       getContentType: vi.fn().mockReturnValue('text/plain'),
-      isS3Path: vi.fn().mockReturnValue(false),
-      isBlobPath: vi.fn().mockReturnValue(false),
       extractStorageKey: vi.fn().mockImplementation((path) => path.split('/').pop()),
       extractFilename: vi.fn().mockImplementation((path) => path.split('/').pop()),
       findLocalFile: vi.fn().mockReturnValue('/test/uploads/nested/path/file.txt'),
@@ -203,17 +199,15 @@ describe('File Serve API Route', () => {
         })
       }),
       getContentType: vi.fn().mockReturnValue('image/png'),
-      isS3Path: vi.fn().mockReturnValue(false),
-      isBlobPath: vi.fn().mockReturnValue(false),
       extractStorageKey: vi.fn().mockImplementation((path) => path.split('/').pop()),
       extractFilename: vi.fn().mockImplementation((path) => path.split('/').pop()),
       findLocalFile: vi.fn().mockReturnValue('/test/uploads/test-file.txt'),
     }))
 
     const req = new NextRequest(
-      'http://localhost:3000/api/files/serve/s3/workspace/test-workspace-id/1234567890-image.png'
+      'http://localhost:3000/api/files/serve/workspace/test-workspace-id/1234567890-image.png'
     )
-    const params = { path: ['s3', 'workspace', 'test-workspace-id', '1234567890-image.png'] }
+    const params = { path: ['workspace', 'test-workspace-id', '1234567890-image.png'] }
     const { GET } = await import('@/app/api/files/serve/[...path]/route')
 
     const response = await GET(req, { params: Promise.resolve(params) })
@@ -262,8 +256,6 @@ describe('File Serve API Route', () => {
         })
       }),
       getContentType: vi.fn().mockReturnValue('text/plain'),
-      isS3Path: vi.fn().mockReturnValue(false),
-      isBlobPath: vi.fn().mockReturnValue(false),
       extractStorageKey: vi.fn(),
       extractFilename: vi.fn(),
       findLocalFile: vi.fn().mockReturnValue(null),

@@ -427,9 +427,8 @@ async function handleCloudFile(
     const hasAccess = await verifyFileAccess(
       cloudKey,
       userId,
-      null,
-      undefined,
-      context,
+      undefined, // customConfig
+      context, // context
       false // isLocal
     )
 
@@ -534,9 +533,8 @@ async function handleLocalFile(
     const hasAccess = await verifyFileAccess(
       filename,
       userId,
-      null,
-      undefined,
-      context,
+      undefined, // customConfig
+      context, // context
       true // isLocal
     )
 
@@ -812,11 +810,7 @@ function prettySize(bytes: number): string {
  * Create a formatted message for PDF content
  */
 function createPdfFallbackMessage(pageCount: number, size: number, path?: string): string {
-  const formattedPath = path
-    ? path.includes('/api/files/serve/s3/')
-      ? `S3 path: ${decodeURIComponent(path.split('/api/files/serve/s3/')[1])}`
-      : `Local path: ${path}`
-    : 'Unknown path'
+  const formattedPath = path || 'Unknown path'
 
   return `PDF document - ${pageCount} page(s), ${prettySize(size)}
 Path: ${formattedPath}
@@ -834,12 +828,8 @@ function createPdfFailureMessage(
   path: string,
   error: string
 ): string {
-  const formattedPath = path.includes('/api/files/serve/s3/')
-    ? `S3 path: ${decodeURIComponent(path.split('/api/files/serve/s3/')[1])}`
-    : `Local path: ${path}`
-
   return `PDF document - Processing failed, ${prettySize(size)}
-Path: ${formattedPath}
+Path: ${path}
 Error: ${error}
 
 This file appears to be a PDF document that could not be processed.
