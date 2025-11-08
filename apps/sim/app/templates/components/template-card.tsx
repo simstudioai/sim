@@ -41,7 +41,7 @@ import {
   Wrench,
   Zap,
 } from 'lucide-react'
-import { useParams, useRouter } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { Badge } from '@/components/ui/badge'
 import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
@@ -115,23 +115,16 @@ interface TemplateCardProps {
   title: string
   description: string
   author: string
-  creatorId: string | null
   usageCount: string
   stars?: number
   blocks?: string[]
   tags?: string[]
-  onClick?: () => void
   className?: string
-  // Add state prop to extract block types
   state?: {
     blocks?: Record<string, { type: string; name?: string }>
   }
   isStarred?: boolean
-  // Optional callback when template is successfully used (for closing modals, etc.)
-  onTemplateUsed?: () => void
-  // Callback when star state changes (for parent state updates)
   onStarChange?: (templateId: string, isStarred: boolean, newStarCount: number) => void
-  // User authentication status
   isAuthenticated?: boolean
 }
 
@@ -212,12 +205,6 @@ const extractBlockTypesFromState = (state?: {
 }
 
 // Utility function to get block display name
-const getBlockDisplayName = (blockType: string): string => {
-  const block = getBlock(blockType)
-  return block?.name || blockType
-}
-
-// Utility function to get the full block config for colored icon display
 const getBlockConfig = (blockType: string) => {
   const block = getBlock(blockType)
   return block
@@ -228,23 +215,17 @@ export function TemplateCard({
   title,
   description,
   author,
-  userId,
-  authorType,
-  organizationId,
   usageCount,
   stars = 0,
   blocks = [],
   tags = [],
-  onClick,
   className,
   state,
   isStarred = false,
-  onTemplateUsed,
   onStarChange,
   isAuthenticated = true,
 }: TemplateCardProps) {
   const router = useRouter()
-  const params = useParams()
 
   // Local state for optimistic updates
   const [localIsStarred, setLocalIsStarred] = useState(isStarred)
