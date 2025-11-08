@@ -19,7 +19,6 @@ export const HubSpotBlock: BlockConfig<HubSpotResponse> = {
       id: 'operation',
       title: 'Operation',
       type: 'dropdown',
-      layout: 'full',
       options: [
         { label: 'Get Users', id: 'get_users' },
         { label: 'Get Contacts', id: 'get_contacts' },
@@ -38,7 +37,6 @@ export const HubSpotBlock: BlockConfig<HubSpotResponse> = {
       id: 'credential',
       title: 'HubSpot Account',
       type: 'oauth-input',
-      layout: 'full',
       provider: 'hubspot',
       serviceId: 'hubspot',
       requiredScopes: [
@@ -73,7 +71,6 @@ export const HubSpotBlock: BlockConfig<HubSpotResponse> = {
       id: 'contactId',
       title: 'Contact ID or Email',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Optional - Leave empty to list all contacts',
       condition: { field: 'operation', value: ['get_contacts', 'update_contact'] },
     },
@@ -81,7 +78,6 @@ export const HubSpotBlock: BlockConfig<HubSpotResponse> = {
       id: 'companyId',
       title: 'Company ID or Domain',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Optional - Leave empty to list all companies',
       condition: { field: 'operation', value: ['get_companies', 'update_company'] },
     },
@@ -89,7 +85,6 @@ export const HubSpotBlock: BlockConfig<HubSpotResponse> = {
       id: 'idProperty',
       title: 'ID Property',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Optional - e.g., "email" for contacts, "domain" for companies',
       condition: {
         field: 'operation',
@@ -100,7 +95,6 @@ export const HubSpotBlock: BlockConfig<HubSpotResponse> = {
       id: 'propertiesToSet',
       title: 'Properties',
       type: 'long-input',
-      layout: 'full',
       placeholder:
         'JSON object with properties (e.g., {"email": "test@example.com", "firstname": "John"})',
       condition: {
@@ -112,7 +106,6 @@ export const HubSpotBlock: BlockConfig<HubSpotResponse> = {
       id: 'properties',
       title: 'Properties to Return',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Comma-separated list (e.g., "email,firstname,lastname")',
       condition: { field: 'operation', value: ['get_contacts', 'get_companies', 'get_deals'] },
     },
@@ -120,7 +113,6 @@ export const HubSpotBlock: BlockConfig<HubSpotResponse> = {
       id: 'associations',
       title: 'Associations',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Comma-separated object types (e.g., "companies,deals")',
       condition: {
         field: 'operation',
@@ -131,7 +123,6 @@ export const HubSpotBlock: BlockConfig<HubSpotResponse> = {
       id: 'limit',
       title: 'Limit',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Max results (list: 100, search: 200)',
       condition: {
         field: 'operation',
@@ -149,7 +140,6 @@ export const HubSpotBlock: BlockConfig<HubSpotResponse> = {
       id: 'after',
       title: 'After (Pagination)',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Pagination cursor from previous response',
       condition: {
         field: 'operation',
@@ -166,7 +156,6 @@ export const HubSpotBlock: BlockConfig<HubSpotResponse> = {
       id: 'query',
       title: 'Search Query',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Search term (e.g., company name, contact email)',
       condition: { field: 'operation', value: ['search_contacts', 'search_companies'] },
     },
@@ -174,7 +163,6 @@ export const HubSpotBlock: BlockConfig<HubSpotResponse> = {
       id: 'filterGroups',
       title: 'Filter Groups',
       type: 'long-input',
-      layout: 'full',
       placeholder:
         'JSON array of filter groups (e.g., [{"filters":[{"propertyName":"email","operator":"EQ","value":"test@example.com"}]}])',
       condition: { field: 'operation', value: ['search_contacts', 'search_companies'] },
@@ -183,7 +171,6 @@ export const HubSpotBlock: BlockConfig<HubSpotResponse> = {
       id: 'sorts',
       title: 'Sort Order',
       type: 'long-input',
-      layout: 'full',
       placeholder:
         'JSON array of sort objects (e.g., [{"propertyName":"createdate","direction":"DESCENDING"}])',
       condition: { field: 'operation', value: ['search_contacts', 'search_companies'] },
@@ -192,7 +179,6 @@ export const HubSpotBlock: BlockConfig<HubSpotResponse> = {
       id: 'searchProperties',
       title: 'Properties to Return',
       type: 'long-input',
-      layout: 'full',
       placeholder: 'JSON array of properties (e.g., ["email","firstname","lastname"])',
       condition: { field: 'operation', value: ['search_contacts', 'search_companies'] },
     },

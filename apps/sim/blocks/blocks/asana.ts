@@ -18,7 +18,6 @@ export const AsanaBlock: BlockConfig<AsanaResponse> = {
       id: 'operation',
       title: 'Operation',
       type: 'dropdown',
-      layout: 'full',
       options: [
         { label: 'Get Task', id: 'get_task' },
         { label: 'Create Task', id: 'create_task' },
@@ -33,7 +32,7 @@ export const AsanaBlock: BlockConfig<AsanaResponse> = {
       id: 'credential',
       title: 'Asana Account',
       type: 'oauth-input',
-      layout: 'full',
+
       required: true,
       provider: 'asana',
       serviceId: 'asana',
@@ -44,7 +43,6 @@ export const AsanaBlock: BlockConfig<AsanaResponse> = {
       id: 'workspace',
       title: 'Workspace GID',
       type: 'short-input',
-      layout: 'full',
       required: true,
       placeholder: 'Enter Asana workspace GID',
       condition: {
@@ -56,7 +54,6 @@ export const AsanaBlock: BlockConfig<AsanaResponse> = {
       id: 'taskGid',
       title: 'Task GID',
       type: 'short-input',
-      layout: 'full',
       required: false,
       placeholder: 'Leave empty to get all tasks with filters below',
       condition: {
@@ -68,7 +65,6 @@ export const AsanaBlock: BlockConfig<AsanaResponse> = {
       id: 'taskGid',
       title: 'Task GID',
       type: 'short-input',
-      layout: 'full',
       required: true,
       placeholder: 'Enter Asana task GID',
       condition: {
@@ -80,7 +76,6 @@ export const AsanaBlock: BlockConfig<AsanaResponse> = {
       id: 'getTasks_workspace',
       title: 'Workspace GID',
       type: 'short-input',
-      layout: 'half',
       placeholder: 'Enter workspace GID',
       condition: {
         field: 'operation',
@@ -91,7 +86,7 @@ export const AsanaBlock: BlockConfig<AsanaResponse> = {
       id: 'getTasks_project',
       title: 'Project GID',
       type: 'short-input',
-      layout: 'half',
+
       placeholder: 'Enter project GID',
       condition: {
         field: 'operation',
@@ -102,7 +97,7 @@ export const AsanaBlock: BlockConfig<AsanaResponse> = {
       id: 'getTasks_limit',
       title: 'Limit',
       type: 'short-input',
-      layout: 'half',
+
       placeholder: 'Max tasks to return (default: 50)',
       condition: {
         field: 'operation',
@@ -113,7 +108,7 @@ export const AsanaBlock: BlockConfig<AsanaResponse> = {
       id: 'name',
       title: 'Task Name',
       type: 'short-input',
-      layout: 'full',
+
       required: true,
       placeholder: 'Enter task name',
       condition: {
@@ -125,7 +120,7 @@ export const AsanaBlock: BlockConfig<AsanaResponse> = {
       id: 'notes',
       title: 'Task Notes',
       type: 'long-input',
-      layout: 'full',
+
       placeholder: 'Enter task notes or description',
       condition: {
         field: 'operation',
@@ -136,7 +131,7 @@ export const AsanaBlock: BlockConfig<AsanaResponse> = {
       id: 'assignee',
       title: 'Assignee GID',
       type: 'short-input',
-      layout: 'half',
+
       placeholder: 'Enter assignee user GID',
       condition: {
         field: 'operation',
@@ -147,7 +142,7 @@ export const AsanaBlock: BlockConfig<AsanaResponse> = {
       id: 'due_on',
       title: 'Due Date',
       type: 'short-input',
-      layout: 'half',
+
       placeholder: 'YYYY-MM-DD',
       condition: {
         field: 'operation',
@@ -159,7 +154,7 @@ export const AsanaBlock: BlockConfig<AsanaResponse> = {
       id: 'searchText',
       title: 'Search Text',
       type: 'short-input',
-      layout: 'full',
+
       placeholder: 'Enter search text',
       condition: {
         field: 'operation',
@@ -170,7 +165,7 @@ export const AsanaBlock: BlockConfig<AsanaResponse> = {
       id: 'commentText',
       title: 'Comment Text',
       type: 'long-input',
-      layout: 'full',
+
       required: true,
       placeholder: 'Enter comment text',
       condition: {

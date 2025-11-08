@@ -181,14 +181,8 @@ export const MicrosoftPlannerBlock: BlockConfig<MicrosoftPlannerResponse> = {
       id: 'description',
       title: 'Description',
       type: 'long-input',
-<<<<<<< HEAD
       placeholder: 'Enter task description',
       condition: { field: 'operation', value: ['create_task', 'update_task_details'] },
-=======
-      layout: 'full',
-      placeholder: 'Enter task description ',
-      condition: { field: 'operation', value: ['create_task'] },
->>>>>>> 7957528ff (added pipedrive (need to finish testing))
     },
 
     // Due Date
@@ -214,14 +208,8 @@ export const MicrosoftPlannerBlock: BlockConfig<MicrosoftPlannerResponse> = {
       id: 'assigneeUserId',
       title: 'Assignee User ID',
       type: 'short-input',
-<<<<<<< HEAD
       placeholder: 'Enter the user ID to assign this task to (optional)',
       condition: { field: 'operation', value: ['create_task', 'update_task'] },
-=======
-      layout: 'full',
-      placeholder: 'Enter the user ID to assign this task to ',
-      condition: { field: 'operation', value: ['create_task'] },
->>>>>>> 7957528ff (added pipedrive (need to finish testing))
     },
 
     // Bucket ID for task
@@ -229,7 +217,6 @@ export const MicrosoftPlannerBlock: BlockConfig<MicrosoftPlannerResponse> = {
       id: 'bucketId',
       title: 'Bucket ID',
       type: 'short-input',
-<<<<<<< HEAD
       placeholder: 'Enter the bucket ID to organize the task (optional)',
       condition: { field: 'operation', value: ['create_task', 'update_task'] },
     },
@@ -277,11 +264,6 @@ export const MicrosoftPlannerBlock: BlockConfig<MicrosoftPlannerResponse> = {
       type: 'short-input',
       placeholder: 'Enter preview type (automatic, noPreview, checklist, description, reference)',
       condition: { field: 'operation', value: ['update_task_details'] },
-=======
-      layout: 'full',
-      placeholder: 'Enter the bucket ID to organize the task ',
-      condition: { field: 'operation', value: ['create_task'] },
->>>>>>> 7957528ff (added pipedrive (need to finish testing))
     },
   ],
   tools: {

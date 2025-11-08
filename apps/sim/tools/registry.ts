@@ -5,14 +5,6 @@ import {
   airtableUpdateRecordTool,
 } from '@/tools/airtable'
 import { arxivGetAuthorPapersTool, arxivGetPaperTool, arxivSearchTool } from '@/tools/arxiv'
-import {
-  asanaAddCommentTool,
-  asanaCreateTaskTool,
-  asanaGetProjectsTool,
-  asanaGetTaskTool,
-  asanaSearchTasksTool,
-  asanaUpdateTaskTool,
-} from '@/tools/asana'
 import { browserUseRunTaskTool } from '@/tools/browser_use'
 import { clayPopulateTool } from '@/tools/clay'
 import {
@@ -181,20 +173,6 @@ import {
 } from '@/tools/google_vault'
 import { guardrailsValidateTool } from '@/tools/guardrails'
 import { requestTool as httpRequest } from '@/tools/http'
-import {
-  hubspotCreateCompanyTool,
-  hubspotCreateContactTool,
-  hubspotGetCompanyTool,
-  hubspotGetContactTool,
-  hubspotGetUsersTool,
-  hubspotListCompaniesTool,
-  hubspotListContactsTool,
-  hubspotListDealsTool,
-  hubspotSearchCompaniesTool,
-  hubspotSearchContactsTool,
-  hubspotUpdateCompanyTool,
-  hubspotUpdateContactTool,
-} from '@/tools/hubspot'
 import { huggingfaceChatTool } from '@/tools/huggingface'
 import {
   hunterCompaniesFindTool,
@@ -407,26 +385,6 @@ import {
   pineconeUpsertTextTool,
 } from '@/tools/pinecone'
 import {
-  pipedriveCreateActivityTool,
-  pipedriveCreateDealTool,
-  pipedriveCreateLeadTool,
-  pipedriveCreateProjectTool,
-  pipedriveDeleteLeadTool,
-  pipedriveGetActivitiesTool,
-  pipedriveGetAllDealsTool,
-  pipedriveGetDealTool,
-  pipedriveGetFilesTool,
-  pipedriveGetLeadsTool,
-  pipedriveGetMailMessagesTool,
-  pipedriveGetMailThreadTool,
-  pipedriveGetPipelineDealsTool,
-  pipedriveGetPipelinesTool,
-  pipedriveGetProjectsTool,
-  pipedriveUpdateActivityTool,
-  pipedriveUpdateDealTool,
-  pipedriveUpdateLeadTool,
-} from '@/tools/pipedrive'
-import {
   deleteTool as postgresDeleteTool,
   executeTool as postgresExecuteTool,
   insertTool as postgresInsertTool,
@@ -638,29 +596,10 @@ export const tools: Record<string, ToolConfig> = {
   arxiv_search: arxivSearchTool,
   arxiv_get_paper: arxivGetPaperTool,
   arxiv_get_author_papers: arxivGetAuthorPapersTool,
-  asana_get_task: asanaGetTaskTool,
-  asana_create_task: asanaCreateTaskTool,
-  asana_update_task: asanaUpdateTaskTool,
-  asana_get_projects: asanaGetProjectsTool,
-  asana_search_tasks: asanaSearchTasksTool,
-  asana_add_comment: asanaAddCommentTool,
   browser_use_run_task: browserUseRunTaskTool,
   openai_embeddings: openAIEmbeddings,
   http_request: httpRequest,
   huggingface_chat: huggingfaceChatTool,
-  // HubSpot
-  hubspot_get_users: hubspotGetUsersTool,
-  hubspot_list_contacts: hubspotListContactsTool,
-  hubspot_get_contact: hubspotGetContactTool,
-  hubspot_create_contact: hubspotCreateContactTool,
-  hubspot_update_contact: hubspotUpdateContactTool,
-  hubspot_search_contacts: hubspotSearchContactsTool,
-  hubspot_list_companies: hubspotListCompaniesTool,
-  hubspot_get_company: hubspotGetCompanyTool,
-  hubspot_create_company: hubspotCreateCompanyTool,
-  hubspot_update_company: hubspotUpdateCompanyTool,
-  hubspot_search_companies: hubspotSearchCompaniesTool,
-  hubspot_list_deals: hubspotListDealsTool,
   function_execute: functionExecuteTool,
   vision_tool: visionTool,
   file_parser: fileParseTool,
@@ -778,25 +717,6 @@ export const tools: Record<string, ToolConfig> = {
   pinecone_search_text: pineconeSearchTextTool,
   pinecone_search_vector: pineconeSearchVectorTool,
   pinecone_upsert_text: pineconeUpsertTextTool,
-  // Pipedrive
-  pipedrive_get_all_deals: pipedriveGetAllDealsTool,
-  pipedrive_get_deal: pipedriveGetDealTool,
-  pipedrive_create_deal: pipedriveCreateDealTool,
-  pipedrive_update_deal: pipedriveUpdateDealTool,
-  pipedrive_get_leads: pipedriveGetLeadsTool,
-  pipedrive_create_lead: pipedriveCreateLeadTool,
-  pipedrive_update_lead: pipedriveUpdateLeadTool,
-  pipedrive_delete_lead: pipedriveDeleteLeadTool,
-  pipedrive_get_files: pipedriveGetFilesTool,
-  pipedrive_get_mail_messages: pipedriveGetMailMessagesTool,
-  pipedrive_get_mail_thread: pipedriveGetMailThreadTool,
-  pipedrive_get_pipelines: pipedriveGetPipelinesTool,
-  pipedrive_get_pipeline_deals: pipedriveGetPipelineDealsTool,
-  pipedrive_get_projects: pipedriveGetProjectsTool,
-  pipedrive_create_project: pipedriveCreateProjectTool,
-  pipedrive_get_activities: pipedriveGetActivitiesTool,
-  pipedrive_create_activity: pipedriveCreateActivityTool,
-  pipedrive_update_activity: pipedriveUpdateActivityTool,
   postgresql_query: postgresQueryTool,
   postgresql_insert: postgresInsertTool,
   postgresql_update: postgresUpdateTool,
@@ -899,7 +819,6 @@ export const tools: Record<string, ToolConfig> = {
   perplexity_search: perplexitySearchTool,
   confluence_retrieve: confluenceRetrieveTool,
   confluence_update: confluenceUpdateTool,
-<<<<<<< HEAD
   confluence_create_page: confluenceCreatePageTool,
   confluence_delete_page: confluenceDeletePageTool,
   confluence_search: confluenceSearchTool,
@@ -912,14 +831,12 @@ export const tools: Record<string, ToolConfig> = {
   confluence_list_labels: confluenceListLabelsTool,
   confluence_get_space: confluenceGetSpaceTool,
   confluence_list_spaces: confluenceListSpacesTool,
-=======
   trello_list_lists: trelloListListsTool,
   trello_list_cards: trelloListCardsTool,
   trello_create_card: trelloCreateCardTool,
   trello_update_card: trelloUpdateCardTool,
   trello_get_actions: trelloGetActionsTool,
   trello_add_comment: trelloAddCommentTool,
->>>>>>> 5f728c323 (trello integration added)
   twilio_send_sms: sendSMSTool,
   twilio_voice_make_call: makeCallTool,
   twilio_voice_list_calls: listCallsTool,

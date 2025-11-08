@@ -118,7 +118,6 @@ export const GmailBlock: BlockConfig<GmailToolResponse> = {
       id: 'threadId',
       title: 'Thread ID',
       type: 'short-input',
-
       placeholder: 'Thread ID to reply to (for threading)',
       condition: { field: 'operation', value: ['send_gmail', 'draft_gmail'] },
       mode: 'advanced',
@@ -128,7 +127,6 @@ export const GmailBlock: BlockConfig<GmailToolResponse> = {
       id: 'replyToMessageId',
       title: 'Reply to Message ID',
       type: 'short-input',
-
       placeholder: 'Gmail message ID (not RFC Message-ID) - use the "id" field from results',
       condition: { field: 'operation', value: ['send_gmail', 'draft_gmail'] },
       mode: 'advanced',
@@ -233,7 +231,6 @@ export const GmailBlock: BlockConfig<GmailToolResponse> = {
       id: 'destinationLabel',
       title: 'Move To Label',
       type: 'folder-selector',
-
       canonicalParamId: 'addLabelIds',
       provider: 'google-email',
       serviceId: 'gmail',
@@ -249,7 +246,6 @@ export const GmailBlock: BlockConfig<GmailToolResponse> = {
       id: 'manualDestinationLabel',
       title: 'Move To Label',
       type: 'short-input',
-
       canonicalParamId: 'addLabelIds',
       placeholder: 'Enter label ID (e.g., INBOX, Label_123)',
       mode: 'advanced',

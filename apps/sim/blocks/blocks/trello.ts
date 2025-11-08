@@ -19,7 +19,6 @@ export const TrelloBlock: BlockConfig<ToolResponse> = {
       id: 'operation',
       title: 'Operation',
       type: 'dropdown',
-      layout: 'full',
       options: [
         { label: 'Get Lists', id: 'trello_list_lists' },
         { label: 'List Cards', id: 'trello_list_cards' },
@@ -34,7 +33,6 @@ export const TrelloBlock: BlockConfig<ToolResponse> = {
       id: 'credential',
       title: 'Trello Account',
       type: 'oauth-input',
-      layout: 'full',
       provider: 'trello',
       serviceId: 'trello',
       requiredScopes: ['read', 'write'],
@@ -46,7 +44,6 @@ export const TrelloBlock: BlockConfig<ToolResponse> = {
       id: 'boardId',
       title: 'Board',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter board ID',
       condition: {
         field: 'operation',
@@ -58,7 +55,6 @@ export const TrelloBlock: BlockConfig<ToolResponse> = {
       id: 'boardId',
       title: 'Board',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter board ID or search for a board',
       condition: {
         field: 'operation',
@@ -70,7 +66,6 @@ export const TrelloBlock: BlockConfig<ToolResponse> = {
       id: 'listId',
       title: 'List (Optional)',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter list ID to filter cards by list',
       condition: {
         field: 'operation',
@@ -81,7 +76,6 @@ export const TrelloBlock: BlockConfig<ToolResponse> = {
       id: 'boardId',
       title: 'Board',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter board ID or search for a board',
       condition: {
         field: 'operation',
@@ -93,7 +87,6 @@ export const TrelloBlock: BlockConfig<ToolResponse> = {
       id: 'listId',
       title: 'List',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter list ID or search for a list',
       condition: {
         field: 'operation',
@@ -106,7 +99,6 @@ export const TrelloBlock: BlockConfig<ToolResponse> = {
       id: 'name',
       title: 'Card Name',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter card name/title',
       condition: {
         field: 'operation',
@@ -119,7 +111,6 @@ export const TrelloBlock: BlockConfig<ToolResponse> = {
       id: 'desc',
       title: 'Description',
       type: 'long-input',
-      layout: 'full',
       placeholder: 'Enter card description (optional)',
       condition: {
         field: 'operation',
@@ -131,7 +122,6 @@ export const TrelloBlock: BlockConfig<ToolResponse> = {
       id: 'pos',
       title: 'Position',
       type: 'dropdown',
-      layout: 'half',
       options: [
         { label: 'Top', id: 'top' },
         { label: 'Bottom', id: 'bottom' },
@@ -146,7 +136,6 @@ export const TrelloBlock: BlockConfig<ToolResponse> = {
       id: 'due',
       title: 'Due Date',
       type: 'short-input',
-      layout: 'half',
       placeholder: 'YYYY-MM-DD or ISO 8601',
       condition: {
         field: 'operation',
@@ -158,7 +147,6 @@ export const TrelloBlock: BlockConfig<ToolResponse> = {
       id: 'labels',
       title: 'Labels',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Comma-separated label IDs (optional)',
       condition: {
         field: 'operation',
@@ -170,7 +158,6 @@ export const TrelloBlock: BlockConfig<ToolResponse> = {
       id: 'cardId',
       title: 'Card',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter card ID or search for a card',
       condition: {
         field: 'operation',
@@ -183,7 +170,6 @@ export const TrelloBlock: BlockConfig<ToolResponse> = {
       id: 'name',
       title: 'New Card Name',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter new card name (leave empty to keep current)',
       condition: {
         field: 'operation',
@@ -195,7 +181,6 @@ export const TrelloBlock: BlockConfig<ToolResponse> = {
       id: 'desc',
       title: 'New Description',
       type: 'long-input',
-      layout: 'full',
       placeholder: 'Enter new description (leave empty to keep current)',
       condition: {
         field: 'operation',
@@ -207,7 +192,6 @@ export const TrelloBlock: BlockConfig<ToolResponse> = {
       id: 'closed',
       title: 'Archive Card',
       type: 'switch',
-      layout: 'half',
       condition: {
         field: 'operation',
         value: 'trello_update_card',
@@ -218,7 +202,6 @@ export const TrelloBlock: BlockConfig<ToolResponse> = {
       id: 'dueComplete',
       title: 'Mark Due Date Complete',
       type: 'switch',
-      layout: 'half',
       condition: {
         field: 'operation',
         value: 'trello_update_card',
@@ -229,7 +212,6 @@ export const TrelloBlock: BlockConfig<ToolResponse> = {
       id: 'idList',
       title: 'Move to List',
       type: 'short-input',
-      layout: 'half',
       placeholder: 'Enter list ID to move card',
       condition: {
         field: 'operation',
@@ -241,7 +223,6 @@ export const TrelloBlock: BlockConfig<ToolResponse> = {
       id: 'due',
       title: 'Due Date',
       type: 'short-input',
-      layout: 'half',
       placeholder: 'YYYY-MM-DD or ISO 8601',
       condition: {
         field: 'operation',
@@ -253,7 +234,6 @@ export const TrelloBlock: BlockConfig<ToolResponse> = {
       id: 'boardId',
       title: 'Board ID',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter board ID to get board actions',
       condition: {
         field: 'operation',
@@ -264,7 +244,6 @@ export const TrelloBlock: BlockConfig<ToolResponse> = {
       id: 'cardId',
       title: 'Card ID',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter card ID to get card actions',
       condition: {
         field: 'operation',
@@ -275,7 +254,6 @@ export const TrelloBlock: BlockConfig<ToolResponse> = {
       id: 'filter',
       title: 'Action Filter',
       type: 'short-input',
-      layout: 'half',
       placeholder: 'e.g., commentCard,updateCard',
       condition: {
         field: 'operation',
@@ -286,7 +264,6 @@ export const TrelloBlock: BlockConfig<ToolResponse> = {
       id: 'limit',
       title: 'Limit',
       type: 'short-input',
-      layout: 'half',
       placeholder: '50',
       condition: {
         field: 'operation',
@@ -297,7 +274,6 @@ export const TrelloBlock: BlockConfig<ToolResponse> = {
       id: 'cardId',
       title: 'Card',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter card ID or search for a card',
       condition: {
         field: 'operation',
@@ -310,7 +286,6 @@ export const TrelloBlock: BlockConfig<ToolResponse> = {
       id: 'text',
       title: 'Comment',
       type: 'long-input',
-      layout: 'full',
       placeholder: 'Enter your comment',
       condition: {
         field: 'operation',
