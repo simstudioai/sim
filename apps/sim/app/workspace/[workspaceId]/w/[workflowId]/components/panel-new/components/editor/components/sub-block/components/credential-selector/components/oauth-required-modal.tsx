@@ -283,7 +283,7 @@ export function OAuthRequiredModal({
               <div className='border-b px-4 py-3'>
                 <h4 className='font-medium text-sm'>Permissions requested</h4>
               </div>
-              <ul className='space-y-3 px-4 py-3'>
+              <ul className='max-h-[400px] space-y-3 overflow-y-auto px-4 py-3'>
                 {displayScopes.map((scope) => (
                   <li key={scope} className='flex items-start gap-2 text-sm'>
                     <div className='mt-1 rounded-full bg-muted p-0.5'>
