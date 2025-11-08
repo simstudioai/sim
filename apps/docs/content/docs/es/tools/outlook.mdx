@@ -163,8 +163,9 @@ Enviar correos electrónicos usando Outlook
 | `to` | string | Sí | Dirección de correo electrónico del destinatario |
 | `subject` | string | Sí | Asunto del correo electrónico |
 | `body` | string | Sí | Contenido del cuerpo del correo electrónico |
-| `replyToMessageId` | string | No | ID del mensaje al que responder \(para encadenar\) |
-| `conversationId` | string | No | ID de conversación para encadenar |
+| `contentType` | string | No | Tipo de contenido para el cuerpo del correo electrónico \(texto o html\) |
+| `replyToMessageId` | string | No | ID del mensaje al que se responde \(para el hilo\) |
+| `conversationId` | string | No | ID de conversación para el hilo |
 | `cc` | string | No | Destinatarios en CC \(separados por comas\) |
 | `bcc` | string | No | Destinatarios en CCO \(separados por comas\) |
 | `attachments` | file[] | No | Archivos para adjuntar al correo electrónico |
@@ -189,6 +190,7 @@ Crear borradores de correos electrónicos usando Outlook
 | `to` | string | Sí | Dirección de correo electrónico del destinatario |
 | `subject` | string | Sí | Asunto del correo electrónico |
 | `body` | string | Sí | Contenido del cuerpo del correo electrónico |
+| `contentType` | string | No | Tipo de contenido para el cuerpo del correo electrónico \(texto o html\) |
 | `cc` | string | No | Destinatarios en CC \(separados por comas\) |
 | `bcc` | string | No | Destinatarios en CCO \(separados por comas\) |
 | `attachments` | file[] | No | Archivos para adjuntar al borrador del correo electrónico |

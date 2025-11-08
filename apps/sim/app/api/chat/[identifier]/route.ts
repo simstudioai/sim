@@ -3,6 +3,7 @@ import { chat, workflow, workspace } from '@sim/db/schema'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
+import { z } from 'zod'
 import { createLogger } from '@/lib/logs/console/logger'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { ChatFiles } from '@/lib/uploads'
@@ -16,6 +17,22 @@ import {
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
 
 const logger = createLogger('ChatIdentifierAPI')
+
+const chatFileSchema = z.object({
+  name: z.string().min(1, 'File name is required'),
+  type: z.string().min(1, 'File type is required'),
+  size: z.number().positive('File size must be positive'),
+  data: z.string().min(1, 'File data is required'),
+  lastModified: z.number().optional(),
+})
+
+const chatPostBodySchema = z.object({
+  input: z.string().optional(),
+  password: z.string().optional(),
+  email: z.string().email('Invalid email format').optional().or(z.literal('')),
+  conversationId: z.string().optional(),
+  files: z.array(chatFileSchema).optional().default([]),
+})
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -32,7 +49,21 @@ export async function POST(
 
     let parsedBody
     try {
-      parsedBody = await request.json()
+      const rawBody = await request.json()
+      const validation = chatPostBodySchema.safeParse(rawBody)
+
+      if (!validation.success) {
+        const errorMessage = validation.error.errors
+          .map((err) => `${err.path.join('.')}: ${err.message}`)
+          .join(', ')
+        logger.warn(`[${requestId}] Validation error: ${errorMessage}`)
+        return addCorsHeaders(
+          createErrorResponse(`Invalid request body: ${errorMessage}`, 400),
+          request
+        )
+      }
+
+      parsedBody = validation.data
     } catch (_error) {
       return addCorsHeaders(createErrorResponse('Invalid request body', 400), request)
     }

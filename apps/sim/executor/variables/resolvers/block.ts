@@ -43,8 +43,8 @@ export class BlockResolver implements Resolver {
 
     const output = this.getBlockOutput(blockId, context)
 
-    if (!output) {
-      throw new Error(`No state found for block "${blockName}"`)
+    if (output === undefined) {
+      return undefined
     }
     if (pathParts.length === 0) {
       return output

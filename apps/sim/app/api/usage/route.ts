@@ -1,4 +1,5 @@
 import { type NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { getUserUsageLimitInfo, updateUserUsageLimit } from '@/lib/billing'
 import {
@@ -8,6 +9,18 @@ import {
 import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('UnifiedUsageAPI')
+
+const usageContextEnum = z.enum(['user', 'organization'])
+
+const usageUpdateSchema = z
+  .object({
+    limit: z.number().min(0, 'Limit must be a positive number'),
+    context: usageContextEnum.optional().default('user'),
+    organizationId: z.string().optional(),
+  })
+  .refine((data) => data.context !== 'organization' || data.organizationId, {
+    message: 'Organization ID is required when context is organization',
+  })
 
 /**
  * Unified Usage Endpoint
@@ -86,48 +99,34 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json()
-    const limit = body?.limit
-    const context = body?.context || 'user'
-    const organizationId = body?.organizationId
+    const validation = usageUpdateSchema.safeParse(body)
+
+    if (!validation.success) {
+      const firstError = validation.error.errors[0]
+      logger.error('Validation error:', firstError)
+      return NextResponse.json({ error: firstError.message }, { status: 400 })
+    }
+
+    const { limit, context, organizationId } = validation.data
     const userId = session.user.id
-
-    if (typeof limit !== 'number' || limit < 0) {
-      return NextResponse.json(
-        { error: 'Invalid limit. Must be a positive number' },
-        { status: 400 }
-      )
-    }
-
-    if (!['user', 'organization'].includes(context)) {
-      return NextResponse.json(
-        { error: 'Invalid context. Must be "user" or "organization"' },
-        { status: 400 }
-      )
-    }
 
     if (context === 'user') {
       await updateUserUsageLimit(userId, limit)
     } else if (context === 'organization') {
-      if (!organizationId) {
-        return NextResponse.json(
-          { error: 'Organization ID is required when context=organization' },
-          { status: 400 }
-        )
-      }
-
-      const hasPermission = await isOrganizationOwnerOrAdmin(session.user.id, organizationId)
+      // organizationId is guaranteed to exist by Zod refinement
+      const hasPermission = await isOrganizationOwnerOrAdmin(session.user.id, organizationId!)
       if (!hasPermission) {
         return NextResponse.json({ error: 'Permission denied' }, { status: 403 })
       }
 
       const { updateOrganizationUsageLimit } = await import('@/lib/billing/core/organization')
-      const result = await updateOrganizationUsageLimit(organizationId, limit)
+      const result = await updateOrganizationUsageLimit(organizationId!, limit)
 
       if (!result.success) {
         return NextResponse.json({ error: result.error }, { status: 400 })
       }
 
-      const updated = await getOrganizationBillingData(organizationId)
+      const updated = await getOrganizationBillingData(organizationId!)
       return NextResponse.json({ success: true, context, userId, organizationId, data: updated })
     }
 

@@ -91,7 +91,6 @@ export function useChatDeployment() {
           deployApiEnabled: !existingChatId,
         }
 
-        // Validate with Zod
         chatSchema.parse(payload)
 
         // Determine endpoint and method

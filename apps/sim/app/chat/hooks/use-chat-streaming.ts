@@ -21,6 +21,7 @@ export interface StreamingOptions {
   onAudioStart?: () => void
   onAudioEnd?: () => void
   audioStreamHandler?: (text: string) => Promise<void>
+  outputConfigs?: Array<{ blockId: string; path?: string }>
 }
 
 export function useChatStreaming() {
@@ -176,16 +177,113 @@ export function useChatStreaming() {
               }
 
               if (eventType === 'final' && json.data) {
+                const finalData = json.data as {
+                  success: boolean
+                  error?: string | { message?: string }
+                  output?: Record<string, Record<string, any>>
+                }
+
+                const outputConfigs = streamingOptions?.outputConfigs
+                const formattedOutputs: string[] = []
+
+                const formatValue = (value: any): string | null => {
+                  if (value === null || value === undefined) {
+                    return null
+                  }
+
+                  if (typeof value === 'string') {
+                    return value
+                  }
+
+                  if (typeof value === 'object') {
+                    try {
+                      return `\`\`\`json\n${JSON.stringify(value, null, 2)}\n\`\`\``
+                    } catch {
+                      return String(value)
+                    }
+                  }
+
+                  return String(value)
+                }
+
+                const getOutputValue = (blockOutputs: Record<string, any>, path?: string) => {
+                  if (!path || path === 'content') {
+                    if (blockOutputs.content !== undefined) return blockOutputs.content
+                    if (blockOutputs.result !== undefined) return blockOutputs.result
+                    return blockOutputs
+                  }
+
+                  if (blockOutputs[path] !== undefined) {
+                    return blockOutputs[path]
+                  }
+
+                  if (path.includes('.')) {
+                    return path.split('.').reduce<any>((current, segment) => {
+                      if (current && typeof current === 'object' && segment in current) {
+                        return current[segment]
+                      }
+                      return undefined
+                    }, blockOutputs)
+                  }
+
+                  return undefined
+                }
+
+                if (outputConfigs?.length && finalData.output) {
+                  for (const config of outputConfigs) {
+                    const blockOutputs = finalData.output[config.blockId]
+                    if (!blockOutputs) continue
+
+                    const value = getOutputValue(blockOutputs, config.path)
+                    const formatted = formatValue(value)
+                    if (formatted) {
+                      formattedOutputs.push(formatted)
+                    }
+                  }
+                }
+
+                let finalContent = accumulatedText
+
+                if (formattedOutputs.length > 0) {
+                  const combinedOutputs = formattedOutputs.join('\n\n')
+                  finalContent = finalContent
+                    ? `${finalContent.trim()}\n\n${combinedOutputs}`
+                    : combinedOutputs
+                }
+
+                if (!finalContent) {
+                  if (finalData.error) {
+                    if (typeof finalData.error === 'string') {
+                      finalContent = finalData.error
+                    } else if (typeof finalData.error?.message === 'string') {
+                      finalContent = finalData.error.message
+                    }
+                  } else if (finalData.success && finalData.output) {
+                    const fallbackOutput = Object.values(finalData.output)
+                      .map((block) => formatValue(block)?.trim())
+                      .filter(Boolean)[0]
+                    if (fallbackOutput) {
+                      finalContent = fallbackOutput
+                    }
+                  }
+                }
+
                 setMessages((prev) =>
                   prev.map((msg) =>
                     msg.id === messageId
                       ? {
                           ...msg,
                           isStreaming: false,
+                          content: finalContent ?? msg.content,
                         }
                       : msg
                   )
                 )
+
+                accumulatedTextRef.current = ''
+                lastStreamedPositionRef.current = 0
+                lastDisplayedPositionRef.current = 0
+                audioStreamingActiveRef.current = false
 
                 return
               }

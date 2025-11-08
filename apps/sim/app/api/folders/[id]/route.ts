@@ -2,11 +2,19 @@ import { db } from '@sim/db'
 import { workflow, workflowFolder } from '@sim/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getUserEntityPermissions } from '@/lib/permissions/utils'
 
 const logger = createLogger('FoldersIDAPI')
+
+const updateFolderSchema = z.object({
+  name: z.string().optional(),
+  color: z.string().optional(),
+  isExpanded: z.boolean().optional(),
+  parentId: z.string().nullable().optional(),
+})
 
 // PUT - Update a folder
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -18,7 +26,19 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
     const { id } = await params
     const body = await request.json()
-    const { name, color, isExpanded, parentId } = body
+
+    const validationResult = updateFolderSchema.safeParse(body)
+    if (!validationResult.success) {
+      logger.error('Folder update validation failed:', {
+        errors: validationResult.error.errors,
+      })
+      const errorMessages = validationResult.error.errors
+        .map((err) => `${err.path.join('.')}: ${err.message}`)
+        .join(', ')
+      return NextResponse.json({ error: `Validation failed: ${errorMessages}` }, { status: 400 })
+    }
+
+    const { name, color, isExpanded, parentId } = validationResult.data
 
     // Verify the folder exists
     const existingFolder = await db

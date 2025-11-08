@@ -2,6 +2,7 @@ import { db } from '@sim/db'
 import { account } from '@sim/db/schema'
 import { and, eq, like, or } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console/logger'
 import { generateRequestId } from '@/lib/utils'
@@ -10,6 +11,11 @@ export const dynamic = 'force-dynamic'
 
 const logger = createLogger('OAuthDisconnectAPI')
 
+const disconnectSchema = z.object({
+  provider: z.string({ required_error: 'Provider is required' }).min(1, 'Provider is required'),
+  providerId: z.string().optional(),
+})
+
 /**
  * Disconnect an OAuth provider for the current user
  */
@@ -17,22 +23,33 @@ export async function POST(request: NextRequest) {
   const requestId = generateRequestId()
 
   try {
-    // Get the session
     const session = await getSession()
 
-    // Check if the user is authenticated
     if (!session?.user?.id) {
       logger.warn(`[${requestId}] Unauthenticated disconnect request rejected`)
       return NextResponse.json({ error: 'User not authenticated' }, { status: 401 })
     }
 
-    // Get the provider and providerId from the request body
-    const { provider, providerId } = await request.json()
+    const rawBody = await request.json()
+    const parseResult = disconnectSchema.safeParse(rawBody)
 
-    if (!provider) {
-      logger.warn(`[${requestId}] Missing provider in disconnect request`)
-      return NextResponse.json({ error: 'Provider is required' }, { status: 400 })
+    if (!parseResult.success) {
+      const firstError = parseResult.error.errors[0]
+      const errorMessage = firstError?.message || 'Validation failed'
+
+      logger.warn(`[${requestId}] Invalid disconnect request`, {
+        errors: parseResult.error.errors,
+      })
+
+      return NextResponse.json(
+        {
+          error: errorMessage,
+        },
+        { status: 400 }
+      )
     }
+
+    const { provider, providerId } = parseResult.data
 
     logger.info(`[${requestId}] Processing OAuth disconnect request`, {
       provider,

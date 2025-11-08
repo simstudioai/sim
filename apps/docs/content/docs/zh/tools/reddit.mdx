@@ -120,29 +120,6 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 | `subreddit` | string | 获取帖子的 subreddit 名称 |
 | `posts` | array | 包含标题、作者、URL、评分、评论数量和元数据的有争议帖子数组 |
 
-### `reddit_get_gilded`
-
-从 subreddit 获取被奖励的帖子
-
-#### 输入
-
-| 参数 | 类型 | 必需 | 描述 |
-| --------- | ---- | -------- | ----------- |
-| `subreddit` | string | 是 | 要从中获取帖子的 subreddit 名称（不带 r/ 前缀） |
-| `limit` | number | 否 | 返回帖子的最大数量（默认：10，最大：100） |
-| `after` | string | 否 | 用于分页的项目后面的完整名称 |
-| `before` | string | 否 | 用于分页的项目前面的完整名称 |
-| `count` | number | 否 | 列表中已查看项目的计数（用于编号） |
-| `show` | string | 否 | 显示通常会被过滤的项目（例如："all"） |
-| `sr_detail` | boolean | 否 | 在响应中展开 subreddit 详细信息 |
-
-#### 输出
-
-| 参数 | 类型 | 描述 |
-| --------- | ---- | ----------- |
-| `subreddit` | string | 获取帖子的 subreddit 名称 |
-| `posts` | array | 包含标题、作者、URL、评分、评论数量和元数据的被奖励/加精帖子数组 |
-
 ### `reddit_search`
 
 在 subreddit 中搜索帖子
@@ -153,12 +130,12 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 | --------- | ---- | -------- | ----------- |
 | `subreddit` | string | 是 | 要搜索的 subreddit 名称（不带 r/ 前缀） |
 | `query` | string | 是 | 搜索查询文本 |
-| `sort` | string | 否 | 搜索结果的排序方法："relevance"、"hot"、"top"、"new" 或 "comments"（默认："relevance"） |
-| `time` | string | 否 | 搜索结果的时间筛选："hour"、"day"、"week"、"month"、"year" 或 "all"（默认："all"） |
-| `limit` | number | 否 | 返回帖子的最大数量（默认：10，最大：100） |
-| `restrict_sr` | boolean | 否 | 限制搜索仅在指定的 subreddit 中（默认：true） |
-| `after` | string | 否 | 用于分页的项目后面的 fullname |
-| `before` | string | 否 | 用于分页的项目前面的 fullname |
+| `sort` | string | 否 | 搜索结果的排序方法："relevance"、"hot"、"top"、"new" 或 "comments"（默认值："relevance"） |
+| `time` | string | 否 | 搜索结果的时间筛选："hour"、"day"、"week"、"month"、"year" 或 "all"（默认值："all"） |
+| `limit` | number | 否 | 返回帖子的最大数量（默认值：10，最大值：100） |
+| `restrict_sr` | boolean | 否 | 限制搜索仅在指定的 subreddit 中（默认值：true） |
+| `after` | string | 否 | 用于分页的项目后续 fullname |
+| `before` | string | 否 | 用于分页的项目之前 fullname |
 | `count` | number | 否 | 列表中已查看项目的计数（用于编号） |
 | `show` | string | 否 | 显示通常会被过滤的项目（例如："all"） |
 
@@ -167,23 +144,23 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
 | `subreddit` | string | 执行搜索的 subreddit 名称 |
-| `posts` | array | 搜索结果帖子数组，包括标题、作者、URL、评分、评论数量和元数据 |
+| `posts` | array | 包含标题、作者、URL、评分、评论数量和元数据的搜索结果帖子数组 |
 
 ### `reddit_submit_post`
 
-提交一个新帖子到 subreddit（文本或链接）
+向 subreddit 提交一个新帖子（文本或链接）
 
 #### 输入
 
 | 参数 | 类型 | 必需 | 描述 |
 | --------- | ---- | -------- | ----------- |
-| `subreddit` | string | 是 | 要发布到的 subreddit 名称（不带 r/ 前缀） |
+| `subreddit` | string | 是 | 要发布帖子的 subreddit 名称（不包括 r/ 前缀） |
 | `title` | string | 是 | 提交的标题（最多 300 个字符） |
 | `text` | string | 否 | 自定义帖子的文本内容（支持 markdown） |
 | `url` | string | 否 | 链接帖子的 URL（不能与文本同时使用） |
 | `nsfw` | boolean | 否 | 将帖子标记为 NSFW |
 | `spoiler` | boolean | 否 | 将帖子标记为剧透 |
-| `send_replies` | boolean | 否 | 发送回复通知到收件箱（默认：true） |
+| `send_replies` | boolean | 否 | 发送回复通知到收件箱（默认值：true） |
 
 #### 输出
 
@@ -201,8 +178,8 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | 参数 | 类型 | 必需 | 描述 |
 | --------- | ---- | -------- | ----------- |
-| `id` | string | 是 | 要投票的事物完整名称（例如，帖子为 t3_xxxxx，评论为 t1_xxxxx） |
-| `dir` | number | 是 | 投票方向：1（赞成），0（取消投票），或 -1（反对） |
+| `id` | string | 是 | 要投票的对象全名（例如，帖子为 t3_xxxxx，评论为 t1_xxxxx） |
+| `dir` | number | 是 | 投票方向：1（点赞），0（取消投票），或 -1（点踩） |
 
 #### 输出
 
@@ -219,7 +196,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | 参数 | 类型 | 必需 | 描述 |
 | --------- | ---- | -------- | ----------- |
-| `id` | string | 是 | 要保存的事物完整名称（例如，帖子为 t3_xxxxx，评论为 t1_xxxxx） |
+| `id` | string | 是 | 要保存的对象全名（例如，帖子为 t3_xxxxx，评论为 t1_xxxxx） |
 | `category` | string | 否 | 保存的分类（Reddit Gold 功能） |
 
 #### 输出
@@ -247,7 +224,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 ### `reddit_reply`
 
-为 Reddit 帖子或评论添加评论回复
+为 Reddit 帖子或评论添加回复
 
 #### 输入
 
@@ -260,7 +237,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 是否成功发布了回复 |
+| `success` | boolean | 回复是否成功发布 |
 | `message` | string | 成功或错误信息 |
 | `data` | object | 评论数据，包括 ID、名称、永久链接和正文 |
 
@@ -272,14 +249,14 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | 参数 | 类型 | 必需 | 描述 |
 | --------- | ---- | -------- | ----------- |
-| `thing_id` | string | 是 | 要编辑的对象全名（例如，帖子为 t3_xxxxx，评论为 t1_xxxxx） |
-| `text` | string | 是 | 以 markdown 格式编写的新文本内容 |
+| `thing_id` | string | 是 | 要编辑的事物完整名称（例如，帖子为 t3_xxxxx，评论为 t1_xxxxx） |
+| `text` | string | 是 | 新的文本内容，支持 markdown 格式 |
 
 #### 输出
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 是否成功编辑 |
+| `success` | boolean | 编辑是否成功 |
 | `message` | string | 成功或错误信息 |
 | `data` | object | 更新后的内容数据 |
 
@@ -291,7 +268,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | 参数 | 类型 | 必需 | 描述 |
 | --------- | ---- | -------- | ----------- |
-| `id` | string | 是 | 要删除的对象全名（例如，帖子为 t3_xxxxx，评论为 t1_xxxxx） |
+| `id` | string | 是 | 要删除的事物完整名称（例如，帖子为 t3_xxxxx，评论为 t1_xxxxx） |
 
 #### 输出
 
@@ -302,13 +279,13 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 ### `reddit_subscribe`
 
-订阅或取消订阅一个子版块
+订阅或取消订阅一个 subreddit
 
 #### 输入
 
 | 参数 | 类型 | 必需 | 描述 |
 | --------- | ---- | -------- | ----------- |
-| `subreddit` | string | 是 | 子版块的名称（不带 r/ 前缀） |
+| `subreddit` | string | 是 | subreddit 的名称（不带 r/ 前缀） |
 | `action` | string | 是 | 要执行的操作："sub" 表示订阅，"unsub" 表示取消订阅 |
 
 #### 输出
@@ -318,7 +295,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 | `success` | boolean | 订阅操作是否成功 |
 | `message` | string | 成功或错误信息 |
 
-## 注意
+## 注意事项
 
 - 类别：`tools`
 - 类型：`reddit`

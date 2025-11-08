@@ -163,6 +163,31 @@ export function SetNewPasswordForm({
       return
     }
 
+    if (password.length > 100) {
+      setValidationMessage('Password must not exceed 100 characters')
+      return
+    }
+
+    if (!/[A-Z]/.test(password)) {
+      setValidationMessage('Password must contain at least one uppercase letter')
+      return
+    }
+
+    if (!/[a-z]/.test(password)) {
+      setValidationMessage('Password must contain at least one lowercase letter')
+      return
+    }
+
+    if (!/[0-9]/.test(password)) {
+      setValidationMessage('Password must contain at least one number')
+      return
+    }
+
+    if (!/[^A-Za-z0-9]/.test(password)) {
+      setValidationMessage('Password must contain at least one special character')
+      return
+    }
+
     if (password !== confirmPassword) {
       setValidationMessage('Passwords do not match')
       return

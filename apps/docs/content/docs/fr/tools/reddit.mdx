@@ -120,29 +120,6 @@ Récupérer les publications controversées d'un subreddit
 | `subreddit` | chaîne | Nom du subreddit d'où les publications ont été récupérées |
 | `posts` | tableau | Tableau de publications controversées avec titre, auteur, URL, score, nombre de commentaires et métadonnées |
 
-### `reddit_get_gilded`
-
-Récupérer les publications récompensées/dorées d'un subreddit
-
-#### Entrée
-
-| Paramètre | Type | Obligatoire | Description |
-| --------- | ---- | ---------- | ----------- |
-| `subreddit` | chaîne | Oui | Le nom du subreddit d'où récupérer les publications \(sans le préfixe r/\) |
-| `limit` | nombre | Non | Nombre maximum de publications à retourner \(par défaut : 10, max : 100\) |
-| `after` | chaîne | Non | Nom complet d'un élément pour récupérer les éléments suivants \(pour la pagination\) |
-| `before` | chaîne | Non | Nom complet d'un élément pour récupérer les éléments précédents \(pour la pagination\) |
-| `count` | nombre | Non | Nombre d'éléments déjà vus dans la liste \(utilisé pour la numérotation\) |
-| `show` | chaîne | Non | Afficher les éléments qui seraient normalement filtrés \(par exemple, "all"\) |
-| `sr_detail` | booléen | Non | Développer les détails du subreddit dans la réponse |
-
-#### Sortie
-
-| Paramètre | Type | Description |
-| --------- | ---- | ----------- |
-| `subreddit` | chaîne | Nom du subreddit d'où les publications ont été récupérées |
-| `posts` | tableau | Tableau de publications dorées/récompensées avec titre, auteur, URL, score, nombre de commentaires et métadonnées |
-
 ### `reddit_search`
 
 Rechercher des publications dans un subreddit
@@ -167,7 +144,7 @@ Rechercher des publications dans un subreddit
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
 | `subreddit` | chaîne | Nom du subreddit où la recherche a été effectuée |
-| `posts` | tableau | Tableau des résultats de recherche avec titre, auteur, URL, score, nombre de commentaires et métadonnées |
+| `posts` | tableau | Tableau des publications résultant de la recherche avec titre, auteur, URL, score, nombre de commentaires et métadonnées |
 
 ### `reddit_submit_post`
 
@@ -176,7 +153,7 @@ Soumettre une nouvelle publication à un subreddit (texte ou lien)
 #### Entrée
 
 | Paramètre | Type | Obligatoire | Description |
-| --------- | ---- | -------- | ----------- |
+| --------- | ---- | ---------- | ----------- |
 | `subreddit` | chaîne | Oui | Le nom du subreddit où publier \(sans le préfixe r/\) |
 | `title` | chaîne | Oui | Titre de la soumission \(max 300 caractères\) |
 | `text` | chaîne | Non | Contenu textuel pour une publication personnelle \(markdown supporté\) |
@@ -191,7 +168,7 @@ Soumettre une nouvelle publication à un subreddit (texte ou lien)
 | --------- | ---- | ----------- |
 | `success` | booléen | Indique si la publication a été soumise avec succès |
 | `message` | chaîne | Message de succès ou d'erreur |
-| `data` | objet | Données de la publication incluant ID, nom, URL et permalien |
+| `data` | objet | Données de la publication incluant ID, nom, URL et lien permanent |
 
 ### `reddit_vote`
 
@@ -200,8 +177,8 @@ Voter positivement, négativement ou annuler un vote sur une publication ou un c
 #### Entrée
 
 | Paramètre | Type | Obligatoire | Description |
-| --------- | ---- | -------- | ----------- |
-| `id` | chaîne | Oui | Nom complet de l'élément sur lequel voter \(ex. t3_xxxxx pour un post, t1_xxxxx pour un commentaire\) |
+| --------- | ---- | ---------- | ----------- |
+| `id` | chaîne | Oui | Nom complet de l'élément sur lequel voter \(par ex., t3_xxxxx pour une publication, t1_xxxxx pour un commentaire\) |
 | `dir` | nombre | Oui | Direction du vote : 1 \(vote positif\), 0 \(annuler le vote\), ou -1 \(vote négatif\) |
 
 #### Sortie
@@ -219,7 +196,7 @@ Enregistrer une publication ou un commentaire Reddit dans vos éléments sauvega
 
 | Paramètre | Type | Obligatoire | Description |
 | --------- | ---- | -------- | ----------- |
-| `id` | chaîne | Oui | Nom complet de l'élément à sauvegarder \(ex. t3_xxxxx pour un post, t1_xxxxx pour un commentaire\) |
+| `id` | chaîne | Oui | Nom complet de l'élément à sauvegarder \(par ex., t3_xxxxx pour une publication, t1_xxxxx pour un commentaire\) |
 | `category` | chaîne | Non | Catégorie sous laquelle sauvegarder \(fonctionnalité Reddit Gold\) |
 
 #### Sortie
@@ -247,13 +224,13 @@ Enregistrer une publication ou un commentaire Reddit dans vos éléments sauvega
 
 ### `reddit_reply`
 
-Ajouter une réponse à une publication ou un commentaire Reddit
+Ajouter une réponse en commentaire à une publication ou un commentaire Reddit
 
 #### Entrée
 
 | Paramètre | Type | Obligatoire | Description |
 | --------- | ---- | -------- | ----------- |
-| `parent_id` | chaîne | Oui | Nom complet de l'élément auquel répondre (par ex., t3_xxxxx pour une publication, t1_xxxxx pour un commentaire) |
+| `parent_id` | chaîne | Oui | Nom complet de l'élément auquel répondre \(par ex., t3_xxxxx pour une publication, t1_xxxxx pour un commentaire\) |
 | `text` | chaîne | Oui | Texte du commentaire au format markdown |
 
 #### Sortie
@@ -262,7 +239,7 @@ Ajouter une réponse à une publication ou un commentaire Reddit
 | --------- | ---- | ----------- |
 | `success` | booléen | Indique si la réponse a été publiée avec succès |
 | `message` | chaîne | Message de succès ou d'erreur |
-| `data` | objet | Données du commentaire incluant ID, nom, lien permanent et contenu |
+| `data` | objet | Données du commentaire incluant ID, nom, permalien et contenu |
 
 ### `reddit_edit`
 
@@ -272,7 +249,7 @@ Modifier le texte de votre propre publication ou commentaire Reddit
 
 | Paramètre | Type | Obligatoire | Description |
 | --------- | ---- | -------- | ----------- |
-| `thing_id` | chaîne | Oui | Nom complet de l'élément à modifier (par ex., t3_xxxxx pour une publication, t1_xxxxx pour un commentaire) |
+| `thing_id` | chaîne | Oui | Nom complet de l'élément à modifier \(ex. t3_xxxxx pour une publication, t1_xxxxx pour un commentaire\) |
 | `text` | chaîne | Oui | Nouveau contenu textuel au format markdown |
 
 #### Sortie
@@ -291,14 +268,14 @@ Supprimer votre propre publication ou commentaire Reddit
 
 | Paramètre | Type | Obligatoire | Description |
 | --------- | ---- | -------- | ----------- |
-| `id` | chaîne | Oui | Nom complet de l'élément à supprimer (par ex., t3_xxxxx pour une publication, t1_xxxxx pour un commentaire) |
+| `id` | chaîne | Oui | Nom complet de l'élément à supprimer \(ex. t3_xxxxx pour une publication, t1_xxxxx pour un commentaire\) |
 
 #### Sortie
 
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Indique si la suppression a réussi |
-| `message` | string | Message de succès ou d'erreur |
+| `success` | booléen | Indique si la suppression a réussi |
+| `message` | chaîne | Message de succès ou d'erreur |
 
 ### `reddit_subscribe`
 
@@ -307,18 +284,18 @@ S'abonner ou se désabonner d'un subreddit
 #### Entrée
 
 | Paramètre | Type | Obligatoire | Description |
-| --------- | ---- | ----------- | ----------- |
-| `subreddit` | string | Oui | Le nom du subreddit (sans le préfixe r/) |
-| `action` | string | Oui | Action à effectuer : "sub" pour s'abonner ou "unsub" pour se désabonner |
+| --------- | ---- | -------- | ----------- |
+| `subreddit` | chaîne | Oui | Le nom du subreddit \(sans le préfixe r/\) |
+| `action` | chaîne | Oui | Action à effectuer : "sub" pour s'abonner ou "unsub" pour se désabonner |
 
 #### Sortie
 
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Indique si l'action d'abonnement a réussi |
-| `message` | string | Message de succès ou d'erreur |
+| `success` | booléen | Indique si l'action d'abonnement a réussi |
+| `message` | chaîne | Message de succès ou d'erreur |
 
-## Remarques
+## Notes
 
 - Catégorie : `tools`
 - Type : `reddit`

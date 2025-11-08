@@ -660,6 +660,68 @@ export function getProviderIdFromServiceId(serviceId: string): string {
   return serviceId
 }
 
+// Helper to locate a service configuration by its providerId
+export function getServiceConfigByProviderId(providerId: string): OAuthServiceConfig | null {
+  for (const provider of Object.values(OAUTH_PROVIDERS)) {
+    for (const service of Object.values(provider.services)) {
+      if (service.providerId === providerId || service.id === providerId) {
+        return service
+      }
+    }
+  }
+
+  return null
+}
+
+// Get the canonical scopes for a given providerId (service instance)
+export function getCanonicalScopesForProvider(providerId: string): string[] {
+  const service = getServiceConfigByProviderId(providerId)
+  return service?.scopes ? [...service.scopes] : []
+}
+
+// Normalize scopes by trimming, filtering empties, and deduplicating
+export function normalizeScopes(scopes: string[]): string[] {
+  const seen = new Set<string>()
+  for (const scope of scopes) {
+    const trimmed = scope.trim()
+    if (trimmed && !seen.has(trimmed)) {
+      seen.add(trimmed)
+    }
+  }
+  return Array.from(seen)
+}
+
+export interface ScopeEvaluation {
+  canonicalScopes: string[]
+  grantedScopes: string[]
+  missingScopes: string[]
+  extraScopes: string[]
+  requiresReauthorization: boolean
+}
+
+// Compare granted scopes with canonical ones for a providerId
+export function evaluateScopeCoverage(
+  providerId: string,
+  grantedScopes: string[]
+): ScopeEvaluation {
+  const canonicalScopes = getCanonicalScopesForProvider(providerId)
+  const normalizedGranted = normalizeScopes(grantedScopes)
+
+  const canonicalSet = new Set(canonicalScopes)
+  const grantedSet = new Set(normalizedGranted)
+
+  const missingScopes = canonicalScopes.filter((scope) => !grantedSet.has(scope))
+  const extraScopes = normalizedGranted.filter((scope) => !canonicalSet.has(scope))
+
+  return {
+    canonicalScopes,
+    grantedScopes: normalizedGranted,
+    missingScopes,
+    extraScopes,
+    requiresReauthorization: missingScopes.length > 0,
+  }
+}
+
 // Interface for credential objects
 export interface Credential {
   id: string
@@ -668,6 +730,11 @@ export interface Credential {
   serviceId?: string
   lastUsed?: string
   isDefault?: boolean
+  scopes?: string[]
+  canonicalScopes?: string[]
+  missingScopes?: string[]
+  extraScopes?: string[]
+  requiresReauthorization?: boolean
 }
 
 // Interface for provider configuration

@@ -37,13 +37,13 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
       />
       <path d='M194.9 33.9001H169.8V121.4H194.9V33.9001Z' fill='white' />
       <path
-        fill-rule='evenodd'
+        fillRule='evenodd'
         clipRule='evenodd'
         d='M142.9 41.3001L141.3 33.9001H119.7V121.4H144.7V62.1001C150.6 54.4001 160.6 55.8001 163.7 56.9001V33.9001C160.5 32.7001 148.8 30.5001 142.9 41.3001Z'
         fill='white'
       />
       <path
-        fill-rule='evenodd'
+        fillRule='evenodd'
         clipRule='evenodd'
         d='M92.8999 12.2002L68.4999 17.4002L68.3999 97.5002C68.3999 112.3 79.4999 123.2 94.2999 123.2C102.5 123.2 108.5 121.7 111.8 119.9V99.6002C108.6 100.9 92.7999 105.5 92.7999 90.7002V55.2002H111.8V33.9002H92.7999L92.8999 12.2002Z'
         fill='white'
@@ -79,7 +79,7 @@ Créer une nouvelle intention de paiement pour traiter un paiement
 | `description` | string | Non | Description du paiement |
 | `receipt_email` | string | Non | Adresse e-mail pour l'envoi du reçu |
 | `metadata` | json | Non | Ensemble de paires clé-valeur pour stocker des informations supplémentaires |
-| `automatic_payment_methods` | json | Non | Activer les méthodes de paiement automatiques (par ex., {"enabled": true}) |
+| `automatic_payment_methods` | json | Non | Activer les méthodes de paiement automatiques \(par ex., \{"enabled": true\}\) |
 
 #### Sortie
 
@@ -359,7 +359,7 @@ Créer un nouvel abonnement pour un client
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Oui | Clé API Stripe (clé secrète) |
 | `customer` | string | Oui | ID du client à abonner |
-| `items` | json | Oui | Tableau d'articles avec IDs de prix (ex., \[\{"price": "price_xxx", "quantity": 1\}\]) |
+| `items` | json | Oui | Tableau d'articles avec IDs de prix \(ex., \[\{"price": "price_xxx", "quantity": 1\}\]\) |
 | `trial_period_days` | number | Non | Nombre de jours d'essai |
 | `default_payment_method` | string | Non | ID de la méthode de paiement |
 | `cancel_at_period_end` | boolean | Non | Annuler l'abonnement à la fin de la période |
@@ -1051,7 +1051,7 @@ Lister tous les événements
 | `apiKey` | string | Oui | Clé API Stripe (clé secrète) |
 | `limit` | number | Non | Nombre de résultats à retourner (par défaut 10, max 100) |
 | `type` | string | Non | Filtrer par type d'événement (ex. : payment_intent.created) |
-| `created` | json | Non | Filtrer par date de création (ex. : {"gt": 1633024800}) |
+| `created` | json | Non | Filtrer par date de création \(ex. : \{"gt": 1633024800\}\) |
 
 #### Sortie
 

@@ -322,16 +322,14 @@ Supabaseストレージバケットからファイルをダウンロードする
 | `projectId` | string | はい | あなたのSupabaseプロジェクトID（例：jdrkgepadsdopsntdlom） |
 | `bucket` | string | はい | ストレージバケットの名前 |
 | `path` | string | はい | ダウンロードするファイルへのパス（例："folder/file.jpg"） |
+| `fileName` | string | いいえ | オプションのファイル名上書き |
 | `apiKey` | string | はい | あなたのSupabaseサービスロールシークレットキー |
 
 #### 出力
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
-| `message` | string | 操作ステータスメッセージ |
-| `fileContent` | string | ファイルコンテンツ（バイナリの場合はbase64エンコード、それ以外はプレーンテキスト） |
-| `contentType` | string | ファイルのMIMEタイプ |
-| `isBase64` | boolean | ファイルコンテンツがbase64エンコードされているかどうか |
+| `file` | file | 実行ファイルに保存されたダウンロードファイル |
 
 ### `supabase_storage_list`
 

@@ -71,8 +71,8 @@ describe('start-block utilities', () => {
     })
 
     expect(output.payload).toBe('value')
-    expect(output.input).toBe('')
-    expect(output.conversationId).toBe('')
+    expect(output.input).toBeUndefined()
+    expect(output.conversationId).toBeUndefined()
   })
 
   it('buildStartBlockOutput uses trigger schema for API triggers', () => {

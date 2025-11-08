@@ -175,27 +175,44 @@ export function DeployModal({
           // Convert blockId_attribute format to blockName.attribute format for display
           const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i
 
-          const convertedOutputs = selectedStreamingOutputs.map((outputId) => {
-            // If it starts with a UUID, convert to blockName.attribute format
-            if (UUID_REGEX.test(outputId)) {
-              const underscoreIndex = outputId.indexOf('_')
-              if (underscoreIndex === -1) return outputId
+          const convertedOutputs = selectedStreamingOutputs
+            .map((outputId) => {
+              // If it starts with a UUID, convert to blockName.attribute format
+              if (UUID_REGEX.test(outputId)) {
+                const underscoreIndex = outputId.indexOf('_')
+                if (underscoreIndex === -1) return null
 
-              const blockId = outputId.substring(0, underscoreIndex)
-              const attribute = outputId.substring(underscoreIndex + 1)
+                const blockId = outputId.substring(0, underscoreIndex)
+                const attribute = outputId.substring(underscoreIndex + 1)
 
-              // Find the block by ID and get its name
-              const block = blocks.find((b) => b.id === blockId)
-              if (block?.name) {
-                // Normalize block name: lowercase and remove spaces
-                const normalizedBlockName = block.name.toLowerCase().replace(/\s+/g, '')
-                return `${normalizedBlockName}.${attribute}`
+                // Find the block by ID and get its name
+                const block = blocks.find((b) => b.id === blockId)
+                if (block?.name) {
+                  // Normalize block name: lowercase and remove spaces
+                  const normalizedBlockName = block.name.toLowerCase().replace(/\s+/g, '')
+                  return `${normalizedBlockName}.${attribute}`
+                }
+                // Block not found (deleted), return null to filter out
+                return null
               }
-            }
 
-            // Already in blockName.attribute format or couldn't convert
-            return outputId
-          })
+              // Already in blockName.attribute format, verify the block exists
+              const parts = outputId.split('.')
+              if (parts.length >= 2) {
+                const blockName = parts[0]
+                // Check if a block with this name exists
+                const block = blocks.find(
+                  (b) => b.name?.toLowerCase().replace(/\s+/g, '') === blockName.toLowerCase()
+                )
+                if (!block) {
+                  // Block not found (deleted), return null to filter out
+                  return null
+                }
+              }
+
+              return outputId
+            })
+            .filter((output): output is string => output !== null)
 
           exampleData.selectedOutputs = convertedOutputs
         }
@@ -390,6 +407,43 @@ export function DeployModal({
       fetchVersions()
     }
   }, [open, workflowId])
+
+  // Clean up selectedStreamingOutputs when blocks are deleted
+  useEffect(() => {
+    if (!open || selectedStreamingOutputs.length === 0) return
+
+    const blocks = Object.values(useWorkflowStore.getState().blocks)
+    const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i
+
+    const validOutputs = selectedStreamingOutputs.filter((outputId) => {
+      // If it starts with a UUID, extract the blockId and check if the block exists
+      if (UUID_REGEX.test(outputId)) {
+        const underscoreIndex = outputId.indexOf('_')
+        if (underscoreIndex === -1) return false
+
+        const blockId = outputId.substring(0, underscoreIndex)
+        const block = blocks.find((b) => b.id === blockId)
+        return !!block
+      }
+
+      // If it's in blockName.attribute format, check if a block with that name exists
+      const parts = outputId.split('.')
+      if (parts.length >= 2) {
+        const blockName = parts[0]
+        const block = blocks.find(
+          (b) => b.name?.toLowerCase().replace(/\s+/g, '') === blockName.toLowerCase()
+        )
+        return !!block
+      }
+
+      return true
+    })
+
+    // Update the state if any outputs were filtered out
+    if (validOutputs.length !== selectedStreamingOutputs.length) {
+      setSelectedStreamingOutputs(validOutputs)
+    }
+  }, [open, selectedStreamingOutputs, setSelectedStreamingOutputs])
 
   const handleActivateVersion = (version: number) => {
     setVersionToActivate(version)

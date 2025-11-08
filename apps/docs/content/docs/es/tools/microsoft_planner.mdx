@@ -190,7 +190,10 @@ Actualizar una tarea en Microsoft Planner
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
 | `success` | boolean | Indica si la tarea se actualizó correctamente |
+| `message` | string | Mensaje de éxito cuando la tarea se actualiza |
 | `task` | object | El objeto de tarea actualizado con todas sus propiedades |
+| `taskId` | string | ID de la tarea actualizada |
+| `etag` | string | Nuevo ETag después de la actualización - úselo para operaciones posteriores |
 | `metadata` | object | Metadatos que incluyen taskId, planId y taskUrl |
 
 ### `microsoft_planner_delete_task`
@@ -214,21 +217,20 @@ Eliminar una tarea de Microsoft Planner
 
 ### `microsoft_planner_list_plans`
 
-Listar todos los planes en un grupo de Microsoft 365
+Listar todos los planes compartidos con el usuario actual
 
 #### Entrada
 
 | Parámetro | Tipo | Obligatorio | Descripción |
 | --------- | ---- | -------- | ----------- |
-| `groupId` | string | Sí | El ID del grupo de Microsoft 365 |
 
 #### Salida
 
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
 | `success` | boolean | Indica si los planes se recuperaron correctamente |
-| `plans` | array | Array de objetos de plan |
-| `metadata` | object | Metadatos que incluyen groupId y count |
+| `plans` | array | Array de objetos de plan compartidos con el usuario actual |
+| `metadata` | object | Metadatos que incluyen userId y count |
 
 ### `microsoft_planner_read_plan`
 
@@ -358,6 +360,7 @@ Obtener información detallada sobre una tarea, incluyendo lista de verificació
 | --------- | ---- | ----------- |
 | `success` | boolean | Indica si los detalles de la tarea se recuperaron correctamente |
 | `taskDetails` | object | Los detalles de la tarea incluyendo descripción, lista de verificación y referencias |
+| `etag` | string | El valor ETag para estos detalles de tarea - úselo para operaciones de actualización |
 | `metadata` | object | Metadatos incluyendo taskId |
 
 ### `microsoft_planner_update_task_details`

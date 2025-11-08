@@ -1,6 +1,7 @@
 import { workflow } from '@sim/db/schema'
 import { and, eq, inArray } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console/logger'
 
@@ -9,6 +10,16 @@ const logger = createLogger('WorkspaceByIdAPI')
 import { db } from '@sim/db'
 import { knowledgeBase, permissions, templates, workspace } from '@sim/db/schema'
 import { getUserEntityPermissions } from '@/lib/permissions/utils'
+
+const patchWorkspaceSchema = z.object({
+  name: z.string().trim().min(1).optional(),
+  billedAccountUserId: z.string().uuid().optional(),
+  allowPersonalApiKeys: z.boolean().optional(),
+})
+
+const deleteWorkspaceSchema = z.object({
+  deleteTemplates: z.boolean().default(false),
+})
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -100,16 +111,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   }
 
   try {
-    const body = await request.json()
-    const {
-      name,
-      billedAccountUserId,
-      allowPersonalApiKeys,
-    }: {
-      name?: string
-      billedAccountUserId?: string
-      allowPersonalApiKeys?: boolean
-    } = body ?? {}
+    const body = patchWorkspaceSchema.parse(await request.json())
+    const { name, billedAccountUserId, allowPersonalApiKeys } = body
 
     if (
       name === undefined &&
@@ -132,11 +135,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const updateData: Record<string, unknown> = {}
 
     if (name !== undefined) {
-      const trimmedName = name.trim()
-      if (!trimmedName) {
-        return NextResponse.json({ error: 'Name is required' }, { status: 400 })
-      }
-      updateData.name = trimmedName
+      updateData.name = name
     }
 
     if (allowPersonalApiKeys !== undefined) {
@@ -144,11 +143,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     }
 
     if (billedAccountUserId !== undefined) {
-      const candidateId = billedAccountUserId?.trim()
-
-      if (!candidateId) {
-        return NextResponse.json({ error: 'billedAccountUserId is required' }, { status: 400 })
-      }
+      const candidateId = billedAccountUserId
 
       const isOwner = candidateId === existingWorkspace.ownerId
 
@@ -219,8 +214,8 @@ export async function DELETE(
   }
 
   const workspaceId = id
-  const body = await request.json().catch(() => ({}))
-  const { deleteTemplates = false } = body // User's choice: false = keep templates (recommended), true = delete templates
+  const body = deleteWorkspaceSchema.parse(await request.json().catch(() => ({})))
+  const { deleteTemplates } = body // User's choice: false = keep templates (recommended), true = delete templates
 
   // Check if user has admin permissions to delete workspace
   const userPermission = await getUserEntityPermissions(session.user.id, 'workspace', workspaceId)

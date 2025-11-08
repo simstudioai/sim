@@ -37,13 +37,13 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
       />
       <path d='M194.9 33.9001H169.8V121.4H194.9V33.9001Z' fill='white' />
       <path
-        fill-rule='evenodd'
+        fillRule='evenodd'
         clipRule='evenodd'
         d='M142.9 41.3001L141.3 33.9001H119.7V121.4H144.7V62.1001C150.6 54.4001 160.6 55.8001 163.7 56.9001V33.9001C160.5 32.7001 148.8 30.5001 142.9 41.3001Z'
         fill='white'
       />
       <path
-        fill-rule='evenodd'
+        fillRule='evenodd'
         clipRule='evenodd'
         d='M92.8999 12.2002L68.4999 17.4002L68.3999 97.5002C68.3999 112.3 79.4999 123.2 94.2999 123.2C102.5 123.2 108.5 121.7 111.8 119.9V99.6002C108.6 100.9 92.7999 105.5 92.7999 90.7002V55.2002H111.8V33.9002H92.7999L92.8999 12.2002Z'
         fill='white'
@@ -79,7 +79,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 | `description` | string | 否 | 支付描述 |
 | `receipt_email` | string | 否 | 用于发送收据的电子邮件地址 |
 | `metadata` | json | 否 | 用于存储附加信息的键值对集合 |
-| `automatic_payment_methods` | json | 否 | 启用自动支付方式（例如，{"enabled": true}） |
+| `automatic_payment_methods` | json | 否 | 启用自动支付方式（例如，\{"enabled": true\}） |
 
 #### 输出
 
@@ -197,7 +197,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 | `apiKey` | string | 是 | Stripe API 密钥（secret key） |
 | `limit` | number | 否 | 返回结果数量（默认 10，最大 100） |
 | `customer` | string | 否 | 按客户 ID 过滤 |
-| `created` | json | 否 | 按创建日期过滤（例如，{"gt": 1633024800}） |
+| `created` | json | 否 | 按创建日期过滤（例如，\{"gt": 1633024800\}） |
 
 #### 输出
 
@@ -774,7 +774,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 | `apiKey` | string | 是 | Stripe API 密钥（密钥） |
 | `limit` | number | 否 | 返回结果的数量（默认 10，最大 100） |
 | `customer` | string | 否 | 按客户 ID 过滤 |
-| `created` | json | 否 | 按创建日期过滤（例如，{"gt": 1633024800}） |
+| `created` | json | 否 | 按创建日期过滤（例如，\{"gt": 1633024800\}） |
 
 #### 输出
 
@@ -1051,7 +1051,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 | `apiKey` | string | 是 | Stripe API 密钥（密钥） |
 | `limit` | number | 否 | 返回结果数量（默认 10，最大 100） |
 | `type` | string | 否 | 按事件类型过滤（例如，payment_intent.created） |
-| `created` | json | 否 | 按创建日期过滤（例如，{"gt": 1633024800}） |
+| `created` | json | 否 | 按创建日期过滤（例如，\{"gt": 1633024800\}） |
 
 #### 输出
 

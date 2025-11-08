@@ -74,10 +74,11 @@ Enviar correos electrónicos usando Gmail
 | `to` | string | Sí | Dirección de correo electrónico del destinatario |
 | `subject` | string | No | Asunto del correo electrónico |
 | `body` | string | Sí | Contenido del cuerpo del correo electrónico |
-| `threadId` | string | No | ID del hilo para responder (para encadenar mensajes) |
-| `replyToMessageId` | string | No | ID del mensaje de Gmail para responder - use el campo "id" de los resultados de Gmail Read (no el "messageId" del RFC) |
-| `cc` | string | No | Destinatarios en CC (separados por comas) |
-| `bcc` | string | No | Destinatarios en CCO (separados por comas) |
+| `contentType` | string | No | Tipo de contenido para el cuerpo del correo electrónico \(texto o html\) |
+| `threadId` | string | No | ID del hilo para responder \(para encadenar mensajes\) |
+| `replyToMessageId` | string | No | ID del mensaje de Gmail para responder - use el campo "id" de los resultados de Gmail Read \(no el "messageId" de RFC\) |
+| `cc` | string | No | Destinatarios en CC \(separados por comas\) |
+| `bcc` | string | No | Destinatarios en CCO \(separados por comas\) |
 | `attachments` | file[] | No | Archivos para adjuntar al correo electrónico |
 
 #### Salida
@@ -98,10 +99,11 @@ Crear borradores de correos electrónicos usando Gmail
 | `to` | string | Sí | Dirección de correo electrónico del destinatario |
 | `subject` | string | No | Asunto del correo electrónico |
 | `body` | string | Sí | Contenido del cuerpo del correo electrónico |
-| `threadId` | string | No | ID del hilo para responder (para encadenar mensajes) |
-| `replyToMessageId` | string | No | ID del mensaje de Gmail para responder - use el campo "id" de los resultados de Gmail Read (no el "messageId" del RFC) |
-| `cc` | string | No | Destinatarios en CC (separados por comas) |
-| `bcc` | string | No | Destinatarios en CCO (separados por comas) |
+| `contentType` | string | No | Tipo de contenido para el cuerpo del correo electrónico \(texto o html\) |
+| `threadId` | string | No | ID del hilo para responder \(para encadenar mensajes\) |
+| `replyToMessageId` | string | No | ID del mensaje de Gmail para responder - use el campo "id" de los resultados de Gmail Read \(no el "messageId" de RFC\) |
+| `cc` | string | No | Destinatarios en CC \(separados por comas\) |
+| `bcc` | string | No | Destinatarios en CCO \(separados por comas\) |
 | `attachments` | file[] | No | Archivos para adjuntar al borrador del correo electrónico |
 
 #### Salida

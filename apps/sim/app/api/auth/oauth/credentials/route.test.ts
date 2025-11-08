@@ -10,6 +10,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 describe('OAuth Credentials API Route', () => {
   const mockGetSession = vi.fn()
   const mockParseProvider = vi.fn()
+  const mockEvaluateScopeCoverage = vi.fn()
   const mockDb = {
     select: vi.fn().mockReturnThis(),
     from: vi.fn().mockReturnThis(),
@@ -41,8 +42,9 @@ describe('OAuth Credentials API Route', () => {
       getSession: mockGetSession,
     }))
 
-    vi.doMock('@/lib/oauth', () => ({
+    vi.doMock('@/lib/oauth/oauth', () => ({
       parseProvider: mockParseProvider,
+      evaluateScopeCoverage: mockEvaluateScopeCoverage,
     }))
 
     vi.doMock('@sim/db', () => ({
@@ -66,6 +68,20 @@ describe('OAuth Credentials API Route', () => {
     vi.doMock('@/lib/logs/console/logger', () => ({
       createLogger: vi.fn().mockReturnValue(mockLogger),
     }))
+
+    mockParseProvider.mockImplementation((providerId: string) => ({
+      baseProvider: providerId.split('-')[0] || providerId,
+    }))
+
+    mockEvaluateScopeCoverage.mockImplementation(
+      (_providerId: string, grantedScopes: string[]) => ({
+        canonicalScopes: grantedScopes,
+        grantedScopes,
+        missingScopes: [],
+        extraScopes: [],
+        requiresReauthorization: false,
+      })
+    )
   })
 
   afterEach(() => {

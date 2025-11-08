@@ -190,7 +190,10 @@ Microsoft Plannerでタスクを更新する
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
 | `success` | boolean | タスクが正常に更新されたかどうか |
+| `message` | string | タスクが更新された際の成功メッセージ |
 | `task` | object | すべてのプロパティを持つ更新されたタスクオブジェクト |
+| `taskId` | string | 更新されたタスクのID |
+| `etag` | string | 更新後の新しいETag - 後続の操作に使用します |
 | `metadata` | object | taskId、planId、taskUrlを含むメタデータ |
 
 ### `microsoft_planner_delete_task`
@@ -214,21 +217,20 @@ Microsoft Plannerからタスクを削除する
 
 ### `microsoft_planner_list_plans`
 
-Microsoft 365グループ内のすべてのプランを一覧表示する
+現在のユーザーと共有されているすべてのプランを一覧表示する
 
 #### 入力
 
 | パラメータ | 型 | 必須 | 説明 |
 | --------- | ---- | -------- | ----------- |
-| `groupId` | string | はい | Microsoft 365グループのID |
 
 #### 出力
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
 | `success` | boolean | プランが正常に取得されたかどうか |
-| `plans` | array | プランオブジェクトの配列 |
-| `metadata` | object | groupIdと数を含むメタデータ |
+| `plans` | array | 現在のユーザーと共有されているプランオブジェクトの配列 |
+| `metadata` | object | userIdと数を含むメタデータ |
 
 ### `microsoft_planner_read_plan`
 
@@ -358,6 +360,7 @@ Microsoft Plannerからバケットを削除する
 | --------- | ---- | ----------- |
 | `success` | boolean | タスクの詳細が正常に取得されたかどうか |
 | `taskDetails` | object | 説明、チェックリスト、参照を含むタスクの詳細 |
+| `etag` | string | このタスク詳細のETag値 - 更新操作に使用します |
 | `metadata` | object | taskIdを含むメタデータ |
 
 ### `microsoft_planner_update_task_details`
