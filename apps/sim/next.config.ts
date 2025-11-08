@@ -102,11 +102,6 @@ const nextConfig: NextConfig = {
     '@t3-oss/env-nextjs',
     '@t3-oss/env-core',
     '@sim/db',
-    'next-mdx-remote',
-    'gray-matter',
-    'rehype-autolink-headings',
-    'rehype-slug',
-    'remark-gfm',
   ],
   async headers() {
     return [
