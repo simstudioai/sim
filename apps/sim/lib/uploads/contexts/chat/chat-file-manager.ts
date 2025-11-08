@@ -5,7 +5,8 @@ import type { UserFile } from '@/executor/types'
 const logger = createLogger('ChatFileManager')
 
 export interface ChatFile {
-  dataUrl?: string // Base64-encoded file data (data:mime;base64,...)
+  data?: string // Legacy field - base64-encoded file data (data:mime;base64,...) or raw base64
+  dataUrl?: string // Preferred field - base64-encoded file data (data:mime;base64,...)
   url?: string // Direct URL to existing file
   name: string // Original filename
   type: string // MIME type
@@ -46,12 +47,16 @@ export async function processChatFiles(
     }
   )
 
-  const transformedFiles = files.map((file) => ({
-    type: file.dataUrl ? ('file' as const) : ('url' as const),
-    data: file.dataUrl || file.url || '',
-    name: file.name,
-    mime: file.type,
-  }))
+  const transformedFiles = files.map((file) => {
+    const inlineData = file.dataUrl || file.data
+
+    return {
+      type: inlineData ? ('file' as const) : ('url' as const),
+      data: inlineData || file.url || '',
+      name: file.name,
+      mime: file.type,
+    }
+  })
 
   const userFiles = await processExecutionFiles(
     transformedFiles,

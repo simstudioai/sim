@@ -245,10 +245,26 @@ export function useChatStreaming() {
                 let finalContent = accumulatedText
 
                 if (formattedOutputs.length > 0) {
-                  const combinedOutputs = formattedOutputs.join('\n\n')
-                  finalContent = finalContent
-                    ? `${finalContent.trim()}\n\n${combinedOutputs}`
-                    : combinedOutputs
+                  const trimmedStreamingContent = accumulatedText.trim()
+
+                  const uniqueOutputs = formattedOutputs.filter((output) => {
+                    const trimmedOutput = output.trim()
+                    if (!trimmedOutput) return false
+
+                    // Skip outputs that exactly match the streamed content to avoid duplication
+                    if (trimmedStreamingContent && trimmedOutput === trimmedStreamingContent) {
+                      return false
+                    }
+
+                    return true
+                  })
+
+                  if (uniqueOutputs.length > 0) {
+                    const combinedOutputs = uniqueOutputs.join('\n\n')
+                    finalContent = finalContent
+                      ? `${finalContent.trim()}\n\n${combinedOutputs}`
+                      : combinedOutputs
+                  }
                 }
 
                 if (!finalContent) {
