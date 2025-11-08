@@ -480,7 +480,7 @@ export function ConsoleEntry({ entry, consoleWidth }: ConsoleEntryProps) {
         {entry.error && !showInput && (
           <div className='rounded-lg bg-[#F6D2D2] p-3 dark:bg-[#442929]'>
             <div className='overflow-hidden whitespace-pre-wrap break-all font-normal text-[#DC2626] text-sm leading-normal dark:text-[#F87171]'>
-              {entry.error}
+              {entry.error instanceof Error ? entry.error.message : entry.error}
             </div>
           </div>
         )}

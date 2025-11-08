@@ -45,7 +45,6 @@ export const ResendBlock: BlockConfig<MailSendResult> = {
       id: 'contentType',
       title: 'Content Type',
       type: 'dropdown',
-      layout: 'full',
       options: [
         { label: 'Plain Text', id: 'text' },
         { label: 'HTML', id: 'html' },

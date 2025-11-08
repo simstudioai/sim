@@ -100,7 +100,6 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
       id: 'contentType',
       title: 'Content Type',
       type: 'dropdown',
-      layout: 'full',
       options: [
         { label: 'Plain Text', id: 'text' },
         { label: 'HTML', id: 'html' },

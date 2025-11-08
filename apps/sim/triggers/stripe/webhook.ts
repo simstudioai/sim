@@ -25,7 +25,6 @@ export const stripeWebhookTrigger: TriggerConfig = {
       title: 'Event Types to Listen For',
       type: 'dropdown',
       multiSelect: true,
-      layout: 'full',
       options: [
         // Payment Intents
         { label: 'payment_intent.succeeded', id: 'payment_intent.succeeded' },
