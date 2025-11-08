@@ -28,6 +28,7 @@ import {
   Layers,
   Lightbulb,
   LineChart,
+  Linkedin,
   Mail,
   Megaphone,
   MessageSquare,
@@ -41,6 +42,7 @@ import {
   Star,
   Target,
   TrendingUp,
+  Twitter,
   User,
   Users,
   Workflow,
@@ -48,6 +50,7 @@ import {
   Zap,
 } from 'lucide-react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
+import ReactMarkdown from 'react-markdown'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -599,7 +602,7 @@ export default function TemplateDetails() {
                                 disabled={isEditing || hasWorkspaceAccess === false}
                                 className={
                                   hasWorkspaceAccess === false
-                                    ? 'opacity-50 cursor-not-allowed'
+                                    ? 'cursor-not-allowed opacity-50'
                                     : 'bg-blue-600 text-white hover:bg-blue-700'
                                 }
                               >
@@ -794,6 +797,104 @@ export default function TemplateDetails() {
                   </ul>
                 </div>
               )}
+
+            {/* About this Workflow */}
+            {template.details?.about && (
+              <div className='mt-8'>
+                <h3 className='mb-3 font-semibold text-lg'>About this Workflow</h3>
+                <div className='prose prose-sm max-w-none dark:prose-invert'>
+                  <ReactMarkdown>{template.details.about}</ReactMarkdown>
+                </div>
+              </div>
+            )}
+
+            {/* Creator Profile */}
+            {template.creator && (
+              <div className='mt-8'>
+                <h3 className='mb-4 font-semibold text-lg'>About the Creator</h3>
+                <div className='rounded-lg border bg-card p-6'>
+                  <div className='flex items-start gap-4'>
+                    {/* Profile Picture */}
+                    <div className='flex-shrink-0'>
+                      {template.creator.profileImageUrl ? (
+                        <div className='relative h-20 w-20 overflow-hidden rounded-full'>
+                          <img
+                            src={template.creator.profileImageUrl}
+                            alt={template.creator.name}
+                            className='h-full w-full object-cover'
+                          />
+                        </div>
+                      ) : (
+                        <div className='flex h-20 w-20 items-center justify-center rounded-full bg-[#802FFF]'>
+                          <User className='h-10 w-10 text-white' />
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Creator Info */}
+                    <div className='flex-1'>
+                      <h4 className='font-semibold text-lg'>{template.creator.name}</h4>
+                      {template.creator.about && (
+                        <p className='mt-2 text-muted-foreground text-sm leading-relaxed'>
+                          {template.creator.about}
+                        </p>
+                      )}
+
+                      {/* Social Links */}
+                      {(template.creator.xUrl ||
+                        template.creator.linkedinUrl ||
+                        template.creator.websiteUrl ||
+                        template.creator.contactEmail) && (
+                        <div className='mt-4 flex flex-wrap gap-3'>
+                          {template.creator.xUrl && (
+                            <a
+                              href={template.creator.xUrl}
+                              target='_blank'
+                              rel='noopener noreferrer'
+                              className='inline-flex items-center gap-1.5 text-muted-foreground text-sm transition-colors hover:text-foreground'
+                            >
+                              <Twitter className='h-4 w-4' />
+                              <span>X</span>
+                            </a>
+                          )}
+                          {template.creator.linkedinUrl && (
+                            <a
+                              href={template.creator.linkedinUrl}
+                              target='_blank'
+                              rel='noopener noreferrer'
+                              className='inline-flex items-center gap-1.5 text-muted-foreground text-sm transition-colors hover:text-foreground'
+                            >
+                              <Linkedin className='h-4 w-4' />
+                              <span>LinkedIn</span>
+                            </a>
+                          )}
+                          {template.creator.websiteUrl && (
+                            <a
+                              href={template.creator.websiteUrl}
+                              target='_blank'
+                              rel='noopener noreferrer'
+                              className='inline-flex items-center gap-1.5 text-muted-foreground text-sm transition-colors hover:text-foreground'
+                            >
+                              <Globe className='h-4 w-4' />
+                              <span>Website</span>
+                            </a>
+                          )}
+                          {template.creator.contactEmail && (
+                            <a
+                              href={`mailto:${template.creator.contactEmail}`}
+                              className='inline-flex items-center gap-1.5 text-muted-foreground text-sm transition-colors hover:text-foreground'
+                            >
+                              <Mail className='h-4 w-4' />
+                              <span>Contact</span>
+                            </a>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
