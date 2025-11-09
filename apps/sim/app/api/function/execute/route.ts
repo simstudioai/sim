@@ -640,6 +640,18 @@ function escapeRegExp(string: string): string {
   return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
+/**
+ * Remove one trailing newline from stdout
+ * This handles the common case where print() or console.log() adds a trailing \n
+ * that users don't expect to see in the output
+ */
+function cleanStdout(stdout: string): string {
+  if (stdout.endsWith('\n')) {
+    return stdout.slice(0, -1)
+  }
+  return stdout
+}
+
 export async function POST(req: NextRequest) {
   const requestId = generateRequestId()
   const startTime = Date.now()
@@ -820,7 +832,7 @@ export async function POST(req: NextRequest) {
 
         return NextResponse.json({
           success: true,
-          output: { result: e2bResult ?? null, stdout, executionTime },
+          output: { result: e2bResult ?? null, stdout: cleanStdout(stdout), executionTime },
         })
       }
       // Track prologue lines for error adjustment
@@ -884,7 +896,7 @@ export async function POST(req: NextRequest) {
 
       return NextResponse.json({
         success: true,
-        output: { result: e2bResult ?? null, stdout, executionTime },
+        output: { result: e2bResult ?? null, stdout: cleanStdout(stdout), executionTime },
       })
     }
 
@@ -948,7 +960,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      output: { result, stdout, executionTime },
+      output: { result, stdout: cleanStdout(stdout), executionTime },
     })
   } catch (error: any) {
     const executionTime = Date.now() - startTime
@@ -981,7 +993,7 @@ export async function POST(req: NextRequest) {
       error: userFriendlyErrorMessage,
       output: {
         result: null,
-        stdout,
+        stdout: cleanStdout(stdout),
         executionTime,
       },
       // Include debug information in development or for debugging

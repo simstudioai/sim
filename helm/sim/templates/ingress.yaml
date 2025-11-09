@@ -21,6 +21,9 @@ spec:
         {{- if .Values.realtime.enabled }}
         - {{ .Values.ingress.realtime.host }}
         {{- end }}
+        {{- if and .Values.copilot.enabled .Values.ingress.copilot }}
+        - {{ .Values.ingress.copilot.host }}
+        {{- end }}
       secretName: {{ .Values.ingress.tls.secretName }}
   {{- end }}
   rules:
@@ -50,6 +53,21 @@ spec:
                 name: {{ include "sim.fullname" $ }}-realtime
                 port:
                   number: {{ $.Values.realtime.service.port }}
+          {{- end }}
+    {{- end }}
+    {{- if and .Values.copilot.enabled .Values.ingress.copilot }}
+    # Copilot service ingress rule
+    - host: {{ .Values.ingress.copilot.host }}
+      http:
+        paths:
+          {{- range .Values.ingress.copilot.paths }}
+          - path: {{ .path }}
+            pathType: {{ .pathType }}
+            backend:
+              service:
+                name: {{ include "sim.fullname" $ }}-copilot
+                port:
+                  number: {{ $.Values.copilot.server.service.port }}
           {{- end }}
     {{- end }}
 {{- end }}

@@ -47,7 +47,6 @@ export function FolderItem({
 }: FolderItemProps) {
   const { expandedFolders, toggleExpanded, updateFolderAPI, deleteFolder } = useFolderStore()
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
-  const [isDeleting, setIsDeleting] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
   const [editValue, setEditValue] = useState(folder.name)
@@ -169,14 +168,12 @@ export function FolderItem({
   }
 
   const confirmDelete = async () => {
-    setIsDeleting(true)
+    setShowDeleteDialog(false)
+
     try {
       await deleteFolder(folder.id, workspaceId)
-      setShowDeleteDialog(false)
     } catch (error) {
       logger.error('Failed to delete folder:', { error })
-    } finally {
-      setIsDeleting(false)
     }
   }
 
@@ -233,15 +230,12 @@ export function FolderItem({
             </AlertDialogHeader>
 
             <AlertDialogFooter className='flex'>
-              <AlertDialogCancel className='h-9 w-full rounded-[8px]' disabled={isDeleting}>
-                Cancel
-              </AlertDialogCancel>
+              <AlertDialogCancel className='h-9 w-full rounded-[8px]'>Cancel</AlertDialogCancel>
               <AlertDialogAction
                 onClick={confirmDelete}
-                disabled={isDeleting}
                 className='h-9 w-full rounded-[8px] bg-red-500 text-white transition-all duration-200 hover:bg-red-600 dark:bg-red-500 dark:hover:bg-red-600'
               >
-                {isDeleting ? 'Deleting...' : 'Delete'}
+                Delete
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
@@ -354,15 +348,12 @@ export function FolderItem({
           </AlertDialogHeader>
 
           <AlertDialogFooter className='flex'>
-            <AlertDialogCancel className='h-9 w-full rounded-[8px]' disabled={isDeleting}>
-              Cancel
-            </AlertDialogCancel>
+            <AlertDialogCancel className='h-9 w-full rounded-[8px]'>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={confirmDelete}
-              disabled={isDeleting}
               className='h-9 w-full rounded-[8px] bg-red-500 text-white transition-all duration-200 hover:bg-red-600 dark:bg-red-500 dark:hover:bg-red-600'
             >
-              {isDeleting ? 'Deleting...' : 'Delete'}
+              Delete
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

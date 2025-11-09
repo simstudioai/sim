@@ -86,7 +86,11 @@ export async function executeInE2B(req: E2BExecutionRequest): Promise<E2BExecuti
       } catch {
         result = jsonPart
       }
-      cleanedStdout = lines.filter((l) => !l.startsWith(prefix)).join('\n')
+      const filteredLines = lines.filter((l) => !l.startsWith(prefix))
+      if (filteredLines.length > 0 && filteredLines[filteredLines.length - 1] === '') {
+        filteredLines.pop()
+      }
+      cleanedStdout = filteredLines.join('\n')
     }
 
     return { result, stdout: cleanedStdout, sandboxId }
