@@ -2,7 +2,15 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import clsx from 'clsx'
-import { Check, ChevronDown, Clipboard, MoreHorizontal, RepeatIcon, SplitIcon } from 'lucide-react'
+import {
+  Check,
+  ChevronDown,
+  Clipboard,
+  MoreHorizontal,
+  RepeatIcon,
+  SplitIcon,
+  Trash2,
+} from 'lucide-react'
 import {
   Button,
   Code,
@@ -30,20 +38,40 @@ const NEAR_MIN_THRESHOLD = 40
 const DEFAULT_EXPANDED_HEIGHT = 300
 
 /**
- * Column width constants
+ * Column width constants - numeric values for calculations
+ */
+const BLOCK_COLUMN_WIDTH_PX = 240
+const MIN_OUTPUT_PANEL_WIDTH_PX = 300
+
+/**
+ * Column width constants - Tailwind classes for styling
  */
 const COLUMN_WIDTHS = {
-  BLOCK: 'w-[200px]',
+  BLOCK: 'w-[240px]',
   STATUS: 'w-[120px]',
   DURATION: 'w-[120px]',
+  RUN_ID: 'w-[120px]',
+  TIMESTAMP: 'w-[120px]',
   OUTPUT_PANEL: 'w-[400px]',
 } as const
 
 /**
+ * Color palette for run IDs - matching code syntax highlighting colors
+ */
+const RUN_ID_COLORS = [
+  { text: '#4ADE80' }, // Green
+  { text: '#F472B6' }, // Pink
+  { text: '#60C5FF' }, // Blue
+  { text: '#FF8533' }, // Orange
+  { text: '#C084FC' }, // Purple
+  { text: '#FCD34D' }, // Yellow
+] as const
+
+/**
  * Shared styling constants
  */
-const HEADER_TEXT_CLASS = 'font-medium text-[#8D8D8D] text-[13px] dark:text-[#8D8D8D]'
-const ROW_TEXT_CLASS = 'font-medium text-[#D2D2D2] text-[13px] dark:text-[#D2D2D2]'
+const HEADER_TEXT_CLASS = 'font-medium text-[#AEAEAE] text-[12px] dark:text-[#AEAEAE]'
+const ROW_TEXT_CLASS = 'font-medium text-[#D2D2D2] text-[12px] dark:text-[#D2D2D2]'
 const COLUMN_BASE_CLASS = 'flex-shrink-0'
 
 /**
@@ -118,6 +146,43 @@ const ToggleButton = ({
 )
 
 /**
+ * Formats timestamp to H:MM:SS AM/PM TZ format
+ */
+const formatTimestamp = (timestamp: string): string => {
+  const date = new Date(timestamp)
+  const fullString = date.toLocaleTimeString('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: true,
+    timeZoneName: 'short',
+  })
+  // Format: "5:54:55 PM PST" - return as is
+  return fullString
+}
+
+/**
+ * Truncates execution ID for display as run ID
+ */
+const formatRunId = (executionId?: string): string => {
+  if (!executionId) return '-'
+  return executionId.slice(0, 8)
+}
+
+/**
+ * Gets color for a run ID based on its index in the execution ID order map
+ */
+const getRunIdColor = (
+  executionId: string | undefined,
+  executionIdOrderMap: Map<string, number>
+) => {
+  if (!executionId) return null
+  const colorIndex = executionIdOrderMap.get(executionId)
+  if (colorIndex === undefined) return null
+  return RUN_ID_COLORS[colorIndex % RUN_ID_COLORS.length]
+}
+
+/**
  * Terminal component with resizable height that persists across page refreshes.
  *
  * Uses a CSS-based approach to prevent hydration mismatches:
@@ -141,12 +206,14 @@ export function Terminal() {
     setHasHydrated,
   } = useTerminalStore()
   const entries = useTerminalConsoleStore((state) => state.entries)
+  const clearWorkflowConsole = useTerminalConsoleStore((state) => state.clearWorkflowConsole)
   const { activeWorkflowId } = useWorkflowRegistry()
   const [selectedEntry, setSelectedEntry] = useState<ConsoleEntry | null>(null)
   const [isToggling, setIsToggling] = useState(false)
   const [displayPopoverOpen, setDisplayPopoverOpen] = useState(false)
   const [wrapText, setWrapText] = useState(true)
   const [showCopySuccess, setShowCopySuccess] = useState(false)
+  const [showInput, setShowInput] = useState(false)
 
   // Terminal resize hooks
   const { handleMouseDown } = useTerminalResize()
@@ -161,6 +228,54 @@ export function Terminal() {
     if (!activeWorkflowId) return []
     return entries.filter((entry) => entry.workflowId === activeWorkflowId)
   }, [entries, activeWorkflowId])
+
+  /**
+   * Create stable execution ID to color index mapping based on order of first appearance.
+   * Once an execution ID is assigned a color index, it keeps that index.
+   */
+  const executionIdOrderMap = useMemo(() => {
+    const orderMap = new Map<string, number>()
+    let colorIndex = 0
+
+    // Process entries in reverse order (oldest first) since entries array is newest-first
+    for (let i = filteredEntries.length - 1; i >= 0; i--) {
+      const entry = filteredEntries[i]
+      if (entry.executionId && !orderMap.has(entry.executionId)) {
+        orderMap.set(entry.executionId, colorIndex)
+        colorIndex++
+      }
+    }
+
+    return orderMap
+  }, [filteredEntries])
+
+  /**
+   * Check if input data exists for selected entry
+   */
+  const hasInputData = useMemo(() => {
+    if (!selectedEntry?.input) return false
+    return typeof selectedEntry.input === 'object'
+      ? Object.keys(selectedEntry.input).length > 0
+      : true
+  }, [selectedEntry])
+
+  /**
+   * Check if this is a function block with code input
+   */
+  const shouldShowCodeDisplay = useMemo(() => {
+    if (!selectedEntry || !showInput || selectedEntry.blockType !== 'function') return false
+    const input = selectedEntry.input
+    return typeof input === 'object' && input && 'code' in input && typeof input.code === 'string'
+  }, [selectedEntry, showInput])
+
+  /**
+   * Get the data to display in the output panel
+   */
+  const outputData = useMemo(() => {
+    if (!selectedEntry) return null
+    if (selectedEntry.error) return selectedEntry.error
+    return showInput ? selectedEntry.input : selectedEntry.output
+  }, [selectedEntry, showInput])
 
   /**
    * Handle row click - toggle if clicking same entry
@@ -178,7 +293,7 @@ export function Terminal() {
     if (isExpanded) {
       setTerminalHeight(MIN_HEIGHT)
     } else {
-      const maxHeight = window.innerHeight * 0.5
+      const maxHeight = window.innerHeight * 0.7
       const targetHeight = Math.min(DEFAULT_EXPANDED_HEIGHT, maxHeight)
       setTerminalHeight(targetHeight)
     }
@@ -197,12 +312,27 @@ export function Terminal() {
   const handleCopy = useCallback(() => {
     if (!selectedEntry) return
 
-    const dataToCopy = selectedEntry.error || selectedEntry.output
-    const textToCopy = JSON.stringify(dataToCopy, null, 2)
+    const textToCopy = shouldShowCodeDisplay
+      ? selectedEntry.input.code
+      : JSON.stringify(outputData, null, 2)
 
     navigator.clipboard.writeText(textToCopy)
     setShowCopySuccess(true)
-  }, [selectedEntry])
+  }, [selectedEntry, outputData, shouldShowCodeDisplay])
+
+  /**
+   * Handle clear console for current workflow
+   */
+  const handleClearConsole = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation()
+      if (activeWorkflowId) {
+        clearWorkflowConsole(activeWorkflowId)
+        setSelectedEntry(null)
+      }
+    },
+    [activeWorkflowId, clearWorkflowConsole]
+  )
 
   /**
    * Mark hydration as complete on mount
@@ -210,6 +340,30 @@ export function Terminal() {
   useEffect(() => {
     setHasHydrated(true)
   }, [setHasHydrated])
+
+  /**
+   * Adjust showInput when selected entry changes
+   * Stay on input view if the new entry has input data
+   */
+  useEffect(() => {
+    if (!selectedEntry) {
+      setShowInput(false)
+      return
+    }
+
+    // If we're viewing input but the new entry has no input, switch to output
+    if (showInput) {
+      const newHasInput =
+        selectedEntry.input &&
+        (typeof selectedEntry.input === 'object'
+          ? Object.keys(selectedEntry.input).length > 0
+          : true)
+
+      if (!newHasInput) {
+        setShowInput(false)
+      }
+    }
+  }, [selectedEntry, showInput])
 
   /**
    * Reset copy success state after 2 seconds
@@ -222,6 +376,33 @@ export function Terminal() {
       return () => clearTimeout(timer)
     }
   }, [showCopySuccess])
+
+  /**
+   * Handle keyboard navigation through logs
+   */
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!selectedEntry || filteredEntries.length === 0) return
+
+      // Only handle arrow keys
+      if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return
+
+      // Prevent default scrolling behavior
+      e.preventDefault()
+
+      const currentIndex = filteredEntries.findIndex((entry) => entry.id === selectedEntry.id)
+      if (currentIndex === -1) return
+
+      if (e.key === 'ArrowUp' && currentIndex > 0) {
+        setSelectedEntry(filteredEntries[currentIndex - 1])
+      } else if (e.key === 'ArrowDown' && currentIndex < filteredEntries.length - 1) {
+        setSelectedEntry(filteredEntries[currentIndex + 1])
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [selectedEntry, filteredEntries])
 
   /**
    * Adjust output panel width when sidebar or panel width changes.
@@ -240,12 +421,11 @@ export function Terminal() {
 
       // Calculate max width: total terminal width minus block column width
       const terminalWidth = window.innerWidth - sidebarWidth - panelWidth
-      const maxWidth = terminalWidth - 200 // COLUMN_WIDTHS.BLOCK
-      const minWidth = 300
+      const maxWidth = terminalWidth - BLOCK_COLUMN_WIDTH_PX
 
       // If current output panel width exceeds max, clamp it
-      if (outputPanelWidth > maxWidth && maxWidth >= minWidth) {
-        setOutputPanelWidth(Math.max(maxWidth, minWidth))
+      if (outputPanelWidth > maxWidth && maxWidth >= MIN_OUTPUT_PANEL_WIDTH_PX) {
+        setOutputPanelWidth(Math.max(maxWidth, MIN_OUTPUT_PANEL_WIDTH_PX))
       }
     }
 
@@ -305,9 +485,28 @@ export function Terminal() {
             >
               <ColumnHeader label='Block' width={COLUMN_WIDTHS.BLOCK} />
               <ColumnHeader label='Status' width={COLUMN_WIDTHS.STATUS} />
+              <ColumnHeader label='Run ID' width={COLUMN_WIDTHS.RUN_ID} />
               <ColumnHeader label='Duration' width={COLUMN_WIDTHS.DURATION} />
+              <ColumnHeader label='Timestamp' width={COLUMN_WIDTHS.TIMESTAMP} />
               {!selectedEntry && (
-                <div className='ml-auto flex items-center'>
+                <div className='ml-auto flex items-center gap-[8px]'>
+                  {filteredEntries.length > 0 && (
+                    <Tooltip.Root>
+                      <Tooltip.Trigger asChild>
+                        <Button
+                          variant='ghost'
+                          onClick={handleClearConsole}
+                          aria-label='Clear console'
+                          className='!p-1.5 -m-1.5'
+                        >
+                          <Trash2 className='h-3.5 w-3.5' />
+                        </Button>
+                      </Tooltip.Trigger>
+                      <Tooltip.Content>
+                        <span>Clear console</span>
+                      </Tooltip.Content>
+                    </Tooltip.Root>
+                  )}
                   <ToggleButton
                     isExpanded={isExpanded}
                     onClick={(e) => {
@@ -330,6 +529,7 @@ export function Terminal() {
                   const statusInfo = getStatusInfo(entry.success, entry.error)
                   const isSelected = selectedEntry?.id === entry.id
                   const BlockIcon = getBlockIcon(entry.blockType)
+                  const runIdColor = getRunIdColor(entry.executionId, executionIdOrderMap)
 
                   return (
                     <div
@@ -340,6 +540,7 @@ export function Terminal() {
                       )}
                       onClick={() => handleRowClick(entry)}
                     >
+                      {/* Block */}
                       <div
                         className={clsx(
                           COLUMN_WIDTHS.BLOCK,
@@ -352,6 +553,8 @@ export function Terminal() {
                         )}
                         <span className={clsx('truncate', ROW_TEXT_CLASS)}>{entry.blockName}</span>
                       </div>
+
+                      {/* Status */}
                       <div className={clsx(COLUMN_WIDTHS.STATUS, COLUMN_BASE_CLASS)}>
                         {statusInfo ? (
                           <div
@@ -369,7 +572,7 @@ export function Terminal() {
                               }}
                             />
                             <span
-                              className='font-medium text-[12px]'
+                              className='font-medium text-[11.5px]'
                               style={{ color: statusInfo.isError ? '#EF4444' : '#B7B7B7' }}
                             >
                               {statusInfo.label}
@@ -379,6 +582,29 @@ export function Terminal() {
                           <span className={ROW_TEXT_CLASS}>-</span>
                         )}
                       </div>
+
+                      {/* Run ID */}
+                      <Tooltip.Root>
+                        <Tooltip.Trigger asChild>
+                          <span
+                            className={clsx(
+                              COLUMN_WIDTHS.RUN_ID,
+                              COLUMN_BASE_CLASS,
+                              'truncate font-medium font-mono text-[12px]'
+                            )}
+                            style={{ color: runIdColor?.text || '#D2D2D2' }}
+                          >
+                            {formatRunId(entry.executionId)}
+                          </span>
+                        </Tooltip.Trigger>
+                        {entry.executionId && (
+                          <Tooltip.Content>
+                            <span className='font-mono text-[11px]'>{entry.executionId}</span>
+                          </Tooltip.Content>
+                        )}
+                      </Tooltip.Root>
+
+                      {/* Duration */}
                       <span
                         className={clsx(
                           COLUMN_WIDTHS.DURATION,
@@ -388,6 +614,18 @@ export function Terminal() {
                         )}
                       >
                         {formatDuration(entry.durationMs)}
+                      </span>
+
+                      {/* Timestamp */}
+                      <span
+                        className={clsx(
+                          COLUMN_WIDTHS.TIMESTAMP,
+                          COLUMN_BASE_CLASS,
+                          'truncate',
+                          ROW_TEXT_CLASS
+                        )}
+                      >
+                        {formatTimestamp(entry.timestamp)}
                       </span>
                     </div>
                   )
@@ -413,11 +651,54 @@ export function Terminal() {
 
               {/* Header */}
               <div
-                className='group flex h-[30px] flex-shrink-0 cursor-pointer items-center bg-[#1E1E1E] px-[16px]'
+                className='group flex h-[30px] flex-shrink-0 cursor-pointer items-center justify-between bg-[#1E1E1E] px-[16px]'
                 onClick={handleHeaderClick}
               >
-                <span className={HEADER_TEXT_CLASS}>Output</span>
-                <div className='ml-auto flex items-center gap-[8px]'>
+                <div className='flex items-center'>
+                  <Button
+                    variant='ghost'
+                    className={clsx(
+                      'px-[8px] py-[6px] text-[12px]',
+                      !showInput && hasInputData && '!text-[#E6E6E6] dark:!text-[#E6E6E6]'
+                    )}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      if (!isExpanded) {
+                        setIsToggling(true)
+                        const maxHeight = window.innerHeight * 0.7
+                        const targetHeight = Math.min(DEFAULT_EXPANDED_HEIGHT, maxHeight)
+                        setTerminalHeight(targetHeight)
+                      }
+                      if (showInput) setShowInput(false)
+                    }}
+                    aria-label='Show output'
+                  >
+                    Output
+                  </Button>
+                  {hasInputData && (
+                    <Button
+                      variant='ghost'
+                      className={clsx(
+                        'px-[8px] py-[6px] text-[12px]',
+                        showInput && '!text-[#E6E6E6] dark:!text-[#E6E6E6] '
+                      )}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        if (!isExpanded) {
+                          setIsToggling(true)
+                          const maxHeight = window.innerHeight * 0.7
+                          const targetHeight = Math.min(DEFAULT_EXPANDED_HEIGHT, maxHeight)
+                          setTerminalHeight(targetHeight)
+                        }
+                        setShowInput(true)
+                      }}
+                      aria-label='Show input'
+                    >
+                      Input
+                    </Button>
+                  )}
+                </div>
+                <div className='flex items-center gap-[8px]'>
                   <Tooltip.Root>
                     <Tooltip.Trigger asChild>
                       <Button
@@ -500,6 +781,23 @@ export function Terminal() {
                       </PopoverItem>
                     </PopoverContent>
                   </Popover>
+                  {filteredEntries.length > 0 && (
+                    <Tooltip.Root>
+                      <Tooltip.Trigger asChild>
+                        <Button
+                          variant='ghost'
+                          onClick={handleClearConsole}
+                          aria-label='Clear console'
+                          className='!p-1.5 -m-1.5'
+                        >
+                          <Trash2 className='h-3.5 w-3.5' />
+                        </Button>
+                      </Tooltip.Trigger>
+                      <Tooltip.Content>
+                        <span>Clear console</span>
+                      </Tooltip.Content>
+                    </Tooltip.Root>
+                  )}
                   <ToggleButton
                     isExpanded={isExpanded}
                     onClick={(e) => {
@@ -514,13 +812,24 @@ export function Terminal() {
               <div
                 className={clsx(
                   'flex-1 overflow-x-auto overflow-y-auto',
-                  displayMode === 'prettier' && 'px-[8px] pb-[8px]',
-                  displayMode === 'raw' && '-mt-[4px]'
+                  displayMode === 'prettier' && 'px-[8px] pb-[8px]'
                 )}
               >
-                {displayMode === 'raw' ? (
+                {shouldShowCodeDisplay ? (
                   <Code.Viewer
-                    code={JSON.stringify(selectedEntry.error || selectedEntry.output, null, 2)}
+                    code={selectedEntry.input.code}
+                    showGutter
+                    language={
+                      (selectedEntry.input.language as 'javascript' | 'json') || 'javascript'
+                    }
+                    className='m-0 min-h-full rounded-none border-0 bg-[#1E1E1E]'
+                    paddingLeft={8}
+                    gutterStyle={{ backgroundColor: 'transparent' }}
+                    wrapText={wrapText}
+                  />
+                ) : displayMode === 'raw' ? (
+                  <Code.Viewer
+                    code={JSON.stringify(outputData, null, 2)}
                     showGutter
                     language='json'
                     className='m-0 min-h-full rounded-none border-0 bg-[#1E1E1E]'
@@ -529,10 +838,7 @@ export function Terminal() {
                     wrapText={wrapText}
                   />
                 ) : (
-                  <PrettierOutput
-                    output={selectedEntry.error || selectedEntry.output}
-                    wrapText={wrapText}
-                  />
+                  <PrettierOutput output={outputData} wrapText={wrapText} />
                 )}
               </div>
             </div>

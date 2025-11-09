@@ -120,7 +120,6 @@ export function ModelSelector({ selectedModel, isNearTop, onModelSelect }: Model
         align='start'
         sideOffset={4}
         maxHeight={280}
-        className='w-[180px]'
         onOpenAutoFocus={(e) => e.preventDefault()}
         onCloseAutoFocus={(e) => e.preventDefault()}
       >

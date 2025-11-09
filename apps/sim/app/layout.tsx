@@ -144,13 +144,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                     var terminalParsed = JSON.parse(terminalStored);
                     var terminalState = terminalParsed?.state;
                     var terminalHeight = terminalState?.terminalHeight;
-                    var maxTerminalHeight = window.innerHeight * 0.5;
+                    var maxTerminalHeight = window.innerHeight * 0.7;
                     
-                    // Cap stored height at 50% of viewport
+                    // Cap stored height at 70% of viewport
                     if (terminalHeight >= 30 && terminalHeight <= maxTerminalHeight) {
                       document.documentElement.style.setProperty('--terminal-height', terminalHeight + 'px');
                     } else if (terminalHeight > maxTerminalHeight) {
-                      // If stored height exceeds 50%, cap it
+                      // If stored height exceeds 70%, cap it
                       document.documentElement.style.setProperty('--terminal-height', maxTerminalHeight + 'px');
                     }
                   }

@@ -22,7 +22,7 @@ interface TerminalState {
 
 /**
  * Terminal height constraints
- * Note: Maximum height is enforced dynamically at 50% of viewport height in the resize hook
+ * Note: Maximum height is enforced dynamically at 70% of viewport height in the resize hook
  */
 const MIN_TERMINAL_HEIGHT = 30
 const DEFAULT_TERMINAL_HEIGHT = 30

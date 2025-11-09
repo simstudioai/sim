@@ -261,10 +261,10 @@ const PopoverContent = React.forwardRef<
             className
           )}
           style={{
-            ...style,
             maxHeight: `${maxHeight || 400}px`,
             maxWidth: 'calc(100vw - 16px)',
             minWidth: '160px',
+            ...style,
           }}
         >
           {children}

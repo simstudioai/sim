@@ -164,7 +164,9 @@ const getDisplayValue = (value: unknown): string => {
  */
 const SubBlockRow = ({ title, value }: { title: string; value?: string }) => (
   <div className='flex items-center gap-[8px]'>
-    <span className='flex-shrink-0 text-[#AEAEAE] text-[14px]'>{title}</span>
+    <span className='min-w-0 truncate text-[#AEAEAE] text-[14px]' title={title}>
+      {title}
+    </span>
     {value !== undefined && (
       <span className='flex-1 truncate text-right text-[#FFFFFF] text-[14px]' title={value}>
         {value}

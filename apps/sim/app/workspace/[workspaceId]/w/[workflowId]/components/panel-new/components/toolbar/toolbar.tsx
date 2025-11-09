@@ -314,7 +314,7 @@ export function Toolbar({ isActive = true }: ToolbarProps) {
         <div
           className={clsx(
             'triggers-section flex flex-col overflow-hidden',
-            isToggling && !isResizing && 'transition-[height]'
+            isToggling && !isResizing && 'transition-100ms transition-[height]'
           )}
           style={{ height: 'var(--toolbar-triggers-height)' }}
           onTransitionEnd={handleTransitionEnd}

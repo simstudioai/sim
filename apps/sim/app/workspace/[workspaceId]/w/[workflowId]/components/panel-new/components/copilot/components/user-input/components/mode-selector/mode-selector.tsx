@@ -9,7 +9,6 @@ import {
   PopoverContent,
   PopoverItem,
   PopoverScrollArea,
-  Tooltip,
 } from '@/components/emcn'
 import { cn } from '@/lib/utils'
 
@@ -114,44 +113,19 @@ export function ModeSelector({ mode, onModeChange, isNearTop, disabled }: ModeSe
         side={isNearTop ? 'bottom' : 'top'}
         align='start'
         sideOffset={4}
-        className='w-[160px]'
+        style={{ width: '120px', minWidth: '120px' }}
         onOpenAutoFocus={(e) => e.preventDefault()}
         onCloseAutoFocus={(e) => e.preventDefault()}
       >
         <PopoverScrollArea className='space-y-[2px]'>
-          <Tooltip.Root>
-            <Tooltip.Trigger asChild>
-              <PopoverItem active={mode === 'ask'} onClick={() => handleSelect('ask')}>
-                <MessageSquare className='h-3.5 w-3.5' />
-                <span>Ask</span>
-              </PopoverItem>
-            </Tooltip.Trigger>
-            <Tooltip.Content
-              side='right'
-              sideOffset={6}
-              align='center'
-              className='max-w-[220px] border bg-popover p-2 text-[11px] text-popover-foreground leading-snug shadow-md'
-            >
-              Ask mode can help answer questions about your workflow, tell you about Sim, and guide
-              you in building/editing.
-            </Tooltip.Content>
-          </Tooltip.Root>
-          <Tooltip.Root>
-            <Tooltip.Trigger asChild>
-              <PopoverItem active={mode === 'build'} onClick={() => handleSelect('build')}>
-                <Package className='h-3.5 w-3.5' />
-                <span>Build</span>
-              </PopoverItem>
-            </Tooltip.Trigger>
-            <Tooltip.Content
-              side='right'
-              sideOffset={6}
-              align='center'
-              className='max-w-[220px] border bg-popover p-2 text-[11px] text-popover-foreground leading-snug shadow-md'
-            >
-              Build mode can build, edit, and interact with your workflows (Recommended)
-            </Tooltip.Content>
-          </Tooltip.Root>
+          <PopoverItem active={mode === 'ask'} onClick={() => handleSelect('ask')}>
+            <MessageSquare className='h-3.5 w-3.5' />
+            <span>Ask</span>
+          </PopoverItem>
+          <PopoverItem active={mode === 'build'} onClick={() => handleSelect('build')}>
+            <Package className='h-3.5 w-3.5' />
+            <span>Build</span>
+          </PopoverItem>
         </PopoverScrollArea>
       </PopoverContent>
     </Popover>

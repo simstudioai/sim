@@ -97,6 +97,21 @@ export const useTerminalConsoleStore = create<ConsoleStore>()(
           return get().entries[0]
         },
 
+        /**
+         * Clears console entries for a specific workflow
+         * @param workflowId - The workflow ID to clear entries for
+         */
+        clearWorkflowConsole: (workflowId: string) => {
+          set((state) => ({
+            entries: state.entries.filter((entry) => entry.workflowId !== workflowId),
+          }))
+        },
+
+        /**
+         * Clears all console entries or entries for a specific workflow
+         * @param workflowId - The workflow ID to clear entries for, or null to clear all
+         * @deprecated Use clearWorkflowConsole for clearing specific workflows
+         */
         clearConsole: (workflowId: string | null) => {
           set((state) => ({
             entries: workflowId
