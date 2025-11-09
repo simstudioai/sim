@@ -61,48 +61,6 @@ export const linearProjectUpdateCreatedTrigger: TriggerConfig = {
         value: 'linear_project_update_created',
       },
     },
-    {
-      id: 'samplePayload',
-      title: 'Event Payload Example',
-      type: 'code',
-      language: 'json',
-      defaultValue: JSON.stringify(
-        {
-          action: 'create',
-          type: 'ProjectUpdate',
-          webhookId: '550e8400-e29b-41d4-a716-446655440000',
-          webhookTimestamp: 1730937600000,
-          organizationId: 'org_abc123',
-          createdAt: '2025-11-06T16:00:00.000Z',
-          actor: {
-            id: 'user_234',
-            type: 'user',
-            name: 'Jane Smith',
-          },
-          data: {
-            id: 'update_pqr456',
-            body: 'Great progress this week! We completed the OAuth2 implementation and started on SSO integration. All tests passing.',
-            url: 'https://linear.app/acme/project/q4-auth/updates/pqr456',
-            projectId: 'project_567',
-            userId: 'user_234',
-            health: 'onTrack',
-            editedAt: null,
-            createdAt: '2025-11-06T16:00:00.000Z',
-            updatedAt: '2025-11-06T16:00:00.000Z',
-          },
-        },
-        null,
-        2
-      ),
-      readOnly: true,
-      collapsible: true,
-      defaultCollapsed: true,
-      mode: 'trigger',
-      condition: {
-        field: 'selectedTriggerId',
-        value: 'linear_project_update_created',
-      },
-    },
   ],
 
   outputs: buildProjectUpdateOutputs(),

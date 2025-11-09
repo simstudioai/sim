@@ -88,33 +88,6 @@ export const webflowCollectionItemDeletedTrigger: TriggerConfig = {
         value: 'webflow_collection_item_deleted',
       },
     },
-    {
-      id: 'samplePayload',
-      title: 'Event Payload Example',
-      type: 'code',
-      language: 'json',
-      defaultValue: JSON.stringify(
-        {
-          siteId: '68f9666057aa8abaa9b0b668',
-          workspaceId: '68f96081e7018465432953b5',
-          collectionId: '68f9666257aa8abaa9b0b6d6',
-          payload: {
-            id: '68fa8445de250e147cd95cfd',
-            deletedOn: '2024-01-15T16:20:00.000Z',
-          },
-        },
-        null,
-        2
-      ),
-      readOnly: true,
-      collapsible: true,
-      defaultCollapsed: true,
-      mode: 'trigger',
-      condition: {
-        field: 'selectedTriggerId',
-        value: 'webflow_collection_item_deleted',
-      },
-    },
   ],
 
   outputs: {

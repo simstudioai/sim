@@ -1,15 +1,5 @@
-/**
- * Workflow execution utilities for client-side execution triggers
- * This is now a thin wrapper around the server-side executor
- */
-
-import type { Edge } from 'reactflow'
-import { createLogger } from '@/lib/logs/console/logger'
-import { TriggerUtils } from '@/lib/workflows/triggers'
 import type { ExecutionResult, StreamingExecution } from '@/executor/types'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-
-const logger = createLogger('WorkflowExecutionUtils')
 
 export interface WorkflowExecutionOptions {
   workflowInput?: any
@@ -53,29 +43,4 @@ export async function executeWorkflowWithFullLogging(
 
   const result = await response.json()
   return result as ExecutionResult
-}
-
-/**
- * Filter out all incoming edges to trigger blocks - triggers are independent entry points
- * This ensures execution and UI only show edges that are actually connected in execution
- * @param blocks - Record of blocks keyed by block ID
- * @param edges - Array of edges to filter
- * @returns Filtered array of edges
- */
-export function filterEdgesFromTriggerBlocks(blocks: Record<string, any>, edges: Edge[]): Edge[] {
-  return edges.filter((edge) => {
-    const sourceBlock = blocks[edge.source]
-    const targetBlock = blocks[edge.target]
-
-    if (!sourceBlock || !targetBlock) {
-      return true
-    }
-
-    const targetIsTrigger = TriggerUtils.isTriggerBlock({
-      type: targetBlock.type,
-      triggerMode: targetBlock.triggerMode,
-    })
-
-    return !targetIsTrigger
-  })
 }

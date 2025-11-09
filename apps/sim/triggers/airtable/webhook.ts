@@ -73,58 +73,6 @@ export const airtableWebhookTrigger: TriggerConfig = {
       mode: 'trigger',
       triggerId: 'airtable_webhook',
     },
-    {
-      id: 'samplePayload',
-      title: 'Event Payload Example',
-      type: 'code',
-      language: 'json',
-      defaultValue: JSON.stringify(
-        {
-          webhook: {
-            id: 'achAbCdEfGhIjKlMn',
-          },
-          timestamp: '2023-01-01T00:00:00.000Z',
-          base: {
-            id: 'appXXXXXXXXXXXXXX',
-          },
-          table: {
-            id: 'tblXXXXXXXXXXXXXX',
-          },
-          changedTablesById: {
-            tblXXXXXXXXXXXXXX: {
-              changedRecordsById: {
-                recXXXXXXXXXXXXXX: {
-                  current: {
-                    id: 'recXXXXXXXXXXXXXX',
-                    createdTime: '2023-01-01T00:00:00.000Z',
-                    fields: {
-                      Name: 'Sample Record',
-                      Status: 'Active',
-                    },
-                  },
-                  previous: {
-                    id: 'recXXXXXXXXXXXXXX',
-                    createdTime: '2023-01-01T00:00:00.000Z',
-                    fields: {
-                      Name: 'Sample Record',
-                      Status: 'Inactive',
-                    },
-                  },
-                },
-              },
-              createdRecordsById: {},
-              destroyedRecordIds: [],
-            },
-          },
-        },
-        null,
-        2
-      ),
-      readOnly: true,
-      collapsible: true,
-      defaultCollapsed: true,
-      mode: 'trigger',
-    },
   ],
 
   outputs: {

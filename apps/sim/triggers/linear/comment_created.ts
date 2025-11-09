@@ -61,48 +61,6 @@ export const linearCommentCreatedTrigger: TriggerConfig = {
         value: 'linear_comment_created',
       },
     },
-    {
-      id: 'samplePayload',
-      title: 'Event Payload Example',
-      type: 'code',
-      language: 'json',
-      defaultValue: JSON.stringify(
-        {
-          action: 'create',
-          type: 'Comment',
-          webhookId: '550e8400-e29b-41d4-a716-446655440000',
-          webhookTimestamp: 1730937600000,
-          organizationId: 'org_abc123',
-          createdAt: '2025-11-06T13:00:00.000Z',
-          actor: {
-            id: 'user_234',
-            type: 'user',
-            name: 'Jane Smith',
-          },
-          data: {
-            id: 'comment_xyz789',
-            body: 'I think we should also add support for Microsoft SSO in this implementation.',
-            url: 'https://linear.app/acme/issue/ENG-123#comment-xyz789',
-            issueId: 'issue_abc123',
-            userId: 'user_234',
-            editedAt: null,
-            createdAt: '2025-11-06T13:00:00.000Z',
-            updatedAt: '2025-11-06T13:00:00.000Z',
-            archivedAt: null,
-          },
-        },
-        null,
-        2
-      ),
-      readOnly: true,
-      collapsible: true,
-      defaultCollapsed: true,
-      mode: 'trigger',
-      condition: {
-        field: 'selectedTriggerId',
-        value: 'linear_comment_created',
-      },
-    },
   ],
 
   outputs: buildCommentOutputs(),

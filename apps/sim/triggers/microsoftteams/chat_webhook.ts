@@ -82,32 +82,6 @@ export const microsoftTeamsChatSubscriptionTrigger: TriggerConfig = {
         value: 'microsoftteams_chat_subscription',
       },
     },
-    {
-      id: 'samplePayload',
-      title: 'Event Payload Example',
-      type: 'code',
-      language: 'json',
-      defaultValue: JSON.stringify(
-        {
-          message_id: '1708709741557',
-          chat_id: '19:abcxyz@unq.gbl.spaces',
-          from_name: 'Adele Vance',
-          text: 'Hello from Teams!',
-          created_at: '2025-01-01T10:00:00Z',
-          attachments: [],
-        },
-        null,
-        2
-      ),
-      readOnly: true,
-      collapsible: true,
-      defaultCollapsed: true,
-      mode: 'trigger',
-      condition: {
-        field: 'selectedTriggerId',
-        value: 'microsoftteams_chat_subscription',
-      },
-    },
   ],
 
   outputs: {

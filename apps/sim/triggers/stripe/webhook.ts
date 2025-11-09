@@ -193,51 +193,6 @@ export const stripeWebhookTrigger: TriggerConfig = {
       mode: 'trigger',
       triggerId: 'stripe_webhook',
     },
-    {
-      id: 'samplePayload',
-      title: 'Event Payload Example',
-      type: 'code',
-      language: 'json',
-      defaultValue: JSON.stringify(
-        {
-          id: 'evt_1234567890abcdef',
-          object: 'event',
-          api_version: '2023-10-16',
-          created: 1677649261,
-          type: 'payment_intent.succeeded',
-          livemode: false,
-          data: {
-            object: {
-              id: 'pi_1234567890abcdef',
-              object: 'payment_intent',
-              amount: 2500,
-              amount_capturable: 0,
-              amount_received: 2500,
-              currency: 'usd',
-              customer: 'cus_1234567890abcdef',
-              description: 'Example payment',
-              metadata: {
-                order_id: '6735',
-              },
-              payment_method: 'pm_1234567890abcdef',
-              receipt_email: 'customer@example.com',
-              status: 'succeeded',
-            },
-          },
-          pending_webhooks: 1,
-          request: {
-            id: 'req_1234567890abcdef',
-            idempotency_key: '00000000-0000-0000-0000-000000000000',
-          },
-        },
-        null,
-        2
-      ),
-      readOnly: true,
-      collapsible: true,
-      defaultCollapsed: true,
-      mode: 'trigger',
-    },
   ],
 
   outputs: {

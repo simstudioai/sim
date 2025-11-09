@@ -67,41 +67,6 @@ export const webflowFormSubmissionTrigger: TriggerConfig = {
       mode: 'trigger',
       triggerId: 'webflow_form_submission',
     },
-    {
-      id: 'samplePayload',
-      title: 'Event Payload Example',
-      type: 'code',
-      language: 'json',
-      defaultValue: JSON.stringify(
-        {
-          siteId: '68f9666057aa8abaa9b0b668',
-          workspaceId: '68f96081e7018465432953b5',
-          name: 'Contact Form',
-          id: '68fa8445de250e147cd95cfd',
-          submittedAt: '2024-01-15T12:00:00.000Z',
-          data: {
-            name: 'John Doe',
-            email: 'john@example.com',
-            message: 'I would like more information about your services.',
-            'consent-checkbox': 'true',
-          },
-          schema: {
-            fields: [
-              { name: 'name', type: 'text' },
-              { name: 'email', type: 'email' },
-              { name: 'message', type: 'textarea' },
-            ],
-          },
-          formElementId: '68f9666257aa8abaa9b0b6e2',
-        },
-        null,
-        2
-      ),
-      readOnly: true,
-      collapsible: true,
-      defaultCollapsed: true,
-      mode: 'trigger',
-    },
   ],
 
   outputs: {

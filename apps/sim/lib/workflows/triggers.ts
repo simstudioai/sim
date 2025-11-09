@@ -37,6 +37,7 @@ const EXECUTION_PRIORITIES: Record<StartExecutionKind, StartBlockPath[]> = {
     StartBlockPath.SPLIT_INPUT,
     StartBlockPath.SPLIT_MANUAL,
     StartBlockPath.LEGACY_STARTER,
+    StartBlockPath.EXTERNAL_TRIGGER,
   ],
   api: [
     StartBlockPath.UNIFIED,
@@ -108,8 +109,20 @@ export function classifyStartBlockType(
 
 export function classifyStartBlock<T extends BlockWithType>(block: T): StartBlockPath | null {
   const blockWithMetadata = block as BlockWithMetadata
-  const category = blockWithMetadata.category
-  const triggerModeEnabled = Boolean(blockWithMetadata.triggers?.enabled)
+
+  // Try to get metadata from the block itself first
+  let category = blockWithMetadata.category
+  let triggerModeEnabled = Boolean(blockWithMetadata.triggers?.enabled)
+
+  // If not available on the block, fetch from registry
+  if (!category || triggerModeEnabled === undefined) {
+    const blockConfig = getBlock(block.type)
+    if (blockConfig) {
+      category = category || blockConfig.category
+      triggerModeEnabled = triggerModeEnabled || Boolean(blockConfig.triggers?.enabled)
+    }
+  }
+
   return classifyStartBlockType(block.type, { category, triggerModeEnabled })
 }
 
@@ -150,7 +163,8 @@ function supportsExecution(path: StartBlockPath, execution: StartExecutionKind):
   return (
     path === StartBlockPath.SPLIT_API ||
     path === StartBlockPath.SPLIT_INPUT ||
-    path === StartBlockPath.SPLIT_MANUAL
+    path === StartBlockPath.SPLIT_MANUAL ||
+    path === StartBlockPath.EXTERNAL_TRIGGER
   )
 }
 

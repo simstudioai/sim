@@ -112,68 +112,6 @@ export const githubIssueCommentTrigger: TriggerConfig = {
         value: 'github_issue_comment',
       },
     },
-    {
-      id: 'samplePayload',
-      title: 'Event Payload Example',
-      type: 'code',
-      language: 'json',
-      defaultValue: JSON.stringify(
-        {
-          action: 'created',
-          issue: {
-            number: 123,
-            title: 'Bug: Application crashes on startup',
-            state: 'open',
-            html_url: 'https://github.com/owner/repo/issues/123',
-            user: {
-              login: 'octocat',
-              id: 1,
-              avatar_url: 'https://github.com/images/error/octocat_happy.gif',
-              user_type: 'User',
-            },
-          },
-          comment: {
-            id: 987654321,
-            body: 'I can confirm this bug. It happens on my machine too.',
-            html_url: 'https://github.com/owner/repo/issues/123#issuecomment-987654321',
-            user: {
-              login: 'commenter',
-              id: 3,
-              avatar_url: 'https://github.com/images/error/commenter.gif',
-              user_type: 'User',
-            },
-            created_at: '2025-01-15T11:00:00Z',
-            updated_at: '2025-01-15T11:00:00Z',
-          },
-          repository: {
-            id: 123456,
-            name: 'repo-name',
-            full_name: 'owner/repo-name',
-            html_url: 'https://github.com/owner/repo-name',
-            owner: {
-              login: 'owner',
-              id: 7890,
-              owner_type: 'User',
-            },
-          },
-          sender: {
-            login: 'commenter',
-            id: 3,
-            user_type: 'User',
-          },
-        },
-        null,
-        2
-      ),
-      readOnly: true,
-      collapsible: true,
-      defaultCollapsed: true,
-      mode: 'trigger',
-      condition: {
-        field: 'selectedTriggerId',
-        value: 'github_issue_comment',
-      },
-    },
   ],
 
   outputs: {
