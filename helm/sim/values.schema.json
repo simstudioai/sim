@@ -642,6 +642,186 @@
         }
       }
     },
+    "copilot": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable the Copilot microservice"
+        },
+        "server": {
+          "type": "object",
+          "properties": {
+            "replicaCount": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Number of Copilot replicas"
+            },
+            "image": {
+              "type": "object",
+              "properties": {
+                "repository": {
+                  "type": "string",
+                  "description": "Copilot image repository"
+                },
+                "tag": {
+                  "type": "string",
+                  "description": "Copilot image tag"
+                },
+                "pullPolicy": {
+                  "type": "string",
+                  "enum": ["Always", "IfNotPresent", "Never"],
+                  "description": "Image pull policy"
+                }
+              }
+            },
+            "resources": {
+              "type": "object",
+              "properties": {
+                "limits": { "type": "object" },
+                "requests": { "type": "object" }
+              }
+            },
+            "nodeSelector": {
+              "type": "object",
+              "additionalProperties": { "type": "string" }
+            },
+            "env": {
+              "type": "object",
+              "additionalProperties": { "type": "string" },
+              "description": "Environment variables for Copilot"
+            },
+            "extraEnv": {
+              "type": "array",
+              "items": { "type": "object" },
+              "description": "Additional environment variable definitions"
+            },
+            "extraEnvFrom": {
+              "type": "array",
+              "items": { "type": "object" },
+              "description": "Additional envFrom sources"
+            },
+            "secret": {
+              "type": "object",
+              "properties": {
+                "create": {
+                  "type": "boolean",
+                  "description": "Whether to create a secret from copilot.server.env"
+                },
+                "name": {
+                  "type": "string",
+                  "description": "Override name for the Copilot secret"
+                },
+                "annotations": {
+                  "type": "object",
+                  "additionalProperties": { "type": "string" },
+                  "description": "Annotations added to the Copilot secret"
+                }
+              }
+            },
+            "service": {
+              "type": "object",
+              "properties": {
+                "type": { "type": "string" },
+                "port": { "type": "integer" },
+                "targetPort": { "type": "integer" }
+              }
+            },
+            "podDisruptionBudget": {
+              "type": "object",
+              "properties": {
+                "enabled": {
+                  "type": "boolean",
+                  "description": "Enable PodDisruptionBudget for Copilot server"
+                },
+                "minAvailable": {
+                  "type": "integer",
+                  "description": "Minimum number of available pods"
+                },
+                "maxUnavailable": {
+                  "type": "integer",
+                  "description": "Maximum number of unavailable pods"
+                }
+              }
+            }
+          }
+        },
+        "postgresql": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Deploy an internal PostgreSQL instance for Copilot"
+            },
+            "auth": {
+              "type": "object",
+              "properties": {
+                "username": { "type": "string" },
+                "password": { "type": "string" },
+                "database": { "type": "string" }
+              }
+            },
+            "persistence": {
+              "type": "object",
+              "properties": {
+                "enabled": { "type": "boolean" },
+                "size": { "type": "string" },
+                "storageClass": { "type": "string" }
+              }
+            }
+          }
+        },
+        "database": {
+          "type": "object",
+          "properties": {
+            "existingSecretName": {
+              "type": "string",
+              "description": "Existing secret containing the Copilot DATABASE_URL"
+            },
+            "secretKey": {
+              "type": "string",
+              "description": "Key name inside the database secret"
+            },
+            "url": {
+              "type": "string",
+              "description": "External database connection string"
+            }
+          }
+        },
+        "migrations": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Enable the Copilot migration job"
+            },
+            "image": {
+              "type": "object",
+              "properties": {
+                "repository": { "type": "string" },
+                "tag": { "type": "string" },
+                "pullPolicy": { "type": "string" }
+              }
+            },
+            "resources": {
+              "type": "object",
+              "properties": {
+                "limits": { "type": "object" },
+                "requests": { "type": "object" }
+              }
+            },
+            "backoffLimit": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "restartPolicy": {
+              "type": "string",
+              "enum": ["Never", "OnFailure"]
+            }
+          }
+        }
+      }
+    },
     "ingress": {
       "type": "object",
       "properties": {
@@ -670,6 +850,27 @@
               "type": "string",
               "format": "hostname",
               "description": "Realtime service hostname"
+            }
+          }
+        },
+        "copilot": {
+          "type": "object",
+          "properties": {
+            "host": {
+              "type": "string",
+              "format": "hostname",
+              "description": "Copilot service hostname"
+            },
+            "paths": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "path": { "type": "string" },
+                  "pathType": { "type": "string" }
+                }
+              },
+              "description": "Ingress paths for Copilot service"
             }
           }
         },

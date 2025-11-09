@@ -50,3 +50,32 @@ spec:
       {{- include "sim.realtime.selectorLabels" $ | nindent 6 }}
 {{- end }}
 {{- end }}
+{{- if and .Values.copilot.enabled .Values.copilot.server.podDisruptionBudget.enabled }}
+{{- with .Values.copilot.server.podDisruptionBudget }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "sim.fullname" $ }}-copilot-pdb
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    {{- include "sim.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: copilot
+spec:
+  {{- if .minAvailable }}
+  minAvailable: {{ .minAvailable }}
+  {{- else if .maxUnavailable }}
+  maxUnavailable: {{ .maxUnavailable }}
+  {{- else }}
+  maxUnavailable: 1
+  {{- end }}
+  {{- if .unhealthyPodEvictionPolicy }}
+  unhealthyPodEvictionPolicy: {{ .unhealthyPodEvictionPolicy }}
+  {{- end }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "sim.name" $ }}
+      app.kubernetes.io/instance: {{ $.Release.Name }}
+      app.kubernetes.io/component: copilot
+{{- end }}
+{{- end }}
