@@ -17,6 +17,12 @@ import {
 import { gmailPollingTrigger } from '@/triggers/gmail'
 import { googleFormsWebhookTrigger } from '@/triggers/googleforms'
 import {
+  hubspotContactCreatedTrigger,
+  hubspotContactDeletedTrigger,
+  hubspotContactPrivacyDeletedTrigger,
+  hubspotContactPropertyChangedTrigger,
+} from '@/triggers/hubspot'
+import {
   jiraIssueCommentedTrigger,
   jiraIssueCreatedTrigger,
   jiraIssueDeletedTrigger,
@@ -111,4 +117,8 @@ export const TRIGGER_REGISTRY: TriggerRegistry = {
   webflow_collection_item_changed: webflowCollectionItemChangedTrigger,
   webflow_collection_item_deleted: webflowCollectionItemDeletedTrigger,
   webflow_form_submission: webflowFormSubmissionTrigger,
+  hubspot_contact_created: hubspotContactCreatedTrigger,
+  hubspot_contact_deleted: hubspotContactDeletedTrigger,
+  hubspot_contact_privacy_deleted: hubspotContactPrivacyDeletedTrigger,
+  hubspot_contact_property_changed: hubspotContactPropertyChangedTrigger,
 }

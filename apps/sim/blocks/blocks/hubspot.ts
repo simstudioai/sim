@@ -2,14 +2,15 @@ import { HubspotIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
 import type { HubSpotResponse } from '@/tools/hubspot/types'
+import { getTrigger } from '@/triggers'
 
 export const HubSpotBlock: BlockConfig<HubSpotResponse> = {
   type: 'hubspot',
   name: 'HubSpot',
-  description: 'Interact with HubSpot CRM',
+  description: 'Interact with HubSpot CRM or trigger workflows from HubSpot events',
   authMode: AuthMode.OAuth,
   longDescription:
-    'Integrate HubSpot into your workflow. Manage contacts, companies, deals, tickets, and other CRM objects with powerful automation capabilities.',
+    'Integrate HubSpot into your workflow. Manage contacts, companies, deals, tickets, and other CRM objects with powerful automation capabilities. Can be used in trigger mode to start workflows when contacts are created, deleted, or updated.',
   docsLink: 'https://docs.sim.ai/tools/hubspot',
   category: 'tools',
   bgColor: '#FF7A59',
@@ -101,6 +102,127 @@ export const HubSpotBlock: BlockConfig<HubSpotResponse> = {
         field: 'operation',
         value: ['create_contact', 'update_contact', 'create_company', 'update_company'],
       },
+      wandConfig: {
+        enabled: true,
+        maintainHistory: true,
+        prompt: `You are an expert HubSpot CRM developer. Generate HubSpot property objects as JSON based on the user's request.
+
+### CONTEXT
+{context}
+
+### CRITICAL INSTRUCTION
+Return ONLY the JSON object with HubSpot properties. Do not include any explanations, markdown formatting, comments, or additional text. Just the raw JSON object that can be used directly in HubSpot API create/update operations.
+
+### HUBSPOT PROPERTIES STRUCTURE
+HubSpot properties are defined as a flat JSON object with property names as keys and their values as the corresponding values. Property names must match HubSpot's internal property names (usually lowercase, snake_case or no spaces).
+
+### COMMON CONTACT PROPERTIES
+**Standard Properties**:
+- **email**: Email address (required for most operations)
+- **firstname**: First name
+- **lastname**: Last name
+- **phone**: Phone number
+- **mobilephone**: Mobile phone number
+- **company**: Company name
+- **jobtitle**: Job title
+- **website**: Website URL
+- **address**: Street address
+- **city**: City
+- **state**: State/Region
+- **zip**: Postal code
+- **country**: Country
+- **lifecyclestage**: Lifecycle stage (e.g., "lead", "customer", "subscriber", "opportunity")
+- **hs_lead_status**: Lead status (e.g., "NEW", "OPEN", "IN_PROGRESS", "QUALIFIED")
+
+**Additional Properties**:
+- **salutation**: Salutation (e.g., "Mr.", "Ms.", "Dr.")
+- **degree**: Degree
+- **industry**: Industry
+- **fax**: Fax number
+- **numemployees**: Number of employees (for companies)
+- **annualrevenue**: Annual revenue (for companies)
+
+### COMMON COMPANY PROPERTIES
+**Standard Properties**:
+- **name**: Company name (required)
+- **domain**: Company domain (e.g., "example.com")
+- **city**: City
+- **state**: State/Region
+- **zip**: Postal code
+- **country**: Country
+- **phone**: Phone number
+- **industry**: Industry
+- **type**: Company type (e.g., "PROSPECT", "PARTNER", "RESELLER", "VENDOR", "OTHER")
+- **description**: Company description
+- **website**: Website URL
+- **numberofemployees**: Number of employees
+- **annualrevenue**: Annual revenue
+
+**Additional Properties**:
+- **timezone**: Timezone
+- **linkedin_company_page**: LinkedIn URL
+- **twitterhandle**: Twitter handle
+- **facebook_company_page**: Facebook URL
+- **founded_year**: Year founded
+
+### EXAMPLES
+
+**Simple Contact**: "Create contact with email john@example.com and name John Doe"
+→ {
+  "email": "john@example.com",
+  "firstname": "John",
+  "lastname": "Doe"
+}
+
+**Complete Contact**: "Create a lead contact with full details"
+→ {
+  "email": "jane.smith@acme.com",
+  "firstname": "Jane",
+  "lastname": "Smith",
+  "phone": "+1-555-123-4567",
+  "company": "Acme Corp",
+  "jobtitle": "Marketing Manager",
+  "website": "https://acme.com",
+  "city": "San Francisco",
+  "state": "California",
+  "country": "United States",
+  "lifecyclestage": "lead",
+  "hs_lead_status": "NEW"
+}
+
+**Simple Company**: "Create company Acme Corp with domain acme.com"
+→ {
+  "name": "Acme Corp",
+  "domain": "acme.com"
+}
+
+**Complete Company**: "Create a technology company with full details"
+→ {
+  "name": "TechStart Inc",
+  "domain": "techstart.io",
+  "industry": "TECHNOLOGY",
+  "phone": "+1-555-987-6543",
+  "city": "Austin",
+  "state": "Texas",
+  "country": "United States",
+  "website": "https://techstart.io",
+  "description": "Innovative software solutions",
+  "numberofemployees": 50,
+  "annualrevenue": 5000000,
+  "type": "PROSPECT"
+}
+
+**Update Contact**: "Update contact phone and job title"
+→ {
+  "phone": "+1-555-999-8888",
+  "jobtitle": "Senior Manager"
+}
+
+### REMEMBER
+Return ONLY the JSON object with properties - no explanations, no markdown, no extra text.`,
+        placeholder: 'Describe the properties you want to set...',
+        generationType: 'json-object',
+      },
     },
     {
       id: 'properties',
@@ -166,6 +288,198 @@ export const HubSpotBlock: BlockConfig<HubSpotResponse> = {
       placeholder:
         'JSON array of filter groups (e.g., [{"filters":[{"propertyName":"email","operator":"EQ","value":"test@example.com"}]}])',
       condition: { field: 'operation', value: ['search_contacts', 'search_companies'] },
+      wandConfig: {
+        enabled: true,
+        maintainHistory: true,
+        prompt: `You are an expert HubSpot CRM developer. Generate HubSpot filter groups as JSON arrays based on the user's request.
+
+### CONTEXT
+{context}
+
+### CRITICAL INSTRUCTION
+Return ONLY the JSON array of filter groups. Do not include any explanations, markdown formatting, comments, or additional text. Just the raw JSON array that can be used directly in HubSpot API search operations.
+
+### HUBSPOT FILTER GROUPS STRUCTURE
+Filter groups are arrays of filter objects. Each filter group contains an array of filters. Multiple filter groups are combined with OR logic, while filters within a group are combined with AND logic.
+
+Structure:
+[
+  {
+    "filters": [
+      {
+        "propertyName": "property_name",
+        "operator": "OPERATOR",
+        "value": "value"
+      }
+    ]
+  }
+]
+
+### FILTER OPERATORS
+HubSpot supports the following operators:
+
+**Comparison Operators**:
+- **EQ**: Equals - exact match
+- **NEQ**: Not equals
+- **LT**: Less than (for numbers and dates)
+- **LTE**: Less than or equal to
+- **GT**: Greater than (for numbers and dates)
+- **GTE**: Greater than or equal to
+- **BETWEEN**: Between two values (requires "highValue" field)
+
+**String Operators**:
+- **CONTAINS_TOKEN**: Contains the token (word)
+- **NOT_CONTAINS_TOKEN**: Does not contain the token
+
+**Existence Operators**:
+- **HAS_PROPERTY**: Property has any value (value can be "*")
+- **NOT_HAS_PROPERTY**: Property has no value (value can be "*")
+
+**Set Operators**:
+- **IN**: Value is in the provided list (value is semicolon-separated)
+- **NOT_IN**: Value is not in the provided list
+
+### COMMON CONTACT PROPERTIES FOR FILTERING
+- **email**: Email address
+- **firstname**: First name
+- **lastname**: Last name
+- **lifecyclestage**: Lifecycle stage (lead, customer, subscriber, opportunity)
+- **hs_lead_status**: Lead status (NEW, OPEN, IN_PROGRESS, QUALIFIED)
+- **createdate**: Creation date (milliseconds timestamp)
+- **lastmodifieddate**: Last modified date
+- **phone**: Phone number
+- **company**: Company name
+- **jobtitle**: Job title
+
+### COMMON COMPANY PROPERTIES FOR FILTERING
+- **name**: Company name
+- **domain**: Company domain
+- **industry**: Industry
+- **type**: Company type
+- **city**: City
+- **state**: State
+- **country**: Country
+- **numberofemployees**: Number of employees
+- **annualrevenue**: Annual revenue
+- **createdate**: Creation date
+
+### EXAMPLES
+
+**Simple Equality**: "Find contacts with email john@example.com"
+→ [
+  {
+    "filters": [
+      {
+        "propertyName": "email",
+        "operator": "EQ",
+        "value": "john@example.com"
+      }
+    ]
+  }
+]
+
+**Multiple Filters (AND)**: "Find lead contacts in San Francisco"
+→ [
+  {
+    "filters": [
+      {
+        "propertyName": "lifecyclestage",
+        "operator": "EQ",
+        "value": "lead"
+      },
+      {
+        "propertyName": "city",
+        "operator": "EQ",
+        "value": "San Francisco"
+      }
+    ]
+  }
+]
+
+**Multiple Filter Groups (OR)**: "Find contacts who are either leads or customers"
+→ [
+  {
+    "filters": [
+      {
+        "propertyName": "lifecyclestage",
+        "operator": "EQ",
+        "value": "lead"
+      }
+    ]
+  },
+  {
+    "filters": [
+      {
+        "propertyName": "lifecyclestage",
+        "operator": "EQ",
+        "value": "customer"
+      }
+    ]
+  }
+]
+
+**Contains Text**: "Find contacts with Gmail addresses"
+→ [
+  {
+    "filters": [
+      {
+        "propertyName": "email",
+        "operator": "CONTAINS_TOKEN",
+        "value": "@gmail.com"
+      }
+    ]
+  }
+]
+
+**IN Operator**: "Find companies in tech or finance industries"
+→ [
+  {
+    "filters": [
+      {
+        "propertyName": "industry",
+        "operator": "IN",
+        "value": "TECHNOLOGY;FINANCE"
+      }
+    ]
+  }
+]
+
+**Has Property**: "Find contacts with phone numbers"
+→ [
+  {
+    "filters": [
+      {
+        "propertyName": "phone",
+        "operator": "HAS_PROPERTY",
+        "value": "*"
+      }
+    ]
+  }
+]
+
+**Range Filter**: "Find companies with 10 to 100 employees"
+→ [
+  {
+    "filters": [
+      {
+        "propertyName": "numberofemployees",
+        "operator": "GTE",
+        "value": "10"
+      },
+      {
+        "propertyName": "numberofemployees",
+        "operator": "LTE",
+        "value": "100"
+      }
+    ]
+  }
+]
+
+### REMEMBER
+Return ONLY the JSON array of filter groups - no explanations, no markdown, no extra text.`,
+        placeholder: 'Describe the filters you want to apply...',
+        generationType: 'json-object',
+      },
     },
     {
       id: 'sorts',
@@ -174,6 +488,120 @@ export const HubSpotBlock: BlockConfig<HubSpotResponse> = {
       placeholder:
         'JSON array of sort objects (e.g., [{"propertyName":"createdate","direction":"DESCENDING"}])',
       condition: { field: 'operation', value: ['search_contacts', 'search_companies'] },
+      wandConfig: {
+        enabled: true,
+        maintainHistory: true,
+        prompt: `You are an expert HubSpot CRM developer. Generate HubSpot sort arrays as JSON based on the user's request.
+
+### CONTEXT
+{context}
+
+### CRITICAL INSTRUCTION
+Return ONLY the JSON array of sort objects. Do not include any explanations, markdown formatting, comments, or additional text. Just the raw JSON array that can be used directly in HubSpot API search operations.
+
+### HUBSPOT SORT STRUCTURE
+Sorts are defined as an array of objects, each containing a property name and a direction. Results will be sorted by the first sort object, then by the second if values are equal, and so on.
+
+Structure:
+[
+  {
+    "propertyName": "property_name",
+    "direction": "ASCENDING" | "DESCENDING"
+  }
+]
+
+### SORT DIRECTIONS
+- **ASCENDING**: Sort from lowest to highest (A-Z, 0-9, oldest to newest)
+- **DESCENDING**: Sort from highest to lowest (Z-A, 9-0, newest to oldest)
+
+### COMMON SORTABLE PROPERTIES
+
+**Contact Properties**:
+- **createdate**: Creation date (when the contact was created)
+- **lastmodifieddate**: Last modified date (when the contact was last updated)
+- **firstname**: First name (alphabetical)
+- **lastname**: Last name (alphabetical)
+- **email**: Email address (alphabetical)
+- **lifecyclestage**: Lifecycle stage
+- **hs_lead_status**: Lead status
+- **company**: Company name (alphabetical)
+- **jobtitle**: Job title (alphabetical)
+- **phone**: Phone number
+
+**Company Properties**:
+- **createdate**: Creation date
+- **lastmodifieddate**: Last modified date
+- **name**: Company name (alphabetical)
+- **domain**: Domain (alphabetical)
+- **industry**: Industry
+- **city**: City (alphabetical)
+- **state**: State (alphabetical)
+- **numberofemployees**: Number of employees (numeric)
+- **annualrevenue**: Annual revenue (numeric)
+
+### EXAMPLES
+
+**Simple Sort**: "Sort by creation date, newest first"
+→ [
+  {
+    "propertyName": "createdate",
+    "direction": "DESCENDING"
+  }
+]
+
+**Alphabetical Sort**: "Sort contacts by last name A to Z"
+→ [
+  {
+    "propertyName": "lastname",
+    "direction": "ASCENDING"
+  }
+]
+
+**Multiple Sorts**: "Sort by lifecycle stage, then by last name"
+→ [
+  {
+    "propertyName": "lifecyclestage",
+    "direction": "ASCENDING"
+  },
+  {
+    "propertyName": "lastname",
+    "direction": "ASCENDING"
+  }
+]
+
+**Numeric Sort**: "Sort companies by revenue, highest first"
+→ [
+  {
+    "propertyName": "annualrevenue",
+    "direction": "DESCENDING"
+  }
+]
+
+**Recent First**: "Show most recently updated contacts first"
+→ [
+  {
+    "propertyName": "lastmodifieddate",
+    "direction": "DESCENDING"
+  }
+]
+
+**Name and Date**: "Sort by company name, then by creation date newest first"
+→ [
+  {
+    "propertyName": "name",
+    "direction": "ASCENDING"
+  },
+  {
+    "propertyName": "createdate",
+    "direction": "DESCENDING"
+  }
+]
+
+### REMEMBER
+Return ONLY the JSON array of sort objects - no explanations, no markdown, no extra text.`,
+        placeholder: 'Describe how you want to sort the results...',
+        generationType: 'json-object',
+      },
     },
     {
       id: 'searchProperties',
@@ -181,7 +609,136 @@ export const HubSpotBlock: BlockConfig<HubSpotResponse> = {
       type: 'long-input',
       placeholder: 'JSON array of properties (e.g., ["email","firstname","lastname"])',
       condition: { field: 'operation', value: ['search_contacts', 'search_companies'] },
+      wandConfig: {
+        enabled: true,
+        maintainHistory: true,
+        prompt: `You are an expert HubSpot CRM developer. Generate HubSpot property arrays as JSON based on the user's request.
+
+### CONTEXT
+{context}
+
+### CRITICAL INSTRUCTION
+Return ONLY the JSON array of property names. Do not include any explanations, markdown formatting, comments, or additional text. Just the raw JSON array of strings that can be used directly in HubSpot API search operations.
+
+### HUBSPOT PROPERTIES ARRAY STRUCTURE
+Properties to return are defined as a simple array of property name strings. These specify which fields should be included in the search results.
+
+Structure:
+["property1", "property2", "property3"]
+
+### COMMON CONTACT PROPERTIES
+
+**Basic Information**:
+- **email**: Email address
+- **firstname**: First name
+- **lastname**: Last name
+- **phone**: Phone number
+- **mobilephone**: Mobile phone number
+
+**Professional Information**:
+- **company**: Company name
+- **jobtitle**: Job title
+- **industry**: Industry
+- **department**: Department
+- **seniority**: Seniority level
+
+**Address Information**:
+- **address**: Street address
+- **city**: City
+- **state**: State/Region
+- **zip**: Postal code
+- **country**: Country
+
+**CRM Information**:
+- **lifecyclestage**: Lifecycle stage
+- **hs_lead_status**: Lead status
+- **hubspot_owner_id**: Owner ID
+- **hs_analytics_source**: Original source
+
+**Dates**:
+- **createdate**: Creation date
+- **lastmodifieddate**: Last modified date
+- **hs_lifecyclestage_lead_date**: Lead date
+- **hs_lifecyclestage_customer_date**: Customer date
+
+**Website & Social**:
+- **website**: Website URL
+- **linkedin_url**: LinkedIn profile URL
+- **twitterhandle**: Twitter handle
+
+### COMMON COMPANY PROPERTIES
+
+**Basic Information**:
+- **name**: Company name
+- **domain**: Company domain
+- **phone**: Phone number
+- **industry**: Industry
+- **type**: Company type
+
+**Address Information**:
+- **city**: City
+- **state**: State/Region
+- **zip**: Postal code
+- **country**: Country
+- **address**: Street address
+
+**Business Information**:
+- **numberofemployees**: Number of employees
+- **annualrevenue**: Annual revenue
+- **founded_year**: Year founded
+- **description**: Company description
+
+**Website & Social**:
+- **website**: Website URL
+- **linkedin_company_page**: LinkedIn company page
+- **twitterhandle**: Twitter handle
+- **facebook_company_page**: Facebook page
+
+**CRM Information**:
+- **hubspot_owner_id**: Owner ID
+- **createdate**: Creation date
+- **lastmodifieddate**: Last modified date
+- **hs_lastmodifieddate**: Last modified date (detailed)
+
+### EXAMPLES
+
+**Basic Contact Fields**: "Return email, name, and phone"
+→ ["email", "firstname", "lastname", "phone"]
+
+**Complete Contact Profile**: "Return all contact details"
+→ ["email", "firstname", "lastname", "phone", "mobilephone", "company", "jobtitle", "address", "city", "state", "zip", "country", "lifecyclestage", "hs_lead_status", "createdate"]
+
+**Business Contact Info**: "Return professional information"
+→ ["email", "firstname", "lastname", "company", "jobtitle", "phone", "industry"]
+
+**Basic Company Fields**: "Return company name, domain, and industry"
+→ ["name", "domain", "industry"]
+
+**Complete Company Profile**: "Return all company information"
+→ ["name", "domain", "industry", "phone", "city", "state", "country", "numberofemployees", "annualrevenue", "website", "description", "type", "createdate"]
+
+**Contact with Dates**: "Return contact info with timestamps"
+→ ["email", "firstname", "lastname", "createdate", "lastmodifieddate", "lifecyclestage"]
+
+**Company Financial Info**: "Return company size and revenue"
+→ ["name", "domain", "numberofemployees", "annualrevenue", "industry"]
+
+**Social Media Properties**: "Return social media links"
+→ ["email", "firstname", "lastname", "linkedin_url", "twitterhandle"]
+
+**CRM Status Fields**: "Return lifecycle and owner information"
+→ ["email", "firstname", "lastname", "lifecyclestage", "hs_lead_status", "hubspot_owner_id"]
+
+### REMEMBER
+Return ONLY the JSON array of property names - no explanations, no markdown, no extra text.`,
+        placeholder: 'Describe which properties you want to return...',
+        generationType: 'json-object',
+      },
     },
+    ...getTrigger('hubspot_contact_created').subBlocks,
+    ...getTrigger('hubspot_contact_deleted').subBlocks.slice(1),
+    ...getTrigger('hubspot_contact_privacy_deleted').subBlocks.slice(1),
+    ...getTrigger('hubspot_contact_property_changed').subBlocks.slice(1),
   ],
   tools: {
     access: [
@@ -326,5 +883,34 @@ export const HubSpotBlock: BlockConfig<HubSpotResponse> = {
     paging: { type: 'json', description: 'Pagination info with next/prev cursors' },
     metadata: { type: 'json', description: 'Operation metadata' },
     success: { type: 'boolean', description: 'Operation success status' },
+    // Trigger outputs
+    eventId: { type: 'string', description: 'Unique webhook event ID' },
+    subscriptionId: { type: 'string', description: 'Webhook subscription ID' },
+    portalId: { type: 'string', description: 'HubSpot portal (account) ID' },
+    occurredAt: { type: 'string', description: 'Event occurrence timestamp' },
+    eventType: { type: 'string', description: 'Type of event that occurred' },
+    objectId: { type: 'string', description: 'ID of the affected object' },
+    propertyName: {
+      type: 'string',
+      description: 'Name of changed property (for property change events)',
+    },
+    propertyValue: {
+      type: 'string',
+      description: 'New value of property (for property change events)',
+    },
+    changeSource: {
+      type: 'string',
+      description: 'Source of the change (CRM, API, WORKFLOW, etc.)',
+    },
+  },
+  triggerAllowed: true,
+  triggers: {
+    enabled: true,
+    available: [
+      'hubspot_contact_created',
+      'hubspot_contact_deleted',
+      'hubspot_contact_privacy_deleted',
+      'hubspot_contact_property_changed',
+    ],
   },
 }

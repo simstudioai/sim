@@ -783,16 +783,61 @@ export async function formatWebhookInput(
 
   if (foundWebhook.provider === 'gmail') {
     if (body && typeof body === 'object' && 'email' in body) {
-      return body // { email: {...}, timestamp: ... }
+      return body
     }
     return body
   }
 
   if (foundWebhook.provider === 'outlook') {
     if (body && typeof body === 'object' && 'email' in body) {
-      return body // { email: {...}, timestamp: ... }
+      return body
     }
     return body
+  }
+
+  if (foundWebhook.provider === 'hubspot') {
+    const events = Array.isArray(body) ? body : [body]
+    const event = events[0]
+
+    if (!event) {
+      logger.warn('HubSpot webhook received with empty payload')
+      return null
+    }
+
+    logger.info('Formatting HubSpot webhook input', {
+      subscriptionType: event.subscriptionType,
+      objectId: event.objectId,
+      portalId: event.portalId,
+    })
+
+    return {
+      eventId: event.eventId,
+      subscriptionId: event.subscriptionId,
+      portalId: event.portalId,
+      occurredAt: event.occurredAt,
+      eventType: event.subscriptionType,
+      attemptNumber: event.attemptNumber,
+      objectId: event.objectId,
+      changeSource: event.changeSource,
+      changeFlag: event.changeFlag,
+      appId: event.appId,
+
+      propertyName: event.propertyName,
+      propertyValue: event.propertyValue,
+      sourceId: event.sourceId,
+
+      webhook: {
+        data: {
+          provider: 'hubspot',
+          path: foundWebhook.path,
+          providerConfig: foundWebhook.providerConfig,
+          payload: body,
+          headers: Object.fromEntries(request.headers.entries()),
+          method: request.method,
+        },
+      },
+      workflowId: foundWorkflow.id,
+    }
   }
 
   if (foundWebhook.provider === 'microsoftteams') {

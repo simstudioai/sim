@@ -738,6 +738,47 @@ export async function queueWebhookExecution(
       }
     }
 
+    if (foundWebhook.provider === 'hubspot') {
+      const providerConfig = (foundWebhook.providerConfig as Record<string, any>) || {}
+      const triggerId = providerConfig.triggerId as string | undefined
+
+      if (triggerId?.startsWith('hubspot_')) {
+        const events = Array.isArray(body) ? body : [body]
+        const firstEvent = events[0]
+
+        const subscriptionType = firstEvent?.subscriptionType as string | undefined
+
+        const { isHubSpotContactEventMatch } = await import('@/triggers/hubspot/utils')
+
+        if (!isHubSpotContactEventMatch(triggerId, subscriptionType || '')) {
+          logger.debug(
+            `[${options.requestId}] HubSpot event mismatch for trigger ${triggerId}. Event: ${subscriptionType}. Skipping execution.`,
+            {
+              webhookId: foundWebhook.id,
+              workflowId: foundWorkflow.id,
+              triggerId,
+              receivedEvent: subscriptionType,
+            }
+          )
+
+          // Return 200 OK to prevent HubSpot from retrying
+          return NextResponse.json({
+            message: 'Event type does not match trigger configuration. Ignoring.',
+          })
+        }
+
+        logger.info(
+          `[${options.requestId}] HubSpot event match confirmed for trigger ${triggerId}. Event: ${subscriptionType}`,
+          {
+            webhookId: foundWebhook.id,
+            workflowId: foundWorkflow.id,
+            triggerId,
+            receivedEvent: subscriptionType,
+          }
+        )
+      }
+    }
+
     const headers = Object.fromEntries(request.headers.entries())
 
     // For Microsoft Teams Graph notifications, extract unique identifiers for idempotency

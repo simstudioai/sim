@@ -3,6 +3,14 @@ import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
 import type { ToolResponse } from '@/tools/types'
 
+/**
+ * Trello Block
+ *
+ * Note: Trello uses OAuth 1.0a authentication with a unique credential ID format
+ * (non-UUID strings like CUID2). This is different from most OAuth 2.0 providers
+ * that use UUID-based credential IDs. The OAuth credentials API has been updated
+ * to accept both UUID and non-UUID credential ID formats to support Trello.
+ */
 export const TrelloBlock: BlockConfig<ToolResponse> = {
   type: 'trello',
   name: 'Trello',
