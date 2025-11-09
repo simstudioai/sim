@@ -103,6 +103,7 @@ spec:
           volumeMounts:
             - name: data
               mountPath: /var/lib/postgresql/data
+              subPath: pgdata
           {{- end }}
   {{- if .Values.copilot.postgresql.persistence.enabled }}
   volumeClaimTemplates:
