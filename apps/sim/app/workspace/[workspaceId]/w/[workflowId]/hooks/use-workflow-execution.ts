@@ -11,14 +11,13 @@ import {
 import { resolveStartCandidates, StartBlockPath, TriggerUtils } from '@/lib/workflows/triggers'
 import type { BlockLog, ExecutionResult, StreamingExecution } from '@/executor/types'
 import { useExecutionStream } from '@/hooks/use-execution-stream'
-import { Serializer, WorkflowValidationError } from '@/serializer'
+import { WorkflowValidationError } from '@/serializer'
 import { useExecutionStore } from '@/stores/execution/store'
 import { useVariablesStore } from '@/stores/panel/variables/store'
 import { useEnvironmentStore } from '@/stores/settings/environment/store'
 import { useTerminalConsoleStore } from '@/stores/terminal'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { mergeSubblockState } from '@/stores/workflows/utils'
-import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
 import { useCurrentWorkflow } from './use-current-workflow'
 
 const logger = createLogger('useWorkflowExecution')
@@ -704,73 +703,6 @@ export function useWorkflowExecution() {
       {} as typeof mergedStates
     )
 
-    const currentBlockStates = Object.entries(filteredStates).reduce(
-      (acc, [id, block]) => {
-        acc[id] = Object.entries(block.subBlocks).reduce(
-          (subAcc, [key, subBlock]) => {
-            subAcc[key] = subBlock.value
-            return subAcc
-          },
-          {} as Record<string, any>
-        )
-        return acc
-      },
-      {} as Record<string, Record<string, any>>
-    )
-
-    // Get workspaceId from workflow metadata
-    const workspaceId = activeWorkflowId ? workflows[activeWorkflowId]?.workspaceId : undefined
-
-    // Get environment variables with workspace precedence
-    const personalEnvVars = getAllVariables()
-    const personalEnvValues = Object.entries(personalEnvVars).reduce(
-      (acc, [key, variable]) => {
-        acc[key] = variable.value
-        return acc
-      },
-      {} as Record<string, string>
-    )
-
-    // Load workspace environment variables if workspaceId exists
-    let workspaceEnvValues: Record<string, string> = {}
-    if (workspaceId) {
-      try {
-        const workspaceData = await loadWorkspaceEnvironment(workspaceId)
-        workspaceEnvValues = workspaceData.workspace || {}
-      } catch (error) {
-        logger.warn('Failed to load workspace environment variables:', error)
-      }
-    }
-
-    // Merge with workspace taking precedence over personal
-    const envVarValues = { ...personalEnvValues, ...workspaceEnvValues }
-
-    // Get workflow variables
-    const workflowVars = activeWorkflowId ? getVariablesByWorkflowId(activeWorkflowId) : []
-    const workflowVariables = workflowVars.reduce(
-      (acc, variable) => {
-        acc[variable.id] = variable
-        return acc
-      },
-      {} as Record<string, any>
-    )
-
-    // Use workflow edges directly - trigger-to-trigger edges are prevented at creation time
-    const filteredEdges = workflowEdges
-
-    // Derive subflows from the current filtered graph to avoid stale state
-    const runtimeLoops = generateLoopBlocks(filteredStates)
-    const runtimeParallels = generateParallelBlocks(filteredStates)
-
-    // Create serialized workflow with validation enabled
-    const workflow = new Serializer().serializeWorkflow(
-      filteredStates,
-      filteredEdges,
-      runtimeLoops,
-      runtimeParallels,
-      true
-    )
-
     // If this is a chat execution, get the selected outputs
     let selectedOutputs: string[] | undefined
     if (isExecutingFromChat && activeWorkflowId) {
@@ -809,28 +741,8 @@ export function useWorkflowExecution() {
       startBlockId = startBlock.blockId
     } else {
       // Manual execution: detect and group triggers by paths
-
-      // Debug: Log all blocks and their types
-      logger.info('All workflow blocks before trigger detection:', {
-        blockCount: Object.keys(filteredStates).length,
-        blocks: Object.entries(filteredStates).map(([id, block]) => ({
-          id,
-          type: block.type,
-          name: block.name,
-        })),
-      })
-
       const candidates = resolveStartCandidates(filteredStates, {
         execution: 'manual',
-      })
-
-      logger.info('Manual run start candidates:', {
-        count: candidates.length,
-        paths: candidates.map((candidate) => ({
-          path: candidate.path,
-          type: candidate.block.type,
-          name: candidate.block.name,
-        })),
       })
 
       if (candidates.length === 0) {
@@ -853,30 +765,9 @@ export function useWorkflowExecution() {
         throw error
       }
 
-      // Log all candidates before selection
-      logger.info('All trigger candidates before selection:', {
-        count: candidates.length,
-        candidates: candidates.map((c) => ({
-          id: c.blockId,
-          type: c.block.type,
-          path: c.path,
-        })),
-        filteredEdgesCount: filteredEdges.length,
-        originalEdgesCount: workflowEdges.length,
-      })
-
-      // Select the best trigger for each disjoint path
-      // Priority per path: Start Block > Schedules > External Triggers > Legacy
-      const selectedTriggers = selectBestTrigger(candidates, filteredEdges)
-
-      logger.info('Selected triggers for manual run:', {
-        count: selectedTriggers.length,
-        triggers: selectedTriggers.map((t) => ({
-          id: t.blockId,
-          type: t.block.type,
-          path: t.path,
-        })),
-      })
+      // Select the best trigger
+      // Priority: Start Block > Schedules > External Triggers > Legacy
+      const selectedTriggers = selectBestTrigger(candidates, workflowEdges)
 
       // Execute the first/highest priority trigger
       const selectedCandidate = selectedTriggers[0]
@@ -885,7 +776,7 @@ export function useWorkflowExecution() {
 
       // Validate outgoing connections for non-legacy triggers
       if (selectedCandidate.path !== StartBlockPath.LEGACY_STARTER) {
-        const outgoingConnections = filteredEdges.filter((edge) => edge.source === startBlockId)
+        const outgoingConnections = workflowEdges.filter((edge) => edge.source === startBlockId)
         if (outgoingConnections.length === 0) {
           const triggerName = selectedTrigger.name || selectedTrigger.type
           const error = new Error(`${triggerName} must be connected to other blocks to execute`)

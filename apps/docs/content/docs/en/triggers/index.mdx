@@ -39,3 +39,15 @@ Use the Start block for everything originating from the editor, deploy-to-API, o
 
 > Deployments power every trigger. Update the workflow, redeploy, and all trigger entry points pick up the new snapshot. Learn more in [Execution → Deployment Snapshots](/execution).
 
+## Manual Execution Priority
+
+When you click **Run** in the editor, Sim automatically selects which trigger to execute based on the following priority order:
+
+1. **Start Block** (highest priority)
+2. **Schedule Triggers**
+3. **External Triggers** (webhooks, integrations like Slack, Gmail, Airtable, etc.)
+
+If your workflow has multiple triggers, the highest priority trigger will be executed. For example, if you have both a Start block and a Webhook trigger, clicking Run will execute the Start block.
+
+**External triggers with mock payloads**: When external triggers (webhooks and integrations) are executed manually, Sim automatically generates mock payloads based on the trigger's expected data structure. This ensures downstream blocks can resolve variables correctly during testing.
+
