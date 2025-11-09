@@ -38,3 +38,15 @@ Utilisez le bloc Start pour tout ce qui provient de l'éditeur, du déploiement 
 3. Connectez le bloc au reste du flux de travail.
 
 > Les déploiements alimentent chaque déclencheur. Mettez à jour le flux de travail, redéployez, et tous les points d'entrée des déclencheurs récupèrent le nouveau snapshot. En savoir plus dans [Exécution → Snapshots de déploiement](/execution).
+
+## Priorité d'exécution manuelle
+
+Lorsque vous cliquez sur **Exécuter** dans l'éditeur, Sim sélectionne automatiquement le déclencheur à exécuter selon l'ordre de priorité suivant :
+
+1. **Bloc de démarrage** (priorité la plus élevée)
+2. **Déclencheurs planifiés**
+3. **Déclencheurs externes** (webhooks, intégrations comme Slack, Gmail, Airtable, etc.)
+
+Si votre flux de travail comporte plusieurs déclencheurs, celui ayant la priorité la plus élevée sera exécuté. Par exemple, si vous avez à la fois un bloc de démarrage et un déclencheur Webhook, cliquer sur Exécuter lancera le bloc de démarrage.
+
+**Déclencheurs externes avec charges utiles simulées** : lorsque des déclencheurs externes (webhooks et intégrations) sont exécutés manuellement, Sim génère automatiquement des charges utiles simulées basées sur la structure de données attendue par le déclencheur. Cela garantit que les blocs en aval peuvent résoudre correctement les variables pendant les tests.

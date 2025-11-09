@@ -38,3 +38,15 @@ Usa el bloque Start para todo lo que se origina desde el editor, deploy-to-API o
 3. Conecta el bloque al resto del flujo de trabajo.
 
 > Los despliegues alimentan cada disparador. Actualiza el flujo de trabajo, vuelve a desplegar, y todos los puntos de entrada de disparadores recogen la nueva instantánea. Aprende más en [Ejecución → Instantáneas de despliegue](/execution).
+
+## Prioridad de ejecución manual
+
+Cuando haces clic en **Ejecutar** en el editor, Sim selecciona automáticamente qué disparador ejecutar según el siguiente orden de prioridad:
+
+1. **Bloque de inicio** (prioridad más alta)
+2. **Disparadores programados**
+3. **Disparadores externos** (webhooks, integraciones como Slack, Gmail, Airtable, etc.)
+
+Si tu flujo de trabajo tiene múltiples disparadores, se ejecutará el disparador de mayor prioridad. Por ejemplo, si tienes tanto un bloque de inicio como un disparador de webhook, al hacer clic en Ejecutar se ejecutará el bloque de inicio.
+
+**Disparadores externos con cargas útiles simuladas**: Cuando los disparadores externos (webhooks e integraciones) se ejecutan manualmente, Sim genera automáticamente cargas útiles simuladas basadas en la estructura de datos esperada del disparador. Esto asegura que los bloques posteriores puedan resolver las variables correctamente durante las pruebas.
