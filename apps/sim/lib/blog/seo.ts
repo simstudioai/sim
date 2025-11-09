@@ -104,7 +104,7 @@ export function buildBreadcrumbJsonLd(post: BlogMeta) {
     '@type': 'BreadcrumbList',
     itemListElement: [
       { '@type': 'ListItem', position: 1, name: 'Home', item: 'https://sim.ai' },
-      { '@type': 'ListItem', position: 2, name: 'Blog', item: 'https://sim.ai/blog' },
+      { '@type': 'ListItem', position: 2, name: 'Sim Studio', item: 'https://sim.ai/studio' },
       { '@type': 'ListItem', position: 3, name: post.title, item: post.canonical },
     ],
   }
@@ -127,8 +127,8 @@ export function buildBlogJsonLd() {
   return {
     '@context': 'https://schema.org',
     '@type': 'Blog',
-    name: 'Sim Blog',
-    url: 'https://sim.ai/blog',
+    name: 'Sim Studio',
+    url: 'https://sim.ai/studio',
     description: 'Announcements, insights, and guides for building AI agent workflows.',
   }
 }

@@ -48,8 +48,8 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
       />
       <header className='mx-auto max-w-[1450px] px-6 pt-8 sm:px-8 sm:pt-12 md:px-12 md:pt-16'>
         <div className='mb-6'>
-          <Link href='/blog' className='text-gray-600 text-sm hover:text-gray-900'>
-            ← Back to Blog
+          <Link href='/studio' className='text-gray-600 text-sm hover:text-gray-900'>
+            ← Back to Sim Studio
           </Link>
         </div>
         <div className='flex flex-col gap-8 md:flex-row md:gap-12'>
@@ -133,7 +133,7 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
           <h2 className='mb-4 font-medium text-[24px]'>Related posts</h2>
           <div className='grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3'>
             {related.map((p) => (
-              <Link key={p.slug} href={`/blog/${p.slug}`} className='group'>
+              <Link key={p.slug} href={`/studio/${p.slug}`} className='group'>
                 <div className='overflow-hidden rounded-lg border border-gray-200'>
                   <Image
                     src={p.ogImage}

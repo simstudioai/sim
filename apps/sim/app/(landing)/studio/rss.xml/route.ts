@@ -11,7 +11,7 @@ export async function GET() {
   const xml = `<?xml version="1.0" encoding="UTF-8" ?>
 <rss version="2.0">
   <channel>
-    <title>Sim Blog</title>
+    <title>Sim Studio</title>
     <link>${site}</link>
     <description>Announcements, insights, and guides for AI agent workflows.</description>
     ${items

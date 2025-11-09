@@ -1,6 +1,6 @@
 import { Footer, Nav } from '@/app/(landing)/components'
 
-export default function BlogLayout({ children }: { children: React.ReactNode }) {
+export default function StudioLayout({ children }: { children: React.ReactNode }) {
   const orgJsonLd = {
     '@context': 'https://schema.org',
     '@type': 'Organization',

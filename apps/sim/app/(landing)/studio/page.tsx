@@ -6,7 +6,7 @@ import { soehne } from '@/app/fonts/soehne/soehne'
 
 export const revalidate = 3600
 
-export default async function BlogIndex({
+export default async function StudioIndex({
   searchParams,
 }: {
   searchParams: Promise<{ page?: string; tag?: string }>
@@ -24,11 +24,11 @@ export default async function BlogIndex({
   const posts = listBase.slice(start, start + perPage)
   // Tag filter chips are intentionally disabled for now.
   // const tags = await getAllTags()
-  const blogJsonLd = {
+  const studioJsonLd = {
     '@context': 'https://schema.org',
     '@type': 'Blog',
-    name: 'Sim Blog',
-    url: 'https://sim.ai/blog',
+    name: 'Sim Studio',
+    url: 'https://sim.ai/studio',
     description: 'Announcements, insights, and guides for building AI agent workflows.',
   }
 
@@ -38,25 +38,25 @@ export default async function BlogIndex({
     <main className={`${soehne.className} mx-auto max-w-[1200px] px-6 py-12 sm:px-8 md:px-12`}>
       <script
         type='application/ld+json'
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(blogJsonLd) }}
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(studioJsonLd) }}
       />
-      <h1 className='mb-3 font-medium text-[40px] leading-tight sm:text-[56px]'>The Sim Times</h1>
+      <h1 className='mb-3 font-medium text-[40px] leading-tight sm:text-[56px]'>Sim Studio</h1>
       <p className='mb-10 text-[18px] text-gray-700'>
         Announcements, insights, and guides for building AI agent workflows.
       </p>
 
       {/* Tag filter chips hidden until we have more posts */}
       {/* <div className='mb-10 flex flex-wrap gap-3'>
-        <Link href='/blog' className={`rounded-full border px-3 py-1 text-sm ${!tag ? 'border-black bg-black text-white' : 'border-gray-300'}`}>All</Link>
+        <Link href='/studio' className={`rounded-full border px-3 py-1 text-sm ${!tag ? 'border-black bg-black text-white' : 'border-gray-300'}`}>All</Link>
         {tags.map((t) => (
-          <Link key={t.tag} href={`/blog?tag=${encodeURIComponent(t.tag)}`} className={`rounded-full border px-3 py-1 text-sm ${tag === t.tag ? 'border-black bg-black text-white' : 'border-gray-300'}`}>
+          <Link key={t.tag} href={`/studio?tag=${encodeURIComponent(t.tag)}`} className={`rounded-full border px-3 py-1 text-sm ${tag === t.tag ? 'border-black bg-black text-white' : 'border-gray-300'}`}>
             {t.tag} ({t.count})
           </Link>
         ))}
       </div> */}
 
       {featured && (
-        <Link href={`/blog/${featured.slug}`} className='group mb-10 block'>
+        <Link href={`/studio/${featured.slug}`} className='group mb-10 block'>
           <div className='overflow-hidden rounded-2xl border border-gray-200'>
             <Image
               src={featured.ogImage}
@@ -137,7 +137,7 @@ export default async function BlogIndex({
           return (
             <Link
               key={p.slug}
-              href={`/blog/${p.slug}`}
+              href={`/studio/${p.slug}`}
               className='group mb-6 inline-block w-full break-inside-avoid'
             >
               <div className='overflow-hidden rounded-xl border border-gray-200 transition-colors duration-300 hover:border-gray-300'>
@@ -201,7 +201,7 @@ export default async function BlogIndex({
         <div className='mt-10 flex items-center justify-center gap-3'>
           {pageNum > 1 && (
             <Link
-              href={`/blog?page=${pageNum - 1}${tag ? `&tag=${encodeURIComponent(tag)}` : ''}`}
+              href={`/studio?page=${pageNum - 1}${tag ? `&tag=${encodeURIComponent(tag)}` : ''}`}
               className='rounded border px-3 py-1 text-sm'
             >
               Previous
@@ -212,7 +212,7 @@ export default async function BlogIndex({
           </span>
           {pageNum < totalPages && (
             <Link
-              href={`/blog?page=${pageNum + 1}${tag ? `&tag=${encodeURIComponent(tag)}` : ''}`}
+              href={`/studio?page=${pageNum + 1}${tag ? `&tag=${encodeURIComponent(tag)}` : ''}`}
               className='rounded border px-3 py-1 text-sm'
             >
               Next

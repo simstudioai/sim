@@ -1,12 +1,12 @@
 export default function Head() {
   return (
     <>
-      <link rel='canonical' href='https://sim.ai/blog' />
+      <link rel='canonical' href='https://sim.ai/studio' />
       <link
         rel='alternate'
         type='application/rss+xml'
-        title='Sim Blog'
-        href='https://sim.ai/blog/rss.xml'
+        title='Sim Studio'
+        href='https://sim.ai/studio/rss.xml'
       />
     </>
   )

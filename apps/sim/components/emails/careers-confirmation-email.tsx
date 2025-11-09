@@ -83,7 +83,7 @@ export const CareersConfirmationEmail = ({
                 documentation
               </a>{' '}
               to learn more about what we're building, or check out our{' '}
-              <a href={`${baseUrl}/blog`} style={{ color: '#802FFF', textDecoration: 'none' }}>
+              <a href={`${baseUrl}/studio`} style={{ color: '#802FFF', textDecoration: 'none' }}>
                 blog
               </a>{' '}
               for the latest updates.
