@@ -1,13 +1,11 @@
 import { useEffect, useState } from 'react'
 import { Info } from 'lucide-react'
 import { Tooltip } from '@/components/emcn'
-import { GmailIcon } from '@/components/icons'
 import {
   Badge,
   Button,
   Checkbox,
   Label,
-  Notice,
   Select,
   SelectContent,
   SelectItem,
@@ -16,7 +14,6 @@ import {
   Skeleton,
 } from '@/components/ui'
 import { createLogger } from '@/lib/logs/console/logger'
-import { JSONView } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/console/components'
 import { ConfigSection } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/components/sub-block/components/webhook/components'
 
 const logger = createLogger('GmailConfig')
@@ -54,76 +51,6 @@ const formatLabelName = (label: GmailLabel): string => {
       .replace(/\b\w/g, (c) => c.toUpperCase())
   }
   return formattedName
-}
-
-const getExampleEmailEvent = (includeRawEmail: boolean) => {
-  const baseExample = {
-    email: {
-      id: '18e0ffabd5b5a0f4',
-      threadId: '18e0ffabd5b5a0f4',
-      subject: 'Monthly Report - April 2025',
-      from: 'sender@example.com',
-      to: 'recipient@example.com',
-      cc: 'team@example.com',
-      date: '2025-05-10T10:15:23.000Z',
-      bodyText:
-        'Hello,\n\nPlease find attached the monthly report for April 2025.\n\nBest regards,\nSender',
-      bodyHtml:
-        '<div><p>Hello,</p><p>Please find attached the monthly report for April 2025.</p><p>Best regards,<br>Sender</p></div>',
-      labels: ['INBOX', 'IMPORTANT'],
-      hasAttachments: true,
-      attachments: [
-        {
-          filename: 'report-april-2025.pdf',
-          mimeType: 'application/pdf',
-          size: 2048576,
-        },
-      ],
-    },
-    timestamp: '2025-05-10T10:15:30.123Z',
-  }
-
-  if (includeRawEmail) {
-    return {
-      ...baseExample,
-      rawEmail: {
-        id: '18e0ffabd5b5a0f4',
-        threadId: '18e0ffabd5b5a0f4',
-        labelIds: ['INBOX', 'IMPORTANT'],
-        snippet: 'Hello, Please find attached the monthly report...',
-        historyId: '123456',
-        internalDate: '1715337323000',
-        payload: {
-          partId: '',
-          mimeType: 'multipart/mixed',
-          filename: '',
-          headers: [
-            { name: 'From', value: 'sender@example.com' },
-            { name: 'To', value: 'recipient@example.com' },
-            { name: 'Subject', value: 'Monthly Report - April 2025' },
-            { name: 'Date', value: 'Fri, 10 May 2025 10:15:23 +0000' },
-            { name: 'Message-ID', value: '<abc123@example.com>' },
-          ],
-          body: { size: 0 },
-          parts: [
-            {
-              partId: '0',
-              mimeType: 'text/plain',
-              filename: '',
-              headers: [{ name: 'Content-Type', value: 'text/plain; charset=UTF-8' }],
-              body: {
-                size: 85,
-                data: 'SGVsbG8sDQoNClBsZWFzZSBmaW5kIGF0dGFjaGVkIHRoZSBtb250aGx5IHJlcG9ydA==',
-              },
-            },
-          ],
-        },
-        sizeEstimate: 4156,
-      },
-    }
-  }
-
-  return baseExample
 }
 
 interface GmailConfigProps {
@@ -364,17 +291,6 @@ export function GmailConfig({
           </div>
         </div>
       </ConfigSection>
-
-      <Notice
-        variant='default'
-        className='border-slate-200 bg-white dark:border-border dark:bg-background'
-        icon={<GmailIcon className='mt-0.5 mr-3.5 h-5 w-5 flex-shrink-0 text-red-500' />}
-        title='Gmail Event Payload Example'
-      >
-        <div className='overflow-wrap-anywhere mt-2 whitespace-normal break-normal font-mono text-sm'>
-          <JSONView data={getExampleEmailEvent(includeRawEmail)} />
-        </div>
-      </Notice>
     </div>
   )
 }

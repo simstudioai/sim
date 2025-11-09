@@ -10,46 +10,14 @@ const logger = createLogger('TriggerUtils')
  * Generates mock data based on the output type definition
  */
 function generateMockValue(type: string, description?: string, fieldName?: string): any {
-  const desc = description?.toLowerCase() || ''
-  const name = fieldName?.toLowerCase() || ''
+  const name = fieldName || 'value'
 
   switch (type) {
     case 'string':
-      if (desc.includes('email') || name.includes('email')) {
-        return 'user@example.com'
-      }
-      if (desc.includes('url') || name.includes('url')) {
-        return 'https://example.com'
-      }
-      if (desc.includes('id') || name.includes('_id') || name.endsWith('id')) {
-        return `mock_${name || 'id'}_123`
-      }
-      if (desc.includes('name') || name.includes('name')) {
-        return 'Sample Name'
-      }
-      if (
-        desc.includes('timestamp') ||
-        desc.includes('date') ||
-        desc.includes('time') ||
-        name.includes('timestamp') ||
-        name.includes('_ts') ||
-        name.includes('time')
-      ) {
-        return new Date().toISOString()
-      }
-      if (desc.includes('text') || name.includes('text') || name.includes('message')) {
-        return 'Sample message text'
-      }
-      if (desc.includes('status') || name.includes('status')) {
-        return 'active'
-      }
-      if (desc.includes('type') || name.includes('type')) {
-        return 'sample_type'
-      }
-      return 'Sample text'
+      return `mock_${name}`
 
     case 'number':
-      return desc.includes('count') || name.includes('count') ? 10 : 42
+      return 42
 
     case 'boolean':
       return true

@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Info } from 'lucide-react'
 import { Tooltip } from '@/components/emcn'
-import { OutlookIcon } from '@/components/icons'
 import {
   Badge,
   Button,
@@ -16,7 +15,6 @@ import {
   Skeleton,
 } from '@/components/ui'
 import { createLogger } from '@/lib/logs/console/logger'
-import { JSONView } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/console/components'
 import { ConfigSection } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/components/sub-block/components/webhook/components'
 
 const logger = createLogger('OutlookConfig')
@@ -40,70 +38,6 @@ const TOOLTIPS = {
 }
 
 // Generate example payload for Outlook
-const generateOutlookExamplePayload = (includeRawEmail: boolean) => {
-  const baseExample: any = {
-    email: {
-      id: 'AAMkAGVmMDEzMTM4LTZmYWUtNDdkNC1hMDZiLTU1OGY5OTZhYmY4OABGAAAAAAAiQ8W967B7TKBjgx9rVEURBwAiIsqMbYjsT5e-T4KzowKTAAAAAAEMAAAiIsqMbYjsT5e-T4KzowKTAAAYbvZDAAA=',
-      conversationId:
-        'AAQkAGVmMDEzMTM4LTZmYWUtNDdkNC1hMDZiLTU1OGY5OTZhYmY4OAAQAOH_y8jLzUGIn-HVkHUBrEE=',
-      subject: 'Monthly Report - January 2024',
-      from: 'sender@company.com',
-      to: 'recipient@company.com',
-      cc: '',
-      date: '2024-01-15T10:30:00Z',
-      bodyText: 'Hello, Please find attached the monthly report for January 2024.',
-      bodyHtml: '<p>Hello,</p><p>Please find attached the monthly report for January 2024.</p>',
-      hasAttachments: true,
-      isRead: false,
-      folderId: 'inbox',
-    },
-    timestamp: '2024-01-15T10:30:15.123Z',
-  }
-
-  if (includeRawEmail) {
-    baseExample.rawEmail = {
-      id: 'AAMkAGVmMDEzMTM4LTZmYWUtNDdkNC1hMDZiLTU1OGY5OTZhYmY4OABGAAAAAAAiQ8W967B7TKBjgx9rVEURBwAiIsqMbYjsT5e-T4KzowKTAAAAAAEMAAAiIsqMbYjsT5e-T4KzowKTAAAYbvZDAAA=',
-      conversationId:
-        'AAQkAGVmMDEzMTM4LTZmYWUtNDdkNC1hMDZiLTU1OGY5OTZhYmY4OAAQAOH_y8jLzUGIn-HVkHUBrEE=',
-      subject: 'Monthly Report - January 2024',
-      bodyPreview: 'Hello, Please find attached the monthly report for January 2024.',
-      body: {
-        contentType: 'html',
-        content: '<p>Hello,</p><p>Please find attached the monthly report for January 2024.</p>',
-      },
-      from: {
-        emailAddress: {
-          name: 'John Doe',
-          address: 'sender@company.com',
-        },
-      },
-      toRecipients: [
-        {
-          emailAddress: {
-            name: 'Jane Smith',
-            address: 'recipient@company.com',
-          },
-        },
-      ],
-      ccRecipients: [],
-      bccRecipients: [],
-      receivedDateTime: '2024-01-15T10:30:00Z',
-      sentDateTime: '2024-01-15T10:29:45Z',
-      hasAttachments: true,
-      isRead: false,
-      isDraft: false,
-      importance: 'normal',
-      parentFolderId: 'inbox',
-      internetMessageId: '<message-id@company.com>',
-      webLink: 'https://outlook.office365.com/owa/?ItemID=...',
-      createdDateTime: '2024-01-15T10:30:00Z',
-      lastModifiedDateTime: '2024-01-15T10:30:15Z',
-      changeKey: 'CQAAABYAAAAiIsqMbYjsT5e-T4KzowKTAAAYbvZE',
-    }
-  }
-
-  return baseExample
-}
 
 interface OutlookConfigProps {
   selectedLabels: string[]
@@ -366,16 +300,6 @@ export function OutlookConfig({
               </Tooltip.Root>
             </div>
           </div>
-        </div>
-      </ConfigSection>
-
-      <ConfigSection>
-        <div className='mb-3 flex items-center gap-2'>
-          <OutlookIcon className='h-4 w-4' />
-          <h3 className='font-medium text-sm'>Outlook Event Payload Example</h3>
-        </div>
-        <div className='rounded-md border bg-muted/50 p-3'>
-          <JSONView data={generateOutlookExamplePayload(includeRawEmail)} />
         </div>
       </ConfigSection>
     </div>

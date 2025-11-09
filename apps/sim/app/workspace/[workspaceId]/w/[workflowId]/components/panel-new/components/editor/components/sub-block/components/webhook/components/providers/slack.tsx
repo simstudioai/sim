@@ -1,6 +1,3 @@
-import { SlackIcon } from '@/components/icons'
-import { Notice } from '@/components/ui'
-import { JSONView } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/console/components'
 import {
   ConfigSection,
   InstructionsSection,
@@ -22,24 +19,6 @@ interface SlackConfigProps {
   testWebhook: () => Promise<void>
   webhookUrl: string
 }
-
-const exampleEvent = JSON.stringify(
-  {
-    type: 'event_callback',
-    event: {
-      type: 'message',
-      channel: 'C0123456789',
-      user: 'U0123456789',
-      text: 'Hello from Slack!',
-      ts: '1234567890.123456',
-    },
-    team_id: 'T0123456789',
-    event_id: 'Ev0123456789',
-    event_time: 1234567890,
-  },
-  null,
-  2
-)
 
 export function SlackConfig({
   signingSecret,
@@ -144,20 +123,6 @@ export function SlackConfig({
           <li>Save changes in both Slack and here.</li>
         </ol>
       </InstructionsSection>
-
-      <Notice
-        variant='default'
-        className='border-slate-200 bg-white dark:border-border dark:bg-background'
-        icon={
-          <SlackIcon className='mt-0.5 mr-3.5 h-5 w-5 flex-shrink-0 text-[#611f69] dark:text-[#e01e5a]' />
-        }
-        title='Slack Event Payload Example'
-      >
-        Your workflow will receive a payload similar to this when a subscribed event occurs:
-        <div className='overflow-wrap-anywhere mt-2 whitespace-normal break-normal font-mono text-sm'>
-          <JSONView data={JSON.parse(exampleEvent)} />
-        </div>
-      </Notice>
     </div>
   )
 }
