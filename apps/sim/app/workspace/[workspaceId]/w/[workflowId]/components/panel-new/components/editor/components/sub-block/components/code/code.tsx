@@ -210,7 +210,6 @@ export function Code({
   const accessiblePrefixes = useAccessibleReferencePrefixes(blockId)
   const emitTagSelection = useTagSelection(blockId, subBlockId)
   const [languageValue] = useSubBlockValue<string>(blockId, 'language')
-  const [remoteExecution] = useSubBlockValue<boolean>(blockId, 'remoteExecution')
 
   // Derived state
   const effectiveLanguage = (languageValue as 'javascript' | 'python' | 'json') || language
@@ -244,14 +243,14 @@ export function Code({
   }, [generationType])
 
   const dynamicPlaceholder = useMemo(() => {
-    if (remoteExecution && languageValue === CodeLanguage.Python) {
+    if (languageValue === CodeLanguage.Python) {
       return 'Write Python...'
     }
     return placeholder
-  }, [remoteExecution, languageValue, placeholder])
+  }, [languageValue, placeholder])
 
   const dynamicWandConfig = useMemo(() => {
-    if (remoteExecution && languageValue === CodeLanguage.Python) {
+    if (languageValue === CodeLanguage.Python) {
       return {
         ...wandConfig,
         prompt: PYTHON_AI_PROMPT,
@@ -259,11 +258,11 @@ export function Code({
       }
     }
     return wandConfig
-  }, [wandConfig, remoteExecution, languageValue])
+  }, [wandConfig, languageValue])
 
   // AI code generation integration
   const wandHook = useWand({
-    wandConfig: wandConfig || { enabled: false, prompt: '' },
+    wandConfig: dynamicWandConfig || { enabled: false, prompt: '' },
     currentValue: code,
     onStreamStart: () => handleStreamStartRef.current?.(),
     onStreamChunk: (chunk: string) => handleStreamChunkRef.current?.(chunk),
