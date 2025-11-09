@@ -38,3 +38,15 @@ Verwende den Start-Block für alles, was vom Editor, von Deploy-to-API oder von 
 3. Verbinde den Block mit dem Rest des Workflows.
 
 > Bereitstellungen unterstützen jeden Trigger. Aktualisiere den Workflow, stelle ihn erneut bereit, und alle Trigger-Einstiegspunkte übernehmen den neuen Snapshot. Erfahre mehr unter [Ausführung → Bereitstellungs-Snapshots](/execution).
+
+## Manuelle Ausführungspriorität
+
+Wenn Sie im Editor auf **Ausführen** klicken, wählt Sim automatisch aus, welcher Auslöser basierend auf der folgenden Prioritätsreihenfolge ausgeführt wird:
+
+1. **Start-Block** (höchste Priorität)
+2. **Zeitplan-Auslöser**
+3. **Externe Auslöser** (Webhooks, Integrationen wie Slack, Gmail, Airtable usw.)
+
+Wenn Ihr Workflow mehrere Auslöser hat, wird der Auslöser mit der höchsten Priorität ausgeführt. Wenn Sie beispielsweise sowohl einen Start-Block als auch einen Webhook-Auslöser haben, wird durch Klicken auf Ausführen der Start-Block ausgeführt.
+
+**Externe Auslöser mit Mock-Payloads**: Wenn externe Auslöser (Webhooks und Integrationen) manuell ausgeführt werden, generiert Sim automatisch Mock-Payloads basierend auf der erwarteten Datenstruktur des Auslösers. Dies stellt sicher, dass nachgelagerte Blöcke während des Tests Variablen korrekt auflösen können.
