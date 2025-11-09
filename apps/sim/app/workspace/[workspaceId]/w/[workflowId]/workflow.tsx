@@ -663,17 +663,12 @@ const WorkflowContent = React.memo(() => {
         const closestBlock = findClosestOutput(centerPosition)
         logger.info('Closest block found:', closestBlock)
         if (closestBlock) {
-          // Check if either source or target is a trigger block
-          const sourceBlockConfig = getBlock(closestBlock.type)
+          // Don't create edges into trigger blocks
           const targetBlockConfig = blockConfig
-          const isSourceTrigger =
-            sourceBlockConfig?.category === 'triggers' || sourceBlockConfig?.triggers?.enabled
           const isTargetTrigger =
             targetBlockConfig?.category === 'triggers' || targetBlockConfig?.triggers?.enabled
 
-          // Don't create trigger-to-trigger connections
-          if (!(isSourceTrigger && isTargetTrigger)) {
-            // Get appropriate source handle
+          if (!isTargetTrigger) {
             const sourceHandle = determineSourceHandle(closestBlock)
 
             autoConnectEdge = {
@@ -686,8 +681,7 @@ const WorkflowContent = React.memo(() => {
             }
             logger.info('Auto-connect edge created:', autoConnectEdge)
           } else {
-            logger.info('Skipping trigger-to-trigger auto-connect', {
-              source: closestBlock.type,
+            logger.info('Skipping auto-connect into trigger block', {
               target: type,
             })
           }
@@ -931,16 +925,12 @@ const WorkflowContent = React.memo(() => {
                 .sort((a, b) => a.distance - b.distance)[0]?.block
 
               if (closestBlock) {
-                // Check if either source or target is a trigger block
-                const sourceBlockConfig = getBlock(closestBlock.type)
+                // Don't create edges into trigger blocks
                 const targetBlockConfig = getBlock(data.type)
-                const isSourceTrigger =
-                  sourceBlockConfig?.category === 'triggers' || sourceBlockConfig?.triggers?.enabled
                 const isTargetTrigger =
                   targetBlockConfig?.category === 'triggers' || targetBlockConfig?.triggers?.enabled
 
-                // Don't create trigger-to-trigger connections
-                if (!(isSourceTrigger && isTargetTrigger)) {
+                if (!isTargetTrigger) {
                   const sourceHandle = determineSourceHandle({
                     id: closestBlock.id,
                     type: closestBlock.type,
@@ -1013,16 +1003,12 @@ const WorkflowContent = React.memo(() => {
           if (isAutoConnectEnabled && data.type !== 'starter') {
             const closestBlock = findClosestOutput(position)
             if (closestBlock) {
-              // Check if either source or target is a trigger block
-              const sourceBlockConfig = getBlock(closestBlock.type)
+              // Don't create edges into trigger blocks
               const targetBlockConfig = getBlock(data.type)
-              const isSourceTrigger =
-                sourceBlockConfig?.category === 'triggers' || sourceBlockConfig?.triggers?.enabled
               const isTargetTrigger =
                 targetBlockConfig?.category === 'triggers' || targetBlockConfig?.triggers?.enabled
 
-              // Don't create trigger-to-trigger connections
-              if (!(isSourceTrigger && isTargetTrigger)) {
+              if (!isTargetTrigger) {
                 const sourceHandle = determineSourceHandle(closestBlock)
 
                 autoConnectEdge = {

@@ -4,9 +4,8 @@ import { TRIGGER_REGISTRY } from '@/triggers/registry'
 import type { TriggerConfig } from '@/triggers/types'
 
 /**
- * Gets a trigger config and automatically injects/updates the samplePayload subblock
- * with dynamically generated content based on the trigger's outputs.
- * This ensures sample payloads always match the outputs definition.
+ * Gets a trigger config and injects samplePayload subblock with condition
+ * The condition assumes the trigger will be used in a multi-trigger block
  */
 export function getTrigger(triggerId: string): TriggerConfig {
   const trigger = TRIGGER_REGISTRY[triggerId]
@@ -14,47 +13,33 @@ export function getTrigger(triggerId: string): TriggerConfig {
     throw new Error(`Trigger not found: ${triggerId}`)
   }
 
-  // Clone the trigger to avoid mutating the registry
-  const clonedTrigger = { ...trigger }
+  const clonedTrigger = { ...trigger, subBlocks: [...trigger.subBlocks] }
 
-  // Only inject samplePayload for webhooks and external triggers
+  // Inject samplePayload for webhooks/pollers with condition
   if (trigger.webhook || trigger.id.includes('webhook') || trigger.id.includes('poller')) {
-    // Check if samplePayload subblock already exists
-    const samplePayloadIndex = clonedTrigger.subBlocks.findIndex((sb) => sb.id === 'samplePayload')
+    const samplePayloadExists = clonedTrigger.subBlocks.some((sb) => sb.id === 'samplePayload')
 
-    // Check if there's a selectedTriggerId dropdown (indicates multiple triggers in one block)
-    const hasSelectedTriggerId = clonedTrigger.subBlocks.some((sb) => sb.id === 'selectedTriggerId')
+    if (!samplePayloadExists && trigger.outputs) {
+      const mockPayload = generateMockPayloadFromOutputsDefinition(trigger.outputs)
+      const generatedPayload = JSON.stringify(mockPayload, null, 2)
 
-    // Generate the sample payload based on trigger outputs
-    const mockPayload = generateMockPayloadFromOutputsDefinition(trigger.outputs)
-    const generatedPayload = JSON.stringify(mockPayload, null, 2)
-
-    const samplePayloadSubBlock: SubBlockConfig = {
-      id: 'samplePayload',
-      title: 'Event Payload Example',
-      type: 'code',
-      language: 'json',
-      defaultValue: generatedPayload,
-      readOnly: true,
-      collapsible: true,
-      defaultCollapsed: true,
-      mode: 'trigger',
-      // Add condition if this trigger is part of a block with multiple trigger types
-      ...(hasSelectedTriggerId && {
+      const samplePayloadSubBlock: SubBlockConfig = {
+        id: 'samplePayload',
+        title: 'Event Payload Example',
+        type: 'code',
+        language: 'json',
+        defaultValue: generatedPayload,
+        readOnly: true,
+        collapsible: true,
+        defaultCollapsed: true,
+        mode: 'trigger',
         condition: {
           field: 'selectedTriggerId',
           value: trigger.id,
         },
-      }),
-    }
+      }
 
-    if (samplePayloadIndex !== -1) {
-      // Replace existing samplePayload with generated one
-      clonedTrigger.subBlocks = [...clonedTrigger.subBlocks]
-      clonedTrigger.subBlocks[samplePayloadIndex] = samplePayloadSubBlock
-    } else {
-      // Add samplePayload at the end
-      clonedTrigger.subBlocks = [...clonedTrigger.subBlocks, samplePayloadSubBlock]
+      clonedTrigger.subBlocks.push(samplePayloadSubBlock)
     }
   }
 
