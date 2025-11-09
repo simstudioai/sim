@@ -25,6 +25,7 @@ import {
 } from '@/components/emcn'
 import { createLogger } from '@/lib/logs/console/logger'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
+import { useDeleteWorkflow } from '@/app/workspace/[workspaceId]/w/hooks'
 import { usePanelStore } from '@/stores/panel-new/store'
 import type { PanelTab } from '@/stores/panel-new/types'
 import { useWorkflowJsonStore } from '@/stores/workflows/json/store'
@@ -69,7 +70,6 @@ export function Panel() {
   const [isExporting, setIsExporting] = useState(false)
   const [isDuplicating, setIsDuplicating] = useState(false)
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
-  const [isDeleting, setIsDeleting] = useState(false)
 
   // Hooks
   const userPermissions = useUserPermissionsContext()
@@ -81,6 +81,14 @@ export function Panel() {
   } = useWorkflowRegistry()
   const { getJson } = useWorkflowJsonStore()
   const { blocks } = useWorkflowStore()
+
+  // Delete workflow hook
+  const { isDeleting, handleDeleteWorkflow } = useDeleteWorkflow({
+    workspaceId,
+    workflowId: activeWorkflowId || '',
+    isActive: true,
+    onSuccess: () => setIsDeleteModalOpen(false),
+  })
 
   // Usage limits hook
   const { usageExceeded } = useUsageLimits({
@@ -214,49 +222,6 @@ export function Panel() {
     router,
     workspaceId,
   ])
-
-  /**
-   * Handles deleting the current workflow after confirmation
-   */
-  const handleDeleteWorkflow = useCallback(async () => {
-    if (!activeWorkflowId || !userPermissions.canEdit || isDeleting) {
-      return
-    }
-
-    setIsDeleting(true)
-    try {
-      // Find next workflow to navigate to
-      const sidebarWorkflows = Object.values(workflows).filter((w) => w.workspaceId === workspaceId)
-      const currentIndex = sidebarWorkflows.findIndex((w) => w.id === activeWorkflowId)
-
-      let nextWorkflowId: string | null = null
-      if (sidebarWorkflows.length > 1) {
-        if (currentIndex < sidebarWorkflows.length - 1) {
-          nextWorkflowId = sidebarWorkflows[currentIndex + 1].id
-        } else if (currentIndex > 0) {
-          nextWorkflowId = sidebarWorkflows[currentIndex - 1].id
-        }
-      }
-
-      // Navigate first
-      if (nextWorkflowId) {
-        router.push(`/workspace/${workspaceId}/w/${nextWorkflowId}`)
-      } else {
-        router.push(`/workspace/${workspaceId}`)
-      }
-
-      // Then delete
-      const { removeWorkflow: registryRemoveWorkflow } = useWorkflowRegistry.getState()
-      await registryRemoveWorkflow(activeWorkflowId)
-
-      setIsDeleteModalOpen(false)
-      logger.info('Workflow deleted successfully')
-    } catch (error) {
-      logger.error('Error deleting workflow:', error)
-    } finally {
-      setIsDeleting(false)
-    }
-  }, [activeWorkflowId, userPermissions.canEdit, isDeleting, workflows, workspaceId, router])
 
   // Compute run button state
   const canRun = userPermissions.canRead // Running only requires read permissions
