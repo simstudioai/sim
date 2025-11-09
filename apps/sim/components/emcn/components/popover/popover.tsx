@@ -51,7 +51,7 @@
 
 import * as React from 'react'
 import * as PopoverPrimitive from '@radix-ui/react-popover'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Search } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 /**
@@ -90,6 +90,8 @@ interface PopoverContextValue {
   isInFolder: boolean
   folderTitle: string | null
   variant: PopoverVariant
+  searchQuery: string
+  setSearchQuery: (query: string) => void
 }
 
 const PopoverContext = React.createContext<PopoverContextValue | null>(null)
@@ -124,6 +126,7 @@ export interface PopoverProps extends PopoverPrimitive.PopoverProps {
 const Popover: React.FC<PopoverProps> = ({ children, variant = 'default', ...props }) => {
   const [currentFolder, setCurrentFolder] = React.useState<string | null>(null)
   const [folderTitle, setFolderTitle] = React.useState<string | null>(null)
+  const [searchQuery, setSearchQuery] = React.useState<string>('')
 
   const openFolder = React.useCallback(
     (id: string, title: string, onLoad?: () => void | Promise<void>) => {
@@ -149,8 +152,10 @@ const Popover: React.FC<PopoverProps> = ({ children, variant = 'default', ...pro
       isInFolder: currentFolder !== null,
       folderTitle,
       variant,
+      searchQuery,
+      setSearchQuery,
     }),
-    [openFolder, closeFolder, currentFolder, folderTitle, variant]
+    [openFolder, closeFolder, currentFolder, folderTitle, variant, searchQuery]
   )
 
   return (
@@ -530,6 +535,65 @@ const PopoverBackButton = React.forwardRef<HTMLDivElement, PopoverBackButtonProp
 
 PopoverBackButton.displayName = 'PopoverBackButton'
 
+export interface PopoverSearchProps extends React.HTMLAttributes<HTMLDivElement> {
+  /**
+   * Placeholder text for the search input
+   * @default 'Search...'
+   */
+  placeholder?: string
+  /**
+   * Callback when search query changes
+   */
+  onValueChange?: (value: string) => void
+}
+
+/**
+ * Search input component for filtering popover items.
+ *
+ * @example
+ * ```tsx
+ * <Popover>
+ *   <PopoverContent>
+ *     <PopoverSearch placeholder="Search tools..." />
+ *     <PopoverScrollArea>
+ *       // items
+ *     </PopoverScrollArea>
+ *   </PopoverContent>
+ * </Popover>
+ * ```
+ */
+const PopoverSearch = React.forwardRef<HTMLDivElement, PopoverSearchProps>(
+  ({ className, placeholder = 'Search...', onValueChange, ...props }, ref) => {
+    const { searchQuery, setSearchQuery } = usePopoverContext()
+    const inputRef = React.useRef<HTMLInputElement>(null)
+
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const value = e.target.value
+      setSearchQuery(value)
+      onValueChange?.(value)
+    }
+
+    React.useEffect(() => {
+      inputRef.current?.focus()
+    }, [])
+
+    return (
+      <div ref={ref} className={cn('flex items-center px-[8px] py-[6px]', className)} {...props}>
+        <Search className='mr-2 h-[12px] w-[12px] shrink-0 text-[#787878]' />
+        <input
+          ref={inputRef}
+          className='w-full bg-transparent font-base text-[#E6E6E6] text-[12px] placeholder:text-[#787878] focus:outline-none'
+          placeholder={placeholder}
+          value={searchQuery}
+          onChange={handleChange}
+        />
+      </div>
+    )
+  }
+)
+
+PopoverSearch.displayName = 'PopoverSearch'
+
 export {
   Popover,
   PopoverTrigger,
@@ -540,4 +604,5 @@ export {
   PopoverSection,
   PopoverFolder,
   PopoverBackButton,
+  PopoverSearch,
 }

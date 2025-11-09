@@ -6,10 +6,8 @@ import {
   useContext,
   useEffect,
   useMemo,
-  useRef,
   useState,
 } from 'react'
-import { Search } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 type CommandContextType = {
@@ -37,12 +35,7 @@ interface CommandProps {
   children: ReactNode
   className?: string
   filter?: (value: string, search: string) => number
-}
-
-interface CommandInputProps {
-  placeholder?: string
-  className?: string
-  onValueChange?: (value: string) => void
+  searchQuery?: string
 }
 
 interface CommandListProps {
@@ -53,12 +46,6 @@ interface CommandListProps {
 interface CommandEmptyProps {
   children: ReactNode
   className?: string
-}
-
-interface CommandGroupProps {
-  children: ReactNode
-  className?: string
-  heading?: string
 }
 
 interface CommandItemProps {
@@ -73,11 +60,19 @@ interface CommandSeparatorProps {
   className?: string
 }
 
-export function Command({ children, className, filter }: CommandProps) {
-  const [searchQuery, setSearchQuery] = useState('')
+export function Command({
+  children,
+  className,
+  filter,
+  searchQuery: externalSearchQuery,
+}: CommandProps) {
+  const [internalSearchQuery, setInternalSearchQuery] = useState('')
   const [activeIndex, setActiveIndex] = useState(-1)
   const [items, setItems] = useState<string[]>([])
   const [filteredItems, setFilteredItems] = useState<string[]>([])
+
+  // Use external searchQuery if provided, otherwise use internal state
+  const searchQuery = externalSearchQuery ?? internalSearchQuery
 
   const registerItem = useCallback((id: string) => {
     setItems((prev) => {
@@ -156,7 +151,7 @@ export function Command({ children, className, filter }: CommandProps) {
   const contextValue = useMemo(
     () => ({
       searchQuery,
-      setSearchQuery,
+      setSearchQuery: setInternalSearchQuery,
       activeIndex,
       setActiveIndex,
       filteredItems,
@@ -169,60 +164,15 @@ export function Command({ children, className, filter }: CommandProps) {
 
   return (
     <CommandContext.Provider value={contextValue}>
-      <div
-        className={cn(
-          'flex h-full w-full flex-col overflow-hidden rounded-md bg-popover text-popover-foreground [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-muted-foreground [&_[cmdk-group]:not([hidden])_~[cmdk-group]]:pt-0 [&_[cmdk-group]]:px-2 [&_[cmdk-input-wrapper]_svg]:h-5 [&_[cmdk-input-wrapper]_svg]:w-5 [&_[cmdk-input]]:h-12 [&_[cmdk-item]]:px-2 [&_[cmdk-item]]:py-3 [&_[cmdk-item]_svg]:h-5 [&_[cmdk-item]_svg]:w-5',
-          className
-        )}
-        onKeyDown={handleKeyDown}
-      >
+      <div className={cn('flex w-full flex-col', className)} onKeyDown={handleKeyDown}>
         {children}
       </div>
     </CommandContext.Provider>
   )
 }
 
-export function CommandInput({
-  placeholder = 'Search...',
-  className,
-  onValueChange,
-}: CommandInputProps) {
-  const { searchQuery, setSearchQuery } = useCommandContext()
-  const inputRef = useRef<HTMLInputElement>(null)
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value
-    setSearchQuery(value)
-    onValueChange?.(value)
-  }
-
-  useEffect(() => {
-    inputRef.current?.focus()
-  }, [])
-
-  return (
-    <div className='flex items-center border-b px-3'>
-      <Search className='mr-2 h-4 w-4 shrink-0 opacity-50' />
-      <input
-        ref={inputRef}
-        className={cn(
-          'flex h-11 w-full rounded-md bg-transparent py-3 text-sm outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50',
-          className
-        )}
-        placeholder={placeholder}
-        value={searchQuery}
-        onChange={handleChange}
-      />
-    </div>
-  )
-}
-
 export function CommandList({ children, className }: CommandListProps) {
-  return (
-    <div className={cn('max-h-[300px] overflow-y-auto overflow-x-hidden', className)}>
-      {children}
-    </div>
-  )
+  return <div className={cn(className)}>{children}</div>
 }
 
 export function CommandEmpty({ children, className }: CommandEmptyProps) {
@@ -231,23 +181,7 @@ export function CommandEmpty({ children, className }: CommandEmptyProps) {
   if (filteredItems.length > 0) return null
 
   return (
-    <div className={cn('pt-3.5 pb-2 text-center text-muted-foreground text-sm', className)}>
-      {children}
-    </div>
-  )
-}
-
-export function CommandGroup({ children, className, heading }: CommandGroupProps) {
-  return (
-    <div
-      className={cn(
-        'overflow-hidden p-1 text-foreground [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-muted-foreground [&_[cmdk-group-heading]]:text-xs',
-        className
-      )}
-    >
-      {heading && (
-        <div className='px-2 py-1.5 font-medium text-muted-foreground text-xs'>{heading}</div>
-      )}
+    <div className={cn('px-[6px] py-[8px] text-[#FFFFFF]/60 text-[12px]', className)}>
       {children}
     </div>
   )
@@ -279,8 +213,8 @@ export function CommandItem({
     <button
       id={value}
       className={cn(
-        'relative flex w-full cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground data-[disabled=true]:pointer-events-none data-[selected=true]:bg-accent data-[selected=true]:text-accent-foreground data-[disabled=true]:opacity-50',
-        isActive && 'bg-accent text-accent-foreground',
+        'flex h-[25px] w-full cursor-pointer select-none items-center gap-[8px] rounded-[6px] px-[6px] font-base text-[#E6E6E6] text-[12px] outline-none transition-colors hover:bg-[#363636] hover:text-[#E6E6E6] disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 data-[disabled=true]:pointer-events-none data-[selected=true]:bg-[#363636] data-[selected=true]:text-[#E6E6E6] data-[disabled=true]:opacity-50',
+        (isActive || isHovered) && 'bg-[#363636] text-[#E6E6E6]',
         className
       )}
       onClick={() => !disabled && onSelect?.()}
@@ -301,10 +235,8 @@ export function CommandSeparator({ className }: CommandSeparatorProps) {
 
 export const ToolCommand = {
   Root: Command,
-  Input: CommandInput,
   List: CommandList,
   Empty: CommandEmpty,
-  Group: CommandGroup,
   Item: CommandItem,
   Separator: CommandSeparator,
 }

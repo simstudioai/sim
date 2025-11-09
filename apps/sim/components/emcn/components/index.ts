@@ -35,6 +35,8 @@ export {
   type PopoverItemProps,
   PopoverScrollArea,
   type PopoverScrollAreaProps,
+  PopoverSearch,
+  type PopoverSearchProps,
   PopoverSection,
   type PopoverSectionProps,
   PopoverTrigger,
