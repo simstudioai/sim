@@ -47,7 +47,12 @@ function generateMockValue(type: string, description?: string, fieldName?: strin
 /**
  * Recursively processes nested output structures
  */
-function processOutputField(key: string, field: any): any {
+function processOutputField(key: string, field: any, depth = 0, maxDepth = 10): any {
+  // Prevent infinite recursion
+  if (depth > maxDepth) {
+    return null
+  }
+
   if (field && typeof field === 'object' && 'type' in field) {
     return generateMockValue(field.type, field.description, key)
   }
@@ -55,7 +60,7 @@ function processOutputField(key: string, field: any): any {
   if (field && typeof field === 'object' && !Array.isArray(field)) {
     const nestedObject: Record<string, any> = {}
     for (const [nestedKey, nestedField] of Object.entries(field)) {
-      nestedObject[nestedKey] = processOutputField(nestedKey, nestedField)
+      nestedObject[nestedKey] = processOutputField(nestedKey, nestedField, depth + 1, maxDepth)
     }
     return nestedObject
   }
