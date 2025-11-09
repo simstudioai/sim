@@ -3,6 +3,11 @@ import { v4 as uuidv4 } from 'uuid'
 import { createLogger } from '@/lib/logs/console/logger'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import { processStreamingBlockLogs } from '@/lib/tokenization'
+import {
+  extractTriggerMockPayload,
+  selectBestTrigger,
+  triggerNeedsMockPayload,
+} from '@/lib/workflows/trigger-utils'
 import { resolveStartCandidates, StartBlockPath, TriggerUtils } from '@/lib/workflows/triggers'
 import type { BlockLog, ExecutionResult, StreamingExecution } from '@/executor/types'
 import { useExecutionStream } from '@/hooks/use-execution-stream'
@@ -14,7 +19,6 @@ import { useTerminalConsoleStore } from '@/stores/terminal'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { mergeSubblockState } from '@/stores/workflows/utils'
 import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
-import { filterEdgesFromTriggerBlocks } from '../utils/workflow-execution-utils'
 import { useCurrentWorkflow } from './use-current-workflow'
 
 const logger = createLogger('useWorkflowExecution')
@@ -751,8 +755,8 @@ export function useWorkflowExecution() {
       {} as Record<string, any>
     )
 
-    // Filter out edges between trigger blocks - triggers are independent entry points
-    const filteredEdges = filterEdgesFromTriggerBlocks(filteredStates, workflowEdges)
+    // Use workflow edges directly - trigger-to-trigger edges are prevented at creation time
+    const filteredEdges = workflowEdges
 
     // Derive subflows from the current filtered graph to avoid stale state
     const runtimeLoops = generateLoopBlocks(filteredStates)
@@ -804,6 +808,18 @@ export function useWorkflowExecution() {
 
       startBlockId = startBlock.blockId
     } else {
+      // Manual execution: detect and group triggers by paths
+
+      // Debug: Log all blocks and their types
+      logger.info('All workflow blocks before trigger detection:', {
+        blockCount: Object.keys(filteredStates).length,
+        blocks: Object.entries(filteredStates).map(([id, block]) => ({
+          id,
+          type: block.type,
+          name: block.name,
+        })),
+      })
+
       const candidates = resolveStartCandidates(filteredStates, {
         execution: 'manual',
       })
@@ -817,6 +833,16 @@ export function useWorkflowExecution() {
         })),
       })
 
+      if (candidates.length === 0) {
+        const error = new Error('Workflow requires at least one trigger block to execute')
+        logger.error('No trigger blocks found for manual run', {
+          allBlockTypes: Object.values(filteredStates).map((b) => b.type),
+        })
+        setIsExecuting(false)
+        throw error
+      }
+
+      // Check for multiple API triggers (still not allowed)
       const apiCandidates = candidates.filter(
         (candidate) => candidate.path === StartBlockPath.SPLIT_API
       )
@@ -827,20 +853,39 @@ export function useWorkflowExecution() {
         throw error
       }
 
-      const selectedCandidate = apiCandidates[0] ?? candidates[0]
+      // Log all candidates before selection
+      logger.info('All trigger candidates before selection:', {
+        count: candidates.length,
+        candidates: candidates.map((c) => ({
+          id: c.blockId,
+          type: c.block.type,
+          path: c.path,
+        })),
+        filteredEdgesCount: filteredEdges.length,
+        originalEdgesCount: workflowEdges.length,
+      })
 
-      if (!selectedCandidate) {
-        const error = new Error('Workflow requires at least one trigger block to execute')
-        logger.error('No trigger blocks found for manual run')
-        setIsExecuting(false)
-        throw error
-      }
+      // Select the best trigger for each disjoint path
+      // Priority per path: Start Block > Schedules > External Triggers > Legacy
+      const selectedTriggers = selectBestTrigger(candidates, filteredEdges)
 
+      logger.info('Selected triggers for manual run:', {
+        count: selectedTriggers.length,
+        triggers: selectedTriggers.map((t) => ({
+          id: t.blockId,
+          type: t.block.type,
+          path: t.path,
+        })),
+      })
+
+      // Execute the first/highest priority trigger
+      const selectedCandidate = selectedTriggers[0]
       startBlockId = selectedCandidate.blockId
       const selectedTrigger = selectedCandidate.block
 
+      // Validate outgoing connections for non-legacy triggers
       if (selectedCandidate.path !== StartBlockPath.LEGACY_STARTER) {
-        const outgoingConnections = workflowEdges.filter((edge) => edge.source === startBlockId)
+        const outgoingConnections = filteredEdges.filter((edge) => edge.source === startBlockId)
         if (outgoingConnections.length === 0) {
           const triggerName = selectedTrigger.name || selectedTrigger.type
           const error = new Error(`${triggerName} must be connected to other blocks to execute`)
@@ -850,30 +895,21 @@ export function useWorkflowExecution() {
         }
       }
 
-      if (
+      // Prepare input based on trigger type
+      if (triggerNeedsMockPayload(selectedCandidate)) {
+        const mockPayload = extractTriggerMockPayload(selectedCandidate)
+        finalWorkflowInput = mockPayload
+      } else if (
         selectedCandidate.path === StartBlockPath.SPLIT_API ||
         selectedCandidate.path === StartBlockPath.SPLIT_INPUT ||
         selectedCandidate.path === StartBlockPath.UNIFIED
       ) {
         const inputFormatValue = selectedTrigger.subBlocks?.inputFormat?.value
         const testInput = extractTestValuesFromInputFormat(inputFormatValue)
-
         if (Object.keys(testInput).length > 0) {
           finalWorkflowInput = testInput
-          logger.info('Using trigger test values for manual run:', {
-            startBlockId,
-            testFields: Object.keys(testInput),
-            path: selectedCandidate.path,
-          })
         }
       }
-
-      logger.info('Trigger found for manual run:', {
-        startBlockId,
-        triggerType: selectedTrigger.type,
-        triggerName: selectedTrigger.name,
-        startPath: selectedCandidate.path,
-      })
     }
 
     // If we don't have a valid startBlockId at this point, throw an error
@@ -904,10 +940,12 @@ export function useWorkflowExecution() {
       const activeBlocksSet = new Set<string>()
       const streamedContent = new Map<string, string>()
 
+      // Execute the workflow
       try {
         await executionStream.execute({
           workflowId: activeWorkflowId,
           input: finalWorkflowInput,
+          startBlockId,
           selectedOutputs,
           triggerType: overrideTriggerType || 'manual',
           useDraftState: true,

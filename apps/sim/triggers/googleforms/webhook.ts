@@ -151,33 +151,6 @@ export const googleFormsWebhookTrigger: TriggerConfig = {
       mode: 'trigger',
       triggerId: 'google_forms_webhook',
     },
-    {
-      id: 'samplePayload',
-      title: 'Event Payload Example',
-      type: 'code',
-      language: 'json',
-      defaultValue: JSON.stringify(
-        {
-          provider: 'google_forms',
-          formId: '1FAIpQLSdEXAMPLE',
-          responseId: 'R_12345',
-          createTime: '2025-01-01T12:00:00.000Z',
-          lastSubmittedTime: '2025-01-01T12:00:00.000Z',
-          answers: {
-            'What is your name?': 'Ada Lovelace',
-            Languages: ['TypeScript', 'Python'],
-            'Subscribed?': true,
-          },
-          raw: { any: 'original payload from Apps Script if included' },
-        },
-        null,
-        2
-      ),
-      readOnly: true,
-      collapsible: true,
-      defaultCollapsed: true,
-      mode: 'trigger',
-    },
   ],
 
   outputs: {

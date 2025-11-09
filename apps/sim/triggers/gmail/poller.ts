@@ -125,39 +125,6 @@ export const gmailPollingTrigger: TriggerConfig = {
       mode: 'trigger',
       triggerId: 'gmail_poller',
     },
-    {
-      id: 'samplePayload',
-      title: 'Event Payload Example',
-      type: 'code',
-      language: 'json',
-      defaultValue: JSON.stringify(
-        {
-          email: {
-            id: '18e0ffabd5b5a0f4',
-            threadId: '18e0ffabd5b5a0f4',
-            subject: 'Monthly Report - April 2025',
-            from: 'sender@example.com',
-            to: 'recipient@example.com',
-            cc: 'team@example.com',
-            date: '2025-05-10T10:15:23.000Z',
-            bodyText:
-              'Hello,\n\nPlease find attached the monthly report for April 2025.\n\nBest regards,\nSender',
-            bodyHtml:
-              '<div><p>Hello,</p><p>Please find attached the monthly report for April 2025.</p><p>Best regards,<br>Sender</p></div>',
-            labels: ['INBOX', 'IMPORTANT'],
-            hasAttachments: true,
-            attachments: [],
-          },
-          timestamp: '2025-05-10T10:15:30.123Z',
-        },
-        null,
-        2
-      ),
-      readOnly: true,
-      collapsible: true,
-      defaultCollapsed: true,
-      mode: 'trigger',
-    },
   ],
 
   outputs: {

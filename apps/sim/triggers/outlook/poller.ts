@@ -115,42 +115,6 @@ export const outlookPollingTrigger: TriggerConfig = {
       mode: 'trigger',
       triggerId: 'outlook_poller',
     },
-    {
-      id: 'samplePayload',
-      title: 'Event Payload Example',
-      type: 'code',
-      language: 'json',
-      defaultValue: JSON.stringify(
-        {
-          email: {
-            id: 'AAMkADg1OWUyZjg4LWJkNGYtNDFhYy04OGVjLWVkM2VhY2YzYTcwZgBGAAAAAACE3bU',
-            conversationId: 'AAQkADg1OWUyZjg4LWJkNGYtNDFhYy04OGVjLWVkM2VhY2YzYTcwZgAQAErzGBJV',
-            subject: 'Quarterly Business Review - Q1 2025',
-            from: 'manager@company.com',
-            to: 'team@company.com',
-            cc: 'stakeholders@company.com',
-            date: '2025-05-10T14:30:00Z',
-            bodyText:
-              'Hi Team,\n\nPlease find attached the Q1 2025 business review document. We need to discuss the results in our next meeting.\n\nBest regards,\nManager',
-            bodyHtml:
-              '<div><p>Hi Team,</p><p>Please find attached the Q1 2025 business review document. We need to discuss the results in our next meeting.</p><p>Best regards,<br>Manager</p></div>',
-            hasAttachments: true,
-            attachments: [],
-            isRead: false,
-            folderId: 'AQMkADg1OWUyZjg4LWJkNGYtNDFhYy04OGVjAC4AAAJzE3bU',
-            messageId: 'AAMkADg1OWUyZjg4LWJkNGYtNDFhYy04OGVjLWVkM2VhY2YzYTcwZgBGAAAAAACE3bU',
-            threadId: 'AAQkADg1OWUyZjg4LWJkNGYtNDFhYy04OGVjLWVkM2VhY2YzYTcwZgAQAErzGBJV',
-          },
-          timestamp: '2025-05-10T14:30:15.123Z',
-        },
-        null,
-        2
-      ),
-      readOnly: true,
-      collapsible: true,
-      defaultCollapsed: true,
-      mode: 'trigger',
-    },
   ],
 
   outputs: {

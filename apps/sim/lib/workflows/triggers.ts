@@ -109,8 +109,20 @@ export function classifyStartBlockType(
 
 export function classifyStartBlock<T extends BlockWithType>(block: T): StartBlockPath | null {
   const blockWithMetadata = block as BlockWithMetadata
-  const category = blockWithMetadata.category
-  const triggerModeEnabled = Boolean(blockWithMetadata.triggers?.enabled)
+
+  // Try to get metadata from the block itself first
+  let category = blockWithMetadata.category
+  let triggerModeEnabled = Boolean(blockWithMetadata.triggers?.enabled)
+
+  // If not available on the block, fetch from registry
+  if (!category || triggerModeEnabled === undefined) {
+    const blockConfig = getBlock(block.type)
+    if (blockConfig) {
+      category = category || blockConfig.category
+      triggerModeEnabled = triggerModeEnabled || Boolean(blockConfig.triggers?.enabled)
+    }
+  }
+
   return classifyStartBlockType(block.type, { category, triggerModeEnabled })
 }
 

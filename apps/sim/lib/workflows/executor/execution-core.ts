@@ -16,7 +16,6 @@ import {
 } from '@/lib/workflows/db-helpers'
 import { TriggerUtils } from '@/lib/workflows/triggers'
 import { updateWorkflowRunCounts } from '@/lib/workflows/utils'
-import { filterEdgesFromTriggerBlocks } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/workflow-execution-utils'
 import { Executor } from '@/executor'
 import type { ExecutionCallbacks, ExecutionSnapshot } from '@/executor/execution/snapshot'
 import type { ExecutionResult } from '@/executor/types'
@@ -225,7 +224,8 @@ export async function executeWorkflowCore(
       {} as Record<string, Record<string, any>>
     )
 
-    const filteredEdges = filterEdgesFromTriggerBlocks(mergedStates, edges)
+    // Use edges directly - trigger-to-trigger edges are prevented at creation time
+    const filteredEdges = edges
 
     // Check if this is a resume execution before trigger resolution
     const resumeFromSnapshot = (metadata as any).resumeFromSnapshot === true

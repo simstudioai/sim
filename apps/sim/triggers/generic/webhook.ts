@@ -82,32 +82,6 @@ export const genericWebhookTrigger: TriggerConfig = {
       mode: 'trigger',
       triggerId: 'generic_webhook',
     },
-    {
-      id: 'samplePayload',
-      title: 'Event Payload Example',
-      type: 'code',
-      language: 'json',
-      defaultValue: JSON.stringify(
-        {
-          event: 'user.created',
-          id: 'evt_1234567890',
-          data: {
-            user: {
-              id: 'user_123',
-              email: 'user@example.com',
-              name: 'John Doe',
-            },
-          },
-          timestamp: '2023-01-01T12:00:00Z',
-        },
-        null,
-        2
-      ),
-      readOnly: true,
-      collapsible: true,
-      defaultCollapsed: true,
-      mode: 'trigger',
-    },
   ],
 
   outputs: {},

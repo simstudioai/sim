@@ -53,50 +53,6 @@ export const telegramWebhookTrigger: TriggerConfig = {
       mode: 'trigger',
       triggerId: 'telegram_webhook',
     },
-    {
-      id: 'samplePayload',
-      title: 'Event Payload Example',
-      type: 'code',
-      language: 'json',
-      defaultValue: JSON.stringify(
-        {
-          update_id: 123456789,
-          message: {
-            message_id: 123,
-            from: {
-              id: 987654321,
-              is_bot: false,
-              first_name: 'John',
-              last_name: 'Doe',
-              username: 'johndoe',
-              language_code: 'en',
-            },
-            chat: {
-              id: 987654321,
-              first_name: 'John',
-              last_name: 'Doe',
-              username: 'johndoe',
-              type: 'private',
-            },
-            date: 1234567890,
-            text: 'Hello from Telegram!',
-            entities: [
-              {
-                offset: 0,
-                length: 5,
-                type: 'bold',
-              },
-            ],
-          },
-        },
-        null,
-        2
-      ),
-      readOnly: true,
-      collapsible: true,
-      defaultCollapsed: true,
-      mode: 'trigger',
-    },
   ],
 
   outputs: {

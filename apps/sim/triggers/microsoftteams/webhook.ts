@@ -86,40 +86,6 @@ export const microsoftTeamsWebhookTrigger: TriggerConfig = {
         value: 'microsoftteams_webhook',
       },
     },
-    {
-      id: 'samplePayload',
-      title: 'Event Payload Example',
-      type: 'code',
-      language: 'json',
-      defaultValue: JSON.stringify(
-        {
-          type: 'message',
-          id: '1234567890',
-          timestamp: '2023-01-01T00:00:00.000Z',
-          localTimestamp: '2023-01-01T00:00:00.000Z',
-          serviceUrl: 'https://smba.trafficmanager.net/amer/',
-          channelId: 'msteams',
-          from: {
-            id: '29:1234567890abcdef',
-            name: 'John Doe',
-          },
-          conversation: {
-            id: '19:meeting_abcdef@thread.v2',
-          },
-          text: 'Hello Sim Bot!',
-        },
-        null,
-        2
-      ),
-      readOnly: true,
-      collapsible: true,
-      defaultCollapsed: true,
-      mode: 'trigger',
-      condition: {
-        field: 'selectedTriggerId',
-        value: 'microsoftteams_webhook',
-      },
-    },
   ],
 
   outputs: {

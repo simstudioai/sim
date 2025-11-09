@@ -100,44 +100,6 @@ export const webflowCollectionItemCreatedTrigger: TriggerConfig = {
         value: 'webflow_collection_item_created',
       },
     },
-    {
-      id: 'samplePayload',
-      title: 'Event Payload Example',
-      type: 'code',
-      language: 'json',
-      defaultValue: JSON.stringify(
-        {
-          siteId: '68f9666057aa8abaa9b0b668',
-          workspaceId: '68f96081e7018465432953b5',
-          collectionId: '68f9666257aa8abaa9b0b6d6',
-          payload: {
-            id: '68fa8445de250e147cd95cfd',
-            cmsLocaleId: '68f9666257aa8abaa9b0b6c9',
-            lastPublished: '2024-01-15T10:30:00.000Z',
-            lastUpdated: '2024-01-15T10:30:00.000Z',
-            createdOn: '2024-01-15T10:30:00.000Z',
-            isArchived: false,
-            isDraft: false,
-            fieldData: {
-              name: 'Sample Blog Post',
-              slug: 'sample-blog-post',
-              'post-summary': 'This is a sample blog post created in the collection',
-              featured: false,
-            },
-          },
-        },
-        null,
-        2
-      ),
-      readOnly: true,
-      collapsible: true,
-      defaultCollapsed: true,
-      mode: 'trigger',
-      condition: {
-        field: 'selectedTriggerId',
-        value: 'webflow_collection_item_created',
-      },
-    },
   ],
 
   outputs: {

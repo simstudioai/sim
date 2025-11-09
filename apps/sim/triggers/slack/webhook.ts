@@ -57,35 +57,6 @@ export const slackWebhookTrigger: TriggerConfig = {
       mode: 'trigger',
       triggerId: 'slack_webhook',
     },
-    {
-      id: 'samplePayload',
-      title: 'Event Payload Example',
-      type: 'code',
-      language: 'json',
-      defaultValue: JSON.stringify(
-        {
-          type: 'event_callback',
-          event: {
-            type: 'app_mention',
-            channel: 'C0123456789',
-            user: 'U0123456789',
-            text: '<@U0BOTUSER123> Hello from Slack!',
-            ts: '1234567890.123456',
-            thread_ts: '1234567890.000000',
-            channel_type: 'channel',
-          },
-          team_id: 'T0123456789',
-          event_id: 'Ev0123456789',
-          event_time: 1234567890,
-        },
-        null,
-        2
-      ),
-      readOnly: true,
-      collapsible: true,
-      defaultCollapsed: true,
-      mode: 'trigger',
-    },
   ],
 
   outputs: {

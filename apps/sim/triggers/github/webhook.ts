@@ -108,60 +108,6 @@ export const githubWebhookTrigger: TriggerConfig = {
         value: 'github_webhook',
       },
     },
-    {
-      id: 'samplePayload',
-      title: 'Event Payload Example',
-      type: 'code',
-      language: 'json',
-      defaultValue: JSON.stringify(
-        {
-          action: 'opened',
-          number: 1,
-          pull_request: {
-            id: 1,
-            number: 1,
-            state: 'open',
-            title: 'Update README',
-            user: {
-              login: 'octocat',
-              id: 1,
-            },
-            body: 'This is a pretty simple change that we need to pull into main.',
-            head: {
-              ref: 'feature-branch',
-              sha: 'abc123',
-            },
-            base: {
-              ref: 'main',
-              sha: 'def456',
-            },
-          },
-          repository: {
-            id: 35129377,
-            name: 'public-repo',
-            full_name: 'baxterthehacker/public-repo',
-            owner: {
-              login: 'baxterthehacker',
-              id: 6752317,
-            },
-          },
-          sender: {
-            login: 'baxterthehacker',
-            id: 6752317,
-          },
-        },
-        null,
-        2
-      ),
-      readOnly: true,
-      collapsible: true,
-      defaultCollapsed: true,
-      mode: 'trigger',
-      condition: {
-        field: 'selectedTriggerId',
-        value: 'github_webhook',
-      },
-    },
   ],
 
   outputs: {

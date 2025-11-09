@@ -64,44 +64,6 @@ export const linearWebhookTrigger: TriggerConfig = {
         value: 'linear_webhook',
       },
     },
-    {
-      id: 'samplePayload',
-      title: 'Event Payload Example',
-      type: 'code',
-      language: 'json',
-      defaultValue: JSON.stringify(
-        {
-          action: 'create',
-          type: 'Issue',
-          webhookId: '550e8400-e29b-41d4-a716-446655440000',
-          webhookTimestamp: 1730937600000,
-          organizationId: 'org_abc123',
-          createdAt: '2025-11-06T12:00:00.000Z',
-          actor: {
-            id: 'user_123',
-            type: 'user',
-            name: 'John Doe',
-          },
-          data: {
-            id: 'entity_id',
-            // ... entity-specific fields
-          },
-          updatedFrom: {
-            // ... previous values (only present on update actions)
-          },
-        },
-        null,
-        2
-      ),
-      readOnly: true,
-      collapsible: true,
-      defaultCollapsed: true,
-      mode: 'trigger',
-      condition: {
-        field: 'selectedTriggerId',
-        value: 'linear_webhook',
-      },
-    },
   ],
 
   outputs: {

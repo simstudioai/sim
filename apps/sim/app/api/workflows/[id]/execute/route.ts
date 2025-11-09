@@ -29,6 +29,7 @@ const ExecuteWorkflowSchema = z.object({
   stream: z.boolean().optional(),
   useDraftState: z.boolean().optional(),
   input: z.any().optional(),
+  startBlockId: z.string().optional(),
 })
 
 export const runtime = 'nodejs'

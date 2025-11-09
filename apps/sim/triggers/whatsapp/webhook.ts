@@ -59,59 +59,6 @@ export const whatsappWebhookTrigger: TriggerConfig = {
       mode: 'trigger',
       triggerId: 'whatsapp_webhook',
     },
-    {
-      id: 'samplePayload',
-      title: 'Event Payload Example',
-      type: 'code',
-      language: 'json',
-      defaultValue: JSON.stringify(
-        {
-          object: 'whatsapp_business_account',
-          entry: [
-            {
-              id: '1234567890123456',
-              changes: [
-                {
-                  value: {
-                    messaging_product: 'whatsapp',
-                    metadata: {
-                      display_phone_number: '15551234567',
-                      phone_number_id: '1234567890123456',
-                    },
-                    contacts: [
-                      {
-                        profile: {
-                          name: 'John Doe',
-                        },
-                        wa_id: '15555551234',
-                      },
-                    ],
-                    messages: [
-                      {
-                        from: '15555551234',
-                        id: 'wamid.HBgNMTU1NTU1NTEyMzQVAgASGBQzQTdBNjg4QjU2NjZCMzY4ODE2AA==',
-                        timestamp: '1234567890',
-                        text: {
-                          body: 'Hello from WhatsApp!',
-                        },
-                        type: 'text',
-                      },
-                    ],
-                  },
-                  field: 'messages',
-                },
-              ],
-            },
-          ],
-        },
-        null,
-        2
-      ),
-      readOnly: true,
-      collapsible: true,
-      defaultCollapsed: true,
-      mode: 'trigger',
-    },
   ],
 
   outputs: {
