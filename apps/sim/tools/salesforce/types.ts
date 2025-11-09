@@ -51,5 +51,100 @@ export interface SalesforceGetAccountsParams {
   orderBy?: string
 }
 
+// Create Account
+export interface SalesforceCreateAccountResponse {
+  success: boolean
+  output: {
+    id: string
+    success: boolean
+    created: boolean
+    metadata: {
+      operation: 'create_account'
+    }
+  }
+}
+
+// Update Account
+export interface SalesforceUpdateAccountResponse {
+  success: boolean
+  output: {
+    id: string
+    updated: boolean
+    metadata: {
+      operation: 'update_account'
+    }
+  }
+}
+
+// Delete Account
+export interface SalesforceDeleteAccountResponse {
+  success: boolean
+  output: {
+    id: string
+    deleted: boolean
+    metadata: {
+      operation: 'delete_account'
+    }
+  }
+}
+
+// Contact types
+export interface SalesforceGetContactsResponse {
+  success: boolean
+  output: {
+    contacts?: any[]
+    contact?: any
+    paging?: {
+      nextRecordsUrl?: string
+      totalSize: number
+      done: boolean
+    }
+    metadata: {
+      operation: 'get_contacts'
+      totalReturned?: number
+      hasMore?: boolean
+      singleContact?: boolean
+    }
+    success: boolean
+  }
+}
+
+export interface SalesforceCreateContactResponse {
+  success: boolean
+  output: {
+    id: string
+    success: boolean
+    created: boolean
+    metadata: { operation: 'create_contact' }
+  }
+}
+
+export interface SalesforceUpdateContactResponse {
+  success: boolean
+  output: {
+    id: string
+    updated: boolean
+    metadata: { operation: 'update_contact' }
+  }
+}
+
+export interface SalesforceDeleteContactResponse {
+  success: boolean
+  output: {
+    id: string
+    deleted: boolean
+    metadata: { operation: 'delete_contact' }
+  }
+}
+
 // Generic Salesforce response type for the block
-export type SalesforceResponse = SalesforceGetAccountsResponse
+export type SalesforceResponse =
+  | SalesforceGetAccountsResponse
+  | SalesforceCreateAccountResponse
+  | SalesforceUpdateAccountResponse
+  | SalesforceDeleteAccountResponse
+  | SalesforceGetContactsResponse
+  | SalesforceCreateContactResponse
+  | SalesforceUpdateContactResponse
+  | SalesforceDeleteContactResponse
+  | { success: boolean; output: any } // Generic for leads, opportunities, cases, tasks
