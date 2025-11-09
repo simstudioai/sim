@@ -9,7 +9,7 @@ metadata:
     app.kubernetes.io/component: copilot-migrations
   annotations:
     "helm.sh/hook": post-install,post-upgrade
-    "helm.sh/hook-weight": "1"
+    "helm.sh/hook-weight": "-5"
     "helm.sh/hook-delete-policy": before-hook-creation
 spec:
   backoffLimit: {{ .Values.copilot.migrations.backoffLimit }}

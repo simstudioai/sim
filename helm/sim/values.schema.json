@@ -726,6 +726,23 @@
                 "port": { "type": "integer" },
                 "targetPort": { "type": "integer" }
               }
+            },
+            "podDisruptionBudget": {
+              "type": "object",
+              "properties": {
+                "enabled": {
+                  "type": "boolean",
+                  "description": "Enable PodDisruptionBudget for Copilot server"
+                },
+                "minAvailable": {
+                  "type": "integer",
+                  "description": "Minimum number of available pods"
+                },
+                "maxUnavailable": {
+                  "type": "integer",
+                  "description": "Maximum number of unavailable pods"
+                }
+              }
             }
           }
         },
@@ -833,6 +850,27 @@
               "type": "string",
               "format": "hostname",
               "description": "Realtime service hostname"
+            }
+          }
+        },
+        "copilot": {
+          "type": "object",
+          "properties": {
+            "host": {
+              "type": "string",
+              "format": "hostname",
+              "description": "Copilot service hostname"
+            },
+            "paths": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "path": { "type": "string" },
+                  "pathType": { "type": "string" }
+                }
+              },
+              "description": "Ingress paths for Copilot service"
             }
           }
         },

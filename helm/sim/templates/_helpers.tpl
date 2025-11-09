@@ -355,7 +355,11 @@ Validate Copilot configuration
       {{- fail "Set at least one of copilot.server.env.OPENAI_API_KEY_1 or copilot.server.env.ANTHROPIC_API_KEY_1" -}}
     {{- end -}}
   {{- end -}}
-  {{- if not .Values.copilot.postgresql.enabled -}}
+  {{- if .Values.copilot.postgresql.enabled -}}
+    {{- if or (not .Values.copilot.postgresql.auth.password) (eq .Values.copilot.postgresql.auth.password "") -}}
+      {{- fail "copilot.postgresql.auth.password is required when copilot.postgresql.enabled=true" -}}
+    {{- end -}}
+  {{- else -}}
     {{- if and (or (not .Values.copilot.database.existingSecretName) (eq .Values.copilot.database.existingSecretName "")) (or (not .Values.copilot.database.url) (eq .Values.copilot.database.url "")) -}}
       {{- fail "Provide copilot.database.existingSecretName or copilot.database.url when copilot.postgresql.enabled=false" -}}
     {{- end -}}
