@@ -253,10 +253,7 @@ export async function saveWorkflowToNormalizedTables(
       // Snapshot existing webhooks before deletion to preserve them through the cycle
       let existingWebhooks: any[] = []
       try {
-        existingWebhooks = await tx
-          .select()
-          .from(webhook)
-          .where(eq(webhook.workflowId, workflowId))
+        existingWebhooks = await tx.select().from(webhook).where(eq(webhook.workflowId, workflowId))
       } catch (webhookError) {
         // Webhook table might not be available in test environments
         logger.debug('Could not load webhooks before save, skipping preservation', {
