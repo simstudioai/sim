@@ -15,18 +15,25 @@ const TIMER_UPDATE_INTERVAL = 100
 const SECONDS_THRESHOLD = 1000
 
 /**
+ * Props for the ShimmerOverlayText component
+ */
+interface ShimmerOverlayTextProps {
+  /** Label text to display */
+  label: string
+  /** Value text to display */
+  value: string
+  /** Whether the shimmer animation is active */
+  active?: boolean
+}
+
+/**
  * ShimmerOverlayText component for thinking block
  * Applies shimmer effect to the "Thought for X.Xs" text during streaming
+ *
+ * @param props - Component props
+ * @returns Text with optional shimmer overlay effect
  */
-function ShimmerOverlayText({
-  label,
-  value,
-  active = false,
-}: {
-  label: string
-  value: string
-  active?: boolean
-}) {
+function ShimmerOverlayText({ label, value, active = false }: ShimmerOverlayTextProps) {
   return (
     <span className='relative inline-block'>
       <span style={{ color: '#B8B8B8' }}>{label}</span>

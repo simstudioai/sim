@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import { File, FileText, Image as ImageIcon } from 'lucide-react'
+import { StreamingIndicator } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/copilot/components/copilot-message/components/smooth-streaming'
 
 interface ChatAttachment {
   id: string
@@ -186,9 +187,7 @@ export function ChatMessage({ message }: ChatMessageProps) {
     <div className='w-full max-w-full overflow-hidden pl-[2px] opacity-100 transition-opacity duration-200'>
       <div className='whitespace-pre-wrap break-words font-[470] font-season text-[#707070] text-sm leading-[1.25rem] dark:text-[#E8E8E8]'>
         <WordWrap text={formattedContent} />
-        {message.isStreaming && (
-          <span className='ml-1 inline-block h-4 w-2 animate-pulse bg-gray-400 dark:bg-gray-300' />
-        )}
+        {message.isStreaming && <StreamingIndicator />}
       </div>
     </div>
   )

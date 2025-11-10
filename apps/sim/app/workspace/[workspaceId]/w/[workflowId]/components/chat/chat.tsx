@@ -243,10 +243,12 @@ export function Chat() {
 
   // Check if any message is currently streaming
   const isStreaming = useMemo(() => {
-    return workflowMessages.some((msg) => msg.isStreaming === true)
+    // Match copilot semantics: only treat as streaming if the LAST message is streaming
+    const lastMessage = workflowMessages[workflowMessages.length - 1]
+    return Boolean(lastMessage?.isStreaming)
   }, [workflowMessages])
 
-  // Map chat messages to copilot message format (type -> role)
+  // Map chat messages to copilot message format (type -> role) for scroll hook
   const messagesForScrollHook = useMemo(() => {
     return workflowMessages.map((msg) => ({
       ...msg,
@@ -255,7 +257,7 @@ export function Chat() {
   }, [workflowMessages])
 
   // Scroll management hook - reuse copilot's implementation
-  const { scrollAreaRef } = useScrollManagement(messagesForScrollHook, isStreaming)
+  const { scrollAreaRef, scrollToBottom } = useScrollManagement(messagesForScrollHook, isStreaming)
 
   // Memoize user messages for performance
   const userMessages = useMemo(() => {
@@ -276,6 +278,15 @@ export function Chat() {
     setPromptHistory(userMessages)
     setHistoryIndex(-1)
   }, [activeWorkflowId, userMessages])
+
+  /**
+   * Auto-scroll to bottom when messages load
+   */
+  useEffect(() => {
+    if (workflowMessages.length > 0 && isChatOpen) {
+      scrollToBottom()
+    }
+  }, [workflowMessages.length, scrollToBottom, isChatOpen])
 
   // Get selected workflow outputs (deduplicated)
   const selectedOutputs = useMemo(() => {
@@ -650,7 +661,7 @@ export function Chat() {
             </div>
           ) : (
             <div ref={scrollAreaRef} className='h-full overflow-y-auto overflow-x-hidden'>
-              <div className='space-y-[8px] py-[8px]'>
+              <div className='w-full max-w-full space-y-[8px] overflow-hidden py-[8px]'>
                 {workflowMessages.map((message) => (
                   <ChatMessage key={message.id} message={message} />
                 ))}

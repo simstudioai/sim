@@ -6,6 +6,11 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Tooltip } from '@/components/emcn'
 
+/**
+ * Recursively extracts text content from React elements
+ * @param element - React node to extract text from
+ * @returns Concatenated text content
+ */
 const getTextContent = (element: React.ReactNode): string => {
   if (typeof element === 'string') {
     return element
@@ -91,7 +96,12 @@ if (typeof document !== 'undefined') {
   }
 }
 
-// Link component with preview
+/**
+ * Link component with hover preview tooltip
+ * Displays full URL on hover for better UX
+ * @param props - Component props with href and children
+ * @returns Link element with tooltip preview
+ */
 function LinkWithPreview({ href, children }: { href: string; children: React.ReactNode }) {
   return (
     <Tooltip.Root delayDuration={300}>
@@ -112,10 +122,22 @@ function LinkWithPreview({ href, children }: { href: string; children: React.Rea
   )
 }
 
+/**
+ * Props for the CopilotMarkdownRenderer component
+ */
 interface CopilotMarkdownRendererProps {
+  /** Markdown content to render */
   content: string
 }
 
+/**
+ * CopilotMarkdownRenderer renders markdown content with custom styling
+ * Supports GitHub-flavored markdown, code blocks with syntax highlighting,
+ * tables, links with preview, and more
+ *
+ * @param props - Component props
+ * @returns Rendered markdown content
+ */
 export default function CopilotMarkdownRenderer({ content }: CopilotMarkdownRendererProps) {
   const [copiedCodeBlocks, setCopiedCodeBlocks] = useState<Record<string, boolean>>({})
 
