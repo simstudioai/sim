@@ -1,6 +1,7 @@
 import crypto from 'crypto'
 import {
   db,
+  webhook,
   workflow,
   workflowBlocks,
   workflowDeploymentVersion,
@@ -249,6 +250,11 @@ export async function saveWorkflowToNormalizedTables(
   try {
     // Start a transaction
     await db.transaction(async (tx) => {
+      const existingWebhooks = await tx
+        .select()
+        .from(webhook)
+        .where(eq(webhook.workflowId, workflowId))
+
       // Clear existing data for this workflow
       await Promise.all([
         tx.delete(workflowBlocks).where(eq(workflowBlocks.workflowId, workflowId)),
@@ -319,6 +325,26 @@ export async function saveWorkflowToNormalizedTables(
 
       if (subflowInserts.length > 0) {
         await tx.insert(workflowSubflows).values(subflowInserts)
+      }
+
+      if (existingWebhooks.length > 0) {
+        const webhookInserts = existingWebhooks
+          .filter((wh) => !!state.blocks?.[wh.blockId ?? ''])
+          .map((wh) => ({
+            id: wh.id,
+            workflowId: wh.workflowId,
+            blockId: wh.blockId,
+            path: wh.path,
+            provider: wh.provider,
+            providerConfig: wh.providerConfig,
+            isActive: wh.isActive,
+            createdAt: wh.createdAt,
+            updatedAt: new Date(),
+          }))
+
+        if (webhookInserts.length > 0) {
+          await tx.insert(webhook).values(webhookInserts)
+        }
       }
     })
 
