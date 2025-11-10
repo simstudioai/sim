@@ -81,6 +81,10 @@ export const useProvidersStore = create<ProvidersStore>((set, get) => ({
       logger.info(`${provider} model fetch already in progress`)
       return
     }
+    if (currentState.models.length > 0) {
+      logger.info(`Skipping ${provider} model fetch - models already loaded`)
+      return
+    }
 
     logger.info(`Fetching ${provider} models from API`)
 

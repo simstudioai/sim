@@ -4,8 +4,6 @@ import { filterBlacklistedModels } from '@/providers/utils'
 
 const logger = createLogger('OpenRouterModelsAPI')
 
-export const dynamic = 'force-dynamic'
-
 interface OpenRouterModel {
   id: string
 }
@@ -18,7 +16,7 @@ export async function GET(_request: NextRequest) {
   try {
     const response = await fetch('https://openrouter.ai/api/v1/models', {
       headers: { 'Content-Type': 'application/json' },
-      cache: 'no-store',
+      next: { revalidate: 300 },
     })
 
     if (!response.ok) {
