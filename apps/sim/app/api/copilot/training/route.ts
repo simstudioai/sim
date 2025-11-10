@@ -8,10 +8,9 @@ const logger = createLogger('CopilotTrainingAPI')
 const WorkflowStateSchema = z.record(z.unknown())
 
 const OperationSchema = z.object({
-  type: z.string(),
-  data: z.record(z.unknown()).optional(),
-  timestamp: z.number().optional(),
-  metadata: z.record(z.unknown()).optional(),
+  operation_type: z.string(),
+  block_id: z.string(),
+  params: z.record(z.unknown()).optional(),
 })
 
 const TrainingDataSchema = z.object({
