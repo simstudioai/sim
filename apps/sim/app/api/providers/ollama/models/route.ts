@@ -6,8 +6,6 @@ import type { ModelsObject } from '@/providers/ollama/types'
 const logger = createLogger('OllamaModelsAPI')
 const OLLAMA_HOST = env.OLLAMA_URL || 'http://localhost:11434'
 
-export const dynamic = 'force-dynamic'
-
 /**
  * Get available Ollama models
  */

@@ -4,8 +4,6 @@ import { filterBlacklistedModels } from '@/providers/utils'
 
 const logger = createLogger('OpenRouterModelsAPI')
 
-export const dynamic = 'force-dynamic'
-
 interface OpenRouterModel {
   id: string
 }
