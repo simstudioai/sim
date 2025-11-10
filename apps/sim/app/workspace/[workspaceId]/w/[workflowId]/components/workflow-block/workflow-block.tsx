@@ -214,12 +214,8 @@ export const WorkflowBlock = memo(function WorkflowBlock({
     disableSchedule,
   } = useScheduleInfo(id, type, currentWorkflowId)
 
-  const { childWorkflowId, childIsDeployed, refetchDeployment } = useChildWorkflow(
-    id,
-    type,
-    data.isPreview ?? false,
-    data.subBlockValues
-  )
+  const { childWorkflowId, childIsDeployed, childNeedsRedeploy, refetchDeployment } =
+    useChildWorkflow(id, type, data.isPreview ?? false, data.subBlockValues)
 
   const [isDeploying, setIsDeploying] = useState(false)
   const setDeploymentStatus = useWorkflowRegistry((state) => state.setDeploymentStatus)
@@ -656,24 +652,44 @@ export const WorkflowBlock = memo(function WorkflowBlock({
                     <Tooltip.Trigger asChild>
                       <Badge
                         variant='outline'
-                        className={!childIsDeployed ? 'cursor-pointer' : ''}
+                        className={!childIsDeployed || childNeedsRedeploy ? 'cursor-pointer' : ''}
                         style={{
-                          borderColor: childIsDeployed ? '#22C55E' : '#EF4444',
-                          color: childIsDeployed ? '#22C55E' : '#EF4444',
+                          borderColor: !childIsDeployed
+                            ? '#EF4444'
+                            : childNeedsRedeploy
+                              ? '#FF6600'
+                              : '#22C55E',
+                          color: !childIsDeployed
+                            ? '#EF4444'
+                            : childNeedsRedeploy
+                              ? '#FF6600'
+                              : '#22C55E',
                         }}
                         onClick={(e) => {
                           e.stopPropagation()
-                          if (!childIsDeployed && childWorkflowId && !isDeploying) {
+                          if (
+                            (!childIsDeployed || childNeedsRedeploy) &&
+                            childWorkflowId &&
+                            !isDeploying
+                          ) {
                             deployWorkflow(childWorkflowId)
                           }
                         }}
                       >
-                        {isDeploying ? 'Deploying...' : childIsDeployed ? 'deployed' : 'undeployed'}
+                        {isDeploying
+                          ? 'Deploying...'
+                          : !childIsDeployed
+                            ? 'undeployed'
+                            : childNeedsRedeploy
+                              ? 'redeploy'
+                              : 'deployed'}
                       </Badge>
                     </Tooltip.Trigger>
-                    {!childIsDeployed && (
+                    {(!childIsDeployed || childNeedsRedeploy) && (
                       <Tooltip.Content>
-                        <span className='text-sm'>Click to deploy</span>
+                        <span className='text-sm'>
+                          {!childIsDeployed ? 'Click to deploy' : 'Click to redeploy'}
+                        </span>
                       </Tooltip.Content>
                     )}
                   </Tooltip.Root>
