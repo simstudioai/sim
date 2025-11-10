@@ -19,10 +19,7 @@ export const gmailReadTool: ToolConfig<GmailReadParams, GmailToolResponse> = {
   oauth: {
     required: true,
     provider: 'google-email',
-    additionalScopes: [
-      'https://www.googleapis.com/auth/gmail.labels',
-      'https://www.googleapis.com/auth/gmail.readonly',
-    ],
+    additionalScopes: ['https://www.googleapis.com/auth/gmail.labels'],
   },
 
   params: {

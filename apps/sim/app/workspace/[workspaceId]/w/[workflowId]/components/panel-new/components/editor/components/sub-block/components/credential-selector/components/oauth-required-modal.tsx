@@ -1,7 +1,7 @@
 'use client'
 
 import { Check } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { Button } from '@/components/emcn/components/button/button'
 import {
   Dialog,
   DialogContent,
@@ -29,13 +29,13 @@ export interface OAuthRequiredModalProps {
   toolName: string
   requiredScopes?: string[]
   serviceId?: string
+  newScopes?: string[]
 }
 
 const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'https://www.googleapis.com/auth/gmail.send': 'Send emails on your behalf',
   'https://www.googleapis.com/auth/gmail.labels': 'View and manage your email labels',
   'https://www.googleapis.com/auth/gmail.modify': 'View and manage your email messages',
-  'https://www.googleapis.com/auth/gmail.readonly': 'View and read your email messages',
   'https://www.googleapis.com/auth/drive.readonly': 'View and read your Google Drive files',
   'https://www.googleapis.com/auth/drive.file': 'View and manage your Google Drive files',
   'https://www.googleapis.com/auth/calendar': 'View and manage your calendar',
@@ -202,6 +202,7 @@ export function OAuthRequiredModal({
   toolName,
   requiredScopes = [],
   serviceId,
+  newScopes = [],
 }: OAuthRequiredModalProps) {
   const effectiveServiceId = serviceId || getServiceIdFromScopes(provider, requiredScopes)
   const { baseProvider } = parseProvider(provider)
@@ -222,6 +223,11 @@ export function OAuthRequiredModal({
 
   const displayScopes = requiredScopes.filter(
     (scope) => !scope.includes('userinfo.email') && !scope.includes('userinfo.profile')
+  )
+  const newScopesSet = new Set(
+    (newScopes || []).filter(
+      (scope) => !scope.includes('userinfo.email') && !scope.includes('userinfo.profile')
+    )
   )
 
   const handleConnectDirectly = async () => {
@@ -278,7 +284,14 @@ export function OAuthRequiredModal({
                     <div className='mt-1 rounded-full bg-muted p-0.5'>
                       <Check className='h-3 w-3' />
                     </div>
-                    <span className='text-muted-foreground'>{getScopeDescription(scope)}</span>
+                    <div className='text-muted-foreground'>
+                      <span>{getScopeDescription(scope)}</span>
+                      {newScopesSet.has(scope) && (
+                        <span className='ml-2 rounded-[4px] border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 text-[10px] text-amber-300'>
+                          New
+                        </span>
+                      )}
+                    </div>
                   </li>
                 ))}
               </ul>
@@ -289,7 +302,12 @@ export function OAuthRequiredModal({
           <Button variant='outline' onClick={onClose} className='sm:order-1'>
             Cancel
           </Button>
-          <Button type='button' onClick={handleConnectDirectly} className='sm:order-3'>
+          <Button
+            variant='primary'
+            type='button'
+            onClick={handleConnectDirectly}
+            className='sm:order-3'
+          >
             Connect Now
           </Button>
         </DialogFooter>

@@ -18,7 +18,11 @@ const credentialsQuerySchema = z
   .object({
     provider: z.string().nullish(),
     workflowId: z.string().uuid('Workflow ID must be a valid UUID').nullish(),
-    credentialId: z.string().uuid('Credential ID must be a valid UUID').nullish(),
+    credentialId: z
+      .string()
+      .min(1, 'Credential ID must not be empty')
+      .max(255, 'Credential ID is too long')
+      .nullish(),
   })
   .refine((data) => data.provider || data.credentialId, {
     message: 'Provider or credentialId is required',
@@ -206,7 +210,7 @@ export async function GET(request: NextRequest) {
           displayName = `${acc.accountId} (${baseProvider})`
         }
 
-        const grantedScopes = acc.scope ? acc.scope.split(/\s+/).filter(Boolean) : []
+        const grantedScopes = acc.scope ? acc.scope.split(/[\s,]+/).filter(Boolean) : []
         const scopeEvaluation = evaluateScopeCoverage(acc.providerId, grantedScopes)
 
         return {

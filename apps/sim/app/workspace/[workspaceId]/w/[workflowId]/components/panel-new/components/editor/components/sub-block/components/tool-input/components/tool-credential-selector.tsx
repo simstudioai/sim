@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Check, ChevronDown, ExternalLink, Plus, RefreshCw } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { Button } from '@/components/emcn/components/button/button'
 import {
   Command,
   CommandEmpty,
@@ -12,17 +12,19 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { createLogger } from '@/lib/logs/console/logger'
 import {
   type Credential,
+  getCanonicalScopesForProvider,
+  getProviderIdFromServiceId,
   OAUTH_PROVIDERS,
   type OAuthProvider,
   type OAuthService,
   parseProvider,
 } from '@/lib/oauth'
 import { OAuthRequiredModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/components/sub-block/components/credential-selector/components/oauth-required-modal'
+import { getMissingRequiredScopes } from '@/hooks/use-oauth-scope-status'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 const logger = createLogger('ToolCredentialSelector')
 
-// Helper functions for provider icons and names
 const getProviderIcon = (providerName: OAuthProvider) => {
   const { baseProvider } = parseProvider(providerName)
   const baseProviderConfig = OAUTH_PROVIDERS[baseProvider]
@@ -158,6 +160,13 @@ export function ToolCredentialSelector({
   const selectedCredential = credentials.find((cred) => cred.id === selectedId)
   const isForeign = !!(selectedId && !selectedCredential)
 
+  // Determine if additional permissions are required for the selected credential
+  const hasSelection = !!selectedCredential
+  const missingRequiredScopes = hasSelection
+    ? getMissingRequiredScopes(selectedCredential, requiredScopes || [])
+    : []
+  const needsUpdate = hasSelection && missingRequiredScopes.length > 0 && !disabled && !isLoading
+
   return (
     <>
       <Popover open={open} onOpenChange={handleOpenChange}>
@@ -240,12 +249,23 @@ export function ToolCredentialSelector({
         </PopoverContent>
       </Popover>
 
+      {needsUpdate && (
+        <div className='mt-2 flex items-center justify-between rounded-[6px] border border-amber-300/40 bg-amber-50/60 px-2 py-1 font-medium text-[12px] transition-colors dark:bg-amber-950/10'>
+          <span>Additional permissions required</span>
+          {/* We don't have reliable foreign detection context here; always show CTA */}
+          <Button onClick={() => setShowOAuthModal(true)}>Update access</Button>
+        </div>
+      )}
+
       <OAuthRequiredModal
         isOpen={showOAuthModal}
         onClose={handleOAuthClose}
         provider={provider}
         toolName={label}
-        requiredScopes={requiredScopes}
+        requiredScopes={getCanonicalScopesForProvider(
+          serviceId ? getProviderIdFromServiceId(serviceId) : (provider as string)
+        )}
+        newScopes={missingRequiredScopes}
         serviceId={serviceId}
       />
     </>
