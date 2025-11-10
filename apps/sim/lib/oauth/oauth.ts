@@ -795,68 +795,6 @@ export function getServiceIdFromScopes(provider: OAuthProvider, scopes: string[]
     if (normalizedScopes.some((scope) => hints.some((hint) => scope.includes(hint)))) {
       return service.id
     }
-    if (scopes.some((scope) => scope.includes('drive'))) {
-      return 'google-drive'
-    }
-    if (scopes.some((scope) => scope.includes('docs'))) {
-      return 'google-docs'
-    }
-    if (scopes.some((scope) => scope.includes('sheets'))) {
-      return 'google-sheets'
-    }
-    if (scopes.some((scope) => scope.includes('calendar'))) {
-      return 'google-calendar'
-    }
-    if (scopes.some((scope) => scope.includes('forms'))) {
-      return 'google-forms'
-    }
-    if (scopes.some((scope) => scope.includes('ediscovery'))) {
-      return 'google-vault'
-    }
-  } else if (provider === 'microsoft-teams') {
-    return 'microsoft-teams'
-  } else if (provider === 'outlook') {
-    return 'outlook'
-  } else if (provider === 'sharepoint') {
-    return 'sharepoint'
-  } else if (provider === 'microsoft-planner') {
-    return 'microsoft-planner'
-  } else if (provider === 'onedrive') {
-    return 'onedrive'
-  } else if (provider === 'github') {
-    return 'github'
-  } else if (provider === 'supabase') {
-    return 'supabase'
-  } else if (provider === 'x') {
-    return 'x'
-  } else if (provider === 'confluence') {
-    return 'confluence'
-  } else if (provider === 'jira') {
-    return 'jira'
-  } else if (provider === 'airtable') {
-    return 'airtable'
-  } else if (provider === 'notion') {
-    return 'notion'
-  } else if (provider === 'discord') {
-    return 'discord'
-  } else if (provider === 'linear') {
-    return 'linear'
-  } else if (provider === 'slack') {
-    return 'slack'
-  } else if (provider === 'reddit') {
-    return 'reddit'
-  } else if (provider === 'wealthbox') {
-    return 'wealthbox'
-  } else if (provider === 'webflow') {
-    return 'webflow'
-  } else if (provider === 'asana') {
-    return 'asana'
-  } else if (provider === 'pipedrive') {
-    return 'pipedrive'
-  } else if (provider === 'hubspot') {
-    return 'hubspot'
-  } else if (provider === 'salesforce') {
-    return 'salesforce'
   }
 
   return providerConfig.defaultService
