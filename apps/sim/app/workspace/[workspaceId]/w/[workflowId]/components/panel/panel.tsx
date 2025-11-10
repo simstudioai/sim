@@ -10,13 +10,13 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { LandingPromptStorage } from '@/lib/browser-storage'
 import { createLogger } from '@/lib/logs/console/logger'
-import { useChatStore } from '@/stores/panel/chat/store'
+import { useChatStore } from '@/stores/chat/store'
 import { usePanelStore } from '@/stores/panel/store'
 import { useCopilotStore } from '@/stores/panel-new/copilot/store'
 import { useTerminalConsoleStore } from '@/stores/terminal'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { Copilot } from '../panel-new/components/copilot/copilot'
-import { Chat } from './components/chat/chat'
+// import { Chat } from './components/chat/chat'
 import { Console } from './components/console/console'
 import { Variables } from './components/variables/variables'
 
@@ -605,7 +605,7 @@ export function Panel() {
           <div className='flex-1 overflow-hidden px-3'>
             {/* Keep all tabs mounted but hidden to preserve state and animations */}
             <div style={{ display: activeTab === 'chat' ? 'block' : 'none', height: '100%' }}>
-              <Chat chatMessage={chatMessage} setChatMessage={setChatMessage} />
+              {/* <Chat chatMessage={chatMessage} setChatMessage={setChatMessage} /> */}
             </div>
             <div style={{ display: activeTab === 'console' ? 'block' : 'none', height: '100%' }}>
               <Console panelWidth={panelWidth} />

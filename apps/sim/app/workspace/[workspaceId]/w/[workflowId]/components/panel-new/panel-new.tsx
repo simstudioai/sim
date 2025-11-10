@@ -26,6 +26,7 @@ import {
 import { createLogger } from '@/lib/logs/console/logger'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { useDeleteWorkflow } from '@/app/workspace/[workspaceId]/w/hooks'
+import { useChatStore } from '@/stores/chat/store'
 import { usePanelStore } from '@/stores/panel-new/store'
 import type { PanelTab } from '@/stores/panel-new/types'
 import { useWorkflowJsonStore } from '@/stores/workflows/json/store'
@@ -101,6 +102,9 @@ export function Panel() {
 
   // Panel resize hook
   const { handleMouseDown } = usePanelResize()
+
+  // Chat state
+  const { isChatOpen, setIsChatOpen } = useChatStore()
 
   const currentWorkflow = activeWorkflowId ? workflows[activeWorkflowId] : null
 
@@ -290,7 +294,11 @@ export function Panel() {
                   </PopoverItem>
                 </PopoverContent>
               </Popover>
-              <Button className='h-[32px] w-[32px]'>
+              <Button
+                className='h-[32px] w-[32px]'
+                variant={isChatOpen ? 'active' : 'default'}
+                onClick={() => setIsChatOpen(!isChatOpen)}
+              >
                 <BubbleChatPreview />
               </Button>
             </div>

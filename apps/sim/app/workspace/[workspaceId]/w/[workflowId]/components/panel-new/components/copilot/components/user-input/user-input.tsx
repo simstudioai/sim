@@ -569,8 +569,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
           ref={setInputContainerRef}
           className={cn(
             'relative rounded-[4px] border border-[#3D3D3D] bg-[#282828] px-[6px] py-[6px] transition-colors dark:bg-[#363636]',
-            fileAttachments.isDragging &&
-              'border-[var(--brand-primary-hover-hex)] bg-purple-50/50 dark:border-[var(--brand-primary-hover-hex)] dark:bg-purple-950/20'
+            fileAttachments.isDragging && 'ring-[#33B4FF] ring-[1.75px]'
           )}
           onDragEnter={fileAttachments.handleDragEnter}
           onDragLeave={fileAttachments.handleDragLeave}

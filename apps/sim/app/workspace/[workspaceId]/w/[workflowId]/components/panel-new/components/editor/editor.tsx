@@ -200,7 +200,7 @@ export function Editor() {
       </div>
 
       {!currentBlockId || !currentBlock ? (
-        <div className='flex flex-1 items-center justify-center text-muted-foreground text-sm'>
+        <div className='flex flex-1 items-center justify-center text-[#8D8D8D] text-[13px]'>
           Select a block to edit
         </div>
       ) : (
@@ -212,7 +212,7 @@ export function Editor() {
           >
             <div className='flex-1 overflow-y-auto overflow-x-hidden px-[8px] pt-[8px] pb-[8px]'>
               {subBlocks.length === 0 ? (
-                <div className='flex h-full items-center justify-center text-center text-muted-foreground text-sm'>
+                <div className='flex h-full items-center justify-center text-center text-[#8D8D8D] text-[13px]'>
                   This block has no subblocks
                 </div>
               ) : (
