@@ -671,6 +671,7 @@ export const auth = betterAuth({
           authorizationUrl: 'https://oauth.pipedrive.com/oauth/authorize',
           tokenUrl: 'https://oauth.pipedrive.com/oauth/token',
           userInfoUrl: 'https://api.pipedrive.com/v1/users/me',
+          prompt: 'consent',
           scopes: [
             'base',
             'deals:read',
@@ -734,6 +735,9 @@ export const auth = betterAuth({
           authorizationUrl: 'https://app.hubspot.com/oauth/authorize',
           tokenUrl: 'https://api.hubapi.com/oauth/v1/token',
           userInfoUrl: 'https://api.hubapi.com/oauth/v1/access-tokens',
+          prompt: 'consent',
+          responseType: 'code',
+          overrideUserInfo: true,
           scopes: [
             'crm.objects.contacts.read',
             'crm.objects.contacts.write',
@@ -777,6 +781,14 @@ export const auth = betterAuth({
 
               const data = await response.json()
 
+              logger.info('HubSpot token metadata response:', {
+                hasScopes: !!data.scopes,
+                scopesType: typeof data.scopes,
+                scopesIsArray: Array.isArray(data.scopes),
+                scopesValue: data.scopes,
+                fullResponse: data,
+              })
+
               return {
                 id: data.user_id || data.hub_id.toString(),
                 name: data.user || 'HubSpot User',
@@ -785,6 +797,11 @@ export const auth = betterAuth({
                 image: undefined,
                 createdAt: new Date(),
                 updatedAt: new Date(),
+                // Extract scopes from HubSpot's response and convert array to space-delimited string
+                // Use 'scope' (singular) as that's what better-auth expects for the account table
+                ...(data.scopes && Array.isArray(data.scopes)
+                  ? { scope: data.scopes.join(' ') }
+                  : {}),
               }
             } catch (error) {
               logger.error('Error creating HubSpot user profile:', { error })
@@ -803,6 +820,7 @@ export const auth = betterAuth({
           userInfoUrl: 'https://login.salesforce.com/services/oauth2/userinfo',
           scopes: ['api', 'full', 'openid', 'refresh_token', 'offline_access'],
           pkce: true,
+          prompt: 'consent',
           redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/salesforce`,
           getUserInfo: async (tokens) => {
             try {
