@@ -79,6 +79,7 @@ export type OAuthService =
   | 'wealthbox'
   | 'onedrive'
   | 'webflow'
+
 export interface OAuthProviderConfig {
   id: OAuthProvider
   name: string
@@ -95,6 +96,7 @@ export interface OAuthServiceConfig {
   icon: (props: { className?: string }) => ReactNode
   baseProviderIcon: (props: { className?: string }) => ReactNode
   scopes: string[]
+  scopeHints?: string[]
 }
 
 export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
@@ -113,9 +115,9 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         scopes: [
           'https://www.googleapis.com/auth/gmail.send',
           'https://www.googleapis.com/auth/gmail.modify',
-          // 'https://www.googleapis.com/auth/gmail.readonly',
           'https://www.googleapis.com/auth/gmail.labels',
         ],
+        scopeHints: ['gmail', 'mail'],
       },
       'google-drive': {
         id: 'google-drive',
@@ -128,6 +130,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
           'https://www.googleapis.com/auth/drive.readonly',
           'https://www.googleapis.com/auth/drive.file',
         ],
+        scopeHints: ['drive'],
       },
       'google-docs': {
         id: 'google-docs',
@@ -140,6 +143,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
           'https://www.googleapis.com/auth/drive.readonly',
           'https://www.googleapis.com/auth/drive.file',
         ],
+        scopeHints: ['docs'],
       },
       'google-sheets': {
         id: 'google-sheets',
@@ -152,6 +156,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
           'https://www.googleapis.com/auth/drive.readonly',
           'https://www.googleapis.com/auth/drive.file',
         ],
+        scopeHints: ['sheets'],
       },
       'google-forms': {
         id: 'google-forms',
@@ -165,6 +170,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
           'https://www.googleapis.com/auth/userinfo.profile',
           'https://www.googleapis.com/auth/forms.responses.readonly',
         ],
+        scopeHints: ['forms'],
       },
       'google-calendar': {
         id: 'google-calendar',
@@ -174,6 +180,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         icon: (props) => GoogleCalendarIcon(props),
         baseProviderIcon: (props) => GoogleIcon(props),
         scopes: ['https://www.googleapis.com/auth/calendar'],
+        scopeHints: ['calendar'],
       },
       'google-vault': {
         id: 'google-vault',
@@ -186,6 +193,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
           'https://www.googleapis.com/auth/ediscovery',
           'https://www.googleapis.com/auth/devstorage.read_only',
         ],
+        scopeHints: ['ediscovery', 'devstorage'],
       },
     },
     defaultService: 'gmail',
@@ -244,6 +252,9 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
           'Group.ReadWrite.All',
           'Team.ReadBasic.All',
           'offline_access',
+          'Files.Read',
+          'Sites.Read.All',
+          'TeamMember.Read.All',
         ],
       },
       outlook: {
@@ -402,10 +413,41 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
           'read:jira-user',
           'read:jira-work',
           'write:jira-work',
+          'write:issue:jira',
           'read:project:jira',
           'read:issue-type:jira',
           'read:me',
           'offline_access',
+          'read:issue-meta:jira',
+          'read:issue-security-level:jira',
+          'read:issue.vote:jira',
+          'read:issue.changelog:jira',
+          'read:avatar:jira',
+          'read:issue:jira',
+          'read:status:jira',
+          'read:user:jira',
+          'read:field-configuration:jira',
+          'read:issue-details:jira',
+          'read:issue-event:jira',
+          'delete:issue:jira',
+          'write:comment:jira',
+          'read:comment:jira',
+          'delete:comment:jira',
+          'read:attachment:jira',
+          'delete:attachment:jira',
+          'write:issue-worklog:jira',
+          'read:issue-worklog:jira',
+          'delete:issue-worklog:jira',
+          'write:issue-link:jira',
+          'delete:issue-link:jira',
+          'manage:jira-webhook',
+          'read:webhook:jira',
+          'write:webhook:jira',
+          'delete:webhook:jira',
+          'read:issue.property:jira',
+          'read:comment.property:jira',
+          'read:jql:jira',
+          'read:field:jira',
         ],
       },
     },
@@ -493,12 +535,16 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         baseProviderIcon: (props) => SlackIcon(props),
         scopes: [
           'channels:read',
+          'channels:history',
+          'groups:read',
+          'groups:history',
           'chat:write',
           'chat:write.public',
           'users:read',
+          'files:write',
           'files:read',
-          'links:read',
-          'links:write',
+          'canvases:write',
+          'reactions:write',
         ],
       },
     },
@@ -516,7 +562,24 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         providerId: 'reddit',
         icon: (props) => RedditIcon(props),
         baseProviderIcon: (props) => RedditIcon(props),
-        scopes: ['identity', 'read'],
+        scopes: [
+          'identity',
+          'read',
+          'submit',
+          'vote',
+          'save',
+          'edit',
+          'subscribe',
+          'history',
+          'privatemessages',
+          'account',
+          'mysubreddits',
+          'flair',
+          'report',
+          'modposts',
+          'modflair',
+          'modmail',
+        ],
       },
     },
     defaultService: 'reddit',
@@ -557,7 +620,6 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
   },
 }
 
-// Helper function to get a service by provider and service ID
 export function getServiceByProviderAndId(
   provider: OAuthProvider,
   serviceId?: string
@@ -576,77 +638,29 @@ export function getServiceByProviderAndId(
   )
 }
 
-// Helper function to determine service ID from scopes
 export function getServiceIdFromScopes(provider: OAuthProvider, scopes: string[]): string {
-  const providerConfig = OAUTH_PROVIDERS[provider]
+  const { baseProvider, featureType } = parseProvider(provider)
+  const providerConfig = OAUTH_PROVIDERS[baseProvider] || OAUTH_PROVIDERS[provider]
   if (!providerConfig) {
     return provider
   }
 
-  if (provider === 'google') {
-    if (scopes.some((scope) => scope.includes('gmail') || scope.includes('mail'))) {
-      return 'gmail'
+  if (featureType !== 'default' && providerConfig.services[featureType]) {
+    return featureType
+  }
+
+  const normalizedScopes = (scopes || []).map((s) => s.toLowerCase())
+  for (const service of Object.values(providerConfig.services)) {
+    const hints = (service.scopeHints || []).map((h) => h.toLowerCase())
+    if (hints.length === 0) continue
+    if (normalizedScopes.some((scope) => hints.some((hint) => scope.includes(hint)))) {
+      return service.id
     }
-    if (scopes.some((scope) => scope.includes('drive'))) {
-      return 'google-drive'
-    }
-    if (scopes.some((scope) => scope.includes('docs'))) {
-      return 'google-docs'
-    }
-    if (scopes.some((scope) => scope.includes('sheets'))) {
-      return 'google-sheets'
-    }
-    if (scopes.some((scope) => scope.includes('calendar'))) {
-      return 'google-calendar'
-    }
-    if (scopes.some((scope) => scope.includes('forms'))) {
-      return 'google-forms'
-    }
-    if (scopes.some((scope) => scope.includes('ediscovery'))) {
-      return 'google-vault'
-    }
-  } else if (provider === 'microsoft-teams') {
-    return 'microsoft-teams'
-  } else if (provider === 'outlook') {
-    return 'outlook'
-  } else if (provider === 'sharepoint') {
-    return 'sharepoint'
-  } else if (provider === 'microsoft-planner') {
-    return 'microsoft-planner'
-  } else if (provider === 'onedrive') {
-    return 'onedrive'
-  } else if (provider === 'github') {
-    return 'github'
-  } else if (provider === 'supabase') {
-    return 'supabase'
-  } else if (provider === 'x') {
-    return 'x'
-  } else if (provider === 'confluence') {
-    return 'confluence'
-  } else if (provider === 'jira') {
-    return 'jira'
-  } else if (provider === 'airtable') {
-    return 'airtable'
-  } else if (provider === 'notion') {
-    return 'notion'
-  } else if (provider === 'discord') {
-    return 'discord'
-  } else if (provider === 'linear') {
-    return 'linear'
-  } else if (provider === 'slack') {
-    return 'slack'
-  } else if (provider === 'reddit') {
-    return 'reddit'
-  } else if (provider === 'wealthbox') {
-    return 'wealthbox'
-  } else if (provider === 'webflow') {
-    return 'webflow'
   }
 
   return providerConfig.defaultService
 }
 
-// Helper function to get provider ID from service ID
 export function getProviderIdFromServiceId(serviceId: string): string {
   for (const provider of Object.values(OAUTH_PROVIDERS)) {
     for (const [id, service] of Object.entries(provider.services)) {
@@ -660,7 +674,6 @@ export function getProviderIdFromServiceId(serviceId: string): string {
   return serviceId
 }
 
-// Helper to locate a service configuration by its providerId
 export function getServiceConfigByProviderId(providerId: string): OAuthServiceConfig | null {
   for (const provider of Object.values(OAUTH_PROVIDERS)) {
     for (const service of Object.values(provider.services)) {
@@ -673,13 +686,11 @@ export function getServiceConfigByProviderId(providerId: string): OAuthServiceCo
   return null
 }
 
-// Get the canonical scopes for a given providerId (service instance)
 export function getCanonicalScopesForProvider(providerId: string): string[] {
   const service = getServiceConfigByProviderId(providerId)
   return service?.scopes ? [...service.scopes] : []
 }
 
-// Normalize scopes by trimming, filtering empties, and deduplicating
 export function normalizeScopes(scopes: string[]): string[] {
   const seen = new Set<string>()
   for (const scope of scopes) {
@@ -699,7 +710,6 @@ export interface ScopeEvaluation {
   requiresReauthorization: boolean
 }
 
-// Compare granted scopes with canonical ones for a providerId
 export function evaluateScopeCoverage(
   providerId: string,
   grantedScopes: string[]
@@ -722,7 +732,6 @@ export function evaluateScopeCoverage(
   }
 }
 
-// Interface for credential objects
 export interface Credential {
   id: string
   name: string
@@ -737,7 +746,6 @@ export interface Credential {
   requiresReauthorization?: boolean
 }
 
-// Interface for provider configuration
 export interface ProviderConfig {
   baseProvider: string
   featureType: string

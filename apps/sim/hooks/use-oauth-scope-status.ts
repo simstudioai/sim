@@ -43,3 +43,29 @@ export function anyCredentialNeedsReauth(credentials: Credential[]): boolean {
 export function getCredentialsNeedingReauth(credentials: Credential[]): Credential[] {
   return credentials.filter(credentialNeedsReauth)
 }
+
+/**
+ * Compute which of the provided requiredScopes are NOT granted by the credential.
+ */
+export function getMissingRequiredScopes(
+  credential: Credential | undefined,
+  requiredScopes: string[] = []
+): string[] {
+  if (!credential) return [...requiredScopes]
+  const granted = new Set((credential.scopes || []).map((s) => s))
+  const missing: string[] = []
+  for (const s of requiredScopes) {
+    if (!granted.has(s)) missing.push(s)
+  }
+  return missing
+}
+
+/**
+ * Whether a credential needs an upgrade specifically for the provided required scopes.
+ */
+export function needsUpgradeForRequiredScopes(
+  credential: Credential | undefined,
+  requiredScopes: string[] = []
+): boolean {
+  return getMissingRequiredScopes(credential, requiredScopes).length > 0
+}
