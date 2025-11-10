@@ -21,6 +21,7 @@ import {
   type OAuthProvider,
 } from '@/lib/oauth'
 import { OAuthRequiredModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/components/sub-block/components/credential-selector/components/oauth-required-modal'
+import { useDisplayNamesStore } from '@/stores/display-names/store'
 
 const logger = createLogger('ConfluenceFileSelector')
 
@@ -305,6 +306,18 @@ export function ConfluenceFileSelector({
         const data = await response.json()
         logger.info(`Received ${data.files?.length || 0} files from API`)
         setFiles(data.files || [])
+
+        // Cache file names in display names store
+        if (selectedCredentialId && data.files) {
+          const fileMap = data.files.reduce(
+            (acc: Record<string, string>, file: ConfluenceFileInfo) => {
+              acc[file.id] = file.name
+              return acc
+            },
+            {}
+          )
+          useDisplayNamesStore.getState().setDisplayNames('files', selectedCredentialId, fileMap)
+        }
 
         // If we have a selected file ID, find the file info
         if (selectedFileId) {

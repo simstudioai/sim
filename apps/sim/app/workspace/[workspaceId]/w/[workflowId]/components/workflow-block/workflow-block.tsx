@@ -9,6 +9,8 @@ import { cn } from '@/lib/utils'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import type { SubBlockConfig } from '@/blocks/types'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
+import { useCredentialDisplay } from '@/hooks/use-credential-display'
+import { useDisplayName } from '@/hooks/use-display-name'
 import { usePanelEditorStore } from '@/stores/panel-new/editor/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
@@ -161,19 +163,82 @@ const getDisplayValue = (value: unknown): string => {
 
 /**
  * Renders a single subblock row with title and optional value.
+ * Automatically hydrates IDs to display names for all selector types.
  */
-const SubBlockRow = ({ title, value }: { title: string; value?: string }) => (
-  <div className='flex items-center gap-[8px]'>
-    <span className='min-w-0 truncate text-[#AEAEAE] text-[14px]' title={title}>
-      {title}
-    </span>
-    {value !== undefined && (
-      <span className='flex-1 truncate text-right text-[#FFFFFF] text-[14px]' title={value}>
-        {value}
+const SubBlockRow = ({
+  title,
+  value,
+  subBlock,
+  rawValue,
+  workspaceId,
+  allSubBlockValues,
+}: {
+  title: string
+  value?: string
+  subBlock?: SubBlockConfig
+  rawValue?: unknown
+  workspaceId?: string
+  allSubBlockValues?: Record<string, { value: unknown }>
+}) => {
+  const getStringValue = useCallback(
+    (key?: string): string | undefined => {
+      if (!key || !allSubBlockValues) return undefined
+      const candidate = allSubBlockValues[key]?.value
+      return typeof candidate === 'string' && candidate.length > 0 ? candidate : undefined
+    },
+    [allSubBlockValues]
+  )
+
+  const dependencyValues = useMemo(() => {
+    if (!subBlock?.dependsOn?.length) return {}
+    return subBlock.dependsOn.reduce<Record<string, string>>((accumulator, dependency) => {
+      const dependencyValue = getStringValue(dependency)
+      if (dependencyValue) {
+        accumulator[dependency] = dependencyValue
+      }
+      return accumulator
+    }, {})
+  }, [getStringValue, subBlock?.dependsOn])
+
+  // For oauth-input, use specialized credential hook
+  const { displayName: credentialName } = useCredentialDisplay(
+    subBlock?.type === 'oauth-input' && typeof rawValue === 'string' ? rawValue : undefined,
+    subBlock?.provider
+  )
+
+  // Get credential ID from block context if this selector depends on it
+  const credentialId = dependencyValues.credential
+
+  // Get knowledge base ID from block context for document selector
+  const knowledgeBaseId = dependencyValues.knowledgeBaseId
+
+  // For all other selector types, use generic display name hook
+  const genericDisplayName = useDisplayName(subBlock, rawValue, {
+    workspaceId,
+    provider: subBlock?.provider,
+    credentialId: typeof credentialId === 'string' ? credentialId : undefined,
+    knowledgeBaseId: typeof knowledgeBaseId === 'string' ? knowledgeBaseId : undefined,
+  })
+
+  // Use hydrated name if available, otherwise use the provided value
+  const displayValue = credentialName || genericDisplayName || value
+
+  return (
+    <div className='flex items-center gap-[8px]'>
+      <span className='min-w-0 truncate text-[#AEAEAE] text-[14px]' title={title}>
+        {title}
       </span>
-    )}
-  </div>
-)
+      {displayValue !== undefined && (
+        <span
+          className='flex-1 truncate text-right text-[#FFFFFF] text-[14px]'
+          title={displayValue}
+        >
+          {displayValue}
+        </span>
+      )}
+    </div>
+  )
+}
 
 export const WorkflowBlock = memo(function WorkflowBlock({
   id,
@@ -186,6 +251,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
 
   const params = useParams()
   const currentWorkflowId = params.workflowId as string
+  const workspaceId = params.workspaceId as string
 
   const currentWorkflow = useCurrentWorkflow()
   const currentBlock = currentWorkflow.getBlockById(id)
@@ -765,13 +831,20 @@ export const WorkflowBlock = memo(function WorkflowBlock({
                   />
                 ))
               : subBlockRows.map((row, rowIndex) =>
-                  row.map((subBlock) => (
-                    <SubBlockRow
-                      key={`${subBlock.id}-${rowIndex}`}
-                      title={subBlock.title ?? subBlock.id}
-                      value={getDisplayValue(subBlockState[subBlock.id]?.value)}
-                    />
-                  ))
+                  row.map((subBlock) => {
+                    const rawValue = subBlockState[subBlock.id]?.value
+                    return (
+                      <SubBlockRow
+                        key={`${subBlock.id}-${rowIndex}`}
+                        title={subBlock.title ?? subBlock.id}
+                        value={getDisplayValue(rawValue)}
+                        subBlock={subBlock}
+                        rawValue={rawValue}
+                        workspaceId={workspaceId}
+                        allSubBlockValues={subBlockState}
+                      />
+                    )
+                  })
                 )}
             {shouldShowDefaultHandles && <SubBlockRow title='error' />}
           </div>

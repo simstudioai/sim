@@ -21,6 +21,7 @@ import {
   type OAuthProvider,
 } from '@/lib/oauth'
 import { OAuthRequiredModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/components/sub-block/components/credential-selector/components/oauth-required-modal'
+import { useDisplayNamesStore } from '@/stores/display-names/store'
 
 const logger = createLogger('JiraProjectSelector')
 
@@ -291,6 +292,20 @@ export function JiraProjectSelector({
         const foundProjects = data.projects || []
         logger.info(`Received ${foundProjects.length} projects from API`)
         setProjects(foundProjects)
+
+        // Cache project names in display names store
+        if (selectedCredentialId && foundProjects.length > 0) {
+          const projectMap = foundProjects.reduce(
+            (acc: Record<string, string>, proj: JiraProjectInfo) => {
+              acc[proj.id] = proj.name
+              return acc
+            },
+            {}
+          )
+          useDisplayNamesStore
+            .getState()
+            .setDisplayNames('projects', `jira-${selectedCredentialId}`, projectMap)
+        }
 
         // If we have a selected project ID, find the project info
         if (selectedProjectId) {

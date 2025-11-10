@@ -11,6 +11,7 @@ import {
   CommandList,
 } from '@/components/ui/command'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { useDisplayNamesStore } from '@/stores/display-names/store'
 
 export interface SlackChannelInfo {
   id: string
@@ -76,6 +77,18 @@ export function SlackChannelSelector({
       } else {
         setChannels(data.channels)
         setInitialFetchDone(true)
+
+        // Cache channel names in display names store
+        if (credential) {
+          const channelMap = data.channels.reduce(
+            (acc: Record<string, string>, ch: SlackChannelInfo) => {
+              acc[ch.id] = `#${ch.name}`
+              return acc
+            },
+            {}
+          )
+          useDisplayNamesStore.getState().setDisplayNames('channels', credential, channelMap)
+        }
       }
     } catch (err) {
       if ((err as Error).name === 'AbortError') return

@@ -15,6 +15,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { useDependsOnGate } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/components/sub-block/hooks/use-depends-on-gate'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/components/sub-block/hooks/use-sub-block-value'
 import type { SubBlockConfig } from '@/blocks/types'
+import { useDisplayNamesStore } from '@/stores/display-names/store'
 
 interface DocumentData {
   id: string
@@ -95,6 +96,18 @@ export function DocumentSelector({
 
       const fetchedDocuments = result.data.documents || result.data || []
       setDocuments(fetchedDocuments)
+
+      // Cache document names in display names store
+      if (knowledgeBaseId && fetchedDocuments.length > 0) {
+        const documentMap = fetchedDocuments.reduce(
+          (acc: Record<string, string>, doc: DocumentData) => {
+            acc[doc.id] = doc.filename
+            return acc
+          },
+          {}
+        )
+        useDisplayNamesStore.getState().setDisplayNames('documents', knowledgeBaseId, documentMap)
+      }
     } catch (err) {
       if ((err as Error).name === 'AbortError') return
       setError((err as Error).message)

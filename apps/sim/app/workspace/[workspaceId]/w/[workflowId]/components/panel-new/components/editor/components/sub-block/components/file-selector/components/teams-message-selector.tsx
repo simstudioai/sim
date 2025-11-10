@@ -21,6 +21,7 @@ import {
   type OAuthProvider,
 } from '@/lib/oauth'
 import { OAuthRequiredModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/components/sub-block/components/credential-selector/components/oauth-required-modal'
+import { useDisplayNamesStore } from '@/stores/display-names/store'
 
 const logger = createLogger('TeamsMessageSelector')
 
@@ -155,6 +156,15 @@ export function TeamsMessageSelector({
       }))
 
       setTeams(teamsData)
+
+      // Cache team names in display names store
+      if (selectedCredentialId && teamsData.length > 0) {
+        const teamMap = teamsData.reduce((acc: Record<string, string>, team: TeamsMessageInfo) => {
+          acc[team.id] = team.displayName
+          return acc
+        }, {})
+        useDisplayNamesStore.getState().setDisplayNames('files', selectedCredentialId, teamMap)
+      }
 
       // If we have a selected team ID, find it in the list
       if (selectedTeamId) {

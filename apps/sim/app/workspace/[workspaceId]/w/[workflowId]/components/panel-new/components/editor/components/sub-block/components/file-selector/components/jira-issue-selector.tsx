@@ -21,6 +21,7 @@ import {
   type OAuthProvider,
 } from '@/lib/oauth'
 import { OAuthRequiredModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/components/sub-block/components/credential-selector/components/oauth-required-modal'
+import { useDisplayNamesStore } from '@/stores/display-names/store'
 
 const logger = createLogger('JiraIssueSelector')
 
@@ -341,6 +342,18 @@ export function JiraIssueSelector({
 
         logger.info(`Received ${foundIssues.length} issues from API`)
         setIssues(foundIssues)
+
+        // Cache issue names in display names store
+        if (selectedCredentialId && foundIssues.length > 0) {
+          const issueMap = foundIssues.reduce(
+            (acc: Record<string, string>, issue: JiraIssueInfo) => {
+              acc[issue.id] = issue.name
+              return acc
+            },
+            {}
+          )
+          useDisplayNamesStore.getState().setDisplayNames('files', selectedCredentialId, issueMap)
+        }
 
         // If we have a selected issue ID, find the issue info
         if (selectedIssueId) {

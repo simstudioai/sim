@@ -24,6 +24,7 @@ import {
   parseProvider,
 } from '@/lib/oauth'
 import { OAuthRequiredModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/components/sub-block/components/credential-selector/components/oauth-required-modal'
+import { useDisplayNamesStore } from '@/stores/display-names/store'
 import type { PlannerTask } from '@/tools/microsoft_planner/types'
 
 const logger = createLogger('MicrosoftFileSelector')
@@ -179,6 +180,18 @@ export function MicrosoftFileSelector({
       if (response.ok) {
         const data = await response.json()
         setAvailableFiles(data.files || [])
+
+        // Cache file names in display names store
+        if (selectedCredentialId && data.files) {
+          const fileMap = data.files.reduce(
+            (acc: Record<string, string>, file: MicrosoftFileInfo) => {
+              acc[file.id] = file.name
+              return acc
+            },
+            {}
+          )
+          useDisplayNamesStore.getState().setDisplayNames('files', selectedCredentialId, fileMap)
+        }
       } else {
         const txt = await response.text()
         if (response.status === 401 || response.status === 403) {

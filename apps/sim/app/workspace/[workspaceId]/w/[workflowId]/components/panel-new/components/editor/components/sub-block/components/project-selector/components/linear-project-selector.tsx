@@ -11,6 +11,7 @@ import {
   CommandList,
 } from '@/components/ui/command'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { useDisplayNamesStore } from '@/stores/display-names/store'
 
 export interface LinearProjectInfo {
   id: string
@@ -67,6 +68,20 @@ export function LinearProjectSelector({
           setProjects([])
         } else {
           setProjects(data.projects)
+
+          // Cache project names in display names store
+          if (credential && data.projects) {
+            const projectMap = data.projects.reduce(
+              (acc: Record<string, string>, proj: LinearProjectInfo) => {
+                acc[proj.id] = proj.name
+                return acc
+              },
+              {}
+            )
+            useDisplayNamesStore
+              .getState()
+              .setDisplayNames('projects', `linear-${credential}`, projectMap)
+          }
 
           // Find selected project info if we have a value
           if (value) {

@@ -11,6 +11,7 @@ import {
   CommandList,
 } from '@/components/ui/command'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { useDisplayNamesStore } from '@/stores/display-names/store'
 
 export interface LinearTeamInfo {
   id: string
@@ -63,6 +64,20 @@ export function LinearTeamSelector({
           setTeams([])
         } else {
           setTeams(data.teams)
+
+          // Cache team names in display names store
+          if (credential && data.teams) {
+            const teamMap = data.teams.reduce(
+              (acc: Record<string, string>, team: LinearTeamInfo) => {
+                acc[team.id] = team.name
+                return acc
+              },
+              {}
+            )
+            useDisplayNamesStore
+              .getState()
+              .setDisplayNames('projects', `linear-${credential}`, teamMap)
+          }
 
           // Find selected team info if we have a value
           if (value) {

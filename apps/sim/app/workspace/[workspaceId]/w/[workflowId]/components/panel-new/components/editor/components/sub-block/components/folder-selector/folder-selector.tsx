@@ -16,6 +16,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { createLogger } from '@/lib/logs/console/logger'
 import { type Credential, getProviderIdFromServiceId, getServiceIdFromScopes } from '@/lib/oauth'
 import { OAuthRequiredModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/components/sub-block/components/credential-selector/components/oauth-required-modal'
+import { useDisplayNamesStore } from '@/stores/display-names/store'
 
 const logger = createLogger('FolderSelector')
 
@@ -238,6 +239,20 @@ export function FolderSelector({
           const data = await response.json()
           const folderList = provider === 'outlook' ? data.folders : data.labels
           setFolders(folderList || [])
+
+          // Cache folder names in display names store
+          if (selectedCredentialId && folderList) {
+            const folderMap = folderList.reduce(
+              (acc: Record<string, string>, folder: FolderInfo) => {
+                acc[folder.id] = folder.name
+                return acc
+              },
+              {}
+            )
+            useDisplayNamesStore
+              .getState()
+              .setDisplayNames('folders', selectedCredentialId, folderMap)
+          }
 
           // If we have a selected folder ID, find the folder info
           if (selectedFolderId) {

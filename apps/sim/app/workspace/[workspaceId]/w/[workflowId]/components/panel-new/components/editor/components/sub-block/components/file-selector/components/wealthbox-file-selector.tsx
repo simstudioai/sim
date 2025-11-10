@@ -20,6 +20,7 @@ import {
   type OAuthProvider,
 } from '@/lib/oauth'
 import { OAuthRequiredModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/components/sub-block/components/credential-selector/components/oauth-required-modal'
+import { useDisplayNamesStore } from '@/stores/display-names/store'
 
 const logger = createLogger('WealthboxFileSelector')
 
@@ -135,6 +136,18 @@ export function WealthboxFileSelector({
       if (response.ok) {
         const data = await response.json()
         setAvailableItems(data.items || [])
+
+        // Cache item names in display names store
+        if (selectedCredentialId && data.items) {
+          const itemMap = data.items.reduce(
+            (acc: Record<string, string>, item: WealthboxItemInfo) => {
+              acc[item.id] = item.name
+              return acc
+            },
+            {}
+          )
+          useDisplayNamesStore.getState().setDisplayNames('files', selectedCredentialId, itemMap)
+        }
       } else {
         logger.error('Error fetching available items:', {
           error: await response.text(),

@@ -17,6 +17,7 @@ import {
   parseProvider,
 } from '@/lib/oauth'
 import { OAuthRequiredModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/components/sub-block/components/credential-selector/components/oauth-required-modal'
+import { useDisplayNamesStore } from '@/stores/display-names/store'
 
 const logger = createLogger('GoogleDrivePicker')
 
@@ -100,6 +101,15 @@ export function GoogleDrivePicker({
       if (response.ok) {
         const data = await response.json()
         setCredentials(data.credentials)
+
+        const credentialMap = (data.credentials || []).reduce(
+          (acc: Record<string, string>, cred: Credential) => {
+            acc[cred.id] = cred.name
+            return acc
+          },
+          {}
+        )
+        useDisplayNamesStore.getState().setDisplayNames('credentials', providerId, credentialMap)
         if (credentialId && !data.credentials.some((c: any) => c.id === credentialId)) {
           setSelectedCredentialId('')
         }
