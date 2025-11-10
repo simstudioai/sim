@@ -1,8 +1,6 @@
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import type { BlockState, SubBlockState } from '@/stores/workflows/workflow/types'
 
-const WEBHOOK_SUBBLOCK_FIELDS = ['webhookId', 'triggerPath']
-
 /**
  * Normalizes a block name for comparison by converting to lowercase and removing spaces
  * @param name - The block name to normalize
@@ -77,11 +75,10 @@ export function mergeSubblockState(
       const blockValues = workflowSubblockValues[id] || {}
 
       // Create a deep copy of the block's subBlocks to maintain structure
-      // Exclude webhook-specific fields that should not be persisted
       const mergedSubBlocks = Object.entries(blockSubBlocks).reduce(
         (subAcc, [subBlockId, subBlock]) => {
-          // Skip if subBlock is undefined or is a webhook-specific field
-          if (!subBlock || WEBHOOK_SUBBLOCK_FIELDS.includes(subBlockId)) {
+          // Skip if subBlock is undefined
+          if (!subBlock) {
             return subAcc
           }
 
@@ -122,8 +119,7 @@ export function mergeSubblockState(
         if (
           !mergedSubBlocks[subBlockId] &&
           value !== null &&
-          value !== undefined &&
-          !WEBHOOK_SUBBLOCK_FIELDS.includes(subBlockId)
+          value !== undefined
         ) {
           // Create a minimal subblock structure
           mergedSubBlocks[subBlockId] = {
@@ -174,8 +170,8 @@ export async function mergeSubblockStateAsync(
       // Process all subblocks in parallel
       const subBlockEntries = await Promise.all(
         Object.entries(block.subBlocks).map(async ([subBlockId, subBlock]) => {
-          // Skip if subBlock is undefined or webhook-specific
-          if (!subBlock || WEBHOOK_SUBBLOCK_FIELDS.includes(subBlockId)) {
+          // Skip if subBlock is undefined
+          if (!subBlock) {
             return null
           }
 

@@ -10,6 +10,7 @@ import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/db-helpers'
 import { validateWorkflowState } from '@/lib/workflows/validation'
 import { getAllBlocks } from '@/blocks/registry'
 import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
+import { TRIGGER_RUNTIME_SUBBLOCK_IDS } from '@/triggers/consts'
 
 interface EditWorkflowOperation {
   operation_type: 'add' | 'edit' | 'delete' | 'insert_into_subflow' | 'extract_from_subflow'
@@ -307,6 +308,38 @@ function addConnectionsAsEdges(
   })
 }
 
+function applyTriggerConfigToBlockSubblocks(block: any, triggerConfig: Record<string, any>) {
+  if (!block?.subBlocks || !triggerConfig || typeof triggerConfig !== 'object') {
+    return
+  }
+
+  Object.entries(triggerConfig).forEach(([configKey, configValue]) => {
+    const existingSubblock = block.subBlocks[configKey]
+    if (existingSubblock) {
+      const existingValue = existingSubblock.value
+      const valuesEqual =
+        typeof existingValue === 'object' || typeof configValue === 'object'
+          ? JSON.stringify(existingValue) === JSON.stringify(configValue)
+          : existingValue === configValue
+
+      if (valuesEqual) {
+        return
+      }
+
+      block.subBlocks[configKey] = {
+        ...existingSubblock,
+        value: configValue,
+      }
+    } else {
+      block.subBlocks[configKey] = {
+        id: configKey,
+        type: 'short-input',
+        value: configValue,
+      }
+    }
+  })
+}
+
 /**
  * Apply operations directly to the workflow JSON state
  */
@@ -405,6 +438,9 @@ function applyOperationsToWorkflowState(
           if (params?.inputs) {
             if (!block.subBlocks) block.subBlocks = {}
             Object.entries(params.inputs).forEach(([key, value]) => {
+              if (TRIGGER_RUNTIME_SUBBLOCK_IDS.includes(key)) {
+                return
+              }
               let sanitizedValue = value
 
               // Special handling for inputFormat - ensure it's an array
@@ -432,9 +468,25 @@ function applyOperationsToWorkflowState(
                   value: sanitizedValue,
                 }
               } else {
-                block.subBlocks[key].value = sanitizedValue
+                const existingValue = block.subBlocks[key].value
+                const valuesEqual =
+                  typeof existingValue === 'object' || typeof sanitizedValue === 'object'
+                    ? JSON.stringify(existingValue) === JSON.stringify(sanitizedValue)
+                    : existingValue === sanitizedValue
+
+                if (!valuesEqual) {
+                  block.subBlocks[key].value = sanitizedValue
+                }
               }
             })
+
+            if (
+              Object.prototype.hasOwnProperty.call(params.inputs, 'triggerConfig') &&
+              block.subBlocks.triggerConfig &&
+              typeof block.subBlocks.triggerConfig.value === 'object'
+            ) {
+              applyTriggerConfigToBlockSubblocks(block, block.subBlocks.triggerConfig.value)
+            }
 
             // Update loop/parallel configuration in block.data
             if (block.type === 'loop') {
