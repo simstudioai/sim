@@ -481,7 +481,7 @@ function applyOperationsToWorkflowState(
             })
 
             if (
-              Object.prototype.hasOwnProperty.call(params.inputs, 'triggerConfig') &&
+              Object.hasOwn(params.inputs, 'triggerConfig') &&
               block.subBlocks.triggerConfig &&
               typeof block.subBlocks.triggerConfig.value === 'object'
             ) {

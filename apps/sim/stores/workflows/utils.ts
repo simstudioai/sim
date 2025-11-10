@@ -116,11 +116,7 @@ export function mergeSubblockState(
       // Add any values that exist in the store but aren't in the block structure
       // This handles cases where block config has been updated but values still exist
       Object.entries(blockValues).forEach(([subBlockId, value]) => {
-        if (
-          !mergedSubBlocks[subBlockId] &&
-          value !== null &&
-          value !== undefined
-        ) {
+        if (!mergedSubBlocks[subBlockId] && value !== null && value !== undefined) {
           // Create a minimal subblock structure
           mergedSubBlocks[subBlockId] = {
             id: subBlockId,
