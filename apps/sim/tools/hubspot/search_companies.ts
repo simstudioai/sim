@@ -103,7 +103,7 @@ export const hubspotSearchCompaniesTool: ToolConfig<
         body.after = params.after
       }
 
-      return JSON.stringify(body)
+      return body
     },
   },
 

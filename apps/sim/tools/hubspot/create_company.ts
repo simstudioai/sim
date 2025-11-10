@@ -64,7 +64,7 @@ export const hubspotCreateCompanyTool: ToolConfig<
         body.associations = params.associations
       }
 
-      return JSON.stringify(body)
+      return body
     },
   },
 

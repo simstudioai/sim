@@ -121,7 +121,7 @@ export const salesforceDeleteAccountTool: ToolConfig<
     return {
       success: true,
       output: {
-        id: params.accountId,
+        id: params?.accountId || '',
         deleted: true,
         metadata: {
           operation: 'delete_account' as const,

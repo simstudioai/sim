@@ -93,6 +93,10 @@ export interface MicrosoftTeamsConfig {
   hmacSecret: string
 }
 
+export interface HubSpotConfig {
+  triggerId?: string
+}
+
 // Union type for all provider configurations
 export type ProviderConfig =
   | WhatsAppConfig
@@ -105,6 +109,7 @@ export type ProviderConfig =
   | GmailConfig
   | OutlookConfig
   | MicrosoftTeamsConfig
+  | HubSpotConfig
   | Record<string, never>
 
 // Define available webhook providers

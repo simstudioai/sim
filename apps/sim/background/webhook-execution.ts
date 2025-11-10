@@ -329,19 +329,6 @@ async function executeWebhookJobInternal(
 
     const input = await formatWebhookInput(actualWebhook, mockWorkflow, payload.body, mockRequest)
 
-    // Log HubSpot webhook input for debugging
-    if (payload.provider === 'hubspot') {
-      logger.info(`[${requestId}] HubSpot webhook input formatted`, {
-        workflowId: payload.workflowId,
-        executionId,
-        eventType: input?.eventType,
-        objectId: input?.objectId,
-        portalId: input?.portalId,
-        triggerId: actualWebhook.providerConfig?.triggerId,
-        hasInput: !!input,
-      })
-    }
-
     if (!input && payload.provider === 'whatsapp') {
       logger.info(`[${requestId}] No messages in WhatsApp payload, skipping execution`)
       await loggingSession.safeComplete({

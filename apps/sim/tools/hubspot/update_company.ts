@@ -69,9 +69,9 @@ export const hubspotUpdateCompanyTool: ToolConfig<
       }
     },
     body: (params) => {
-      return JSON.stringify({
+      return {
         properties: params.properties,
-      })
+      }
     },
   },
 

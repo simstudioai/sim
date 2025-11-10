@@ -149,7 +149,7 @@ export const salesforceGetContactsTool: ToolConfig<
     }
 
     // Single contact response
-    if (params.contactId) {
+    if (params?.contactId) {
       return {
         success: true,
         output: {
@@ -552,7 +552,7 @@ export const salesforceUpdateContactTool: ToolConfig<
     return {
       success: true,
       output: {
-        id: params.contactId,
+        id: params?.contactId || '',
         updated: true,
         metadata: { operation: 'update_contact' as const },
       },
@@ -636,7 +636,7 @@ export const salesforceDeleteContactTool: ToolConfig<
     return {
       success: true,
       output: {
-        id: params.contactId,
+        id: params?.contactId || '',
         deleted: true,
         metadata: { operation: 'delete_contact' as const },
       },

@@ -67,7 +67,7 @@ export const hubspotCreateContactTool: ToolConfig<
         body.associations = params.associations
       }
 
-      return JSON.stringify(body)
+      return body
     },
   },
 
