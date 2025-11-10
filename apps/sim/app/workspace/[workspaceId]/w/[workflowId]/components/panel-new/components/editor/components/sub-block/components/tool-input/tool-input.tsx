@@ -2,9 +2,15 @@ import type React from 'react'
 import { useCallback, useEffect, useState } from 'react'
 import { PlusIcon, Server, WrenchIcon, XIcon } from 'lucide-react'
 import { useParams } from 'next/navigation'
-import { Tooltip } from '@/components/emcn'
-import { Button } from '@/components/ui/button'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import {
+  Popover,
+  PopoverContent,
+  PopoverScrollArea,
+  PopoverSearch,
+  PopoverSection,
+  PopoverTrigger,
+  Tooltip,
+} from '@/components/emcn'
 import {
   Select,
   SelectContent,
@@ -1083,13 +1089,13 @@ export function ToolInput({
       case 'dropdown':
         return (
           <Select value={value} onValueChange={onChange}>
-            <SelectTrigger className='w-full rounded-[4px] border border-[#3D3D3D] bg-[#282828] px-[8px] py-[7px] text-left font-medium font-sans text-sm dark:bg-[#363636]'>
+            <SelectTrigger className='w-full rounded-[4px] border border-[#303030] bg-[#1F1F1F] px-[10px] py-[8px] text-left font-medium text-sm'>
               <SelectValue
                 placeholder={uiComponent.placeholder || 'Select option'}
                 className='truncate'
               />
             </SelectTrigger>
-            <SelectContent className='border-[#3D3D3D] bg-[#282828] dark:bg-[#353535]'>
+            <SelectContent className='border-[#303030] bg-[#1F1F1F]'>
               {uiComponent.options
                 ?.filter((option: any) => option.id !== '')
                 .map((option: any) => (
@@ -1303,28 +1309,29 @@ export function ToolInput({
   }
 
   return (
-    <div className='w-full'>
+    <div className='w-full space-y-[8px]'>
       {selectedTools.length === 0 ? (
         <Popover open={open} onOpenChange={setOpen}>
           <PopoverTrigger asChild>
-            <div className='flex w-full cursor-pointer items-center justify-center rounded-[4px] border border-[#3D3D3D] bg-[#282828] px-[8px] py-[7px] font-medium font-sans text-sm transition-colors hover:bg-accent hover:text-accent-foreground dark:bg-[#363636]'>
-              <div className='flex items-center text-muted-foreground/50 text-sm'>
+            <div className='flex w-full cursor-pointer items-center justify-center rounded-[4px] border border-[#303030] bg-[#1F1F1F] px-[10px] py-[6px] font-medium text-sm transition-colors hover:bg-[#252525]'>
+              <div className='flex items-center text-[#787878] text-[13px]'>
                 <PlusIcon className='mr-2 h-4 w-4' />
                 Add Tool
               </div>
             </div>
           </PopoverTrigger>
           <PopoverContent
-            className='h-[300px] w-full border-[#3D3D3D] bg-[#282828] p-0 dark:bg-[#363636]'
+            maxHeight={240}
+            className='w-[var(--radix-popover-trigger-width)]'
             align='start'
             sideOffset={6}
-            avoidCollisions={false}
           >
-            <ToolCommand.Root filter={customFilter} className='bg-[#282828] dark:bg-[#363636]'>
-              <ToolCommand.Input placeholder='Search tools...' onValueChange={setSearchQuery} />
-              <ToolCommand.List>
-                <ToolCommand.Empty>No tools found</ToolCommand.Empty>
-                <ToolCommand.Group>
+            <PopoverSearch placeholder='Search tools...' onValueChange={setSearchQuery} />
+            <PopoverScrollArea>
+              <ToolCommand.Root filter={customFilter} searchQuery={searchQuery}>
+                <ToolCommand.List>
+                  <ToolCommand.Empty>No tools found</ToolCommand.Empty>
+
                   <ToolCommand.Item
                     value='Create Tool'
                     onSelect={() => {
@@ -1333,13 +1340,12 @@ export function ToolInput({
                         setOpen(false)
                       }
                     }}
-                    className='mb-1 flex cursor-pointer items-center gap-2'
                     disabled={isPreview}
                   >
-                    <div className='flex h-6 w-6 items-center justify-center rounded border border-muted-foreground/50 border-dashed bg-transparent'>
-                      <WrenchIcon className='h-4 w-4 text-muted-foreground' />
+                    <div className='flex h-[15px] w-[15px] flex-shrink-0 items-center justify-center rounded border border-muted-foreground/50 border-dashed bg-transparent'>
+                      <WrenchIcon className='h-[11px] w-[11px] text-muted-foreground' />
                     </div>
-                    <span>Create Tool</span>
+                    <span className='truncate'>Create Tool</span>
                   </ToolCommand.Item>
 
                   <ToolCommand.Item
@@ -1352,24 +1358,25 @@ export function ToolInput({
                         )
                       }
                     }}
-                    className='mb-1 flex cursor-pointer items-center gap-2'
                     disabled={isPreview}
                   >
-                    <div className='flex h-6 w-6 items-center justify-center rounded border border-muted-foreground/50 border-dashed bg-transparent'>
-                      <Server className='h-4 w-4 text-muted-foreground' />
+                    <div className='flex h-[15px] w-[15px] flex-shrink-0 items-center justify-center rounded border border-muted-foreground/50 border-dashed bg-transparent'>
+                      <Server className='h-[11px] w-[11px] text-muted-foreground' />
                     </div>
-                    <span>Add MCP Server</span>
+                    <span className='truncate'>Add MCP Server</span>
                   </ToolCommand.Item>
 
                   {/* Display saved custom tools at the top */}
-                  {customTools.length > 0 && (
-                    <>
-                      <ToolCommand.Separator />
-                      <div className='px-2 pt-2.5 pb-0.5 font-medium text-muted-foreground text-xs'>
-                        Custom Tools
-                      </div>
-                      <ToolCommand.Group className='-mx-1 -px-1'>
-                        {customTools.map((customTool) => (
+                  {(() => {
+                    const matchingCustomTools = customTools.filter(
+                      (tool) => customFilter(tool.title, searchQuery || '') > 0
+                    )
+                    if (matchingCustomTools.length === 0) return null
+
+                    return (
+                      <>
+                        <PopoverSection>Custom Tools</PopoverSection>
+                        {matchingCustomTools.map((customTool) => (
                           <ToolCommand.Item
                             key={customTool.id}
                             value={customTool.title}
@@ -1394,18 +1401,16 @@ export function ToolInput({
                               ])
                               setOpen(false)
                             }}
-                            className='flex cursor-pointer items-center gap-2'
                           >
-                            <div className='flex h-6 w-6 items-center justify-center rounded bg-blue-500'>
-                              <WrenchIcon className='h-4 w-4 text-white' />
+                            <div className='flex h-[15px] w-[15px] flex-shrink-0 items-center justify-center rounded bg-blue-500'>
+                              <WrenchIcon className='h-[11px] w-[11px] text-white' />
                             </div>
-                            <span className='max-w-[140px] truncate'>{customTool.title}</span>
+                            <span className='truncate'>{customTool.title}</span>
                           </ToolCommand.Item>
                         ))}
-                      </ToolCommand.Group>
-                      <ToolCommand.Separator />
-                    </>
-                  )}
+                      </>
+                    )
+                  })()}
 
                   {/* Display MCP tools */}
                   <McpToolsList
@@ -1417,38 +1422,43 @@ export function ToolInput({
                   />
 
                   {/* Display built-in tools */}
-                  {toolBlocks.some((block) => customFilter(block.name, searchQuery || '') > 0) && (
-                    <>
-                      <div className='px-2 pt-2.5 pb-0.5 font-medium text-muted-foreground text-xs'>
-                        Built-in Tools
-                      </div>
-                      <ToolCommand.Group className='-mx-1 -px-1'>
-                        {toolBlocks.map((block) => (
+                  {(() => {
+                    const matchingBlocks = toolBlocks.filter(
+                      (block) => customFilter(block.name, searchQuery || '') > 0
+                    )
+                    if (matchingBlocks.length === 0) return null
+
+                    return (
+                      <>
+                        <PopoverSection>Built-in Tools</PopoverSection>
+                        {matchingBlocks.map((block) => (
                           <ToolCommand.Item
                             key={block.type}
                             value={block.name}
                             onSelect={() => handleSelectTool(block)}
-                            className='flex cursor-pointer items-center gap-2'
                           >
                             <div
-                              className='flex h-6 w-6 items-center justify-center rounded'
+                              className='flex h-[15px] w-[15px] flex-shrink-0 items-center justify-center rounded'
                               style={{ backgroundColor: block.bgColor }}
                             >
-                              <IconComponent icon={block.icon} className='h-4 w-4 text-white' />
+                              <IconComponent
+                                icon={block.icon}
+                                className='h-[11px] w-[11px] text-white'
+                              />
                             </div>
-                            <span className='max-w-[140px] truncate'>{block.name}</span>
+                            <span className='truncate'>{block.name}</span>
                           </ToolCommand.Item>
                         ))}
-                      </ToolCommand.Group>
-                    </>
-                  )}
-                </ToolCommand.Group>
-              </ToolCommand.List>
-            </ToolCommand.Root>
+                      </>
+                    )
+                  })()}
+                </ToolCommand.List>
+              </ToolCommand.Root>
+            </PopoverScrollArea>
           </PopoverContent>
         </Popover>
       ) : (
-        <div className='flex min-h-[2.5rem] w-full flex-wrap gap-2 rounded-[4px] border border-[#3D3D3D] bg-[#282828] px-[8px] py-[7px] font-medium font-sans text-sm dark:bg-[#363636]'>
+        <>
           {selectedTools.map((tool, toolIndex) => {
             // Handle custom tools and MCP tools differently
             const isCustomTool = tool.type === 'custom-tool'
@@ -1522,11 +1532,10 @@ export function ToolInput({
               <div
                 key={`${tool.toolId}-${toolIndex}`}
                 className={cn(
-                  'group relative flex flex-col transition-all duration-200 ease-in-out',
-                  'w-full',
+                  'group relative flex flex-col overflow-visible rounded-[4px] border border-[#303030] bg-[#1F1F1F] transition-all duration-200 ease-in-out',
                   draggedIndex === toolIndex ? 'scale-95 opacity-40' : '',
                   dragOverIndex === toolIndex && draggedIndex !== toolIndex && draggedIndex !== null
-                    ? 'translate-y-1 transform'
+                    ? 'translate-y-1 transform border-t-2 border-t-muted-foreground/40'
                     : '',
                   selectedTools.length > 1 && !isPreview && !disabled
                     ? 'cursor-grab active:cursor-grabbing'
@@ -1540,361 +1549,332 @@ export function ToolInput({
               >
                 <div
                   className={cn(
-                    'flex flex-col overflow-visible rounded-md border bg-card',
-                    dragOverIndex === toolIndex &&
-                      draggedIndex !== toolIndex &&
-                      draggedIndex !== null
-                      ? 'border-t-2 border-t-muted-foreground/40'
-                      : ''
+                    'flex items-center justify-between px-[10px] py-[8px]',
+                    isExpandedForDisplay && !isCustomTool && 'border-[#303030] border-b',
+                    'cursor-pointer'
                   )}
+                  onClick={() => {
+                    if (isCustomTool) {
+                      handleEditCustomTool(toolIndex)
+                    } else {
+                      toggleToolExpansion(toolIndex)
+                    }
+                  }}
                 >
-                  <div
-                    className={cn(
-                      'flex items-center justify-between bg-accent/50 p-2',
-                      'cursor-pointer'
-                    )}
-                    onClick={() => {
-                      if (isCustomTool) {
-                        handleEditCustomTool(toolIndex)
-                      } else {
-                        toggleToolExpansion(toolIndex)
-                      }
-                    }}
-                  >
-                    <div className='flex min-w-0 flex-shrink-1 items-center gap-2 overflow-hidden'>
-                      <div
-                        className='flex h-5 w-5 flex-shrink-0 items-center justify-center rounded'
-                        style={{
-                          backgroundColor: isCustomTool
-                            ? '#3B82F6' // blue-500 for custom tools
-                            : isMcpTool
-                              ? mcpTool?.bgColor || '#6366F1' // Indigo for MCP tools
-                              : toolBlock?.bgColor,
-                        }}
-                      >
-                        {isCustomTool ? (
-                          <WrenchIcon className='h-3 w-3 text-white' />
-                        ) : isMcpTool ? (
-                          <IconComponent icon={Server} className='h-3 w-3 text-white' />
-                        ) : (
-                          <IconComponent icon={toolBlock?.icon} className='h-3 w-3 text-white' />
-                        )}
-                      </div>
-                      <span className='truncate font-medium text-sm'>{tool.title}</span>
-                    </div>
-                    <div className='ml-2 flex flex-shrink-0 items-center gap-1'>
-                      {/* Only render the tool usage control if the provider supports it */}
-                      {supportsToolControl && (
-                        <Tooltip.Root>
-                          <Tooltip.Trigger asChild>
-                            <Toggle
-                              className='group flex h-6 items-center justify-center rounded-sm px-2 py-0 hover:bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0 data-[state=on]:bg-transparent'
-                              pressed={true}
-                              onPressedChange={() => {}}
-                              onClick={(e: React.MouseEvent) => {
-                                e.stopPropagation()
-                                // Cycle through the states: auto -> force -> none -> auto
-                                const currentState = tool.usageControl || 'auto'
-                                const nextState =
-                                  currentState === 'auto'
-                                    ? 'force'
-                                    : currentState === 'force'
-                                      ? 'none'
-                                      : 'auto'
-                                handleUsageControlChange(toolIndex, nextState)
-                              }}
-                              aria-label='Toggle tool usage control'
-                            >
-                              <span
-                                className={`font-medium text-xs ${
-                                  tool.usageControl === 'auto'
-                                    ? 'block text-muted-foreground'
-                                    : 'hidden'
-                                }`}
-                              >
-                                Auto
-                              </span>
-                              <span
-                                className={`font-medium text-xs ${tool.usageControl === 'force' ? 'block text-muted-foreground' : 'hidden'}`}
-                              >
-                                Force
-                              </span>
-                              <span
-                                className={`font-medium text-xs ${tool.usageControl === 'none' ? 'block text-muted-foreground' : 'hidden'}`}
-                              >
-                                None
-                              </span>
-                            </Toggle>
-                          </Tooltip.Trigger>
-                          <Tooltip.Content className='max-w-[280px] p-2' side='top'>
-                            <p className='text-xs'>
-                              {tool.usageControl === 'auto' && (
-                                <span>
-                                  {' '}
-                                  <span className='font-medium'> Auto:</span> The model decides when
-                                  to use the tool
-                                </span>
-                              )}
-                              {tool.usageControl === 'force' && (
-                                <span>
-                                  <span className='font-medium'> Force:</span> Always use this tool
-                                  in the response
-                                </span>
-                              )}
-                              {tool.usageControl === 'none' && (
-                                <span>
-                                  <span className='font-medium'> Deny:</span> Never use this tool
-                                </span>
-                              )}
-                            </p>
-                          </Tooltip.Content>
-                        </Tooltip.Root>
+                  <div className='flex min-w-0 flex-1 items-center gap-[10px]'>
+                    <div
+                      className='flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center rounded-[4px]'
+                      style={{
+                        backgroundColor: isCustomTool
+                          ? '#3B82F6'
+                          : isMcpTool
+                            ? mcpTool?.bgColor || '#6366F1'
+                            : toolBlock?.bgColor,
+                      }}
+                    >
+                      {isCustomTool ? (
+                        <WrenchIcon className='h-[10px] w-[10px] text-white' />
+                      ) : isMcpTool ? (
+                        <IconComponent icon={Server} className='h-[10px] w-[10px] text-white' />
+                      ) : (
+                        <IconComponent
+                          icon={toolBlock?.icon}
+                          className='h-[10px] w-[10px] text-white'
+                        />
                       )}
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          handleRemoveTool(toolIndex)
-                        }}
-                        className='text-muted-foreground hover:text-foreground'
-                      >
-                        <XIcon className='h-4 w-4' />
-                      </button>
                     </div>
+                    <span className='truncate font-medium text-[#EEEEEE] text-[13px]'>
+                      {tool.title}
+                    </span>
                   </div>
+                  <div className='flex flex-shrink-0 items-center gap-[8px]'>
+                    {supportsToolControl && (
+                      <Tooltip.Root>
+                        <Tooltip.Trigger asChild>
+                          <Toggle
+                            className='group flex h-auto items-center justify-center rounded-sm p-0 hover:bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0 data-[state=on]:bg-transparent'
+                            pressed={true}
+                            onPressedChange={() => {}}
+                            onClick={(e: React.MouseEvent) => {
+                              e.stopPropagation()
+                              const currentState = tool.usageControl || 'auto'
+                              const nextState =
+                                currentState === 'auto'
+                                  ? 'force'
+                                  : currentState === 'force'
+                                    ? 'none'
+                                    : 'auto'
+                              handleUsageControlChange(toolIndex, nextState)
+                            }}
+                            aria-label='Toggle tool usage control'
+                          >
+                            <span
+                              className={`font-medium text-[#AEAEAE] text-xs ${
+                                tool.usageControl === 'auto' ? 'block' : 'hidden'
+                              }`}
+                            >
+                              Auto
+                            </span>
+                            <span
+                              className={`font-medium text-[#AEAEAE] text-xs ${
+                                tool.usageControl === 'force' ? 'block' : 'hidden'
+                              }`}
+                            >
+                              Force
+                            </span>
+                            <span
+                              className={`font-medium text-[#AEAEAE] text-xs ${
+                                tool.usageControl === 'none' ? 'block' : 'hidden'
+                              }`}
+                            >
+                              None
+                            </span>
+                          </Toggle>
+                        </Tooltip.Trigger>
+                        <Tooltip.Content className='max-w-[280px] p-2' side='top'>
+                          <p className='text-xs'>
+                            {tool.usageControl === 'auto' && (
+                              <span>
+                                <span className='font-medium'>Auto:</span> The model decides when to
+                                use the tool
+                              </span>
+                            )}
+                            {tool.usageControl === 'force' && (
+                              <span>
+                                <span className='font-medium'>Force:</span> Always use this tool in
+                                the response
+                              </span>
+                            )}
+                            {tool.usageControl === 'none' && (
+                              <span>
+                                <span className='font-medium'>Deny:</span> Never use this tool
+                              </span>
+                            )}
+                          </p>
+                        </Tooltip.Content>
+                      </Tooltip.Root>
+                    )}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleRemoveTool(toolIndex)
+                      }}
+                      className='text-[#AEAEAE] transition-colors hover:text-[#EEEEEE]'
+                      aria-label='Remove tool'
+                    >
+                      <XIcon className='h-[14px] w-[14px]' />
+                    </button>
+                  </div>
+                </div>
 
-                  {!isCustomTool && isExpandedForDisplay && (
-                    <div className='space-y-3 overflow-visible p-3'>
-                      {/* Operation dropdown for tools with multiple operations */}
-                      {(() => {
-                        const hasOperations = hasMultipleOperations(tool.type)
-                        const operationOptions = hasOperations ? getOperationOptions(tool.type) : []
+                {!isCustomTool && isExpandedForDisplay && (
+                  <div className='space-y-[12px] overflow-visible p-[10px]'>
+                    {/* Operation dropdown for tools with multiple operations */}
+                    {(() => {
+                      const hasOperations = hasMultipleOperations(tool.type)
+                      const operationOptions = hasOperations ? getOperationOptions(tool.type) : []
 
-                        return hasOperations && operationOptions.length > 0 ? (
-                          <div className='relative min-w-0 space-y-1.5'>
-                            <div className='font-medium text-muted-foreground text-xs'>
-                              Operation
-                            </div>
-                            <div className='w-full min-w-0'>
-                              <Select
-                                value={tool.operation || operationOptions[0].id}
-                                onValueChange={(value) => handleOperationChange(toolIndex, value)}
-                              >
-                                <SelectTrigger className='w-full min-w-0 rounded-[4px] border border-[#3D3D3D] bg-[#282828] px-[8px] py-[7px] text-left font-medium font-sans text-sm dark:bg-[#363636]'>
-                                  <SelectValue
-                                    placeholder='Select operation'
-                                    className='truncate'
-                                  />
-                                </SelectTrigger>
-                                <SelectContent className='border-[#3D3D3D] bg-[#282828] dark:bg-[#353535]'>
-                                  {operationOptions
-                                    .filter((option) => option.id !== '')
-                                    .map((option) => (
-                                      <SelectItem key={option.id} value={option.id}>
-                                        {option.label}
-                                      </SelectItem>
-                                    ))}
-                                </SelectContent>
-                              </Select>
-                            </div>
-                          </div>
-                        ) : null
-                      })()}
-
-                      {/* OAuth credential selector if required */}
-                      {requiresOAuth && oauthConfig && (
-                        <div className='relative min-w-0 space-y-1.5'>
-                          <div className='font-medium text-muted-foreground text-xs'>Account</div>
+                      return hasOperations && operationOptions.length > 0 ? (
+                        <div className='relative min-w-0 space-y-[6px]'>
+                          <div className='font-medium text-[#AEAEAE] text-[13px]'>Operation</div>
                           <div className='w-full min-w-0'>
-                            <ToolCredentialSelector
-                              value={tool.params.credential || ''}
-                              onChange={(value) =>
-                                handleParamChange(toolIndex, 'credential', value)
-                              }
-                              provider={oauthConfig.provider as OAuthProvider}
-                              requiredScopes={oauthConfig.additionalScopes || []}
-                              label={`Select ${oauthConfig.provider} account`}
-                              serviceId={oauthConfig.provider}
-                              disabled={disabled}
-                            />
+                            <Select
+                              value={tool.operation || operationOptions[0].id}
+                              onValueChange={(value) => handleOperationChange(toolIndex, value)}
+                            >
+                              <SelectTrigger className='w-full min-w-0 rounded-[4px] border border-[#303030] bg-[#1F1F1F] px-[10px] py-[8px] text-left font-medium text-sm'>
+                                <SelectValue placeholder='Select operation' className='truncate' />
+                              </SelectTrigger>
+                              <SelectContent className='border-[#303030] bg-[#1F1F1F]'>
+                                {operationOptions
+                                  .filter((option) => option.id !== '')
+                                  .map((option) => (
+                                    <SelectItem key={option.id} value={option.id}>
+                                      {option.label}
+                                    </SelectItem>
+                                  ))}
+                              </SelectContent>
+                            </Select>
                           </div>
                         </div>
-                      )}
+                      ) : null
+                    })()}
 
-                      {/* Tool parameters */}
-                      {(() => {
-                        const filteredParams = displayParams.filter((param) =>
-                          evaluateParameterCondition(param, tool)
-                        )
-                        const groupedParams: { [key: string]: ToolParameterConfig[] } = {}
-                        const standaloneParams: ToolParameterConfig[] = []
+                    {/* OAuth credential selector if required */}
+                    {requiresOAuth && oauthConfig && (
+                      <div className='relative min-w-0 space-y-[6px]'>
+                        <div className='font-medium text-[#AEAEAE] text-[13px]'>Account</div>
+                        <div className='w-full min-w-0'>
+                          <ToolCredentialSelector
+                            value={tool.params.credential || ''}
+                            onChange={(value) => handleParamChange(toolIndex, 'credential', value)}
+                            provider={oauthConfig.provider as OAuthProvider}
+                            requiredScopes={oauthConfig.additionalScopes || []}
+                            label={`Select ${oauthConfig.provider} account`}
+                            serviceId={oauthConfig.provider}
+                            disabled={disabled}
+                          />
+                        </div>
+                      </div>
+                    )}
 
-                        // Group checkbox-list parameters by their UI component title
-                        filteredParams.forEach((param) => {
-                          const paramConfig = param as ToolParameterConfig
-                          if (
-                            paramConfig.uiComponent?.type === 'checkbox-list' &&
-                            paramConfig.uiComponent?.title
-                          ) {
-                            const groupKey = paramConfig.uiComponent.title
-                            if (!groupedParams[groupKey]) {
-                              groupedParams[groupKey] = []
-                            }
-                            groupedParams[groupKey].push(paramConfig)
-                          } else {
-                            standaloneParams.push(paramConfig)
+                    {/* Tool parameters */}
+                    {(() => {
+                      const filteredParams = displayParams.filter((param) =>
+                        evaluateParameterCondition(param, tool)
+                      )
+                      const groupedParams: { [key: string]: ToolParameterConfig[] } = {}
+                      const standaloneParams: ToolParameterConfig[] = []
+
+                      // Group checkbox-list parameters by their UI component title
+                      filteredParams.forEach((param) => {
+                        const paramConfig = param as ToolParameterConfig
+                        if (
+                          paramConfig.uiComponent?.type === 'checkbox-list' &&
+                          paramConfig.uiComponent?.title
+                        ) {
+                          const groupKey = paramConfig.uiComponent.title
+                          if (!groupedParams[groupKey]) {
+                            groupedParams[groupKey] = []
                           }
-                        })
+                          groupedParams[groupKey].push(paramConfig)
+                        } else {
+                          standaloneParams.push(paramConfig)
+                        }
+                      })
 
-                        const renderedElements: React.ReactNode[] = []
+                      const renderedElements: React.ReactNode[] = []
 
-                        // Render grouped checkbox-lists
-                        Object.entries(groupedParams).forEach(([groupTitle, params]) => {
-                          const firstParam = params[0] as ToolParameterConfig
-                          const groupValue = JSON.stringify(
-                            params.reduce(
-                              (acc, p) => ({ ...acc, [p.id]: tool.params[p.id] === 'true' }),
-                              {}
-                            )
+                      // Render grouped checkbox-lists
+                      Object.entries(groupedParams).forEach(([groupTitle, params]) => {
+                        const firstParam = params[0] as ToolParameterConfig
+                        const groupValue = JSON.stringify(
+                          params.reduce(
+                            (acc, p) => ({ ...acc, [p.id]: tool.params[p.id] === 'true' }),
+                            {}
                           )
+                        )
 
-                          renderedElements.push(
-                            <div
-                              key={`group-${groupTitle}`}
-                              className='relative min-w-0 space-y-1.5'
-                            >
-                              <div className='flex items-center font-medium text-muted-foreground text-xs'>
-                                {groupTitle}
-                              </div>
-                              <div className='relative w-full min-w-0'>
-                                <CheckboxListSyncWrapper
+                        renderedElements.push(
+                          <div
+                            key={`group-${groupTitle}`}
+                            className='relative min-w-0 space-y-[6px]'
+                          >
+                            <div className='flex items-center font-medium text-[#AEAEAE] text-[13px]'>
+                              {groupTitle}
+                            </div>
+                            <div className='relative w-full min-w-0'>
+                              <CheckboxListSyncWrapper
+                                blockId={blockId}
+                                paramId={`group-${groupTitle}`}
+                                value={groupValue}
+                                onChange={(value) => {
+                                  try {
+                                    const parsed = JSON.parse(value)
+                                    params.forEach((param) => {
+                                      handleParamChange(
+                                        toolIndex,
+                                        param.id,
+                                        parsed[param.id] ? 'true' : 'false'
+                                      )
+                                    })
+                                  } catch (e) {
+                                    // Handle error
+                                  }
+                                }}
+                                uiComponent={firstParam.uiComponent}
+                                disabled={disabled}
+                              />
+                            </div>
+                          </div>
+                        )
+                      })
+
+                      // Render standalone parameters
+                      standaloneParams.forEach((param) => {
+                        renderedElements.push(
+                          <div key={param.id} className='relative min-w-0 space-y-[6px]'>
+                            <div className='flex items-center font-medium text-[#AEAEAE] text-[13px]'>
+                              {param.uiComponent?.title || formatParameterLabel(param.id)}
+                              {param.required && param.visibility === 'user-only' && (
+                                <span className='ml-1 text-red-500'>*</span>
+                              )}
+                              {(!param.required || param.visibility !== 'user-only') && (
+                                <span className='ml-1 text-[#787878] text-xs'>(Optional)</span>
+                              )}
+                            </div>
+                            <div className='relative w-full min-w-0'>
+                              {param.uiComponent ? (
+                                renderParameterInput(
+                                  param,
+                                  tool.params[param.id] || '',
+                                  (value) => handleParamChange(toolIndex, param.id, value),
+                                  toolIndex,
+                                  tool.params
+                                )
+                              ) : (
+                                <ShortInput
                                   blockId={blockId}
-                                  paramId={`group-${groupTitle}`}
-                                  value={groupValue}
-                                  onChange={(value) => {
-                                    try {
-                                      const parsed = JSON.parse(value)
-                                      params.forEach((param) => {
-                                        handleParamChange(
-                                          toolIndex,
-                                          param.id,
-                                          parsed[param.id] ? 'true' : 'false'
-                                        )
-                                      })
-                                    } catch (e) {
-                                      // Handle error
-                                    }
+                                  subBlockId={`${subBlockId}-tool-${toolIndex}-${param.id}`}
+                                  placeholder={param.description}
+                                  password={isPasswordParameter(param.id)}
+                                  config={{
+                                    id: `${subBlockId}-tool-${toolIndex}-${param.id}`,
+                                    type: 'short-input',
+                                    title: param.id,
                                   }}
-                                  uiComponent={firstParam.uiComponent}
-                                  disabled={disabled}
+                                  value={tool.params[param.id] || ''}
+                                  onChange={(value) =>
+                                    handleParamChange(toolIndex, param.id, value)
+                                  }
                                 />
-                              </div>
+                              )}
                             </div>
-                          )
-                        })
+                          </div>
+                        )
+                      })
 
-                        // Render standalone parameters
-                        standaloneParams.forEach((param) => {
-                          renderedElements.push(
-                            <div key={param.id} className='relative min-w-0 space-y-1.5'>
-                              <div className='flex items-center font-medium text-muted-foreground text-xs'>
-                                {param.uiComponent?.title || formatParameterLabel(param.id)}
-                                {param.required && param.visibility === 'user-only' && (
-                                  <span className='ml-1 text-red-500'>*</span>
-                                )}
-                                {(!param.required || param.visibility !== 'user-only') && (
-                                  <span className='ml-1 text-muted-foreground/60 text-xs'>
-                                    (Optional)
-                                  </span>
-                                )}
-                              </div>
-                              <div className='relative w-full min-w-0'>
-                                {param.uiComponent ? (
-                                  renderParameterInput(
-                                    param,
-                                    tool.params[param.id] || '',
-                                    (value) => handleParamChange(toolIndex, param.id, value),
-                                    toolIndex,
-                                    tool.params
-                                  )
-                                ) : (
-                                  <ShortInput
-                                    blockId={blockId}
-                                    subBlockId={`${subBlockId}-tool-${toolIndex}-${param.id}`}
-                                    placeholder={param.description}
-                                    password={isPasswordParameter(param.id)}
-                                    config={{
-                                      id: `${subBlockId}-tool-${toolIndex}-${param.id}`,
-                                      type: 'short-input',
-                                      title: param.id,
-                                    }}
-                                    value={tool.params[param.id] || ''}
-                                    onChange={(value) =>
-                                      handleParamChange(toolIndex, param.id, value)
-                                    }
-                                  />
-                                )}
-                              </div>
-                            </div>
-                          )
-                        })
-
-                        return renderedElements
-                      })()}
-                    </div>
-                  )}
-                </div>
+                      return renderedElements
+                    })()}
+                  </div>
+                )}
               </div>
             )
           })}
 
-          {/* Drop zone for the end of the list */}
-          {selectedTools.length > 0 && draggedIndex !== null && (
-            <div
-              className={cn(
-                'h-2 w-full rounded transition-all duration-200 ease-in-out',
-                dragOverIndex === selectedTools.length
-                  ? 'border-b-2 border-b-muted-foreground/40'
-                  : ''
-              )}
-              onDragOver={(e) => handleDragOver(e, selectedTools.length)}
-              onDrop={(e) => handleDrop(e, selectedTools.length)}
-            />
-          )}
-
+          {/* Add Tool Button */}
           <Popover open={open} onOpenChange={setOpen}>
             <PopoverTrigger asChild>
-              <Button
-                variant='ghost'
-                size='sm'
-                className='h-6 px-2 text-muted-foreground text-xs hover:text-foreground'
-              >
-                <PlusIcon className='h-3 w-3' />
-                Add Tool
-              </Button>
+              <div className='flex w-full cursor-pointer items-center justify-center rounded-[4px] border border-[#303030] bg-[#1F1F1F] px-[10px] py-[6px] font-medium text-sm transition-colors hover:bg-[#252525]'>
+                <div className='flex items-center text-[#787878] text-[13px]'>
+                  <PlusIcon className='mr-2 h-4 w-4' />
+                  Add Tool
+                </div>
+              </div>
             </PopoverTrigger>
             <PopoverContent
-              className='h-[300px] w-full border-[#3D3D3D] bg-[#282828] p-0 dark:bg-[#363636]'
+              maxHeight={240}
+              className='w-[var(--radix-popover-trigger-width)]'
               align='start'
               sideOffset={6}
-              avoidCollisions={false}
             >
-              <ToolCommand.Root filter={customFilter} className='bg-[#282828] dark:bg-[#363636]'>
-                <ToolCommand.Input placeholder='Search tools...' onValueChange={setSearchQuery} />
-                <ToolCommand.List>
-                  <ToolCommand.Empty>No tools found.</ToolCommand.Empty>
-                  <ToolCommand.Group>
+              <PopoverSearch placeholder='Search tools...' onValueChange={setSearchQuery} />
+              <PopoverScrollArea>
+                <ToolCommand.Root filter={customFilter} searchQuery={searchQuery}>
+                  <ToolCommand.List>
+                    <ToolCommand.Empty>No tools found</ToolCommand.Empty>
+
                     <ToolCommand.Item
                       value='Create Tool'
                       onSelect={() => {
                         setOpen(false)
                         setCustomToolModalOpen(true)
                       }}
-                      className='mb-1 flex cursor-pointer items-center gap-2'
                     >
-                      <div className='flex h-6 w-6 items-center justify-center rounded border border-muted-foreground/50 border-dashed bg-transparent'>
-                        <WrenchIcon className='h-4 w-4 text-muted-foreground' />
+                      <div className='flex h-[15px] w-[15px] flex-shrink-0 items-center justify-center rounded border border-muted-foreground/50 border-dashed bg-transparent'>
+                        <WrenchIcon className='h-[11px] w-[11px] text-muted-foreground' />
                       </div>
-                      <span>Create Tool</span>
+                      <span className='truncate'>Create Tool</span>
                     </ToolCommand.Item>
 
                     <ToolCommand.Item
@@ -1905,23 +1885,24 @@ export function ToolInput({
                           new CustomEvent('open-settings', { detail: { tab: 'mcp' } })
                         )
                       }}
-                      className='mb-1 flex cursor-pointer items-center gap-2'
                     >
-                      <div className='flex h-6 w-6 items-center justify-center rounded border border-muted-foreground/50 border-dashed bg-transparent'>
-                        <Server className='h-4 w-4 text-muted-foreground' />
+                      <div className='flex h-[15px] w-[15px] flex-shrink-0 items-center justify-center rounded border border-muted-foreground/50 border-dashed bg-transparent'>
+                        <Server className='h-[11px] w-[11px] text-muted-foreground' />
                       </div>
-                      <span>Add MCP Server</span>
+                      <span className='truncate'>Add MCP Server</span>
                     </ToolCommand.Item>
 
                     {/* Display saved custom tools at the top */}
-                    {customTools.length > 0 && (
-                      <>
-                        <ToolCommand.Separator />
-                        <div className='px-2 pt-2.5 pb-0.5 font-medium text-muted-foreground text-xs'>
-                          Custom Tools
-                        </div>
-                        <ToolCommand.Group className='-mx-1 -px-1'>
-                          {customTools.map((customTool) => (
+                    {(() => {
+                      const matchingCustomTools = customTools.filter(
+                        (tool) => customFilter(tool.title, searchQuery || '') > 0
+                      )
+                      if (matchingCustomTools.length === 0) return null
+
+                      return (
+                        <>
+                          <PopoverSection>Custom Tools</PopoverSection>
+                          {matchingCustomTools.map((customTool) => (
                             <ToolCommand.Item
                               key={customTool.id}
                               value={customTool.title}
@@ -1946,18 +1927,16 @@ export function ToolInput({
                                 ])
                                 setOpen(false)
                               }}
-                              className='flex cursor-pointer items-center gap-2'
                             >
-                              <div className='flex h-6 w-6 items-center justify-center rounded bg-blue-500'>
-                                <WrenchIcon className='h-4 w-4 text-white' />
+                              <div className='flex h-[15px] w-[15px] flex-shrink-0 items-center justify-center rounded bg-blue-500'>
+                                <WrenchIcon className='h-[11px] w-[11px] text-white' />
                               </div>
-                              <span className='max-w-[140px] truncate'>{customTool.title}</span>
+                              <span className='truncate'>{customTool.title}</span>
                             </ToolCommand.Item>
                           ))}
-                        </ToolCommand.Group>
-                        <ToolCommand.Separator />
-                      </>
-                    )}
+                        </>
+                      )
+                    })()}
 
                     {/* Display MCP tools */}
                     <McpToolsList
@@ -1969,39 +1948,42 @@ export function ToolInput({
                     />
 
                     {/* Display built-in tools */}
-                    {toolBlocks.some(
-                      (block) => customFilter(block.name, searchQuery || '') > 0
-                    ) && (
-                      <>
-                        <div className='px-2 pt-2.5 pb-0.5 font-medium text-muted-foreground text-xs'>
-                          Built-in Tools
-                        </div>
-                        <ToolCommand.Group className='-mx-1 -px-1'>
-                          {toolBlocks.map((block) => (
+                    {(() => {
+                      const matchingBlocks = toolBlocks.filter(
+                        (block) => customFilter(block.name, searchQuery || '') > 0
+                      )
+                      if (matchingBlocks.length === 0) return null
+
+                      return (
+                        <>
+                          <PopoverSection>Built-in Tools</PopoverSection>
+                          {matchingBlocks.map((block) => (
                             <ToolCommand.Item
                               key={block.type}
                               value={block.name}
                               onSelect={() => handleSelectTool(block)}
-                              className='flex cursor-pointer items-center gap-2'
                             >
                               <div
-                                className='flex h-6 w-6 items-center justify-center rounded'
+                                className='flex h-[15px] w-[15px] flex-shrink-0 items-center justify-center rounded'
                                 style={{ backgroundColor: block.bgColor }}
                               >
-                                <IconComponent icon={block.icon} className='h-4 w-4 text-white' />
+                                <IconComponent
+                                  icon={block.icon}
+                                  className='h-[11px] w-[11px] text-white'
+                                />
                               </div>
-                              <span className='max-w-[140px] truncate'>{block.name}</span>
+                              <span className='truncate'>{block.name}</span>
                             </ToolCommand.Item>
                           ))}
-                        </ToolCommand.Group>
-                      </>
-                    )}
-                  </ToolCommand.Group>
-                </ToolCommand.List>
-              </ToolCommand.Root>
+                        </>
+                      )
+                    })()}
+                  </ToolCommand.List>
+                </ToolCommand.Root>
+              </PopoverScrollArea>
             </PopoverContent>
           </Popover>
-        </div>
+        </>
       )}
 
       {/* Custom Tool Modal */}

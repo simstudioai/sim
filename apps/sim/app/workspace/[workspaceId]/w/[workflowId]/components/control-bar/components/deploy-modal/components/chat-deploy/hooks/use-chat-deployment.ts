@@ -2,7 +2,7 @@ import { useCallback, useState } from 'react'
 import { z } from 'zod'
 import { createLogger } from '@/lib/logs/console/logger'
 import type { ChatFormData } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/control-bar/components/deploy-modal/components/chat-deploy/hooks/use-chat-form'
-import type { OutputConfig } from '@/stores/panel/chat/types'
+import type { OutputConfig } from '@/stores/chat/store'
 
 const logger = createLogger('ChatDeployment')
 

@@ -442,9 +442,7 @@ export function useWorkflowExecution() {
               }
 
               // Get selected outputs from chat store
-              const chatStore = await import('@/stores/panel/chat/store').then(
-                (mod) => mod.useChatStore
-              )
+              const chatStore = await import('@/stores/chat/store').then((mod) => mod.useChatStore)
               const selectedOutputs = chatStore
                 .getState()
                 .getSelectedWorkflowOutput(activeWorkflowId)
@@ -707,7 +705,7 @@ export function useWorkflowExecution() {
     let selectedOutputs: string[] | undefined
     if (isExecutingFromChat && activeWorkflowId) {
       // Get selected outputs from chat store
-      const chatStore = await import('@/stores/panel/chat/store').then((mod) => mod.useChatStore)
+      const chatStore = await import('@/stores/chat/store').then((mod) => mod.useChatStore)
       selectedOutputs = chatStore.getState().getSelectedWorkflowOutput(activeWorkflowId)
     }
 

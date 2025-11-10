@@ -15,6 +15,7 @@ import { createLogger } from '@/lib/logs/console/logger'
 import { TriggerUtils } from '@/lib/workflows/triggers'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { DiffControls } from '@/app/workspace/[workspaceId]/w/[workflowId]/components'
+import { Chat } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/chat/chat'
 import { UserAvatarStack } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/control-bar/components/user-avatar-stack/user-avatar-stack'
 import { ErrorBoundary } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/error/index'
 import { Panel } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/panel-new'
@@ -2049,6 +2050,9 @@ const WorkflowContent = React.memo(() => {
         />
 
         <CollaboratorCursorLayer />
+
+        {/* Floating chat modal */}
+        <Chat />
 
         {/* Show DiffControls if diff is available (regardless of current view mode) */}
         <DiffControls />

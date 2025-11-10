@@ -5,12 +5,12 @@ import { useTerminalStore } from '@/stores/terminal'
  * Constants for terminal sizing
  */
 const MIN_HEIGHT = 30
-const MAX_HEIGHT_PERCENTAGE = 0.5 // 50% of viewport height
+const MAX_HEIGHT_PERCENTAGE = 0.7 // 70% of viewport height
 
 /**
  * Custom hook to handle terminal resize functionality.
  * Manages mouse events for resizing and enforces min/max height constraints.
- * Maximum height is capped at 50% of the viewport height for optimal layout.
+ * Maximum height is capped at 70% of the viewport height for optimal layout.
  *
  * @returns Resize state and handlers
  */

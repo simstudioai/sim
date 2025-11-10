@@ -1,7 +1,7 @@
 'use client'
 
 import { FileText, Image, Loader2, X } from 'lucide-react'
-import { Button } from '@/components/ui'
+import { Button } from '@/components/emcn'
 
 interface AttachedFile {
   id: string
@@ -67,11 +67,11 @@ export function AttachedFilesDisplay({
   const isImageFile = (type: string) => type.startsWith('image/')
 
   return (
-    <div className='mb-2 flex flex-wrap gap-1.5'>
+    <div className='mb-2 flex gap-1.5 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'>
       {files.map((file) => (
         <div
           key={file.id}
-          className='group relative h-16 w-16 cursor-pointer overflow-hidden rounded-md border border-border/50 bg-muted/20 transition-all hover:bg-muted/40'
+          className='group relative h-16 w-16 flex-shrink-0 cursor-pointer overflow-hidden rounded-md border border-border/50 bg-muted/20 transition-all hover:bg-muted/40'
           title={`${file.name} (${formatFileSize(file.size)})`}
           onClick={() => onFileClick(file)}
         >
@@ -103,12 +103,11 @@ export function AttachedFilesDisplay({
           {!file.uploading && (
             <Button
               variant='ghost'
-              size='icon'
               onClick={(e) => {
                 e.stopPropagation()
                 onFileRemove(file.id)
               }}
-              className='absolute top-0.5 right-0.5 h-5 w-5 bg-black/50 text-white opacity-0 transition-opacity hover:bg-black/70 group-hover:opacity-100'
+              className='absolute top-0.5 right-0.5 h-5 w-5 p-0 opacity-0 transition-opacity group-hover:opacity-100'
             >
               <X className='h-3 w-3' />
             </Button>

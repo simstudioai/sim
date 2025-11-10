@@ -21,14 +21,10 @@ import {
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/copilot/components'
 import type { MessageFileAttachment } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/copilot/components/user-input/hooks/use-file-attachments'
 import type { UserInputRef } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/copilot/components/user-input/user-input'
+import { useScrollManagement } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
 import { useCopilotStore } from '@/stores/panel-new/copilot/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-import {
-  useChatHistory,
-  useCopilotInitialization,
-  useScrollManagement,
-  useTodoManagement,
-} from './hooks'
+import { useChatHistory, useCopilotInitialization, useTodoManagement } from './hooks'
 
 const logger = createLogger('Copilot')
 

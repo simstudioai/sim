@@ -272,7 +272,7 @@ export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
     // Export format for Google Workspace files (download operation)
     {
       id: 'mimeType',
-      title: 'Export Format (for Google Workspace files)',
+      title: 'Export Format',
       type: 'dropdown',
       options: [
         { label: 'Plain Text (text/plain)', id: 'text/plain' },

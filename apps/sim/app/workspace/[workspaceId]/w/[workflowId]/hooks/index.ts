@@ -1,4 +1,5 @@
 export { useAutoLayout } from './use-auto-layout'
 export { type CurrentWorkflow, useCurrentWorkflow } from './use-current-workflow'
 export { useNodeUtilities } from './use-node-utilities'
+export { useScrollManagement } from './use-scroll-management'
 export { useWorkflowExecution } from './use-workflow-execution'

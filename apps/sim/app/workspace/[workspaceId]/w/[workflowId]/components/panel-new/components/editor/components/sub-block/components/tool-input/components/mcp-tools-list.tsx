@@ -1,4 +1,5 @@
 import type React from 'react'
+import { PopoverSection } from '@/components/emcn'
 import { ToolCommand } from './tool-command/tool-command'
 
 const IconComponent = ({ icon: Icon, className }: { icon: any; className?: string }) => {
@@ -38,6 +39,9 @@ interface McpToolsListProps {
   disabled?: boolean
 }
 
+/**
+ * Displays a filtered list of MCP tools with proper section header and separator
+ */
 export function McpToolsList({
   mcpTools,
   searchQuery,
@@ -47,55 +51,48 @@ export function McpToolsList({
 }: McpToolsListProps) {
   const filteredTools = mcpTools.filter((tool) => customFilter(tool.name, searchQuery || '') > 0)
 
-  if (mcpTools.length === 0 || filteredTools.length === 0) {
+  if (filteredTools.length === 0) {
     return null
   }
 
   return (
     <>
-      <div className='px-2 pt-2.5 pb-0.5 font-medium text-muted-foreground text-xs'>MCP Tools</div>
-      <ToolCommand.Group className='-mx-1 -px-1'>
-        {filteredTools.map((mcpTool) => (
-          <ToolCommand.Item
-            key={mcpTool.id}
-            value={mcpTool.name}
-            onSelect={() => {
-              if (disabled) return
+      <PopoverSection>MCP Tools</PopoverSection>
+      {filteredTools.map((mcpTool) => (
+        <ToolCommand.Item
+          key={mcpTool.id}
+          value={mcpTool.name}
+          onSelect={() => {
+            if (disabled) return
 
-              const newTool: StoredTool = {
-                type: 'mcp',
-                title: mcpTool.name,
-                toolId: mcpTool.id,
-                params: {
-                  serverId: mcpTool.serverId,
-                  toolName: mcpTool.name,
-                  serverName: mcpTool.serverName,
-                },
-                isExpanded: true,
-                usageControl: 'auto',
-                schema: mcpTool.inputSchema,
-              }
+            const newTool: StoredTool = {
+              type: 'mcp',
+              title: mcpTool.name,
+              toolId: mcpTool.id,
+              params: {
+                serverId: mcpTool.serverId,
+                toolName: mcpTool.name,
+                serverName: mcpTool.serverName,
+              },
+              isExpanded: true,
+              usageControl: 'auto',
+              schema: mcpTool.inputSchema,
+            }
 
-              onToolSelect(newTool)
-            }}
-            className='flex cursor-pointer items-center gap-2'
+            onToolSelect(newTool)
+          }}
+        >
+          <div
+            className='flex h-[15px] w-[15px] flex-shrink-0 items-center justify-center rounded'
+            style={{ backgroundColor: mcpTool.bgColor }}
           >
-            <div
-              className='flex h-6 w-6 items-center justify-center rounded'
-              style={{ backgroundColor: mcpTool.bgColor }}
-            >
-              <IconComponent icon={mcpTool.icon} className='h-4 w-4 text-white' />
-            </div>
-            <span
-              className='max-w-[140px] truncate'
-              title={`${mcpTool.name} (${mcpTool.serverName})`}
-            >
-              {mcpTool.name}
-            </span>
-          </ToolCommand.Item>
-        ))}
-      </ToolCommand.Group>
-      <ToolCommand.Separator />
+            <IconComponent icon={mcpTool.icon} className='h-[11px] w-[11px] text-white' />
+          </div>
+          <span className='truncate' title={`${mcpTool.name} (${mcpTool.serverName})`}>
+            {mcpTool.name}
+          </span>
+        </ToolCommand.Item>
+      ))}
     </>
   )
 }

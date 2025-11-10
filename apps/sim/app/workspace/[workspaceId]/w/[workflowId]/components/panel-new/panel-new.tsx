@@ -20,17 +20,18 @@ import {
   PopoverContent,
   PopoverItem,
   PopoverTrigger,
-  Rocket,
   Trash,
 } from '@/components/emcn'
 import { createLogger } from '@/lib/logs/console/logger'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
+import { useDeleteWorkflow } from '@/app/workspace/[workspaceId]/w/hooks'
+import { useChatStore } from '@/stores/chat/store'
 import { usePanelStore } from '@/stores/panel-new/store'
 import type { PanelTab } from '@/stores/panel-new/types'
 import { useWorkflowJsonStore } from '@/stores/workflows/json/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
-import { Copilot, Editor, Toolbar } from './components'
+import { Copilot, Deploy, Editor, Toolbar } from './components'
 import { usePanelResize, useRunWorkflow, useUsageLimits } from './hooks'
 
 const logger = createLogger('Panel')
@@ -69,7 +70,6 @@ export function Panel() {
   const [isExporting, setIsExporting] = useState(false)
   const [isDuplicating, setIsDuplicating] = useState(false)
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
-  const [isDeleting, setIsDeleting] = useState(false)
 
   // Hooks
   const userPermissions = useUserPermissionsContext()
@@ -82,6 +82,14 @@ export function Panel() {
   const { getJson } = useWorkflowJsonStore()
   const { blocks } = useWorkflowStore()
 
+  // Delete workflow hook
+  const { isDeleting, handleDeleteWorkflow } = useDeleteWorkflow({
+    workspaceId,
+    workflowId: activeWorkflowId || '',
+    isActive: true,
+    onSuccess: () => setIsDeleteModalOpen(false),
+  })
+
   // Usage limits hook
   const { usageExceeded } = useUsageLimits({
     context: 'user',
@@ -93,6 +101,9 @@ export function Panel() {
 
   // Panel resize hook
   const { handleMouseDown } = usePanelResize()
+
+  // Chat state
+  const { isChatOpen, setIsChatOpen } = useChatStore()
 
   const currentWorkflow = activeWorkflowId ? workflows[activeWorkflowId] : null
 
@@ -215,49 +226,6 @@ export function Panel() {
     workspaceId,
   ])
 
-  /**
-   * Handles deleting the current workflow after confirmation
-   */
-  const handleDeleteWorkflow = useCallback(async () => {
-    if (!activeWorkflowId || !userPermissions.canEdit || isDeleting) {
-      return
-    }
-
-    setIsDeleting(true)
-    try {
-      // Find next workflow to navigate to
-      const sidebarWorkflows = Object.values(workflows).filter((w) => w.workspaceId === workspaceId)
-      const currentIndex = sidebarWorkflows.findIndex((w) => w.id === activeWorkflowId)
-
-      let nextWorkflowId: string | null = null
-      if (sidebarWorkflows.length > 1) {
-        if (currentIndex < sidebarWorkflows.length - 1) {
-          nextWorkflowId = sidebarWorkflows[currentIndex + 1].id
-        } else if (currentIndex > 0) {
-          nextWorkflowId = sidebarWorkflows[currentIndex - 1].id
-        }
-      }
-
-      // Navigate first
-      if (nextWorkflowId) {
-        router.push(`/workspace/${workspaceId}/w/${nextWorkflowId}`)
-      } else {
-        router.push(`/workspace/${workspaceId}`)
-      }
-
-      // Then delete
-      const { removeWorkflow: registryRemoveWorkflow } = useWorkflowRegistry.getState()
-      await registryRemoveWorkflow(activeWorkflowId)
-
-      setIsDeleteModalOpen(false)
-      logger.info('Workflow deleted successfully')
-    } catch (error) {
-      logger.error('Error deleting workflow:', error)
-    } finally {
-      setIsDeleting(false)
-    }
-  }, [activeWorkflowId, userPermissions.canEdit, isDeleting, workflows, workspaceId, router])
-
   // Compute run button state
   const canRun = userPermissions.canRead // Running only requires read permissions
   const isLoadingPermissions = userPermissions.isLoading
@@ -325,17 +293,18 @@ export function Panel() {
                   </PopoverItem>
                 </PopoverContent>
               </Popover>
-              <Button className='h-[32px] w-[32px]'>
+              <Button
+                className='h-[32px] w-[32px]'
+                variant={isChatOpen ? 'active' : 'default'}
+                onClick={() => setIsChatOpen(!isChatOpen)}
+              >
                 <BubbleChatPreview />
               </Button>
             </div>
 
             {/* Deploy and Run */}
             <div className='flex gap-[4px]'>
-              <Button className='h-[32px] gap-[8px] px-[10px]' variant='active'>
-                <Rocket className='h-[13px] w-[13px]' />
-                Deploy
-              </Button>
+              <Deploy activeWorkflowId={activeWorkflowId} userPermissions={userPermissions} />
               <Button
                 className='h-[32px] w-[61.5px] gap-[8px]'
                 variant={isExecuting ? 'active' : 'primary'}
@@ -421,7 +390,7 @@ export function Panel() {
               }
               data-tab-content='toolbar'
             >
-              <Toolbar />
+              <Toolbar isActive={activeTab === 'toolbar'} />
             </div>
           </div>
         </div>

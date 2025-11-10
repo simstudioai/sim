@@ -3,9 +3,10 @@ import { persist } from 'zustand/middleware'
 
 /**
  * Toolbar triggers height constraints
+ * Minimum is set low to allow collapsing to just the header height (~30-40px)
  */
 const DEFAULT_TOOLBAR_TRIGGERS_HEIGHT = 300
-const MIN_TOOLBAR_HEIGHT = 100
+const MIN_TOOLBAR_HEIGHT = 30
 const MAX_TOOLBAR_HEIGHT = 800
 
 /**
@@ -14,6 +15,8 @@ const MAX_TOOLBAR_HEIGHT = 800
 interface ToolbarState {
   toolbarTriggersHeight: number
   setToolbarTriggersHeight: (height: number) => void
+  preSearchHeight: number | null
+  setPreSearchHeight: (height: number | null) => void
 }
 
 export const useToolbarStore = create<ToolbarState>()(
@@ -31,6 +34,8 @@ export const useToolbarStore = create<ToolbarState>()(
           )
         }
       },
+      preSearchHeight: null,
+      setPreSearchHeight: (height) => set({ preSearchHeight: height }),
     }),
     {
       name: 'toolbar-state',

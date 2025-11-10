@@ -17,7 +17,7 @@ import { Input } from '../input/input'
 import { Popover, PopoverAnchor, PopoverContent, PopoverScrollArea } from '../popover/popover'
 
 const comboboxVariants = cva(
-  'flex w-full rounded-[4px] border border-[#3D3D3D] bg-[#282828] dark:bg-[#363636] px-[8px] py-[7px] font-sans font-medium text-sm text-[#E6E6E6] placeholder:text-[#787878] dark:placeholder:text-[#787878] outline-none focus:outline-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 disabled:cursor-not-allowed disabled:opacity-50 hover:border-[#4A4A4A] hover:bg-[#363636] dark:hover:border-[#454545] dark:hover:bg-[#3D3D3D]',
+  'flex w-full rounded-[4px] border border-[#3D3D3D] bg-[#282828] dark:bg-[#363636] px-[8px] py-[6px] font-sans font-medium text-sm text-[#E6E6E6] placeholder:text-[#787878] dark:placeholder:text-[#787878] outline-none focus:outline-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 disabled:cursor-not-allowed disabled:opacity-50 hover:border-[#4A4A4A] hover:bg-[#363636] dark:hover:border-[#454545] dark:hover:bg-[#3D3D3D]',
   {
     variants: {
       variant: {
@@ -353,7 +353,7 @@ const Combobox = forwardRef<HTMLDivElement, ComboboxProps>(
                     {...inputProps}
                   />
                   {(overlayContent || SelectedIcon) && (
-                    <div className='pointer-events-none absolute top-0 right-[42px] bottom-0 left-0 flex items-center bg-transparent px-[8px] py-[7px] font-medium font-sans text-sm'>
+                    <div className='pointer-events-none absolute top-0 right-[42px] bottom-0 left-0 flex items-center bg-transparent px-[8px] py-[6px] font-medium font-sans text-sm'>
                       {overlayContent ? (
                         overlayContent
                       ) : (

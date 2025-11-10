@@ -337,7 +337,7 @@ export function FieldFormat({
           ref={(el) => {
             if (el) overlayRefs.current[field.id] = el
           }}
-          className='pointer-events-none absolute inset-0 flex items-center overflow-x-auto bg-transparent px-[8px] py-[7px] font-medium font-sans text-sm'
+          className='pointer-events-none absolute inset-0 flex items-center overflow-x-auto bg-transparent px-[8px] py-[6px] font-medium font-sans text-sm'
           style={{ overflowX: 'auto' }}
         >
           <div

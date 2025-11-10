@@ -2,9 +2,50 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useToolbarStore } from '@/stores/panel-new/toolbar/store'
 
 /**
- * Minimum height for a section (in pixels)
+ * Minimum height for the blocks section (in pixels)
+ * The triggers section minimum will be calculated dynamically based on header height
  */
-const MIN_SECTION_HEIGHT = 100
+export const MIN_BLOCKS_SECTION_HEIGHT = 100
+
+/**
+ * Calculates height boundaries and optimal height for the triggers section
+ *
+ * @param containerRef - Reference to the container element
+ * @param triggersContentRef - Reference to the triggers content element
+ * @param triggersHeaderRef - Reference to the triggers header element
+ * @returns Object containing minHeight, maxHeight, and optimalHeight for triggers section
+ */
+export function calculateTriggerHeights(
+  containerRef: React.RefObject<HTMLDivElement | null>,
+  triggersContentRef: React.RefObject<HTMLDivElement | null>,
+  triggersHeaderRef: React.RefObject<HTMLDivElement | null>
+): { minHeight: number; maxHeight: number; optimalHeight: number } {
+  const defaultHeight = MIN_BLOCKS_SECTION_HEIGHT
+
+  if (!containerRef.current || !triggersHeaderRef.current) {
+    return { minHeight: defaultHeight, maxHeight: defaultHeight, optimalHeight: defaultHeight }
+  }
+
+  const parentHeight = containerRef.current.getBoundingClientRect().height
+  const headerHeight = triggersHeaderRef.current.getBoundingClientRect().height
+
+  // Minimum triggers height is just the header
+  const minHeight = headerHeight
+
+  // Calculate optimal and maximum heights based on actual content
+  let maxHeight = parentHeight - MIN_BLOCKS_SECTION_HEIGHT
+  let optimalHeight = minHeight
+
+  if (triggersContentRef.current) {
+    const contentHeight = triggersContentRef.current.scrollHeight
+    // Optimal height = header + actual content (shows all triggers without scrolling)
+    optimalHeight = Math.min(headerHeight + contentHeight, maxHeight)
+    // Maximum height shouldn't exceed full content height
+    maxHeight = Math.min(maxHeight, headerHeight + contentHeight)
+  }
+
+  return { minHeight, maxHeight, optimalHeight }
+}
 
 /**
  * Props for the useToolbarResize hook
@@ -65,28 +106,15 @@ export function useToolbarResize({
       const deltaY = e.clientY - startYRef.current
       let newHeight = startHeightRef.current + deltaY
 
-      const parentContainer = containerRef.current
-      if (parentContainer) {
-        const parentHeight = parentContainer.getBoundingClientRect().height
+      // Calculate height boundaries and clamp the new height
+      const { minHeight, maxHeight } = calculateTriggerHeights(
+        containerRef,
+        triggersContentRef,
+        triggersHeaderRef
+      )
 
-        // Calculate maximum triggers height based on actual content
-        let maxTriggersHeight = parentHeight - MIN_SECTION_HEIGHT
-
-        if (triggersContentRef.current && triggersHeaderRef.current) {
-          const contentHeight = triggersContentRef.current.scrollHeight
-          const headerHeight = triggersHeaderRef.current.getBoundingClientRect().height
-
-          // Maximum height = header + content (this shows all triggers without scrolling)
-          const fullContentHeight = headerHeight + contentHeight
-
-          // Don't allow triggers to exceed its full content height
-          maxTriggersHeight = Math.min(maxTriggersHeight, fullContentHeight)
-        }
-
-        // Ensure minimum for triggers section and respect maximum
-        newHeight = Math.max(MIN_SECTION_HEIGHT, Math.min(maxTriggersHeight, newHeight))
-        setToolbarTriggersHeight(newHeight)
-      }
+      newHeight = Math.max(minHeight, Math.min(maxHeight, newHeight))
+      setToolbarTriggersHeight(newHeight)
     }
 
     const handleMouseUp = () => {
@@ -108,5 +136,6 @@ export function useToolbarResize({
 
   return {
     handleMouseDown,
+    isResizing,
   }
 }
