@@ -12,7 +12,7 @@ export const PipedriveBlock: BlockConfig<PipedriveResponse> = {
     'Integrate Pipedrive into your workflow. Manage deals, contacts, sales pipeline, projects, activities, files, and communications with powerful CRM capabilities.',
   docsLink: 'https://docs.sim.ai/tools/pipedrive',
   category: 'tools',
-  bgColor: '#E0E0E0',
+  bgColor: '#192436',
   icon: PipedriveIcon,
   subBlocks: [
     {

@@ -1697,23 +1697,10 @@ export function GoogleCalendarIcon(props: SVGProps<SVGSVGElement>) {
 
 export function SupabaseIcon(props: SVGProps<SVGSVGElement>) {
   return (
-    <svg {...props} width='24' height='24' viewBox='0 0 27 27' xmlns='http://www.w3.org/2000/svg'>
-      <path
-        d='M15.4057 26.2606C14.7241 27.1195 13.3394 26.649 13.3242 25.5519L13.083 9.50684H23.8724C25.8262 9.50684 26.9157 11.7636 25.7006 13.2933L15.4057 26.2606Z'
-        fill='url(#paint0_linear)'
-      />
-      <path
-        d='M15.4057 26.2606C14.7241 27.1195 13.3394 26.649 13.3242 25.5519L13.083 9.50684H23.8724C25.8262 9.50684 26.9157 11.7636 25.7006 13.2933L15.4057 26.2606Z'
-        fill='url(#paint1_linear)'
-        fillOpacity='0.2'
-      />
-      <path
-        d='M11.0167 0.443853C11.6983 -0.415083 13.0832 0.0553814 13.0982 1.15237L13.2042 17.1976H2.55005C0.596215 17.1976 -0.493259 14.9408 0.721603 13.4111L11.0167 0.443853Z'
-        fill='#3ECF8E'
-      />
+    <svg {...props} viewBox='0 0 27 27' xmlns='http://www.w3.org/2000/svg'>
       <defs>
         <linearGradient
-          id='paint0_linear'
+          id='supabase-paint0-linear'
           x1='13.084'
           y1='13.0655'
           x2='22.6727'
@@ -1724,17 +1711,30 @@ export function SupabaseIcon(props: SVGProps<SVGSVGElement>) {
           <stop offset='1' stopColor='#3ECF8E' />
         </linearGradient>
         <linearGradient
-          id='paint1_linear'
+          id='supabase-paint1-linear'
           x1='8.83277'
           y1='7.24485'
           x2='13.2057'
           y2='15.477'
           gradientUnits='userSpaceOnUse'
         >
-          <stop />
-          <stop offset='1' stopOpacity='0' />
+          <stop stopColor='#000000' />
+          <stop offset='1' stopColor='#000000' stopOpacity='0' />
         </linearGradient>
       </defs>
+      <path
+        d='M15.4057 26.2606C14.7241 27.1195 13.3394 26.649 13.3242 25.5519L13.083 9.50684H23.8724C25.8262 9.50684 26.9157 11.7636 25.7006 13.2933L15.4057 26.2606Z'
+        fill='url(#supabase-paint0-linear)'
+      />
+      <path
+        d='M15.4057 26.2606C14.7241 27.1195 13.3394 26.649 13.3242 25.5519L13.083 9.50684H23.8724C25.8262 9.50684 26.9157 11.7636 25.7006 13.2933L15.4057 26.2606Z'
+        fill='url(#supabase-paint1-linear)'
+        fillOpacity='0.2'
+      />
+      <path
+        d='M11.0167 0.443853C11.6983 -0.415083 13.0832 0.0553814 13.0982 1.15237L13.2042 17.1976H2.55005C0.596215 17.1976 -0.493259 14.9408 0.721603 13.4111L11.0167 0.443853Z'
+        fill='#3ECF8E'
+      />
     </svg>
   )
 }
@@ -3298,11 +3298,12 @@ export function MicrosoftSharepointIcon(props: SVGProps<SVGSVGElement>) {
 }
 
 export function MicrosoftPlannerIcon(props: SVGProps<SVGSVGElement>) {
+  const uniqueId = `ms-planner-${Math.random().toString(36).substr(2, 9)}`
   return (
-    <svg {...props} fill='currentColor' viewBox='-1 -1 27 27' xmlns='http://www.w3.org/2000/svg'>
+    <svg {...props} viewBox='0 0 24 24' xmlns='http://www.w3.org/2000/svg'>
       <defs>
         <linearGradient
-          id='paint0_linear_3984_11038'
+          id={`${uniqueId}-0`}
           x1='6.38724'
           y1='3.74167'
           x2='2.15779'
@@ -3313,7 +3314,7 @@ export function MicrosoftPlannerIcon(props: SVGProps<SVGSVGElement>) {
           <stop offset='1' stopColor='#541278' />
         </linearGradient>
         <linearGradient
-          id='paint1_linear_3984_11038'
+          id={`${uniqueId}-1`}
           x1='8.38032'
           y1='11.0696'
           x2='4.94062'
@@ -3324,7 +3325,7 @@ export function MicrosoftPlannerIcon(props: SVGProps<SVGSVGElement>) {
           <stop offset='1' stopColor='#7034B0' stopOpacity='0' />
         </linearGradient>
         <linearGradient
-          id='paint2_linear_3984_11038'
+          id={`${uniqueId}-2`}
           x1='18.3701'
           y1='-3.33385e-05'
           x2='9.85717'
@@ -3335,7 +3336,7 @@ export function MicrosoftPlannerIcon(props: SVGProps<SVGSVGElement>) {
           <stop offset='1' stopColor='#6C0F71' />
         </linearGradient>
         <linearGradient
-          id='paint3_linear_3984_11038'
+          id={`${uniqueId}-3`}
           x1='18.3701'
           y1='-3.33385e-05'
           x2='9.85717'
@@ -3347,7 +3348,7 @@ export function MicrosoftPlannerIcon(props: SVGProps<SVGSVGElement>) {
           <stop offset='1' stopColor='#8F28B3' />
         </linearGradient>
         <linearGradient
-          id='paint4_linear_3984_11038'
+          id={`${uniqueId}-4`}
           x1='18.0002'
           y1='7.49958'
           x2='14.0004'
@@ -3358,7 +3359,7 @@ export function MicrosoftPlannerIcon(props: SVGProps<SVGSVGElement>) {
           <stop offset='1' stopColor='#00479E' />
         </linearGradient>
         <linearGradient
-          id='paint5_linear_3984_11038'
+          id={`${uniqueId}-5`}
           x1='18.2164'
           y1='7.92626'
           x2='10.5237'
@@ -3371,27 +3372,27 @@ export function MicrosoftPlannerIcon(props: SVGProps<SVGSVGElement>) {
       </defs>
       <path
         d='M8.25809 15.7412C7.22488 16.7744 5.54971 16.7744 4.5165 15.7412L0.774909 11.9996C-0.258303 10.9664 -0.258303 9.29129 0.774908 8.25809L4.5165 4.51655C5.54971 3.48335 7.22488 3.48335 8.25809 4.51655L11.9997 8.2581C13.0329 9.29129 13.0329 10.9664 11.9997 11.9996L8.25809 15.7412Z'
-        fill='url(#paint0_linear_3984_11038)'
+        fill={`url(#${uniqueId}-0)`}
       />
       <path
         d='M8.25809 15.7412C7.22488 16.7744 5.54971 16.7744 4.5165 15.7412L0.774909 11.9996C-0.258303 10.9664 -0.258303 9.29129 0.774908 8.25809L4.5165 4.51655C5.54971 3.48335 7.22488 3.48335 8.25809 4.51655L11.9997 8.2581C13.0329 9.29129 13.0329 10.9664 11.9997 11.9996L8.25809 15.7412Z'
-        fill='url(#paint1_linear_3984_11038)'
+        fill={`url(#${uniqueId}-1)`}
       />
       <path
         d='M0.774857 11.9999C1.80809 13.0331 3.48331 13.0331 4.51655 11.9999L15.7417 0.774926C16.7749 -0.258304 18.4501 -0.258309 19.4834 0.774914L23.225 4.51655C24.2583 5.54977 24.2583 7.22496 23.225 8.25819L11.9999 19.4832C10.9667 20.5164 9.29146 20.5164 8.25822 19.4832L0.774857 11.9999Z'
-        fill='url(#paint2_linear_3984_11038)'
+        fill={`url(#${uniqueId}-2)`}
       />
       <path
         d='M0.774857 11.9999C1.80809 13.0331 3.48331 13.0331 4.51655 11.9999L15.7417 0.774926C16.7749 -0.258304 18.4501 -0.258309 19.4834 0.774914L23.225 4.51655C24.2583 5.54977 24.2583 7.22496 23.225 8.25819L11.9999 19.4832C10.9667 20.5164 9.29146 20.5164 8.25822 19.4832L0.774857 11.9999Z'
-        fill='url(#paint3_linear_3984_11038)'
+        fill={`url(#${uniqueId}-3)`}
       />
       <path
         d='M4.51642 15.7413C5.54966 16.7746 7.22487 16.7746 8.25812 15.7413L15.7415 8.25803C16.7748 7.2248 18.45 7.2248 19.4832 8.25803L23.2249 11.9997C24.2582 13.0329 24.2582 14.7081 23.2249 15.7413L15.7415 23.2246C14.7083 24.2579 13.033 24.2579 11.9998 23.2246L4.51642 15.7413Z'
-        fill='url(#paint4_linear_3984_11038)'
+        fill={`url(#${uniqueId}-4)`}
       />
       <path
         d='M4.51642 15.7413C5.54966 16.7746 7.22487 16.7746 8.25812 15.7413L15.7415 8.25803C16.7748 7.2248 18.45 7.2248 19.4832 8.25803L23.2249 11.9997C24.2582 13.0329 24.2582 14.7081 23.2249 15.7413L15.7415 23.2246C14.7083 24.2579 13.033 24.2579 11.9998 23.2246L4.51642 15.7413Z'
-        fill='url(#paint5_linear_3984_11038)'
+        fill={`url(#${uniqueId}-5)`}
       />
     </svg>
   )
@@ -3863,7 +3864,7 @@ export function AsanaIcon(props: SVGProps<SVGSVGElement>) {
       viewBox='700 0 1100 900'
     >
       <radialGradient
-        id='a'
+        id='asana-gradient-a'
         cx='943.992'
         cy='1221.416'
         r='.663'
@@ -3875,7 +3876,7 @@ export function AsanaIcon(props: SVGProps<SVGSVGElement>) {
         <stop offset='.999' stopColor='#f95353' />
       </radialGradient>
       <path
-        fill='url(#a)'
+        fill='url(#asana-gradient-a)'
         d='M1520.766 462.371c-113.508 0-205.508 92-205.508 205.488 0 113.499 92 205.518 205.508 205.518 113.489 0 205.488-92.019 205.488-205.518 0-113.488-91.999-205.488-205.488-205.488zm-533.907.01c-113.489.01-205.498 91.99-205.498 205.488 0 113.489 92.009 205.498 205.498 205.498 113.498 0 205.508-92.009 205.508-205.498 0-113.499-92.01-205.488-205.518-205.488h.01zm472.447-256.883c0 113.489-91.999 205.518-205.488 205.518-113.508 0-205.508-92.029-205.508-205.518S1140.31 0 1253.817 0c113.489 0 205.479 92.009 205.479 205.498h.01z'
       />
     </svg>
@@ -3893,15 +3894,15 @@ export function PipedriveIcon(props: SVGProps<SVGSVGElement>) {
     >
       <defs>
         <path
-          id='path-1'
+          id='pipedrive-path-1'
           d='M59.6807,81.1772 C59.6807,101.5343 70.0078,123.4949 92.7336,123.4949 C109.5872,123.4949 126.6277,110.3374 126.6277,80.8785 C126.6277,55.0508 113.232,37.7119 93.2944,37.7119 C77.0483,37.7119 59.6807,49.1244 59.6807,81.1772 Z M101.3006,0 C142.0482,0 169.4469,32.2728 169.4469,80.3126 C169.4469,127.5978 140.584,160.60942 99.3224,160.60942 C79.6495,160.60942 67.0483,152.1836 60.4595,146.0843 C60.5063,147.5305 60.5374,149.1497 60.5374,150.8788 L60.5374,215 L18.32565,215 L18.32565,44.157 C18.32565,41.6732 17.53126,40.8873 15.07021,40.8873 L0.5531,40.8873 L0.5531,3.4741 L35.9736,3.4741 C52.282,3.4741 56.4564,11.7741 57.2508,18.1721 C63.8708,10.7524 77.5935,0 101.3006,0 Z'
         />
       </defs>
       <g transform='translate(67,44)'>
-        <mask id='mask-2' fill='#fff'>
-          <use href='#path-1' />
+        <mask id='pipedrive-mask-2' fill='#fff'>
+          <use href='#pipedrive-path-1' />
         </mask>
-        <use fill='#26292C' href='#path-1' />
+        <use fill='currentColor' href='#pipedrive-path-1' />
       </g>
     </svg>
   )
