@@ -17,10 +17,24 @@ import {
 import { gmailPollingTrigger } from '@/triggers/gmail'
 import { googleFormsWebhookTrigger } from '@/triggers/googleforms'
 import {
+  hubspotCompanyCreatedTrigger,
+  hubspotCompanyDeletedTrigger,
+  hubspotCompanyPropertyChangedTrigger,
   hubspotContactCreatedTrigger,
   hubspotContactDeletedTrigger,
   hubspotContactPrivacyDeletedTrigger,
   hubspotContactPropertyChangedTrigger,
+  hubspotConversationCreationTrigger,
+  hubspotConversationDeletionTrigger,
+  hubspotConversationNewMessageTrigger,
+  hubspotConversationPrivacyDeletionTrigger,
+  hubspotConversationPropertyChangedTrigger,
+  hubspotDealCreatedTrigger,
+  hubspotDealDeletedTrigger,
+  hubspotDealPropertyChangedTrigger,
+  hubspotTicketCreatedTrigger,
+  hubspotTicketDeletedTrigger,
+  hubspotTicketPropertyChangedTrigger,
 } from '@/triggers/hubspot'
 import {
   jiraIssueCommentedTrigger,
@@ -121,4 +135,18 @@ export const TRIGGER_REGISTRY: TriggerRegistry = {
   hubspot_contact_deleted: hubspotContactDeletedTrigger,
   hubspot_contact_privacy_deleted: hubspotContactPrivacyDeletedTrigger,
   hubspot_contact_property_changed: hubspotContactPropertyChangedTrigger,
+  hubspot_company_created: hubspotCompanyCreatedTrigger,
+  hubspot_company_deleted: hubspotCompanyDeletedTrigger,
+  hubspot_company_property_changed: hubspotCompanyPropertyChangedTrigger,
+  hubspot_conversation_creation: hubspotConversationCreationTrigger,
+  hubspot_conversation_deletion: hubspotConversationDeletionTrigger,
+  hubspot_conversation_new_message: hubspotConversationNewMessageTrigger,
+  hubspot_conversation_privacy_deletion: hubspotConversationPrivacyDeletionTrigger,
+  hubspot_conversation_property_changed: hubspotConversationPropertyChangedTrigger,
+  hubspot_deal_created: hubspotDealCreatedTrigger,
+  hubspot_deal_deleted: hubspotDealDeletedTrigger,
+  hubspot_deal_property_changed: hubspotDealPropertyChangedTrigger,
+  hubspot_ticket_created: hubspotTicketCreatedTrigger,
+  hubspot_ticket_deleted: hubspotTicketDeletedTrigger,
+  hubspot_ticket_property_changed: hubspotTicketPropertyChangedTrigger,
 }

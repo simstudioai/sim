@@ -1,6 +1,30 @@
 import type { TriggerOutput } from '@/triggers/types'
 
 /**
+ * Combined trigger dropdown options for all HubSpot triggers (for block config)
+ */
+export const hubspotAllTriggerOptions = [
+  { label: 'Contact Created', id: 'hubspot_contact_created' },
+  { label: 'Contact Deleted', id: 'hubspot_contact_deleted' },
+  { label: 'Contact Privacy Deleted', id: 'hubspot_contact_privacy_deleted' },
+  { label: 'Contact Property Changed', id: 'hubspot_contact_property_changed' },
+  { label: 'Company Created', id: 'hubspot_company_created' },
+  { label: 'Company Deleted', id: 'hubspot_company_deleted' },
+  { label: 'Company Property Changed', id: 'hubspot_company_property_changed' },
+  { label: 'Conversation Creation', id: 'hubspot_conversation_creation' },
+  { label: 'Conversation Deletion', id: 'hubspot_conversation_deletion' },
+  { label: 'Conversation New Message', id: 'hubspot_conversation_new_message' },
+  { label: 'Conversation Privacy Deletion', id: 'hubspot_conversation_privacy_deletion' },
+  { label: 'Conversation Property Changed', id: 'hubspot_conversation_property_changed' },
+  { label: 'Deal Created', id: 'hubspot_deal_created' },
+  { label: 'Deal Deleted', id: 'hubspot_deal_deleted' },
+  { label: 'Deal Property Changed', id: 'hubspot_deal_property_changed' },
+  { label: 'Ticket Created', id: 'hubspot_ticket_created' },
+  { label: 'Ticket Deleted', id: 'hubspot_ticket_deleted' },
+  { label: 'Ticket Property Changed', id: 'hubspot_ticket_property_changed' },
+]
+
+/**
  * Shared trigger dropdown options for all HubSpot contact triggers
  */
 export const hubspotContactTriggerOptions = [
@@ -8,6 +32,44 @@ export const hubspotContactTriggerOptions = [
   { label: 'Contact Deleted', id: 'hubspot_contact_deleted' },
   { label: 'Contact Privacy Deleted', id: 'hubspot_contact_privacy_deleted' },
   { label: 'Contact Property Changed', id: 'hubspot_contact_property_changed' },
+]
+
+/**
+ * Shared trigger dropdown options for all HubSpot company triggers
+ */
+export const hubspotCompanyTriggerOptions = [
+  { label: 'Company Created', id: 'hubspot_company_created' },
+  { label: 'Company Deleted', id: 'hubspot_company_deleted' },
+  { label: 'Company Property Changed', id: 'hubspot_company_property_changed' },
+]
+
+/**
+ * Shared trigger dropdown options for all HubSpot conversation triggers
+ */
+export const hubspotConversationTriggerOptions = [
+  { label: 'Conversation Creation', id: 'hubspot_conversation_creation' },
+  { label: 'Conversation Deletion', id: 'hubspot_conversation_deletion' },
+  { label: 'Conversation New Message', id: 'hubspot_conversation_new_message' },
+  { label: 'Conversation Privacy Deletion', id: 'hubspot_conversation_privacy_deletion' },
+  { label: 'Conversation Property Changed', id: 'hubspot_conversation_property_changed' },
+]
+
+/**
+ * Shared trigger dropdown options for all HubSpot deal triggers
+ */
+export const hubspotDealTriggerOptions = [
+  { label: 'Deal Created', id: 'hubspot_deal_created' },
+  { label: 'Deal Deleted', id: 'hubspot_deal_deleted' },
+  { label: 'Deal Property Changed', id: 'hubspot_deal_property_changed' },
+]
+
+/**
+ * Shared trigger dropdown options for all HubSpot ticket triggers
+ */
+export const hubspotTicketTriggerOptions = [
+  { label: 'Ticket Created', id: 'hubspot_ticket_created' },
+  { label: 'Ticket Deleted', id: 'hubspot_ticket_deleted' },
+  { label: 'Ticket Property Changed', id: 'hubspot_ticket_property_changed' },
 ]
 
 /**
@@ -33,207 +95,184 @@ export function hubspotSetupInstructions(eventType: string, additionalNotes?: st
 }
 
 /**
+ * Base webhook outputs that are common to all HubSpot triggers
+ * Clean structure with payload, provider, and providerConfig at root level
+ */
+function buildBaseHubSpotOutputs(): Record<string, TriggerOutput> {
+  return {
+    payload: {
+      type: 'json',
+      description: 'Full webhook payload array from HubSpot containing event details',
+    },
+    provider: {
+      type: 'string',
+      description: 'Provider name (hubspot)',
+    },
+    providerConfig: {
+      appId: {
+        type: 'string',
+        description: 'HubSpot App ID',
+      },
+      clientId: {
+        type: 'string',
+        description: 'HubSpot Client ID',
+      },
+      triggerId: {
+        type: 'string',
+        description: 'Trigger ID (e.g., hubspot_company_created)',
+      },
+      clientSecret: {
+        type: 'string',
+        description: 'HubSpot Client Secret',
+      },
+      developerApiKey: {
+        type: 'string',
+        description: 'HubSpot Developer API Key',
+      },
+      curlSetWebhookUrl: {
+        type: 'string',
+        description: 'curl command to set webhook URL',
+      },
+      curlCreateSubscription: {
+        type: 'string',
+        description: 'curl command to create subscription',
+      },
+      webhookUrlDisplay: {
+        type: 'string',
+        description: 'Webhook URL display value',
+      },
+      propertyName: {
+        type: 'string',
+        description: 'Optional property name filter (for property change triggers)',
+      },
+    },
+  } as any
+}
+
+/**
  * Build output schema for contact creation events
  */
 export function buildContactCreatedOutputs(): Record<string, TriggerOutput> {
-  return {
-    eventId: {
-      type: 'string',
-      description: 'Unique ID for this webhook event',
-    },
-    subscriptionId: {
-      type: 'string',
-      description: 'ID of the webhook subscription',
-    },
-    portalId: {
-      type: 'string',
-      description: 'HubSpot portal (account) ID',
-    },
-    occurredAt: {
-      type: 'string',
-      description: 'Timestamp when the event occurred (milliseconds)',
-    },
-    eventType: {
-      type: 'string',
-      description: 'Event type (contact.creation)',
-    },
-    attemptNumber: {
-      type: 'number',
-      description: 'Delivery attempt number for this webhook',
-    },
-    objectId: {
-      type: 'string',
-      description: 'ID of the contact that was created',
-    },
-    changeSource: {
-      type: 'string',
-      description: 'Source of the change (e.g., CRM, API, IMPORT)',
-    },
-    changeFlag: {
-      type: 'string',
-      description: 'Flag indicating the type of change',
-    },
-    appId: {
-      type: 'string',
-      description: 'ID of the app that triggered the event',
-    },
-  } as any
+  return buildBaseHubSpotOutputs()
 }
 
 /**
  * Build output schema for contact deletion events
  */
 export function buildContactDeletedOutputs(): Record<string, TriggerOutput> {
-  return {
-    eventId: {
-      type: 'string',
-      description: 'Unique ID for this webhook event',
-    },
-    subscriptionId: {
-      type: 'string',
-      description: 'ID of the webhook subscription',
-    },
-    portalId: {
-      type: 'string',
-      description: 'HubSpot portal (account) ID',
-    },
-    occurredAt: {
-      type: 'string',
-      description: 'Timestamp when the event occurred (milliseconds)',
-    },
-    eventType: {
-      type: 'string',
-      description: 'Event type (contact.deletion)',
-    },
-    attemptNumber: {
-      type: 'number',
-      description: 'Delivery attempt number for this webhook',
-    },
-    objectId: {
-      type: 'string',
-      description: 'ID of the contact that was deleted',
-    },
-    changeSource: {
-      type: 'string',
-      description: 'Source of the deletion (e.g., CRM, API)',
-    },
-    changeFlag: {
-      type: 'string',
-      description: 'Flag indicating the type of change',
-    },
-    appId: {
-      type: 'string',
-      description: 'ID of the app that triggered the event',
-    },
-  } as any
+  return buildBaseHubSpotOutputs()
 }
 
 /**
  * Build output schema for contact privacy deletion events
  */
 export function buildContactPrivacyDeletedOutputs(): Record<string, TriggerOutput> {
-  return {
-    eventId: {
-      type: 'string',
-      description: 'Unique ID for this webhook event',
-    },
-    subscriptionId: {
-      type: 'string',
-      description: 'ID of the webhook subscription',
-    },
-    portalId: {
-      type: 'string',
-      description: 'HubSpot portal (account) ID',
-    },
-    occurredAt: {
-      type: 'string',
-      description: 'Timestamp when the event occurred (milliseconds)',
-    },
-    eventType: {
-      type: 'string',
-      description: 'Event type (contact.privacyDeletion)',
-    },
-    attemptNumber: {
-      type: 'number',
-      description: 'Delivery attempt number for this webhook',
-    },
-    objectId: {
-      type: 'string',
-      description: 'ID of the contact whose data was deleted for privacy compliance',
-    },
-    changeSource: {
-      type: 'string',
-      description: 'Source of the privacy deletion (e.g., GDPR request)',
-    },
-    changeFlag: {
-      type: 'string',
-      description: 'Flag indicating the type of change',
-    },
-    appId: {
-      type: 'string',
-      description: 'ID of the app that triggered the event',
-    },
-  } as any
+  return buildBaseHubSpotOutputs()
 }
 
 /**
  * Build output schema for contact property change events
  */
 export function buildContactPropertyChangedOutputs(): Record<string, TriggerOutput> {
-  return {
-    eventId: {
-      type: 'string',
-      description: 'Unique ID for this webhook event',
-    },
-    subscriptionId: {
-      type: 'string',
-      description: 'ID of the webhook subscription',
-    },
-    portalId: {
-      type: 'string',
-      description: 'HubSpot portal (account) ID',
-    },
-    occurredAt: {
-      type: 'string',
-      description: 'Timestamp when the event occurred (milliseconds)',
-    },
-    eventType: {
-      type: 'string',
-      description: 'Event type (contact.propertyChange)',
-    },
-    attemptNumber: {
-      type: 'number',
-      description: 'Delivery attempt number for this webhook',
-    },
-    objectId: {
-      type: 'string',
-      description: 'ID of the contact whose property changed',
-    },
-    propertyName: {
-      type: 'string',
-      description: 'Name of the property that changed',
-    },
-    propertyValue: {
-      type: 'string',
-      description: 'New value of the property',
-    },
-    changeSource: {
-      type: 'string',
-      description: 'Source of the change (e.g., CRM, API, IMPORT, WORKFLOW)',
-    },
-    sourceId: {
-      type: 'string',
-      description: 'ID of the source that made the change (e.g., workflow ID, user ID)',
-    },
-    changeFlag: {
-      type: 'string',
-      description: 'Flag indicating the type of change',
-    },
-    appId: {
-      type: 'string',
-      description: 'ID of the app that triggered the event',
-    },
-  } as any
+  return buildBaseHubSpotOutputs()
+}
+
+/**
+ * Build output schema for company creation events
+ */
+export function buildCompanyCreatedOutputs(): Record<string, TriggerOutput> {
+  return buildBaseHubSpotOutputs()
+}
+
+/**
+ * Build output schema for company deletion events
+ */
+export function buildCompanyDeletedOutputs(): Record<string, TriggerOutput> {
+  return buildBaseHubSpotOutputs()
+}
+
+/**
+ * Build output schema for company property change events
+ */
+export function buildCompanyPropertyChangedOutputs(): Record<string, TriggerOutput> {
+  return buildBaseHubSpotOutputs()
+}
+
+/**
+ * Build output schema for conversation creation events
+ */
+export function buildConversationCreationOutputs(): Record<string, TriggerOutput> {
+  return buildBaseHubSpotOutputs()
+}
+
+/**
+ * Build output schema for conversation deletion events
+ */
+export function buildConversationDeletionOutputs(): Record<string, TriggerOutput> {
+  return buildBaseHubSpotOutputs()
+}
+
+/**
+ * Build output schema for conversation new message events
+ */
+export function buildConversationNewMessageOutputs(): Record<string, TriggerOutput> {
+  return buildBaseHubSpotOutputs()
+}
+
+/**
+ * Build output schema for conversation privacy deletion events
+ */
+export function buildConversationPrivacyDeletionOutputs(): Record<string, TriggerOutput> {
+  return buildBaseHubSpotOutputs()
+}
+
+/**
+ * Build output schema for conversation property change events
+ */
+export function buildConversationPropertyChangedOutputs(): Record<string, TriggerOutput> {
+  return buildBaseHubSpotOutputs()
+}
+
+/**
+ * Build output schema for deal creation events
+ */
+export function buildDealCreatedOutputs(): Record<string, TriggerOutput> {
+  return buildBaseHubSpotOutputs()
+}
+
+/**
+ * Build output schema for deal deletion events
+ */
+export function buildDealDeletedOutputs(): Record<string, TriggerOutput> {
+  return buildBaseHubSpotOutputs()
+}
+
+/**
+ * Build output schema for deal property change events
+ */
+export function buildDealPropertyChangedOutputs(): Record<string, TriggerOutput> {
+  return buildBaseHubSpotOutputs()
+}
+
+/**
+ * Build output schema for ticket creation events
+ */
+export function buildTicketCreatedOutputs(): Record<string, TriggerOutput> {
+  return buildBaseHubSpotOutputs()
+}
+
+/**
+ * Build output schema for ticket deletion events
+ */
+export function buildTicketDeletedOutputs(): Record<string, TriggerOutput> {
+  return buildBaseHubSpotOutputs()
+}
+
+/**
+ * Build output schema for ticket property change events
+ */
+export function buildTicketPropertyChangedOutputs(): Record<string, TriggerOutput> {
+  return buildBaseHubSpotOutputs()
 }
 
 /**
@@ -245,6 +284,20 @@ export function isHubSpotContactEventMatch(triggerId: string, eventType: string)
     hubspot_contact_deleted: 'contact.deletion',
     hubspot_contact_privacy_deleted: 'contact.privacyDeletion',
     hubspot_contact_property_changed: 'contact.propertyChange',
+    hubspot_company_created: 'company.creation',
+    hubspot_company_deleted: 'company.deletion',
+    hubspot_company_property_changed: 'company.propertyChange',
+    hubspot_conversation_creation: 'conversation.creation',
+    hubspot_conversation_deletion: 'conversation.deletion',
+    hubspot_conversation_new_message: 'conversation.newMessage',
+    hubspot_conversation_privacy_deletion: 'conversation.privacyDeletion',
+    hubspot_conversation_property_changed: 'conversation.propertyChange',
+    hubspot_deal_created: 'deal.creation',
+    hubspot_deal_deleted: 'deal.deletion',
+    hubspot_deal_property_changed: 'deal.propertyChange',
+    hubspot_ticket_created: 'ticket.creation',
+    hubspot_ticket_deleted: 'ticket.deletion',
+    hubspot_ticket_property_changed: 'ticket.propertyChange',
   }
 
   const expectedEventType = eventMap[triggerId]

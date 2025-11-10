@@ -811,31 +811,9 @@ export async function formatWebhookInput(
     })
 
     return {
-      eventId: event.eventId,
-      subscriptionId: event.subscriptionId,
-      portalId: event.portalId,
-      occurredAt: event.occurredAt,
-      eventType: event.subscriptionType,
-      attemptNumber: event.attemptNumber,
-      objectId: event.objectId,
-      changeSource: event.changeSource,
-      changeFlag: event.changeFlag,
-      appId: event.appId,
-
-      propertyName: event.propertyName,
-      propertyValue: event.propertyValue,
-      sourceId: event.sourceId,
-
-      webhook: {
-        data: {
-          provider: 'hubspot',
-          path: foundWebhook.path,
-          providerConfig: foundWebhook.providerConfig,
-          payload: body,
-          headers: Object.fromEntries(request.headers.entries()),
-          method: request.method,
-        },
-      },
+      payload: body,
+      provider: 'hubspot',
+      providerConfig: foundWebhook.providerConfig,
       workflowId: foundWorkflow.id,
     }
   }

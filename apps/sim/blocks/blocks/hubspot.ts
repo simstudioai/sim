@@ -3,6 +3,7 @@ import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
 import type { HubSpotResponse } from '@/tools/hubspot/types'
 import { getTrigger } from '@/triggers'
+import { hubspotAllTriggerOptions } from '@/triggers/hubspot/utils'
 
 export const HubSpotBlock: BlockConfig<HubSpotResponse> = {
   type: 'hubspot',
@@ -735,10 +736,33 @@ Return ONLY the JSON array of property names - no explanations, no markdown, no 
         generationType: 'json-object',
       },
     },
-    ...getTrigger('hubspot_contact_created').subBlocks,
+    {
+      id: 'selectedTriggerId',
+      title: 'Trigger Type',
+      type: 'dropdown',
+      mode: 'trigger',
+      options: hubspotAllTriggerOptions,
+      value: () => 'hubspot_contact_created',
+      required: true,
+    },
+    ...getTrigger('hubspot_contact_created').subBlocks.slice(1),
     ...getTrigger('hubspot_contact_deleted').subBlocks.slice(1),
     ...getTrigger('hubspot_contact_privacy_deleted').subBlocks.slice(1),
     ...getTrigger('hubspot_contact_property_changed').subBlocks.slice(1),
+    ...getTrigger('hubspot_company_created').subBlocks.slice(1),
+    ...getTrigger('hubspot_company_deleted').subBlocks.slice(1),
+    ...getTrigger('hubspot_company_property_changed').subBlocks.slice(1),
+    ...getTrigger('hubspot_conversation_creation').subBlocks.slice(1),
+    ...getTrigger('hubspot_conversation_deletion').subBlocks.slice(1),
+    ...getTrigger('hubspot_conversation_new_message').subBlocks.slice(1),
+    ...getTrigger('hubspot_conversation_privacy_deletion').subBlocks.slice(1),
+    ...getTrigger('hubspot_conversation_property_changed').subBlocks.slice(1),
+    ...getTrigger('hubspot_deal_created').subBlocks.slice(1),
+    ...getTrigger('hubspot_deal_deleted').subBlocks.slice(1),
+    ...getTrigger('hubspot_deal_property_changed').subBlocks.slice(1),
+    ...getTrigger('hubspot_ticket_created').subBlocks.slice(1),
+    ...getTrigger('hubspot_ticket_deleted').subBlocks.slice(1),
+    ...getTrigger('hubspot_ticket_property_changed').subBlocks.slice(1),
   ],
   tools: {
     access: [
@@ -883,26 +907,53 @@ Return ONLY the JSON array of property names - no explanations, no markdown, no 
     paging: { type: 'json', description: 'Pagination info with next/prev cursors' },
     metadata: { type: 'json', description: 'Operation metadata' },
     success: { type: 'boolean', description: 'Operation success status' },
-    // Trigger outputs
-    eventId: { type: 'string', description: 'Unique webhook event ID' },
-    subscriptionId: { type: 'string', description: 'Webhook subscription ID' },
-    portalId: { type: 'string', description: 'HubSpot portal (account) ID' },
-    occurredAt: { type: 'string', description: 'Event occurrence timestamp' },
-    eventType: { type: 'string', description: 'Type of event that occurred' },
-    objectId: { type: 'string', description: 'ID of the affected object' },
-    propertyName: {
-      type: 'string',
-      description: 'Name of changed property (for property change events)',
+    payload: {
+      type: 'json',
+      description: 'Full webhook payload array from HubSpot containing event details',
     },
-    propertyValue: {
+    provider: {
       type: 'string',
-      description: 'New value of property (for property change events)',
+      description: 'Provider name (hubspot)',
     },
-    changeSource: {
-      type: 'string',
-      description: 'Source of the change (CRM, API, WORKFLOW, etc.)',
+    providerConfig: {
+      appId: {
+        type: 'string',
+        description: 'HubSpot App ID',
+      },
+      clientId: {
+        type: 'string',
+        description: 'HubSpot Client ID',
+      },
+      triggerId: {
+        type: 'string',
+        description: 'Trigger ID (e.g., hubspot_company_created)',
+      },
+      clientSecret: {
+        type: 'string',
+        description: 'HubSpot Client Secret',
+      },
+      developerApiKey: {
+        type: 'string',
+        description: 'HubSpot Developer API Key',
+      },
+      curlSetWebhookUrl: {
+        type: 'string',
+        description: 'curl command to set webhook URL',
+      },
+      curlCreateSubscription: {
+        type: 'string',
+        description: 'curl command to create subscription',
+      },
+      webhookUrlDisplay: {
+        type: 'string',
+        description: 'Webhook URL display value',
+      },
+      propertyName: {
+        type: 'string',
+        description: 'Optional property name filter (for property change triggers)',
+      },
     },
-  },
+  } as any,
   triggerAllowed: true,
   triggers: {
     enabled: true,
@@ -911,6 +962,20 @@ Return ONLY the JSON array of property names - no explanations, no markdown, no 
       'hubspot_contact_deleted',
       'hubspot_contact_privacy_deleted',
       'hubspot_contact_property_changed',
+      'hubspot_company_created',
+      'hubspot_company_deleted',
+      'hubspot_company_property_changed',
+      'hubspot_conversation_creation',
+      'hubspot_conversation_deletion',
+      'hubspot_conversation_new_message',
+      'hubspot_conversation_privacy_deletion',
+      'hubspot_conversation_property_changed',
+      'hubspot_deal_created',
+      'hubspot_deal_deleted',
+      'hubspot_deal_property_changed',
+      'hubspot_ticket_created',
+      'hubspot_ticket_deleted',
+      'hubspot_ticket_property_changed',
     ],
   },
 }
