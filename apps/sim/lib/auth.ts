@@ -736,8 +736,6 @@ export const auth = betterAuth({
           tokenUrl: 'https://api.hubapi.com/oauth/v1/token',
           userInfoUrl: 'https://api.hubapi.com/oauth/v1/access-tokens',
           prompt: 'consent',
-          responseType: 'code',
-          overrideUserInfo: true,
           scopes: [
             'crm.objects.contacts.read',
             'crm.objects.contacts.write',
@@ -773,13 +771,29 @@ export const auth = betterAuth({
               )
 
               if (!response.ok) {
+                let errorBody: string | undefined
+                try {
+                  errorBody = await response.text()
+                } catch {
+                  // ignore
+                }
                 logger.error('Failed to fetch HubSpot user info', {
                   status: response.status,
+                  statusText: response.statusText,
+                  body: errorBody?.slice(0, 500),
                 })
                 throw new Error('Failed to fetch user info')
               }
 
-              const data = await response.json()
+              const rawText = await response.text()
+              const data = JSON.parse(rawText)
+
+              const scopesArray = Array.isArray((data as any)?.scopes) ? (data as any).scopes : []
+              if (Array.isArray(scopesArray) && scopesArray.length > 0) {
+                tokens.scopes = scopesArray
+              } else if (typeof (data as any)?.scope === 'string') {
+                tokens.scopes = (data as any).scope.split(/\s+/).filter(Boolean)
+              }
 
               logger.info('HubSpot token metadata response:', {
                 hasScopes: !!data.scopes,

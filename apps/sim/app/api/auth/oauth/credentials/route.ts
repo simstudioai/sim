@@ -210,7 +210,8 @@ export async function GET(request: NextRequest) {
           displayName = `${acc.accountId} (${baseProvider})`
         }
 
-        const grantedScopes = acc.scope ? acc.scope.split(/[\s,]+/).filter(Boolean) : []
+        const storedScope = acc.scope?.trim()
+        const grantedScopes = storedScope ? storedScope.split(/[\s,]+/).filter(Boolean) : []
         const scopeEvaluation = evaluateScopeCoverage(acc.providerId, grantedScopes)
 
         return {
