@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { AlertCircle, Check, Copy, Save, Trash2 } from 'lucide-react'
+import { Button } from '@/components/emcn/components'
+import { Trash } from '@/components/emcn/icons/trash'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
   AlertDialog,
@@ -11,8 +12,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
@@ -21,6 +20,7 @@ import { useWebhookManagement } from '@/hooks/use-webhook-management'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { getTrigger, isTriggerValid } from '@/triggers'
 import { SYSTEM_SUBBLOCK_IDS } from '@/triggers/consts'
+import { ShortInput } from '../short-input/short-input'
 
 const logger = createLogger('TriggerSave')
 
@@ -45,10 +45,20 @@ export function TriggerSave({
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [deleteStatus, setDeleteStatus] = useState<'idle' | 'deleting'>('idle')
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
-  const [testUrl, setTestUrl] = useState<string | null>(null)
-  const [testUrlExpiresAt, setTestUrlExpiresAt] = useState<string | null>(null)
   const [isGeneratingTestUrl, setIsGeneratingTestUrl] = useState(false)
-  const [copied, setCopied] = useState<string | null>(null)
+
+  const storedTestUrl = useSubBlockStore((state) => state.getValue(blockId, 'testUrl'))
+  const storedTestUrlExpiresAt = useSubBlockStore((state) =>
+    state.getValue(blockId, 'testUrlExpiresAt')
+  )
+
+  const isTestUrlExpired = useMemo(() => {
+    if (!storedTestUrlExpiresAt) return true
+    return new Date(storedTestUrlExpiresAt) < new Date()
+  }, [storedTestUrlExpiresAt])
+
+  const testUrl = isTestUrlExpired ? null : (storedTestUrl as string | null)
+  const testUrlExpiresAt = isTestUrlExpired ? null : (storedTestUrlExpiresAt as string | null)
 
   const effectiveTriggerId = useMemo(() => {
     if (triggerId && isTriggerValid(triggerId)) {
@@ -203,6 +213,13 @@ export function TriggerSave({
     validateRequiredFields,
   ])
 
+  useEffect(() => {
+    if (isTestUrlExpired && storedTestUrl) {
+      useSubBlockStore.getState().setValue(blockId, 'testUrl', null)
+      useSubBlockStore.getState().setValue(blockId, 'testUrlExpiresAt', null)
+    }
+  }, [blockId, isTestUrlExpired, storedTestUrl])
+
   const handleSave = async () => {
     if (isPreview || disabled) return
 
@@ -276,8 +293,10 @@ export function TriggerSave({
         throw new Error(err?.error || 'Failed to generate test URL')
       }
       const json = await res.json()
-      setTestUrl(json.url)
-      setTestUrlExpiresAt(json.expiresAt)
+      useSubBlockStore.getState().setValue(blockId, 'testUrl', json.url)
+      useSubBlockStore.getState().setValue(blockId, 'testUrlExpiresAt', json.expiresAt)
+      collaborativeSetSubblockValue(blockId, 'testUrl', json.url)
+      collaborativeSetSubblockValue(blockId, 'testUrlExpiresAt', json.expiresAt)
     } catch (e) {
       logger.error('Failed to generate test webhook URL', { error: e })
       setErrorMessage(
@@ -286,12 +305,6 @@ export function TriggerSave({
     } finally {
       setIsGeneratingTestUrl(false)
     }
-  }
-
-  const copyToClipboard = (text: string, type: string): void => {
-    navigator.clipboard.writeText(text)
-    setCopied(type)
-    setTimeout(() => setCopied(null), 2000)
   }
 
   const handleDeleteClick = () => {
@@ -311,12 +324,15 @@ export function TriggerSave({
         setDeleteStatus('idle')
         setSaveStatus('idle')
         setErrorMessage(null)
-        setTestUrl(null)
-        setTestUrlExpiresAt(null)
+
+        useSubBlockStore.getState().setValue(blockId, 'testUrl', null)
+        useSubBlockStore.getState().setValue(blockId, 'testUrlExpiresAt', null)
 
         collaborativeSetSubblockValue(blockId, 'triggerPath', '')
         collaborativeSetSubblockValue(blockId, 'webhookId', null)
         collaborativeSetSubblockValue(blockId, 'triggerConfig', null)
+        collaborativeSetSubblockValue(blockId, 'testUrl', null)
+        collaborativeSetSubblockValue(blockId, 'testUrlExpiresAt', null)
 
         logger.info('Trigger configuration deleted successfully', {
           blockId,
@@ -344,6 +360,7 @@ export function TriggerSave({
     <div id={`${blockId}-${subBlockId}`}>
       <div className='flex gap-2'>
         <Button
+          variant='default'
           onClick={handleSave}
           disabled={disabled || isProcessing}
           className={cn(
@@ -358,37 +375,22 @@ export function TriggerSave({
               Saving...
             </>
           )}
-          {saveStatus === 'saved' && (
-            <>
-              <Check className='mr-2 h-4 w-4' />
-              Saved
-            </>
-          )}
-          {saveStatus === 'error' && (
-            <>
-              <AlertCircle className='mr-2 h-4 w-4' />
-              Error
-            </>
-          )}
-          {saveStatus === 'idle' && (
-            <>
-              <Save className='mr-2 h-4 w-4' />
-              {webhookId ? 'Update Configuration' : 'Save Configuration'}
-            </>
-          )}
+          {saveStatus === 'saved' && 'Saved'}
+          {saveStatus === 'error' && 'Error'}
+          {saveStatus === 'idle' && (webhookId ? 'Update Configuration' : 'Save Configuration')}
         </Button>
 
         {webhookId && (
           <Button
+            variant='default'
             onClick={handleDeleteClick}
             disabled={disabled || isProcessing}
-            variant='outline'
-            className='h-9 rounded-[8px] px-3 text-destructive hover:bg-destructive/10'
+            className='h-9 rounded-[8px] px-3'
           >
             {deleteStatus === 'deleting' ? (
               <div className='h-4 w-4 animate-spin rounded-full border-[1.5px] border-current border-t-transparent' />
             ) : (
-              <Trash2 className='h-4 w-4' />
+              <Trash className='h-[14px] w-[14px]' />
             )}
           </Button>
         )}
@@ -406,7 +408,6 @@ export function TriggerSave({
             <span className='font-medium text-sm'>Test Webhook URL</span>
             <Button
               variant='outline'
-              size='sm'
               onClick={generateTestUrl}
               disabled={isGeneratingTestUrl || isProcessing}
               className='h-8 rounded-[8px]'
@@ -424,29 +425,21 @@ export function TriggerSave({
             </Button>
           </div>
           {testUrl ? (
-            <div className='flex items-center gap-2'>
-              <Input
-                readOnly
-                value={testUrl}
-                className='h-9 flex-1 rounded-[8px] font-mono text-xs'
-                onClick={(e: React.MouseEvent<HTMLInputElement>) =>
-                  (e.target as HTMLInputElement).select()
-                }
-              />
-              <Button
-                type='button'
-                size='icon'
-                variant='outline'
-                className='h-9 w-9 rounded-[8px]'
-                onClick={() => copyToClipboard(testUrl, 'testUrl')}
-              >
-                {copied === 'testUrl' ? (
-                  <Check className='h-4 w-4 text-green-500' />
-                ) : (
-                  <Copy className='h-4 w-4' />
-                )}
-              </Button>
-            </div>
+            <ShortInput
+              blockId={blockId}
+              subBlockId={`${subBlockId}-test-url`}
+              config={{
+                id: `${subBlockId}-test-url`,
+                type: 'short-input',
+                readOnly: true,
+                showCopyButton: true,
+              }}
+              value={testUrl}
+              readOnly={true}
+              showCopyButton={true}
+              disabled={isPreview || disabled}
+              isPreview={isPreview}
+            />
           ) : (
             <p className='text-muted-foreground text-xs'>
               Generate a temporary URL that executes this webhook against the live (un-deployed)

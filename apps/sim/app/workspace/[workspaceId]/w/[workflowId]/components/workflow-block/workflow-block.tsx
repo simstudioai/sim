@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useMemo, useRef } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { Handle, type NodeProps, Position, useUpdateNodeInternals } from 'reactflow'
 import { Badge } from '@/components/emcn/components/badge/badge'
@@ -212,11 +212,55 @@ export const WorkflowBlock = memo(function WorkflowBlock({
     disableSchedule,
   } = useScheduleInfo(id, type, currentWorkflowId)
 
-  const { childWorkflowId, childIsDeployed } = useChildWorkflow(
+  const { childWorkflowId, childIsDeployed, refetchDeployment } = useChildWorkflow(
     id,
     type,
     data.isPreview ?? false,
     data.subBlockValues
+  )
+
+  const [isDeploying, setIsDeploying] = useState(false)
+  const setDeploymentStatus = useWorkflowRegistry((state) => state.setDeploymentStatus)
+
+  const deployWorkflow = useCallback(
+    async (workflowId: string) => {
+      if (isDeploying) return
+
+      try {
+        setIsDeploying(true)
+        const response = await fetch(`/api/workflows/${workflowId}/deploy`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            deployChatEnabled: false,
+          }),
+        })
+
+        if (response.ok) {
+          const responseData = await response.json()
+          const isDeployedStatus = responseData.isDeployed ?? false
+          const deployedAtTime = responseData.deployedAt
+            ? new Date(responseData.deployedAt)
+            : undefined
+          setDeploymentStatus(
+            workflowId,
+            isDeployedStatus,
+            deployedAtTime,
+            responseData.apiKey || ''
+          )
+          refetchDeployment()
+        } else {
+          logger.error('Failed to deploy workflow')
+        }
+      } catch (error) {
+        logger.error('Error deploying workflow:', error)
+      } finally {
+        setIsDeploying(false)
+      }
+    },
+    [isDeploying, setDeploymentStatus, refetchDeployment]
   )
 
   const { collaborativeSetSubblockValue } = useCollaborativeWorkflow()
@@ -604,68 +648,80 @@ export const WorkflowBlock = memo(function WorkflowBlock({
           </div>
           <div className='flex flex-shrink-0 items-center gap-2'>
             {isWorkflowSelector && childWorkflowId && (
-              <Badge
-                variant='outline'
-                style={{
-                  borderColor: childIsDeployed ? '#22C55E' : '#EF4444',
-                  color: childIsDeployed ? '#22C55E' : '#EF4444',
-                }}
-              >
-                {childIsDeployed ? 'deployed' : 'undeployed'}
-              </Badge>
-            )}
-            {!isEnabled && <Badge>Disabled</Badge>}
-
-            {shouldShowScheduleBadge && (
-              <Tooltip.Root>
-                <Tooltip.Trigger asChild>
-                  <Badge
-                    variant='outline'
-                    className='cursor-pointer'
-                    style={{
-                      borderColor: scheduleInfo?.isDisabled ? '#FF6600' : '#22C55E',
-                      color: scheduleInfo?.isDisabled ? '#FF6600' : '#22C55E',
-                    }}
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      if (scheduleInfo?.id) {
-                        if (scheduleInfo.isDisabled) {
-                          reactivateSchedule(scheduleInfo.id)
-                        } else {
-                          disableSchedule(scheduleInfo.id)
-                        }
-                      }
-                    }}
-                  >
-                    <div className='relative flex items-center justify-center'>
-                      <div
-                        className='absolute h-3 w-3 rounded-full'
+              <>
+                {typeof childIsDeployed === 'boolean' ? (
+                  <Tooltip.Root>
+                    <Tooltip.Trigger asChild>
+                      <Badge
+                        variant='outline'
+                        className={!childIsDeployed ? 'cursor-pointer' : ''}
                         style={{
-                          backgroundColor: scheduleInfo?.isDisabled
-                            ? 'rgba(255, 102, 0, 0.2)'
-                            : 'rgba(34, 197, 94, 0.2)',
+                          borderColor: childIsDeployed ? '#22C55E' : '#EF4444',
+                          color: childIsDeployed ? '#22C55E' : '#EF4444',
                         }}
-                      />
-                      <div
-                        className='relative h-2 w-2 rounded-full'
-                        style={{
-                          backgroundColor: scheduleInfo?.isDisabled ? '#FF6600' : '#22C55E',
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          if (!childIsDeployed && childWorkflowId && !isDeploying) {
+                            deployWorkflow(childWorkflowId)
+                          }
                         }}
-                      />
-                    </div>
-                    {scheduleInfo?.isDisabled ? 'Disabled' : 'Scheduled'}
+                      >
+                        {isDeploying ? 'Deploying...' : childIsDeployed ? 'deployed' : 'undeployed'}
+                      </Badge>
+                    </Tooltip.Trigger>
+                    {!childIsDeployed && (
+                      <Tooltip.Content>
+                        <span className='text-sm'>Click to deploy</span>
+                      </Tooltip.Content>
+                    )}
+                  </Tooltip.Root>
+                ) : (
+                  <Badge variant='outline' style={{ visibility: 'hidden' }}>
+                    deployed
                   </Badge>
-                </Tooltip.Trigger>
-                <Tooltip.Content side='top' className='max-w-[300px] p-4'>
-                  {scheduleInfo?.isDisabled ? (
-                    <p className='text-sm'>
-                      This schedule is currently disabled. Click the badge to reactivate it.
-                    </p>
-                  ) : (
-                    <p className='text-sm'>Click the badge to disable this schedule.</p>
-                  )}
-                </Tooltip.Content>
-              </Tooltip.Root>
+                )}
+              </>
+            )}
+            {!isEnabled && <Badge>disabled</Badge>}
+
+            {type === 'schedule' && (
+              <>
+                {shouldShowScheduleBadge ? (
+                  <Tooltip.Root>
+                    <Tooltip.Trigger asChild>
+                      <Badge
+                        variant='outline'
+                        className={scheduleInfo?.isDisabled ? 'cursor-pointer' : ''}
+                        style={{
+                          borderColor: scheduleInfo?.isDisabled ? '#FF6600' : '#22C55E',
+                          color: scheduleInfo?.isDisabled ? '#FF6600' : '#22C55E',
+                        }}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          if (scheduleInfo?.id) {
+                            if (scheduleInfo.isDisabled) {
+                              reactivateSchedule(scheduleInfo.id)
+                            } else {
+                              disableSchedule(scheduleInfo.id)
+                            }
+                          }
+                        }}
+                      >
+                        {scheduleInfo?.isDisabled ? 'disabled' : 'scheduled'}
+                      </Badge>
+                    </Tooltip.Trigger>
+                    {scheduleInfo?.isDisabled && (
+                      <Tooltip.Content>
+                        <span className='text-sm'>Click to reactivate</span>
+                      </Tooltip.Content>
+                    )}
+                  </Tooltip.Root>
+                ) : (
+                  <Badge variant='outline' style={{ visibility: 'hidden' }}>
+                    scheduled
+                  </Badge>
+                )}
+              </>
             )}
 
             {showWebhookIndicator && (

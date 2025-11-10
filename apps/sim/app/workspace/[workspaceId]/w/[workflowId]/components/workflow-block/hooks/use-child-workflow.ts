@@ -11,9 +11,11 @@ export interface UseChildWorkflowReturn {
   /** The active version of the child workflow */
   childActiveVersion: number | null
   /** Whether the child workflow is deployed */
-  childIsDeployed: boolean
+  childIsDeployed: boolean | null
   /** Whether the child version information is loading */
   isLoadingChildVersion: boolean
+  /** Function to manually refetch deployment status */
+  refetchDeployment: () => void
 }
 
 /**
@@ -53,6 +55,7 @@ export function useChildWorkflow(
     activeVersion: childActiveVersion,
     isDeployed: childIsDeployed,
     isLoading: isLoadingChildVersion,
+    refetch: refetchDeployment,
   } = useChildDeployment(isWorkflowSelector ? childWorkflowId : undefined)
 
   return {
@@ -60,5 +63,6 @@ export function useChildWorkflow(
     childActiveVersion,
     childIsDeployed,
     isLoadingChildVersion,
+    refetchDeployment,
   }
 }
