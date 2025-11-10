@@ -1,10 +1,7 @@
 'use client'
 
 import * as React from 'react'
-import { Clock } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Button, Input, Popover, PopoverContent, PopoverTrigger } from '@/components/emcn'
 import { cn } from '@/lib/utils'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/components/sub-block/hooks/use-sub-block-value'
 
@@ -91,18 +88,15 @@ export function TimeInput({
       }}
     >
       <PopoverTrigger asChild>
-        <Button
-          variant='outline'
-          disabled={isPreview || disabled}
-          className={cn(
-            'w-full justify-start text-left font-normal',
-            !value && 'text-muted-foreground',
-            className
-          )}
-        >
-          <Clock className='mr-1 h-4 w-4' />
-          {value ? formatDisplayTime(value) : <span>{placeholder || 'Select time'}</span>}
-        </Button>
+        <div className='relative w-full cursor-pointer'>
+          <Input
+            readOnly
+            disabled={isPreview || disabled}
+            value={value ? formatDisplayTime(value) : ''}
+            placeholder={placeholder || 'Select time'}
+            className={cn('cursor-pointer', !value && 'text-muted-foreground', className)}
+          />
+        </div>
       </PopoverTrigger>
       <PopoverContent className='w-auto p-4'>
         <div className='flex items-center space-x-2'>
@@ -129,7 +123,7 @@ export function TimeInput({
             }}
             type='text'
           />
-          <span>:</span>
+          <span className='text-[#E6E6E6]'>:</span>
           <Input
             className='w-[4rem]'
             value={minute}

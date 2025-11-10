@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { AlertCircle, Check, Save, Trash2 } from 'lucide-react'
 import { useParams } from 'next/navigation'
-import { Tooltip } from '@/components/emcn/components/tooltip/tooltip'
+import { Button } from '@/components/emcn/components'
+import { Trash } from '@/components/emcn/icons/trash'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
   AlertDialog,
@@ -13,8 +13,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
 import { createLogger } from '@/lib/logs/console/logger'
 import { parseCronToHumanReadable } from '@/lib/schedules/utils'
 import { cn } from '@/lib/utils'
@@ -377,6 +375,7 @@ export function ScheduleSave({ blockId, isPreview = false, disabled = false }: S
     <div className='mt-2'>
       <div className='flex gap-2'>
         <Button
+          variant='default'
           onClick={handleSave}
           disabled={disabled || isPreview || isSaving || saveStatus === 'saving' || isLoadingStatus}
           className={cn(
@@ -391,37 +390,22 @@ export function ScheduleSave({ blockId, isPreview = false, disabled = false }: S
               Saving...
             </>
           )}
-          {saveStatus === 'saved' && (
-            <>
-              <Check className='mr-2 h-4 w-4' />
-              Saved
-            </>
-          )}
-          {saveStatus === 'idle' && (
-            <>
-              <Save className='mr-2 h-4 w-4' />
-              {scheduleId ? 'Update Schedule' : 'Save Schedule'}
-            </>
-          )}
-          {saveStatus === 'error' && (
-            <>
-              <AlertCircle className='mr-2 h-4 w-4' />
-              Error
-            </>
-          )}
+          {saveStatus === 'saved' && 'Saved'}
+          {saveStatus === 'idle' && (scheduleId ? 'Update Schedule' : 'Save Schedule')}
+          {saveStatus === 'error' && 'Error'}
         </Button>
 
         {scheduleId && (
           <Button
+            variant='default'
             onClick={() => setShowDeleteDialog(true)}
             disabled={disabled || isPreview || deleteStatus === 'deleting' || isSaving}
-            variant='outline'
-            className='h-9 rounded-[8px] px-3 text-destructive hover:bg-destructive/10'
+            className='h-9 rounded-[8px] px-3'
           >
             {deleteStatus === 'deleting' ? (
               <div className='h-4 w-4 animate-spin rounded-full border-[1.5px] border-current border-t-transparent' />
             ) : (
-              <Trash2 className='h-4 w-4' />
+              <Trash className='h-[14px] w-[14px]' />
             )}
           </Button>
         )}
@@ -442,54 +426,21 @@ export function ScheduleSave({ blockId, isPreview = false, disabled = false }: S
             </div>
           ) : (
             <>
-              <div className='flex items-center gap-2'>
-                <Tooltip.Root>
-                  <Tooltip.Trigger asChild>
-                    <Badge
-                      variant='outline'
-                      className={cn(
-                        'flex cursor-pointer items-center gap-1 font-normal text-xs',
-                        scheduleStatus === 'disabled'
-                          ? 'border-amber-200 bg-amber-50 text-amber-600 hover:bg-amber-100 dark:bg-amber-900/20 dark:text-amber-400'
-                          : 'border-green-200 bg-green-50 text-green-600 hover:bg-green-100 dark:bg-green-900/20 dark:text-green-400'
-                      )}
-                      onClick={handleToggleStatus}
-                    >
-                      <div className='relative mr-0.5 flex items-center justify-center'>
-                        <div
-                          className={cn(
-                            'absolute h-3 w-3 rounded-full',
-                            scheduleStatus === 'disabled' ? 'bg-amber-500/20' : 'bg-green-500/20'
-                          )}
-                        />
-                        <div
-                          className={cn(
-                            'relative h-2 w-2 rounded-full',
-                            scheduleStatus === 'disabled' ? 'bg-amber-500' : 'bg-green-500'
-                          )}
-                        />
-                      </div>
-                      {scheduleStatus === 'active' ? 'Active' : 'Disabled'}
-                    </Badge>
-                  </Tooltip.Trigger>
-                  <Tooltip.Content side='top' className='max-w-[300px]'>
-                    {scheduleStatus === 'disabled' ? (
-                      <p className='text-sm'>Click to reactivate this schedule</p>
-                    ) : (
-                      <p className='text-sm'>Click to disable this schedule</p>
-                    )}
-                  </Tooltip.Content>
-                </Tooltip.Root>
-                {failedCount > 0 && (
+              {failedCount > 0 && (
+                <div className='flex items-center gap-2'>
                   <span className='text-destructive text-sm'>
                     ⚠️ {failedCount} failed run{failedCount !== 1 ? 's' : ''}
                   </span>
-                )}
-              </div>
+                </div>
+              )}
 
               {savedCronExpression && (
                 <p className='text-muted-foreground text-sm'>
-                  {parseCronToHumanReadable(savedCronExpression, scheduleTimezone || 'UTC')}
+                  Runs{' '}
+                  {parseCronToHumanReadable(
+                    savedCronExpression,
+                    scheduleTimezone || 'UTC'
+                  ).toLowerCase()}
                 </p>
               )}
 
