@@ -20,7 +20,6 @@ import {
   PopoverContent,
   PopoverItem,
   PopoverTrigger,
-  Rocket,
   Trash,
 } from '@/components/emcn'
 import { createLogger } from '@/lib/logs/console/logger'
@@ -32,7 +31,7 @@ import type { PanelTab } from '@/stores/panel-new/types'
 import { useWorkflowJsonStore } from '@/stores/workflows/json/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
-import { Copilot, Editor, Toolbar } from './components'
+import { Copilot, Deploy, Editor, Toolbar } from './components'
 import { usePanelResize, useRunWorkflow, useUsageLimits } from './hooks'
 
 const logger = createLogger('Panel')
@@ -305,10 +304,7 @@ export function Panel() {
 
             {/* Deploy and Run */}
             <div className='flex gap-[4px]'>
-              <Button className='h-[32px] gap-[8px] px-[10px]' variant='active'>
-                <Rocket className='h-[13px] w-[13px]' />
-                Deploy
-              </Button>
+              <Deploy activeWorkflowId={activeWorkflowId} userPermissions={userPermissions} />
               <Button
                 className='h-[32px] w-[61.5px] gap-[8px]'
                 variant={isExecuting ? 'active' : 'primary'}
