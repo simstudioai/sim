@@ -18,7 +18,7 @@ export async function GET(_request: NextRequest) {
   try {
     const response = await fetch('https://openrouter.ai/api/v1/models', {
       headers: { 'Content-Type': 'application/json' },
-      cache: 'no-store',
+      next: { revalidate: 300 },
     })
 
     if (!response.ok) {
