@@ -1707,11 +1707,11 @@ export function SupabaseIcon(props: SVGProps<SVGSVGElement>) {
     >
       <path
         d='M15.4057 26.2606C14.7241 27.1195 13.3394 26.649 13.3242 25.5519L13.083 9.50684H23.8724C25.8262 9.50684 26.9157 11.7636 25.7006 13.2933L15.4057 26.2606Z'
-        fill='url(#paint0_linear)'
+        fill='url(#supabase_paint0_linear)'
       />
       <path
         d='M15.4057 26.2606C14.7241 27.1195 13.3394 26.649 13.3242 25.5519L13.083 9.50684H23.8724C25.8262 9.50684 26.9157 11.7636 25.7006 13.2933L15.4057 26.2606Z'
-        fill='url(#paint1_linear)'
+        fill='url(#supabase_paint1_linear)'
         fillOpacity='0.2'
       />
       <path
@@ -1720,7 +1720,7 @@ export function SupabaseIcon(props: SVGProps<SVGSVGElement>) {
       />
       <defs>
         <linearGradient
-          id='paint0_linear'
+          id='supabase_paint0_linear'
           x1='13.084'
           y1='13.0655'
           x2='22.6727'
@@ -1731,7 +1731,7 @@ export function SupabaseIcon(props: SVGProps<SVGSVGElement>) {
           <stop offset='1' stopColor='#3ECF8E' />
         </linearGradient>
         <linearGradient
-          id='paint1_linear'
+          id='supabase_paint1_linear'
           x1='8.83277'
           y1='7.24485'
           x2='13.2057'
@@ -2563,7 +2563,7 @@ export function MicrosoftTeamsIcon(props: SVGProps<SVGSVGElement>) {
         d='M1140.333,561.355v103.148c-104.963-24.857-191.679-98.469-233.25-198.003 h138.395C1097.783,466.699,1140.134,509.051,1140.333,561.355z'
       />
       <linearGradient
-        id='a'
+        id='msteams_gradient_a'
         gradientUnits='userSpaceOnUse'
         x1='198.099'
         y1='1683.0726'
@@ -2579,7 +2579,7 @@ export function MicrosoftTeamsIcon(props: SVGProps<SVGSVGElement>) {
         <stop offset='1' stopColor='#3940ab' />
       </linearGradient>
       <path
-        fill='url(#a)'
+        fill='url(#msteams_gradient_a)'
         d='M95.01,466.5h950.312c52.473,0,95.01,42.538,95.01,95.01v950.312c0,52.473-42.538,95.01-95.01,95.01 H95.01c-52.473,0-95.01-42.538-95.01-95.01V561.51C0,509.038,42.538,466.5,95.01,466.5z'
       />
       <path
@@ -3096,7 +3096,7 @@ export function ScheduleIcon(props: SVGProps<SVGSVGElement>) {
 export function QdrantIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg {...props} fill='none' viewBox='0 0 49 56' xmlns='http://www.w3.org/2000/svg'>
-      <g clipPath='url(#b)'>
+      <g clipPath='url(#qdrant_clippath_b)'>
         <path
           d='m38.489 51.477-1.1167-30.787-2.0223-8.1167 13.498 1.429v37.242l-8.2456 4.7589-2.1138-4.5259z'
           clipRule='evenodd'
@@ -3145,11 +3145,14 @@ export function QdrantIcon(props: SVGProps<SVGSVGElement>) {
           fill='#DC244C'
           fillRule='evenodd'
         />
-        <path d='m24.603 46.483v-9.5222l-7.7166-4.4411v9.5064l7.7166 4.4569z' fill='url(#a)' />
+        <path
+          d='m24.603 46.483v-9.5222l-7.7166-4.4411v9.5064l7.7166 4.4569z'
+          fill='url(#qdrant_gradient_a)'
+        />
       </g>
       <defs>
         <linearGradient
-          id='a'
+          id='qdrant_gradient_a'
           x1='23.18'
           x2='15.491'
           y1='38.781'
@@ -3159,7 +3162,7 @@ export function QdrantIcon(props: SVGProps<SVGSVGElement>) {
           <stop stopColor='#FF3364' offset='0' />
           <stop stopColor='#C91540' stopOpacity='0' offset='1' />
         </linearGradient>
-        <clipPath id='b'>
+        <clipPath id='qdrant_clippath_b'>
           <rect transform='translate(.34961)' width='48.3' height='56' fill='#fff' />
         </clipPath>
       </defs>
@@ -3306,10 +3309,42 @@ export function MicrosoftSharepointIcon(props: SVGProps<SVGSVGElement>) {
 
 export function MicrosoftPlannerIcon(props: SVGProps<SVGSVGElement>) {
   return (
-    <svg {...props} fill='currentColor' viewBox='-1 -1 27 27' xmlns='http://www.w3.org/2000/svg'>
+    <svg
+      {...props}
+      xmlnsXlink='http://www.w3.org/1999/xlink'
+      viewBox='0 0 24 24'
+      fill='none'
+      xmlns='http://www.w3.org/2000/svg'
+    >
+      <g clipPath='url(#msplanner_clip0)'>
+        <path
+          d='M8.25809 15.7412C7.22488 16.7744 5.54971 16.7744 4.5165 15.7412L0.774909 11.9996C-0.258303 10.9664 -0.258303 9.29129 0.774908 8.25809L4.5165 4.51655C5.54971 3.48335 7.22488 3.48335 8.25809 4.51655L11.9997 8.2581C13.0329 9.29129 13.0329 10.9664 11.9997 11.9996L8.25809 15.7412Z'
+          fill='url(#msplanner_paint0_linear)'
+        />
+        <path
+          d='M8.25809 15.7412C7.22488 16.7744 5.54971 16.7744 4.5165 15.7412L0.774909 11.9996C-0.258303 10.9664 -0.258303 9.29129 0.774908 8.25809L4.5165 4.51655C5.54971 3.48335 7.22488 3.48335 8.25809 4.51655L11.9997 8.2581C13.0329 9.29129 13.0329 10.9664 11.9997 11.9996L8.25809 15.7412Z'
+          fill='url(#msplanner_paint1_linear)'
+        />
+        <path
+          d='M0.774857 11.9999C1.80809 13.0331 3.48331 13.0331 4.51655 11.9999L15.7417 0.774926C16.7749 -0.258304 18.4501 -0.258309 19.4834 0.774914L23.225 4.51655C24.2583 5.54977 24.2583 7.22496 23.225 8.25819L11.9999 19.4832C10.9667 20.5164 9.29146 20.5164 8.25822 19.4832L0.774857 11.9999Z'
+          fill='url(#msplanner_paint2_linear)'
+        />
+        <path
+          d='M0.774857 11.9999C1.80809 13.0331 3.48331 13.0331 4.51655 11.9999L15.7417 0.774926C16.7749 -0.258304 18.4501 -0.258309 19.4834 0.774914L23.225 4.51655C24.2583 5.54977 24.2583 7.22496 23.225 8.25819L11.9999 19.4832C10.9667 20.5164 9.29146 20.5164 8.25822 19.4832L0.774857 11.9999Z'
+          fill='url(#msplanner_paint3_linear)'
+        />
+        <path
+          d='M4.51642 15.7413C5.54966 16.7746 7.22487 16.7746 8.25812 15.7413L15.7415 8.25803C16.7748 7.2248 18.45 7.2248 19.4832 8.25803L23.2249 11.9997C24.2582 13.0329 24.2582 14.7081 23.2249 15.7413L15.7415 23.2246C14.7083 24.2579 13.033 24.2579 11.9998 23.2246L4.51642 15.7413Z'
+          fill='url(#msplanner_paint4_linear)'
+        />
+        <path
+          d='M4.51642 15.7413C5.54966 16.7746 7.22487 16.7746 8.25812 15.7413L15.7415 8.25803C16.7748 7.2248 18.45 7.2248 19.4832 8.25803L23.2249 11.9997C24.2582 13.0329 24.2582 14.7081 23.2249 15.7413L15.7415 23.2246C14.7083 24.2579 13.033 24.2579 11.9998 23.2246L4.51642 15.7413Z'
+          fill='url(#msplanner_paint5_linear)'
+        />
+      </g>
       <defs>
         <linearGradient
-          id='paint0_linear_3984_11038'
+          id='msplanner_paint0_linear'
           x1='6.38724'
           y1='3.74167'
           x2='2.15779'
@@ -3320,7 +3355,7 @@ export function MicrosoftPlannerIcon(props: SVGProps<SVGSVGElement>) {
           <stop offset='1' stopColor='#541278' />
         </linearGradient>
         <linearGradient
-          id='paint1_linear_3984_11038'
+          id='msplanner_paint1_linear'
           x1='8.38032'
           y1='11.0696'
           x2='4.94062'
@@ -3331,7 +3366,7 @@ export function MicrosoftPlannerIcon(props: SVGProps<SVGSVGElement>) {
           <stop offset='1' stopColor='#7034B0' stopOpacity='0' />
         </linearGradient>
         <linearGradient
-          id='paint2_linear_3984_11038'
+          id='msplanner_paint2_linear'
           x1='18.3701'
           y1='-3.33385e-05'
           x2='9.85717'
@@ -3342,7 +3377,7 @@ export function MicrosoftPlannerIcon(props: SVGProps<SVGSVGElement>) {
           <stop offset='1' stopColor='#6C0F71' />
         </linearGradient>
         <linearGradient
-          id='paint3_linear_3984_11038'
+          id='msplanner_paint3_linear'
           x1='18.3701'
           y1='-3.33385e-05'
           x2='9.85717'
@@ -3354,7 +3389,7 @@ export function MicrosoftPlannerIcon(props: SVGProps<SVGSVGElement>) {
           <stop offset='1' stopColor='#8F28B3' />
         </linearGradient>
         <linearGradient
-          id='paint4_linear_3984_11038'
+          id='msplanner_paint4_linear'
           x1='18.0002'
           y1='7.49958'
           x2='14.0004'
@@ -3365,7 +3400,7 @@ export function MicrosoftPlannerIcon(props: SVGProps<SVGSVGElement>) {
           <stop offset='1' stopColor='#00479E' />
         </linearGradient>
         <linearGradient
-          id='paint5_linear_3984_11038'
+          id='msplanner_paint5_linear'
           x1='18.2164'
           y1='7.92626'
           x2='10.5237'
@@ -3375,31 +3410,10 @@ export function MicrosoftPlannerIcon(props: SVGProps<SVGSVGElement>) {
           <stop stopColor='#3DCBFF' />
           <stop offset='1' stopColor='#4A40D4' />
         </linearGradient>
+        <clipPath id='msplanner_clip0'>
+          <rect width='24' height='24' fill='white' />
+        </clipPath>
       </defs>
-      <path
-        d='M8.25809 15.7412C7.22488 16.7744 5.54971 16.7744 4.5165 15.7412L0.774909 11.9996C-0.258303 10.9664 -0.258303 9.29129 0.774908 8.25809L4.5165 4.51655C5.54971 3.48335 7.22488 3.48335 8.25809 4.51655L11.9997 8.2581C13.0329 9.29129 13.0329 10.9664 11.9997 11.9996L8.25809 15.7412Z'
-        fill='url(#paint0_linear_3984_11038)'
-      />
-      <path
-        d='M8.25809 15.7412C7.22488 16.7744 5.54971 16.7744 4.5165 15.7412L0.774909 11.9996C-0.258303 10.9664 -0.258303 9.29129 0.774908 8.25809L4.5165 4.51655C5.54971 3.48335 7.22488 3.48335 8.25809 4.51655L11.9997 8.2581C13.0329 9.29129 13.0329 10.9664 11.9997 11.9996L8.25809 15.7412Z'
-        fill='url(#paint1_linear_3984_11038)'
-      />
-      <path
-        d='M0.774857 11.9999C1.80809 13.0331 3.48331 13.0331 4.51655 11.9999L15.7417 0.774926C16.7749 -0.258304 18.4501 -0.258309 19.4834 0.774914L23.225 4.51655C24.2583 5.54977 24.2583 7.22496 23.225 8.25819L11.9999 19.4832C10.9667 20.5164 9.29146 20.5164 8.25822 19.4832L0.774857 11.9999Z'
-        fill='url(#paint2_linear_3984_11038)'
-      />
-      <path
-        d='M0.774857 11.9999C1.80809 13.0331 3.48331 13.0331 4.51655 11.9999L15.7417 0.774926C16.7749 -0.258304 18.4501 -0.258309 19.4834 0.774914L23.225 4.51655C24.2583 5.54977 24.2583 7.22496 23.225 8.25819L11.9999 19.4832C10.9667 20.5164 9.29146 20.5164 8.25822 19.4832L0.774857 11.9999Z'
-        fill='url(#paint3_linear_3984_11038)'
-      />
-      <path
-        d='M4.51642 15.7413C5.54966 16.7746 7.22487 16.7746 8.25812 15.7413L15.7415 8.25803C16.7748 7.2248 18.45 7.2248 19.4832 8.25803L23.2249 11.9997C24.2582 13.0329 24.2582 14.7081 23.2249 15.7413L15.7415 23.2246C14.7083 24.2579 13.033 24.2579 11.9998 23.2246L4.51642 15.7413Z'
-        fill='url(#paint4_linear_3984_11038)'
-      />
-      <path
-        d='M4.51642 15.7413C5.54966 16.7746 7.22487 16.7746 8.25812 15.7413L15.7415 8.25803C16.7748 7.2248 18.45 7.2248 19.4832 8.25803L23.2249 11.9997C24.2582 13.0329 24.2582 14.7081 23.2249 15.7413L15.7415 23.2246C14.7083 24.2579 13.033 24.2579 11.9998 23.2246L4.51642 15.7413Z'
-        fill='url(#paint5_linear_3984_11038)'
-      />
     </svg>
   )
 }
@@ -3864,14 +3878,13 @@ export function AsanaIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg
       {...props}
-      fill='currentColor'
       xmlns='http://www.w3.org/2000/svg'
-      width='2500'
-      height='2311'
-      viewBox='700 0 1100 900'
+      width='24'
+      height='24'
+      viewBox='781.361 0 944.893 873.377'
     >
       <radialGradient
-        id='a'
+        id='asana_radial_gradient'
         cx='943.992'
         cy='1221.416'
         r='.663'
@@ -3883,7 +3896,7 @@ export function AsanaIcon(props: SVGProps<SVGSVGElement>) {
         <stop offset='.999' stopColor='#f95353' />
       </radialGradient>
       <path
-        fill='url(#a)'
+        fill='url(#asana_radial_gradient)'
         d='M1520.766 462.371c-113.508 0-205.508 92-205.508 205.488 0 113.499 92 205.518 205.508 205.518 113.489 0 205.488-92.019 205.488-205.518 0-113.488-91.999-205.488-205.488-205.488zm-533.907.01c-113.489.01-205.498 91.99-205.498 205.488 0 113.489 92.009 205.498 205.498 205.498 113.498 0 205.508-92.009 205.508-205.498 0-113.499-92.01-205.488-205.518-205.488h.01zm472.447-256.883c0 113.489-91.999 205.518-205.488 205.518-113.508 0-205.508-92.029-205.508-205.518S1140.31 0 1253.817 0c113.489 0 205.479 92.009 205.479 205.498h.01z'
       />
     </svg>
@@ -3894,23 +3907,32 @@ export function PipedriveIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg
       {...props}
-      fill='currentColor'
-      xmlns='http://www.w3.org/2000/svg'
-      width='304'
-      height='304'
+      width='304px'
+      height='304px'
       viewBox='0 0 304 304'
+      version='1.1'
+      xmlns='http://www.w3.org/2000/svg'
+      xmlnsXlink='http://www.w3.org/1999/xlink'
     >
       <defs>
         <path
-          id='path-1'
           d='M59.6807,81.1772 C59.6807,101.5343 70.0078,123.4949 92.7336,123.4949 C109.5872,123.4949 126.6277,110.3374 126.6277,80.8785 C126.6277,55.0508 113.232,37.7119 93.2944,37.7119 C77.0483,37.7119 59.6807,49.1244 59.6807,81.1772 Z M101.3006,0 C142.0482,0 169.4469,32.2728 169.4469,80.3126 C169.4469,127.5978 140.584,160.60942 99.3224,160.60942 C79.6495,160.60942 67.0483,152.1836 60.4595,146.0843 C60.5063,147.5305 60.5374,149.1497 60.5374,150.8788 L60.5374,215 L18.32565,215 L18.32565,44.157 C18.32565,41.6732 17.53126,40.8873 15.07021,40.8873 L0.5531,40.8873 L0.5531,3.4741 L35.9736,3.4741 C52.282,3.4741 56.4564,11.7741 57.2508,18.1721 C63.8708,10.7524 77.5935,0 101.3006,0 Z'
+          id='path-1'
         />
       </defs>
-      <g transform='translate(67,44)'>
-        <mask id='mask-2' fill='#fff'>
-          <use href='#path-1' />
-        </mask>
-        <use fill='#26292C' href='#path-1' />
+      <g
+        id='Pipedrive_letter_logo_dark'
+        stroke='none'
+        strokeWidth='1'
+        fill='none'
+        fillRule='evenodd'
+      >
+        <g transform='translate(67.000000, 44.000000)'>
+          <mask id='mask-2' fill='white'>
+            <use href='#path-1' />
+          </mask>
+          <use id='Clip-5' fill='#FFFFFF' xlinkHref='#path-1' />
+        </g>
       </g>
     </svg>
   )
