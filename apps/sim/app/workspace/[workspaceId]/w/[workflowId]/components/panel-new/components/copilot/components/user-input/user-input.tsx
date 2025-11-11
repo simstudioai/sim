@@ -563,12 +563,12 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
         ref={setContainerRef}
         data-user-input
         className={cn('relative w-full flex-none [max-width:var(--panel-max-width)]', className)}
-        style={{ '--panel-max-width': `${panelWidth - 17}px` } as React.CSSProperties}
+        style={{ '--panel-max-width': `${panelWidth - 16}px` } as React.CSSProperties}
       >
         <div
           ref={setInputContainerRef}
           className={cn(
-            'relative rounded-[4px] border border-[#3D3D3D] bg-[#282828] px-[6px] py-[6px] transition-colors dark:bg-[#363636]',
+            'relative w-full rounded-[4px] border border-[#3D3D3D] bg-[#282828] px-[6px] py-[6px] transition-colors dark:bg-[#363636]',
             fileAttachments.isDragging && 'ring-[#33B4FF] ring-[1.75px]'
           )}
           onDragEnter={fileAttachments.handleDragEnter}

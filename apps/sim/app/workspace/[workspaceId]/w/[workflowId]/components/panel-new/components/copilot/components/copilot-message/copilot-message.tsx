@@ -188,7 +188,7 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
           return (
             <div
               key={`text-${index}-${block.timestamp || index}`}
-              className={`w-full max-w-full overflow-hidden pl-[2px] transition-opacity duration-200 ease-in-out ${
+              className={`w-full max-w-full overflow-hidden transition-opacity duration-200 ease-in-out ${
                 cleanBlockContent.length > 0 ? 'opacity-100' : 'opacity-70'
               } ${shouldUseSmoothing ? 'translate-y-0 transition-transform duration-100 ease-out' : ''}`}
             >
@@ -235,7 +235,8 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
     if (isUser) {
       return (
         <div
-          className={`w-full max-w-full overflow-hidden transition-opacity duration-200 ${isDimmed ? 'opacity-40' : 'opacity-100'}`}
+          className={`w-full max-w-full overflow-hidden transition-opacity duration-200 [max-width:var(--panel-max-width)] ${isDimmed ? 'opacity-40' : 'opacity-100'}`}
+          style={{ '--panel-max-width': `${panelWidth - 16}px` } as React.CSSProperties}
         >
           {isEditMode ? (
             <div
@@ -313,7 +314,7 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
                 onClick={handleMessageClick}
                 onMouseEnter={() => setIsHoveringMessage(true)}
                 onMouseLeave={() => setIsHoveringMessage(false)}
-                className='group relative cursor-pointer rounded-[4px] border border-[#3D3D3D] bg-[#282828] px-[6px] py-[6px] transition-all duration-200 hover:border-[#4A4A4A] hover:bg-[#363636] dark:border-[#3D3D3D] dark:bg-[#363636] dark:hover:border-[#454545] dark:hover:bg-[#3D3D3D]'
+                className='group relative w-full cursor-pointer rounded-[4px] border border-[#3D3D3D] bg-[#282828] px-[6px] py-[6px] transition-all duration-200 hover:border-[#4A4A4A] hover:bg-[#363636] dark:border-[#3D3D3D] dark:bg-[#363636] dark:hover:border-[#454545] dark:hover:bg-[#3D3D3D]'
               >
                 <div
                   ref={messageContentRef}
@@ -439,9 +440,10 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
     if (isAssistant) {
       return (
         <div
-          className={`w-full max-w-full overflow-hidden pl-[2px] transition-opacity duration-200 ${isDimmed ? 'opacity-40' : 'opacity-100'}`}
+          className={`w-full max-w-full overflow-hidden transition-opacity duration-200 [max-width:var(--panel-max-width)] ${isDimmed ? 'opacity-40' : 'opacity-100'}`}
+          style={{ '--panel-max-width': `${panelWidth - 16}px` } as React.CSSProperties}
         >
-          <div className='max-w-full space-y-1.5 transition-all duration-200 ease-in-out'>
+          <div className='max-w-full space-y-1.5 px-[2px] transition-all duration-200 ease-in-out'>
             {/* Content blocks in chronological order */}
             {memoizedContentBlocks}
 
