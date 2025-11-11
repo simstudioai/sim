@@ -783,16 +783,39 @@ export async function formatWebhookInput(
 
   if (foundWebhook.provider === 'gmail') {
     if (body && typeof body === 'object' && 'email' in body) {
-      return body // { email: {...}, timestamp: ... }
+      return body
     }
     return body
   }
 
   if (foundWebhook.provider === 'outlook') {
     if (body && typeof body === 'object' && 'email' in body) {
-      return body // { email: {...}, timestamp: ... }
+      return body
     }
     return body
+  }
+
+  if (foundWebhook.provider === 'hubspot') {
+    const events = Array.isArray(body) ? body : [body]
+    const event = events[0]
+
+    if (!event) {
+      logger.warn('HubSpot webhook received with empty payload')
+      return null
+    }
+
+    logger.info('Formatting HubSpot webhook input', {
+      subscriptionType: event.subscriptionType,
+      objectId: event.objectId,
+      portalId: event.portalId,
+    })
+
+    return {
+      payload: body,
+      provider: 'hubspot',
+      providerConfig: foundWebhook.providerConfig,
+      workflowId: foundWorkflow.id,
+    }
   }
 
   if (foundWebhook.provider === 'microsoftteams') {

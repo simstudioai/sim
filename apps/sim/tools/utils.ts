@@ -79,7 +79,7 @@ export function formatRequestParams(tool: ToolConfig, params: Record<string, any
         body = JSON.stringify(bodyResult)
       }
     } else {
-      body = JSON.stringify(bodyResult)
+      body = typeof bodyResult === 'string' ? bodyResult : JSON.stringify(bodyResult)
     }
   }
 

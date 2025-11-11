@@ -1,0 +1,170 @@
+---
+title: Asana
+description: Interact with Asana
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="asana"
+  color="#E0E0E0"
+  icon={true}
+  iconSvg={`<svg className="block-icon"
+      
+      xmlns='http://www.w3.org/2000/svg'
+      
+      
+      viewBox='781.361 0 944.893 873.377'
+    >
+      <radialGradient
+        id='asana_radial_gradient'
+        cx='943.992'
+        cy='1221.416'
+        r='.663'
+        gradientTransform='matrix(944.8934 0 0 -873.3772 -890717.875 1067234.75)'
+        gradientUnits='userSpaceOnUse'
+      >
+        <stop offset='0' stopColor='#ffb900' />
+        <stop offset='.6' stopColor='#f95d8f' />
+        <stop offset='.999' stopColor='#f95353' />
+      </radialGradient>
+      <path
+        fill='url(#asana_radial_gradient)'
+        d='M1520.766 462.371c-113.508 0-205.508 92-205.508 205.488 0 113.499 92 205.518 205.508 205.518 113.489 0 205.488-92.019 205.488-205.518 0-113.488-91.999-205.488-205.488-205.488zm-533.907.01c-113.489.01-205.498 91.99-205.498 205.488 0 113.489 92.009 205.498 205.498 205.498 113.498 0 205.508-92.009 205.508-205.498 0-113.499-92.01-205.488-205.518-205.488h.01zm472.447-256.883c0 113.489-91.999 205.518-205.488 205.518-113.508 0-205.508-92.029-205.508-205.518S1140.31 0 1253.817 0c113.489 0 205.479 92.009 205.479 205.498h.01z'
+      />
+    </svg>`}
+/>
+
+## Usage Instructions
+
+Integrate Asana into the workflow. Can read, write, and update tasks.
+
+
+
+## Tools
+
+### `asana_get_task`
+
+Retrieve a single task by GID or get multiple tasks with filters
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `taskGid` | string | No | The globally unique identifier \(GID\) of the task. If not provided, will get multiple tasks. |
+| `workspace` | string | No | Workspace GID to filter tasks \(required when not using taskGid\) |
+| `project` | string | No | Project GID to filter tasks |
+| `limit` | number | No | Maximum number of tasks to return \(default: 50\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation success status |
+| `output` | object | Single task details or array of tasks, depending on whether taskGid was provided |
+
+### `asana_create_task`
+
+Create a new task in Asana
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `workspace` | string | Yes | Workspace GID where the task will be created |
+| `name` | string | Yes | Name of the task |
+| `notes` | string | No | Notes or description for the task |
+| `assignee` | string | No | User GID to assign the task to |
+| `due_on` | string | No | Due date in YYYY-MM-DD format |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation success status |
+| `output` | object | Created task details with timestamp, gid, name, notes, and permalink |
+
+### `asana_update_task`
+
+Update an existing task in Asana
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `taskGid` | string | Yes | The globally unique identifier \(GID\) of the task to update |
+| `name` | string | No | Updated name for the task |
+| `notes` | string | No | Updated notes or description for the task |
+| `assignee` | string | No | Updated assignee user GID |
+| `completed` | boolean | No | Mark task as completed or not completed |
+| `due_on` | string | No | Updated due date in YYYY-MM-DD format |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation success status |
+| `output` | object | Updated task details with timestamp, gid, name, notes, and modified timestamp |
+
+### `asana_get_projects`
+
+Retrieve all projects from an Asana workspace
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `workspace` | string | Yes | Workspace GID to retrieve projects from |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation success status |
+| `output` | object | List of projects with their gid, name, and resource type |
+
+### `asana_search_tasks`
+
+Search for tasks in an Asana workspace
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `workspace` | string | Yes | Workspace GID to search tasks in |
+| `text` | string | No | Text to search for in task names |
+| `assignee` | string | No | Filter tasks by assignee user GID |
+| `projects` | array | No | Array of project GIDs to filter tasks by |
+| `completed` | boolean | No | Filter by completion status |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation success status |
+| `output` | object | List of tasks matching the search criteria |
+
+### `asana_add_comment`
+
+Add a comment (story) to an Asana task
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `taskGid` | string | Yes | The globally unique identifier \(GID\) of the task |
+| `text` | string | Yes | The text content of the comment |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation success status |
+| `output` | object | Comment details including gid, text, created timestamp, and author |
+
+
+
+## Notes
+
+- Category: `tools`
+- Type: `asana`

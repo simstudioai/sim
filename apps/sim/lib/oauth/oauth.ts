@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import {
   AirtableIcon,
+  AsanaIcon,
   ConfluenceIcon,
   DiscordIcon,
   GithubIcon,
@@ -11,6 +12,7 @@ import {
   GoogleFormsIcon,
   GoogleIcon,
   GoogleSheetsIcon,
+  HubspotIcon,
   JiraIcon,
   LinearIcon,
   MicrosoftExcelIcon,
@@ -21,9 +23,12 @@ import {
   MicrosoftTeamsIcon,
   NotionIcon,
   OutlookIcon,
+  PipedriveIcon,
   RedditIcon,
+  SalesforceIcon,
   SlackIcon,
   SupabaseIcon,
+  TrelloIcon,
   WealthboxIcon,
   WebflowIcon,
   xIcon,
@@ -47,8 +52,13 @@ export type OAuthProvider =
   | 'linear'
   | 'slack'
   | 'reddit'
+  | 'trello'
   | 'wealthbox'
   | 'webflow'
+  | 'asana'
+  | 'pipedrive'
+  | 'hubspot'
+  | 'salesforce'
   | string
 
 export type OAuthService =
@@ -79,7 +89,11 @@ export type OAuthService =
   | 'wealthbox'
   | 'onedrive'
   | 'webflow'
-
+  | 'trello'
+  | 'asana'
+  | 'pipedrive'
+  | 'hubspot'
+  | 'salesforce'
 export interface OAuthProviderConfig {
   id: OAuthProvider
   name: string
@@ -244,17 +258,19 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
           'Chat.Read',
           'Chat.ReadWrite',
           'Chat.ReadBasic',
+          'ChatMessage.Send',
           'Channel.ReadBasic.All',
           'ChannelMessage.Send',
           'ChannelMessage.Read.All',
+          'ChannelMessage.ReadWrite',
           'ChannelMember.Read.All',
           'Group.Read.All',
           'Group.ReadWrite.All',
           'Team.ReadBasic.All',
+          'TeamMember.Read.All',
           'offline_access',
           'Files.Read',
           'Sites.Read.All',
-          'TeamMember.Read.All',
         ],
       },
       outlook: {
@@ -383,12 +399,10 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
           'delete:attachment:confluence',
           'read:content:confluence',
           'delete:page:confluence',
-          'write:label:confluence',
           'read:label:confluence',
+          'write:label:confluence',
           'read:attachment:confluence',
           'write:attachment:confluence',
-          'read:label:confluence',
-          'write:label:confluence',
           'search:confluence',
           'read:me',
           'offline_access',
@@ -465,7 +479,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         providerId: 'airtable',
         icon: (props) => AirtableIcon(props),
         baseProviderIcon: (props) => AirtableIcon(props),
-        scopes: ['data.records:read', 'data.records:write'],
+        scopes: ['data.records:read', 'data.records:write', 'user.email:read', 'webhook:manage'],
       },
     },
     defaultService: 'airtable',
@@ -617,6 +631,123 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
       },
     },
     defaultService: 'webflow',
+  },
+  trello: {
+    id: 'trello',
+    name: 'Trello',
+    icon: (props) => TrelloIcon(props),
+    services: {
+      trello: {
+        id: 'trello',
+        name: 'Trello',
+        description: 'Manage Trello boards, cards, and workflows.',
+        providerId: 'trello',
+        icon: (props) => TrelloIcon(props),
+        baseProviderIcon: (props) => TrelloIcon(props),
+        scopes: ['read', 'write'],
+      },
+    },
+    defaultService: 'trello',
+  },
+  asana: {
+    id: 'asana',
+    name: 'Asana',
+    icon: (props) => AsanaIcon(props),
+    services: {
+      asana: {
+        id: 'asana',
+        name: 'Asana',
+        description: 'Manage Asana projects, tasks, and workflows.',
+        providerId: 'asana',
+        icon: (props) => AsanaIcon(props),
+        baseProviderIcon: (props) => AsanaIcon(props),
+        scopes: ['default'],
+      },
+    },
+    defaultService: 'asana',
+  },
+  pipedrive: {
+    id: 'pipedrive',
+    name: 'Pipedrive',
+    icon: (props) => PipedriveIcon(props),
+    services: {
+      pipedrive: {
+        id: 'pipedrive',
+        name: 'Pipedrive',
+        description: 'Manage deals, contacts, and sales pipeline in Pipedrive CRM.',
+        providerId: 'pipedrive',
+        icon: (props) => PipedriveIcon(props),
+        baseProviderIcon: (props) => PipedriveIcon(props),
+        scopes: [
+          'base',
+          'deals:full',
+          'contacts:full',
+          'leads:full',
+          'activities:full',
+          'mail:full',
+          'projects:full',
+        ],
+      },
+    },
+    defaultService: 'pipedrive',
+  },
+  hubspot: {
+    id: 'hubspot',
+    name: 'HubSpot',
+    icon: (props) => HubspotIcon(props),
+    services: {
+      hubspot: {
+        id: 'hubspot',
+        name: 'HubSpot',
+        description: 'Access and manage your HubSpot CRM data.',
+        providerId: 'hubspot',
+        icon: (props) => HubspotIcon(props),
+        baseProviderIcon: (props) => HubspotIcon(props),
+        scopes: [
+          'crm.objects.contacts.read',
+          'crm.objects.contacts.write',
+          'crm.objects.companies.read',
+          'crm.objects.companies.write',
+          'crm.objects.deals.read',
+          'crm.objects.deals.write',
+          'crm.objects.owners.read',
+          'crm.objects.users.read',
+          'crm.objects.users.write',
+          'crm.objects.marketing_events.read',
+          'crm.objects.marketing_events.write',
+          'crm.objects.line_items.read',
+          'crm.objects.line_items.write',
+          'crm.objects.quotes.read',
+          'crm.objects.quotes.write',
+          'crm.objects.appointments.read',
+          'crm.objects.appointments.write',
+          'crm.objects.carts.read',
+          'crm.objects.carts.write',
+          'crm.import',
+          'crm.lists.read',
+          'crm.lists.write',
+          'tickets',
+        ],
+      },
+    },
+    defaultService: 'hubspot',
+  },
+  salesforce: {
+    id: 'salesforce',
+    name: 'Salesforce',
+    icon: (props) => SalesforceIcon(props),
+    services: {
+      salesforce: {
+        id: 'salesforce',
+        name: 'Salesforce',
+        description: 'Access and manage your Salesforce CRM data.',
+        providerId: 'salesforce',
+        icon: (props) => SalesforceIcon(props),
+        baseProviderIcon: (props) => SalesforceIcon(props),
+        scopes: ['api', 'refresh_token', 'openid'],
+      },
+    },
+    defaultService: 'salesforce',
   },
 }
 
@@ -1025,6 +1156,58 @@ function getProviderAuthConfig(provider: string): ProviderAuthConfig {
       )
       return {
         tokenEndpoint: 'https://api.webflow.com/oauth/access_token',
+        clientId,
+        clientSecret,
+        useBasicAuth: false,
+        supportsRefreshTokenRotation: false,
+      }
+    }
+    case 'asana': {
+      const { clientId, clientSecret } = getCredentials(
+        env.ASANA_CLIENT_ID,
+        env.ASANA_CLIENT_SECRET
+      )
+      return {
+        tokenEndpoint: 'https://app.asana.com/-/oauth_token',
+        clientId,
+        clientSecret,
+        useBasicAuth: true,
+        supportsRefreshTokenRotation: true,
+      }
+    }
+    case 'pipedrive': {
+      const { clientId, clientSecret } = getCredentials(
+        env.PIPEDRIVE_CLIENT_ID,
+        env.PIPEDRIVE_CLIENT_SECRET
+      )
+      return {
+        tokenEndpoint: 'https://oauth.pipedrive.com/oauth/token',
+        clientId,
+        clientSecret,
+        useBasicAuth: false,
+        supportsRefreshTokenRotation: true,
+      }
+    }
+    case 'hubspot': {
+      const { clientId, clientSecret } = getCredentials(
+        env.HUBSPOT_CLIENT_ID,
+        env.HUBSPOT_CLIENT_SECRET
+      )
+      return {
+        tokenEndpoint: 'https://api.hubapi.com/oauth/v1/token',
+        clientId,
+        clientSecret,
+        useBasicAuth: false,
+        supportsRefreshTokenRotation: true,
+      }
+    }
+    case 'salesforce': {
+      const { clientId, clientSecret } = getCredentials(
+        env.SALESFORCE_CLIENT_ID,
+        env.SALESFORCE_CLIENT_SECRET
+      )
+      return {
+        tokenEndpoint: 'https://login.salesforce.com/services/oauth2/token',
         clientId,
         clientSecret,
         useBasicAuth: false,

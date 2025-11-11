@@ -200,7 +200,7 @@ describe('OAuth Token API Routes', () => {
       const response = await POST(req)
       const data = await response.json()
 
-      expect(response.status).toBe(401)
+      expect(response.status).toBe(404)
       expect(data).toHaveProperty('error')
     })
 

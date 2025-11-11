@@ -237,6 +237,11 @@ export function Credentials({ onOpenChange, registerCloseHandler }: CredentialsP
         scopes: service.scopes,
       })
 
+      if (service.providerId === 'trello') {
+        window.location.href = '/api/auth/trello/authorize'
+        return
+      }
+
       await client.oauth2.link({
         providerId: service.providerId,
         callbackURL: window.location.href,

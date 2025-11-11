@@ -33,7 +33,7 @@ export const XBlock: BlockConfig<XResponse> = {
       type: 'oauth-input',
       provider: 'x',
       serviceId: 'x',
-      requiredScopes: ['tweet.read', 'tweet.write', 'users.read'],
+      requiredScopes: ['tweet.read', 'tweet.write', 'users.read', 'offline.access'],
       placeholder: 'Select X account',
     },
     {
