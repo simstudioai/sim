@@ -191,26 +191,28 @@ export const ChatInput: React.FC<{
   // Voice-only mode interface (for voice-first UI)
   if (voiceOnly) {
     return (
-      <div className='flex items-center justify-center'>
-        {/* Voice Input Only */}
-        {isSttAvailable && (
-          <Tooltip.Root>
-            <Tooltip.Trigger asChild>
-              <div>
-                <VoiceInput onVoiceStart={handleVoiceStart} disabled={isStreaming} large={true} />
-              </div>
-            </Tooltip.Trigger>
-            <Tooltip.Content side='top'>
-              <p>Start voice conversation</p>
-            </Tooltip.Content>
-          </Tooltip.Root>
-        )}
-      </div>
+      <Tooltip.Provider>
+        <div className='flex items-center justify-center'>
+          {/* Voice Input Only */}
+          {isSttAvailable && (
+            <Tooltip.Root>
+              <Tooltip.Trigger asChild>
+                <div>
+                  <VoiceInput onVoiceStart={handleVoiceStart} disabled={isStreaming} large={true} />
+                </div>
+              </Tooltip.Trigger>
+              <Tooltip.Content side='top'>
+                <p>Start voice conversation</p>
+              </Tooltip.Content>
+            </Tooltip.Root>
+          )}
+        </div>
+      </Tooltip.Provider>
     )
   }
 
   return (
-    <>
+    <Tooltip.Provider>
       <div className='fixed right-0 bottom-0 left-0 flex w-full items-center justify-center bg-gradient-to-t from-white to-transparent px-4 pb-4 text-black md:px-0 md:pb-4'>
         <div ref={wrapperRef} className='w-full max-w-3xl md:max-w-[748px]'>
           {/* Error Messages */}
@@ -462,6 +464,6 @@ export const ChatInput: React.FC<{
           </motion.div>
         </div>
       </div>
-    </>
+    </Tooltip.Provider>
   )
 }
