@@ -39,9 +39,8 @@ export const ClientChatMessage = memo(
     // we can use the content directly without parsing
     const cleanTextContent = message.content
 
-    // For user messages (on the right)
-    if (message.type === 'user') {
-      return (
+    const content =
+      message.type === 'user' ? (
         <div className='px-4 py-5' data-message-id={message.id}>
           <div className='mx-auto max-w-3xl'>
             {/* File attachments displayed above the message */}
@@ -162,62 +161,60 @@ export const ClientChatMessage = memo(
             )}
           </div>
         </div>
-      )
-    }
-
-    // For assistant messages (on the left)
-    return (
-      <div className='px-4 pt-5 pb-2' data-message-id={message.id}>
-        <div className='mx-auto max-w-3xl'>
-          <div className='flex flex-col space-y-3'>
-            {/* Direct content rendering - tool calls are now handled via SSE events */}
-            <div>
-              <div className='break-words text-base'>
-                {isJsonObject ? (
-                  <pre className='text-gray-800 dark:text-gray-100'>
-                    {JSON.stringify(cleanTextContent, null, 2)}
-                  </pre>
-                ) : (
-                  <EnhancedMarkdownRenderer content={cleanTextContent as string} />
-                )}
+      ) : (
+        <div className='px-4 pt-5 pb-2' data-message-id={message.id}>
+          <div className='mx-auto max-w-3xl'>
+            <div className='flex flex-col space-y-3'>
+              {/* Direct content rendering - tool calls are now handled via SSE events */}
+              <div>
+                <div className='break-words text-base'>
+                  {isJsonObject ? (
+                    <pre className='text-gray-800 dark:text-gray-100'>
+                      {JSON.stringify(cleanTextContent, null, 2)}
+                    </pre>
+                  ) : (
+                    <EnhancedMarkdownRenderer content={cleanTextContent as string} />
+                  )}
+                </div>
               </div>
+              {message.type === 'assistant' && !isJsonObject && !message.isInitialMessage && (
+                <div className='flex items-center justify-start space-x-2'>
+                  {/* Copy Button - Only show when not streaming */}
+                  {!message.isStreaming && (
+                    <Tooltip.Root delayDuration={300}>
+                      <Tooltip.Trigger asChild>
+                        <button
+                          className='text-muted-foreground transition-colors hover:bg-muted'
+                          onClick={() => {
+                            const contentToCopy =
+                              typeof cleanTextContent === 'string'
+                                ? cleanTextContent
+                                : JSON.stringify(cleanTextContent, null, 2)
+                            navigator.clipboard.writeText(contentToCopy)
+                            setIsCopied(true)
+                            setTimeout(() => setIsCopied(false), 2000)
+                          }}
+                        >
+                          {isCopied ? (
+                            <Check className='h-3 w-3' strokeWidth={2} />
+                          ) : (
+                            <Copy className='h-3 w-3' strokeWidth={2} />
+                          )}
+                        </button>
+                      </Tooltip.Trigger>
+                      <Tooltip.Content side='top' align='center' sideOffset={5}>
+                        {isCopied ? 'Copied!' : 'Copy to clipboard'}
+                      </Tooltip.Content>
+                    </Tooltip.Root>
+                  )}
+                </div>
+              )}
             </div>
-            {message.type === 'assistant' && !isJsonObject && !message.isInitialMessage && (
-              <div className='flex items-center justify-start space-x-2'>
-                {/* Copy Button - Only show when not streaming */}
-                {!message.isStreaming && (
-                  <Tooltip.Root delayDuration={300}>
-                    <Tooltip.Trigger asChild>
-                      <button
-                        className='text-muted-foreground transition-colors hover:bg-muted'
-                        onClick={() => {
-                          const contentToCopy =
-                            typeof cleanTextContent === 'string'
-                              ? cleanTextContent
-                              : JSON.stringify(cleanTextContent, null, 2)
-                          navigator.clipboard.writeText(contentToCopy)
-                          setIsCopied(true)
-                          setTimeout(() => setIsCopied(false), 2000)
-                        }}
-                      >
-                        {isCopied ? (
-                          <Check className='h-3 w-3' strokeWidth={2} />
-                        ) : (
-                          <Copy className='h-3 w-3' strokeWidth={2} />
-                        )}
-                      </button>
-                    </Tooltip.Trigger>
-                    <Tooltip.Content side='top' align='center' sideOffset={5}>
-                      {isCopied ? 'Copied!' : 'Copy to clipboard'}
-                    </Tooltip.Content>
-                  </Tooltip.Root>
-                )}
-              </div>
-            )}
           </div>
         </div>
-      </div>
-    )
+      )
+
+    return <Tooltip.Provider>{content}</Tooltip.Provider>
   },
   (prevProps, nextProps) => {
     return (
