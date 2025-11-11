@@ -1300,21 +1300,9 @@ const WorkflowContent = React.memo(() => {
       const isActive = activeBlockIds.has(block.id)
       const isPending = isDebugging && pendingBlocks.includes(block.id)
 
-      const measuredWidth =
-        typeof block.layout?.measuredWidth === 'number' ? block.layout.measuredWidth : undefined
-      const measuredHeight =
-        typeof block.layout?.measuredHeight === 'number' ? block.layout.measuredHeight : undefined
-
+      // Both note blocks and workflow blocks use deterministic dimensions
       const nodeType = block.type === 'note' ? 'noteBlock' : 'workflowBlock'
       const dragHandle = block.type === 'note' ? '.note-drag-handle' : '.workflow-drag-handle'
-
-      const defaultWidth =
-        block.type === 'note' ? Math.max(measuredWidth ?? block.data?.width ?? 260, 200) : 250
-
-      const defaultHeight =
-        block.type === 'note'
-          ? Math.max(measuredHeight ?? block.height ?? 160, 120)
-          : Math.max(block.height || 100, 100)
 
       // Create stable node object - React Flow will handle shallow comparison
       nodeArray.push({
@@ -1350,8 +1338,9 @@ const WorkflowContent = React.memo(() => {
           isPending,
         },
         // Include dynamic dimensions for container resizing calculations (must match rendered size)
-        width: defaultWidth,
-        height: defaultHeight,
+        // Both note and workflow blocks calculate dimensions deterministically via useBlockDimensions
+        width: 250, // Standard width for both block types
+        height: Math.max(block.height || 100, 100), // Use calculated height with minimum
       })
     })
 
