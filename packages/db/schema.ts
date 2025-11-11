@@ -337,6 +337,7 @@ export const workflowExecutionStates = pgTable(
     executionId: text('execution_id').notNull(),
     runVersion: text('run_version'),
     serializedState: jsonb('serialized_state').notNull(),
+    serializedWorkflow: jsonb('serialized_workflow'),
     resolvedInputs: jsonb('resolved_inputs').notNull().default(sql`'{}'::jsonb`),
     resolvedOutputs: jsonb('resolved_outputs').notNull().default(sql`'{}'::jsonb`),
     status: workflowExecutionStateStatusEnum('status').notNull().default('success'),

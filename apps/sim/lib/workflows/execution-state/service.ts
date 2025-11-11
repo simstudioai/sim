@@ -4,6 +4,7 @@ import { and, eq } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 import { createLogger } from '@/lib/logs/console/logger'
 import type { SerializableExecutionState } from '@/executor/execution/snapshot'
+import type { SerializedWorkflow } from '@/serializer/types'
 
 const logger = createLogger('WorkflowExecutionStateService')
 
@@ -16,6 +17,7 @@ export interface WorkflowExecutionStateRecord {
   executionId: string
   runVersion: string | null
   serializedState: SerializableExecutionState
+  serializedWorkflow?: SerializedWorkflow
   resolvedInputs: Record<string, any>
   resolvedOutputs: Record<string, any>
   status: WorkflowExecutionStateStatus
@@ -28,6 +30,7 @@ export interface UpsertWorkflowExecutionStateParams {
   executionId: string
   runVersion?: string | null
   serializedState: SerializableExecutionState
+  serializedWorkflow?: SerializedWorkflow
   resolvedInputs: Record<string, any>
   resolvedOutputs: Record<string, any>
   status: WorkflowExecutionStateStatus
@@ -43,6 +46,7 @@ export async function upsertWorkflowExecutionState(
     executionId,
     runVersion = null,
     serializedState,
+    serializedWorkflow,
     resolvedInputs,
     resolvedOutputs,
     status,
@@ -56,6 +60,7 @@ export async function upsertWorkflowExecutionState(
     executionId,
     runVersion,
     serializedState,
+    serializedWorkflow,
     resolvedInputs,
     resolvedOutputs,
     status,
@@ -71,6 +76,7 @@ export async function upsertWorkflowExecutionState(
         executionId,
         runVersion,
         serializedState,
+        serializedWorkflow,
         resolvedInputs,
         resolvedOutputs,
         status,
@@ -123,6 +129,7 @@ function mapRow(row: typeof workflowExecutionStates.$inferSelect): WorkflowExecu
     executionId: row.executionId,
     runVersion: row.runVersion,
     serializedState: row.serializedState as SerializableExecutionState,
+    serializedWorkflow: row.serializedWorkflow as SerializedWorkflow | undefined,
     resolvedInputs: row.resolvedInputs as Record<string, any>,
     resolvedOutputs: row.resolvedOutputs as Record<string, any>,
     status: row.status as WorkflowExecutionStateStatus,

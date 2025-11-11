@@ -1,0 +1,1 @@
+ALTER TABLE "workflow_execution_states" ADD COLUMN "serialized_workflow" jsonb;

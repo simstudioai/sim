@@ -764,6 +764,13 @@
       "when": 1762826396153,
       "tag": "0109_solid_shiva",
       "breakpoints": true
+    },
+    {
+      "idx": 110,
+      "version": "7",
+      "when": 1762832732250,
+      "tag": "0110_stale_impossible_man",
+      "breakpoints": true
     }
   ]
 }

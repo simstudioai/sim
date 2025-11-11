@@ -528,13 +528,17 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       try {
         const trimmedStartBlockId = startBlockId!.trim()
 
+        const triggerBlockIdForPlan = latestState.triggerBlockId || startCandidate.blockId
+
         const plan = buildRunFromBlockPlan({
           serializedWorkflow,
           previousState: latestState.serializedState,
+          previousResolvedInputs: latestState.resolvedInputs,
+          previousResolvedOutputs: latestState.resolvedOutputs,
+          previousWorkflow: latestState.serializedWorkflow,
           startBlockId: trimmedStartBlockId,
+          triggerBlockId: triggerBlockIdForPlan,
         })
-
-        const triggerBlockIdForPlan = latestState.triggerBlockId || startCandidate.blockId
 
         runFromBlockPlan = {
           snapshotState: plan.snapshotState,

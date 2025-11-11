@@ -19,6 +19,7 @@ const logger = createLogger('ExecutionEngine')
 export class ExecutionEngine {
   private readyQueue: string[] = []
   private executing = new Set<Promise<void>>()
+  private executingNodes = new Set<string>()
   private queueLock = Promise.resolve()
   private finalOutput: NormalizedBlockOutput = {}
   private pausedBlocks: Map<string, PauseMetadata> = new Map()

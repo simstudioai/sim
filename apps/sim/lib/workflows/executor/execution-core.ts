@@ -386,6 +386,7 @@ export async function executeWorkflowCore(
             executionId: metadata.executionId ?? metadata.requestId ?? '',
             runVersion,
             serializedState,
+            serializedWorkflow,
             resolvedInputs,
             resolvedOutputs,
             status,
