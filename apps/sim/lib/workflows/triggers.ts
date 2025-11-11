@@ -564,4 +564,32 @@ export class TriggerUtils {
 
     return `Multiple ${triggerName} Trigger blocks found. Keep only one.`
   }
+
+  /**
+   * Check if a block is inside a loop or parallel subflow
+   * @param blockId - ID of the block to check
+   * @param blocks - Record of all blocks in the workflow
+   * @returns true if the block is inside a loop or parallel, false otherwise
+   */
+  static isBlockInSubflow<T extends { id: string; data?: { parentId?: string } }>(
+    blockId: string,
+    blocks: T[] | Record<string, T>
+  ): boolean {
+    const blockArray = Array.isArray(blocks) ? blocks : Object.values(blocks)
+    const block = blockArray.find((b) => b.id === blockId)
+
+    if (!block || !block.data?.parentId) {
+      return false
+    }
+
+    // Check if the parent is a loop or parallel block
+    const parent = blockArray.find((b) => b.id === block.data?.parentId)
+    if (!parent) {
+      return false
+    }
+
+    // Type-safe check: parent must have a 'type' property
+    const parentWithType = parent as T & { type?: string }
+    return parentWithType.type === 'loop' || parentWithType.type === 'parallel'
+  }
 }

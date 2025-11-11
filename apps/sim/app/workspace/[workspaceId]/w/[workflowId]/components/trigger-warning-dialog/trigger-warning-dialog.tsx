@@ -11,6 +11,7 @@ import {
 export enum TriggerWarningType {
   DUPLICATE_TRIGGER = 'duplicate_trigger',
   LEGACY_INCOMPATIBILITY = 'legacy_incompatibility',
+  TRIGGER_IN_SUBFLOW = 'trigger_in_subflow',
 }
 
 interface TriggerWarningDialogProps {
@@ -32,6 +33,8 @@ export function TriggerWarningDialog({
         return 'Cannot mix trigger types'
       case TriggerWarningType.DUPLICATE_TRIGGER:
         return `Only one ${triggerName} trigger allowed`
+      case TriggerWarningType.TRIGGER_IN_SUBFLOW:
+        return 'Triggers not allowed in subflows'
     }
   }
 
@@ -41,6 +44,8 @@ export function TriggerWarningDialog({
         return 'Cannot add new trigger blocks when a legacy Start block exists. Available in newer workflows.'
       case TriggerWarningType.DUPLICATE_TRIGGER:
         return `A workflow can only have one ${triggerName} trigger block. Please remove the existing one before adding a new one.`
+      case TriggerWarningType.TRIGGER_IN_SUBFLOW:
+        return 'Triggers cannot be placed inside loop or parallel subflows.'
     }
   }
 
