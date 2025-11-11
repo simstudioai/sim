@@ -14,10 +14,10 @@ import type { BlockLog, ExecutionResult, StreamingExecution } from '@/executor/t
 import { useExecutionStream } from '@/hooks/use-execution-stream'
 import { WorkflowValidationError } from '@/serializer'
 import { useExecutionStore } from '@/stores/execution/store'
-import { useWorkflowDiffStore } from '@/stores/workflow-diff'
 import { useVariablesStore } from '@/stores/panel/variables/store'
 import { useEnvironmentStore } from '@/stores/settings/environment/store'
 import { useTerminalConsoleStore } from '@/stores/terminal'
+import { useWorkflowDiffStore } from '@/stores/workflow-diff'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { mergeSubblockState } from '@/stores/workflows/utils'
 import { useCurrentWorkflow } from './use-current-workflow'
@@ -671,10 +671,10 @@ export function useWorkflowExecution() {
     const executionWorkflowState =
       hasActiveDiffWorkflow && executionDiffWorkflow ? executionDiffWorkflow : null
     const usingDiffForExecution = executionWorkflowState !== null
-    const workflowBlocks =
-      (executionWorkflowState?.blocks ?? currentWorkflow.blocks) as typeof currentWorkflow.blocks
-    const workflowEdges =
-      (executionWorkflowState?.edges ?? currentWorkflow.edges) as typeof currentWorkflow.edges
+    const workflowBlocks = (executionWorkflowState?.blocks ??
+      currentWorkflow.blocks) as typeof currentWorkflow.blocks
+    const workflowEdges = (executionWorkflowState?.edges ??
+      currentWorkflow.edges) as typeof currentWorkflow.edges
 
     // Filter out blocks without type (these are layout-only blocks)
     const validBlocks = Object.entries(workflowBlocks).reduce(

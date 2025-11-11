@@ -121,13 +121,10 @@ export async function executeWorkflowCore(
       loops = metadata.workflowStateOverride.loops || {}
       parallels = metadata.workflowStateOverride.parallels || {}
 
-      logger.info(
-        `[${requestId}] Using workflow state override (diff workflow execution)`,
-        {
-          blocksCount: Object.keys(blocks).length,
-          edgesCount: edges.length,
-        }
-      )
+      logger.info(`[${requestId}] Using workflow state override (diff workflow execution)`, {
+        blocksCount: Object.keys(blocks).length,
+        edgesCount: edges.length,
+      })
     } else if (useDraftState) {
       const draftData = await loadWorkflowFromNormalizedTables(workflowId)
 
