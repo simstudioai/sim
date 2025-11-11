@@ -4,6 +4,10 @@
   </a>
 </p>
 
+<p align="center">
+  <a href="README.md">English</a> | <a href="README.zh-CN.md">简体中文</a>
+</p>
+
 <p align="center">Build and deploy AI agent workflows in minutes.</p>
 
 <p align="center">
