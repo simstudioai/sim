@@ -114,7 +114,21 @@ export async function executeWorkflowCore(
     let loops
     let parallels
 
-    if (useDraftState) {
+    // Use workflowStateOverride if provided (for diff workflows)
+    if (metadata.workflowStateOverride) {
+      blocks = metadata.workflowStateOverride.blocks
+      edges = metadata.workflowStateOverride.edges
+      loops = metadata.workflowStateOverride.loops || {}
+      parallels = metadata.workflowStateOverride.parallels || {}
+
+      logger.info(
+        `[${requestId}] Using workflow state override (diff workflow execution)`,
+        {
+          blocksCount: Object.keys(blocks).length,
+          edgesCount: edges.length,
+        }
+      )
+    } else if (useDraftState) {
       const draftData = await loadWorkflowFromNormalizedTables(workflowId)
 
       if (!draftData) {

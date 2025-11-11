@@ -13,6 +13,12 @@ export interface ExecutionMetadata {
   startTime: string
   pendingBlocks?: string[]
   resumeFromSnapshot?: boolean
+  workflowStateOverride?: {
+    blocks: Record<string, any>
+    edges: Edge[]
+    loops?: Record<string, any>
+    parallels?: Record<string, any>
+  }
 }
 
 export interface ExecutionCallbacks {
