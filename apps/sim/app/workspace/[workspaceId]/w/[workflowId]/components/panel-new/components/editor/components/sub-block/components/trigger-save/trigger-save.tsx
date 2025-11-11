@@ -442,7 +442,7 @@ export function TriggerSave({
             />
           ) : (
             <p className='text-muted-foreground text-xs'>
-              Generate a temporary URL that executes this webhook against the live (un-deployed)
+              Generate a temporary URL that executes this webhook against the live (undeployed)
               workflow state.
             </p>
           )}

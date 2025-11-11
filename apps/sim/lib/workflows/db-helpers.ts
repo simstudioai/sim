@@ -1,6 +1,7 @@
 import crypto from 'crypto'
 import {
   db,
+  webhook,
   workflow,
   workflowBlocks,
   workflowDeploymentVersion,
@@ -249,6 +250,17 @@ export async function saveWorkflowToNormalizedTables(
   try {
     // Start a transaction
     await db.transaction(async (tx) => {
+      // Snapshot existing webhooks before deletion to preserve them through the cycle
+      let existingWebhooks: any[] = []
+      try {
+        existingWebhooks = await tx.select().from(webhook).where(eq(webhook.workflowId, workflowId))
+      } catch (webhookError) {
+        // Webhook table might not be available in test environments
+        logger.debug('Could not load webhooks before save, skipping preservation', {
+          error: webhookError instanceof Error ? webhookError.message : String(webhookError),
+        })
+      }
+
       // Clear existing data for this workflow
       await Promise.all([
         tx.delete(workflowBlocks).where(eq(workflowBlocks.workflowId, workflowId)),
@@ -319,6 +331,41 @@ export async function saveWorkflowToNormalizedTables(
 
       if (subflowInserts.length > 0) {
         await tx.insert(workflowSubflows).values(subflowInserts)
+      }
+
+      // Re-insert preserved webhooks if any exist and their blocks still exist
+      if (existingWebhooks.length > 0) {
+        try {
+          const webhookInserts = existingWebhooks
+            .filter((wh) => !!state.blocks?.[wh.blockId ?? ''])
+            .map((wh) => ({
+              id: wh.id,
+              workflowId: wh.workflowId,
+              blockId: wh.blockId,
+              path: wh.path,
+              provider: wh.provider,
+              providerConfig: wh.providerConfig,
+              isActive: wh.isActive,
+              createdAt: wh.createdAt,
+              updatedAt: new Date(),
+            }))
+
+          if (webhookInserts.length > 0) {
+            await tx.insert(webhook).values(webhookInserts)
+            logger.debug(`Preserved ${webhookInserts.length} webhook(s) through workflow save`, {
+              workflowId,
+            })
+          }
+        } catch (webhookInsertError) {
+          // Webhook preservation is optional - don't fail the entire save if it errors
+          logger.warn('Could not preserve webhooks during save', {
+            error:
+              webhookInsertError instanceof Error
+                ? webhookInsertError.message
+                : String(webhookInsertError),
+            workflowId,
+          })
+        }
       }
     })
 

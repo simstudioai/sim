@@ -10,8 +10,6 @@
 
 import type { BlockState, SubBlockState } from '@/stores/workflows/workflow/types'
 
-const WEBHOOK_SUBBLOCK_FIELDS = ['webhookId', 'triggerPath']
-
 /**
  * Server-safe version of mergeSubblockState for API routes
  *
@@ -44,11 +42,10 @@ export function mergeSubblockState(
       const blockValues = subBlockValues[id] || {}
 
       // Create a deep copy of the block's subBlocks to maintain structure
-      // Exclude webhook-specific fields that should not be persisted
       const mergedSubBlocks = Object.entries(blockSubBlocks).reduce(
         (subAcc, [subBlockId, subBlock]) => {
-          // Skip if subBlock is undefined or is a webhook-specific field
-          if (!subBlock || WEBHOOK_SUBBLOCK_FIELDS.includes(subBlockId)) {
+          // Skip if subBlock is undefined
+          if (!subBlock) {
             return subAcc
           }
 
@@ -75,12 +72,7 @@ export function mergeSubblockState(
       // Add any values that exist in the provided values but aren't in the block structure
       // This handles cases where block config has been updated but values still exist
       Object.entries(blockValues).forEach(([subBlockId, value]) => {
-        if (
-          !mergedSubBlocks[subBlockId] &&
-          value !== null &&
-          value !== undefined &&
-          !WEBHOOK_SUBBLOCK_FIELDS.includes(subBlockId)
-        ) {
+        if (!mergedSubBlocks[subBlockId] && value !== null && value !== undefined) {
           // Create a minimal subblock structure
           mergedSubBlocks[subBlockId] = {
             id: subBlockId,

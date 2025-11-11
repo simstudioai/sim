@@ -1,4 +1,5 @@
 import type { CopilotWorkflowState } from '@/lib/workflows/json-sanitizer'
+import { TRIGGER_RUNTIME_SUBBLOCK_IDS } from '@/triggers/consts'
 
 export interface EditOperation {
   operation_type: 'add' | 'edit' | 'delete' | 'insert_into_subflow' | 'extract_from_subflow'
@@ -502,6 +503,9 @@ function computeInputDelta(
   const delta: Record<string, any> = {}
 
   for (const key in endInputs) {
+    if (TRIGGER_RUNTIME_SUBBLOCK_IDS.includes(key)) {
+      continue
+    }
     if (
       !(key in startInputs) ||
       JSON.stringify(startInputs[key]) !== JSON.stringify(endInputs[key])
