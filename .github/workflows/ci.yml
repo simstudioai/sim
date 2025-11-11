@@ -112,7 +112,7 @@ jobs:
   build-ghcr-arm64:
     name: Build ARM64 (GHCR Only)
     needs: test-build
-    runs-on: linux-arm64-8-core
+    runs-on: blacksmith-8vcpu-ubuntu-2404-arm
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     permissions:
       contents: read
