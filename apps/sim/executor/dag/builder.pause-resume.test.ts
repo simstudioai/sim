@@ -30,13 +30,13 @@ function createBlock(id: string, metadataId: string): SerializedBlock {
   }
 }
 
-describe('DAGBuilder pause-resume transformation', () => {
+describe('DAGBuilder human-in-the-loop transformation', () => {
   it('creates trigger nodes and rewires edges for pause blocks', () => {
     const workflow: SerializedWorkflow = {
       version: '1',
       blocks: [
         createBlock('start', BlockType.STARTER),
-        createBlock('pause', BlockType.APPROVAL),
+        createBlock('pause', BlockType.HUMAN_IN_THE_LOOP),
         createBlock('finish', BlockType.FUNCTION),
       ],
       connections: [

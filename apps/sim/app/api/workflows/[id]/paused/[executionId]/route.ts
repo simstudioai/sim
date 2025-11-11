@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from 'next/server'
-import { PauseResumeManager } from '@/lib/workflows/executor/pause-resume-manager'
+import { PauseResumeManager } from '@/lib/workflows/executor/human-in-the-loop-manager'
 import { validateWorkflowAccess } from '@/app/api/workflows/middleware'
 
 export const runtime = 'nodejs'

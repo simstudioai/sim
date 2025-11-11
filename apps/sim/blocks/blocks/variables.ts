@@ -1,4 +1,4 @@
-import { Variable } from '@/components/icons'
+import { VariableIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
 
 export const VariablesBlock: BlockConfig = {
@@ -15,7 +15,7 @@ export const VariablesBlock: BlockConfig = {
   - Any Variables block can update existing variables by setting the same variable name
   - Variables do not appear as block outputs - they're accessed via the <variable.> prefix
   `,
-  icon: Variable,
+  icon: VariableIcon,
   category: 'blocks',
   docsLink: 'https://docs.sim.ai/blocks/variables',
   subBlocks: [
