@@ -18,8 +18,8 @@ import { DiffControls } from '@/app/workspace/[workspaceId]/w/[workflowId]/compo
 import { Chat } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/chat/chat'
 import { UserAvatarStack } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/control-bar/components/user-avatar-stack/user-avatar-stack'
 import { ErrorBoundary } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/error/index'
-import { Panel } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/panel-new'
 import { NoteBlock } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/note-block/note-block'
+import { Panel } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/panel-new'
 import { SubflowNodeComponent } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/subflow-node'
 import { Terminal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/terminal'
 import { TrainingControls } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/training-controls/training-controls'
@@ -1306,13 +1306,10 @@ const WorkflowContent = React.memo(() => {
         typeof block.layout?.measuredHeight === 'number' ? block.layout.measuredHeight : undefined
 
       const nodeType = block.type === 'note' ? 'noteBlock' : 'workflowBlock'
-      const dragHandle =
-        block.type === 'note' ? '.note-drag-handle' : '.workflow-drag-handle'
+      const dragHandle = block.type === 'note' ? '.note-drag-handle' : '.workflow-drag-handle'
 
       const defaultWidth =
-        block.type === 'note'
-          ? Math.max(measuredWidth ?? block.data?.width ?? 260, 200)
-          : 250
+        block.type === 'note' ? Math.max(measuredWidth ?? block.data?.width ?? 260, 200) : 250
 
       const defaultHeight =
         block.type === 'note'

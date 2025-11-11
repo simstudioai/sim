@@ -9,6 +9,7 @@ import {
   CONTAINER_PADDING_Y,
   DEFAULT_CONTAINER_HEIGHT,
   DEFAULT_CONTAINER_WIDTH,
+  filterLayoutEligibleBlockIds,
   getBlockMetrics,
   getBlocksByParent,
   isContainerType,
@@ -72,12 +73,7 @@ function layoutGroup(
 
   const parentBlock = parentId ? blocks[parentId] : undefined
 
-  const layoutEligibleChildIds = childIds.filter((id) => {
-    const block = blocks[id]
-    if (!block) return false
-    if (shouldSkipAutoLayout(block)) return false
-    return true
-  })
+  const layoutEligibleChildIds = filterLayoutEligibleBlockIds(childIds, blocks)
 
   if (layoutEligibleChildIds.length === 0) {
     if (parentBlock) {
@@ -86,19 +82,17 @@ function layoutGroup(
     return
   }
 
-  const requestedLayout = childIds.filter((id) => {
+  const requestedLayout = layoutEligibleChildIds.filter((id) => {
     const block = blocks[id]
     if (!block) return false
     // Never reposition containers, only update their dimensions
     if (isContainerType(block.type)) return false
-    if (shouldSkipAutoLayout(block)) return false
     return changedSet.has(id)
   })
-  const missingPositions = childIds.filter((id) => {
+  const missingPositions = layoutEligibleChildIds.filter((id) => {
     const block = blocks[id]
     if (!block) return false
     // Containers with missing positions should still get positioned
-    if (shouldSkipAutoLayout(block)) return false
     return !hasPosition(block)
   })
   const needsLayoutSet = new Set([...requestedLayout, ...missingPositions])
@@ -116,7 +110,7 @@ function layoutGroup(
 
   const oldPositions = new Map<string, { x: number; y: number }>()
 
-  for (const id of childIds) {
+  for (const id of layoutEligibleChildIds) {
     const block = blocks[id]
     if (!block) continue
     oldPositions.set(id, { ...block.position })

@@ -5,7 +5,7 @@ import { adjustForNewBlock as adjustForNewBlockInternal, compactHorizontally } f
 import { assignLayers, groupByLayer } from './layering'
 import { calculatePositions } from './positioning'
 import type { AdjustmentOptions, Edge, LayoutOptions, LayoutResult, Loop, Parallel } from './types'
-import { getBlocksByParent, prepareBlockMetrics, shouldSkipAutoLayout } from './utils'
+import { filterLayoutEligibleBlockIds, getBlocksByParent, prepareBlockMetrics } from './utils'
 
 const logger = createLogger('AutoLayout')
 
@@ -28,12 +28,7 @@ export function applyAutoLayout(
 
     const { root: rootBlockIds } = getBlocksByParent(blocksCopy)
 
-    const layoutRootIds = rootBlockIds.filter((id) => {
-      const block = blocksCopy[id]
-      if (!block) return false
-      if (shouldSkipAutoLayout(block)) return false
-      return true
-    })
+    const layoutRootIds = filterLayoutEligibleBlockIds(rootBlockIds, blocksCopy)
 
     const rootBlocks: Record<string, BlockState> = {}
     for (const id of layoutRootIds) {

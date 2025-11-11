@@ -1,75 +1,66 @@
 import { memo, useCallback, useEffect, useMemo, useRef } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { useUpdateNodeInternals, type NodeProps } from 'reactflow'
+import { type NodeProps, useUpdateNodeInternals } from 'reactflow'
 import { cn } from '@/lib/utils'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
+import { usePanelEditorStore } from '@/stores/panel-new/editor/store'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import { useSubBlockStore } from '@/stores/workflows/subblock/store'
+import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import { useCurrentWorkflow } from '../../hooks'
 import { ActionBar } from '../workflow-block/components'
 import { useBlockState } from '../workflow-block/hooks'
 import type { WorkflowBlockProps } from '../workflow-block/types'
-import { usePanelEditorStore } from '@/stores/panel-new/editor/store'
-import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-import { useWorkflowStore } from '@/stores/workflows/workflow/store'
-import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 
 interface NoteBlockNodeData extends WorkflowBlockProps {}
 
 const NOTE_MIN_WIDTH = 220
 const NOTE_MIN_HEIGHT = 140
 
-const MarkdownContent = memo(function MarkdownContent({ content }: { content: string }) {
+/**
+ * Extract string value from subblock value object or primitive
+ */
+function extractFieldValue(rawValue: unknown): string | undefined {
+  if (typeof rawValue === 'string') return rawValue
+  if (rawValue && typeof rawValue === 'object' && 'value' in rawValue) {
+    const candidate = (rawValue as { value?: unknown }).value
+    return typeof candidate === 'string' ? candidate : undefined
+  }
+  return undefined
+}
+
+/**
+ * Compact markdown renderer for note blocks with tight spacing
+ */
+const NoteMarkdown = memo(function NoteMarkdown({ content }: { content: string }) {
   return (
     <ReactMarkdown
       remarkPlugins={[remarkGfm]}
       components={{
-        p: ({ children }) => (
-          <p className='mb-2 text-sm leading-relaxed text-[#E5E5E5] last:mb-0'>{children}</p>
-        ),
-        strong: ({ children }) => <strong className='font-semibold text-white'>{children}</strong>,
-        em: ({ children }) => <em className='text-[#B8B8B8]'>{children}</em>,
-        h1: ({ children }) => (
-          <h1 className='mt-0 mb-[6px] text-lg font-semibold leading-snug text-[#E5E5E5]'>
-            {children}
-          </h1>
-        ),
-        h2: ({ children }) => (
-          <h2 className='mt-0 mb-[4px] text-base font-semibold leading-snug text-[#E5E5E5]'>
-            {children}
-          </h2>
-        ),
-        h3: ({ children }) => (
-          <h3 className='mt-0 mb-[4px] text-sm font-semibold leading-snug text-[#E5E5E5]'>
-            {children}
-          </h3>
-        ),
-        a: ({ href, children }) => (
-          <a
-            href={href}
-            target='_blank'
-            rel='noopener noreferrer'
-            className='font-medium text-[#33B4FF] underline-offset-2 hover:underline'
-          >
-            {children}
-          </a>
-        ),
-        ul: ({ children }) => (
-          <ul className='mb-2 ml-5 list-disc text-sm leading-relaxed text-[#E5E5E5]'>{children}</ul>
-        ),
-        ol: ({ children }) => (
-          <ol className='mb-2 ml-5 list-decimal text-sm leading-relaxed text-[#E5E5E5]'>{children}</ol>
-        ),
-        li: ({ children }) => <li className='mb-1 last:mb-0'>{children}</li>,
+        p: ({ children }) => <p className='mb-0 text-sm text-[#E5E5E5]'>{children}</p>,
+        h1: ({ children }) => <h1 className='mt-0 mb-[-2px] text-lg font-semibold text-[#E5E5E5]'>{children}</h1>,
+        h2: ({ children }) => <h2 className='mt-0 mb-[-2px] text-base font-semibold text-[#E5E5E5]'>{children}</h2>,
+        h3: ({ children }) => <h3 className='mt-0 mb-[-2px] text-sm font-semibold text-[#E5E5E5]'>{children}</h3>,
+        h4: ({ children }) => <h4 className='mt-0 mb-[-2px] text-xs font-semibold text-[#E5E5E5]'>{children}</h4>,
+        ul: ({ children }) => <ul className='-mt-[2px] mb-0 list-disc pl-4 text-sm text-[#E5E5E5]'>{children}</ul>,
+        ol: ({ children }) => <ol className='-mt-[2px] mb-0 list-decimal pl-4 text-sm text-[#E5E5E5]'>{children}</ol>,
+        li: ({ children }) => <li className='mb-0'>{children}</li>,
         code: ({ inline, children }: any) =>
           inline ? (
             <code className='rounded bg-[#393939] px-1 py-0.5 text-xs text-[#F59E0B]'>{children}</code>
           ) : (
             <code className='block rounded bg-[#1A1A1A] p-2 text-xs text-[#E5E5E5]'>{children}</code>
           ),
-        blockquote: ({ children }) => (
-          <blockquote className='mb-3 border-l-2 border-[#F59E0B] pl-3 italic text-[#B8B8B8]'>
+        a: ({ href, children }) => (
+          <a href={href} target='_blank' rel='noopener noreferrer' className='text-[#33B4FF] underline-offset-2 hover:underline'>
             {children}
-          </blockquote>
+          </a>
+        ),
+        strong: ({ children }) => <strong className='font-semibold text-white'>{children}</strong>,
+        em: ({ children }) => <em className='text-[#B8B8B8]'>{children}</em>,
+        blockquote: ({ children }) => (
+          <blockquote className='m-0 border-l-2 border-[#F59E0B] pl-3 italic text-[#B8B8B8]'>{children}</blockquote>
         ),
       }}
     >
@@ -90,7 +81,11 @@ export const NoteBlock = memo(function NoteBlock({ id, data }: NodeProps<NoteBlo
   const isFocused = currentBlockId === id
 
   const currentWorkflow = useCurrentWorkflow()
-  const { isEnabled, isActive, diffStatus, isDeletedBlock } = useBlockState(id, currentWorkflow, data)
+  const { isEnabled, isActive, diffStatus, isDeletedBlock } = useBlockState(
+    id,
+    currentWorkflow,
+    data
+  )
 
   const activeWorkflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
   const storedValues = useSubBlockStore(
@@ -105,36 +100,16 @@ export const NoteBlock = memo(function NoteBlock({ id, data }: NodeProps<NoteBlo
 
   const noteValues = useMemo(() => {
     if (data.isPreview && data.subBlockValues) {
-      const previewFormatState = data.subBlockValues.format
-      const previewContentState = data.subBlockValues.content
-
-      const extractedPreviewFormat =
-        typeof previewFormatState === 'object' && previewFormatState !== null
-          ? (previewFormatState as { value?: unknown }).value
-          : previewFormatState
-      const extractedPreviewContent =
-        typeof previewContentState === 'object' && previewContentState !== null
-          ? (previewContentState as { value?: unknown }).value
-          : previewContentState
-
+      const extractedPreviewFormat = extractFieldValue(data.subBlockValues.format)
+      const extractedPreviewContent = extractFieldValue(data.subBlockValues.content)
       return {
         format: typeof extractedPreviewFormat === 'string' ? extractedPreviewFormat : 'plain',
         content: typeof extractedPreviewContent === 'string' ? extractedPreviewContent : '',
       }
     }
 
-    const format =
-      storedValues && typeof storedValues.format === 'string'
-        ? storedValues.format
-        : typeof storedValues?.format === 'object' && storedValues?.format !== null
-          ? (storedValues.format as { value?: unknown }).value
-          : undefined
-    const content =
-      storedValues && typeof storedValues.content === 'string'
-        ? storedValues.content
-        : typeof storedValues?.content === 'object' && storedValues?.content !== null
-          ? (storedValues.content as { value?: unknown }).value
-          : undefined
+    const format = extractFieldValue(storedValues?.format)
+    const content = extractFieldValue(storedValues?.content)
 
     return {
       format: typeof format === 'string' ? format : 'plain',
@@ -142,8 +117,8 @@ export const NoteBlock = memo(function NoteBlock({ id, data }: NodeProps<NoteBlo
     }
   }, [data.isPreview, data.subBlockValues, storedValues])
 
-  const trimmedContent = noteValues.content?.trim() ?? ''
-  const isEmpty = trimmedContent.length === 0
+  const content = noteValues.content ?? ''
+  const isEmpty = content.trim().length === 0
   const showMarkdown = noteValues.format === 'markdown' && !isEmpty
 
   const userPermissions = useUserPermissionsContext()
@@ -215,14 +190,14 @@ export const NoteBlock = memo(function NoteBlock({ id, data }: NodeProps<NoteBlo
           </div>
         </div>
 
-        <div className='relative px-[12px] py-[10px]'>
+        <div className='relative px-[12px] pt-[6px] pb-[8px]'>
           <div className='relative whitespace-pre-wrap break-words'>
             {isEmpty ? (
-              <p className='text-sm italic text-[#868686]'>Add your note...</p>
+              <p className='text-[#868686] text-sm italic'>Add a note...</p>
             ) : showMarkdown ? (
-              <MarkdownContent content={trimmedContent} />
+              <NoteMarkdown content={content} />
             ) : (
-              <p className='text-sm leading-relaxed text-[#E5E5E5]'>{trimmedContent}</p>
+              <p className='whitespace-pre-wrap text-[#E5E5E5] text-sm leading-relaxed'>{content}</p>
             )}
           </div>
         </div>
@@ -235,4 +210,3 @@ export const NoteBlock = memo(function NoteBlock({ id, data }: NodeProps<NoteBlo
     </div>
   )
 })
-

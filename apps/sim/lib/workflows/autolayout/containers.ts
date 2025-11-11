@@ -9,9 +9,9 @@ import {
   CONTAINER_PADDING_Y,
   DEFAULT_CONTAINER_HEIGHT,
   DEFAULT_CONTAINER_WIDTH,
+  filterLayoutEligibleBlockIds,
   getBlocksByParent,
   prepareBlockMetrics,
-  shouldSkipAutoLayout,
 } from './utils'
 
 const logger = createLogger('AutoLayout:Containers')
@@ -36,14 +36,10 @@ export function layoutContainers(
 
     logger.debug('Processing container', { parentId, childCount: childIds.length })
 
+    const layoutChildIds = filterLayoutEligibleBlockIds(childIds, blocks)
     const childBlocks: Record<string, BlockState> = {}
-    const layoutChildIds: string[] = []
-    for (const childId of childIds) {
-      const childBlock = blocks[childId]
-      if (!childBlock) continue
-      if (shouldSkipAutoLayout(childBlock)) continue
-      childBlocks[childId] = childBlock
-      layoutChildIds.push(childId)
+    for (const childId of layoutChildIds) {
+      childBlocks[childId] = blocks[childId]
     }
 
     const childEdges = edges.filter(
