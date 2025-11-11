@@ -30,12 +30,26 @@ interface BlockItem {
 let cachedTriggers: ReturnType<typeof getTriggersForSidebar> | null = null
 
 /**
- * Gets triggers data, computing it once and caching for subsequent calls
+ * Gets triggers data, computing it once and caching for subsequent calls.
+ * Non-integration triggers (Start, Schedule, Webhook) are prioritized first,
+ * followed by all other triggers sorted alphabetically.
  */
 function getTriggers() {
   if (cachedTriggers === null) {
     const allTriggers = getTriggersForSidebar()
-    cachedTriggers = allTriggers.sort((a, b) => a.name.localeCompare(b.name))
+    const priorityOrder = ['Start', 'Schedule', 'Webhook']
+
+    cachedTriggers = allTriggers.sort((a, b) => {
+      const aIndex = priorityOrder.indexOf(a.name)
+      const bIndex = priorityOrder.indexOf(b.name)
+      const aHasPriority = aIndex !== -1
+      const bHasPriority = bIndex !== -1
+
+      if (aHasPriority && bHasPriority) return aIndex - bIndex
+      if (aHasPriority) return -1
+      if (bHasPriority) return 1
+      return a.name.localeCompare(b.name)
+    })
   }
   return cachedTriggers
 }
