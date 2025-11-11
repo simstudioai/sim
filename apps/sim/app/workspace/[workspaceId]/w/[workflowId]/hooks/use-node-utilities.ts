@@ -14,25 +14,20 @@ export function useNodeUtilities(blocks: Record<string, any>) {
   const { getNodes, project } = useReactFlow()
 
   /**
-   * Check if a block is a container type
+   * Check if a block is a container type (loop, parallel, or subflow)
    */
   const isContainerType = useCallback((blockType: string): boolean => {
-    return (
-      blockType === 'loop' ||
-      blockType === 'parallel' ||
-      blockType === 'loopNode' ||
-      blockType === 'parallelNode' ||
-      blockType === 'subflowNode'
-    )
+    return blockType === 'loop' || blockType === 'parallel' || blockType === 'subflowNode'
   }, [])
 
   /**
-   * Get the dimensions of a block
+   * Get the dimensions of a block.
+   * For regular blocks, estimates height if not yet measured by ResizeObserver.
    */
   const getBlockDimensions = useCallback(
     (blockId: string): { width: number; height: number } => {
       const block = blocks[blockId]
-      if (!block) return { width: 350, height: 150 }
+      if (!block) return { width: 250, height: 100 }
 
       if (isContainerType(block.type)) {
         return {
@@ -41,12 +36,31 @@ export function useNodeUtilities(blocks: Record<string, any>) {
         }
       }
 
+      // Workflow block nodes have fixed visual width
+      const width = 250
+
+      // Prefer deterministic height published by the block component; fallback to estimate
+      let height = block.height
+
+      if (!height) {
+        // Estimate height for workflow blocks before ResizeObserver measures them
+        // Block structure: header (40px) + content area with subblocks
+        // Each subblock row is approximately 29px (14px text + 8px gap + padding)
+        const headerHeight = 40
+        const subblockRowHeight = 29
+        const contentPadding = 16 // p-[8px] top and bottom = 16px total
+
+        // Estimate number of visible subblock rows
+        // This is a rough estimate - actual rendering may vary
+        const estimatedRows = 3 // Conservative estimate for typical blocks
+        const hasErrorRow = block.type !== 'starter' && block.type !== 'response' ? 1 : 0
+
+        height = headerHeight + contentPadding + (estimatedRows + hasErrorRow) * subblockRowHeight
+      }
+
       return {
-        width: block.layout?.measuredWidth || block.data?.width || 350,
-        height: Math.max(
-          block.layout?.measuredHeight || block.height || block.data?.height || 150,
-          100
-        ),
+        width,
+        height: Math.max(height, 100),
       }
     },
     [blocks, isContainerType]
@@ -86,7 +100,8 @@ export function useNodeUtilities(blocks: Record<string, any>) {
   )
 
   /**
-   * Gets the absolute position of a node (accounting for nested parents)
+   * Gets the absolute position of a node (accounting for nested parents).
+   * For nodes inside containers, accounts for header and padding offsets.
    * @param nodeId ID of the node to check
    * @returns Absolute position coordinates {x, y}
    */
@@ -129,28 +144,41 @@ export function useNodeUtilities(blocks: Record<string, any>) {
 
       const parentPos = getNodeAbsolutePosition(parentId)
 
+      // Child positions are stored relative to the content area (after header and padding)
+      // Add these offsets when calculating absolute position
+      const headerHeight = 50
+      const leftPadding = 16
+      const topPadding = 16
+
       return {
-        x: parentPos.x + node.position.x,
-        y: parentPos.y + node.position.y,
+        x: parentPos.x + leftPadding + node.position.x,
+        y: parentPos.y + headerHeight + topPadding + node.position.y,
       }
     },
     [getNodes, blocks]
   )
 
   /**
-   * Calculates the relative position of a node to a new parent
+   * Calculates the relative position of a node to a new parent's content area.
+   * Accounts for header height and padding offsets in container nodes.
    * @param nodeId ID of the node being repositioned
    * @param newParentId ID of the new parent
-   * @returns Relative position coordinates {x, y}
+   * @returns Relative position coordinates {x, y} within the parent's content area
    */
   const calculateRelativePosition = useCallback(
     (nodeId: string, newParentId: string): { x: number; y: number } => {
       const nodeAbsPos = getNodeAbsolutePosition(nodeId)
       const parentAbsPos = getNodeAbsolutePosition(newParentId)
 
+      // Account for container's header and padding
+      // Children are positioned relative to content area, not container origin
+      const headerHeight = 50
+      const leftPadding = 16
+      const topPadding = 16
+
       return {
-        x: nodeAbsPos.x - parentAbsPos.x,
-        y: nodeAbsPos.y - parentAbsPos.y,
+        x: nodeAbsPos.x - parentAbsPos.x - leftPadding,
+        y: nodeAbsPos.y - parentAbsPos.y - headerHeight - topPadding,
       }
     },
     [getNodeAbsolutePosition]
@@ -222,37 +250,46 @@ export function useNodeUtilities(blocks: Record<string, any>) {
       const minWidth = DEFAULT_CONTAINER_WIDTH
       const minHeight = DEFAULT_CONTAINER_HEIGHT
 
+      // Match styling in subflow-node.tsx:
+      // - Header section: 50px total height
+      // - Content area: px-[16px] pb-[0px] pt-[16px] pr-[70px]
+      //   Left padding: 16px, Right padding: 64px, Top padding: 16px, Bottom padding: -6px (reduced by additional 6px from 0 to achieve 14px total reduction from original 8px)
+      // - Children are positioned relative to the content area (after header, inside padding)
+      const headerHeight = 50
+      const leftPadding = 16
+      const rightPadding = 80
+      const topPadding = 16
+      const bottomPadding = 16
+
       const childNodes = getNodes().filter((node) => node.parentId === nodeId)
       if (childNodes.length === 0) {
         return { width: minWidth, height: minHeight }
       }
 
-      let minX = Number.POSITIVE_INFINITY
-      let minY = Number.POSITIVE_INFINITY
-      let maxX = Number.NEGATIVE_INFINITY
-      let maxY = Number.NEGATIVE_INFINITY
+      let maxRight = 0
+      let maxBottom = 0
 
       childNodes.forEach((node) => {
         const { width: nodeWidth, height: nodeHeight } = getBlockDimensions(node.id)
 
-        minX = Math.min(minX, node.position.x + nodeWidth)
-        minY = Math.min(minY, node.position.y + nodeHeight)
-        maxX = Math.max(maxX, node.position.x + nodeWidth)
-        maxY = Math.max(maxY, node.position.y + nodeHeight + 50)
+        // Child positions are relative to content area's inner top-left (inside padding)
+        // Calculate the rightmost and bottommost edges of children
+        const rightEdge = node.position.x + nodeWidth
+        const bottomEdge = node.position.y + nodeHeight
+
+        maxRight = Math.max(maxRight, rightEdge)
+        maxBottom = Math.max(maxBottom, bottomEdge)
       })
 
-      const hasNestedContainers = childNodes.some((node) => node.type && isContainerType(node.type))
-
-      const sidePadding = hasNestedContainers ? 150 : 120
-
-      const extraPadding = 50
-
-      const width = Math.max(minWidth, maxX + sidePadding + extraPadding)
-      const height = Math.max(minHeight, maxY + sidePadding)
+      // Container dimensions = header + padding + children bounds + padding
+      // Width: left padding + max child right edge + right padding (64px)
+      const width = Math.max(minWidth, leftPadding + maxRight + rightPadding)
+      // Height: header + top padding + max child bottom edge + bottom padding (8px)
+      const height = Math.max(minHeight, headerHeight + topPadding + maxBottom + bottomPadding)
 
       return { width, height }
     },
-    [getNodes, getBlockDimensions, isContainerType]
+    [getNodes, getBlockDimensions]
   )
 
   /**
@@ -343,7 +380,7 @@ export function useNodeUtilities(blocks: Record<string, any>) {
           : 500
         : typeof node.width === 'number'
           ? node.width
-          : 350
+          : 250
       const height = isSubflow
         ? typeof node.data?.height === 'number'
           ? node.data.height

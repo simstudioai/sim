@@ -695,10 +695,10 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                   title='Stop generation'
                 >
                   {isAborting ? (
-                    <Loader2 className='h-[13px] w-[13px] animate-spin text-black' />
+                    <Loader2 className='block h-[13px] w-[13px] animate-spin text-black' />
                   ) : (
                     <svg
-                      className='h-[13px] w-[13px]'
+                      className='block h-[13px] w-[13px]'
                       viewBox='0 0 24 24'
                       fill='black'
                       xmlns='http://www.w3.org/2000/svg'
@@ -719,9 +719,9 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                   )}
                 >
                   {isLoading ? (
-                    <Loader2 className='h-3.5 w-3.5 animate-spin text-black' />
+                    <Loader2 className='block h-3.5 w-3.5 animate-spin text-black' />
                   ) : (
-                    <ArrowUp className='h-3.5 w-3.5 text-black' strokeWidth={2.25} />
+                    <ArrowUp className='block h-3.5 w-3.5 text-black' strokeWidth={2.25} />
                   )}
                 </Button>
               )}

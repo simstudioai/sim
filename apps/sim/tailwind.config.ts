@@ -198,6 +198,75 @@ export default {
             transform: 'translateX(0)',
           },
         },
+        'dash-animation': {
+          from: {
+            strokeDashoffset: '0',
+          },
+          to: {
+            strokeDashoffset: '-24',
+          },
+        },
+        'pulse-ring': {
+          '0%': {
+            boxShadow: '0 0 0 0 hsl(var(--border))',
+          },
+          '50%': {
+            boxShadow: '0 0 0 8px hsl(var(--border))',
+          },
+          '100%': {
+            boxShadow: '0 0 0 0 hsl(var(--border))',
+          },
+        },
+        'code-shimmer': {
+          '0%': {
+            transform: 'translateX(-100%)',
+          },
+          '100%': {
+            transform: 'translateX(100%)',
+          },
+        },
+        orbit: {
+          '0%': {
+            transform:
+              'rotate(calc(var(--angle) * 1deg)) translateY(calc(var(--radius) * 1px)) rotate(calc(var(--angle) * -1deg))',
+          },
+          '100%': {
+            transform:
+              'rotate(calc(var(--angle) * 1deg + 360deg)) translateY(calc(var(--radius) * 1px)) rotate(calc((var(--angle) * -1deg) - 360deg))',
+          },
+        },
+        marquee: {
+          from: {
+            transform: 'translateX(0)',
+          },
+          to: {
+            transform: 'translateX(calc(-100% - var(--gap)))',
+          },
+        },
+        'marquee-vertical': {
+          from: {
+            transform: 'translateY(0)',
+          },
+          to: {
+            transform: 'translateY(calc(-100% - var(--gap)))',
+          },
+        },
+        'fade-in': {
+          from: {
+            opacity: '0',
+          },
+          to: {
+            opacity: '1',
+          },
+        },
+        'placeholder-pulse': {
+          '0%, 100%': {
+            opacity: '0.5',
+          },
+          '50%': {
+            opacity: '0.8',
+          },
+        },
       },
       animation: {
         'slide-down': 'slide-down 0.3s ease-out',
@@ -212,6 +281,14 @@ export default {
         'accordion-up': 'accordion-up 0.2s ease-out',
         'slide-left': 'slide-left 80s linear infinite',
         'slide-right': 'slide-right 80s linear infinite',
+        'dash-animation': 'dash-animation 1.5s linear infinite',
+        'pulse-ring': 'pulse-ring 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+        'code-shimmer': 'code-shimmer 1.5s infinite',
+        orbit: 'orbit calc(var(--duration, 2) * 1s) linear infinite',
+        marquee: 'marquee var(--duration) infinite linear',
+        'marquee-vertical': 'marquee-vertical var(--duration) linear infinite',
+        'fade-in': 'fade-in 0.3s ease-in-out forwards',
+        'placeholder-pulse': 'placeholder-pulse 1.5s ease-in-out infinite',
       },
     },
   },

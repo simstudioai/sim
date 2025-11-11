@@ -317,7 +317,7 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
               >
                 <div
                   ref={messageContentRef}
-                  className={`relative whitespace-pre-wrap break-words px-[2px] py-1 font-medium font-sans text-[#0D0D0D] text-sm leading-[1.25rem] dark:text-gray-100 ${isSendingMessage && isLastUserMessage ? 'pr-7' : ''} ${!isExpanded && needsExpansion ? 'max-h-[60px] overflow-hidden' : 'overflow-visible'}`}
+                  className={`relative whitespace-pre-wrap break-words px-[2px] py-1 font-medium font-sans text-[#0D0D0D] text-sm leading-[1.25rem] dark:text-gray-100 ${isSendingMessage && isLastUserMessage && isHoveringMessage ? 'pr-7' : ''} ${!isExpanded && needsExpansion ? 'max-h-[60px] overflow-hidden' : 'overflow-visible'}`}
                 >
                   {(() => {
                     const text = message.content || ''
@@ -374,7 +374,7 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
                       title='Stop generation'
                     >
                       <svg
-                        className='h-[13px] w-[13px]'
+                        className='block h-[13px] w-[13px]'
                         viewBox='0 0 24 24'
                         fill='black'
                         xmlns='http://www.w3.org/2000/svg'
