@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Check, ChevronDown, ExternalLink, RefreshCw } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { Button } from '@/components/emcn/components/button/button'
 import {
   Command,
   CommandEmpty,
@@ -15,6 +15,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { createLogger } from '@/lib/logs/console/logger'
 import {
   type Credential,
+  getCanonicalScopesForProvider,
   getProviderIdFromServiceId,
   getServiceIdFromScopes,
   OAUTH_PROVIDERS,
@@ -26,6 +27,7 @@ import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/c
 import type { SubBlockConfig } from '@/blocks/types'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { useDisplayNamesStore } from '@/stores/display-names/store'
+import { getMissingRequiredScopes } from '@/hooks/use-oauth-scope-status'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 const logger = createLogger('CredentialSelector')
@@ -222,6 +224,14 @@ export function CredentialSelector({
       ? 'Saved by collaborator'
       : undefined
 
+  // Determine if additional permissions are required for the selected credential
+  const hasSelection = !!selectedCredential
+  const missingRequiredScopes = hasSelection
+    ? getMissingRequiredScopes(selectedCredential, requiredScopes || [])
+    : []
+  const needsUpdate =
+    hasSelection && missingRequiredScopes.length > 0 && !disabled && !isPreview && !isLoading
+
   // Handle selection
   const handleSelect = (credentialId: string) => {
     const previousId = selectedId || (effectiveValue as string) || ''
@@ -343,13 +353,21 @@ export function CredentialSelector({
         </PopoverContent>
       </Popover>
 
+      {needsUpdate && (
+        <div className='mt-2 flex items-center justify-between rounded-[6px] border border-amber-300/40 bg-amber-50/60 px-2 py-1 font-medium text-[12px] transition-colors dark:bg-amber-950/10'>
+          <span>Additional permissions required</span>
+          {!isForeign && <Button onClick={() => setShowOAuthModal(true)}>Update access</Button>}
+        </div>
+      )}
+
       {showOAuthModal && (
         <OAuthRequiredModal
           isOpen={showOAuthModal}
           onClose={() => setShowOAuthModal(false)}
           provider={provider}
           toolName={getProviderName(provider)}
-          requiredScopes={requiredScopes}
+          requiredScopes={getCanonicalScopesForProvider(effectiveProviderId)}
+          newScopes={missingRequiredScopes}
           serviceId={effectiveServiceId}
         />
       )}

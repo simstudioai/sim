@@ -25,7 +25,7 @@ import {
   useWebhookInfo,
 } from './hooks'
 import type { WorkflowBlockProps } from './types'
-import { debounce, getProviderName, shouldSkipBlockRender } from './utils'
+import { getProviderName, shouldSkipBlockRender } from './utils'
 
 const logger = createLogger('WorkflowBlock')
 
@@ -304,12 +304,8 @@ export const WorkflowBlock = memo(function WorkflowBlock({
     disableSchedule,
   } = useScheduleInfo(id, type, currentWorkflowId)
 
-  const { childWorkflowId, childIsDeployed, refetchDeployment } = useChildWorkflow(
-    id,
-    type,
-    data.isPreview ?? false,
-    data.subBlockValues
-  )
+  const { childWorkflowId, childIsDeployed, childNeedsRedeploy, refetchDeployment } =
+    useChildWorkflow(id, type, data.isPreview ?? false, data.subBlockValues)
 
   const [isDeploying, setIsDeploying] = useState(false)
   const setDeploymentStatus = useWorkflowRegistry((state) => state.setDeploymentStatus)
@@ -381,6 +377,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
   const setCurrentBlockId = usePanelEditorStore((state) => state.setCurrentBlockId)
   const currentBlockId = usePanelEditorStore((state) => state.currentBlockId)
   const isFocused = currentBlockId === id
+  const currentStoreBlock = currentWorkflow.getBlockById(id)
 
   const isStarterBlock = type === 'starter'
   const isWebhookTriggerBlock = type === 'webhook' || type === 'generic_webhook'
@@ -392,55 +389,6 @@ export const WorkflowBlock = memo(function WorkflowBlock({
   useEffect(() => {
     updateNodeInternals(id)
   }, [id, horizontalHandles, updateNodeInternals])
-
-  /**
-   * Debounced layout update function that only triggers when dimensions
-   * actually change to avoid unnecessary re-renders.
-   */
-  const debouncedLayoutUpdate = useMemo(
-    () =>
-      debounce((dimensions: { width: number; height: number }) => {
-        if (dimensions.height !== blockHeight || dimensions.width !== blockWidth) {
-          updateBlockLayoutMetrics(id, dimensions)
-          updateNodeInternals(id)
-        }
-      }, 100),
-    [blockHeight, blockWidth, updateBlockLayoutMetrics, updateNodeInternals, id]
-  )
-
-  /**
-   * Use ResizeObserver to track block size changes and update layout metrics.
-   * Schedules updates on animation frames for better performance.
-   */
-  useEffect(() => {
-    if (!contentRef.current) return
-
-    let rafId: number
-
-    const resizeObserver = new ResizeObserver((entries) => {
-      if (rafId) {
-        cancelAnimationFrame(rafId)
-      }
-
-      rafId = requestAnimationFrame(() => {
-        for (const entry of entries) {
-          const rect = entry.target.getBoundingClientRect()
-          const height = entry.borderBoxSize[0]?.blockSize ?? rect.height
-          const width = entry.borderBoxSize[0]?.inlineSize ?? rect.width
-          debouncedLayoutUpdate({ width, height })
-        }
-      })
-    })
-
-    resizeObserver.observe(contentRef.current)
-
-    return () => {
-      resizeObserver.disconnect()
-      if (rafId) {
-        cancelAnimationFrame(rafId)
-      }
-    }
-  }, [debouncedLayoutUpdate])
 
   /**
    * Subscribe to this block's subblock values to track changes for conditional rendering
@@ -650,6 +598,64 @@ export const WorkflowBlock = memo(function WorkflowBlock({
     ]
   }, [type, subBlockState, id])
 
+  /**
+   * Compute and publish deterministic layout metrics for workflow blocks.
+   * This avoids ResizeObserver/animation-frame jitter and prevents initial "jump".
+   *
+   * Height model:
+   * - Fixed header height: 40px
+   * - Content padding when present: 16px (8 top + 8 bottom)
+   * - Row height: 29px per rendered row (subblock rows, condition rows, plus error row if present)
+   *
+   * Width is a fixed 250px for workflow blocks.
+   */
+  useEffect(() => {
+    // Only workflow blocks (non-subflow) render here, width is constant
+    const FIXED_WIDTH = 250
+    const HEADER_HEIGHT = 40
+    const CONTENT_PADDING = 16
+    const ROW_HEIGHT = 29
+
+    const shouldShowDefaultHandles =
+      config.category !== 'triggers' && type !== 'starter' && !displayTriggerMode
+    const hasContentBelowHeader = subBlockRows.length > 0 || shouldShowDefaultHandles
+
+    // Count rows based on block type and whether default handles section is shown
+    const defaultHandlesRow = shouldShowDefaultHandles ? 1 : 0
+
+    let rowsCount = 0
+    if (type === 'condition') {
+      rowsCount = conditionRows.length + defaultHandlesRow
+    } else {
+      const subblockRowCount = subBlockRows.reduce((acc, row) => acc + row.length, 0)
+      rowsCount = subblockRowCount + defaultHandlesRow
+    }
+
+    const contentHeight = hasContentBelowHeader ? CONTENT_PADDING + rowsCount * ROW_HEIGHT : 0
+    const calculatedHeight = Math.max(HEADER_HEIGHT + contentHeight, 100)
+
+    const prevHeight =
+      typeof currentStoreBlock?.height === 'number' ? currentStoreBlock.height : undefined
+    const prevWidth = 250 // fixed across the app for workflow blocks
+
+    // Only update store if something actually changed to prevent unnecessary reflows
+    if (prevHeight !== calculatedHeight || prevWidth !== FIXED_WIDTH) {
+      updateBlockLayoutMetrics(id, { width: FIXED_WIDTH, height: calculatedHeight })
+      updateNodeInternals(id)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    id,
+    type,
+    config.category,
+    displayTriggerMode,
+    subBlockRows.length,
+    conditionRows.length,
+    currentStoreBlock?.height,
+    updateBlockLayoutMetrics,
+    updateNodeInternals,
+  ])
+
   const showWebhookIndicator = (isStarterBlock || isWebhookTriggerBlock) && isWebhookConfigured
   const shouldShowScheduleBadge =
     type === 'schedule' && !isLoadingScheduleInfo && scheduleInfo !== null
@@ -718,7 +724,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
 
         <div
           className={cn(
-            'workflow-drag-handle flex cursor-grab items-center justify-between px-[9px] py-[8px] [&:active]:cursor-grabbing',
+            'workflow-drag-handle flex cursor-grab items-center justify-between p-[8px] [&:active]:cursor-grabbing',
             hasContentBelowHeader && 'border-[#393939] border-b'
           )}
           onMouseDown={(e) => {
@@ -747,24 +753,44 @@ export const WorkflowBlock = memo(function WorkflowBlock({
                     <Tooltip.Trigger asChild>
                       <Badge
                         variant='outline'
-                        className={!childIsDeployed ? 'cursor-pointer' : ''}
+                        className={!childIsDeployed || childNeedsRedeploy ? 'cursor-pointer' : ''}
                         style={{
-                          borderColor: childIsDeployed ? '#22C55E' : '#EF4444',
-                          color: childIsDeployed ? '#22C55E' : '#EF4444',
+                          borderColor: !childIsDeployed
+                            ? '#EF4444'
+                            : childNeedsRedeploy
+                              ? '#FF6600'
+                              : '#22C55E',
+                          color: !childIsDeployed
+                            ? '#EF4444'
+                            : childNeedsRedeploy
+                              ? '#FF6600'
+                              : '#22C55E',
                         }}
                         onClick={(e) => {
                           e.stopPropagation()
-                          if (!childIsDeployed && childWorkflowId && !isDeploying) {
+                          if (
+                            (!childIsDeployed || childNeedsRedeploy) &&
+                            childWorkflowId &&
+                            !isDeploying
+                          ) {
                             deployWorkflow(childWorkflowId)
                           }
                         }}
                       >
-                        {isDeploying ? 'Deploying...' : childIsDeployed ? 'deployed' : 'undeployed'}
+                        {isDeploying
+                          ? 'Deploying...'
+                          : !childIsDeployed
+                            ? 'undeployed'
+                            : childNeedsRedeploy
+                              ? 'redeploy'
+                              : 'deployed'}
                       </Badge>
                     </Tooltip.Trigger>
-                    {!childIsDeployed && (
+                    {(!childIsDeployed || childNeedsRedeploy) && (
                       <Tooltip.Content>
-                        <span className='text-sm'>Click to deploy</span>
+                        <span className='text-sm'>
+                          {!childIsDeployed ? 'Click to deploy' : 'Click to redeploy'}
+                        </span>
                       </Tooltip.Content>
                     )}
                   </Tooltip.Root>

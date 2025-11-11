@@ -8,6 +8,8 @@ export interface UseChildDeploymentReturn {
   activeVersion: number | null
   /** Whether the child workflow has an active deployment */
   isDeployed: boolean | null
+  /** Whether the child workflow needs redeployment due to changes */
+  needsRedeploy: boolean
   /** Whether the deployment information is currently being fetched */
   isLoading: boolean
   /** Function to manually refetch deployment status */
@@ -23,6 +25,7 @@ export interface UseChildDeploymentReturn {
 export function useChildDeployment(childWorkflowId: string | undefined): UseChildDeploymentReturn {
   const [activeVersion, setActiveVersion] = useState<number | null>(null)
   const [isDeployed, setIsDeployed] = useState<boolean | null>(null)
+  const [needsRedeploy, setNeedsRedeploy] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [refetchTrigger, setRefetchTrigger] = useState(0)
 
@@ -31,37 +34,60 @@ export function useChildDeployment(childWorkflowId: string | undefined): UseChil
 
     try {
       setIsLoading(true)
-      const res = await fetch(`/api/workflows/${wfId}/deployments`, {
-        cache: 'no-store',
-        headers: { 'Cache-Control': 'no-cache' },
-      })
 
-      if (!res.ok) {
+      // Fetch both deployment versions and workflow metadata in parallel
+      const [deploymentsRes, workflowRes] = await Promise.all([
+        fetch(`/api/workflows/${wfId}/deployments`, {
+          cache: 'no-store',
+          headers: { 'Cache-Control': 'no-cache' },
+        }),
+        fetch(`/api/workflows/${wfId}`, {
+          cache: 'no-store',
+          headers: { 'Cache-Control': 'no-cache' },
+        }),
+      ])
+
+      if (!deploymentsRes.ok || !workflowRes.ok) {
         if (!cancelled) {
           setActiveVersion(null)
           setIsDeployed(null)
+          setNeedsRedeploy(false)
         }
         return
       }
 
-      const json = await res.json()
-      const versions = Array.isArray(json?.data?.versions)
-        ? json.data.versions
-        : Array.isArray(json?.versions)
-          ? json.versions
+      const deploymentsJson = await deploymentsRes.json()
+      const workflowJson = await workflowRes.json()
+
+      const versions = Array.isArray(deploymentsJson?.data?.versions)
+        ? deploymentsJson.data.versions
+        : Array.isArray(deploymentsJson?.versions)
+          ? deploymentsJson.versions
           : []
 
       const active = versions.find((v: any) => v.isActive)
+      const workflowUpdatedAt = workflowJson?.data?.updatedAt || workflowJson?.updatedAt
 
       if (!cancelled) {
         const v = active ? Number(active.version) : null
+        const deployed = v != null
         setActiveVersion(v)
-        setIsDeployed(v != null) // true if deployed, false if undeployed
+        setIsDeployed(deployed)
+
+        // Check if workflow has been updated since deployment
+        if (deployed && active?.createdAt && workflowUpdatedAt) {
+          const deploymentTime = new Date(active.createdAt).getTime()
+          const updateTime = new Date(workflowUpdatedAt).getTime()
+          setNeedsRedeploy(updateTime > deploymentTime)
+        } else {
+          setNeedsRedeploy(false)
+        }
       }
     } catch {
       if (!cancelled) {
         setActiveVersion(null)
         setIsDeployed(null)
+        setNeedsRedeploy(false)
       }
     } finally {
       if (!cancelled) setIsLoading(false)
@@ -78,6 +104,7 @@ export function useChildDeployment(childWorkflowId: string | undefined): UseChil
     } else {
       setActiveVersion(null)
       setIsDeployed(null)
+      setNeedsRedeploy(false)
     }
   }, [childWorkflowId, refetchTrigger, fetchActiveVersion])
 
@@ -88,6 +115,7 @@ export function useChildDeployment(childWorkflowId: string | undefined): UseChil
   return {
     activeVersion,
     isDeployed,
+    needsRedeploy,
     isLoading,
     refetch,
   }

@@ -20,7 +20,11 @@ export const GoogleFormsBlock: BlockConfig = {
       required: true,
       provider: 'google-forms',
       serviceId: 'google-forms',
-      requiredScopes: [],
+      requiredScopes: [
+        'https://www.googleapis.com/auth/userinfo.email',
+        'https://www.googleapis.com/auth/userinfo.profile',
+        'https://www.googleapis.com/auth/forms.responses.readonly',
+      ],
       placeholder: 'Select Google account',
     },
     {

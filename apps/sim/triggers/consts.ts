@@ -14,3 +14,29 @@ export const SYSTEM_SUBBLOCK_IDS: string[] = [
   'triggerId', // Stored trigger ID
   'selectedTriggerId', // Selected trigger from dropdown (multi-trigger blocks)
 ]
+
+/**
+ * Trigger-related subblock IDs whose values should be persisted and
+ * propagated when workflows are edited programmatically.
+ */
+export const TRIGGER_PERSISTED_SUBBLOCK_IDS: string[] = [
+  'triggerConfig',
+  'triggerCredentials',
+  'triggerId',
+  'selectedTriggerId',
+  'webhookId',
+  'triggerPath',
+  'testUrl',
+  'testUrlExpiresAt',
+]
+
+/**
+ * Trigger-related subblock IDs that represent runtime metadata. They should remain
+ * in the workflow state but must not be modified or cleared by diff operations.
+ */
+export const TRIGGER_RUNTIME_SUBBLOCK_IDS: string[] = [
+  'webhookId',
+  'triggerPath',
+  'testUrl',
+  'testUrlExpiresAt',
+]

@@ -2,18 +2,9 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ==========================================================================
-   SIDEBAR WIDTH PERSISTENCE
-   ========================================================================== */
 /**
- * CSS-based sidebar width to prevent SSR hydration mismatches.
- *
- * How it works:
- * 1. Default width set here in CSS (232px)
- * 2. Blocking script in layout.tsx updates this before React hydrates
- * 3. Store updates this variable when user resizes
- *
- * This approach ensures server and client always render identical HTML.
+ * CSS-based sidebar and panel widths to prevent SSR hydration mismatches.
+ * Default widths are set here and updated via blocking script before React hydrates.
  */
 :root {
   --sidebar-width: 232px;
@@ -35,21 +26,15 @@
   height: var(--terminal-height);
 }
 
-/* ==========================================================================
-   WORKFLOW COMPONENT Z-INDEX FIXES
-   ========================================================================== */
+/**
+ * Workflow component z-index fixes and background colors
+ */
 .workflow-container .react-flow__edges {
   z-index: 0 !important;
 }
 
 .workflow-container .react-flow__node {
   z-index: 21 !important;
-}
-
-.workflow-container .react-flow__node-loopNode,
-.workflow-container .react-flow__node-parallelNode,
-.workflow-container .react-flow__node-subflowNode {
-  z-index: -1 !important;
 }
 
 .workflow-container .react-flow__handle {
@@ -64,7 +49,6 @@
   z-index: 60 !important;
 }
 
-/* Workflow canvas background */
 .workflow-container,
 .workflow-container .react-flow__pane,
 .workflow-container .react-flow__renderer {
@@ -77,183 +61,110 @@
   background-color: #1b1b1b !important;
 }
 
-/* ==========================================================================
-   LANDING LOOP ANIMATION
-   ========================================================================== */
-@keyframes dash-animation {
-  from {
-    stroke-dashoffset: 0;
-  }
-  to {
-    stroke-dashoffset: -24;
-  }
-}
-
+/**
+ * Landing loop animation styles (keyframes defined in tailwind.config.ts)
+ */
 .landing-loop-animated-dash {
   animation: dash-animation 1.5s linear infinite;
-  /* Ensure animation works in React Flow context */
   will-change: stroke-dashoffset;
   transform: translateZ(0);
 }
 
-/* Ensure React Flow doesn't override our animation */
 .react-flow__node-landingLoop svg rect.landing-loop-animated-dash {
   animation: dash-animation 1.5s linear infinite !important;
 }
 
-/* ==========================================================================
-   THEME SYSTEM - CSS CUSTOM PROPERTIES
-   ========================================================================== */
+/**
+ * Theme system - CSS custom properties for light and dark modes
+ */
 @layer base {
-  /* Light Mode Theme */
   :root,
   .light {
-    /* Core Colors */
     --background: 0 0% 100%;
     --foreground: 0 0% 3.9%;
-
-    /* Card Colors */
     --card: 0 0% 99.2%;
     --card-foreground: 0 0% 3.9%;
-
-    /* Popover Colors */
     --popover: 0 0% 100%;
     --popover-foreground: 0 0% 3.9%;
-
-    /* Primary Colors */
     --primary: 0 0% 11.2%;
     --primary-foreground: 0 0% 98%;
-
-    /* Secondary Colors */
     --secondary: 0 0% 96.1%;
     --secondary-foreground: 0 0% 11.2%;
-
-    /* Muted Colors */
     --muted: 0 0% 96.1%;
     --muted-foreground: 0 0% 46.9%;
-
-    /* Accent Colors */
     --accent: 0 0% 92.5%;
     --accent-foreground: 0 0% 11.2%;
-
-    /* Destructive Colors */
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 98%;
-
-    /* Border & Input Colors */
     --border: 0 0% 89.8%;
     --input: 0 0% 89.8%;
     --input-background: 0 0% 79.22%;
     --ring: 0 0% 3.9%;
-
-    /* Border Radius */
     --radius: 0.5rem;
-
-    /* Scrollbar Properties */
     --scrollbar-track: 0 0% 85%;
     --scrollbar-thumb: 0 0% 65%;
     --scrollbar-thumb-hover: 0 0% 55%;
     --scrollbar-size: 8px;
-
-    /* Workflow Properties */
     --workflow-background: 0 0% 100%;
     --card-background: 0 0% 99.2%;
     --card-border: 0 0% 89.8%;
     --card-text: 0 0% 3.9%;
     --card-hover: 0 0% 96.1%;
-
-    /* Base Component Properties */
     --base-muted-foreground: #737373;
-
-    /* Gradient Colors */
-    --gradient-primary: 263 85% 70%; /* More vibrant purple */
-    --gradient-secondary: 336 95% 65%; /* More vibrant pink */
-
-    /* Brand Colors (Default Sim Theme) */
-    --brand-primary-hex: #6f3dfa; /* Primary brand purple - matches Get Started gradient start */
-    --brand-primary-hover-hex: #6338d9; /* Primary brand purple hover - matches Get Started hover */
-    --brand-accent-hex: #6f3dfa; /* Accent purple for links - matches sign in button */
-    --brand-accent-hover-hex: #6f3dfa; /* Accent purple hover - matches sign in gradient start */
-    --brand-background-hex: #ffffff; /* Primary light background */
-
-    /* UI Surface Colors */
-    --surface-elevated: #202020; /* Elevated surface background for dark mode */
+    --gradient-primary: 263 85% 70%;
+    --gradient-secondary: 336 95% 65%;
+    --brand-primary-hex: #6f3dfa;
+    --brand-primary-hover-hex: #6338d9;
+    --brand-accent-hex: #6f3dfa;
+    --brand-accent-hover-hex: #6f3dfa;
+    --brand-background-hex: #ffffff;
+    --surface-elevated: #202020;
   }
 
-  /* Dark Mode Theme */
   .dark {
-    /* Core Colors */
     --background: 0 0% 10.59%;
     --foreground: 0 0% 98%;
-
-    /* Card Colors */
     --card: 0 0% 9.0%;
     --card-foreground: 0 0% 98%;
-
-    /* Popover Colors */
     --popover: 0 0% 9.0%;
     --popover-foreground: 0 0% 98%;
-
-    /* Primary Colors */
     --primary: 0 0% 11.2%;
     --primary-foreground: 0 0% 98%;
-
-    /* Secondary Colors */
     --secondary: 0 0% 12.0%;
     --secondary-foreground: 0 0% 98%;
-
-    /* Muted Colors */
     --muted: 0 0% 17.5%;
     --muted-foreground: 0 0% 65.1%;
-
-    /* Accent Colors */
     --accent: 0 0% 17.5%;
     --accent-foreground: 0 0% 98%;
-
-    /* Destructive Colors */
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 0 0% 98%;
-
-    /* Border & Input Colors */
     --border: 0 0% 16.1%;
     --input: 0 0% 16.1%;
     --input-background: 0 0% 20.78%;
     --ring: 0 0% 83.9%;
-
-    /* Scrollbar Properties */
     --scrollbar-track: 0 0% 17.5%;
     --scrollbar-thumb: 0 0% 30%;
     --scrollbar-thumb-hover: 0 0% 40%;
-
-    /* Workflow Properties */
     --workflow-background: 0 0% 10.59%;
     --card-background: 0 0% 9.0%;
     --card-border: 0 0% 22.7%;
     --card-text: 0 0% 98%;
     --card-hover: 0 0% 12.0%;
-
-    /* Base Component Properties */
     --base-muted-foreground: #a3a3a3;
-
-    /* Gradient Colors - Adjusted for dark mode */
-    --gradient-primary: 263 90% 75%; /* More vibrant purple for dark mode */
-    --gradient-secondary: 336 100% 72%; /* More vibrant pink for dark mode */
-
-    /* Brand Colors (Keep dark background for actual dark mode) */
-    --brand-primary-hex: #701ffc; /* Primary brand purple */
-    --brand-primary-hover-hex: #802fff; /* Primary brand purple hover */
-    --brand-accent-hex: #9d54ff; /* Accent purple for links */
-    --brand-accent-hover-hex: #a66fff; /* Accent purple hover */
-    --brand-background-hex: #0c0c0c; /* Primary dark background */
-
-    /* UI Surface Colors */
-    --surface-elevated: #202020; /* Elevated surface background for dark mode */
+    --gradient-primary: 263 90% 75%;
+    --gradient-secondary: 336 100% 72%;
+    --brand-primary-hex: #701ffc;
+    --brand-primary-hover-hex: #802fff;
+    --brand-accent-hex: #9d54ff;
+    --brand-accent-hover-hex: #a66fff;
+    --brand-background-hex: #0c0c0c;
+    --surface-elevated: #202020;
   }
 }
 
-/* ==========================================================================
-   BASE STYLES
-   ========================================================================== */
+/**
+ * Base styles for body, scrollbars, and global elements
+ */
 @layer base {
   * {
     @apply border-border;
@@ -269,19 +180,14 @@
     overscroll-behavior-x: none;
     overscroll-behavior-y: none;
     min-height: 100vh;
-    /* Prevent layout shifts when scrollbar appears/disappears */
     scrollbar-gutter: stable;
-    /* Improve animation performance */
     text-rendering: optimizeSpeed;
-    /* Default text styles */
     letter-spacing: 0.28px;
   }
 
   .dark body {
     @apply antialiased;
   }
-
-  /* Global Scrollbar Styling */
   ::-webkit-scrollbar {
     width: var(--scrollbar-size);
     height: var(--scrollbar-size);
@@ -313,7 +219,6 @@
     background-color: hsl(var(--muted-foreground) / 0.4);
   }
 
-  /* Firefox Scrollbar */
   * {
     scrollbar-width: thin;
     scrollbar-color: hsl(var(--muted-foreground) / 0.3) #f5f5f5;
@@ -323,27 +228,24 @@
     scrollbar-color: hsl(var(--muted-foreground) / 0.3) #272727;
   }
 
-  /* Copilot Scrollbar - Ensure stable gutter */
   .copilot-scrollable {
     scrollbar-gutter: stable;
   }
 }
 
-/* ==========================================================================
-   PANEL STYLES
-   ========================================================================== */
+/**
+ * Panel tab styles
+ */
 .panel-tab-base {
   color: var(--base-muted-foreground);
 }
 
 .panel-tab-active {
-  /* Light Mode Panel Tab Active */
   background-color: #f5f5f5;
   color: #1a1a1a;
   border-color: #e5e5e5;
 }
 
-/* Dark Mode Panel Tab Active */
 .dark .panel-tab-active {
   background-color: #1f1f1f;
   color: #ffffff;
@@ -355,58 +257,51 @@
   color: hsl(var(--card-foreground));
 }
 
-/* ==========================================================================
-   DARK MODE OVERRIDES
-   ========================================================================== */
+/**
+ * Dark mode specific overrides
+ */
 .dark .error-badge {
   background-color: hsl(0, 70%, 20%) !important;
-  /* Darker red background for dark mode */
   color: hsl(0, 0%, 100%) !important;
-  /* Pure white text for better contrast */
 }
 
 .dark .bg-red-500 {
   @apply bg-red-700;
 }
 
-/* ==========================================================================
-   BROWSER INPUT OVERRIDES
-   ========================================================================== */
-/* Chrome, Safari, Edge, Opera */
+/**
+ * Browser input overrides
+ */
 input[type="search"]::-webkit-search-cancel-button {
   -webkit-appearance: none;
   appearance: none;
 }
 
-/* Firefox */
 input[type="search"]::-moz-search-cancel-button {
   display: none;
 }
 
-/* Microsoft Edge */
 input[type="search"]::-ms-clear {
   display: none;
 }
 
-/* ==========================================================================
-   LAYOUT UTILITIES
-   ========================================================================== */
+/**
+ * Layout utilities
+ */
 .main-content-overlay {
   z-index: 40;
-  /* Higher z-index to appear above content */
 }
 
-/* ==========================================================================
-   ANIMATIONS & UTILITIES
-   ========================================================================== */
+/**
+ * Utilities and special effects
+ * Animation keyframes are defined in tailwind.config.ts
+ */
 @layer utilities {
-  /* Animation Performance */
   .animation-container {
     contain: paint layout style;
     will-change: opacity, transform;
   }
 
-  /* Scrollbar Utilities */
   .scrollbar-none {
     -ms-overflow-style: none;
     scrollbar-width: none;
@@ -417,17 +312,12 @@ input[type="search"]::-ms-clear {
   }
 
   .scrollbar-hide {
-    /* For Webkit browsers (Chrome, Safari, Edge) */
     -webkit-scrollbar: none;
     -webkit-scrollbar-width: none;
     -webkit-scrollbar-track: transparent;
     -webkit-scrollbar-thumb: transparent;
-
-    /* For Firefox */
     scrollbar-width: none;
     scrollbar-color: transparent transparent;
-
-    /* For Internet Explorer and Edge Legacy */
     -ms-overflow-style: none;
   }
 
@@ -448,19 +338,16 @@ input[type="search"]::-ms-clear {
     background: transparent;
   }
 
-  /* Gradient Text Utility - Use with Tailwind gradient directions */
   .gradient-text {
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
   }
 
-  /* Input Background Utility */
   .bg-input-background {
     background-color: hsl(var(--input-background));
   }
 
-  /* Brand Color Utilities */
   .bg-brand-primary {
     background-color: var(--brand-primary-hex);
   }
@@ -477,7 +364,6 @@ input[type="search"]::-ms-clear {
     color: var(--brand-accent-hover-hex);
   }
 
-  /* Gradient Button Utilities */
   .bg-brand-gradient {
     background: linear-gradient(
       to bottom,
@@ -502,7 +388,6 @@ input[type="search"]::-ms-clear {
     );
   }
 
-  /* Apply fixed default light theme values for auth components */
   .auth-card {
     background-color: rgba(255, 255, 255, 0.9) !important;
     border-color: #e5e5e5 !important;
@@ -534,14 +419,8 @@ input[type="search"]::-ms-clear {
     color: #737373 !important;
   }
 
-  /* Surface Utilities */
   .bg-surface-elevated {
     background-color: var(--surface-elevated);
-  }
-
-  /* Animation Classes */
-  .animate-pulse-ring {
-    animation: pulse-ring 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
   }
 
   .transition-ring {
@@ -550,23 +429,6 @@ input[type="search"]::-ms-clear {
     transition-duration: 300ms;
   }
 
-  .animate-orbit {
-    animation: orbit calc(var(--duration, 2) * 1s) linear infinite;
-  }
-
-  .animate-marquee {
-    animation: marquee var(--duration) infinite linear;
-  }
-
-  .animate-marquee-vertical {
-    animation: marquee-vertical var(--duration) linear infinite;
-  }
-
-  .animate-fade-in {
-    animation: fadeIn 0.3s ease-in-out forwards;
-  }
-
-  /* Special Effects */
   .streaming-effect {
     @apply relative overflow-hidden;
   }
@@ -597,7 +459,6 @@ input[type="search"]::-ms-clear {
     animation: placeholder-pulse 1.5s ease-in-out infinite;
   }
 
-  /* Auth Button Styles - Default Gradient */
   .auth-button-gradient {
     background: linear-gradient(to bottom, #8357ff, #6f3dfa) !important;
     border-color: #6f3dfa !important;
@@ -609,11 +470,9 @@ input[type="search"]::-ms-clear {
     opacity: 0.9;
   }
 
-  /* Auth Button Styles - CSS Variable Based */
   .auth-button-custom {
     background: var(--brand-accent-hex) !important;
     border-color: var(--brand-accent-hex) !important;
-    /* Remove purple shadow when using custom color */
     box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.1) !important;
   }
 
@@ -623,90 +482,8 @@ input[type="search"]::-ms-clear {
     opacity: 1;
   }
 
-  /* ==========================================================================
-     KEYFRAME ANIMATIONS
-     ========================================================================== */
-  @keyframes pulse-ring {
-    0% {
-      box-shadow: 0 0 0 0 hsl(var(--border));
-    }
-
-    50% {
-      box-shadow: 0 0 0 8px hsl(var(--border));
-    }
-
-    100% {
-      box-shadow: 0 0 0 0 hsl(var(--border));
-    }
-  }
-
-  @keyframes code-shimmer {
-    0% {
-      transform: translateX(-100%);
-    }
-
-    100% {
-      transform: translateX(100%);
-    }
-  }
-
-  @keyframes orbit {
-    0% {
-      transform: rotate(calc(var(--angle) * 1deg)) translateY(calc(var(--radius) * 1px))
-        rotate(calc(var(--angle) * -1deg));
-    }
-
-    100% {
-      transform: rotate(calc(var(--angle) * 1deg + 360deg)) translateY(calc(var(--radius) * 1px))
-        rotate(calc((var(--angle) * -1deg) - 360deg));
-    }
-  }
-
-  @keyframes marquee {
-    from {
-      transform: translateX(0);
-    }
-
-    to {
-      transform: translateX(calc(-100% - var(--gap)));
-    }
-  }
-
-  @keyframes marquee-vertical {
-    from {
-      transform: translateY(0);
-    }
-
-    to {
-      transform: translateY(calc(-100% - var(--gap)));
-    }
-  }
-
-  @keyframes fadeIn {
-    from {
-      opacity: 0;
-    }
-
-    to {
-      opacity: 1;
-    }
-  }
-
-  @keyframes placeholder-pulse {
-    0%,
-    100% {
-      opacity: 0.5;
-    }
-
-    50% {
-      opacity: 0.8;
-    }
-  }
-
   /**
-   * Panel tab visibility - prevent flash on hydration
-   * Before React hydrates, use data attribute set by blocking script
-   * to show the correct tab content and button states
+   * Panel tab visibility and styling to prevent hydration flash
    */
   html[data-panel-active-tab="copilot"] .panel-container [data-tab-content="toolbar"],
   html[data-panel-active-tab="copilot"] .panel-container [data-tab-content="editor"] {
@@ -723,13 +500,6 @@ input[type="search"]::-ms-clear {
     display: none !important;
   }
 
-  /**
-   * Style active and inactive tab buttons before hydration
-   * Ensure only the correct tab shows as active
-   * Note: Colors match the ghost button variant for consistency
-   */
-
-  /* Make only copilot active when it's the active tab */
   html[data-panel-active-tab="copilot"] .panel-container [data-tab-button="copilot"] {
     background-color: rgb(53 53 53) !important;
     color: rgb(230 230 230) !important;
@@ -737,10 +507,9 @@ input[type="search"]::-ms-clear {
   html[data-panel-active-tab="copilot"] .panel-container [data-tab-button="toolbar"],
   html[data-panel-active-tab="copilot"] .panel-container [data-tab-button="editor"] {
     background-color: transparent !important;
-    color: rgb(174 174 174) !important; /* Muted gray for inactive tabs */
+    color: rgb(174 174 174) !important;
   }
 
-  /* Make only toolbar active when it's the active tab */
   html[data-panel-active-tab="toolbar"] .panel-container [data-tab-button="toolbar"] {
     background-color: rgb(53 53 53) !important;
     color: rgb(230 230 230) !important;
@@ -748,10 +517,9 @@ input[type="search"]::-ms-clear {
   html[data-panel-active-tab="toolbar"] .panel-container [data-tab-button="copilot"],
   html[data-panel-active-tab="toolbar"] .panel-container [data-tab-button="editor"] {
     background-color: transparent !important;
-    color: rgb(174 174 174) !important; /* Muted gray for inactive tabs */
+    color: rgb(174 174 174) !important;
   }
 
-  /* Make only editor active when it's the active tab */
   html[data-panel-active-tab="editor"] .panel-container [data-tab-button="editor"] {
     background-color: rgb(53 53 53) !important;
     color: rgb(230 230 230) !important;
@@ -759,6 +527,6 @@ input[type="search"]::-ms-clear {
   html[data-panel-active-tab="editor"] .panel-container [data-tab-button="copilot"],
   html[data-panel-active-tab="editor"] .panel-container [data-tab-button="toolbar"] {
     background-color: transparent !important;
-    color: rgb(174 174 174) !important; /* Muted gray for inactive tabs */
+    color: rgb(174 174 174) !important;
   }
 }

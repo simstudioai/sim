@@ -59,7 +59,9 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
         'chat:write.public',
         'users:read',
         'files:write',
+        'files:read',
         'canvases:write',
+        'reactions:write',
       ],
       placeholder: 'Select Slack workspace',
       condition: {

@@ -48,7 +48,6 @@ export const GmailBlock: BlockConfig<GmailToolResponse> = {
       requiredScopes: [
         'https://www.googleapis.com/auth/gmail.send',
         'https://www.googleapis.com/auth/gmail.modify',
-        'https://www.googleapis.com/auth/gmail.readonly',
         'https://www.googleapis.com/auth/gmail.labels',
       ],
       placeholder: 'Select Gmail account',
@@ -119,7 +118,6 @@ export const GmailBlock: BlockConfig<GmailToolResponse> = {
       id: 'threadId',
       title: 'Thread ID',
       type: 'short-input',
-
       placeholder: 'Thread ID to reply to (for threading)',
       condition: { field: 'operation', value: ['send_gmail', 'draft_gmail'] },
       mode: 'advanced',
@@ -129,7 +127,6 @@ export const GmailBlock: BlockConfig<GmailToolResponse> = {
       id: 'replyToMessageId',
       title: 'Reply to Message ID',
       type: 'short-input',
-
       placeholder: 'Gmail message ID (not RFC Message-ID) - use the "id" field from results',
       condition: { field: 'operation', value: ['send_gmail', 'draft_gmail'] },
       mode: 'advanced',
@@ -162,10 +159,7 @@ export const GmailBlock: BlockConfig<GmailToolResponse> = {
       canonicalParamId: 'folder',
       provider: 'google-email',
       serviceId: 'gmail',
-      requiredScopes: [
-        'https://www.googleapis.com/auth/gmail.readonly',
-        'https://www.googleapis.com/auth/gmail.labels',
-      ],
+      requiredScopes: ['https://www.googleapis.com/auth/gmail.labels'],
       placeholder: 'Select Gmail label/folder',
       dependsOn: ['credential'],
       mode: 'basic',
@@ -237,14 +231,10 @@ export const GmailBlock: BlockConfig<GmailToolResponse> = {
       id: 'destinationLabel',
       title: 'Move To Label',
       type: 'folder-selector',
-
       canonicalParamId: 'addLabelIds',
       provider: 'google-email',
       serviceId: 'gmail',
-      requiredScopes: [
-        'https://www.googleapis.com/auth/gmail.readonly',
-        'https://www.googleapis.com/auth/gmail.labels',
-      ],
+      requiredScopes: ['https://www.googleapis.com/auth/gmail.labels'],
       placeholder: 'Select destination label',
       dependsOn: ['credential'],
       mode: 'basic',
@@ -256,7 +246,6 @@ export const GmailBlock: BlockConfig<GmailToolResponse> = {
       id: 'manualDestinationLabel',
       title: 'Move To Label',
       type: 'short-input',
-
       canonicalParamId: 'addLabelIds',
       placeholder: 'Enter label ID (e.g., INBOX, Label_123)',
       mode: 'advanced',
@@ -271,10 +260,7 @@ export const GmailBlock: BlockConfig<GmailToolResponse> = {
       canonicalParamId: 'removeLabelIds',
       provider: 'google-email',
       serviceId: 'gmail',
-      requiredScopes: [
-        'https://www.googleapis.com/auth/gmail.readonly',
-        'https://www.googleapis.com/auth/gmail.labels',
-      ],
+      requiredScopes: ['https://www.googleapis.com/auth/gmail.labels'],
       placeholder: 'Select label to remove',
       dependsOn: ['credential'],
       mode: 'basic',
@@ -327,10 +313,7 @@ export const GmailBlock: BlockConfig<GmailToolResponse> = {
       canonicalParamId: 'labelIds',
       provider: 'google-email',
       serviceId: 'gmail',
-      requiredScopes: [
-        'https://www.googleapis.com/auth/gmail.readonly',
-        'https://www.googleapis.com/auth/gmail.labels',
-      ],
+      requiredScopes: ['https://www.googleapis.com/auth/gmail.labels'],
       placeholder: 'Select label',
       dependsOn: ['credential'],
       mode: 'basic',
