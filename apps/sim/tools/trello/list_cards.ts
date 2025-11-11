@@ -10,7 +10,6 @@ export const trelloListCardsTool: ToolConfig<TrelloListCardsParams, TrelloListCa
   oauth: {
     required: true,
     provider: 'trello',
-    additionalScopes: ['read'],
   },
 
   params: {

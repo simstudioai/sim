@@ -14,7 +14,6 @@ export const jiraGetAttachmentsTool: ToolConfig<
   oauth: {
     required: true,
     provider: 'jira',
-    additionalScopes: ['read:attachment:jira', 'read:jira-work', 'read:jira-user'],
   },
 
   params: {

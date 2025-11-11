@@ -10,7 +10,6 @@ export const getControversialTool: ToolConfig<RedditControversialParams, RedditP
   oauth: {
     required: true,
     provider: 'reddit',
-    additionalScopes: ['read'],
   },
 
   params: {

@@ -10,14 +10,6 @@ export const uploadFileTool: ToolConfig<SharepointToolParams, SharepointUploadFi
   oauth: {
     required: true,
     provider: 'sharepoint',
-    additionalScopes: [
-      'openid',
-      'profile',
-      'email',
-      'Files.ReadWrite',
-      'Sites.ReadWrite.All',
-      'offline_access',
-    ],
   },
 
   params: {

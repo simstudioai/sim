@@ -10,7 +10,6 @@ export const getPostsTool: ToolConfig<RedditPostsParams, RedditPostsResponse> = 
   oauth: {
     required: true,
     provider: 'reddit',
-    additionalScopes: ['read'],
   },
 
   params: {

@@ -10,7 +10,6 @@ export const getCommentsTool: ToolConfig<RedditCommentsParams, RedditCommentsRes
   oauth: {
     required: true,
     provider: 'reddit',
-    additionalScopes: ['read'],
   },
 
   params: {

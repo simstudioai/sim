@@ -10,17 +10,6 @@ export const jiraWriteTool: ToolConfig<JiraWriteParams, JiraWriteResponse> = {
   oauth: {
     required: true,
     provider: 'jira',
-    additionalScopes: [
-      'read:jira-user',
-      'write:jira-work',
-      'read:project:jira',
-      'read:issue:jira',
-      'write:issue:jira',
-      'write:comment:jira',
-      'write:comment.property:jira',
-      'write:attachment:jira',
-      'read:attachment:jira',
-    ],
   },
 
   params: {

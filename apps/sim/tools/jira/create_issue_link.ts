@@ -34,7 +34,6 @@ export const jiraCreateIssueLinkTool: ToolConfig<
   oauth: {
     required: true,
     provider: 'jira',
-    additionalScopes: ['write:issue-link:jira', 'read:jira-work'],
   },
 
   params: {

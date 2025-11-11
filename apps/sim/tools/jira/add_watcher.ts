@@ -27,7 +27,6 @@ export const jiraAddWatcherTool: ToolConfig<JiraAddWatcherParams, JiraAddWatcher
   oauth: {
     required: true,
     provider: 'jira',
-    additionalScopes: ['write:jira-work', 'read:jira-user'],
   },
 
   params: {

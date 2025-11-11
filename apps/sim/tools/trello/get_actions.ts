@@ -11,7 +11,6 @@ export const trelloGetActionsTool: ToolConfig<TrelloGetActionsParams, TrelloGetA
   oauth: {
     required: true,
     provider: 'trello',
-    additionalScopes: ['read'],
   },
 
   params: {

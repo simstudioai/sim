@@ -21,7 +21,11 @@ import {
 import { Switch } from '@/components/ui/switch'
 import { Toggle } from '@/components/ui/toggle'
 import { createLogger } from '@/lib/logs/console/logger'
-import type { OAuthProvider, OAuthService } from '@/lib/oauth/oauth'
+import {
+  getCanonicalScopesForProvider,
+  type OAuthProvider,
+  type OAuthService,
+} from '@/lib/oauth/oauth'
 import { cn } from '@/lib/utils'
 import {
   ChannelSelectorInput,
@@ -1713,7 +1717,7 @@ export function ToolInput({
                             value={tool.params.credential || ''}
                             onChange={(value) => handleParamChange(toolIndex, 'credential', value)}
                             provider={oauthConfig.provider as OAuthProvider}
-                            requiredScopes={oauthConfig.additionalScopes || []}
+                            requiredScopes={getCanonicalScopesForProvider(oauthConfig.provider)}
                             label={`Select ${oauthConfig.provider} account`}
                             serviceId={oauthConfig.provider}
                             disabled={disabled}

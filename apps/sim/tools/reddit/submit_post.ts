@@ -10,7 +10,6 @@ export const submitPostTool: ToolConfig<RedditSubmitParams, RedditWriteResponse>
   oauth: {
     required: true,
     provider: 'reddit',
-    additionalScopes: ['submit'],
   },
 
   params: {

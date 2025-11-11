@@ -10,7 +10,6 @@ export const gmailMarkUnreadTool: ToolConfig<GmailMarkReadParams, GmailToolRespo
   oauth: {
     required: true,
     provider: 'google-email',
-    additionalScopes: ['https://www.googleapis.com/auth/gmail.modify'],
   },
 
   params: {

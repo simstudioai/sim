@@ -10,7 +10,6 @@ export const asanaCreateTaskTool: ToolConfig<AsanaCreateTaskParams, AsanaCreateT
   oauth: {
     required: true,
     provider: 'asana',
-    additionalScopes: [],
   },
 
   params: {

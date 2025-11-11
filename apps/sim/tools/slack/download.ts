@@ -13,7 +13,6 @@ export const slackDownloadTool: ToolConfig<SlackDownloadParams, SlackDownloadRes
   oauth: {
     required: true,
     provider: 'slack',
-    additionalScopes: ['files:read'],
   },
 
   params: {

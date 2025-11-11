@@ -13,14 +13,6 @@ export const deleteTool: ToolConfig<OneDriveToolParams, OneDriveDeleteResponse> 
   oauth: {
     required: true,
     provider: 'onedrive',
-    additionalScopes: [
-      'openid',
-      'profile',
-      'email',
-      'Files.Read',
-      'Files.ReadWrite',
-      'offline_access',
-    ],
   },
 
   params: {

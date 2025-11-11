@@ -10,7 +10,6 @@ export const xReadTool: ToolConfig<XReadParams, XReadResponse> = {
   oauth: {
     required: true,
     provider: 'x',
-    additionalScopes: ['tweet.read', 'users.read'],
   },
 
   params: {

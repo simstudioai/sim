@@ -20,7 +20,6 @@ export const updateBucketTool: ToolConfig<
   oauth: {
     required: true,
     provider: 'microsoft-planner',
-    additionalScopes: [],
   },
 
   params: {

@@ -10,7 +10,6 @@ export const asanaSearchTasksTool: ToolConfig<AsanaSearchTasksParams, AsanaSearc
   oauth: {
     required: true,
     provider: 'asana',
-    additionalScopes: [],
   },
 
   params: {

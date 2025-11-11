@@ -14,7 +14,6 @@ export const jiraTransitionIssueTool: ToolConfig<
   oauth: {
     required: true,
     provider: 'jira',
-    additionalScopes: ['write:jira-work'],
   },
 
   params: {

@@ -10,7 +10,6 @@ export const asanaAddCommentTool: ToolConfig<AsanaAddCommentParams, AsanaAddComm
   oauth: {
     required: true,
     provider: 'asana',
-    additionalScopes: [],
   },
 
   params: {

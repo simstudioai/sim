@@ -28,7 +28,6 @@ export const jiraDeleteWorklogTool: ToolConfig<JiraDeleteWorklogParams, JiraDele
     oauth: {
       required: true,
       provider: 'jira',
-      additionalScopes: ['delete:issue-worklog:jira', 'read:jira-work'],
     },
 
     params: {

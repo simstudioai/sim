@@ -27,7 +27,6 @@ export const jiraAssignIssueTool: ToolConfig<JiraAssignIssueParams, JiraAssignIs
   oauth: {
     required: true,
     provider: 'jira',
-    additionalScopes: ['write:jira-work', 'read:jira-user'],
   },
 
   params: {

@@ -28,7 +28,6 @@ export const jiraDeleteAttachmentTool: ToolConfig<
   oauth: {
     required: true,
     provider: 'jira',
-    additionalScopes: ['delete:attachment:jira', 'read:jira-work'],
   },
 
   params: {

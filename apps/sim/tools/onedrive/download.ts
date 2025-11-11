@@ -13,7 +13,6 @@ export const downloadTool: ToolConfig<OneDriveToolParams, OneDriveDownloadRespon
   oauth: {
     required: true,
     provider: 'onedrive',
-    additionalScopes: ['Files.Read', 'Files.ReadWrite', 'offline_access'],
   },
 
   params: {

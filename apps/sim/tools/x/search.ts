@@ -13,7 +13,6 @@ export const xSearchTool: ToolConfig<XSearchParams, XSearchResponse> = {
   oauth: {
     required: true,
     provider: 'x',
-    additionalScopes: ['tweet.read', 'users.read'],
   },
 
   params: {

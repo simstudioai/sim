@@ -11,7 +11,6 @@ export const jiraSearchIssuesTool: ToolConfig<JiraSearchIssuesParams, JiraSearch
   oauth: {
     required: true,
     provider: 'jira',
-    additionalScopes: ['read:jira-work', 'read:jira-user'],
   },
 
   params: {

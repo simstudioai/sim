@@ -13,7 +13,6 @@ export const slackUpdateMessageTool: ToolConfig<
   oauth: {
     required: true,
     provider: 'slack',
-    additionalScopes: ['chat:write'],
   },
 
   params: {

@@ -34,7 +34,6 @@ export const jiraGetCommentsTool: ToolConfig<JiraGetCommentsParams, JiraGetComme
   oauth: {
     required: true,
     provider: 'jira',
-    additionalScopes: ['read:comment:jira', 'read:jira-work', 'read:jira-user'],
   },
 
   params: {

@@ -12,7 +12,6 @@ export const jiraUpdateCommentTool: ToolConfig<JiraUpdateCommentParams, JiraUpda
     oauth: {
       required: true,
       provider: 'jira',
-      additionalScopes: ['write:comment:jira', 'read:jira-work', 'read:jira-user'],
     },
 
     params: {

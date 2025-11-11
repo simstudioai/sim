@@ -37,7 +37,6 @@ export const jiraGetWorklogsTool: ToolConfig<JiraGetWorklogsParams, JiraGetWorkl
   oauth: {
     required: true,
     provider: 'jira',
-    additionalScopes: ['read:issue-worklog:jira', 'read:jira-work', 'read:jira-user'],
   },
 
   params: {

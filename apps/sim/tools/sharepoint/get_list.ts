@@ -17,7 +17,6 @@ export const getListTool: ToolConfig<SharepointToolParams, SharepointGetListResp
   oauth: {
     required: true,
     provider: 'sharepoint',
-    additionalScopes: ['openid', 'profile', 'email', 'Sites.Read.All', 'offline_access'],
   },
 
   params: {

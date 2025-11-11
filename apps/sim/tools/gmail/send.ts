@@ -10,7 +10,6 @@ export const gmailSendTool: ToolConfig<GmailSendParams, GmailToolResponse> = {
   oauth: {
     required: true,
     provider: 'google-email',
-    additionalScopes: ['https://www.googleapis.com/auth/gmail.send'],
   },
 
   params: {

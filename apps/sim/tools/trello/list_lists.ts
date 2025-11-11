@@ -11,7 +11,6 @@ export const trelloListListsTool: ToolConfig<TrelloListListsParams, TrelloListLi
   oauth: {
     required: true,
     provider: 'trello',
-    additionalScopes: ['read'],
   },
 
   params: {

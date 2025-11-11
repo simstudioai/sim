@@ -11,7 +11,6 @@ export const jiraAddWorklogTool: ToolConfig<JiraAddWorklogParams, JiraAddWorklog
   oauth: {
     required: true,
     provider: 'jira',
-    additionalScopes: ['write:issue-worklog:jira', 'read:jira-work', 'read:jira-user'],
   },
 
   params: {

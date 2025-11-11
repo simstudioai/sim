@@ -11,7 +11,6 @@ export const jiraAddCommentTool: ToolConfig<JiraAddCommentParams, JiraAddComment
   oauth: {
     required: true,
     provider: 'jira',
-    additionalScopes: ['write:comment:jira', 'read:jira-work', 'read:jira-user'],
   },
 
   params: {
