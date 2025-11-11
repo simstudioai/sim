@@ -59,7 +59,7 @@ import { cn } from '@/lib/utils'
  * Ensures consistent height and styling across items, folders, and back button.
  */
 const POPOVER_ITEM_BASE_CLASSES =
-  'flex h-[25px] cursor-pointer items-center gap-[8px] rounded-[6px] px-[6px] font-base text-[#E6E6E6] text-[12px] transition-colors dark:text-[#E6E6E6] [&_svg]:transition-colors disabled:pointer-events-none disabled:opacity-50 disabled:cursor-not-allowed'
+  'flex h-[25px] min-w-0 cursor-pointer items-center gap-[8px] rounded-[6px] px-[6px] font-base text-[#E6E6E6] text-[12px] transition-colors dark:text-[#E6E6E6] [&_svg]:transition-colors disabled:pointer-events-none disabled:opacity-50 disabled:cursor-not-allowed'
 
 /**
  * Variant-specific active state styles for popover items.

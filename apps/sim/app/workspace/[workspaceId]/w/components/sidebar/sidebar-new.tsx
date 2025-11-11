@@ -1,19 +1,23 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowDown, Plus, Search } from 'lucide-react'
-import { useParams } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 import { Button, FolderPlus, Tooltip } from '@/components/emcn'
 import { useSession } from '@/lib/auth-client'
+import { createLogger } from '@/lib/logs/console/logger'
+import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { useFolderStore } from '@/stores/folders/store'
 import { useSidebarStore } from '@/stores/sidebar/store'
-import { FooterNavigation, WorkflowList, WorkspaceHeader } from './components-new'
+import { FooterNavigation, SearchModal, WorkflowList, WorkspaceHeader } from './components-new'
 import {
   useFolderOperations,
   useSidebarResize,
   useWorkflowOperations,
   useWorkspaceManagement,
 } from './hooks'
+
+const logger = createLogger('SidebarNew')
 
 /**
  * Sidebar component with resizable width that persists across page refreshes.
@@ -31,6 +35,7 @@ export function SidebarNew() {
   const params = useParams()
   const workspaceId = params.workspaceId as string
   const workflowId = params.workflowId as string | undefined
+  const router = useRouter()
 
   const sidebarRef = useRef<HTMLElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -49,6 +54,9 @@ export function SidebarNew() {
   // Workspace popover state
   const [isWorkspaceMenuOpen, setIsWorkspaceMenuOpen] = useState(false)
 
+  // Search modal state
+  const [isSearchModalOpen, setIsSearchModalOpen] = useState(false)
+
   // Workspace management hook
   const {
     workspaces,
@@ -59,6 +67,8 @@ export function SidebarNew() {
     switchWorkspace,
     handleCreateWorkspace,
     isCreatingWorkspace,
+    updateWorkspaceName,
+    confirmDeleteWorkspace,
   } = useWorkspaceManagement({
     workspaceId,
     sessionUserId: sessionData?.user?.id,
@@ -83,6 +93,30 @@ export function SidebarNew() {
   const { isCreatingFolder, handleCreateFolder: createFolder } = useFolderOperations({
     workspaceId,
   })
+
+  // Prepare data for search modal
+  const searchModalWorkflows = useMemo(
+    () =>
+      regularWorkflows.map((workflow) => ({
+        id: workflow.id,
+        name: workflow.name,
+        href: `/workspace/${workspaceId}/w/${workflow.id}`,
+        color: workflow.color,
+        isCurrent: workflow.id === workflowId,
+      })),
+    [regularWorkflows, workspaceId, workflowId]
+  )
+
+  const searchModalWorkspaces = useMemo(
+    () =>
+      workspaces.map((workspace) => ({
+        id: workspace.id,
+        name: workspace.name,
+        href: `/workspace/${workspace.id}/w`,
+        isCurrent: workspace.id === workspaceId,
+      })),
+    [workspaces, workspaceId]
+  )
 
   // Combined loading state
   const isLoading = workflowsLoading || sessionLoading
@@ -217,6 +251,117 @@ export function SidebarNew() {
     [workflowId]
   )
 
+  /**
+   * Handle workspace rename
+   */
+  const handleRenameWorkspace = useCallback(
+    async (workspaceIdToRename: string, newName: string) => {
+      await updateWorkspaceName(workspaceIdToRename, newName)
+    },
+    [updateWorkspaceName]
+  )
+
+  /**
+   * Handle workspace delete
+   */
+  const handleDeleteWorkspace = useCallback(
+    async (workspaceIdToDelete: string) => {
+      const workspaceToDelete = workspaces.find((w) => w.id === workspaceIdToDelete)
+      if (workspaceToDelete) {
+        await confirmDeleteWorkspace(workspaceToDelete, 'keep')
+      }
+    },
+    [workspaces, confirmDeleteWorkspace]
+  )
+
+  /**
+   * Register global commands:
+   * - Mod+Shift+A: Add an Agent block to the canvas
+   * - Mod+Y: Navigate to Templates (attempts to override browser history)
+   * - Mod+L: Navigate to Logs (attempts to override browser location bar)
+   * - Mod+K: Search (placeholder; no-op for now)
+   */
+  useRegisterGlobalCommands(() => [
+    {
+      id: 'add-agent',
+      shortcut: 'Mod+Shift+A',
+      allowInEditable: true,
+      handler: () => {
+        try {
+          const event = new CustomEvent('add-block-from-toolbar', {
+            detail: { type: 'agent', enableTriggerMode: false },
+          })
+          window.dispatchEvent(event)
+          logger.info('Dispatched add-agent command')
+        } catch (err) {
+          logger.error('Failed to dispatch add-agent command', { err })
+        }
+      },
+    },
+    {
+      id: 'goto-templates',
+      shortcut: 'Mod+Y',
+      allowInEditable: true,
+      handler: () => {
+        try {
+          const pathWorkspaceId =
+            workspaceId ||
+            (typeof window !== 'undefined'
+              ? (() => {
+                  const parts = window.location.pathname.split('/')
+                  const idx = parts.indexOf('workspace')
+                  return idx !== -1 ? parts[idx + 1] : undefined
+                })()
+              : undefined)
+          if (pathWorkspaceId) {
+            router.push(`/workspace/${pathWorkspaceId}/templates`)
+            logger.info('Navigated to templates', { workspaceId: pathWorkspaceId })
+          } else {
+            router.push('/templates')
+            logger.info('Navigated to global templates (no workspace in path)')
+          }
+        } catch (err) {
+          logger.error('Failed to navigate to templates', { err })
+        }
+      },
+    },
+    {
+      id: 'goto-logs',
+      shortcut: 'Mod+L',
+      allowInEditable: true,
+      handler: () => {
+        try {
+          const pathWorkspaceId =
+            workspaceId ||
+            (typeof window !== 'undefined'
+              ? (() => {
+                  const parts = window.location.pathname.split('/')
+                  const idx = parts.indexOf('workspace')
+                  return idx !== -1 ? parts[idx + 1] : undefined
+                })()
+              : undefined)
+          if (pathWorkspaceId) {
+            router.push(`/workspace/${pathWorkspaceId}/logs`)
+            logger.info('Navigated to logs', { workspaceId: pathWorkspaceId })
+          } else {
+            logger.warn('No workspace ID found, cannot navigate to logs')
+          }
+        } catch (err) {
+          logger.error('Failed to navigate to logs', { err })
+        }
+      },
+    },
+    {
+      id: 'open-search',
+      shortcut: 'Mod+K',
+      allowInEditable: true,
+      handler: () => {
+        setIsSearchModalOpen(true)
+        logger.info('Search modal opened')
+      },
+    },
+  ])
+
   return (
     <>
       {isCollapsed ? (
@@ -234,6 +379,8 @@ export function SidebarNew() {
             onCreateWorkspace={handleCreateWorkspace}
             onToggleCollapse={handleToggleCollapse}
             isCollapsed={isCollapsed}
+            onRenameWorkspace={handleRenameWorkspace}
+            onDeleteWorkspace={handleDeleteWorkspace}
           />
         </div>
       ) : (
@@ -260,11 +407,16 @@ export function SidebarNew() {
                   onCreateWorkspace={handleCreateWorkspace}
                   onToggleCollapse={handleToggleCollapse}
                   isCollapsed={isCollapsed}
+                  onRenameWorkspace={handleRenameWorkspace}
+                  onDeleteWorkspace={handleDeleteWorkspace}
                 />
               </div>
 
               {/* Search */}
-              <div className='mx-[8px] mt-[14px] flex flex-shrink-0 cursor-pointer items-center justify-between rounded-[8px] bg-[#272727] px-[8px] py-[7px] dark:bg-[#272727]'>
+              <div
+                className='mx-[8px] mt-[12px] flex flex-shrink-0 cursor-pointer items-center justify-between rounded-[8px] bg-[#272727] px-[8px] py-[7px] dark:bg-[#272727]'
+                onClick={() => setIsSearchModalOpen(true)}
+              >
                 <div className='flex items-center gap-[6px]'>
                   <Search className='h-[14px] w-[14px] text-[#7D7D7D] dark:text-[#7D7D7D]' />
                   <p className='translate-y-[0.25px] font-medium text-[#B1B1B1] text-small dark:text-[#B1B1B1]'>
@@ -363,6 +515,15 @@ export function SidebarNew() {
           />
         </>
       )}
+
+      {/* Universal Search Modal */}
+      <SearchModal
+        open={isSearchModalOpen}
+        onOpenChange={setIsSearchModalOpen}
+        workflows={searchModalWorkflows}
+        workspaces={searchModalWorkspaces}
+        isOnWorkflowPage={!!workflowId}
+      />
     </>
   )
 }

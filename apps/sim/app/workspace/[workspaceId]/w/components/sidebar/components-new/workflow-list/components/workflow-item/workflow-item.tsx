@@ -15,6 +15,7 @@ import { useDeleteWorkflow, useDuplicateWorkflow } from '@/app/workspace/[worksp
 import { useFolderStore } from '@/stores/folders/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
+import { Avatars } from '@/app/workspace/[workspaceId]/w/components/sidebar/components-new/workflow-list/components/workflow-item/avatars/avatars'
 
 interface WorkflowItemProps {
   workflow: WorkflowMetadata
@@ -41,6 +42,9 @@ export function WorkflowItem({ workflow, active, level, onWorkflowClick }: Workf
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
   const [workflowIdsToDelete, setWorkflowIdsToDelete] = useState<string[]>([])
   const [deleteModalNames, setDeleteModalNames] = useState<string | string[]>('')
+
+  // Presence avatars state
+  const [hasAvatars, setHasAvatars] = useState(false)
 
   // Capture selection at right-click time (using ref to persist across renders)
   const capturedSelectionRef = useRef<{
@@ -221,41 +225,46 @@ export function WorkflowItem({ workflow, active, level, onWorkflowClick }: Workf
           className='h-[14px] w-[14px] flex-shrink-0 rounded-[4px]'
           style={{ backgroundColor: workflow.color }}
         />
-        {isEditing ? (
-          <input
-            ref={inputRef}
-            value={editValue}
-            onChange={(e) => setEditValue(e.target.value)}
-            onKeyDown={handleKeyDown}
-            onBlur={handleInputBlur}
-            className={clsx(
-              'min-w-0 flex-1 border-0 bg-transparent p-0 font-medium text-[14px] outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0',
-              active
-                ? 'text-[#E6E6E6] dark:text-[#E6E6E6]'
-                : 'text-[#AEAEAE] group-hover:text-[#E6E6E6] dark:text-[#AEAEAE] dark:group-hover:text-[#E6E6E6]'
-            )}
-            maxLength={100}
-            disabled={isRenaming}
-            onClick={(e) => {
-              e.preventDefault()
-              e.stopPropagation()
-            }}
-            autoComplete='off'
-            autoCorrect='off'
-            autoCapitalize='off'
-            spellCheck='false'
-          />
-        ) : (
-          <span
-            className={clsx(
-              'truncate font-medium',
-              active
-                ? 'text-[#E6E6E6] dark:text-[#E6E6E6]'
-                : 'text-[#AEAEAE] group-hover:text-[#E6E6E6] dark:text-[#AEAEAE] dark:group-hover:text-[#E6E6E6]'
-            )}
-          >
-            {workflow.name}
-          </span>
+        <div className={clsx('min-w-0 flex-1', hasAvatars && 'pr-[8px]')}>
+          {isEditing ? (
+            <input
+              ref={inputRef}
+              value={editValue}
+              onChange={(e) => setEditValue(e.target.value)}
+              onKeyDown={handleKeyDown}
+              onBlur={handleInputBlur}
+              className={clsx(
+                'w-full border-0 bg-transparent p-0 font-medium text-[14px] outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0',
+                active
+                  ? 'text-[#E6E6E6] dark:text-[#E6E6E6]'
+                  : 'text-[#AEAEAE] group-hover:text-[#E6E6E6] dark:text-[#AEAEAE] dark:group-hover:text-[#E6E6E6]'
+              )}
+              maxLength={100}
+              disabled={isRenaming}
+              onClick={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+              }}
+              autoComplete='off'
+              autoCorrect='off'
+              autoCapitalize='off'
+              spellCheck='false'
+            />
+          ) : (
+            <div
+              className={clsx(
+                'truncate font-medium',
+                active
+                  ? 'text-[#E6E6E6] dark:text-[#E6E6E6]'
+                  : 'text-[#AEAEAE] group-hover:text-[#E6E6E6] dark:text-[#AEAEAE] dark:group-hover:text-[#E6E6E6]'
+              )}
+            >
+              {workflow.name}
+            </div>
+          )}
+        </div>
+        {!isEditing && (
+          <Avatars workflowId={workflow.id} maxVisible={3} onPresenceChange={setHasAvatars} />
         )}
       </Link>
 

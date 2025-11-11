@@ -14,23 +14,25 @@ import 'reactflow/dist/style.css'
 import { createLogger } from '@/lib/logs/console/logger'
 import { TriggerUtils } from '@/lib/workflows/triggers'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
-import { DiffControls } from '@/app/workspace/[workspaceId]/w/[workflowId]/components'
+import {
+  CommandList,
+  DiffControls,
+  Panel,
+  SubflowNodeComponent,
+  Terminal,
+  TrainingControls,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components'
 import { Chat } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/chat/chat'
 import { UserAvatarStack } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/control-bar/components/user-avatar-stack/user-avatar-stack'
+import { Cursors } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/cursors/cursors'
 import { ErrorBoundary } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/error/index'
 import { NoteBlock } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/note-block/note-block'
-import { Panel } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/panel-new'
-import { SubflowNodeComponent } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/subflow-node'
-import { Terminal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/terminal'
-import { TrainingControls } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/training-controls/training-controls'
-import { TriggerList } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/trigger-list/trigger-list'
 import {
   TriggerWarningDialog,
   TriggerWarningType,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/trigger-warning-dialog/trigger-warning-dialog'
 import { WorkflowBlock } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/workflow-block'
 import { WorkflowEdge } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-edge/workflow-edge'
-import { CollaboratorCursorLayer } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-presence/collaborator-cursor-layer'
 import {
   useAutoLayout,
   useCurrentWorkflow,
@@ -2078,7 +2080,7 @@ const WorkflowContent = React.memo(() => {
           autoPanOnNodeDrag={effectivePermissions.canEdit}
         />
 
-        <CollaboratorCursorLayer />
+        <Cursors />
 
         {/* Floating chat modal */}
         <Chat />
@@ -2095,9 +2097,7 @@ const WorkflowContent = React.memo(() => {
         />
 
         {/* Trigger list for empty workflows - only show after workflow has loaded and hydrated */}
-        {isWorkflowReady && isWorkflowEmpty && effectivePermissions.canEdit && (
-          <TriggerList onSelect={handleTriggerSelect} />
-        )}
+        {isWorkflowReady && isWorkflowEmpty && effectivePermissions.canEdit && <CommandList />}
 
         <Panel />
       </div>

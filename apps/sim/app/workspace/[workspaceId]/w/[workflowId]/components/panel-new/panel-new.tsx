@@ -23,6 +23,7 @@ import {
   Trash,
 } from '@/components/emcn'
 import { createLogger } from '@/lib/logs/console/logger'
+import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { useDeleteWorkflow } from '@/app/workspace/[workspaceId]/w/hooks'
 import { useChatStore } from '@/stores/chat/store'
@@ -232,6 +233,28 @@ export function Panel() {
   const hasValidationErrors = false // TODO: Add validation logic if needed
   const isWorkflowBlocked = isExecuting || hasValidationErrors
   const isButtonDisabled = !isExecuting && (isWorkflowBlocked || (!canRun && !isLoadingPermissions))
+
+  // Register global keyboard shortcuts
+  useRegisterGlobalCommands(() => [
+    {
+      id: 'run-workflow',
+      shortcut: 'Mod+Enter',
+      allowInEditable: false,
+      handler: () => {
+        try {
+          if (isExecuting) {
+            cancelWorkflow()
+          } else if (!isButtonDisabled) {
+            runWorkflow()
+          } else {
+            logger.warn('Cannot run workflow: button is disabled')
+          }
+        } catch (err) {
+          logger.error('Failed to execute Cmd+Enter command', { err })
+        }
+      },
+    },
+  ])
 
   return (
     <>

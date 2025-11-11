@@ -30,7 +30,7 @@ interface DeleteModalProps {
   /**
    * Type of item being deleted
    */
-  itemType: 'workflow' | 'folder'
+  itemType: 'workflow' | 'folder' | 'workspace'
   /**
    * Name(s) of the item(s) being deleted (optional, for display)
    * Can be a single name or an array of names for multiple items
@@ -39,7 +39,7 @@ interface DeleteModalProps {
 }
 
 /**
- * Reusable delete confirmation modal for workflow and folder items.
+ * Reusable delete confirmation modal for workflow, folder, and workspace items.
  * Displays a warning message and confirmation buttons.
  *
  * @param props - Component props
@@ -61,8 +61,10 @@ export function DeleteModal({
   let title = ''
   if (itemType === 'workflow') {
     title = isMultiple ? 'Delete workflows?' : 'Delete workflow?'
-  } else {
+  } else if (itemType === 'folder') {
     title = 'Delete folder?'
+  } else {
+    title = 'Delete workspace?'
   }
 
   let description = ''
@@ -76,13 +78,16 @@ export function DeleteModal({
       description =
         'Deleting this workflow will permanently remove all associated blocks, executions, and configuration.'
     }
-  } else {
+  } else if (itemType === 'folder') {
     if (isSingle && displayNames.length > 0) {
       description = `Deleting ${displayNames[0]} will permanently remove all associated workflows, logs, and knowledge bases.`
     } else {
       description =
         'Deleting this folder will permanently remove all associated workflows, logs, and knowledge bases.'
     }
+  } else {
+    description =
+      'Deleting this workspace will permanently remove all associated workflows, folders, logs, and knowledge bases.'
   }
 
   return (

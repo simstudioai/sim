@@ -557,6 +557,23 @@ export function Terminal() {
   }, [selectedEntry, showInput, hasInputData, isExpanded])
 
   /**
+   * Handle Escape to unselect and Enter to re-enable auto-selection
+   */
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && selectedEntry) {
+        // Escape unselects the current entry and re-enables auto-selection
+        e.preventDefault()
+        setSelectedEntry(null)
+        setAutoSelectEnabled(true)
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [selectedEntry])
+
+  /**
    * Adjust output panel width when sidebar or panel width changes.
    * Ensures output panel doesn't exceed maximum allowed width.
    */

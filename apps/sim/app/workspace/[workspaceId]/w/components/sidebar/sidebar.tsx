@@ -25,7 +25,7 @@ import {
   WorkspaceHeader,
   WorkspaceSelector,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/components'
-import { InviteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-selector/components/invite-modal/invite-modal'
+import { InviteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components-new/workspace-header/components/invite-modal/invite-modal'
 import { useAutoScroll } from '@/app/workspace/[workspaceId]/w/hooks/use-auto-scroll'
 import {
   getKeyboardShortcutText,

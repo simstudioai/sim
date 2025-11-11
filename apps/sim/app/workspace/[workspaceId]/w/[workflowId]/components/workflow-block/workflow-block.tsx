@@ -687,7 +687,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
               <config.icon className='h-[16px] w-[16px] text-white' />
             </div>
             <span
-              className={cn('font-medium text-[16px]', !isEnabled && 'truncate text-[#808080]')}
+              className={cn('truncate font-medium text-[16px]', !isEnabled && 'text-[#808080]')}
               title={name}
             >
               {name}
