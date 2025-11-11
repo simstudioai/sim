@@ -234,23 +234,32 @@ export function useDisplayName(
     const projectContext = `${context.provider}-${context.credentialId}`
     setIsFetching(true)
 
-    if (context.provider === 'jira' && context.domain) {
-      fetch('/api/tools/jira/projects', {
+    if (context.provider === 'jira' && context.domain && context.credentialId) {
+      // Fetch access token then get project info
+      fetch('/api/auth/oauth/token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ credentialId: context.credentialId, domain: context.domain }),
+        body: JSON.stringify({ credentialId: context.credentialId }),
       })
         .then((res) => res.json())
+        .then((tokenData) => {
+          if (!tokenData.accessToken) throw new Error('No access token')
+          return fetch('/api/tools/jira/projects', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              domain: context.domain,
+              accessToken: tokenData.accessToken,
+              projectId: value,
+            }),
+          })
+        })
+        .then((res) => res.json())
         .then((data) => {
-          if (data.projects) {
-            const projectMap = data.projects.reduce(
-              (acc: Record<string, string>, proj: { id: string; name: string }) => {
-                acc[proj.id] = proj.name
-                return acc
-              },
-              {}
-            )
-            useDisplayNamesStore.getState().setDisplayNames('projects', projectContext, projectMap)
+          if (data.project) {
+            useDisplayNamesStore
+              .getState()
+              .setDisplayNames('projects', projectContext, { [value as string]: data.project.name })
           }
         })
         .catch(() => {})
@@ -321,29 +330,34 @@ export function useDisplayName(
         .finally(() => setIsFetching(false))
     }
     // Jira issues
-    else if (provider === 'jira' && context.domain && context.projectId) {
-      fetch('/api/tools/jira/issues', {
+    else if (provider === 'jira' && context.domain && context.projectId && context.credentialId) {
+      // Fetch access token then get issue info
+      fetch('/api/auth/oauth/token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          credentialId: context.credentialId,
-          domain: context.domain,
-          projectId: context.projectId,
-        }),
+        body: JSON.stringify({ credentialId: context.credentialId }),
       })
         .then((res) => res.json())
+        .then((tokenData) => {
+          if (!tokenData.accessToken) throw new Error('No access token')
+          return fetch('/api/tools/jira/issues', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              domain: context.domain,
+              accessToken: tokenData.accessToken,
+              issueKeys: [value],
+            }),
+          })
+        })
+        .then((res) => res.json())
         .then((data) => {
-          if (data.issues) {
-            const issueMap = data.issues.reduce(
-              (acc: Record<string, string>, issue: { id: string; name: string }) => {
-                acc[issue.id] = issue.name
-                return acc
-              },
-              {}
-            )
+          if (data.issues?.[0]) {
             useDisplayNamesStore
               .getState()
-              .setDisplayNames('files', context.credentialId!, issueMap)
+              .setDisplayNames('files', context.credentialId!, {
+                [value as string]: data.issues[0].name,
+              })
           }
         })
         .catch(() => {})
