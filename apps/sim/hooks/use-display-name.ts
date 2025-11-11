@@ -530,7 +530,7 @@ export function useDisplayName(
       fetch(`/api/tools/drive/file?${queryParams.toString()}`)
         .then((res) => res.json())
         .then((data) => {
-          if (data.file && data.file.id && data.file.name) {
+          if (data.file?.id && data.file.name) {
             useDisplayNamesStore
               .getState()
               .setDisplayNames('files', context.credentialId!, { [data.file.id]: data.file.name })

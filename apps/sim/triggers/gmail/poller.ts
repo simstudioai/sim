@@ -32,13 +32,15 @@ export const gmailPollingTrigger: TriggerConfig = {
       placeholder: 'Select Gmail labels to monitor for new emails',
       description: 'Choose which Gmail labels to monitor. Leave empty to monitor all emails.',
       required: false,
+      dependsOn: ['triggerCredentials'],
       options: [], // Will be populated dynamically from user's Gmail labels
       fetchOptions: async (blockId: string, subBlockId: string) => {
         const credentialId = useSubBlockStore.getState().getValue(blockId, 'triggerCredentials') as
           | string
           | null
         if (!credentialId) {
-          return []
+          // Return a sentinel to prevent infinite retry loops when credential is missing
+          throw new Error('No Gmail credential selected')
         }
         try {
           const response = await fetch(`/api/tools/gmail/labels?credentialId=${credentialId}`)
@@ -55,7 +57,7 @@ export const gmailPollingTrigger: TriggerConfig = {
           return []
         } catch (error) {
           logger.error('Error fetching Gmail labels:', error)
-          return []
+          throw error
         }
       },
       mode: 'trigger',

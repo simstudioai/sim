@@ -3,6 +3,7 @@ import { AlertTriangle } from 'lucide-react'
 import { Label, Tooltip } from '@/components/emcn/components'
 import { cn } from '@/lib/utils'
 import type { FieldDiffStatus } from '@/lib/workflows/diff/types'
+import { useDependsOnGate } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/components/sub-block/hooks/use-depends-on-gate'
 import type { SubBlockConfig } from '@/blocks/types'
 import {
   ChannelSelectorInput,
@@ -158,7 +159,15 @@ function SubBlockComponent({
     | string[]
     | null
     | undefined
-  const isDisabled = disabled || isPreview
+
+  // Use dependsOn gating to compute final disabled state
+  const { finalDisabled: gatedDisabled } = useDependsOnGate(blockId, config, {
+    disabled,
+    isPreview,
+    previewContextValues: subBlockValues,
+  })
+
+  const isDisabled = gatedDisabled
 
   /**
    * Selects and renders the appropriate input component for the current sub-block `config.type`.
