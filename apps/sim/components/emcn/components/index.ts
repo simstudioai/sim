@@ -40,6 +40,7 @@ export {
   PopoverSection,
   type PopoverSectionProps,
   PopoverTrigger,
+  usePopoverContext,
 } from './popover/popover'
 export { Textarea } from './textarea/textarea'
 export { Tooltip } from './tooltip/tooltip'

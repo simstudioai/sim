@@ -84,11 +84,17 @@ const POPOVER_ITEM_HOVER_CLASSES = {
 type PopoverVariant = 'default' | 'primary'
 
 interface PopoverContextValue {
-  openFolder: (id: string, title: string, onLoad?: () => void | Promise<void>) => void
+  openFolder: (
+    id: string,
+    title: string,
+    onLoad?: () => void | Promise<void>,
+    onSelect?: () => void
+  ) => void
   closeFolder: () => void
   currentFolder: string | null
   isInFolder: boolean
   folderTitle: string | null
+  onFolderSelect: (() => void) | null
   variant: PopoverVariant
   searchQuery: string
   setSearchQuery: (query: string) => void
@@ -126,12 +132,14 @@ export interface PopoverProps extends PopoverPrimitive.PopoverProps {
 const Popover: React.FC<PopoverProps> = ({ children, variant = 'default', ...props }) => {
   const [currentFolder, setCurrentFolder] = React.useState<string | null>(null)
   const [folderTitle, setFolderTitle] = React.useState<string | null>(null)
+  const [onFolderSelect, setOnFolderSelect] = React.useState<(() => void) | null>(null)
   const [searchQuery, setSearchQuery] = React.useState<string>('')
 
   const openFolder = React.useCallback(
-    (id: string, title: string, onLoad?: () => void | Promise<void>) => {
+    (id: string, title: string, onLoad?: () => void | Promise<void>, onSelect?: () => void) => {
       setCurrentFolder(id)
       setFolderTitle(title)
+      setOnFolderSelect(() => onSelect || null)
       if (onLoad) {
         void Promise.resolve(onLoad())
       }
@@ -142,6 +150,7 @@ const Popover: React.FC<PopoverProps> = ({ children, variant = 'default', ...pro
   const closeFolder = React.useCallback(() => {
     setCurrentFolder(null)
     setFolderTitle(null)
+    setOnFolderSelect(null)
   }, [])
 
   const contextValue: PopoverContextValue = React.useMemo(
@@ -151,11 +160,12 @@ const Popover: React.FC<PopoverProps> = ({ children, variant = 'default', ...pro
       currentFolder,
       isInFolder: currentFolder !== null,
       folderTitle,
+      onFolderSelect,
       variant,
       searchQuery,
       setSearchQuery,
     }),
-    [openFolder, closeFolder, currentFolder, folderTitle, variant, searchQuery]
+    [openFolder, closeFolder, currentFolder, folderTitle, onFolderSelect, variant, searchQuery]
   )
 
   return (
@@ -427,6 +437,10 @@ export interface PopoverFolderProps extends Omit<React.HTMLAttributes<HTMLDivEle
    */
   onOpen?: () => void | Promise<void>
   /**
+   * Function to call when the folder title is selected (from within the folder view)
+   */
+  onSelect?: () => void
+  /**
    * Children to render when folder is open
    */
   children?: React.ReactNode
@@ -449,7 +463,7 @@ export interface PopoverFolderProps extends Omit<React.HTMLAttributes<HTMLDivEle
  * ```
  */
 const PopoverFolder = React.forwardRef<HTMLDivElement, PopoverFolderProps>(
-  ({ className, id, title, icon, onOpen, children, active, ...props }, ref) => {
+  ({ className, id, title, icon, onOpen, onSelect, children, active, ...props }, ref) => {
     const { openFolder, currentFolder, isInFolder, variant } = usePopoverContext()
 
     // Don't render if we're in a different folder
@@ -460,6 +474,12 @@ const PopoverFolder = React.forwardRef<HTMLDivElement, PopoverFolderProps>(
     // If we're in this folder, render its children
     if (currentFolder === id) {
       return <>{children}</>
+    }
+
+    // Handle click anywhere on folder item
+    const handleClick = (e: React.MouseEvent) => {
+      e.stopPropagation()
+      openFolder(id, title, onOpen, onSelect)
     }
 
     // Otherwise, render as a clickable folder item
@@ -474,7 +494,7 @@ const PopoverFolder = React.forwardRef<HTMLDivElement, PopoverFolderProps>(
         role='menuitem'
         aria-haspopup='true'
         aria-expanded={false}
-        onClick={() => openFolder(id, title, onOpen)}
+        onClick={handleClick}
         {...props}
       >
         {icon}
@@ -487,7 +507,20 @@ const PopoverFolder = React.forwardRef<HTMLDivElement, PopoverFolderProps>(
 
 PopoverFolder.displayName = 'PopoverFolder'
 
-export interface PopoverBackButtonProps extends React.HTMLAttributes<HTMLDivElement> {}
+export interface PopoverBackButtonProps extends React.HTMLAttributes<HTMLDivElement> {
+  /**
+   * Ref callback for the folder title element (when selectable)
+   */
+  folderTitleRef?: (el: HTMLElement | null) => void
+  /**
+   * Whether the folder title is currently active/selected
+   */
+  folderTitleActive?: boolean
+  /**
+   * Callback when mouse enters the folder title
+   */
+  onFolderTitleMouseEnter?: () => void
+}
 
 /**
  * Back button component that appears when inside a folder.
@@ -504,8 +537,8 @@ export interface PopoverBackButtonProps extends React.HTMLAttributes<HTMLDivElem
  * ```
  */
 const PopoverBackButton = React.forwardRef<HTMLDivElement, PopoverBackButtonProps>(
-  ({ className, ...props }, ref) => {
-    const { isInFolder, closeFolder, folderTitle, variant } = usePopoverContext()
+  ({ className, folderTitleRef, folderTitleActive, onFolderTitleMouseEnter, ...props }, ref) => {
+    const { isInFolder, closeFolder, folderTitle, onFolderSelect, variant } = usePopoverContext()
 
     if (!isInFolder) {
       return null
@@ -523,7 +556,26 @@ const PopoverBackButton = React.forwardRef<HTMLDivElement, PopoverBackButtonProp
           <ChevronLeft className='h-3 w-3' />
           <span>Back</span>
         </div>
-        {folderTitle && (
+        {folderTitle && onFolderSelect && (
+          <div
+            ref={folderTitleRef}
+            className={cn(
+              POPOVER_ITEM_BASE_CLASSES,
+              folderTitleActive
+                ? POPOVER_ITEM_ACTIVE_CLASSES[variant]
+                : POPOVER_ITEM_HOVER_CLASSES[variant]
+            )}
+            role='button'
+            onClick={(e) => {
+              e.stopPropagation()
+              onFolderSelect()
+            }}
+            onMouseEnter={onFolderTitleMouseEnter}
+          >
+            <span>{folderTitle}</span>
+          </div>
+        )}
+        {folderTitle && !onFolderSelect && (
           <div className='px-[6px] py-[4px] font-base text-[#AEAEAE] text-[12px] dark:text-[#AEAEAE]'>
             {folderTitle}
           </div>
@@ -605,4 +657,5 @@ export {
   PopoverFolder,
   PopoverBackButton,
   PopoverSearch,
+  usePopoverContext,
 }
