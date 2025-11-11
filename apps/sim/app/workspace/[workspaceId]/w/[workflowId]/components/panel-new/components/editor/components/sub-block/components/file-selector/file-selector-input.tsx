@@ -42,7 +42,11 @@ export function FileSelectorInput({
   const params = useParams()
   const workflowIdFromUrl = (params?.workflowId as string) || activeWorkflowId || ''
   // Central dependsOn gating for this selector instance
-  const { finalDisabled } = useDependsOnGate(blockId, subBlock, { disabled, isPreview })
+  const { finalDisabled } = useDependsOnGate(blockId, subBlock, { 
+    disabled, 
+    isPreview, 
+    previewContextValues 
+  })
 
   // Helper to coerce various preview value shapes into a string ID
   const coerceToIdString = (val: unknown): string => {
@@ -63,12 +67,20 @@ export function FileSelectorInput({
 
   // Use the proper hook to get the current value and setter
   const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlock.id)
-  const [connectedCredential] = useSubBlockValue(blockId, 'credential')
-  const [domainValue] = useSubBlockValue(blockId, 'domain')
-  const [projectIdValue] = useSubBlockValue(blockId, 'projectId')
-  const [planIdValue] = useSubBlockValue(blockId, 'planId')
-  const [teamIdValue] = useSubBlockValue(blockId, 'teamId')
-  const [operationValue] = useSubBlockValue(blockId, 'operation')
+  const [connectedCredentialFromStore] = useSubBlockValue(blockId, 'credential')
+  const [domainValueFromStore] = useSubBlockValue(blockId, 'domain')
+  const [projectIdValueFromStore] = useSubBlockValue(blockId, 'projectId')
+  const [planIdValueFromStore] = useSubBlockValue(blockId, 'planId')
+  const [teamIdValueFromStore] = useSubBlockValue(blockId, 'teamId')
+  const [operationValueFromStore] = useSubBlockValue(blockId, 'operation')
+  
+  // Use previewContextValues if provided (for tools inside agent blocks), otherwise use store values
+  const connectedCredential = previewContextValues?.credential ?? connectedCredentialFromStore
+  const domainValue = previewContextValues?.domain ?? domainValueFromStore
+  const projectIdValue = previewContextValues?.projectId ?? projectIdValueFromStore
+  const planIdValue = previewContextValues?.planId ?? planIdValueFromStore
+  const teamIdValue = previewContextValues?.teamId ?? teamIdValueFromStore
+  const operationValue = previewContextValues?.operation ?? operationValueFromStore
 
   // Determine if the persisted credential belongs to the current viewer
   // Use service providerId where available (e.g., onedrive/sharepoint) instead of base provider ("microsoft")

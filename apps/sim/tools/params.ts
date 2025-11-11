@@ -36,6 +36,7 @@ export interface UIComponentConfig {
   acceptedTypes?: string[]
   multiple?: boolean
   maxSize?: number
+  dependsOn?: string[]
 }
 
 export interface SubBlockConfig {
@@ -61,6 +62,7 @@ export interface SubBlockConfig {
   acceptedTypes?: string[]
   multiple?: boolean
   maxSize?: number
+  dependsOn?: string[]
 }
 
 export interface BlockConfig {
@@ -236,6 +238,7 @@ export function getToolParametersConfig(
               acceptedTypes: subBlock.acceptedTypes,
               multiple: subBlock.multiple,
               maxSize: subBlock.maxSize,
+              dependsOn: subBlock.dependsOn,
             }
           }
         }

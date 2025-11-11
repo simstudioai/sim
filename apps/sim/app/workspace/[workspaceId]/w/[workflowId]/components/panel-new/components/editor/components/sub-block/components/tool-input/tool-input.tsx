@@ -168,6 +168,7 @@ function FileSelectorSyncWrapper({
           mimeType: uiComponent.mimeType,
           requiredScopes: uiComponent.requiredScopes || [],
           placeholder: uiComponent.placeholder,
+          dependsOn: uiComponent.dependsOn,
         }}
         disabled={disabled}
         previewContextValues={previewContextValues}
@@ -433,6 +434,7 @@ function ChannelSelectorSyncWrapper({
           title: paramId,
           provider: uiComponent.provider || 'slack',
           placeholder: uiComponent.placeholder,
+          dependsOn: uiComponent.dependsOn,
         }}
         onChannelSelect={onChange}
         disabled={disabled}
@@ -1174,9 +1176,11 @@ export function ToolInput({
               serviceId: uiComponent.serviceId,
               placeholder: uiComponent.placeholder,
               requiredScopes: uiComponent.requiredScopes,
+              dependsOn: uiComponent.dependsOn,
             }}
             onProjectSelect={onChange}
             disabled={disabled}
+            previewContextValues={currentToolParams as any}
           />
         )
 

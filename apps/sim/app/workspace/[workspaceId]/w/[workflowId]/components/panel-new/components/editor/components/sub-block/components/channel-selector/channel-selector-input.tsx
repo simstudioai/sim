@@ -51,6 +51,7 @@ export function ChannelSelectorInput({
   const { finalDisabled, dependsOn, dependencyValues } = useDependsOnGate(blockId, subBlock, {
     disabled,
     isPreview,
+    previewContextValues,
   })
 
   // Choose credential strictly based on auth method - use effective values

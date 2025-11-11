@@ -28,6 +28,7 @@ interface ProjectSelectorInputProps {
   onProjectSelect?: (projectId: string) => void
   isPreview?: boolean
   previewValue?: any | null
+  previewContextValues?: Record<string, any>
 }
 
 export function ProjectSelectorInput({
@@ -37,30 +38,40 @@ export function ProjectSelectorInput({
   onProjectSelect,
   isPreview = false,
   previewValue,
+  previewContextValues,
 }: ProjectSelectorInputProps) {
   const { collaborativeSetSubblockValue } = useCollaborativeWorkflow()
   const [selectedProjectId, setSelectedProjectId] = useState<string>('')
   const [_projectInfo, setProjectInfo] = useState<any | null>(null)
   // Use the proper hook to get the current value and setter
   const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlock.id)
-  const [connectedCredential] = useSubBlockValue(blockId, 'credential')
+  const [connectedCredentialFromStore] = useSubBlockValue(blockId, 'credential')
+  const [linearTeamIdFromStore] = useSubBlockValue(blockId, 'teamId')
+  const [jiraDomainFromStore] = useSubBlockValue(blockId, 'domain')
+  
+  // Use previewContextValues if provided (for tools inside agent blocks), otherwise use store values
+  const connectedCredential = previewContextValues?.credential ?? connectedCredentialFromStore
+  const linearCredential = previewContextValues?.credential ?? connectedCredentialFromStore
+  const linearTeamId = previewContextValues?.teamId ?? linearTeamIdFromStore
+  const jiraDomain = previewContextValues?.domain ?? jiraDomainFromStore
+  
   const { isForeignCredential } = useForeignCredential(
     subBlock.provider || subBlock.serviceId || 'jira',
     (connectedCredential as string) || ''
   )
-  // Reactive dependencies from store for Linear
-  const [linearCredential] = useSubBlockValue(blockId, 'credential')
-  const [linearTeamId] = useSubBlockValue(blockId, 'teamId')
   const activeWorkflowId = useWorkflowRegistry((s) => s.activeWorkflowId) as string | null
-  const { finalDisabled } = useDependsOnGate(blockId, subBlock, { disabled, isPreview })
+  const { finalDisabled } = useDependsOnGate(blockId, subBlock, { 
+    disabled, 
+    isPreview, 
+    previewContextValues 
+  })
 
   // Get provider-specific values
   const provider = subBlock.provider || 'jira'
   const isLinear = provider === 'linear'
 
-  // Jira/Discord upstream fields
-  const [jiraDomain] = useSubBlockValue(blockId, 'domain')
-  const [jiraCredential] = useSubBlockValue(blockId, 'credential')
+  // Jira/Discord upstream fields - use values from previewContextValues or store
+  const jiraCredential = connectedCredential
   const domain = (jiraDomain as string) || ''
 
   // Verify Jira credential belongs to current user; if not, treat as absent

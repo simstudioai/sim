@@ -13,10 +13,11 @@ import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 export function useDependsOnGate(
   blockId: string,
   subBlock: SubBlockConfig,
-  opts?: { disabled?: boolean; isPreview?: boolean }
+  opts?: { disabled?: boolean; isPreview?: boolean; previewContextValues?: Record<string, any> }
 ) {
   const disabledProp = opts?.disabled ?? false
   const isPreview = opts?.isPreview ?? false
+  const previewContextValues = opts?.previewContextValues
 
   const activeWorkflowId = useWorkflowRegistry((s) => s.activeWorkflowId)
 
@@ -25,6 +26,12 @@ export function useDependsOnGate(
 
   const dependencyValues = useSubBlockStore((state) => {
     if (dependsOn.length === 0) return [] as any[]
+    
+    // If previewContextValues are provided (e.g., tool parameters), use those first
+    if (previewContextValues) {
+      return dependsOn.map((depKey) => previewContextValues[depKey] ?? null)
+    }
+    
     if (!activeWorkflowId) return dependsOn.map(() => null)
     const workflowValues = state.workflowValues[activeWorkflowId] || {}
     const blockValues = (workflowValues as any)[blockId] || {}
