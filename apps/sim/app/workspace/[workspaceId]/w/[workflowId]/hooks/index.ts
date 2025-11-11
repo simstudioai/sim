@@ -1,6 +1,6 @@
 export { useAutoLayout } from './use-auto-layout'
 export { useBlockCore } from './use-block-core'
-export { useBlockDimensions } from './use-block-dimensions'
+export { BLOCK_DIMENSIONS, useBlockDimensions } from './use-block-dimensions'
 export { type CurrentWorkflow, useCurrentWorkflow } from './use-current-workflow'
 export { useNodeUtilities } from './use-node-utilities'
 export { useScrollManagement } from './use-scroll-management'

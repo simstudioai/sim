@@ -14,6 +14,24 @@ interface UseBlockDimensionsOptions {
 }
 
 /**
+ * Shared block dimension constants
+ */
+export const BLOCK_DIMENSIONS = {
+  FIXED_WIDTH: 250,
+  HEADER_HEIGHT: 40,
+  MIN_HEIGHT: 100,
+
+  // Workflow blocks
+  WORKFLOW_CONTENT_PADDING: 16,
+  WORKFLOW_ROW_HEIGHT: 29,
+
+  // Note blocks
+  NOTE_CONTENT_PADDING: 14,
+  NOTE_MIN_CONTENT_HEIGHT: 20,
+  NOTE_BASE_CONTENT_HEIGHT: 60,
+} as const
+
+/**
  * Hook to manage deterministic block dimensions without ResizeObserver.
  * Calculates dimensions based on content structure and updates the store.
  *

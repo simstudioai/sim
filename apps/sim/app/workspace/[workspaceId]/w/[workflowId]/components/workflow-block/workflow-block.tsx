@@ -7,13 +7,17 @@ import { getEnv, isTruthy } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
+import { useBlockCore } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
+import {
+  BLOCK_DIMENSIONS,
+  useBlockDimensions,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-block-dimensions'
 import type { SubBlockConfig } from '@/blocks/types'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { useCredentialDisplay } from '@/hooks/use-credential-display'
 import { useDisplayName } from '@/hooks/use-display-name'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
-import { useBlockCore, useBlockDimensions } from '../../hooks'
 import { ActionBar, Connections } from './components'
 import { useBlockProperties, useChildWorkflow, useScheduleInfo, useWebhookInfo } from './hooks'
 import type { WorkflowBlockProps } from './types'
@@ -581,22 +585,10 @@ export const WorkflowBlock = memo(function WorkflowBlock({
   /**
    * Compute and publish deterministic layout metrics for workflow blocks.
    * This avoids ResizeObserver/animation-frame jitter and prevents initial "jump".
-   *
-   * Height model:
-   * - Fixed header height: 40px
-   * - Content padding when present: 16px (8 top + 8 bottom)
-   * - Row height: 29px per rendered row (subblock rows, condition rows, plus error row if present)
-   *
-   * Width is a fixed 250px for workflow blocks.
    */
   useBlockDimensions({
     blockId: id,
     calculateDimensions: () => {
-      const FIXED_WIDTH = 250
-      const HEADER_HEIGHT = 40
-      const CONTENT_PADDING = 16
-      const ROW_HEIGHT = 29
-
       const shouldShowDefaultHandles =
         config.category !== 'triggers' && type !== 'starter' && !displayTriggerMode
       const hasContentBelowHeader = subBlockRows.length > 0 || shouldShowDefaultHandles
@@ -612,10 +604,16 @@ export const WorkflowBlock = memo(function WorkflowBlock({
         rowsCount = subblockRowCount + defaultHandlesRow
       }
 
-      const contentHeight = hasContentBelowHeader ? CONTENT_PADDING + rowsCount * ROW_HEIGHT : 0
-      const calculatedHeight = Math.max(HEADER_HEIGHT + contentHeight, 100)
+      const contentHeight = hasContentBelowHeader
+        ? BLOCK_DIMENSIONS.WORKFLOW_CONTENT_PADDING +
+          rowsCount * BLOCK_DIMENSIONS.WORKFLOW_ROW_HEIGHT
+        : 0
+      const calculatedHeight = Math.max(
+        BLOCK_DIMENSIONS.HEADER_HEIGHT + contentHeight,
+        BLOCK_DIMENSIONS.MIN_HEIGHT
+      )
 
-      return { width: FIXED_WIDTH, height: calculatedHeight }
+      return { width: BLOCK_DIMENSIONS.FIXED_WIDTH, height: calculatedHeight }
     },
     dependencies: [
       type,

@@ -4,8 +4,12 @@ import type { NodeProps } from 'reactflow'
 import remarkGfm from 'remark-gfm'
 import { cn } from '@/lib/utils'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
+import { useBlockCore } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
+import {
+  BLOCK_DIMENSIONS,
+  useBlockDimensions,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-block-dimensions'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
-import { useBlockCore, useBlockDimensions } from '../../hooks'
 import { ActionBar } from '../workflow-block/components'
 import type { WorkflowBlockProps } from '../workflow-block/types'
 
@@ -133,17 +137,13 @@ export const NoteBlock = memo(function NoteBlock({ id, data }: NodeProps<NoteBlo
   useBlockDimensions({
     blockId: id,
     calculateDimensions: () => {
-      const FIXED_WIDTH = 250
-      const HEADER_HEIGHT = 40
-      const CONTENT_PADDING = 14
-      const MIN_CONTENT_HEIGHT = 20
-      const BASE_CONTENT_HEIGHT = 60
+      const contentHeight = isEmpty
+        ? BLOCK_DIMENSIONS.NOTE_MIN_CONTENT_HEIGHT
+        : BLOCK_DIMENSIONS.NOTE_BASE_CONTENT_HEIGHT
+      const calculatedHeight =
+        BLOCK_DIMENSIONS.HEADER_HEIGHT + BLOCK_DIMENSIONS.NOTE_CONTENT_PADDING + contentHeight
 
-      // Use minimum height for empty notes, base height for content
-      const contentHeight = isEmpty ? MIN_CONTENT_HEIGHT : BASE_CONTENT_HEIGHT
-      const calculatedHeight = HEADER_HEIGHT + CONTENT_PADDING + contentHeight
-
-      return { width: FIXED_WIDTH, height: calculatedHeight }
+      return { width: BLOCK_DIMENSIONS.FIXED_WIDTH, height: calculatedHeight }
     },
     dependencies: [isEmpty],
   })
