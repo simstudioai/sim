@@ -971,6 +971,23 @@ export function useCollaborativeWorkflow() {
 
       const newTriggerMode = !currentBlock.triggerMode
 
+      // When enabling trigger mode, check if block is inside a subflow
+      if (newTriggerMode && currentBlock.data?.parentId) {
+        const parent = workflowStore.blocks[currentBlock.data.parentId]
+        if (parent && (parent.type === 'loop' || parent.type === 'parallel')) {
+          // Dispatch custom event to show warning modal
+          window.dispatchEvent(
+            new CustomEvent('show-trigger-warning', {
+              detail: {
+                type: 'trigger_in_subflow',
+                triggerName: 'trigger',
+              },
+            })
+          )
+          return
+        }
+      }
+
       executeQueuedOperation(
         'update-trigger-mode',
         'block',

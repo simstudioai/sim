@@ -731,6 +731,24 @@ const WorkflowContent = React.memo(() => {
     prevDiffReadyRef.current = isDiffReady
   }, [isDiffReady, diffAnalysis, fitView])
 
+  // Listen for trigger warning events
+  useEffect(() => {
+    const handleShowTriggerWarning = (event: CustomEvent) => {
+      const { type, triggerName } = event.detail
+      setTriggerWarning({
+        open: true,
+        triggerName: triggerName || 'trigger',
+        type: type === 'trigger_in_subflow' ? TriggerWarningType.TRIGGER_IN_SUBFLOW : type,
+      })
+    }
+
+    window.addEventListener('show-trigger-warning', handleShowTriggerWarning as EventListener)
+
+    return () => {
+      window.removeEventListener('show-trigger-warning', handleShowTriggerWarning as EventListener)
+    }
+  }, [setTriggerWarning])
+
   // Handler for trigger selection from list
   const handleTriggerSelect = useCallback(
     (triggerId: string, enableTriggerMode?: boolean) => {
@@ -849,6 +867,22 @@ const WorkflowContent = React.memo(() => {
         const name = getUniqueBlockName(baseName, blocks)
 
         if (containerInfo) {
+          // Check if this is a trigger block or has trigger mode enabled
+          const isTriggerBlock =
+            blockConfig.category === 'triggers' ||
+            blockConfig.triggers?.enabled ||
+            data.enableTriggerMode === true
+
+          if (isTriggerBlock) {
+            const triggerName = TriggerUtils.getDefaultTriggerName(data.type) || 'trigger'
+            setTriggerWarning({
+              open: true,
+              triggerName,
+              type: TriggerWarningType.TRIGGER_IN_SUBFLOW,
+            })
+            return
+          }
+
           // Calculate position relative to the container's content area
           // Account for header (50px), left padding (16px), and top padding (16px)
           const headerHeight = 50
@@ -1712,6 +1746,28 @@ const WorkflowContent = React.memo(() => {
         setDraggedNodeId(null)
         setPotentialParentId(null)
         return
+      }
+
+      // Trigger blocks cannot be placed inside loop or parallel subflows
+      if (potentialParentId) {
+        const block = blocks[node.id]
+        if (block && TriggerUtils.isTriggerBlock(block)) {
+          const triggerName = TriggerUtils.getDefaultTriggerName(block.type) || 'trigger'
+          setTriggerWarning({
+            open: true,
+            triggerName,
+            type: TriggerWarningType.TRIGGER_IN_SUBFLOW,
+          })
+          logger.warn('Prevented trigger block from being placed inside a container', {
+            blockId: node.id,
+            blockType: block.type,
+            attemptedParentId: potentialParentId,
+          })
+          // Reset state without updating parent
+          setDraggedNodeId(null)
+          setPotentialParentId(null)
+          return
+        }
       }
 
       // Update the node's parent relationship
