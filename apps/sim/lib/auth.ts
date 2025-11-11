@@ -832,7 +832,7 @@ export const auth = betterAuth({
           authorizationUrl: 'https://login.salesforce.com/services/oauth2/authorize',
           tokenUrl: 'https://login.salesforce.com/services/oauth2/token',
           userInfoUrl: 'https://login.salesforce.com/services/oauth2/userinfo',
-          scopes: ['api', 'full', 'openid', 'refresh_token', 'offline_access'],
+          scopes: ['api', 'refresh_token', 'openid'],
           pkce: true,
           prompt: 'consent',
           redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/salesforce`,

@@ -752,7 +752,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         providerId: 'salesforce',
         icon: (props) => SalesforceIcon(props),
         baseProviderIcon: (props) => SalesforceIcon(props),
-        scopes: ['api', 'full', 'openid', 'refresh_token', 'offline_access'],
+        scopes: ['api', 'refresh_token', 'openid'],
       },
     },
     defaultService: 'salesforce',

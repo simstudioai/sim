@@ -213,7 +213,6 @@ const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'crm.lists.write': 'Create and update HubSpot lists',
   tickets: 'Manage HubSpot tickets',
   api: 'Access Salesforce API',
-  full: 'Full access to your Salesforce data',
   refresh_token: 'Maintain long-term access to your Salesforce account',
   default: 'Access your Asana workspace',
   base: 'Basic access to your Pipedrive account',

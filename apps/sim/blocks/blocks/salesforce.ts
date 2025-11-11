@@ -53,7 +53,7 @@ export const SalesforceBlock: BlockConfig<SalesforceResponse> = {
       type: 'oauth-input',
       provider: 'salesforce',
       serviceId: 'salesforce',
-      requiredScopes: ['api', 'full', 'openid', 'refresh_token', 'offline_access'],
+      requiredScopes: ['api', 'refresh_token', 'openid'],
       placeholder: 'Select Salesforce account',
       required: true,
     },
