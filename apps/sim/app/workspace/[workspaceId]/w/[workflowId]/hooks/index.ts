@@ -1,4 +1,5 @@
 export { useAutoLayout } from './use-auto-layout'
+export { useBlockDimensions } from './use-block-dimensions'
 export { type CurrentWorkflow, useCurrentWorkflow } from './use-current-workflow'
 export { useNodeUtilities } from './use-node-utilities'
 export { useScrollManagement } from './use-scroll-management'

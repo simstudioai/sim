@@ -1,22 +1,19 @@
-import { memo, useCallback, useEffect, useMemo, useRef } from 'react'
+import { memo, useCallback, useMemo } from 'react'
 import ReactMarkdown from 'react-markdown'
-import { type NodeProps, useUpdateNodeInternals } from 'reactflow'
+import type { NodeProps } from 'reactflow'
 import remarkGfm from 'remark-gfm'
 import { cn } from '@/lib/utils'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { usePanelEditorStore } from '@/stores/panel-new/editor/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
-import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import { useCurrentWorkflow } from '../../hooks'
+import { useBlockDimensions } from '../../hooks/use-block-dimensions'
 import { ActionBar } from '../workflow-block/components'
 import { useBlockState } from '../workflow-block/hooks'
 import type { WorkflowBlockProps } from '../workflow-block/types'
 
 interface NoteBlockNodeData extends WorkflowBlockProps {}
-
-const NOTE_MIN_WIDTH = 220
-const NOTE_MIN_HEIGHT = 140
 
 /**
  * Extract string value from subblock value object or primitive
@@ -94,10 +91,6 @@ const NoteMarkdown = memo(function NoteMarkdown({ content }: { content: string }
 
 export const NoteBlock = memo(function NoteBlock({ id, data }: NodeProps<NoteBlockNodeData>) {
   const { type, config, name } = data
-  const containerRef = useRef<HTMLDivElement>(null)
-  const sizeRef = useRef<{ width: number; height: number } | null>(null)
-  const updateNodeInternals = useUpdateNodeInternals()
-  const updateBlockLayoutMetrics = useWorkflowStore((state) => state.updateBlockLayoutMetrics)
 
   const setCurrentBlockId = usePanelEditorStore((state) => state.setCurrentBlockId)
   const currentBlockId = usePanelEditorStore((state) => state.currentBlockId)
@@ -146,28 +139,27 @@ export const NoteBlock = memo(function NoteBlock({ id, data }: NodeProps<NoteBlo
 
   const userPermissions = useUserPermissionsContext()
 
-  useEffect(() => {
-    const element = containerRef.current
-    if (!element) return
+  /**
+   * Calculate deterministic dimensions based on content structure.
+   * Uses fixed width and computed height to avoid ResizeObserver jitter.
+   */
+  useBlockDimensions({
+    blockId: id,
+    calculateDimensions: () => {
+      const FIXED_WIDTH = 250
+      const HEADER_HEIGHT = 40
+      const CONTENT_PADDING = 14
+      const MIN_CONTENT_HEIGHT = 20
+      const BASE_CONTENT_HEIGHT = 60
 
-    const observer = new ResizeObserver((entries) => {
-      const entry = entries[0]
-      if (!entry) return
+      // Use minimum height for empty notes, base height for content
+      const contentHeight = isEmpty ? MIN_CONTENT_HEIGHT : BASE_CONTENT_HEIGHT
+      const calculatedHeight = HEADER_HEIGHT + CONTENT_PADDING + contentHeight
 
-      const width = Math.max(Math.round(entry.contentRect.width), NOTE_MIN_WIDTH)
-      const height = Math.max(Math.round(entry.contentRect.height), NOTE_MIN_HEIGHT)
-
-      const previous = sizeRef.current
-      if (!previous || previous.width !== width || previous.height !== height) {
-        sizeRef.current = { width, height }
-        updateBlockLayoutMetrics(id, { width, height })
-        updateNodeInternals(id)
-      }
-    })
-
-    observer.observe(element)
-    return () => observer.disconnect()
-  }, [id, updateBlockLayoutMetrics, updateNodeInternals])
+      return { width: FIXED_WIDTH, height: calculatedHeight }
+    },
+    dependencies: [isEmpty],
+  })
 
   const hasRing =
     isActive || isFocused || diffStatus === 'new' || diffStatus === 'edited' || isDeletedBlock
@@ -183,7 +175,6 @@ export const NoteBlock = memo(function NoteBlock({ id, data }: NodeProps<NoteBlo
   return (
     <div className='group relative'>
       <div
-        ref={containerRef}
         className={cn(
           'relative z-[20] w-[250px] cursor-default select-none rounded-[8px] bg-[#232323]'
         )}

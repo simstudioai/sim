@@ -1,6 +1,6 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams } from 'next/navigation'
-import { Handle, type NodeProps, Position, useUpdateNodeInternals } from 'reactflow'
+import { Handle, type NodeProps, Position } from 'reactflow'
 import { Badge } from '@/components/emcn/components/badge/badge'
 import { Tooltip } from '@/components/emcn/components/tooltip/tooltip'
 import { getEnv, isTruthy } from '@/lib/env'
@@ -14,8 +14,7 @@ import { useDisplayName } from '@/hooks/use-display-name'
 import { usePanelEditorStore } from '@/stores/panel-new/editor/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
-import { useWorkflowStore } from '@/stores/workflows/workflow/store'
-import { useCurrentWorkflow } from '../../hooks'
+import { useBlockDimensions, useCurrentWorkflow } from '../../hooks'
 import { ActionBar, Connections } from './components'
 import {
   useBlockProperties,
@@ -267,7 +266,6 @@ export const WorkflowBlock = memo(function WorkflowBlock({
   const { type, config, name, isPending } = data
 
   const contentRef = useRef<HTMLDivElement>(null)
-  const updateNodeInternals = useUpdateNodeInternals()
 
   const params = useParams()
   const currentWorkflowId = params.workflowId as string
@@ -368,7 +366,6 @@ export const WorkflowBlock = memo(function WorkflowBlock({
     }
   }, [id, collaborativeSetSubblockValue])
 
-  const updateBlockLayoutMetrics = useWorkflowStore((state) => state.updateBlockLayoutMetrics)
   const activeWorkflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
   const setCurrentBlockId = usePanelEditorStore((state) => state.setCurrentBlockId)
   const currentBlockId = usePanelEditorStore((state) => state.currentBlockId)
@@ -377,14 +374,6 @@ export const WorkflowBlock = memo(function WorkflowBlock({
 
   const isStarterBlock = type === 'starter'
   const isWebhookTriggerBlock = type === 'webhook' || type === 'generic_webhook'
-
-  /**
-   * Update node internals when handles change to ensure ReactFlow
-   * correctly calculates connection points.
-   */
-  useEffect(() => {
-    updateNodeInternals(id)
-  }, [id, horizontalHandles, updateNodeInternals])
 
   /**
    * Subscribe to this block's subblock values to track changes for conditional rendering
@@ -605,51 +594,43 @@ export const WorkflowBlock = memo(function WorkflowBlock({
    *
    * Width is a fixed 250px for workflow blocks.
    */
-  useEffect(() => {
-    // Only workflow blocks (non-subflow) render here, width is constant
-    const FIXED_WIDTH = 250
-    const HEADER_HEIGHT = 40
-    const CONTENT_PADDING = 16
-    const ROW_HEIGHT = 29
+  useBlockDimensions({
+    blockId: id,
+    calculateDimensions: () => {
+      const FIXED_WIDTH = 250
+      const HEADER_HEIGHT = 40
+      const CONTENT_PADDING = 16
+      const ROW_HEIGHT = 29
 
-    const shouldShowDefaultHandles =
-      config.category !== 'triggers' && type !== 'starter' && !displayTriggerMode
-    const hasContentBelowHeader = subBlockRows.length > 0 || shouldShowDefaultHandles
+      const shouldShowDefaultHandles =
+        config.category !== 'triggers' && type !== 'starter' && !displayTriggerMode
+      const hasContentBelowHeader = subBlockRows.length > 0 || shouldShowDefaultHandles
 
-    // Count rows based on block type and whether default handles section is shown
-    const defaultHandlesRow = shouldShowDefaultHandles ? 1 : 0
+      // Count rows based on block type and whether default handles section is shown
+      const defaultHandlesRow = shouldShowDefaultHandles ? 1 : 0
 
-    let rowsCount = 0
-    if (type === 'condition') {
-      rowsCount = conditionRows.length + defaultHandlesRow
-    } else {
-      const subblockRowCount = subBlockRows.reduce((acc, row) => acc + row.length, 0)
-      rowsCount = subblockRowCount + defaultHandlesRow
-    }
+      let rowsCount = 0
+      if (type === 'condition') {
+        rowsCount = conditionRows.length + defaultHandlesRow
+      } else {
+        const subblockRowCount = subBlockRows.reduce((acc, row) => acc + row.length, 0)
+        rowsCount = subblockRowCount + defaultHandlesRow
+      }
 
-    const contentHeight = hasContentBelowHeader ? CONTENT_PADDING + rowsCount * ROW_HEIGHT : 0
-    const calculatedHeight = Math.max(HEADER_HEIGHT + contentHeight, 100)
+      const contentHeight = hasContentBelowHeader ? CONTENT_PADDING + rowsCount * ROW_HEIGHT : 0
+      const calculatedHeight = Math.max(HEADER_HEIGHT + contentHeight, 100)
 
-    const prevHeight =
-      typeof currentStoreBlock?.height === 'number' ? currentStoreBlock.height : undefined
-    const prevWidth = 250 // fixed across the app for workflow blocks
-
-    if (prevHeight !== calculatedHeight || prevWidth !== FIXED_WIDTH) {
-      updateBlockLayoutMetrics(id, { width: FIXED_WIDTH, height: calculatedHeight })
-      updateNodeInternals(id)
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    id,
-    type,
-    config.category,
-    displayTriggerMode,
-    subBlockRows.length,
-    conditionRows.length,
-    currentStoreBlock?.height,
-    updateBlockLayoutMetrics,
-    updateNodeInternals,
-  ])
+      return { width: FIXED_WIDTH, height: calculatedHeight }
+    },
+    dependencies: [
+      type,
+      config.category,
+      displayTriggerMode,
+      subBlockRows.length,
+      conditionRows.length,
+      horizontalHandles,
+    ],
+  })
 
   const showWebhookIndicator = (isStarterBlock || isWebhookTriggerBlock) && isWebhookConfigured
   const shouldShowScheduleBadge =
