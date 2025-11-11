@@ -13,20 +13,9 @@ import { useCredentialDisplay } from '@/hooks/use-credential-display'
 import { useDisplayName } from '@/hooks/use-display-name'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
-import {
-  useBlockDimensions,
-  useBlockFocus,
-  useBlockRingStyles,
-  useCurrentWorkflow,
-} from '../../hooks'
+import { useBlockCore, useBlockDimensions } from '../../hooks'
 import { ActionBar, Connections } from './components'
-import {
-  useBlockProperties,
-  useBlockState,
-  useChildWorkflow,
-  useScheduleInfo,
-  useWebhookInfo,
-} from './hooks'
+import { useBlockProperties, useChildWorkflow, useScheduleInfo, useWebhookInfo } from './hooks'
 import type { WorkflowBlockProps } from './types'
 import { getProviderName, shouldSkipBlockRender } from './utils'
 
@@ -275,14 +264,20 @@ export const WorkflowBlock = memo(function WorkflowBlock({
   const currentWorkflowId = params.workflowId as string
   const workspaceId = params.workspaceId as string
 
-  const currentWorkflow = useCurrentWorkflow()
-  const currentBlock = currentWorkflow.getBlockById(id)
-
-  const { isEnabled, isActive, diffStatus, isDeletedBlock } = useBlockState(
-    id,
+  const {
     currentWorkflow,
-    data
-  )
+    activeWorkflowId,
+    isEnabled,
+    isActive,
+    diffStatus,
+    isDeletedBlock,
+    isFocused,
+    handleClick,
+    hasRing,
+    ringStyles,
+  } = useBlockCore({ blockId: id, data, isPending })
+
+  const currentBlock = currentWorkflow.getBlockById(id)
 
   const { horizontalHandles, blockHeight, blockWidth, displayAdvancedMode, displayTriggerMode } =
     useBlockProperties(
@@ -370,8 +365,6 @@ export const WorkflowBlock = memo(function WorkflowBlock({
     }
   }, [id, collaborativeSetSubblockValue])
 
-  const activeWorkflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
-  const { isFocused, handleClick } = useBlockFocus(id)
   const currentStoreBlock = currentWorkflow.getBlockById(id)
 
   const isStarterBlock = type === 'starter'
@@ -639,14 +632,6 @@ export const WorkflowBlock = memo(function WorkflowBlock({
     type === 'schedule' && !isLoadingScheduleInfo && scheduleInfo !== null
   const userPermissions = useUserPermissionsContext()
   const isWorkflowSelector = type === 'workflow' || type === 'workflow_input'
-
-  const { hasRing, ringStyles } = useBlockRingStyles({
-    isActive,
-    isFocused,
-    isPending,
-    diffStatus,
-    isDeletedBlock,
-  })
 
   return (
     <div className='group relative'>

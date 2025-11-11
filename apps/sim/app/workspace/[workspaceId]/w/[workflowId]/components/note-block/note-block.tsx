@@ -4,16 +4,9 @@ import type { NodeProps } from 'reactflow'
 import remarkGfm from 'remark-gfm'
 import { cn } from '@/lib/utils'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
-import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
-import {
-  useBlockDimensions,
-  useBlockFocus,
-  useBlockRingStyles,
-  useCurrentWorkflow,
-} from '../../hooks'
+import { useBlockCore, useBlockDimensions } from '../../hooks'
 import { ActionBar } from '../workflow-block/components'
-import { useBlockState } from '../workflow-block/hooks'
 import type { WorkflowBlockProps } from '../workflow-block/types'
 
 interface NoteBlockNodeData extends WorkflowBlockProps {}
@@ -95,16 +88,9 @@ const NoteMarkdown = memo(function NoteMarkdown({ content }: { content: string }
 export const NoteBlock = memo(function NoteBlock({ id, data }: NodeProps<NoteBlockNodeData>) {
   const { type, config, name } = data
 
-  const { isFocused, handleClick } = useBlockFocus(id)
-
-  const currentWorkflow = useCurrentWorkflow()
-  const { isEnabled, isActive, diffStatus, isDeletedBlock } = useBlockState(
-    id,
-    currentWorkflow,
-    data
+  const { activeWorkflowId, isEnabled, isFocused, handleClick, hasRing, ringStyles } = useBlockCore(
+    { blockId: id, data }
   )
-
-  const activeWorkflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
   const storedValues = useSubBlockStore(
     useCallback(
       (state) => {
@@ -160,13 +146,6 @@ export const NoteBlock = memo(function NoteBlock({ id, data }: NodeProps<NoteBlo
       return { width: FIXED_WIDTH, height: calculatedHeight }
     },
     dependencies: [isEmpty],
-  })
-
-  const { hasRing, ringStyles } = useBlockRingStyles({
-    isActive,
-    isFocused,
-    diffStatus,
-    isDeletedBlock,
   })
 
   return (
