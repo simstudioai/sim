@@ -1447,6 +1447,11 @@ const WorkflowContent = React.memo(() => {
 
         if (!sourceNode || !targetNode) return
 
+        // Prevent connections to/from note blocks (annotation-only, non-executable)
+        if (sourceNode.data?.type === 'note' || targetNode.data?.type === 'note') {
+          return
+        }
+
         // Prevent incoming connections to trigger blocks (webhook, schedule, etc.)
         if (targetNode.data?.config?.category === 'triggers') {
           return

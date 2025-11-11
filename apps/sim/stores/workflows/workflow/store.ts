@@ -422,6 +422,14 @@ export const useWorkflowStore = create<WorkflowStore>()(
       },
 
       addEdge: (edge: Edge) => {
+        // Prevent connections to/from note blocks (annotation-only, non-executable)
+        const sourceBlock = get().blocks[edge.source]
+        const targetBlock = get().blocks[edge.target]
+
+        if (sourceBlock?.type === 'note' || targetBlock?.type === 'note') {
+          return
+        }
+
         // Check for duplicate connections
         const isDuplicate = get().edges.some(
           (existingEdge) =>

@@ -21,6 +21,8 @@ export enum BlockType {
 
   WAIT = 'wait',
 
+  NOTE = 'note',
+
   SENTINEL_START = 'sentinel_start',
   SENTINEL_END = 'sentinel_end',
 }
@@ -31,7 +33,11 @@ export const TRIGGER_BLOCK_TYPES = [
   BlockType.TRIGGER,
 ] as const
 
-export const METADATA_ONLY_BLOCK_TYPES = [BlockType.LOOP, BlockType.PARALLEL] as const
+export const METADATA_ONLY_BLOCK_TYPES = [
+  BlockType.LOOP,
+  BlockType.PARALLEL,
+  BlockType.NOTE,
+] as const
 
 export type LoopType = 'for' | 'forEach' | 'while' | 'doWhile'
 
