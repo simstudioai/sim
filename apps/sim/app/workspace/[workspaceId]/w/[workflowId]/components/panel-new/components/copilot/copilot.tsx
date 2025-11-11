@@ -441,7 +441,7 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
                 <div className='relative flex-1 overflow-hidden'>
                   <div
                     ref={scrollAreaRef}
-                    className='copilot-scrollable h-full overflow-y-auto overflow-x-hidden px-[8px]'
+                    className='h-full overflow-y-auto overflow-x-hidden px-[8px]'
                   >
                     <div
                       className={`w-full max-w-full space-y-4 overflow-hidden py-[8px] ${
