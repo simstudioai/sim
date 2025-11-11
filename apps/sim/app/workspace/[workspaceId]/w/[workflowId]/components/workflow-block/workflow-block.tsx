@@ -11,10 +11,14 @@ import type { SubBlockConfig } from '@/blocks/types'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { useCredentialDisplay } from '@/hooks/use-credential-display'
 import { useDisplayName } from '@/hooks/use-display-name'
-import { usePanelEditorStore } from '@/stores/panel-new/editor/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
-import { useBlockDimensions, useCurrentWorkflow } from '../../hooks'
+import {
+  useBlockDimensions,
+  useBlockFocus,
+  useBlockRingStyles,
+  useCurrentWorkflow,
+} from '../../hooks'
 import { ActionBar, Connections } from './components'
 import {
   useBlockProperties,
@@ -367,9 +371,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
   }, [id, collaborativeSetSubblockValue])
 
   const activeWorkflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
-  const setCurrentBlockId = usePanelEditorStore((state) => state.setCurrentBlockId)
-  const currentBlockId = usePanelEditorStore((state) => state.currentBlockId)
-  const isFocused = currentBlockId === id
+  const { isFocused, handleClick } = useBlockFocus(id)
   const currentStoreBlock = currentWorkflow.getBlockById(id)
 
   const isStarterBlock = type === 'starter'
@@ -638,35 +640,19 @@ export const WorkflowBlock = memo(function WorkflowBlock({
   const userPermissions = useUserPermissionsContext()
   const isWorkflowSelector = type === 'workflow' || type === 'workflow_input'
 
-  /**
-   * Determine the ring styling based on block state priority:
-   * 1. Active (executing) - purple ring with pulse animation
-   * 2. Pending (next step) - orange ring
-   * 3. Focused (selected in editor) - blue ring
-   * 4. Diff status (version comparison) - green/orange/red ring
-   */
-  const hasRing =
-    isActive ||
-    isPending ||
-    isFocused ||
-    diffStatus === 'new' ||
-    diffStatus === 'edited' ||
-    isDeletedBlock
-  const ringStyles = cn(
-    hasRing && 'ring-[1.75px]',
-    isActive && 'ring-[#8C10FF] animate-pulse-ring',
-    isPending && 'ring-[#FF6600]',
-    isFocused && 'ring-[#33B4FF]',
-    diffStatus === 'new' && 'ring-[#22C55F]',
-    diffStatus === 'edited' && 'ring-[#FF6600]',
-    isDeletedBlock && 'ring-[#EF4444]'
-  )
+  const { hasRing, ringStyles } = useBlockRingStyles({
+    isActive,
+    isFocused,
+    isPending,
+    diffStatus,
+    isDeletedBlock,
+  })
 
   return (
     <div className='group relative'>
       <div
         ref={contentRef}
-        onClick={() => setCurrentBlockId(id)}
+        onClick={handleClick}
         className={cn(
           'relative z-[20] w-[250px] cursor-default select-none rounded-[8px] bg-[#232323]'
         )}

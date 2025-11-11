@@ -4,11 +4,14 @@ import type { NodeProps } from 'reactflow'
 import remarkGfm from 'remark-gfm'
 import { cn } from '@/lib/utils'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
-import { usePanelEditorStore } from '@/stores/panel-new/editor/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
-import { useCurrentWorkflow } from '../../hooks'
-import { useBlockDimensions } from '../../hooks/use-block-dimensions'
+import {
+  useBlockDimensions,
+  useBlockFocus,
+  useBlockRingStyles,
+  useCurrentWorkflow,
+} from '../../hooks'
 import { ActionBar } from '../workflow-block/components'
 import { useBlockState } from '../workflow-block/hooks'
 import type { WorkflowBlockProps } from '../workflow-block/types'
@@ -92,9 +95,7 @@ const NoteMarkdown = memo(function NoteMarkdown({ content }: { content: string }
 export const NoteBlock = memo(function NoteBlock({ id, data }: NodeProps<NoteBlockNodeData>) {
   const { type, config, name } = data
 
-  const setCurrentBlockId = usePanelEditorStore((state) => state.setCurrentBlockId)
-  const currentBlockId = usePanelEditorStore((state) => state.currentBlockId)
-  const isFocused = currentBlockId === id
+  const { isFocused, handleClick } = useBlockFocus(id)
 
   const currentWorkflow = useCurrentWorkflow()
   const { isEnabled, isActive, diffStatus, isDeletedBlock } = useBlockState(
@@ -161,16 +162,12 @@ export const NoteBlock = memo(function NoteBlock({ id, data }: NodeProps<NoteBlo
     dependencies: [isEmpty],
   })
 
-  const hasRing =
-    isActive || isFocused || diffStatus === 'new' || diffStatus === 'edited' || isDeletedBlock
-  const ringStyles = cn(
-    hasRing && 'ring-[1.75px]',
-    isActive && 'ring-[#8C10FF] animate-pulse-ring',
-    isFocused && 'ring-[#33B4FF]',
-    diffStatus === 'new' && 'ring-[#22C55F]',
-    diffStatus === 'edited' && 'ring-[#FF6600]',
-    isDeletedBlock && 'ring-[#EF4444]'
-  )
+  const { hasRing, ringStyles } = useBlockRingStyles({
+    isActive,
+    isFocused,
+    diffStatus,
+    isDeletedBlock,
+  })
 
   return (
     <div className='group relative'>
@@ -178,7 +175,7 @@ export const NoteBlock = memo(function NoteBlock({ id, data }: NodeProps<NoteBlo
         className={cn(
           'relative z-[20] w-[250px] cursor-default select-none rounded-[8px] bg-[#232323]'
         )}
-        onClick={() => setCurrentBlockId(id)}
+        onClick={handleClick}
       >
         <ActionBar blockId={id} blockType={type} disabled={!userPermissions.canEdit} />
 
