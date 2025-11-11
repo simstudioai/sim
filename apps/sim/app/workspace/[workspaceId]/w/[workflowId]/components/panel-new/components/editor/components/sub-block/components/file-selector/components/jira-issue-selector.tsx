@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Check, ChevronDown, ExternalLink, RefreshCw, X } from 'lucide-react'
+import { Check, ChevronDown, RefreshCw } from 'lucide-react'
 import { JiraIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
 import {
@@ -416,18 +416,6 @@ export function JiraIssueSelector({
   }
 
   // Fetch selected issue metadata once credentials are ready or changed
-  useEffect(() => {
-    if (
-      value &&
-      selectedCredentialId &&
-      domain &&
-      domain.includes('.') &&
-      (!selectedIssue || selectedIssue.id !== value)
-    ) {
-      fetchIssueInfo(value)
-    }
-  }, [value, selectedCredentialId, selectedIssue, domain, fetchIssueInfo])
-
   // Keep internal selectedIssueId in sync with the value prop
   useEffect(() => {
     if (value !== selectedIssueId) {
@@ -610,51 +598,6 @@ export function JiraIssueSelector({
             </PopoverContent>
           )}
         </Popover>
-
-        {/* Issue preview */}
-        {showPreview && selectedIssue && (
-          <div className='relative mt-2 rounded-md border border-muted bg-muted/10 p-2'>
-            <div className='absolute top-2 right-2'>
-              <Button
-                variant='ghost'
-                size='icon'
-                className='h-5 w-5 hover:bg-muted'
-                onClick={handleClearSelection}
-              >
-                <X className='h-3 w-3' />
-              </Button>
-            </div>
-            <div className='flex items-center gap-3 pr-4'>
-              <div className='flex h-6 w-6 flex-shrink-0 items-center justify-center rounded bg-muted/20'>
-                <JiraIcon className='h-4 w-4' />
-              </div>
-              <div className='min-w-0 flex-1 overflow-hidden'>
-                <div className='flex items-center gap-2'>
-                  <h4 className='truncate font-medium text-xs'>{selectedIssue.name}</h4>
-                  {selectedIssue.modifiedTime && (
-                    <span className='whitespace-nowrap text-muted-foreground text-xs'>
-                      {new Date(selectedIssue.modifiedTime).toLocaleDateString()}
-                    </span>
-                  )}
-                </div>
-                {selectedIssue.webViewLink ? (
-                  <a
-                    href={selectedIssue.webViewLink}
-                    target='_blank'
-                    rel='noopener noreferrer'
-                    className='flex items-center gap-1 text-foreground text-xs hover:underline'
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <span>Open in Jira</span>
-                    <ExternalLink className='h-3 w-3' />
-                  </a>
-                ) : (
-                  <></>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
       </div>
 
       {showOAuthModal && (

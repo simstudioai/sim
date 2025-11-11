@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Check, ChevronDown, ExternalLink, RefreshCw, X } from 'lucide-react'
+import { Check, ChevronDown, ExternalLink, RefreshCw } from 'lucide-react'
 import { MicrosoftExcelIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
 import {
@@ -281,7 +281,6 @@ export function MicrosoftFileSelector({
                 ]
               : [],
           }
-          setSelectedFile(fileInfo)
           onFileInfoChange?.(fileInfo)
           return fileInfo
         }
@@ -309,7 +308,6 @@ export function MicrosoftFileSelector({
           mimeType: 'sharepoint/site',
           webViewLink: site.webUrl,
         }
-        setSelectedFile(siteInfo)
         onFileInfoChange?.(siteInfo)
         return siteInfo
       } catch (error) {
@@ -433,7 +431,6 @@ export function MicrosoftFileSelector({
           modifiedTime: task.createdDateTime,
         }
         setSelectedTask(task)
-        setSelectedFile(taskAsFileInfo)
         onFileInfoChange?.(taskAsFileInfo)
         return taskAsFileInfo
       } catch {
@@ -498,7 +495,6 @@ export function MicrosoftFileSelector({
 
     // Update internal state first to avoid race with list refetch
     setSelectedFileId(taskId)
-    setSelectedFile(taskAsFileInfo)
     setSelectedTask(task)
     // Then propagate up
     onChange(taskId, taskAsFileInfo)
@@ -524,81 +520,26 @@ export function MicrosoftFileSelector({
 
     if (!selectedCredentialId) {
       // No credentials - clear everything
-      if (selectedFile) {
-        setSelectedFile(null)
-        setSelectedFileId('')
-        onChange('')
-      }
+      setSelectedFileId('')
+      onChange('')
       // Reset memo when credential is cleared
       lastMetaAttemptRef.current = ''
     } else if (prevCredentialId && prevCredentialId !== selectedCredentialId) {
-      // Credentials changed (not initial load) - clear file info to force refetch
-      if (selectedFile) {
-        setSelectedFile(null)
-      }
       // Reset memo when switching credentials
       lastMetaAttemptRef.current = ''
     }
-  }, [selectedCredentialId, selectedFile, onChange])
+  }, [selectedCredentialId, onChange])
 
-  // Fetch the selected file metadata once credentials are loaded or changed
+  // Keep internal selectedFileId in sync with the value prop
   useEffect(() => {
-    // Fetch metadata when the external value doesn't match our current selectedFile
-    if (
-      value &&
-      selectedCredentialId &&
-      credentialsLoaded &&
-      (!selectedFile || selectedFile.id !== value) &&
-      !isLoadingSelectedFile
-    ) {
-      // Avoid tight retry loops by memoizing the last attempt tuple
-      const attemptKey = `${selectedCredentialId}::${value}`
-      if (lastMetaAttemptRef.current === attemptKey) {
-        return
-      }
-      lastMetaAttemptRef.current = attemptKey
-
-      if (serviceId === 'microsoft-planner') {
-        void fetchPlannerTaskById(value)
-      } else {
-        void fetchFileById(value)
-      }
+    if (value !== selectedFileId) {
+      setSelectedFileId(value)
     }
-  }, [
-    value,
-    selectedCredentialId,
-    credentialsLoaded,
-    selectedFile,
-    isLoadingSelectedFile,
-    fetchFileById,
-    fetchPlannerTaskById,
-    serviceId,
-  ])
-
-  // Resolve planner task selection for collaborators
-  useEffect(() => {
-    if (
-      value &&
-      selectedCredentialId &&
-      credentialsLoaded &&
-      !selectedTask &&
-      serviceId === 'microsoft-planner'
-    ) {
-      void fetchPlannerTaskById(value)
-    }
-  }, [
-    value,
-    selectedCredentialId,
-    credentialsLoaded,
-    selectedTask,
-    serviceId,
-    fetchPlannerTaskById,
-  ])
+  }, [value, selectedFileId])
 
   // Handle selecting a file from the available files
   const handleFileSelect = (file: MicrosoftFileInfo) => {
     setSelectedFileId(file.id)
-    setSelectedFile(file)
     onChange(file.id, file)
     onFileInfoChange?.(file)
     setOpen(false)
@@ -616,7 +557,6 @@ export function MicrosoftFileSelector({
   // Clear selection
   const handleClearSelection = () => {
     setSelectedFileId('')
-    setSelectedFile(null)
     onChange('', undefined)
     onFileInfoChange?.(null)
   }
@@ -780,13 +720,6 @@ export function MicrosoftFileSelector({
           return title.toLowerCase().includes(query.toLowerCase())
         })
       : availableFiles
-
-  const canShowPreview = !!(
-    showPreview &&
-    selectedFile &&
-    selectedFileId &&
-    selectedFile.id === selectedFileId
-  )
 
   return (
     <>
@@ -979,68 +912,6 @@ export function MicrosoftFileSelector({
             </PopoverContent>
           )}
         </Popover>
-
-        {/* File preview */}
-        {canShowPreview && (
-          <div className='relative mt-2 rounded-md border border-muted bg-muted/10 p-2'>
-            <div className='absolute top-2 right-2'>
-              <Button
-                variant='ghost'
-                size='icon'
-                className='h-5 w-5 hover:bg-muted'
-                onClick={handleClearSelection}
-              >
-                <X className='h-3 w-3' />
-              </Button>
-            </div>
-            <div className='flex items-center gap-3 pr-4'>
-              <div className='flex h-6 w-6 flex-shrink-0 items-center justify-center rounded bg-muted/20'>
-                {getFileIcon(selectedFile, 'sm')}
-              </div>
-              <div className='min-w-0 flex-1 overflow-hidden'>
-                <div className='flex items-center gap-2'>
-                  <h4 className='truncate font-medium text-xs'>{selectedFile.name}</h4>
-                  {selectedFile.modifiedTime && (
-                    <span className='whitespace-nowrap text-muted-foreground text-xs'>
-                      {new Date(selectedFile.modifiedTime).toLocaleDateString()}
-                    </span>
-                  )}
-                </div>
-                {selectedFile.webViewLink ? (
-                  <a
-                    href={selectedFile.webViewLink}
-                    target='_blank'
-                    rel='noopener noreferrer'
-                    className='flex items-center gap-1 text-foreground text-xs hover:underline'
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <span>
-                      {serviceId === 'microsoft-planner'
-                        ? 'Open in Planner'
-                        : serviceId === 'sharepoint'
-                          ? 'Open in SharePoint'
-                          : 'Open in OneDrive'}
-                    </span>
-                    <ExternalLink className='h-3 w-3' />
-                  </a>
-                ) : (
-                  <a
-                    href={`https://graph.microsoft.com/v1.0/me/drive/items/${selectedFile.id}`}
-                    target='_blank'
-                    rel='noopener noreferrer'
-                    className='flex items-center gap-1 text-foreground text-xs hover:underline'
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <span>
-                      {serviceId === 'sharepoint' ? 'Open in SharePoint' : 'Open in OneDrive'}
-                    </span>
-                    <ExternalLink className='h-3 w-3' />
-                  </a>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
       </div>
 
       {showOAuthModal && (
