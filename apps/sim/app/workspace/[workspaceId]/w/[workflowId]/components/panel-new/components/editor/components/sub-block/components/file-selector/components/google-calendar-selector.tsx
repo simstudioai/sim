@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/command'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { createLogger } from '@/lib/logs/console/logger'
+import { useDisplayNamesStore } from '@/stores/display-names/store'
 
 const logger = createLogger('GoogleCalendarSelector')
 
@@ -56,6 +57,17 @@ export function GoogleCalendarSelector({
   const [error, setError] = useState<string | null>(null)
   const [initialFetchDone, setInitialFetchDone] = useState(false)
 
+  // Get cached display name
+  const cachedCalendarName = useDisplayNamesStore(
+    useCallback(
+      (state) => {
+        if (!credentialId || !value) return null
+        return state.cache.files[credentialId]?.[value] || null
+      },
+      [credentialId, value]
+    )
+  )
+
   const fetchCalendarsFromAPI = useCallback(async (): Promise<GoogleCalendarInfo[]> => {
     if (!credentialId) {
       throw new Error('Google Calendar account is required')
@@ -87,15 +99,19 @@ export function GoogleCalendarSelector({
       const calendars = await fetchCalendarsFromAPI()
       setCalendars(calendars)
 
-      const currentSelectedId = selectedCalendarId
-      if (currentSelectedId) {
-        const calendarInfo = calendars.find(
-          (calendar: GoogleCalendarInfo) => calendar.id === currentSelectedId
-        )
-        if (calendarInfo) {
-          setSelectedCalendar(calendarInfo)
-          onCalendarInfoChange?.(calendarInfo)
-        }
+      // Cache calendar names
+      if (credentialId && calendars.length > 0) {
+        const calendarMap = calendars.reduce<Record<string, string>>((acc, cal) => {
+          acc[cal.id] = cal.summary
+          return acc
+        }, {})
+        useDisplayNamesStore.getState().setDisplayNames('files', credentialId, calendarMap)
+      }
+
+      // Update selected calendar if we have a value
+      if (selectedCalendarId && calendars.length > 0) {
+        const calendar = calendars.find((c) => c.id === selectedCalendarId)
+        setSelectedCalendar(calendar || null)
       }
     } catch (error) {
       logger.error('Error fetching calendars:', error)
@@ -105,7 +121,7 @@ export function GoogleCalendarSelector({
       setIsLoading(false)
       setInitialFetchDone(true)
     }
-  }, [fetchCalendarsFromAPI, selectedCalendarId, onCalendarInfoChange])
+  }, [fetchCalendarsFromAPI, credentialId])
 
   const handleOpenChange = (isOpen: boolean) => {
     setOpen(isOpen)
@@ -115,67 +131,12 @@ export function GoogleCalendarSelector({
     }
   }
 
-  const fetchSelectedCalendarInfo = useCallback(async () => {
-    if (!selectedCalendarId) return
-
-    setIsLoading(true)
-    setError(null)
-
-    try {
-      const calendars = await fetchCalendarsFromAPI()
-
-      if (calendars.length > 0) {
-        const calendarInfo = calendars.find(
-          (calendar: GoogleCalendarInfo) => calendar.id === selectedCalendarId
-        )
-        if (calendarInfo) {
-          setSelectedCalendar(calendarInfo)
-          onCalendarInfoChange?.(calendarInfo)
-        }
-      }
-    } catch (error) {
-      logger.error('Error fetching calendar info:', error)
-      setError((error as Error).message)
-    } finally {
-      setIsLoading(false)
-    }
-  }, [fetchCalendarsFromAPI, selectedCalendarId, onCalendarInfoChange])
-
-  // Fetch selected calendar info when component mounts or dependencies change
-  useEffect(() => {
-    if (value && credentialId && (!selectedCalendar || selectedCalendar.id !== value)) {
-      fetchSelectedCalendarInfo()
-    }
-  }, [value, credentialId, selectedCalendar, fetchSelectedCalendarInfo])
-
-  // Sync with external value
+  // Sync selected ID with external value
   useEffect(() => {
     if (value !== selectedCalendarId) {
       setSelectedCalendarId(value)
-
-      // Find calendar info for the new value
-      if (value && calendars.length > 0) {
-        const calendarInfo = calendars.find((calendar) => calendar.id === value)
-        setSelectedCalendar(calendarInfo || null)
-        onCalendarInfoChange?.(calendarInfo || null)
-      } else if (value) {
-        // If we have a value but no calendar info, we might need to fetch it
-        if (!selectedCalendar || selectedCalendar.id !== value) {
-          fetchSelectedCalendarInfo()
-        }
-      } else {
-        setSelectedCalendar(null)
-        onCalendarInfoChange?.(null)
-      }
     }
-  }, [
-    value,
-    calendars,
-    selectedCalendarId,
-    selectedCalendar,
-    fetchSelectedCalendarInfo,
-    onCalendarInfoChange,
-  ])
+  }, [value, selectedCalendarId])
 
   // Handle calendar selection
   const handleSelectCalendar = (calendar: GoogleCalendarInfo) => {
@@ -189,7 +150,6 @@ export function GoogleCalendarSelector({
   // Clear selection
   const handleClearSelection = () => {
     setSelectedCalendarId('')
-    setSelectedCalendar(null)
     onChange('', undefined)
     onCalendarInfoChange?.(null)
     setError(null)
@@ -215,17 +175,10 @@ export function GoogleCalendarSelector({
             disabled={disabled || !credentialId}
           >
             <div className='flex min-w-0 items-center gap-2 overflow-hidden'>
-              {selectedCalendar ? (
+              {cachedCalendarName ? (
                 <>
-                  <div
-                    className='h-3 w-3 flex-shrink-0 rounded-full'
-                    style={{
-                      backgroundColor: selectedCalendar.backgroundColor || '#4285f4',
-                    }}
-                  />
-                  <span className='truncate font-normal'>
-                    {getCalendarDisplayName(selectedCalendar)}
-                  </span>
+                  <GoogleCalendarIcon className='h-4 w-4' />
+                  <span className='truncate font-normal'>{cachedCalendarName}</span>
                 </>
               ) : (
                 <>
@@ -298,7 +251,6 @@ export function GoogleCalendarSelector({
         </PopoverContent>
       </Popover>
 
-      {/* Calendar preview */}
       {showPreview && selectedCalendar && (
         <div className='relative mt-2 rounded-md border border-muted bg-muted/10 p-2'>
           <div className='absolute top-2 right-2'>

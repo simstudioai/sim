@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { X } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { Combobox, type ComboboxOption } from '@/components/emcn/components/combobox/combobox'
@@ -29,12 +29,14 @@ export function KnowledgeBaseSelector({
   const params = useParams()
   const workspaceId = params.workspaceId as string
 
-  const { loadingKnowledgeBasesList } = useKnowledgeStore()
+  const knowledgeBasesList = useKnowledgeStore((state) => state.knowledgeBasesList)
+  const knowledgeBasesMap = useKnowledgeStore((state) => state.knowledgeBases)
+  const loadingKnowledgeBasesList = useKnowledgeStore((state) => state.loadingKnowledgeBasesList)
+  const getKnowledgeBasesList = useKnowledgeStore((state) => state.getKnowledgeBasesList)
+  const getKnowledgeBase = useKnowledgeStore((state) => state.getKnowledgeBase)
 
-  const [knowledgeBases, setKnowledgeBases] = useState<KnowledgeBaseData[]>([])
-  const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [initialFetchDone, setInitialFetchDone] = useState(false)
+  const hasRequestedListRef = useRef(false)
 
   // Use the proper hook to get the current value and setter - this prevents infinite loops
   const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlock.id)
@@ -47,13 +49,24 @@ export function KnowledgeBaseSelector({
   /**
    * Convert knowledge bases to combobox options format
    */
+  const combinedKnowledgeBases = useMemo<KnowledgeBaseData[]>(() => {
+    const merged = new Map<string, KnowledgeBaseData>()
+    knowledgeBasesList.forEach((kb) => {
+      merged.set(kb.id, kb)
+    })
+    Object.values(knowledgeBasesMap).forEach((kb) => {
+      merged.set(kb.id, kb)
+    })
+    return Array.from(merged.values())
+  }, [knowledgeBasesList, knowledgeBasesMap])
+
   const options = useMemo<ComboboxOption[]>(() => {
-    return knowledgeBases.map((kb) => ({
+    return combinedKnowledgeBases.map((kb) => ({
       label: kb.name,
       value: kb.id,
       icon: PackageSearchIcon,
     }))
-  }, [knowledgeBases])
+  }, [combinedKnowledgeBases])
 
   /**
    * Parse value into array of selected IDs
@@ -74,51 +87,18 @@ export function KnowledgeBaseSelector({
   /**
    * Compute selected knowledge bases for tag display
    */
-  const selectedKnowledgeBases = useMemo(() => {
-    if (selectedIds.length > 0 && knowledgeBases.length > 0) {
-      return knowledgeBases.filter((kb) => selectedIds.includes(kb.id))
-    }
-    return []
-  }, [selectedIds, knowledgeBases])
+  const selectedKnowledgeBases = useMemo<KnowledgeBaseData[]>(() => {
+    if (selectedIds.length === 0) return []
 
-  /**
-   * Fetch knowledge bases directly from API
-   */
-  const fetchKnowledgeBases = useCallback(async () => {
-    setLoading(true)
-    setError(null)
+    const lookup = new Map<string, KnowledgeBaseData>()
+    combinedKnowledgeBases.forEach((kb) => {
+      lookup.set(kb.id, kb)
+    })
 
-    try {
-      const url = workspaceId ? `/api/knowledge?workspaceId=${workspaceId}` : '/api/knowledge'
-      const response = await fetch(url, {
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      })
-
-      if (!response.ok) {
-        throw new Error(
-          `Failed to fetch knowledge bases: ${response.status} ${response.statusText}`
-        )
-      }
-
-      const result = await response.json()
-
-      if (!result.success) {
-        throw new Error(result.error || 'Failed to fetch knowledge bases')
-      }
-
-      const data = result.data || []
-      setKnowledgeBases(data)
-      setInitialFetchDone(true)
-    } catch (err) {
-      if ((err as Error).name === 'AbortError') return
-      setError((err as Error).message)
-      setKnowledgeBases([])
-    } finally {
-      setLoading(false)
-    }
-  }, [workspaceId])
+    return selectedIds
+      .map((id) => lookup.get(id))
+      .filter((kb): kb is KnowledgeBaseData => Boolean(kb))
+  }, [selectedIds, combinedKnowledgeBases])
 
   /**
    * Handle single selection
@@ -168,10 +148,39 @@ export function KnowledgeBaseSelector({
    * Fetch knowledge bases on initial mount
    */
   useEffect(() => {
-    if (!initialFetchDone && !loading && !isPreview) {
-      fetchKnowledgeBases()
+    if (hasRequestedListRef.current) return
+
+    let cancelled = false
+    hasRequestedListRef.current = true
+    setError(null)
+    getKnowledgeBasesList(workspaceId).catch((err) => {
+      if (cancelled) return
+      setError(err instanceof Error ? err.message : 'Failed to load knowledge bases')
+    })
+
+    return () => {
+      cancelled = true
     }
-  }, [initialFetchDone, loading, isPreview, fetchKnowledgeBases])
+  }, [workspaceId, getKnowledgeBasesList])
+
+  /**
+   * Ensure selected knowledge bases are cached
+   */
+  useEffect(() => {
+    if (selectedIds.length === 0) return
+
+    selectedIds.forEach((id) => {
+      const isKnown =
+        Boolean(knowledgeBasesMap[id]) ||
+        knowledgeBasesList.some((knowledgeBase) => knowledgeBase.id === id)
+
+      if (!isKnown) {
+        void getKnowledgeBase(id).catch(() => {
+          // Ignore fetch errors here; they will surface via display hooks if needed
+        })
+      }
+    })
+  }, [selectedIds, knowledgeBasesList, knowledgeBasesMap, getKnowledgeBase])
 
   const label =
     subBlock.placeholder || (isMultiSelect ? 'Select knowledge bases' : 'Select knowledge base')
@@ -212,7 +221,7 @@ export function KnowledgeBaseSelector({
         onMultiSelectChange={handleMultiSelectChange}
         placeholder={label}
         disabled={disabled || isPreview}
-        isLoading={loading || loadingKnowledgeBasesList}
+        isLoading={loadingKnowledgeBasesList}
         error={error}
       />
     </div>

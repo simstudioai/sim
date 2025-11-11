@@ -54,6 +54,7 @@ export const microsoftTeamsChatSubscriptionTrigger: TriggerConfig = {
     {
       id: 'triggerInstructions',
       title: 'Setup Instructions',
+      hideFromPreview: true,
       type: 'text',
       defaultValue: [
         'Connect your Microsoft Teams account and grant the required permissions.',
@@ -75,6 +76,7 @@ export const microsoftTeamsChatSubscriptionTrigger: TriggerConfig = {
       id: 'triggerSave',
       title: '',
       type: 'trigger-save',
+      hideFromPreview: true,
       mode: 'trigger',
       triggerId: 'microsoftteams_chat_subscription',
       condition: {

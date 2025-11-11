@@ -21,6 +21,7 @@ import {
 } from '@/lib/oauth'
 import { OAuthRequiredModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/components/sub-block/components/credential-selector/components/oauth-required-modal'
 import { getMissingRequiredScopes } from '@/hooks/use-oauth-scope-status'
+import { useDisplayNamesStore } from '@/stores/display-names/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 const logger = createLogger('ToolCredentialSelector')
@@ -87,6 +88,18 @@ export function ToolCredentialSelector({
         const data = await response.json()
         setCredentials(data.credentials || [])
 
+        // Cache credential names for block previews
+        if (provider) {
+          const credentialMap = (data.credentials || []).reduce(
+            (acc: Record<string, string>, cred: Credential) => {
+              acc[cred.id] = cred.name
+              return acc
+            },
+            {}
+          )
+          useDisplayNamesStore.getState().setDisplayNames('credentials', provider, credentialMap)
+        }
+
         if (
           value &&
           !(data.credentials || []).some((cred: Credential) => cred.id === value) &&
@@ -99,7 +112,19 @@ export function ToolCredentialSelector({
             if (metaResp.ok) {
               const meta = await metaResp.json()
               if (meta.credentials?.length) {
-                setCredentials([meta.credentials[0], ...(data.credentials || [])])
+                const combinedCredentials = [meta.credentials[0], ...(data.credentials || [])]
+                setCredentials(combinedCredentials)
+
+                const credentialMap = combinedCredentials.reduce(
+                  (acc: Record<string, string>, cred: Credential) => {
+                    acc[cred.id] = cred.name
+                    return acc
+                  },
+                  {}
+                )
+                useDisplayNamesStore
+                  .getState()
+                  .setDisplayNames('credentials', provider, credentialMap)
               }
             }
           } catch {

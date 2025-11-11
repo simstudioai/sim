@@ -42,6 +42,7 @@ export const linearCycleUpdatedTrigger: TriggerConfig = {
     {
       id: 'triggerInstructions',
       title: 'Setup Instructions',
+      hideFromPreview: true,
       type: 'text',
       defaultValue: linearSetupInstructions('Cycle (update)'),
       mode: 'trigger',
@@ -54,6 +55,7 @@ export const linearCycleUpdatedTrigger: TriggerConfig = {
       id: 'triggerSave',
       title: '',
       type: 'trigger-save',
+      hideFromPreview: true,
       mode: 'trigger',
       triggerId: 'linear_cycle_updated',
       condition: {

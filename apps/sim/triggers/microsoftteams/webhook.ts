@@ -54,6 +54,7 @@ export const microsoftTeamsWebhookTrigger: TriggerConfig = {
     {
       id: 'triggerInstructions',
       title: 'Setup Instructions',
+      hideFromPreview: true,
       type: 'text',
       defaultValue: [
         'Open Microsoft Teams and go to the team where you want to add the webhook.',
@@ -79,6 +80,7 @@ export const microsoftTeamsWebhookTrigger: TriggerConfig = {
       id: 'triggerSave',
       title: '',
       type: 'trigger-save',
+      hideFromPreview: true,
       mode: 'trigger',
       triggerId: 'microsoftteams_webhook',
       condition: {

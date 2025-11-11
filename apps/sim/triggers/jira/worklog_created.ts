@@ -59,6 +59,7 @@ export const jiraWorklogCreatedTrigger: TriggerConfig = {
     {
       id: 'triggerInstructions',
       title: 'Setup Instructions',
+      hideFromPreview: true,
       type: 'text',
       defaultValue: jiraSetupInstructions('worklog_created'),
       mode: 'trigger',
@@ -71,6 +72,7 @@ export const jiraWorklogCreatedTrigger: TriggerConfig = {
       id: 'triggerSave',
       title: '',
       type: 'trigger-save',
+      hideFromPreview: true,
       mode: 'trigger',
       triggerId: 'jira_worklog_created',
       condition: {

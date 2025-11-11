@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Check, ChevronDown, RefreshCw } from 'lucide-react'
 import { LinearIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
@@ -11,6 +11,7 @@ import {
   CommandList,
 } from '@/components/ui/command'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { useDisplayNamesStore } from '@/stores/display-names/store'
 
 export interface LinearTeamInfo {
   id: string
@@ -39,7 +40,17 @@ export function LinearTeamSelector({
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [open, setOpen] = useState(false)
-  const [selectedTeam, setSelectedTeam] = useState<LinearTeamInfo | null>(null)
+
+  // Get cached display name
+  const cachedTeamName = useDisplayNamesStore(
+    useCallback(
+      (state) => {
+        if (!credential || !value) return null
+        return state.cache.projects[`linear-${credential}`]?.[value] || null
+      },
+      [credential, value]
+    )
+  )
 
   useEffect(() => {
     if (!credential) return
@@ -64,10 +75,18 @@ export function LinearTeamSelector({
         } else {
           setTeams(data.teams)
 
-          // Find selected team info if we have a value
-          if (value) {
-            const teamInfo = data.teams.find((t: LinearTeamInfo) => t.id === value)
-            setSelectedTeam(teamInfo || null)
+          // Cache team names in display names store
+          if (credential && data.teams) {
+            const teamMap = data.teams.reduce(
+              (acc: Record<string, string>, team: LinearTeamInfo) => {
+                acc[team.id] = team.name
+                return acc
+              },
+              {}
+            )
+            useDisplayNamesStore
+              .getState()
+              .setDisplayNames('projects', `linear-${credential}`, teamMap)
           }
         }
       })
@@ -80,18 +99,7 @@ export function LinearTeamSelector({
     return () => controller.abort()
   }, [credential, value, workflowId])
 
-  // Sync selected team with value prop
-  useEffect(() => {
-    if (value && teams.length > 0) {
-      const teamInfo = teams.find((t) => t.id === value)
-      setSelectedTeam(teamInfo || null)
-    } else if (!value) {
-      setSelectedTeam(null)
-    }
-  }, [value, teams])
-
   const handleSelectTeam = (team: LinearTeamInfo) => {
-    setSelectedTeam(team)
     onChange(team.id, team)
     setOpen(false)
   }
@@ -110,10 +118,10 @@ export function LinearTeamSelector({
           className='w-full justify-between'
           disabled={disabled || !credential}
         >
-          {selectedTeam ? (
+          {cachedTeamName ? (
             <div className='flex items-center gap-2 overflow-hidden'>
               <LinearIcon className='h-4 w-4' />
-              <span className='truncate font-normal'>{selectedTeam.name}</span>
+              <span className='truncate font-normal'>{cachedTeamName}</span>
             </div>
           ) : (
             <div className='flex items-center gap-2'>

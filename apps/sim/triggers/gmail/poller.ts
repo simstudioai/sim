@@ -105,6 +105,7 @@ export const gmailPollingTrigger: TriggerConfig = {
     {
       id: 'triggerInstructions',
       title: 'Setup Instructions',
+      hideFromPreview: true,
       type: 'text',
       defaultValue: [
         'Connect your Gmail account using OAuth credentials',
@@ -122,6 +123,7 @@ export const gmailPollingTrigger: TriggerConfig = {
       id: 'triggerSave',
       title: '',
       type: 'trigger-save',
+      hideFromPreview: true,
       mode: 'trigger',
       triggerId: 'gmail_poller',
     },

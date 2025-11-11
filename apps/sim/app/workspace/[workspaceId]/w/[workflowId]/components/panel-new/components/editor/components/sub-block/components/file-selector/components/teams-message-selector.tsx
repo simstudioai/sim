@@ -21,6 +21,7 @@ import {
   type OAuthProvider,
 } from '@/lib/oauth'
 import { OAuthRequiredModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/components/sub-block/components/credential-selector/components/oauth-required-modal'
+import { useDisplayNamesStore } from '@/stores/display-names/store'
 
 const logger = createLogger('TeamsMessageSelector')
 
@@ -83,6 +84,17 @@ export function TeamsMessageSelector({
   const initialFetchRef = useRef(false)
   const [error, setError] = useState<string | null>(null)
   const [selectionStage, setSelectionStage] = useState<'team' | 'channel' | 'chat'>(selectionType)
+
+  // Get cached display name
+  const cachedMessageName = useDisplayNamesStore(
+    useCallback(
+      (state) => {
+        if (!credential || !value) return null
+        return state.cache.files[credential]?.[value] || null
+      },
+      [credential, value]
+    )
+  )
 
   // Determine the appropriate service ID based on provider and scopes
   const getServiceId = (): string => {
@@ -155,6 +167,15 @@ export function TeamsMessageSelector({
       }))
 
       setTeams(teamsData)
+
+      // Cache team names in display names store
+      if (selectedCredentialId && teamsData.length > 0) {
+        const teamMap = teamsData.reduce((acc: Record<string, string>, team: TeamsMessageInfo) => {
+          acc[team.id] = team.displayName
+          return acc
+        }, {})
+        useDisplayNamesStore.getState().setDisplayNames('files', selectedCredentialId, teamMap)
+      }
 
       // If we have a selected team ID, find it in the list
       if (selectedTeamId) {
@@ -702,10 +723,10 @@ export function TeamsMessageSelector({
               disabled={disabled || isForeignCredential}
             >
               <div className='flex min-w-0 items-center gap-2 overflow-hidden'>
-                {selectedMessage ? (
+                {cachedMessageName ? (
                   <>
                     <MicrosoftTeamsIcon className='h-4 w-4' />
-                    <span className='truncate font-normal'>{selectedMessage.displayName}</span>
+                    <span className='truncate font-normal'>{cachedMessageName}</span>
                   </>
                 ) : (
                   <>

@@ -42,6 +42,7 @@ export const linearCommentCreatedTrigger: TriggerConfig = {
     {
       id: 'triggerInstructions',
       title: 'Setup Instructions',
+      hideFromPreview: true,
       type: 'text',
       defaultValue: linearSetupInstructions('Comment (create)'),
       mode: 'trigger',
@@ -54,6 +55,7 @@ export const linearCommentCreatedTrigger: TriggerConfig = {
       id: 'triggerSave',
       title: '',
       type: 'trigger-save',
+      hideFromPreview: true,
       mode: 'trigger',
       triggerId: 'linear_comment_created',
       condition: {

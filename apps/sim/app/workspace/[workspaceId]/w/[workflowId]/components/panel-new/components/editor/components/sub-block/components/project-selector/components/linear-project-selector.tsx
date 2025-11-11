@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Check, ChevronDown, RefreshCw } from 'lucide-react'
 import { LinearIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
@@ -11,6 +11,7 @@ import {
   CommandList,
 } from '@/components/ui/command'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { useDisplayNamesStore } from '@/stores/display-names/store'
 
 export interface LinearProjectInfo {
   id: string
@@ -40,7 +41,17 @@ export function LinearProjectSelector({
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [open, setOpen] = useState(false)
-  const [selectedProject, setSelectedProject] = useState<LinearProjectInfo | null>(null)
+
+  // Get cached display name
+  const cachedProjectName = useDisplayNamesStore(
+    useCallback(
+      (state) => {
+        if (!credential || !value) return null
+        return state.cache.projects[`linear-${credential}`]?.[value] || null
+      },
+      [credential, value]
+    )
+  )
 
   useEffect(() => {
     if (!credential || !teamId) return
@@ -68,10 +79,18 @@ export function LinearProjectSelector({
         } else {
           setProjects(data.projects)
 
-          // Find selected project info if we have a value
-          if (value) {
-            const projectInfo = data.projects.find((p: LinearProjectInfo) => p.id === value)
-            setSelectedProject(projectInfo || null)
+          // Cache project names in display names store
+          if (credential && data.projects) {
+            const projectMap = data.projects.reduce(
+              (acc: Record<string, string>, proj: LinearProjectInfo) => {
+                acc[proj.id] = proj.name
+                return acc
+              },
+              {}
+            )
+            useDisplayNamesStore
+              .getState()
+              .setDisplayNames('projects', `linear-${credential}`, projectMap)
           }
         }
       })
@@ -84,18 +103,7 @@ export function LinearProjectSelector({
     return () => controller.abort()
   }, [credential, teamId, value, workflowId])
 
-  // Sync selected project with value prop
-  useEffect(() => {
-    if (value && projects.length > 0) {
-      const projectInfo = projects.find((p) => p.id === value)
-      setSelectedProject(projectInfo || null)
-    } else if (!value) {
-      setSelectedProject(null)
-    }
-  }, [value, projects])
-
   const handleSelectProject = (project: LinearProjectInfo) => {
-    setSelectedProject(project)
     onChange(project.id, project)
     setOpen(false)
   }
@@ -114,10 +122,10 @@ export function LinearProjectSelector({
           className='w-full justify-between'
           disabled={disabled || !credential || !teamId}
         >
-          {selectedProject ? (
+          {cachedProjectName ? (
             <div className='flex items-center gap-2 overflow-hidden'>
               <LinearIcon className='h-4 w-4' />
-              <span className='truncate font-normal'>{selectedProject.name}</span>
+              <span className='truncate font-normal'>{cachedProjectName}</span>
             </div>
           ) : (
             <div className='flex items-center gap-2'>

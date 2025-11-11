@@ -42,6 +42,7 @@ export const linearProjectUpdatedTrigger: TriggerConfig = {
     {
       id: 'triggerInstructions',
       title: 'Setup Instructions',
+      hideFromPreview: true,
       type: 'text',
       defaultValue: linearSetupInstructions('Project (update)'),
       mode: 'trigger',
@@ -54,6 +55,7 @@ export const linearProjectUpdatedTrigger: TriggerConfig = {
       id: 'triggerSave',
       title: '',
       type: 'trigger-save',
+      hideFromPreview: true,
       mode: 'trigger',
       triggerId: 'linear_project_updated',
       condition: {

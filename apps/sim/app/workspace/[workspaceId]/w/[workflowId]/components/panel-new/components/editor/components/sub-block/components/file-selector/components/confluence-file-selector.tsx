@@ -21,6 +21,7 @@ import {
   type OAuthProvider,
 } from '@/lib/oauth'
 import { OAuthRequiredModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/components/sub-block/components/credential-selector/components/oauth-required-modal'
+import { useDisplayNamesStore } from '@/stores/display-names/store'
 
 const logger = createLogger('ConfluenceFileSelector')
 
@@ -75,6 +76,18 @@ export function ConfluenceFileSelector({
   const [showOAuthModal, setShowOAuthModal] = useState(false)
   const initialFetchRef = useRef(false)
   const [error, setError] = useState<string | null>(null)
+
+  // Get cached display name
+  const cachedFileName = useDisplayNamesStore(
+    useCallback(
+      (state) => {
+        const effectiveCredentialId = credentialId || selectedCredentialId
+        if (!effectiveCredentialId || !value) return null
+        return state.cache.files[effectiveCredentialId]?.[value] || null
+      },
+      [credentialId, selectedCredentialId, value]
+    )
+  )
   // Keep internal credential in sync with prop (handles late arrival and BFCache restores)
   useEffect(() => {
     if (credentialId && credentialId !== selectedCredentialId) {
@@ -306,7 +319,19 @@ export function ConfluenceFileSelector({
         logger.info(`Received ${data.files?.length || 0} files from API`)
         setFiles(data.files || [])
 
-        // If we have a selected file ID, find the file info
+        // Cache file names in display names store
+        if (selectedCredentialId && data.files) {
+          const fileMap = data.files.reduce(
+            (acc: Record<string, string>, file: ConfluenceFileInfo) => {
+              acc[file.id] = file.name
+              return acc
+            },
+            {}
+          )
+          useDisplayNamesStore.getState().setDisplayNames('files', selectedCredentialId, fileMap)
+        }
+
+        // If we have a selected file ID, update state and notify parent
         if (selectedFileId) {
           const fileInfo = data.files.find((file: ConfluenceFileInfo) => file.id === selectedFileId)
           if (fileInfo) {
@@ -354,21 +379,6 @@ export function ConfluenceFileSelector({
     }
   }
 
-  // Fetch the selected page metadata once credentials and domain are ready or changed
-  useEffect(() => {
-    if (value && selectedCredentialId && !selectedFile && domain && domain.includes('.')) {
-      fetchPageInfo(value)
-    }
-  }, [
-    value,
-    selectedCredentialId,
-    selectedFile,
-    domain,
-    fetchPageInfo,
-    workflowId,
-    isForeignCredential,
-  ])
-
   // Keep internal selectedFileId in sync with the value prop
   useEffect(() => {
     if (value !== selectedFileId) {
@@ -376,7 +386,7 @@ export function ConfluenceFileSelector({
     }
   }, [value])
 
-  // Clear preview when value is cleared (e.g., collaborator cleared or domain change cascade)
+  // Clear callback when value is cleared
   useEffect(() => {
     if (!value) {
       setSelectedFile(null)
@@ -403,7 +413,6 @@ export function ConfluenceFileSelector({
   // Clear selection
   const handleClearSelection = () => {
     setSelectedFileId('')
-    setSelectedFile(null)
     onChange('', undefined)
     onFileInfoChange?.(null)
   }
@@ -421,10 +430,10 @@ export function ConfluenceFileSelector({
               disabled={disabled || !domain || isForeignCredential}
             >
               <div className='flex min-w-0 items-center gap-2 overflow-hidden'>
-                {selectedFile ? (
+                {cachedFileName ? (
                   <>
                     <ConfluenceIcon className='h-4 w-4' />
-                    <span className='truncate font-normal'>{selectedFile.name}</span>
+                    <span className='truncate font-normal'>{cachedFileName}</span>
                   </>
                 ) : (
                   <>
@@ -554,7 +563,6 @@ export function ConfluenceFileSelector({
           )}
         </Popover>
 
-        {/* File preview */}
         {showPreview && selectedFile && selectedFileId && selectedFile.id === selectedFileId && (
           <div className='relative mt-2 rounded-md border border-muted bg-muted/10 p-2'>
             <div className='absolute top-2 right-2'>
@@ -580,7 +588,7 @@ export function ConfluenceFileSelector({
                     </span>
                   )}
                 </div>
-                {selectedFile.webViewLink ? (
+                {selectedFile.webViewLink && (
                   <a
                     href={selectedFile.webViewLink}
                     target='_blank'
@@ -591,8 +599,6 @@ export function ConfluenceFileSelector({
                     <span>Open in Confluence</span>
                     <ExternalLink className='h-3 w-3' />
                   </a>
-                ) : (
-                  <></>
                 )}
               </div>
             </div>

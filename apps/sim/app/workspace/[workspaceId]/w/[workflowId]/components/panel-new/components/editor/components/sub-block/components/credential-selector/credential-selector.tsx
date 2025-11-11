@@ -27,6 +27,7 @@ import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/c
 import type { SubBlockConfig } from '@/blocks/types'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { getMissingRequiredScopes } from '@/hooks/use-oauth-scope-status'
+import { useDisplayNamesStore } from '@/stores/display-names/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 const logger = createLogger('CredentialSelector')
@@ -115,6 +116,17 @@ export function CredentialSelector({
 
         setHasForeignMeta(foreignMetaFound)
         setCredentials(creds)
+
+        // Cache credential names in display names store
+        if (effectiveProviderId) {
+          const credentialMap = creds.reduce((acc: Record<string, string>, cred: Credential) => {
+            acc[cred.id] = cred.name
+            return acc
+          }, {})
+          useDisplayNamesStore
+            .getState()
+            .setDisplayNames('credentials', effectiveProviderId, credentialMap)
+        }
 
         // Do not auto-select or reset. We only show what's persisted.
       }

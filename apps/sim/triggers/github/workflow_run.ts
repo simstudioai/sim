@@ -79,6 +79,7 @@ export const githubWorkflowRunTrigger: TriggerConfig = {
     {
       id: 'triggerInstructions',
       title: 'Setup Instructions',
+      hideFromPreview: true,
       type: 'text',
       defaultValue: [
         'Go to your GitHub Repository > Settings > Webhooks.',
@@ -105,6 +106,7 @@ export const githubWorkflowRunTrigger: TriggerConfig = {
       id: 'triggerSave',
       title: '',
       type: 'trigger-save',
+      hideFromPreview: true,
       mode: 'trigger',
       triggerId: 'github_workflow_run',
       condition: {

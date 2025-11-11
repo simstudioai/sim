@@ -9,6 +9,8 @@ import { cn } from '@/lib/utils'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import type { SubBlockConfig } from '@/blocks/types'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
+import { useCredentialDisplay } from '@/hooks/use-credential-display'
+import { useDisplayName } from '@/hooks/use-display-name'
 import { usePanelEditorStore } from '@/stores/panel-new/editor/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
@@ -85,7 +87,6 @@ const isPlainObject = (value: unknown): value is Record<string, unknown> => {
 const getDisplayValue = (value: unknown): string => {
   if (value == null || value === '') return '-'
 
-  // Handle table row arrays (from table component)
   if (isTableRowArray(value)) {
     const nonEmptyRows = value.filter((row) => {
       const cellValues = Object.values(row.cells)
@@ -106,7 +107,6 @@ const getDisplayValue = (value: unknown): string => {
     return `${nonEmptyRows.length} rows`
   }
 
-  // Handle field format arrays (from input-format, response-format)
   if (isFieldFormatArray(value)) {
     const namedFields = value.filter((field) => field.name && field.name.trim() !== '')
     if (namedFields.length === 0) return '-'
@@ -115,7 +115,6 @@ const getDisplayValue = (value: unknown): string => {
     return `${namedFields[0].name}, ${namedFields[1].name} +${namedFields.length - 2}`
   }
 
-  // Handle input mapping objects (from input-mapping component)
   if (isPlainObject(value)) {
     const entries = Object.entries(value).filter(
       ([, val]) => val !== null && val !== undefined && val !== ''
@@ -134,19 +133,27 @@ const getDisplayValue = (value: unknown): string => {
     return entries.length > 2 ? `${preview} +${entries.length - 2}` : preview
   }
 
-  // Handle arrays of primitives
   if (Array.isArray(value)) {
     const nonEmptyItems = value.filter((item) => item !== null && item !== undefined && item !== '')
     if (nonEmptyItems.length === 0) return '-'
-    if (nonEmptyItems.length === 1) return String(nonEmptyItems[0])
-    if (nonEmptyItems.length === 2) return `${nonEmptyItems[0]}, ${nonEmptyItems[1]}`
-    return `${nonEmptyItems[0]}, ${nonEmptyItems[1]} +${nonEmptyItems.length - 2}`
+
+    const getItemDisplayValue = (item: unknown): string => {
+      if (typeof item === 'object' && item !== null) {
+        const obj = item as Record<string, unknown>
+        return String(obj.title || obj.name || obj.label || obj.id || JSON.stringify(item))
+      }
+      return String(item)
+    }
+
+    if (nonEmptyItems.length === 1) return getItemDisplayValue(nonEmptyItems[0])
+    if (nonEmptyItems.length === 2) {
+      return `${getItemDisplayValue(nonEmptyItems[0])}, ${getItemDisplayValue(nonEmptyItems[1])}`
+    }
+    return `${getItemDisplayValue(nonEmptyItems[0])}, ${getItemDisplayValue(nonEmptyItems[1])} +${nonEmptyItems.length - 2}`
   }
 
-  // Handle primitive values
   const stringValue = String(value)
   if (stringValue === '[object Object]') {
-    // Fallback for unhandled object types - try to show something useful
     try {
       const json = JSON.stringify(value)
       if (json.length <= 40) return json
@@ -161,19 +168,97 @@ const getDisplayValue = (value: unknown): string => {
 
 /**
  * Renders a single subblock row with title and optional value.
+ * Automatically hydrates IDs to display names for all selector types.
  */
-const SubBlockRow = ({ title, value }: { title: string; value?: string }) => (
-  <div className='flex items-center gap-[8px]'>
-    <span className='min-w-0 truncate text-[#AEAEAE] text-[14px]' title={title}>
-      {title}
-    </span>
-    {value !== undefined && (
-      <span className='flex-1 truncate text-right text-[#FFFFFF] text-[14px]' title={value}>
-        {value}
+const SubBlockRow = ({
+  title,
+  value,
+  subBlock,
+  rawValue,
+  workspaceId,
+  allSubBlockValues,
+}: {
+  title: string
+  value?: string
+  subBlock?: SubBlockConfig
+  rawValue?: unknown
+  workspaceId?: string
+  allSubBlockValues?: Record<string, { value: unknown }>
+}) => {
+  const getStringValue = useCallback(
+    (key?: string): string | undefined => {
+      if (!key || !allSubBlockValues) return undefined
+      const candidate = allSubBlockValues[key]?.value
+      return typeof candidate === 'string' && candidate.length > 0 ? candidate : undefined
+    },
+    [allSubBlockValues]
+  )
+
+  const dependencyValues = useMemo(() => {
+    if (!subBlock?.dependsOn?.length) return {}
+    return subBlock.dependsOn.reduce<Record<string, string>>((accumulator, dependency) => {
+      const dependencyValue = getStringValue(dependency)
+      if (dependencyValue) {
+        accumulator[dependency] = dependencyValue
+      }
+      return accumulator
+    }, {})
+  }, [getStringValue, subBlock?.dependsOn])
+
+  const { displayName: credentialName } = useCredentialDisplay(
+    subBlock?.type === 'oauth-input' && typeof rawValue === 'string' ? rawValue : undefined,
+    subBlock?.provider
+  )
+
+  const credentialId = dependencyValues.credential
+  const knowledgeBaseId = dependencyValues.knowledgeBaseId
+
+  const dropdownLabel = useMemo(() => {
+    if (!subBlock || (subBlock.type !== 'dropdown' && subBlock.type !== 'combobox')) return null
+    if (!rawValue || typeof rawValue !== 'string') return null
+
+    const options = typeof subBlock.options === 'function' ? subBlock.options() : subBlock.options
+    if (!options) return null
+
+    const option = options.find((opt) =>
+      typeof opt === 'string' ? opt === rawValue : opt.id === rawValue
+    )
+
+    if (!option) return null
+    return typeof option === 'string' ? option : option.label
+  }, [subBlock, rawValue])
+
+  const genericDisplayName = useDisplayName(subBlock, rawValue, {
+    workspaceId,
+    provider: subBlock?.provider,
+    credentialId: typeof credentialId === 'string' ? credentialId : undefined,
+    knowledgeBaseId: typeof knowledgeBaseId === 'string' ? knowledgeBaseId : undefined,
+    domain: getStringValue('domain'),
+    teamId: getStringValue('teamId'),
+    projectId: getStringValue('projectId'),
+    planId: getStringValue('planId'),
+  })
+
+  const isPasswordField = subBlock?.password === true
+  const maskedValue = isPasswordField && value && value !== '-' ? '•••' : null
+  const displayValue = maskedValue || credentialName || dropdownLabel || genericDisplayName || value
+
+  return (
+    <div className='flex items-center gap-[8px]'>
+      <span className='min-w-0 truncate text-[#AEAEAE] text-[14px]' title={title}>
+        {title}
       </span>
-    )}
-  </div>
-)
+      {displayValue !== undefined && (
+        <span
+          className='flex-1 truncate text-right text-[#FFFFFF] text-[14px]'
+          title={displayValue}
+        >
+          {displayValue}
+        </span>
+      )}
+    </div>
+  )
+}
 
 export const WorkflowBlock = memo(function WorkflowBlock({
   id,
@@ -186,6 +271,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
 
   const params = useParams()
   const currentWorkflowId = params.workflowId as string
+  const workspaceId = params.workspaceId as string
 
   const currentWorkflow = useCurrentWorkflow()
   const currentBlock = currentWorkflow.getBlockById(id)
@@ -345,6 +431,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
 
     const visibleSubBlocks = config.subBlocks.filter((block) => {
       if (block.hidden) return false
+      if (block.hideFromPreview) return false
 
       if (block.requiresFeature && !isTruthy(getEnv(block.requiresFeature))) {
         return false
@@ -547,7 +634,6 @@ export const WorkflowBlock = memo(function WorkflowBlock({
       typeof currentStoreBlock?.height === 'number' ? currentStoreBlock.height : undefined
     const prevWidth = 250 // fixed across the app for workflow blocks
 
-    // Only update store if something actually changed to prevent unnecessary reflows
     if (prevHeight !== calculatedHeight || prevWidth !== FIXED_WIDTH) {
       updateBlockLayoutMetrics(id, { width: FIXED_WIDTH, height: calculatedHeight })
       updateNodeInternals(id)
@@ -791,13 +877,20 @@ export const WorkflowBlock = memo(function WorkflowBlock({
                   />
                 ))
               : subBlockRows.map((row, rowIndex) =>
-                  row.map((subBlock) => (
-                    <SubBlockRow
-                      key={`${subBlock.id}-${rowIndex}`}
-                      title={subBlock.title ?? subBlock.id}
-                      value={getDisplayValue(subBlockState[subBlock.id]?.value)}
-                    />
-                  ))
+                  row.map((subBlock) => {
+                    const rawValue = subBlockState[subBlock.id]?.value
+                    return (
+                      <SubBlockRow
+                        key={`${subBlock.id}-${rowIndex}`}
+                        title={subBlock.title ?? subBlock.id}
+                        value={getDisplayValue(rawValue)}
+                        subBlock={subBlock}
+                        rawValue={rawValue}
+                        workspaceId={workspaceId}
+                        allSubBlockValues={subBlockState}
+                      />
+                    )
+                  })
                 )}
             {shouldShowDefaultHandles && <SubBlockRow title='error' />}
           </div>

@@ -62,6 +62,7 @@ export const googleFormsWebhookTrigger: TriggerConfig = {
     {
       id: 'triggerInstructions',
       title: 'Setup Instructions',
+      hideFromPreview: true,
       type: 'text',
       defaultValue: [
         'Open your Google Form → More (⋮) → Script editor.',
@@ -148,6 +149,7 @@ export const googleFormsWebhookTrigger: TriggerConfig = {
       id: 'triggerSave',
       title: '',
       type: 'trigger-save',
+      hideFromPreview: true,
       mode: 'trigger',
       triggerId: 'google_forms_webhook',
     },

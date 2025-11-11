@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Check, ChevronDown, RefreshCw, X } from 'lucide-react'
+import { Check, ChevronDown, X } from 'lucide-react'
 import { WealthboxIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
 import {
@@ -20,6 +20,7 @@ import {
   type OAuthProvider,
 } from '@/lib/oauth'
 import { OAuthRequiredModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/components/sub-block/components/credential-selector/components/oauth-required-modal'
+import { useDisplayNamesStore } from '@/stores/display-names/store'
 
 const logger = createLogger('WealthboxFileSelector')
 
@@ -72,6 +73,18 @@ export function WealthboxFileSelector({
   const [showOAuthModal, setShowOAuthModal] = useState(false)
   const [credentialsLoaded, setCredentialsLoaded] = useState(false)
   const initialFetchRef = useRef(false)
+
+  // Get cached display name
+  const cachedItemName = useDisplayNamesStore(
+    useCallback(
+      (state) => {
+        const effectiveCredentialId = credentialId || selectedCredentialId
+        if (!effectiveCredentialId || !value) return null
+        return state.cache.files[effectiveCredentialId]?.[value] || null
+      },
+      [credentialId, selectedCredentialId, value]
+    )
+  )
 
   // Determine the appropriate service ID based on provider and scopes
   const getServiceId = (): string => {
@@ -135,6 +148,18 @@ export function WealthboxFileSelector({
       if (response.ok) {
         const data = await response.json()
         setAvailableItems(data.items || [])
+
+        // Cache item names in display names store
+        if (selectedCredentialId && data.items) {
+          const itemMap = data.items.reduce(
+            (acc: Record<string, string>, item: WealthboxItemInfo) => {
+              acc[item.id] = item.name
+              return acc
+            },
+            {}
+          )
+          useDisplayNamesStore.getState().setDisplayNames('files', selectedCredentialId, itemMap)
+        }
       } else {
         logger.error('Error fetching available items:', {
           error: await response.text(),
@@ -209,26 +234,6 @@ export function WealthboxFileSelector({
   }, [selectedCredentialId, open, fetchAvailableItems])
 
   // Fetch the selected item metadata only once when needed
-  useEffect(() => {
-    if (
-      value &&
-      value !== selectedItemId &&
-      selectedCredentialId &&
-      credentialsLoaded &&
-      !selectedItem &&
-      !isLoadingSelectedItem
-    ) {
-      fetchItemById(value)
-    }
-  }, [
-    value,
-    selectedItemId,
-    selectedCredentialId,
-    credentialsLoaded,
-    selectedItem,
-    isLoadingSelectedItem,
-    fetchItemById,
-  ])
 
   // Handle search input changes with debouncing
   const handleSearchChange = useCallback(
@@ -281,7 +286,6 @@ export function WealthboxFileSelector({
   // Clear selection
   const handleClearSelection = () => {
     setSelectedItemId('')
-    setSelectedItem(null)
     onChange('', undefined)
     onFileInfoChange?.(null)
   }
@@ -319,15 +323,10 @@ export function WealthboxFileSelector({
               className='w-full justify-between'
               disabled={disabled}
             >
-              {selectedItem ? (
+              {cachedItemName ? (
                 <div className='flex items-center gap-2 overflow-hidden'>
                   <WealthboxIcon className='h-4 w-4' />
-                  <span className='truncate font-normal'>{selectedItem.name}</span>
-                </div>
-              ) : selectedItemId && isLoadingSelectedItem && selectedCredentialId ? (
-                <div className='flex items-center gap-2'>
-                  <RefreshCw className='h-4 w-4 animate-spin' />
-                  <span className='text-muted-foreground'>Loading...</span>
+                  <span className='truncate font-normal'>{cachedItemName}</span>
                 </div>
               ) : (
                 <div className='flex items-center gap-2'>

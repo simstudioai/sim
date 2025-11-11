@@ -24,6 +24,7 @@ import {
   parseProvider,
 } from '@/lib/oauth'
 import { OAuthRequiredModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/components/sub-block/components/credential-selector/components/oauth-required-modal'
+import { useDisplayNamesStore } from '@/stores/display-names/store'
 import type { PlannerTask } from '@/tools/microsoft_planner/types'
 
 const logger = createLogger('MicrosoftFileSelector')
@@ -90,13 +91,23 @@ export function MicrosoftFileSelector({
   const [showOAuthModal, setShowOAuthModal] = useState(false)
   const [credentialsLoaded, setCredentialsLoaded] = useState(false)
   const initialFetchRef = useRef(false)
-  // Track the last (credentialId, fileId) we attempted to resolve to avoid tight retry loops
   const lastMetaAttemptRef = useRef<string>('')
 
-  // Handle Microsoft Planner task selection
   const [plannerTasks, setPlannerTasks] = useState<PlannerTask[]>([])
   const [isLoadingTasks, setIsLoadingTasks] = useState(false)
   const [selectedTask, setSelectedTask] = useState<PlannerTask | null>(null)
+
+  // Get cached display name
+  const cachedFileName = useDisplayNamesStore(
+    useCallback(
+      (state) => {
+        const effectiveCredentialId = credentialId || selectedCredentialId
+        if (!effectiveCredentialId || !value) return null
+        return state.cache.files[effectiveCredentialId]?.[value] || null
+      },
+      [credentialId, selectedCredentialId, value]
+    )
+  )
 
   // Determine the appropriate service ID based on provider and scopes
   const getServiceId = (): string => {
@@ -179,6 +190,18 @@ export function MicrosoftFileSelector({
       if (response.ok) {
         const data = await response.json()
         setAvailableFiles(data.files || [])
+
+        // Cache file names in display names store
+        if (selectedCredentialId && data.files) {
+          const fileMap = data.files.reduce(
+            (acc: Record<string, string>, file: MicrosoftFileInfo) => {
+              acc[file.id] = file.name
+              return acc
+            },
+            {}
+          )
+          useDisplayNamesStore.getState().setDisplayNames('files', selectedCredentialId, fileMap)
+        }
       } else {
         const txt = await response.text()
         if (response.status === 401 || response.status === 403) {
@@ -472,11 +495,9 @@ export function MicrosoftFileSelector({
       modifiedTime: task.createdDateTime,
     }
 
-    // Update internal state first to avoid race with list refetch
     setSelectedFileId(taskId)
-    setSelectedFile(taskAsFileInfo)
     setSelectedTask(task)
-    // Then propagate up
+    setSelectedFile(taskAsFileInfo)
     onChange(taskId, taskAsFileInfo)
     onFileInfoChange?.(taskAsFileInfo)
     setOpen(false)
@@ -500,76 +521,22 @@ export function MicrosoftFileSelector({
 
     if (!selectedCredentialId) {
       // No credentials - clear everything
-      if (selectedFile) {
-        setSelectedFile(null)
-        setSelectedFileId('')
-        onChange('')
-      }
+      setSelectedFileId('')
+      onChange('')
       // Reset memo when credential is cleared
       lastMetaAttemptRef.current = ''
     } else if (prevCredentialId && prevCredentialId !== selectedCredentialId) {
-      // Credentials changed (not initial load) - clear file info to force refetch
-      if (selectedFile) {
-        setSelectedFile(null)
-      }
       // Reset memo when switching credentials
       lastMetaAttemptRef.current = ''
     }
-  }, [selectedCredentialId, selectedFile, onChange])
+  }, [selectedCredentialId, onChange])
 
-  // Fetch the selected file metadata once credentials are loaded or changed
+  // Keep internal selectedFileId in sync with the value prop
   useEffect(() => {
-    // Fetch metadata when the external value doesn't match our current selectedFile
-    if (
-      value &&
-      selectedCredentialId &&
-      credentialsLoaded &&
-      (!selectedFile || selectedFile.id !== value) &&
-      !isLoadingSelectedFile
-    ) {
-      // Avoid tight retry loops by memoizing the last attempt tuple
-      const attemptKey = `${selectedCredentialId}::${value}`
-      if (lastMetaAttemptRef.current === attemptKey) {
-        return
-      }
-      lastMetaAttemptRef.current = attemptKey
-
-      if (serviceId === 'microsoft-planner') {
-        void fetchPlannerTaskById(value)
-      } else {
-        void fetchFileById(value)
-      }
+    if (value !== selectedFileId) {
+      setSelectedFileId(value)
     }
-  }, [
-    value,
-    selectedCredentialId,
-    credentialsLoaded,
-    selectedFile,
-    isLoadingSelectedFile,
-    fetchFileById,
-    fetchPlannerTaskById,
-    serviceId,
-  ])
-
-  // Resolve planner task selection for collaborators
-  useEffect(() => {
-    if (
-      value &&
-      selectedCredentialId &&
-      credentialsLoaded &&
-      !selectedTask &&
-      serviceId === 'microsoft-planner'
-    ) {
-      void fetchPlannerTaskById(value)
-    }
-  }, [
-    value,
-    selectedCredentialId,
-    credentialsLoaded,
-    selectedTask,
-    serviceId,
-    fetchPlannerTaskById,
-  ])
+  }, [value, selectedFileId])
 
   // Handle selecting a file from the available files
   const handleFileSelect = (file: MicrosoftFileInfo) => {
@@ -578,7 +545,7 @@ export function MicrosoftFileSelector({
     onChange(file.id, file)
     onFileInfoChange?.(file)
     setOpen(false)
-    setSearchQuery('') // Clear search when file is selected
+    setSearchQuery('')
   }
 
   // Handle adding a new credential
@@ -593,6 +560,7 @@ export function MicrosoftFileSelector({
   const handleClearSelection = () => {
     setSelectedFileId('')
     setSelectedFile(null)
+    setSelectedTask(null)
     onChange('', undefined)
     onFileInfoChange?.(null)
   }
@@ -787,15 +755,10 @@ export function MicrosoftFileSelector({
               }
             >
               <div className='flex min-w-0 items-center gap-2 overflow-hidden'>
-                {canShowPreview ? (
+                {cachedFileName ? (
                   <>
-                    {getFileIcon(selectedFile, 'sm')}
-                    <span className='truncate font-normal'>{selectedFile.name}</span>
-                  </>
-                ) : selectedFileId && isLoadingSelectedFile && selectedCredentialId ? (
-                  <>
-                    <RefreshCw className='h-4 w-4 animate-spin' />
-                    <span className='truncate text-muted-foreground'>Loading document...</span>
+                    {getProviderIcon(provider)}
+                    <span className='truncate font-normal'>{cachedFileName}</span>
                   </>
                 ) : (
                   <>
@@ -961,7 +924,6 @@ export function MicrosoftFileSelector({
           )}
         </Popover>
 
-        {/* File preview */}
         {canShowPreview && (
           <div className='relative mt-2 rounded-md border border-muted bg-muted/10 p-2'>
             <div className='absolute top-2 right-2'>

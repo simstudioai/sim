@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Check, ChevronDown, FileText, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -15,24 +15,8 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { useDependsOnGate } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/components/sub-block/hooks/use-depends-on-gate'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/components/sub-block/hooks/use-sub-block-value'
 import type { SubBlockConfig } from '@/blocks/types'
-
-interface DocumentData {
-  id: string
-  knowledgeBaseId: string
-  filename: string
-  fileUrl: string
-  fileSize: number
-  mimeType: string
-  chunkCount: number
-  tokenCount: number
-  characterCount: number
-  processingStatus: string
-  processingStartedAt: Date | null
-  processingCompletedAt: Date | null
-  processingError: string | null
-  enabled: boolean
-  uploadedAt: Date
-}
+import { useDisplayNamesStore } from '@/stores/display-names/store'
+import { type DocumentData, useKnowledgeStore } from '@/stores/knowledge/store'
 
 interface DocumentSelectorProps {
   blockId: string
@@ -51,110 +35,107 @@ export function DocumentSelector({
   isPreview = false,
   previewValue,
 }: DocumentSelectorProps) {
-  const [documents, setDocuments] = useState<DocumentData[]>([])
   const [error, setError] = useState<string | null>(null)
   const [open, setOpen] = useState(false)
-  const [selectedDocument, setSelectedDocument] = useState<DocumentData | null>(null)
-  const [loading, setLoading] = useState(false)
 
-  // Use the proper hook to get the current value and setter
   const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlock.id)
-
-  // Get the knowledge base ID from the same block's knowledgeBaseId subblock
   const [knowledgeBaseId] = useSubBlockValue(blockId, 'knowledgeBaseId')
+  const normalizedKnowledgeBaseId =
+    typeof knowledgeBaseId === 'string' && knowledgeBaseId.trim().length > 0
+      ? knowledgeBaseId
+      : null
 
-  // Use preview value when in preview mode, otherwise use store value
+  const documentsCache = useKnowledgeStore(
+    useCallback(
+      (state) =>
+        normalizedKnowledgeBaseId ? state.documents[normalizedKnowledgeBaseId] : undefined,
+      [normalizedKnowledgeBaseId]
+    )
+  )
+
+  const isDocumentsLoading = useKnowledgeStore(
+    useCallback(
+      (state) =>
+        normalizedKnowledgeBaseId ? state.isDocumentsLoading(normalizedKnowledgeBaseId) : false,
+      [normalizedKnowledgeBaseId]
+    )
+  )
+
+  const getDocuments = useKnowledgeStore((state) => state.getDocuments)
+
   const value = isPreview ? previewValue : storeValue
 
   const { finalDisabled } = useDependsOnGate(blockId, subBlock, { disabled, isPreview })
   const isDisabled = finalDisabled
 
-  // Fetch documents for the selected knowledge base
-  const fetchDocuments = useCallback(async () => {
-    if (!knowledgeBaseId) {
-      setDocuments([])
+  const documents = useMemo<DocumentData[]>(() => {
+    if (!documentsCache) return []
+    return documentsCache.documents ?? []
+  }, [documentsCache])
+
+  const loadDocuments = useCallback(async () => {
+    if (!normalizedKnowledgeBaseId) {
       setError('No knowledge base selected')
       return
     }
 
-    setLoading(true)
     setError(null)
 
     try {
-      const response = await fetch(`/api/knowledge/${knowledgeBaseId}/documents`)
+      const fetchedDocuments = await getDocuments(normalizedKnowledgeBaseId)
 
-      if (!response.ok) {
-        throw new Error(`Failed to fetch documents: ${response.statusText}`)
+      if (fetchedDocuments.length > 0) {
+        const documentMap = fetchedDocuments.reduce<Record<string, string>>((acc, doc) => {
+          acc[doc.id] = doc.filename
+          return acc
+        }, {})
+
+        useDisplayNamesStore
+          .getState()
+          .setDisplayNames('documents', normalizedKnowledgeBaseId, documentMap)
       }
-
-      const result = await response.json()
-
-      if (!result.success) {
-        throw new Error(result.error || 'Failed to fetch documents')
-      }
-
-      const fetchedDocuments = result.data.documents || result.data || []
-      setDocuments(fetchedDocuments)
     } catch (err) {
-      if ((err as Error).name === 'AbortError') return
-      setError((err as Error).message)
-      setDocuments([])
-    } finally {
-      setLoading(false)
+      if (err instanceof Error && err.name === 'AbortError') return
+      setError(err instanceof Error ? err.message : 'Failed to fetch documents')
     }
-  }, [knowledgeBaseId])
+  }, [normalizedKnowledgeBaseId, getDocuments])
 
-  // Handle dropdown open/close - fetch documents when opening
   const handleOpenChange = (isOpen: boolean) => {
-    if (isPreview) return
-    if (isDisabled) return
+    if (isPreview || isDisabled) return
 
     setOpen(isOpen)
 
-    // Fetch fresh documents when opening the dropdown
-    if (isOpen) {
-      fetchDocuments()
+    if (isOpen && (!documentsCache || !documentsCache.documents.length)) {
+      void loadDocuments()
     }
   }
 
-  // Handle document selection
   const handleSelectDocument = (document: DocumentData) => {
     if (isPreview) return
 
-    setSelectedDocument(document)
     setStoreValue(document.id)
     onDocumentSelect?.(document.id)
     setOpen(false)
   }
 
-  // Sync selected document with value prop
   useEffect(() => {
-    if (isDisabled) return
-    if (value && documents.length > 0) {
-      const docInfo = documents.find((doc) => doc.id === value)
-      setSelectedDocument(docInfo || null)
-    } else {
-      setSelectedDocument(null)
-    }
-  }, [value, documents, isDisabled])
-
-  // Reset documents when knowledge base changes
-  useEffect(() => {
-    setDocuments([])
-    setSelectedDocument(null)
     setError(null)
-  }, [knowledgeBaseId])
+  }, [normalizedKnowledgeBaseId])
 
-  // Fetch documents when knowledge base is available
   useEffect(() => {
-    if (knowledgeBaseId && !isPreview && !isDisabled) {
-      fetchDocuments()
-    }
-  }, [knowledgeBaseId, isPreview, isDisabled, fetchDocuments])
+    if (!normalizedKnowledgeBaseId || documents.length === 0) return
 
-  const formatDocumentName = (document: DocumentData) => {
-    return document.filename
-  }
+    const documentMap = documents.reduce<Record<string, string>>((acc, doc) => {
+      acc[doc.id] = doc.filename
+      return acc
+    }, {})
+
+    useDisplayNamesStore
+      .getState()
+      .setDisplayNames('documents', normalizedKnowledgeBaseId as string, documentMap)
+  }, [documents, normalizedKnowledgeBaseId])
+
+  const formatDocumentName = (document: DocumentData) => document.filename
 
   const getDocumentDescription = (document: DocumentData) => {
     const statusMap: Record<string, string> = {
@@ -171,6 +152,18 @@ export function DocumentSelector({
   }
 
   const label = subBlock.placeholder || 'Select document'
+  const isLoading = isDocumentsLoading && !error
+
+  // Always use cached display name
+  const displayName = useDisplayNamesStore(
+    useCallback(
+      (state) => {
+        if (!normalizedKnowledgeBaseId || !value || typeof value !== 'string') return null
+        return state.cache.documents[normalizedKnowledgeBaseId]?.[value] || null
+      },
+      [normalizedKnowledgeBaseId, value]
+    )
+  )
 
   return (
     <div className='w-full'>
@@ -185,8 +178,8 @@ export function DocumentSelector({
           >
             <div className='flex max-w-[calc(100%-20px)] items-center gap-2 overflow-hidden'>
               <FileText className='h-4 w-4 text-muted-foreground' />
-              {selectedDocument ? (
-                <span className='truncate font-normal'>{formatDocumentName(selectedDocument)}</span>
+              {displayName ? (
+                <span className='truncate font-normal'>{displayName}</span>
               ) : (
                 <span className='truncate text-muted-foreground'>{label}</span>
               )}
@@ -199,7 +192,7 @@ export function DocumentSelector({
             <CommandInput placeholder='Search documents...' />
             <CommandList>
               <CommandEmpty>
-                {loading ? (
+                {isLoading ? (
                   <div className='flex items-center justify-center p-4'>
                     <RefreshCw className='h-4 w-4 animate-spin' />
                     <span className='ml-2'>Loading documents...</span>
@@ -208,7 +201,7 @@ export function DocumentSelector({
                   <div className='p-4 text-center'>
                     <p className='text-destructive text-sm'>{error}</p>
                   </div>
-                ) : !knowledgeBaseId ? (
+                ) : !normalizedKnowledgeBaseId ? (
                   <div className='p-4 text-center'>
                     <p className='font-medium text-sm'>No knowledge base selected</p>
                     <p className='text-muted-foreground text-xs'>

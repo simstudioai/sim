@@ -21,6 +21,7 @@ import {
   type OAuthProvider,
 } from '@/lib/oauth'
 import { OAuthRequiredModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/components/sub-block/components/credential-selector/components/oauth-required-modal'
+import { useDisplayNamesStore } from '@/stores/display-names/store'
 
 const logger = createLogger('JiraIssueSelector')
 
@@ -77,6 +78,18 @@ export function JiraIssueSelector({
   const [showOAuthModal, setShowOAuthModal] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [cloudId, setCloudId] = useState<string | null>(null)
+
+  // Get cached display name
+  const cachedIssueName = useDisplayNamesStore(
+    useCallback(
+      (state) => {
+        const effectiveCredentialId = credentialId || selectedCredentialId
+        if (!effectiveCredentialId || !value) return null
+        return state.cache.files[effectiveCredentialId]?.[value] || null
+      },
+      [credentialId, selectedCredentialId, value]
+    )
+  )
 
   // Keep local credential state in sync with persisted credentialId prop
   useEffect(() => {
@@ -224,8 +237,6 @@ export function JiraIssueSelector({
       } catch (error) {
         logger.error('Error fetching issue info:', error)
         setError((error as Error).message)
-        // Clear selection on error to prevent infinite retry loops
-        setSelectedIssue(null)
         onIssueInfoChange?.(null)
       } finally {
         setIsLoading(false)
@@ -342,7 +353,19 @@ export function JiraIssueSelector({
         logger.info(`Received ${foundIssues.length} issues from API`)
         setIssues(foundIssues)
 
-        // If we have a selected issue ID, find the issue info
+        // Cache issue names in display names store
+        if (selectedCredentialId && foundIssues.length > 0) {
+          const issueMap = foundIssues.reduce(
+            (acc: Record<string, string>, issue: JiraIssueInfo) => {
+              acc[issue.id] = issue.name
+              return acc
+            },
+            {}
+          )
+          useDisplayNamesStore.getState().setDisplayNames('files', selectedCredentialId, issueMap)
+        }
+
+        // If we have a selected issue ID, update state and notify parent
         if (selectedIssueId) {
           const issueInfo = foundIssues.find((issue: JiraIssueInfo) => issue.id === selectedIssueId)
           if (issueInfo) {
@@ -397,18 +420,6 @@ export function JiraIssueSelector({
   }
 
   // Fetch selected issue metadata once credentials are ready or changed
-  useEffect(() => {
-    if (
-      value &&
-      selectedCredentialId &&
-      domain &&
-      domain.includes('.') &&
-      (!selectedIssue || selectedIssue.id !== value)
-    ) {
-      fetchIssueInfo(value)
-    }
-  }, [value, selectedCredentialId, selectedIssue, domain, fetchIssueInfo])
-
   // Keep internal selectedIssueId in sync with the value prop
   useEffect(() => {
     if (value !== selectedIssueId) {
@@ -422,7 +433,7 @@ export function JiraIssueSelector({
       setError(null)
       onIssueInfoChange?.(null)
     }
-  }, [value])
+  }, [value, onIssueInfoChange])
 
   // Handle issue selection
   const handleSelectIssue = (issue: JiraIssueInfo) => {
@@ -443,8 +454,7 @@ export function JiraIssueSelector({
   // Clear selection
   const handleClearSelection = () => {
     setSelectedIssueId('')
-    setSelectedIssue(null)
-    setError(null) // Clear any existing errors
+    setError(null)
     onChange('', undefined)
     onIssueInfoChange?.(null)
   }
@@ -462,10 +472,10 @@ export function JiraIssueSelector({
               disabled={disabled || !domain || !selectedCredentialId || isForeignCredential}
             >
               <div className='flex min-w-0 items-center gap-2 overflow-hidden'>
-                {selectedIssue ? (
+                {cachedIssueName ? (
                   <>
                     <JiraIcon className='h-4 w-4' />
-                    <span className='truncate font-normal'>{selectedIssue.name}</span>
+                    <span className='truncate font-normal'>{cachedIssueName}</span>
                   </>
                 ) : (
                   <>
@@ -595,7 +605,6 @@ export function JiraIssueSelector({
           )}
         </Popover>
 
-        {/* Issue preview */}
         {showPreview && selectedIssue && (
           <div className='relative mt-2 rounded-md border border-muted bg-muted/10 p-2'>
             <div className='absolute top-2 right-2'>
@@ -621,7 +630,7 @@ export function JiraIssueSelector({
                     </span>
                   )}
                 </div>
-                {selectedIssue.webViewLink ? (
+                {selectedIssue.webViewLink && (
                   <a
                     href={selectedIssue.webViewLink}
                     target='_blank'
@@ -632,8 +641,6 @@ export function JiraIssueSelector({
                     <span>Open in Jira</span>
                     <ExternalLink className='h-3 w-3' />
                   </a>
-                ) : (
-                  <></>
                 )}
               </div>
             </div>
