@@ -143,7 +143,7 @@ export const SubflowNodeComponent = memo(({ data, id }: NodeProps<SubflowNodeDat
           ref={blockRef}
           onClick={() => setCurrentBlockId(id)}
           className={cn(
-            'relative cursor-default select-none rounded-[8px] border border-[#393939]',
+            'relative cursor-pointer select-none rounded-[8px] border border-[#393939]',
             'transition-block-bg transition-ring',
             'z-[20]'
           )}

@@ -83,7 +83,8 @@ export const ActionBar = memo(
           <Tooltip.Trigger asChild>
             <Button
               variant='ghost'
-              onClick={() => {
+              onClick={(e) => {
+                e.stopPropagation()
                 if (!disabled) {
                   collaborativeToggleBlockEnabled(blockId)
                 }
@@ -108,7 +109,8 @@ export const ActionBar = memo(
             <Tooltip.Trigger asChild>
               <Button
                 variant='ghost'
-                onClick={() => {
+                onClick={(e) => {
+                  e.stopPropagation()
                   if (!disabled) {
                     collaborativeDuplicateBlock(blockId)
                   }
@@ -128,7 +130,8 @@ export const ActionBar = memo(
             <Tooltip.Trigger asChild>
               <Button
                 variant='ghost'
-                onClick={() => {
+                onClick={(e) => {
+                  e.stopPropagation()
                   if (!disabled && userPermissions.canEdit) {
                     window.dispatchEvent(
                       new CustomEvent('remove-from-subflow', { detail: { blockId } })
@@ -147,38 +150,38 @@ export const ActionBar = memo(
           </Tooltip.Root>
         )}
 
-        {supportsHandles(blockType) && (
-          <Tooltip.Root>
-            <Tooltip.Trigger asChild>
-              <Button
-                variant='ghost'
-                onClick={() => {
-                  if (!disabled) {
-                    collaborativeToggleBlockHandles(blockId)
-                  }
-                }}
-                className='h-[30px] w-[30px] rounded-[8px] bg-[#363636] p-0 text-[#868686] hover:bg-[#33B4FF] hover:text-[#1B1B1B] dark:text-[#868686] dark:hover:bg-[#33B4FF] dark:hover:text-[#1B1B1B]'
-                disabled={disabled}
-              >
-                {horizontalHandles ? (
-                  <ArrowLeftRight className='h-[14px] w-[14px]' />
-                ) : (
-                  <ArrowUpDown className='h-[14px] w-[14px]' />
-                )}
-              </Button>
-            </Tooltip.Trigger>
-            <Tooltip.Content side='right'>
-              {getTooltipMessage(horizontalHandles ? 'Vertical Ports' : 'Horizontal Ports')}
-            </Tooltip.Content>
-          </Tooltip.Root>
-        )}
+        <Tooltip.Root>
+          <Tooltip.Trigger asChild>
+            <Button
+              variant='ghost'
+              onClick={(e) => {
+                e.stopPropagation()
+                if (!disabled) {
+                  collaborativeToggleBlockHandles(blockId)
+                }
+              }}
+              className='h-[30px] w-[30px] rounded-[8px] bg-[#363636] p-0 text-[#868686] hover:bg-[#33B4FF] hover:text-[#1B1B1B] dark:text-[#868686] dark:hover:bg-[#33B4FF] dark:hover:text-[#1B1B1B]'
+              disabled={disabled}
+            >
+              {horizontalHandles ? (
+                <ArrowLeftRight className='h-[14px] w-[14px]' />
+              ) : (
+                <ArrowUpDown className='h-[14px] w-[14px]' />
+              )}
+            </Button>
+          </Tooltip.Trigger>
+          <Tooltip.Content side='right'>
+            {getTooltipMessage(horizontalHandles ? 'Vertical Ports' : 'Horizontal Ports')}
+          </Tooltip.Content>
+        </Tooltip.Root>
 
         {!isStarterBlock && (
           <Tooltip.Root>
             <Tooltip.Trigger asChild>
               <Button
                 variant='ghost'
-                onClick={() => {
+                onClick={(e) => {
+                  e.stopPropagation()
                   if (!disabled) {
                     collaborativeRemoveBlock(blockId)
                   }

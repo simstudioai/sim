@@ -260,11 +260,6 @@
 /**
  * Dark mode specific overrides
  */
-.dark .error-badge {
-  background-color: hsl(0, 70%, 20%) !important;
-  color: hsl(0, 0%, 100%) !important;
-}
-
 .dark .bg-red-500 {
   @apply bg-red-700;
 }
@@ -286,22 +281,10 @@ input[type="search"]::-ms-clear {
 }
 
 /**
- * Layout utilities
- */
-.main-content-overlay {
-  z-index: 40;
-}
-
-/**
  * Utilities and special effects
  * Animation keyframes are defined in tailwind.config.ts
  */
 @layer utilities {
-  .animation-container {
-    contain: paint layout style;
-    will-change: opacity, transform;
-  }
-
   .scrollbar-none {
     -ms-overflow-style: none;
     scrollbar-width: none;
@@ -348,46 +331,6 @@ input[type="search"]::-ms-clear {
     background-color: hsl(var(--input-background));
   }
 
-  .bg-brand-primary {
-    background-color: var(--brand-primary-hex);
-  }
-
-  .bg-brand-primary-hover {
-    background-color: var(--brand-primary-hover-hex);
-  }
-
-  .hover\:bg-brand-primary-hover:hover {
-    background-color: var(--brand-primary-hover-hex);
-  }
-
-  .hover\:text-brand-accent-hover:hover {
-    color: var(--brand-accent-hover-hex);
-  }
-
-  .bg-brand-gradient {
-    background: linear-gradient(
-      to bottom,
-      color-mix(in srgb, var(--brand-primary-hex) 85%, white),
-      var(--brand-primary-hex)
-    );
-  }
-
-  .border-brand-gradient {
-    border-color: var(--brand-primary-hex);
-  }
-
-  .shadow-brand-gradient {
-    box-shadow: inset 0 2px 4px 0 color-mix(in srgb, var(--brand-primary-hex) 60%, transparent);
-  }
-
-  .hover\:bg-brand-gradient-hover:hover {
-    background: linear-gradient(
-      to bottom,
-      var(--brand-primary-hover-hex),
-      color-mix(in srgb, var(--brand-primary-hex) 90%, black)
-    );
-  }
-
   .auth-card {
     background-color: rgba(255, 255, 255, 0.9) !important;
     border-color: #e5e5e5 !important;
@@ -417,10 +360,6 @@ input[type="search"]::-ms-clear {
 
   .auth-link {
     color: #737373 !important;
-  }
-
-  .bg-surface-elevated {
-    background-color: var(--surface-elevated);
   }
 
   .transition-ring {
