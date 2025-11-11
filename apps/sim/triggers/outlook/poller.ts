@@ -32,13 +32,14 @@ export const outlookPollingTrigger: TriggerConfig = {
       placeholder: 'Select Outlook folders to monitor for new emails',
       description: 'Choose which Outlook folders to monitor. Leave empty to monitor all emails.',
       required: false,
+      dependsOn: ['triggerCredentials'],
       options: [], // Will be populated dynamically
       fetchOptions: async (blockId: string, subBlockId: string) => {
         const credentialId = useSubBlockStore.getState().getValue(blockId, 'triggerCredentials') as
           | string
           | null
         if (!credentialId) {
-          return []
+          throw new Error('No Outlook credential selected')
         }
         try {
           const response = await fetch(`/api/tools/outlook/folders?credentialId=${credentialId}`)
@@ -55,7 +56,7 @@ export const outlookPollingTrigger: TriggerConfig = {
           return []
         } catch (error) {
           logger.error('Error fetching Outlook folders:', error)
-          return []
+          throw error
         }
       },
       mode: 'trigger',
