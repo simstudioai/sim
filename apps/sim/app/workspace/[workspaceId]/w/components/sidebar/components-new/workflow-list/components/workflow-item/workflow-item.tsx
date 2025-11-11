@@ -1,10 +1,9 @@
 'use client'
 
-import { useCallback, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import clsx from 'clsx'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
-import { createLogger } from '@/lib/logs/console/logger'
 import { useDeleteWorkflow } from '@/app/workspace/[workspaceId]/w/hooks'
 import { useFolderStore } from '@/stores/folders/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -12,8 +11,6 @@ import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
 import { useContextMenu, useItemDrag, useItemRename } from '../../../../hooks'
 import { ContextMenu } from '../context-menu/context-menu'
 import { DeleteModal } from '../delete-modal/delete-modal'
-
-const logger = createLogger('WorkflowItem')
 
 interface WorkflowItemProps {
   workflow: WorkflowMetadata
@@ -33,17 +30,37 @@ export function WorkflowItem({ workflow, active, level, onWorkflowClick }: Workf
   const params = useParams()
   const workspaceId = params.workspaceId as string
   const { selectedWorkflows } = useFolderStore()
-  const { updateWorkflow } = useWorkflowRegistry()
+  const { updateWorkflow, workflows } = useWorkflowRegistry()
   const isSelected = selectedWorkflows.has(workflow.id)
 
   // Delete modal state
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
+  const [workflowIdsToDelete, setWorkflowIdsToDelete] = useState<string[]>([])
+  const [deleteModalNames, setDeleteModalNames] = useState<string | string[]>('')
+
+  // Capture selection at right-click time (using ref to persist across renders)
+  const capturedSelectionRef = useRef<{
+    workflowIds: string[]
+    workflowNames: string | string[]
+  } | null>(null)
+
+  /**
+   * Handle opening the delete modal - uses pre-captured selection state
+   */
+  const handleOpenDeleteModal = useCallback(() => {
+    // Use the selection captured at right-click time
+    if (capturedSelectionRef.current) {
+      setWorkflowIdsToDelete(capturedSelectionRef.current.workflowIds)
+      setDeleteModalNames(capturedSelectionRef.current.workflowNames)
+      setIsDeleteModalOpen(true)
+    }
+  }, [])
 
   // Delete workflow hook
   const { isDeleting, handleDeleteWorkflow } = useDeleteWorkflow({
     workspaceId,
-    workflowId: workflow.id,
-    isActive: active,
+    getWorkflowIds: () => workflowIdsToDelete,
+    isActive: (workflowIds) => workflowIds.includes(params.workflowId as string),
     onSuccess: () => setIsDeleteModalOpen(false),
   })
 
@@ -79,9 +96,48 @@ export function WorkflowItem({ workflow, active, level, onWorkflowClick }: Workf
     isOpen: isContextMenuOpen,
     position,
     menuRef,
-    handleContextMenu,
+    handleContextMenu: handleContextMenuBase,
     closeMenu,
   } = useContextMenu()
+
+  /**
+   * Handle right-click - ensure proper selection behavior and capture selection state
+   * If right-clicking on an unselected workflow, select only that workflow
+   * If right-clicking on a selected workflow with multiple selections, keep all selections
+   */
+  const handleContextMenu = useCallback(
+    (e: React.MouseEvent) => {
+      // Check current selection state at time of right-click
+      const { selectedWorkflows: currentSelection, selectOnly } = useFolderStore.getState()
+      const isCurrentlySelected = currentSelection.has(workflow.id)
+
+      // If this workflow is not in the current selection, select only this workflow
+      if (!isCurrentlySelected) {
+        selectOnly(workflow.id)
+      }
+
+      // Capture the selection state at right-click time
+      const finalSelection = useFolderStore.getState().selectedWorkflows
+      const finalIsSelected = finalSelection.has(workflow.id)
+
+      const workflowIds =
+        finalIsSelected && finalSelection.size > 1 ? Array.from(finalSelection) : [workflow.id]
+
+      const workflowNames = workflowIds
+        .map((id) => workflows[id]?.name)
+        .filter((name): name is string => !!name)
+
+      // Store in ref so it persists even if selection changes
+      capturedSelectionRef.current = {
+        workflowIds,
+        workflowNames: workflowNames.length > 1 ? workflowNames : workflowNames[0],
+      }
+
+      // If already selected with multiple selections, keep all selections
+      handleContextMenuBase(e)
+    },
+    [workflow.id, workflows, handleContextMenuBase]
+  )
 
   // Rename hook
   const {
@@ -197,7 +253,8 @@ export function WorkflowItem({ workflow, active, level, onWorkflowClick }: Workf
         menuRef={menuRef}
         onClose={closeMenu}
         onRename={handleStartEdit}
-        onDelete={() => setIsDeleteModalOpen(true)}
+        onDelete={handleOpenDeleteModal}
+        showRename={selectedWorkflows.size <= 1}
       />
 
       {/* Delete Confirmation Modal */}
@@ -207,7 +264,7 @@ export function WorkflowItem({ workflow, active, level, onWorkflowClick }: Workf
         onConfirm={handleDeleteWorkflow}
         isDeleting={isDeleting}
         itemType='workflow'
-        itemName={workflow.name}
+        itemName={deleteModalNames}
       />
     </>
   )

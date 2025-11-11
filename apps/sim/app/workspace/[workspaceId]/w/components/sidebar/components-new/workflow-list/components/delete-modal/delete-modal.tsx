@@ -32,9 +32,10 @@ interface DeleteModalProps {
    */
   itemType: 'workflow' | 'folder'
   /**
-   * Name of the item being deleted (optional, for display)
+   * Name(s) of the item(s) being deleted (optional, for display)
+   * Can be a single name or an array of names for multiple items
    */
-  itemName?: string
+  itemName?: string | string[]
 }
 
 /**
@@ -52,12 +53,37 @@ export function DeleteModal({
   itemType,
   itemName,
 }: DeleteModalProps) {
-  const title = itemType === 'workflow' ? 'Delete workflow?' : 'Delete folder?'
+  const isMultiple = Array.isArray(itemName) && itemName.length > 1
+  const isSingle = !isMultiple
 
-  const description =
-    itemType === 'workflow'
-      ? 'Deleting this workflow will permanently remove all associated blocks, executions, and configuration.'
-      : 'Deleting this folder will permanently remove all associated workflows, logs, and knowledge bases.'
+  const displayNames = Array.isArray(itemName) ? itemName : itemName ? [itemName] : []
+
+  let title = ''
+  if (itemType === 'workflow') {
+    title = isMultiple ? 'Delete workflows?' : 'Delete workflow?'
+  } else {
+    title = 'Delete folder?'
+  }
+
+  let description = ''
+  if (itemType === 'workflow') {
+    if (isMultiple) {
+      const workflowList = displayNames.join(', ')
+      description = `Deleting ${workflowList} will permanently remove all associated blocks, executions, and configuration.`
+    } else if (isSingle && displayNames.length > 0) {
+      description = `Deleting ${displayNames[0]} will permanently remove all associated blocks, executions, and configuration.`
+    } else {
+      description =
+        'Deleting this workflow will permanently remove all associated blocks, executions, and configuration.'
+    }
+  } else {
+    if (isSingle && displayNames.length > 0) {
+      description = `Deleting ${displayNames[0]} will permanently remove all associated workflows, logs, and knowledge bases.`
+    } else {
+      description =
+        'Deleting this folder will permanently remove all associated workflows, logs, and knowledge bases.'
+    }
+  }
 
   return (
     <Modal open={isOpen} onOpenChange={onClose}>

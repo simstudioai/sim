@@ -85,7 +85,7 @@ export function Panel() {
   // Delete workflow hook
   const { isDeleting, handleDeleteWorkflow } = useDeleteWorkflow({
     workspaceId,
-    workflowId: activeWorkflowId || '',
+    getWorkflowIds: () => activeWorkflowId || '',
     isActive: true,
     onSuccess: () => setIsDeleteModalOpen(false),
   })

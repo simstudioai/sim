@@ -29,6 +29,11 @@ interface ContextMenuProps {
    * Callback when delete is clicked
    */
   onDelete: () => void
+  /**
+   * Whether to show the rename option (default: true)
+   * Set to false when multiple items are selected
+   */
+  showRename?: boolean
 }
 
 /**
@@ -45,6 +50,7 @@ export function ContextMenu({
   onClose,
   onRename,
   onDelete,
+  showRename = true,
 }: ContextMenuProps) {
   return (
     <Popover open={isOpen} onOpenChange={onClose}>
@@ -58,15 +64,17 @@ export function ContextMenu({
         }}
       />
       <PopoverContent ref={menuRef} align='start' side='bottom' sideOffset={4}>
-        <PopoverItem
-          onClick={() => {
-            onRename()
-            onClose()
-          }}
-        >
-          <Pencil className='h-3 w-3' />
-          <span>Rename</span>
-        </PopoverItem>
+        {showRename && (
+          <PopoverItem
+            onClick={() => {
+              onRename()
+              onClose()
+            }}
+          >
+            <Pencil className='h-3 w-3' />
+            <span>Rename</span>
+          </PopoverItem>
+        )}
         <PopoverItem
           onClick={() => {
             onDelete()
