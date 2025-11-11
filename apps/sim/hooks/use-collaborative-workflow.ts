@@ -852,17 +852,6 @@ export function useCollaborativeWorkflow() {
         workflowStore.addEdge(autoConnectEdge)
       }
 
-      // Explicitly seed the subblock store to ensure values are available
-      // This ensures the UI can read the initial values immediately
-      if (activeWorkflowId && blockConfig.subBlocks) {
-        blockConfig.subBlocks.forEach((subBlock) => {
-          const subBlockValue = subBlocks[subBlock.id]?.value
-          if (subBlockValue !== undefined) {
-            useSubBlockStore.getState().setValue(id, subBlock.id, subBlockValue)
-          }
-        })
-      }
-
       // Record for undo AFTER adding (pass the autoConnectEdge explicitly)
       undoRedo.recordAddBlock(id, autoConnectEdge)
 
