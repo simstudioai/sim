@@ -762,13 +762,39 @@ export function useCollaborativeWorkflow() {
       // Generate subBlocks and outputs from the block configuration
       const subBlocks: Record<string, any> = {}
 
-      // Create subBlocks from the block configuration
       if (blockConfig.subBlocks) {
         blockConfig.subBlocks.forEach((subBlock) => {
+          let initialValue: unknown = null
+
+          if (typeof subBlock.value === 'function') {
+            try {
+              initialValue = subBlock.value({})
+            } catch (error) {
+              logger.warn('Failed to resolve dynamic sub-block default value', {
+                subBlockId: subBlock.id,
+                error: error instanceof Error ? error.message : String(error),
+              })
+            }
+          } else if (subBlock.defaultValue !== undefined) {
+            initialValue = subBlock.defaultValue
+          } else if (subBlock.type === 'input-format') {
+            initialValue = [
+              {
+                id: crypto.randomUUID(),
+                name: '',
+                type: 'string',
+                value: '',
+                collapsed: false,
+              },
+            ]
+          } else if (subBlock.type === 'table') {
+            initialValue = []
+          }
+
           subBlocks[subBlock.id] = {
             id: subBlock.id,
             type: subBlock.type,
-            value: subBlock.defaultValue ?? null,
+            value: initialValue,
           }
         })
       }

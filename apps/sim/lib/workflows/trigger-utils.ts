@@ -124,6 +124,7 @@ export function getAllTriggerBlocks(): TriggerInfo[] {
         icon: block.icon,
         color: block.bgColor,
         category: 'core',
+        enableTriggerMode: hasTriggerCapability(block),
       })
     }
     // Check if it's a tool with trigger capability (has trigger-config subblock)
@@ -153,9 +154,15 @@ export function getAllTriggerBlocks(): TriggerInfo[] {
  * Check if a block has trigger capability (contains trigger mode subblocks)
  */
 export function hasTriggerCapability(block: BlockConfig): boolean {
+  const hasTriggerModeSubBlocks = block.subBlocks.some((subBlock) => subBlock.mode === 'trigger')
+
+  if (block.category === 'triggers') {
+    return hasTriggerModeSubBlocks
+  }
+
   return (
     (block.triggers?.enabled === true && block.triggers.available.length > 0) ||
-    block.subBlocks.some((subBlock) => subBlock.mode === 'trigger')
+    hasTriggerModeSubBlocks
   )
 }
 

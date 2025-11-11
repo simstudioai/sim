@@ -37,8 +37,19 @@ function resolveInitialValue(subBlock: SubBlockConfig): unknown {
     return cloneDefaultValue(subBlock.defaultValue)
   }
 
-  // Ensure structured fields are initialized with empty collections by default
-  if (subBlock.type === 'input-format' || subBlock.type === 'table') {
+  if (subBlock.type === 'input-format') {
+    return [
+      {
+        id: crypto.randomUUID(),
+        name: '',
+        type: 'string',
+        value: '',
+        collapsed: false,
+      },
+    ]
+  }
+
+  if (subBlock.type === 'table') {
     return []
   }
 
