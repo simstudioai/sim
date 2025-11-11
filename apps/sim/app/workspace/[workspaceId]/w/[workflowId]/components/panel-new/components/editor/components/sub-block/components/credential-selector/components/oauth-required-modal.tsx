@@ -51,6 +51,7 @@ const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'write:confluence-content': 'Create and edit Confluence pages',
   'write:confluence-space': 'Manage Confluence spaces',
   'write:confluence-file': 'Upload files to Confluence',
+  'read:content:confluence': 'Read Confluence content',
   'read:page:confluence': 'View Confluence pages',
   'write:page:confluence': 'Create and update Confluence pages',
   'read:comment:confluence': 'View comments on Confluence pages',

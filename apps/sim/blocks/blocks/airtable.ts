@@ -34,7 +34,12 @@ export const AirtableBlock: BlockConfig<AirtableResponse> = {
       type: 'oauth-input',
       provider: 'airtable',
       serviceId: 'airtable',
-      requiredScopes: ['data.records:read', 'data.records:write'], // Keep both scopes
+      requiredScopes: [
+        'data.records:read',
+        'data.records:write',
+        'user.email:read',
+        'webhook:manage',
+      ],
       placeholder: 'Select Airtable account',
       required: true,
     },
