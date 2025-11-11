@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import type { SubBlockConfig } from '@/blocks/types'
 import { useDisplayNamesStore } from '@/stores/display-names/store'
 import { useKnowledgeStore } from '@/stores/knowledge/store'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 /**
  * Generic hook to get display name for any selector value
@@ -17,21 +18,11 @@ export function useDisplayName(
     knowledgeBaseId?: string
   }
 ): string | null {
+  const getCachedKnowledgeBase = useKnowledgeStore((state) => state.getCachedKnowledgeBase)
   const getKnowledgeBase = useKnowledgeStore((state) => state.getKnowledgeBase)
+  const getDocuments = useKnowledgeStore((state) => state.getDocuments)
   const [isFetching, setIsFetching] = useState(false)
 
-  // Subscribe to knowledge base name so component re-renders when it becomes available
-  const knowledgeBaseName = useKnowledgeStore(
-    useCallback(
-      (state) => {
-        if (typeof value !== 'string') return null
-        return state.knowledgeBases[value]?.name ?? null
-      },
-      [value]
-    )
-  )
-
-  // Select actual cached value from store (not getter) so component re-renders when cache updates
   const cachedDisplayName = useDisplayNamesStore(
     useCallback(
       (state) => {
@@ -70,14 +61,7 @@ export function useDisplayName(
 
         return null
       },
-      [
-        subBlock,
-        value,
-        context?.workspaceId,
-        context?.credentialId,
-        context?.provider,
-        context?.knowledgeBaseId,
-      ]
+      [subBlock, value, context?.credentialId, context?.provider, context?.knowledgeBaseId]
     )
   )
 
@@ -87,19 +71,72 @@ export function useDisplayName(
       subBlock?.type === 'knowledge-base-selector' &&
       typeof value === 'string' &&
       value &&
-      !knowledgeBaseName &&
+      !isFetching
+    ) {
+      const kb = getCachedKnowledgeBase(value)
+      if (!kb) {
+        setIsFetching(true)
+        getKnowledgeBase(value)
+          .catch(() => {
+            // Silently fail
+          })
+          .finally(() => {
+            setIsFetching(false)
+          })
+      }
+    }
+  }, [subBlock?.type, value, isFetching, getCachedKnowledgeBase, getKnowledgeBase])
+
+  // Auto-fetch documents if needed
+  useEffect(() => {
+    if (
+      subBlock?.type === 'document-selector' &&
+      context?.knowledgeBaseId &&
+      typeof value === 'string' &&
+      value &&
+      !cachedDisplayName &&
       !isFetching
     ) {
       setIsFetching(true)
-      getKnowledgeBase(value as string)
+      getDocuments(context.knowledgeBaseId)
+        .then((docs) => {
+          if (docs.length > 0) {
+            const documentMap = docs.reduce<Record<string, string>>((acc, doc) => {
+              acc[doc.id] = doc.filename
+              return acc
+            }, {})
+            useDisplayNamesStore
+              .getState()
+              .setDisplayNames('documents', context.knowledgeBaseId!, documentMap)
+          }
+        })
         .catch(() => {
-          // Silently fail if the fetch fails
+          // Silently fail
         })
         .finally(() => {
           setIsFetching(false)
         })
     }
-  }, [subBlock?.type, value, isFetching, knowledgeBaseName, getKnowledgeBase])
+  }, [subBlock?.type, value, context?.knowledgeBaseId, cachedDisplayName, isFetching, getDocuments])
+
+  // Auto-fetch workflows if needed
+  useEffect(() => {
+    if (subBlock?.id !== 'workflowId' || typeof value !== 'string' || !value) return
+    if (cachedDisplayName || isFetching) return
+
+    const workflows = useWorkflowRegistry.getState().workflows
+    if (!workflows[value]) return
+
+    const workflowMap = Object.entries(workflows).reduce<Record<string, string>>(
+      (acc, [id, workflow]) => {
+        acc[id] = workflow.name || `Workflow ${id.slice(0, 8)}`
+        return acc
+      },
+      {}
+    )
+
+    useDisplayNamesStore.getState().setDisplayNames('workflows', 'global', workflowMap)
+  }, [subBlock?.id, value, cachedDisplayName, isFetching])
 
   if (!subBlock || !value || typeof value !== 'string') {
     return null
@@ -111,11 +148,9 @@ export function useDisplayName(
   }
 
   // Knowledge Bases - use existing knowledge store
-  if (subBlock.type === 'knowledge-base-selector' && context?.workspaceId) {
-    if (knowledgeBaseName) {
-      return knowledgeBaseName
-    }
-    return null
+  if (subBlock.type === 'knowledge-base-selector') {
+    const kb = getCachedKnowledgeBase(value)
+    return kb?.name || null
   }
 
   // Return the cached display name (which triggers re-render when populated)

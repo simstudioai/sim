@@ -212,6 +212,22 @@ const SubBlockRow = ({
   // Get knowledge base ID from block context for document selector
   const knowledgeBaseId = dependencyValues.knowledgeBaseId
 
+  // For dropdown/combobox, look up the label from options
+  const dropdownLabel = useMemo(() => {
+    if (!subBlock || (subBlock.type !== 'dropdown' && subBlock.type !== 'combobox')) return null
+    if (!rawValue || typeof rawValue !== 'string') return null
+
+    const options = typeof subBlock.options === 'function' ? subBlock.options() : subBlock.options
+    if (!options) return null
+
+    const option = options.find((opt) =>
+      typeof opt === 'string' ? opt === rawValue : opt.id === rawValue
+    )
+
+    if (!option) return null
+    return typeof option === 'string' ? option : option.label
+  }, [subBlock, rawValue])
+
   // For all other selector types, use generic display name hook
   const genericDisplayName = useDisplayName(subBlock, rawValue, {
     workspaceId,
@@ -221,7 +237,7 @@ const SubBlockRow = ({
   })
 
   // Use hydrated name if available, otherwise use the provided value
-  const displayValue = credentialName || genericDisplayName || value
+  const displayValue = credentialName || dropdownLabel || genericDisplayName || value
 
   return (
     <div className='flex items-center gap-[8px]'>
