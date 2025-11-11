@@ -123,26 +123,6 @@ export function DocumentSelector({
   }, [normalizedKnowledgeBaseId])
 
   useEffect(() => {
-    if (normalizedKnowledgeBaseId && !isPreview && !isDisabled) {
-      if (
-        !documentsCache ||
-        !documentsCache.documents.length ||
-        (value && !documents.find((doc) => doc.id === value))
-      ) {
-        void loadDocuments()
-      }
-    }
-  }, [
-    normalizedKnowledgeBaseId,
-    isPreview,
-    isDisabled,
-    documentsCache,
-    documents,
-    value,
-    loadDocuments,
-  ])
-
-  useEffect(() => {
     if (!normalizedKnowledgeBaseId || documents.length === 0) return
 
     const documentMap = documents.reduce<Record<string, string>>((acc, doc) => {

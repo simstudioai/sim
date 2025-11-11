@@ -73,11 +73,22 @@ export function JiraIssueSelector({
   const [issues, setIssues] = useState<JiraIssueInfo[]>([])
   const [selectedCredentialId, setSelectedCredentialId] = useState<string>(credentialId || '')
   const [selectedIssueId, setSelectedIssueId] = useState(value)
-  const [selectedIssue, setSelectedIssue] = useState<JiraIssueInfo | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [showOAuthModal, setShowOAuthModal] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [cloudId, setCloudId] = useState<string | null>(null)
+
+  // Get cached display name
+  const cachedIssueName = useDisplayNamesStore(
+    useCallback(
+      (state) => {
+        const effectiveCredentialId = credentialId || selectedCredentialId
+        if (!effectiveCredentialId || !value) return null
+        return state.cache.files[effectiveCredentialId]?.[value] || null
+      },
+      [credentialId, selectedCredentialId, value]
+    )
+  )
 
   // Keep local credential state in sync with persisted credentialId prop
   useEffect(() => {
@@ -215,18 +226,14 @@ export function JiraIssueSelector({
 
         if (data.issue) {
           logger.info('Successfully fetched issue:', data.issue.name)
-          setSelectedIssue(data.issue)
           onIssueInfoChange?.(data.issue)
         } else {
           logger.warn('No issue data received in response')
-          setSelectedIssue(null)
           onIssueInfoChange?.(null)
         }
       } catch (error) {
         logger.error('Error fetching issue info:', error)
         setError((error as Error).message)
-        // Clear selection on error to prevent infinite retry loops
-        setSelectedIssue(null)
         onIssueInfoChange?.(null)
       } finally {
         setIsLoading(false)
@@ -355,12 +362,11 @@ export function JiraIssueSelector({
           useDisplayNamesStore.getState().setDisplayNames('files', selectedCredentialId, issueMap)
         }
 
-        // If we have a selected issue ID, find the issue info
-        if (selectedIssueId) {
+        // If we have a selected issue ID, notify parent if callback exists
+        if (selectedIssueId && onIssueInfoChange) {
           const issueInfo = foundIssues.find((issue: JiraIssueInfo) => issue.id === selectedIssueId)
           if (issueInfo) {
-            setSelectedIssue(issueInfo)
-            onIssueInfoChange?.(issueInfo)
+            onIssueInfoChange(issueInfo)
           } else if (!searchQuery && selectedIssueId) {
             // If we can't find the issue in the list, try to fetch it directly
             fetchIssueInfo(selectedIssueId)
@@ -430,17 +436,15 @@ export function JiraIssueSelector({
     // When the upstream value is cleared (e.g., project changed or remote user cleared),
     // clear local selection and preview immediately
     if (!value) {
-      setSelectedIssue(null)
       setIssues([])
       setError(null)
       onIssueInfoChange?.(null)
     }
-  }, [value])
+  }, [value, onIssueInfoChange])
 
   // Handle issue selection
   const handleSelectIssue = (issue: JiraIssueInfo) => {
     setSelectedIssueId(issue.id)
-    setSelectedIssue(issue)
     onChange(issue.id, issue)
     onIssueInfoChange?.(issue)
     setOpen(false)
@@ -456,8 +460,7 @@ export function JiraIssueSelector({
   // Clear selection
   const handleClearSelection = () => {
     setSelectedIssueId('')
-    setSelectedIssue(null)
-    setError(null) // Clear any existing errors
+    setError(null)
     onChange('', undefined)
     onIssueInfoChange?.(null)
   }
@@ -475,10 +478,10 @@ export function JiraIssueSelector({
               disabled={disabled || !domain || !selectedCredentialId || isForeignCredential}
             >
               <div className='flex min-w-0 items-center gap-2 overflow-hidden'>
-                {selectedIssue ? (
+                {cachedIssueName ? (
                   <>
                     <JiraIcon className='h-4 w-4' />
-                    <span className='truncate font-normal'>{selectedIssue.name}</span>
+                    <span className='truncate font-normal'>{cachedIssueName}</span>
                   </>
                 ) : (
                   <>

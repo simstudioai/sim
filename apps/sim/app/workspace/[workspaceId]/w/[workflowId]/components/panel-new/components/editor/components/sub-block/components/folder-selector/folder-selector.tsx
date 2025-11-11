@@ -66,11 +66,23 @@ export function FolderSelector({
     credentialId || ''
   )
   const [selectedFolderId, setSelectedFolderId] = useState('')
-  const [selectedFolder, setSelectedFolder] = useState<FolderInfo | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [isLoadingSelectedFolder, setIsLoadingSelectedFolder] = useState(false)
   const [showOAuthModal, setShowOAuthModal] = useState(false)
   const initialFetchRef = useRef(false)
+
+  // Get cached display name
+  const cachedFolderName = useDisplayNamesStore(
+    useCallback(
+      (state) => {
+        const effectiveCredentialId = credentialId || selectedCredentialId
+        const effectiveValue = isPreview && previewValue !== undefined ? previewValue : value
+        if (!effectiveCredentialId || !effectiveValue) return null
+        return state.cache.folders[effectiveCredentialId]?.[effectiveValue] || null
+      },
+      [credentialId, selectedCredentialId, value, isPreview, previewValue]
+    )
+  )
 
   // Initialize selectedFolderId with the effective value
   useEffect(() => {
@@ -169,7 +181,6 @@ export function FolderSelector({
             messagesTotal: folder.totalItemCount,
             messagesUnread: folder.unreadItemCount,
           }
-          setSelectedFolder(folderInfo)
           onFolderInfoChange?.(folderInfo)
           return folderInfo
         }
@@ -182,7 +193,6 @@ export function FolderSelector({
         if (response.ok) {
           const data = await response.json()
           if (data.label) {
-            setSelectedFolder(data.label)
             onFolderInfoChange?.(data.label)
             return data.label
           }
@@ -254,14 +264,13 @@ export function FolderSelector({
               .setDisplayNames('folders', selectedCredentialId, folderMap)
           }
 
-          // If we have a selected folder ID, find the folder info
-          if (selectedFolderId) {
+          // Only notify parent if callback exists
+          if (selectedFolderId && onFolderInfoChange) {
             const folderInfo = folderList.find(
               (folder: FolderInfo) => folder.id === selectedFolderId
             )
             if (folderInfo) {
-              setSelectedFolder(folderInfo)
-              onFolderInfoChange?.(folderInfo)
+              onFolderInfoChange(folderInfo)
             } else if (!searchQuery && provider !== 'outlook') {
               // Only try to fetch by ID for Gmail if this is not a search query
               // and we couldn't find the folder in the list
@@ -318,33 +327,11 @@ export function FolderSelector({
     if (currentValue !== selectedFolderId) {
       setSelectedFolderId(currentValue || '')
     }
-  }, [value, isPreview, previewValue, disabled])
-
-  // Fetch the selected folder metadata once credentials are ready or value changes
-  useEffect(() => {
-    if (disabled) return
-    const currentValue = isPreview ? (previewValue as string) : (value as string)
-    if (
-      currentValue &&
-      selectedCredentialId &&
-      (!selectedFolder || selectedFolder.id !== currentValue)
-    ) {
-      fetchFolderById(currentValue)
-    }
-  }, [
-    value,
-    selectedCredentialId,
-    selectedFolder,
-    fetchFolderById,
-    isPreview,
-    previewValue,
-    disabled,
-  ])
+  }, [value, isPreview, previewValue, disabled, selectedFolderId])
 
   // Handle folder selection
   const handleSelectFolder = (folder: FolderInfo) => {
     setSelectedFolderId(folder.id)
-    setSelectedFolder(folder)
     if (!isPreview) {
       onChange(folder.id, folder)
     }
@@ -400,10 +387,10 @@ export function FolderSelector({
               className='w-full justify-between'
               disabled={disabled || isForeignCredential}
             >
-              {selectedFolder ? (
+              {cachedFolderName ? (
                 <div className='flex items-center gap-2 overflow-hidden'>
                   {getFolderIcon('sm')}
-                  <span className='truncate font-normal'>{selectedFolder.name}</span>
+                  <span className='truncate font-normal'>{cachedFolderName}</span>
                 </div>
               ) : (
                 <div className='flex items-center gap-2'>

@@ -71,11 +71,22 @@ export function ConfluenceFileSelector({
   const [files, setFiles] = useState<ConfluenceFileInfo[]>([])
   const [selectedCredentialId, setSelectedCredentialId] = useState<string>(credentialId || '')
   const [selectedFileId, setSelectedFileId] = useState(value)
-  const [selectedFile, setSelectedFile] = useState<ConfluenceFileInfo | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [showOAuthModal, setShowOAuthModal] = useState(false)
   const initialFetchRef = useRef(false)
   const [error, setError] = useState<string | null>(null)
+
+  // Get cached display name
+  const cachedFileName = useDisplayNamesStore(
+    useCallback(
+      (state) => {
+        const effectiveCredentialId = credentialId || selectedCredentialId
+        if (!effectiveCredentialId || !value) return null
+        return state.cache.files[effectiveCredentialId]?.[value] || null
+      },
+      [credentialId, selectedCredentialId, value]
+    )
+  )
   // Keep internal credential in sync with prop (handles late arrival and BFCache restores)
   useEffect(() => {
     if (credentialId && credentialId !== selectedCredentialId) {
@@ -199,7 +210,6 @@ export function ConfluenceFileSelector({
 
         const data = await response.json()
         if (data.file) {
-          setSelectedFile(data.file)
           onFileInfoChange?.(data.file)
         } else {
           const fileInfo: ConfluenceFileInfo = {
@@ -211,7 +221,6 @@ export function ConfluenceFileSelector({
             spaceId: undefined,
             url: undefined,
           }
-          setSelectedFile(fileInfo)
           onFileInfoChange?.(fileInfo)
         }
       } catch (error) {
@@ -319,12 +328,11 @@ export function ConfluenceFileSelector({
           useDisplayNamesStore.getState().setDisplayNames('files', selectedCredentialId, fileMap)
         }
 
-        // If we have a selected file ID, find the file info
-        if (selectedFileId) {
+        // If we have a selected file ID, notify parent if callback exists
+        if (selectedFileId && onFileInfoChange) {
           const fileInfo = data.files.find((file: ConfluenceFileInfo) => file.id === selectedFileId)
           if (fileInfo) {
-            setSelectedFile(fileInfo)
-            onFileInfoChange?.(fileInfo)
+            onFileInfoChange(fileInfo)
           } else if (!searchQuery && selectedFileId) {
             // If we can't find the file in the list, try to fetch it directly
             fetchPageInfo(selectedFileId)
@@ -389,10 +397,9 @@ export function ConfluenceFileSelector({
     }
   }, [value])
 
-  // Clear preview when value is cleared (e.g., collaborator cleared or domain change cascade)
+  // Clear callback when value is cleared
   useEffect(() => {
     if (!value) {
-      setSelectedFile(null)
       onFileInfoChange?.(null)
     }
   }, [value, onFileInfoChange])
@@ -400,7 +407,6 @@ export function ConfluenceFileSelector({
   // Handle file selection
   const handleSelectFile = (file: ConfluenceFileInfo) => {
     setSelectedFileId(file.id)
-    setSelectedFile(file)
     onChange(file.id, file)
     onFileInfoChange?.(file)
     setOpen(false)
@@ -416,7 +422,6 @@ export function ConfluenceFileSelector({
   // Clear selection
   const handleClearSelection = () => {
     setSelectedFileId('')
-    setSelectedFile(null)
     onChange('', undefined)
     onFileInfoChange?.(null)
   }
@@ -434,10 +439,10 @@ export function ConfluenceFileSelector({
               disabled={disabled || !domain || isForeignCredential}
             >
               <div className='flex min-w-0 items-center gap-2 overflow-hidden'>
-                {selectedFile ? (
+                {cachedFileName ? (
                   <>
                     <ConfluenceIcon className='h-4 w-4' />
-                    <span className='truncate font-normal'>{selectedFile.name}</span>
+                    <span className='truncate font-normal'>{cachedFileName}</span>
                   </>
                 ) : (
                   <>

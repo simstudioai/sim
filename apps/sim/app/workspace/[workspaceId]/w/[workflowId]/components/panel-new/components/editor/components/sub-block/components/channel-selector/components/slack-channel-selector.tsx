@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useState } from 'react'
 import { Check, ChevronDown, Hash, Lock, RefreshCw } from 'lucide-react'
 import { SlackIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
@@ -42,8 +42,18 @@ export function SlackChannelSelector({
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [open, setOpen] = useState(false)
-  const [selectedChannel, setSelectedChannel] = useState<SlackChannelInfo | null>(null)
   const [initialFetchDone, setInitialFetchDone] = useState(false)
+
+  // Get cached display name
+  const cachedChannelName = useDisplayNamesStore(
+    useCallback(
+      (state) => {
+        if (!credential || !value) return null
+        return state.cache.channels[credential]?.[value] || null
+      },
+      [credential, value]
+    )
+  )
 
   // Fetch channels from Slack API
   const fetchChannels = useCallback(async () => {
@@ -110,27 +120,7 @@ export function SlackChannelSelector({
     }
   }
 
-  // Sync selected channel with value prop
-  useEffect(() => {
-    if (value && channels.length > 0) {
-      const channelInfo = channels.find((c) => c.id === value)
-      setSelectedChannel(channelInfo || null)
-    } else if (!value) {
-      setSelectedChannel(null)
-    }
-  }, [value, channels])
-
-  // If we have a value but no channel info and haven't fetched yet, get just that channel
-  useEffect(() => {
-    if (value && !selectedChannel && !loading && !initialFetchDone && credential) {
-      // For now, we'll fetch all channels when needed
-      // In the future, we could optimize to fetch just the selected channel
-      fetchChannels()
-    }
-  }, [value, selectedChannel, loading, initialFetchDone, credential, fetchChannels])
-
   const handleSelectChannel = (channel: SlackChannelInfo) => {
-    setSelectedChannel(channel)
     onChange(channel.id, channel)
     setOpen(false)
   }
@@ -156,15 +146,10 @@ export function SlackChannelSelector({
         >
           <div className='flex max-w-[calc(100%-20px)] items-center gap-2 overflow-hidden'>
             <SlackIcon className='h-4 w-4 text-[#611f69]' />
-            {selectedChannel ? (
-              <>
-                {getChannelIcon(selectedChannel)}
-                <span className='truncate font-normal'>{formatChannelName(selectedChannel)}</span>
-              </>
-            ) : value ? (
+            {cachedChannelName ? (
               <>
                 <Hash className='h-1.5 w-1.5' />
-                <span className='truncate font-normal'>{value}</span>
+                <span className='truncate font-normal'>{cachedChannelName}</span>
               </>
             ) : (
               <span className='truncate text-muted-foreground'>{label}</span>

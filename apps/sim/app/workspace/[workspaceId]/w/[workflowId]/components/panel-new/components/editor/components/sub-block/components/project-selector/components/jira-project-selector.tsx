@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Check, ChevronDown, ExternalLink, RefreshCw, X } from 'lucide-react'
+import { Check, ChevronDown, RefreshCw } from 'lucide-react'
 import { JiraIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
 import {
@@ -74,12 +74,23 @@ export function JiraProjectSelector({
   const [projects, setProjects] = useState<JiraProjectInfo[]>([])
   const [selectedCredentialId, setSelectedCredentialId] = useState<string>(credentialId || '')
   const [selectedProjectId, setSelectedProjectId] = useState(value)
-  const [selectedProject, setSelectedProject] = useState<JiraProjectInfo | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [showOAuthModal, setShowOAuthModal] = useState(false)
   const initialFetchRef = useRef(false)
   const [error, setError] = useState<string | null>(null)
   const [cloudId, setCloudId] = useState<string | null>(null)
+
+  // Get cached display name
+  const cachedProjectName = useDisplayNamesStore(
+    useCallback(
+      (state) => {
+        const effectiveCredentialId = credentialId || selectedCredentialId
+        if (!effectiveCredentialId || !value) return null
+        return state.cache.projects[`jira-${effectiveCredentialId}`]?.[value] || null
+      },
+      [credentialId, selectedCredentialId, value]
+    )
+  )
 
   // Handle search with debounce
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null)
@@ -199,10 +210,8 @@ export function JiraProjectSelector({
         }
 
         if (projectInfo) {
-          setSelectedProject(projectInfo)
           onProjectInfoChange?.(projectInfo)
         } else {
-          setSelectedProject(null)
           onProjectInfoChange?.(null)
         }
       } catch (error) {
@@ -313,7 +322,6 @@ export function JiraProjectSelector({
             (project: JiraProjectInfo) => project.id === selectedProjectId
           )
           if (projectInfo) {
-            setSelectedProject(projectInfo)
             onProjectInfoChange?.(projectInfo)
           } else if (!searchQuery && selectedProjectId) {
             // If we can't find the project in the list, try to fetch it directly
@@ -352,26 +360,16 @@ export function JiraProjectSelector({
     }
   }, [credentialId, selectedCredentialId])
 
-  // Fetch the selected project metadata once credentials are ready or changed
-  useEffect(() => {
-    if (value && selectedCredentialId && domain && domain.includes('.')) {
-      if (!selectedProject || selectedProject.id !== value) {
-        fetchProjectInfo(value)
-      }
-    }
-  }, [value, selectedCredentialId, domain, fetchProjectInfo, selectedProject])
-
   // Keep internal selectedProjectId in sync with the value prop
   useEffect(() => {
     if (value !== selectedProjectId) {
       setSelectedProjectId(value)
     }
-  }, [value])
+  }, [value, selectedProjectId])
 
-  // Clear local preview when value is cleared remotely or via collaborator
+  // Clear callback when value is cleared
   useEffect(() => {
     if (!value) {
-      setSelectedProject(null)
       onProjectInfoChange?.(null)
     }
   }, [value, onProjectInfoChange])
@@ -388,7 +386,6 @@ export function JiraProjectSelector({
   // Handle project selection
   const handleSelectProject = (project: JiraProjectInfo) => {
     setSelectedProjectId(project.id)
-    setSelectedProject(project)
     onChange(project.id, project)
     onProjectInfoChange?.(project)
     setOpen(false)
@@ -404,13 +401,10 @@ export function JiraProjectSelector({
   // Clear selection
   const handleClearSelection = () => {
     setSelectedProjectId('')
-    setSelectedProject(null)
     setError(null)
     onChange('', undefined)
     onProjectInfoChange?.(null)
   }
-
-  const canShowPreview = !!(showPreview && selectedProject && value && selectedProject.id === value)
 
   return (
     <>
@@ -424,15 +418,10 @@ export function JiraProjectSelector({
               className='w-full justify-between'
               disabled={disabled || !domain || !selectedCredentialId || isForeignCredential}
             >
-              {canShowPreview ? (
+              {cachedProjectName ? (
                 <div className='flex items-center gap-2 overflow-hidden'>
                   <JiraIcon className='h-4 w-4' />
-                  <span className='truncate font-normal'>{selectedProject.name}</span>
-                </div>
-              ) : selectedProjectId ? (
-                <div className='flex items-center gap-2 overflow-hidden'>
-                  <JiraIcon className='h-4 w-4' />
-                  <span className='truncate font-normal'>{selectedProjectId}</span>
+                  <span className='truncate font-normal'>{cachedProjectName}</span>
                 </div>
               ) : (
                 <div className='flex items-center gap-2'>
@@ -569,55 +558,6 @@ export function JiraProjectSelector({
             </PopoverContent>
           )}
         </Popover>
-
-        {/* Project preview */}
-        {canShowPreview && (
-          <div className='relative mt-2 rounded-md border border-muted bg-muted/10 p-2'>
-            <div className='absolute top-2 right-2'>
-              <Button
-                variant='ghost'
-                size='icon'
-                className='h-5 w-5 hover:bg-muted'
-                onClick={handleClearSelection}
-              >
-                <X className='h-3 w-3' />
-              </Button>
-            </div>
-            <div className='flex items-center gap-3 pr-4'>
-              <div className='flex h-6 w-6 flex-shrink-0 items-center justify-center rounded bg-muted/20'>
-                {selectedProject.avatarUrl ? (
-                  <img
-                    src={selectedProject.avatarUrl}
-                    alt={selectedProject.name}
-                    className='h-4 w-4 rounded'
-                  />
-                ) : (
-                  <JiraIcon className='h-4 w-4' />
-                )}
-              </div>
-              <div className='min-w-0 flex-1 overflow-hidden'>
-                <div className='flex items-center gap-2'>
-                  <h4 className='truncate font-medium text-xs'>{selectedProject.name}</h4>
-                  <span className='whitespace-nowrap text-muted-foreground text-xs'>
-                    {selectedProject.key}
-                  </span>
-                </div>
-                {selectedProject.url && (
-                  <a
-                    href={selectedProject.url}
-                    target='_blank'
-                    rel='noopener noreferrer'
-                    className='flex items-center gap-1 text-foreground text-xs hover:underline'
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <span>Open in Jira</span>
-                    <ExternalLink className='h-3 w-3' />
-                  </a>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
       </div>
 
       {showOAuthModal && (

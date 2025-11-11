@@ -16,6 +16,10 @@ export function useDisplayName(
     credentialId?: string
     provider?: string
     knowledgeBaseId?: string
+    domain?: string
+    teamId?: string
+    projectId?: string
+    planId?: string
   }
 ): string | null {
   const getCachedKnowledgeBase = useKnowledgeStore((state) => state.getCachedKnowledgeBase)
@@ -137,6 +141,399 @@ export function useDisplayName(
 
     useDisplayNamesStore.getState().setDisplayNames('workflows', 'global', workflowMap)
   }, [subBlock?.id, value, cachedDisplayName, isFetching])
+
+  // Auto-fetch channels if needed
+  useEffect(() => {
+    if (subBlock?.type !== 'channel-selector' || !context?.credentialId || !value) return
+    if (cachedDisplayName || isFetching) return
+
+    setIsFetching(true)
+    fetch('/api/tools/slack/channels', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ credential: context.credentialId }),
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.channels) {
+          const channelMap = data.channels.reduce(
+            (acc: Record<string, string>, ch: { id: string; name: string }) => {
+              acc[ch.id] = ch.name
+              return acc
+            },
+            {}
+          )
+          useDisplayNamesStore
+            .getState()
+            .setDisplayNames('channels', context.credentialId!, channelMap)
+        }
+      })
+      .catch(() => {
+        // Silently fail
+      })
+      .finally(() => {
+        setIsFetching(false)
+      })
+  }, [subBlock?.type, value, context?.credentialId, cachedDisplayName, isFetching])
+
+  // Auto-fetch folders if needed (Gmail/Outlook)
+  useEffect(() => {
+    if (subBlock?.type !== 'folder-selector' || !context?.credentialId || !value) return
+    if (cachedDisplayName || isFetching) return
+
+    setIsFetching(true)
+    const provider = subBlock.provider || 'gmail'
+    const apiEndpoint =
+      provider === 'outlook'
+        ? `/api/tools/outlook/folders?credentialId=${context.credentialId}`
+        : `/api/tools/gmail/labels?credentialId=${context.credentialId}`
+
+    fetch(apiEndpoint)
+      .then((res) => res.json())
+      .then((data) => {
+        const folderList = provider === 'outlook' ? data.folders : data.labels
+        if (folderList) {
+          const folderMap = folderList.reduce(
+            (acc: Record<string, string>, folder: { id: string; name: string }) => {
+              acc[folder.id] = folder.name
+              return acc
+            },
+            {}
+          )
+          useDisplayNamesStore
+            .getState()
+            .setDisplayNames('folders', context.credentialId!, folderMap)
+        }
+      })
+      .catch(() => {
+        // Silently fail
+      })
+      .finally(() => {
+        setIsFetching(false)
+      })
+  }, [
+    subBlock?.type,
+    subBlock?.provider,
+    value,
+    context?.credentialId,
+    cachedDisplayName,
+    isFetching,
+  ])
+
+  // Auto-fetch projects if needed (Jira, Linear)
+  useEffect(() => {
+    if (
+      subBlock?.type !== 'project-selector' ||
+      !context?.credentialId ||
+      !context?.provider ||
+      !value
+    )
+      return
+    if (cachedDisplayName || isFetching) return
+
+    const projectContext = `${context.provider}-${context.credentialId}`
+    setIsFetching(true)
+
+    if (context.provider === 'jira' && context.domain) {
+      fetch('/api/tools/jira/projects', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ credentialId: context.credentialId, domain: context.domain }),
+      })
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.projects) {
+            const projectMap = data.projects.reduce(
+              (acc: Record<string, string>, proj: { id: string; name: string }) => {
+                acc[proj.id] = proj.name
+                return acc
+              },
+              {}
+            )
+            useDisplayNamesStore.getState().setDisplayNames('projects', projectContext, projectMap)
+          }
+        })
+        .catch(() => {})
+        .finally(() => setIsFetching(false))
+    } else if (context.provider === 'linear' && context.teamId) {
+      fetch('/api/tools/linear/projects', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ credential: context.credentialId, teamId: context.teamId }),
+      })
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.projects) {
+            const projectMap = data.projects.reduce(
+              (acc: Record<string, string>, proj: { id: string; name: string }) => {
+                acc[proj.id] = proj.name
+                return acc
+              },
+              {}
+            )
+            useDisplayNamesStore.getState().setDisplayNames('projects', projectContext, projectMap)
+          }
+        })
+        .catch(() => {})
+        .finally(() => setIsFetching(false))
+    } else {
+      setIsFetching(false)
+    }
+  }, [
+    subBlock?.type,
+    value,
+    context?.credentialId,
+    context?.provider,
+    context?.domain,
+    context?.teamId,
+    cachedDisplayName,
+    isFetching,
+  ])
+
+  // Auto-fetch files if needed (provider-specific)
+  useEffect(() => {
+    if (subBlock?.type !== 'file-selector' || !context?.credentialId || !value) return
+    if (cachedDisplayName || isFetching) return
+
+    setIsFetching(true)
+    const provider = subBlock.provider || context.provider
+    const serviceId = subBlock.serviceId
+
+    // Google Calendar
+    if (provider === 'google-calendar') {
+      fetch(`/api/tools/google_calendar/calendars?credentialId=${context.credentialId}`)
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.calendars) {
+            const calendarMap = data.calendars.reduce(
+              (acc: Record<string, string>, cal: { id: string; summary: string }) => {
+                acc[cal.id] = cal.summary
+                return acc
+              },
+              {}
+            )
+            useDisplayNamesStore
+              .getState()
+              .setDisplayNames('files', context.credentialId!, calendarMap)
+          }
+        })
+        .catch(() => {})
+        .finally(() => setIsFetching(false))
+    }
+    // Jira issues
+    else if (provider === 'jira' && context.domain && context.projectId) {
+      fetch('/api/tools/jira/issues', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          credentialId: context.credentialId,
+          domain: context.domain,
+          projectId: context.projectId,
+        }),
+      })
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.issues) {
+            const issueMap = data.issues.reduce(
+              (acc: Record<string, string>, issue: { id: string; name: string }) => {
+                acc[issue.id] = issue.name
+                return acc
+              },
+              {}
+            )
+            useDisplayNamesStore
+              .getState()
+              .setDisplayNames('files', context.credentialId!, issueMap)
+          }
+        })
+        .catch(() => {})
+        .finally(() => setIsFetching(false))
+    }
+    // Confluence pages
+    else if (provider === 'confluence' && context.domain) {
+      fetch('/api/tools/confluence/pages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ credentialId: context.credentialId, domain: context.domain }),
+      })
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.files) {
+            const fileMap = data.files.reduce(
+              (acc: Record<string, string>, file: { id: string; name: string }) => {
+                acc[file.id] = file.name
+                return acc
+              },
+              {}
+            )
+            useDisplayNamesStore.getState().setDisplayNames('files', context.credentialId!, fileMap)
+          }
+        })
+        .catch(() => {})
+        .finally(() => setIsFetching(false))
+    }
+    // Microsoft Teams
+    else if (provider === 'microsoft-teams' && context.teamId) {
+      fetch('/api/tools/microsoft_teams/teams', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ credentialId: context.credentialId }),
+      })
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.teams) {
+            const teamMap = data.teams.reduce(
+              (acc: Record<string, string>, team: { id: string; displayName: string }) => {
+                acc[team.id] = team.displayName
+                return acc
+              },
+              {}
+            )
+            useDisplayNamesStore.getState().setDisplayNames('files', context.credentialId!, teamMap)
+          }
+        })
+        .catch(() => {})
+        .finally(() => setIsFetching(false))
+    }
+    // Wealthbox
+    else if (provider === 'wealthbox') {
+      fetch('/api/tools/wealthbox/contacts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ credentialId: context.credentialId }),
+      })
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.contacts) {
+            const contactMap = data.contacts.reduce(
+              (acc: Record<string, string>, contact: { id: string; name: string }) => {
+                acc[contact.id] = contact.name
+                return acc
+              },
+              {}
+            )
+            useDisplayNamesStore
+              .getState()
+              .setDisplayNames('files', context.credentialId!, contactMap)
+          }
+        })
+        .catch(() => {})
+        .finally(() => setIsFetching(false))
+    }
+    // OneDrive files
+    else if (serviceId === 'onedrive' && subBlock.mimeType === 'file') {
+      fetch(`/api/tools/onedrive/files?credentialId=${context.credentialId}`)
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.files) {
+            const fileMap = data.files.reduce(
+              (acc: Record<string, string>, file: { id: string; name: string }) => {
+                acc[file.id] = file.name
+                return acc
+              },
+              {}
+            )
+            useDisplayNamesStore.getState().setDisplayNames('files', context.credentialId!, fileMap)
+          }
+        })
+        .catch(() => {})
+        .finally(() => setIsFetching(false))
+    }
+    // OneDrive folders
+    else if (serviceId === 'onedrive' && subBlock.mimeType !== 'file') {
+      fetch(`/api/tools/onedrive/folders?credentialId=${context.credentialId}`)
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.files) {
+            const fileMap = data.files.reduce(
+              (acc: Record<string, string>, file: { id: string; name: string }) => {
+                acc[file.id] = file.name
+                return acc
+              },
+              {}
+            )
+            useDisplayNamesStore.getState().setDisplayNames('files', context.credentialId!, fileMap)
+          }
+        })
+        .catch(() => {})
+        .finally(() => setIsFetching(false))
+    }
+    // SharePoint sites
+    else if (serviceId === 'sharepoint') {
+      fetch(`/api/tools/sharepoint/sites?credentialId=${context.credentialId}`)
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.files) {
+            const fileMap = data.files.reduce(
+              (acc: Record<string, string>, file: { id: string; name: string }) => {
+                acc[file.id] = file.name
+                return acc
+              },
+              {}
+            )
+            useDisplayNamesStore.getState().setDisplayNames('files', context.credentialId!, fileMap)
+          }
+        })
+        .catch(() => {})
+        .finally(() => setIsFetching(false))
+    }
+    // Microsoft Excel/Word
+    else if (provider === 'microsoft-excel' || provider === 'microsoft-word') {
+      fetch(`/api/auth/oauth/microsoft/files?credentialId=${context.credentialId}`)
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.files) {
+            const fileMap = data.files.reduce(
+              (acc: Record<string, string>, file: { id: string; name: string }) => {
+                acc[file.id] = file.name
+                return acc
+              },
+              {}
+            )
+            useDisplayNamesStore.getState().setDisplayNames('files', context.credentialId!, fileMap)
+          }
+        })
+        .catch(() => {})
+        .finally(() => setIsFetching(false))
+    }
+    // Microsoft Planner tasks
+    else if (provider === 'microsoft-planner' && context.planId) {
+      fetch(
+        `/api/tools/microsoft_planner/tasks?credentialId=${context.credentialId}&planId=${context.planId}`
+      )
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.tasks) {
+            const taskMap = data.tasks.reduce(
+              (acc: Record<string, string>, task: { id: string; title: string }) => {
+                acc[task.id] = task.title
+                return acc
+              },
+              {}
+            )
+            useDisplayNamesStore.getState().setDisplayNames('files', context.credentialId!, taskMap)
+          }
+        })
+        .catch(() => {})
+        .finally(() => setIsFetching(false))
+    } else {
+      setIsFetching(false)
+    }
+  }, [
+    subBlock?.type,
+    subBlock?.provider,
+    subBlock?.serviceId,
+    subBlock?.mimeType,
+    value,
+    context?.credentialId,
+    context?.provider,
+    context?.domain,
+    context?.projectId,
+    context?.teamId,
+    context?.planId,
+    cachedDisplayName,
+    isFetching,
+  ])
 
   if (!subBlock || !value || typeof value !== 'string') {
     return null

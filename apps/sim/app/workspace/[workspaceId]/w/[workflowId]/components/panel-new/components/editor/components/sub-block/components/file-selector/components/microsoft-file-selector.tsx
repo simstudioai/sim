@@ -82,7 +82,6 @@ export function MicrosoftFileSelector({
   const [credentials, setCredentials] = useState<Credential[]>([])
   const [selectedCredentialId, setSelectedCredentialId] = useState<string>(credentialId || '')
   const [selectedFileId, setSelectedFileId] = useState(value)
-  const [selectedFile, setSelectedFile] = useState<MicrosoftFileInfo | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [isLoadingSelectedFile, setIsLoadingSelectedFile] = useState(false)
   const [isLoadingFiles, setIsLoadingFiles] = useState(false)
@@ -98,6 +97,18 @@ export function MicrosoftFileSelector({
   const [plannerTasks, setPlannerTasks] = useState<PlannerTask[]>([])
   const [isLoadingTasks, setIsLoadingTasks] = useState(false)
   const [selectedTask, setSelectedTask] = useState<PlannerTask | null>(null)
+
+  // Get cached display name
+  const cachedFileName = useDisplayNamesStore(
+    useCallback(
+      (state) => {
+        const effectiveCredentialId = credentialId || selectedCredentialId
+        if (!effectiveCredentialId || !value) return null
+        return state.cache.files[effectiveCredentialId]?.[value] || null
+      },
+      [credentialId, selectedCredentialId, value]
+    )
+  )
 
   // Determine the appropriate service ID based on provider and scopes
   const getServiceId = (): string => {
@@ -800,15 +811,10 @@ export function MicrosoftFileSelector({
               }
             >
               <div className='flex min-w-0 items-center gap-2 overflow-hidden'>
-                {canShowPreview ? (
+                {cachedFileName ? (
                   <>
-                    {getFileIcon(selectedFile, 'sm')}
-                    <span className='truncate font-normal'>{selectedFile.name}</span>
-                  </>
-                ) : selectedFileId && isLoadingSelectedFile && selectedCredentialId ? (
-                  <>
-                    <RefreshCw className='h-4 w-4 animate-spin' />
-                    <span className='truncate text-muted-foreground'>Loading document...</span>
+                    {getProviderIcon(provider)}
+                    <span className='truncate font-normal'>{cachedFileName}</span>
                   </>
                 ) : (
                   <>

@@ -85,6 +85,17 @@ export function TeamsMessageSelector({
   const [error, setError] = useState<string | null>(null)
   const [selectionStage, setSelectionStage] = useState<'team' | 'channel' | 'chat'>(selectionType)
 
+  // Get cached display name
+  const cachedMessageName = useDisplayNamesStore(
+    useCallback(
+      (state) => {
+        if (!credential || !value) return null
+        return state.cache.files[credential]?.[value] || null
+      },
+      [credential, value]
+    )
+  )
+
   // Determine the appropriate service ID based on provider and scopes
   const getServiceId = (): string => {
     if (serviceId) return serviceId
@@ -712,10 +723,10 @@ export function TeamsMessageSelector({
               disabled={disabled || isForeignCredential}
             >
               <div className='flex min-w-0 items-center gap-2 overflow-hidden'>
-                {selectedMessage ? (
+                {cachedMessageName ? (
                   <>
                     <MicrosoftTeamsIcon className='h-4 w-4' />
-                    <span className='truncate font-normal'>{selectedMessage.displayName}</span>
+                    <span className='truncate font-normal'>{cachedMessageName}</span>
                   </>
                 ) : (
                   <>

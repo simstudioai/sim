@@ -234,6 +234,10 @@ const SubBlockRow = ({
     provider: subBlock?.provider,
     credentialId: typeof credentialId === 'string' ? credentialId : undefined,
     knowledgeBaseId: typeof knowledgeBaseId === 'string' ? knowledgeBaseId : undefined,
+    domain: getStringValue('domain'),
+    teamId: getStringValue('teamId'),
+    projectId: getStringValue('projectId'),
+    planId: getStringValue('planId'),
   })
 
   // Mask password fields with dots

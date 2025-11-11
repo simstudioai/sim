@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Check, ChevronDown, RefreshCw, X } from 'lucide-react'
+import { Check, ChevronDown, X } from 'lucide-react'
 import { WealthboxIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
 import {
@@ -64,7 +64,6 @@ export function WealthboxFileSelector({
   const [credentials, setCredentials] = useState<Credential[]>([])
   const [selectedCredentialId, setSelectedCredentialId] = useState<string>(credentialId || '')
   const [selectedItemId, setSelectedItemId] = useState(value)
-  const [selectedItem, setSelectedItem] = useState<WealthboxItemInfo | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [isLoadingSelectedItem, setIsLoadingSelectedItem] = useState(false)
   const [isLoadingItems, setIsLoadingItems] = useState(false)
@@ -73,6 +72,18 @@ export function WealthboxFileSelector({
   const [showOAuthModal, setShowOAuthModal] = useState(false)
   const [credentialsLoaded, setCredentialsLoaded] = useState(false)
   const initialFetchRef = useRef(false)
+
+  // Get cached display name
+  const cachedItemName = useDisplayNamesStore(
+    useCallback(
+      (state) => {
+        const effectiveCredentialId = credentialId || selectedCredentialId
+        if (!effectiveCredentialId || !value) return null
+        return state.cache.files[effectiveCredentialId]?.[value] || null
+      },
+      [credentialId, selectedCredentialId, value]
+    )
+  )
 
   // Determine the appropriate service ID based on provider and scopes
   const getServiceId = (): string => {
@@ -332,15 +343,10 @@ export function WealthboxFileSelector({
               className='w-full justify-between'
               disabled={disabled}
             >
-              {selectedItem ? (
+              {cachedItemName ? (
                 <div className='flex items-center gap-2 overflow-hidden'>
                   <WealthboxIcon className='h-4 w-4' />
-                  <span className='truncate font-normal'>{selectedItem.name}</span>
-                </div>
-              ) : selectedItemId && isLoadingSelectedItem && selectedCredentialId ? (
-                <div className='flex items-center gap-2'>
-                  <RefreshCw className='h-4 w-4 animate-spin' />
-                  <span className='text-muted-foreground'>Loading...</span>
+                  <span className='truncate font-normal'>{cachedItemName}</span>
                 </div>
               ) : (
                 <div className='flex items-center gap-2'>
