@@ -353,45 +353,54 @@ export function useDisplayName(
         .then((res) => res.json())
         .then((data) => {
           if (data.issues?.[0]) {
-            useDisplayNamesStore
-              .getState()
-              .setDisplayNames('files', context.credentialId!, {
-                [value as string]: data.issues[0].name,
-              })
+            useDisplayNamesStore.getState().setDisplayNames('files', context.credentialId!, {
+              [value as string]: data.issues[0].name,
+            })
           }
         })
         .catch(() => {})
         .finally(() => setIsFetching(false))
     }
     // Confluence pages
-    else if (provider === 'confluence' && context.domain) {
-      fetch('/api/tools/confluence/pages', {
+    else if (provider === 'confluence' && context.domain && context.credentialId) {
+      // Fetch access token then get page info
+      fetch('/api/auth/oauth/token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ credentialId: context.credentialId, domain: context.domain }),
+        body: JSON.stringify({ credentialId: context.credentialId }),
       })
         .then((res) => res.json())
+        .then((tokenData) => {
+          if (!tokenData.accessToken) throw new Error('No access token')
+          return fetch('/api/tools/confluence/page', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              domain: context.domain,
+              accessToken: tokenData.accessToken,
+              pageId: value,
+            }),
+          })
+        })
+        .then((res) => res.json())
         .then((data) => {
-          if (data.files) {
-            const fileMap = data.files.reduce(
-              (acc: Record<string, string>, file: { id: string; name: string }) => {
-                acc[file.id] = file.name
-                return acc
-              },
-              {}
-            )
-            useDisplayNamesStore.getState().setDisplayNames('files', context.credentialId!, fileMap)
+          if (data.page?.title) {
+            useDisplayNamesStore
+              .getState()
+              .setDisplayNames('files', context.credentialId!, {
+                [value as string]: data.page.title,
+              })
           }
         })
         .catch(() => {})
         .finally(() => setIsFetching(false))
     }
     // Microsoft Teams
-    else if (provider === 'microsoft-teams' && context.teamId) {
-      fetch('/api/tools/microsoft_teams/teams', {
+    else if (provider === 'microsoft-teams' && context.credentialId) {
+      fetch('/api/tools/microsoft-teams/teams', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ credentialId: context.credentialId }),
+        body: JSON.stringify({ credential: context.credentialId }),
       })
         .then((res) => res.json())
         .then((data) => {
@@ -410,18 +419,14 @@ export function useDisplayName(
         .finally(() => setIsFetching(false))
     }
     // Wealthbox
-    else if (provider === 'wealthbox') {
-      fetch('/api/tools/wealthbox/contacts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ credentialId: context.credentialId }),
-      })
+    else if (provider === 'wealthbox' && context.credentialId) {
+      fetch(`/api/tools/wealthbox/items?credentialId=${context.credentialId}&type=contact`)
         .then((res) => res.json())
         .then((data) => {
-          if (data.contacts) {
-            const contactMap = data.contacts.reduce(
-              (acc: Record<string, string>, contact: { id: string; name: string }) => {
-                acc[contact.id] = contact.name
+          if (data.items) {
+            const contactMap = data.items.reduce(
+              (acc: Record<string, string>, item: { id: string; name: string }) => {
+                acc[item.id] = item.name
                 return acc
               },
               {}
