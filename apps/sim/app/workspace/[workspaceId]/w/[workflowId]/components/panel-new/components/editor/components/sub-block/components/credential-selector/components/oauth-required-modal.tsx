@@ -1,7 +1,7 @@
 'use client'
 
 import { Check } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { Button } from '@/components/emcn/components/button/button'
 import {
   Dialog,
   DialogContent,
@@ -29,13 +29,13 @@ export interface OAuthRequiredModalProps {
   toolName: string
   requiredScopes?: string[]
   serviceId?: string
+  newScopes?: string[]
 }
 
 const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'https://www.googleapis.com/auth/gmail.send': 'Send emails on your behalf',
   'https://www.googleapis.com/auth/gmail.labels': 'View and manage your email labels',
   'https://www.googleapis.com/auth/gmail.modify': 'View and manage your email messages',
-  'https://www.googleapis.com/auth/gmail.readonly': 'View and read your email messages',
   'https://www.googleapis.com/auth/drive.readonly': 'View and read your Google Drive files',
   'https://www.googleapis.com/auth/drive.file': 'View and manage your Google Drive files',
   'https://www.googleapis.com/auth/calendar': 'View and manage your calendar',
@@ -51,6 +51,7 @@ const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'write:confluence-content': 'Create and edit Confluence pages',
   'write:confluence-space': 'Manage Confluence spaces',
   'write:confluence-file': 'Upload files to Confluence',
+  'read:content:confluence': 'Read Confluence content',
   'read:page:confluence': 'View Confluence pages',
   'write:page:confluence': 'Create and update Confluence pages',
   'read:comment:confluence': 'View comments on Confluence pages',
@@ -189,6 +190,47 @@ const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'sites:write': 'Manage webhooks and site settings',
   'cms:read': 'View your CMS content',
   'cms:write': 'Manage your CMS content',
+  'crm.objects.contacts.read': 'Read your HubSpot contacts',
+  'crm.objects.contacts.write': 'Create and update HubSpot contacts',
+  'crm.objects.companies.read': 'Read your HubSpot companies',
+  'crm.objects.companies.write': 'Create and update HubSpot companies',
+  'crm.objects.deals.read': 'Read your HubSpot deals',
+  'crm.objects.deals.write': 'Create and update HubSpot deals',
+  'crm.objects.owners.read': 'Read HubSpot object owners',
+  'crm.objects.users.read': 'Read HubSpot users',
+  'crm.objects.users.write': 'Create and update HubSpot users',
+  'crm.objects.marketing_events.read': 'Read HubSpot marketing events',
+  'crm.objects.marketing_events.write': 'Create and update HubSpot marketing events',
+  'crm.objects.line_items.read': 'Read HubSpot line items',
+  'crm.objects.line_items.write': 'Create and update HubSpot line items',
+  'crm.objects.quotes.read': 'Read HubSpot quotes',
+  'crm.objects.quotes.write': 'Create and update HubSpot quotes',
+  'crm.objects.appointments.read': 'Read HubSpot appointments',
+  'crm.objects.appointments.write': 'Create and update HubSpot appointments',
+  'crm.objects.carts.read': 'Read HubSpot shopping carts',
+  'crm.objects.carts.write': 'Create and update HubSpot shopping carts',
+  'crm.import': 'Import data into HubSpot',
+  'crm.lists.read': 'Read HubSpot lists',
+  'crm.lists.write': 'Create and update HubSpot lists',
+  tickets: 'Manage HubSpot tickets',
+  api: 'Access Salesforce API',
+  refresh_token: 'Maintain long-term access to your Salesforce account',
+  default: 'Access your Asana workspace',
+  base: 'Basic access to your Pipedrive account',
+  'deals:read': 'Read your Pipedrive deals',
+  'deals:full': 'Full access to manage your Pipedrive deals',
+  'contacts:read': 'Read your Pipedrive contacts',
+  'contacts:full': 'Full access to manage your Pipedrive contacts',
+  'leads:read': 'Read your Pipedrive leads',
+  'leads:full': 'Full access to manage your Pipedrive leads',
+  'activities:read': 'Read your Pipedrive activities',
+  'activities:full': 'Full access to manage your Pipedrive activities',
+  'mail:read': 'Read your Pipedrive emails',
+  'mail:full': 'Full access to manage your Pipedrive emails',
+  'projects:read': 'Read your Pipedrive projects',
+  'projects:full': 'Full access to manage your Pipedrive projects',
+  'webhooks:read': 'Read your Pipedrive webhooks',
+  'webhooks:full': 'Full access to manage your Pipedrive webhooks',
 }
 
 function getScopeDescription(scope: string): string {
@@ -202,6 +244,7 @@ export function OAuthRequiredModal({
   toolName,
   requiredScopes = [],
   serviceId,
+  newScopes = [],
 }: OAuthRequiredModalProps) {
   const effectiveServiceId = serviceId || getServiceIdFromScopes(provider, requiredScopes)
   const { baseProvider } = parseProvider(provider)
@@ -223,6 +266,11 @@ export function OAuthRequiredModal({
   const displayScopes = requiredScopes.filter(
     (scope) => !scope.includes('userinfo.email') && !scope.includes('userinfo.profile')
   )
+  const newScopesSet = new Set(
+    (newScopes || []).filter(
+      (scope) => !scope.includes('userinfo.email') && !scope.includes('userinfo.profile')
+    )
+  )
 
   const handleConnectDirectly = async () => {
     try {
@@ -234,6 +282,11 @@ export function OAuthRequiredModal({
         providerId,
         requiredScopes,
       })
+
+      if (providerId === 'trello') {
+        window.location.href = '/api/auth/trello/authorize'
+        return
+      }
 
       await client.oauth2.link({
         providerId,
@@ -272,13 +325,20 @@ export function OAuthRequiredModal({
               <div className='border-b px-4 py-3'>
                 <h4 className='font-medium text-sm'>Permissions requested</h4>
               </div>
-              <ul className='space-y-3 px-4 py-3'>
+              <ul className='max-h-[400px] space-y-3 overflow-y-auto px-4 py-3'>
                 {displayScopes.map((scope) => (
                   <li key={scope} className='flex items-start gap-2 text-sm'>
                     <div className='mt-1 rounded-full bg-muted p-0.5'>
                       <Check className='h-3 w-3' />
                     </div>
-                    <span className='text-muted-foreground'>{getScopeDescription(scope)}</span>
+                    <div className='text-muted-foreground'>
+                      <span>{getScopeDescription(scope)}</span>
+                      {newScopesSet.has(scope) && (
+                        <span className='ml-2 rounded-[4px] border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 text-[10px] text-amber-300'>
+                          New
+                        </span>
+                      )}
+                    </div>
                   </li>
                 ))}
               </ul>
@@ -289,7 +349,12 @@ export function OAuthRequiredModal({
           <Button variant='outline' onClick={onClose} className='sm:order-1'>
             Cancel
           </Button>
-          <Button type='button' onClick={handleConnectDirectly} className='sm:order-3'>
+          <Button
+            variant='primary'
+            type='button'
+            onClick={handleConnectDirectly}
+            className='sm:order-3'
+          >
             Connect Now
           </Button>
         </DialogFooter>

@@ -897,7 +897,7 @@ export function WebhookModal({
                 ) : (
                   <p className='text-muted-foreground text-xs'>
                     Generate a temporary URL that executes this webhook against the live
-                    (un-deployed) workflow state.
+                    (undeployed) workflow state.
                   </p>
                 )}
                 {testUrlExpiresAt && (

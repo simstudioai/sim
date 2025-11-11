@@ -403,12 +403,20 @@ export function Toolbar({ isActive = true }: ToolbarProps) {
                     key={block.type}
                     draggable
                     onDragStart={(e) => {
+                      // Mark subflow drag explicitly so canvas can reliably detect and suppress highlight
+                      if (block.type === 'loop' || block.type === 'parallel') {
+                        document.body.classList.add('sim-drag-subflow')
+                      }
                       const iconElement = e.currentTarget.querySelector('.toolbar-item-icon')
                       handleDragStart(e, block.type, false, {
                         name: block.name,
                         bgColor: block.bgColor ?? '#666666',
                         iconElement: iconElement as HTMLElement | null,
                       })
+                    }}
+                    onDragEnd={() => {
+                      // Always clear the flag at the end of a toolbar drag
+                      document.body.classList.remove('sim-drag-subflow')
                     }}
                     onClick={() => handleItemClick(block.type, false)}
                     className={clsx(

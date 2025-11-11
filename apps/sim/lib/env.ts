@@ -181,6 +181,8 @@ export const env = createEnv({
     CONFLUENCE_CLIENT_SECRET:              z.string().optional(),                  // Atlassian Confluence OAuth client secret
     JIRA_CLIENT_ID:                        z.string().optional(),                  // Atlassian Jira OAuth client ID
     JIRA_CLIENT_SECRET:                    z.string().optional(),                  // Atlassian Jira OAuth client secret
+    ASANA_CLIENT_ID:                       z.string().optional(),                  // Asana OAuth client ID
+    ASANA_CLIENT_SECRET:                   z.string().optional(),                  // Asana OAuth client secret
     AIRTABLE_CLIENT_ID:                    z.string().optional(),                  // Airtable OAuth client ID
     AIRTABLE_CLIENT_SECRET:                z.string().optional(),                  // Airtable OAuth client secret
     SUPABASE_CLIENT_ID:                    z.string().optional(),                  // Supabase OAuth client ID
@@ -193,8 +195,12 @@ export const env = createEnv({
     MICROSOFT_CLIENT_SECRET:               z.string().optional(),                  // Microsoft OAuth client secret
     HUBSPOT_CLIENT_ID:                     z.string().optional(),                  // HubSpot OAuth client ID
     HUBSPOT_CLIENT_SECRET:                 z.string().optional(),                  // HubSpot OAuth client secret
+    SALESFORCE_CLIENT_ID:                  z.string().optional(),                  // Salesforce OAuth client ID
+    SALESFORCE_CLIENT_SECRET:              z.string().optional(),                  // Salesforce OAuth client secret
     WEALTHBOX_CLIENT_ID:                   z.string().optional(),                  // WealthBox OAuth client ID
     WEALTHBOX_CLIENT_SECRET:               z.string().optional(),                  // WealthBox OAuth client secret
+    PIPEDRIVE_CLIENT_ID:                   z.string().optional(),                  // Pipedrive OAuth client ID
+    PIPEDRIVE_CLIENT_SECRET:               z.string().optional(),                  // Pipedrive OAuth client secret
     LINEAR_CLIENT_ID:                      z.string().optional(),                  // Linear OAuth client ID
     LINEAR_CLIENT_SECRET:                  z.string().optional(),                  // Linear OAuth client secret
     SLACK_CLIENT_ID:                       z.string().optional(),                  // Slack OAuth client ID
@@ -203,6 +209,7 @@ export const env = createEnv({
     REDDIT_CLIENT_SECRET:                  z.string().optional(),                  // Reddit OAuth client secret
     WEBFLOW_CLIENT_ID:                     z.string().optional(),                  // Webflow OAuth client ID
     WEBFLOW_CLIENT_SECRET:                 z.string().optional(),                  // Webflow OAuth client secret
+    TRELLO_API_KEY:                        z.string().optional(),                  // Trello API Key
 
     // E2B Remote Code Execution
     E2B_ENABLED:                           z.string().optional(),                  // Enable E2B remote code execution
@@ -249,7 +256,7 @@ export const env = createEnv({
 
   client: {
     // Core Application URLs - Required for frontend functionality
-    NEXT_PUBLIC_APP_URL:                   z.string().url(),                       // Base URL of the application (e.g., https://app.sim.ai)
+    NEXT_PUBLIC_APP_URL:                   z.string().url(),                       // Base URL of the application (e.g., https://www.sim.ai)
 
     // Client-side Services
     NEXT_PUBLIC_SOCKET_URL:                z.string().url().optional(),            // WebSocket server URL for real-time features

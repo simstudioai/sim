@@ -52,6 +52,13 @@ export async function POST(
   const requestId = generateRequestId()
   const { path } = await params
 
+  // Log ALL incoming webhook requests for debugging
+  logger.info(`[${requestId}] Incoming webhook request`, {
+    path,
+    method: request.method,
+    headers: Object.fromEntries(request.headers.entries()),
+  })
+
   // Handle Microsoft Graph subscription validation (some environments send POST with validationToken)
   try {
     const url = new URL(request.url)
@@ -90,6 +97,23 @@ export async function POST(
   }
 
   const { webhook: foundWebhook, workflow: foundWorkflow } = findResult
+
+  // Log HubSpot webhook details for debugging
+  if (foundWebhook.provider === 'hubspot') {
+    const events = Array.isArray(body) ? body : [body]
+    const firstEvent = events[0]
+
+    logger.info(`[${requestId}] HubSpot webhook received`, {
+      path,
+      subscriptionType: firstEvent?.subscriptionType,
+      objectId: firstEvent?.objectId,
+      portalId: firstEvent?.portalId,
+      webhookId: foundWebhook.id,
+      workflowId: foundWorkflow.id,
+      triggerId: foundWebhook.providerConfig?.triggerId,
+      eventCount: events.length,
+    })
+  }
 
   const authError = await verifyProviderAuth(
     foundWebhook,

@@ -434,6 +434,11 @@ describe('Database Helpers', () => {
     it('should successfully save workflow data to normalized tables', async () => {
       const mockTransaction = vi.fn().mockImplementation(async (callback) => {
         const tx = {
+          select: vi.fn().mockReturnValue({
+            from: vi.fn().mockReturnValue({
+              where: vi.fn().mockResolvedValue([]),
+            }),
+          }),
           delete: vi.fn().mockReturnValue({
             where: vi.fn().mockResolvedValue([]),
           }),
@@ -470,6 +475,11 @@ describe('Database Helpers', () => {
 
       const mockTransaction = vi.fn().mockImplementation(async (callback) => {
         const tx = {
+          select: vi.fn().mockReturnValue({
+            from: vi.fn().mockReturnValue({
+              where: vi.fn().mockResolvedValue([]),
+            }),
+          }),
           delete: vi.fn().mockReturnValue({
             where: vi.fn().mockResolvedValue([]),
           }),
@@ -526,6 +536,11 @@ describe('Database Helpers', () => {
 
       const mockTransaction = vi.fn().mockImplementation(async (callback) => {
         const tx = {
+          select: vi.fn().mockReturnValue({
+            from: vi.fn().mockReturnValue({
+              where: vi.fn().mockResolvedValue([]),
+            }),
+          }),
           delete: vi.fn().mockReturnValue({
             where: vi.fn().mockResolvedValue([]),
           }),
@@ -644,6 +659,11 @@ describe('Database Helpers', () => {
     it('should successfully migrate workflow from JSON to normalized tables', async () => {
       const mockTransaction = vi.fn().mockImplementation(async (callback) => {
         const tx = {
+          select: vi.fn().mockReturnValue({
+            from: vi.fn().mockReturnValue({
+              where: vi.fn().mockResolvedValue([]),
+            }),
+          }),
           delete: vi.fn().mockReturnValue({
             where: vi.fn().mockResolvedValue([]),
           }),
@@ -687,6 +707,11 @@ describe('Database Helpers', () => {
 
       const mockTransaction = vi.fn().mockImplementation(async (callback) => {
         const tx = {
+          select: vi.fn().mockReturnValue({
+            from: vi.fn().mockReturnValue({
+              where: vi.fn().mockResolvedValue([]),
+            }),
+          }),
           delete: vi.fn().mockReturnValue({
             where: vi.fn().mockResolvedValue([]),
           }),
@@ -751,6 +776,11 @@ describe('Database Helpers', () => {
 
       const mockTransaction = vi.fn().mockImplementation(async (callback) => {
         const tx = {
+          select: vi.fn().mockReturnValue({
+            from: vi.fn().mockReturnValue({
+              where: vi.fn().mockResolvedValue([]),
+            }),
+          }),
           delete: vi.fn().mockReturnValue({
             where: vi.fn().mockResolvedValue([]),
           }),
@@ -980,6 +1010,11 @@ describe('Database Helpers', () => {
       // Mock the transaction for save operation
       const mockTransaction = vi.fn().mockImplementation(async (callback) => {
         const mockTx = {
+          select: vi.fn().mockReturnValue({
+            from: vi.fn().mockReturnValue({
+              where: vi.fn().mockResolvedValue([]),
+            }),
+          }),
           delete: vi.fn().mockReturnValue({
             where: vi.fn().mockResolvedValue(undefined),
           }),
@@ -1111,6 +1146,11 @@ describe('Database Helpers', () => {
       // Mock successful save
       const mockTransaction = vi.fn().mockImplementation(async (callback) => {
         const mockTx = {
+          select: vi.fn().mockReturnValue({
+            from: vi.fn().mockReturnValue({
+              where: vi.fn().mockResolvedValue([]),
+            }),
+          }),
           delete: vi.fn().mockReturnValue({
             where: vi.fn().mockResolvedValue(undefined),
           }),

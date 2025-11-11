@@ -1,6 +1,7 @@
 import type { Edge } from 'reactflow'
 import { sanitizeWorkflowForSharing } from '@/lib/workflows/credential-extractor'
 import type { BlockState, Loop, Parallel, WorkflowState } from '@/stores/workflows/workflow/types'
+import { TRIGGER_PERSISTED_SUBBLOCK_IDS } from '@/triggers/consts'
 
 /**
  * Sanitized workflow state for copilot (removes all UI-specific data)
@@ -68,6 +69,10 @@ export interface ExportWorkflowState {
  * Check if a subblock contains sensitive/secret data
  */
 function isSensitiveSubBlock(key: string, subBlock: BlockState['subBlocks'][string]): boolean {
+  if (TRIGGER_PERSISTED_SUBBLOCK_IDS.includes(key)) {
+    return false
+  }
+
   // Check if it's an OAuth input type
   if (subBlock.type === 'oauth-input') {
     return true

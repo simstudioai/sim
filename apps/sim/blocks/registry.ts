@@ -3,6 +3,7 @@ import { AirtableBlock } from '@/blocks/blocks/airtable'
 import { ApiBlock } from '@/blocks/blocks/api'
 import { ApiTriggerBlock } from '@/blocks/blocks/api_trigger'
 import { ArxivBlock } from '@/blocks/blocks/arxiv'
+import { AsanaBlock } from '@/blocks/blocks/asana'
 import { BrowserUseBlock } from '@/blocks/blocks/browser_use'
 import { ChatTriggerBlock } from '@/blocks/blocks/chat_trigger'
 import { ClayBlock } from '@/blocks/blocks/clay'
@@ -26,6 +27,7 @@ import { GoogleFormsBlock } from '@/blocks/blocks/google_form'
 import { GoogleSheetsBlock } from '@/blocks/blocks/google_sheets'
 import { GoogleVaultBlock } from '@/blocks/blocks/google_vault'
 import { GuardrailsBlock } from '@/blocks/blocks/guardrails'
+import { HubSpotBlock } from '@/blocks/blocks/hubspot'
 import { HuggingFaceBlock } from '@/blocks/blocks/huggingface'
 import { HunterBlock } from '@/blocks/blocks/hunter'
 import { ImageGeneratorBlock } from '@/blocks/blocks/image_generator'
@@ -53,6 +55,7 @@ import { ParallelBlock } from '@/blocks/blocks/parallel'
 import { PauseResumeBlock } from '@/blocks/blocks/pause_resume'
 import { PerplexityBlock } from '@/blocks/blocks/perplexity'
 import { PineconeBlock } from '@/blocks/blocks/pinecone'
+import { PipedriveBlock } from '@/blocks/blocks/pipedrive'
 import { PostgreSQLBlock } from '@/blocks/blocks/postgresql'
 import { QdrantBlock } from '@/blocks/blocks/qdrant'
 import { RedditBlock } from '@/blocks/blocks/reddit'
@@ -60,6 +63,7 @@ import { ResendBlock } from '@/blocks/blocks/resend'
 import { ResponseBlock } from '@/blocks/blocks/response'
 import { RouterBlock } from '@/blocks/blocks/router'
 import { S3Block } from '@/blocks/blocks/s3'
+import { SalesforceBlock } from '@/blocks/blocks/salesforce'
 import { ScheduleBlock } from '@/blocks/blocks/schedule'
 import { SerperBlock } from '@/blocks/blocks/serper'
 import { SharepointBlock } from '@/blocks/blocks/sharepoint'
@@ -74,6 +78,7 @@ import { TavilyBlock } from '@/blocks/blocks/tavily'
 import { TelegramBlock } from '@/blocks/blocks/telegram'
 import { ThinkingBlock } from '@/blocks/blocks/thinking'
 import { TranslateBlock } from '@/blocks/blocks/translate'
+import { TrelloBlock } from '@/blocks/blocks/trello'
 import { TwilioSMSBlock } from '@/blocks/blocks/twilio'
 import { TwilioVoiceBlock } from '@/blocks/blocks/twilio_voice'
 import { TypeformBlock } from '@/blocks/blocks/typeform'
@@ -99,6 +104,7 @@ export const registry: Record<string, BlockConfig> = {
   api: ApiBlock,
   approval: PauseResumeBlock,
   arxiv: ArxivBlock,
+  asana: AsanaBlock,
   browser_use: BrowserUseBlock,
   clay: ClayBlock,
   condition: ConditionBlock,
@@ -121,6 +127,7 @@ export const registry: Record<string, BlockConfig> = {
   google_search: GoogleSearchBlock,
   google_sheets: GoogleSheetsBlock,
   google_vault: GoogleVaultBlock,
+  hubspot: HubSpotBlock,
   huggingface: HuggingFaceBlock,
   hunter: HunterBlock,
   image_generator: ImageGeneratorBlock,
@@ -145,6 +152,7 @@ export const registry: Record<string, BlockConfig> = {
   parallel_ai: ParallelBlock,
   perplexity: PerplexityBlock,
   pinecone: PineconeBlock,
+  pipedrive: PipedriveBlock,
   postgresql: PostgreSQLBlock,
   qdrant: QdrantBlock,
   resend: ResendBlock,
@@ -154,6 +162,7 @@ export const registry: Record<string, BlockConfig> = {
   router: RouterBlock,
   schedule: ScheduleBlock,
   s3: S3Block,
+  salesforce: SalesforceBlock,
   serper: SerperBlock,
   sharepoint: SharepointBlock,
   // sms: SMSBlock,
@@ -172,6 +181,7 @@ export const registry: Record<string, BlockConfig> = {
   telegram: TelegramBlock,
   thinking: ThinkingBlock,
   translate: TranslateBlock,
+  trello: TrelloBlock,
   twilio_sms: TwilioSMSBlock,
   twilio_voice: TwilioVoiceBlock,
   typeform: TypeformBlock,

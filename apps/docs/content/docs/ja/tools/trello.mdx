@@ -1,0 +1,163 @@
+---
+title: Trello
+description: Trelloのボードとカードを管理する
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="trello"
+  color="#0052CC"
+  icon={true}
+  iconSvg={`<svg className="block-icon"
+      
+      xmlns='http://www.w3.org/2000/svg'
+      
+      
+      viewBox='0 0 256 256'
+      preserveAspectRatio='xMidYMid'
+    >
+      <rect fill='#0052CC' x='0' y='0'   rx='32' />
+      <rect fill='#FFF' x='144.64' y='33.28'   rx='12' />
+      <rect fill='#FFF' x='33.28' y='33.28'   rx='12' />
+    </svg>`}
+/>
+
+## 使用方法
+
+Trelloと連携してボードとカードを管理します。ボードの一覧表示、カードの一覧表示、カードの作成、カードの更新、アクションの取得、コメントの追加が可能です。
+
+## ツール
+
+### `trello_list_lists`
+
+Trelloボード上のすべてのリストを表示する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `boardId` | string | はい | リストを表示するボードのID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作が成功したかどうか |
+| `lists` | array | id、name、closed、pos、idBoardを含むリストオブジェクトの配列 |
+| `count` | number | 返されたリストの数 |
+| `error` | string | 操作が失敗した場合のエラーメッセージ |
+
+### `trello_list_cards`
+
+Trelloボード上のすべてのカードを表示する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `boardId` | string | はい | カードを表示するボードのID |
+| `listId` | string | いいえ | オプション：リストIDでカードをフィルタリング |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作が成功したかどうか |
+| `cards` | array | id、name、desc、url、ボード/リストID、ラベル、期限日を含むカードオブジェクトの配列 |
+| `count` | number | 返されたカードの数 |
+| `error` | string | 操作が失敗した場合のエラーメッセージ |
+
+### `trello_create_card`
+
+Trelloボードに新しいカードを作成する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `boardId` | string | はい | カードを作成するボードのID |
+| `listId` | string | はい | カードを作成するリストのID |
+| `name` | string | はい | カードの名前/タイトル |
+| `desc` | string | いいえ | カードの説明 |
+| `pos` | string | いいえ | カードの位置（top、bottom、または正の浮動小数点数） |
+| `due` | string | いいえ | 期限日（ISO 8601形式） |
+| `labels` | string | いいえ | ラベルIDのカンマ区切りリスト |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | カードが正常に作成されたかどうか |
+| `card` | object | 作成されたカードオブジェクト（id、name、desc、urlなどのプロパティを含む） |
+| `error` | string | 操作が失敗した場合のエラーメッセージ |
+
+### `trello_update_card`
+
+Trelloの既存のカードを更新する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `cardId` | string | はい | 更新するカードのID |
+| `name` | string | いいえ | カードの新しい名前/タイトル |
+| `desc` | string | いいえ | カードの新しい説明 |
+| `closed` | boolean | いいえ | カードをアーカイブ/クローズする（true）または再開する（false） |
+| `idList` | string | いいえ | カードを別のリストに移動する |
+| `due` | string | いいえ | 期限日（ISO 8601形式） |
+| `dueComplete` | boolean | いいえ | 期限日を完了としてマークする |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | カードが正常に更新されたかどうか |
+| `card` | object | id、name、desc、urlなどのプロパティを含む更新されたカードオブジェクト |
+| `error` | string | 操作が失敗した場合のエラーメッセージ |
+
+### `trello_get_actions`
+
+ボードまたはカードからアクティビティ/アクションを取得する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `boardId` | string | いいえ | アクションを取得するボードのID（boardIdまたはcardIdのいずれかが必要） |
+| `cardId` | string | いいえ | アクションを取得するカードのID（boardIdまたはcardIdのいずれかが必要） |
+| `filter` | string | いいえ | タイプでアクションをフィルタリング（例："commentCard,updateCard,createCard"または"all"） |
+| `limit` | number | いいえ | 返すアクションの最大数（デフォルト：50、最大：1000） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作が成功したかどうか |
+| `actions` | array | タイプ、日付、メンバー、データを含むアクションオブジェクトの配列 |
+| `count` | number | 返されたアクションの数 |
+| `error` | string | 操作が失敗した場合のエラーメッセージ |
+
+### `trello_add_comment`
+
+Trelloカードにコメントを追加する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `cardId` | string | はい | コメントするカードのID |
+| `text` | string | はい | コメントテキスト |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | コメントが正常に追加されたかどうか |
+| `comment` | object | 作成されたコメントオブジェクト（id、テキスト、日付、作成者メンバーを含む） |
+| `error` | string | 操作が失敗した場合のエラーメッセージ |
+
+## 注意事項
+
+- カテゴリー: `tools`
+- タイプ: `trello`
