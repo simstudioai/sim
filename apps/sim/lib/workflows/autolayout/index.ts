@@ -5,7 +5,7 @@ import { adjustForNewBlock as adjustForNewBlockInternal, compactHorizontally } f
 import { assignLayers, groupByLayer } from './layering'
 import { calculatePositions } from './positioning'
 import type { AdjustmentOptions, Edge, LayoutOptions, LayoutResult, Loop, Parallel } from './types'
-import { getBlocksByParent, prepareBlockMetrics } from './utils'
+import { filterLayoutEligibleBlockIds, getBlocksByParent, prepareBlockMetrics } from './utils'
 
 const logger = createLogger('AutoLayout')
 
@@ -28,13 +28,15 @@ export function applyAutoLayout(
 
     const { root: rootBlockIds } = getBlocksByParent(blocksCopy)
 
+    const layoutRootIds = filterLayoutEligibleBlockIds(rootBlockIds, blocksCopy)
+
     const rootBlocks: Record<string, BlockState> = {}
-    for (const id of rootBlockIds) {
+    for (const id of layoutRootIds) {
       rootBlocks[id] = blocksCopy[id]
     }
 
     const rootEdges = edges.filter(
-      (edge) => rootBlockIds.includes(edge.source) && rootBlockIds.includes(edge.target)
+      (edge) => layoutRootIds.includes(edge.source) && layoutRootIds.includes(edge.target)
     )
 
     if (Object.keys(rootBlocks).length > 0) {
@@ -102,4 +104,4 @@ export function adjustForNewBlock(
 export type { LayoutOptions, LayoutResult, AdjustmentOptions, Edge, Loop, Parallel }
 export type { TargetedLayoutOptions } from './targeted'
 export { applyTargetedLayout, transferBlockHeights } from './targeted'
-export { getBlockMetrics, isContainerType } from './utils'
+export { getBlockMetrics, isContainerType, shouldSkipAutoLayout } from './utils'

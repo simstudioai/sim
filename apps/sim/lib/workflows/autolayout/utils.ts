@@ -18,8 +18,26 @@ function resolveNumeric(value: number | undefined, fallback: number): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : fallback
 }
 
+const AUTO_LAYOUT_EXCLUDED_TYPES = new Set(['note'])
+
 export function isContainerType(blockType: string): boolean {
   return blockType === 'loop' || blockType === 'parallel'
+}
+
+export function shouldSkipAutoLayout(block?: BlockState): boolean {
+  if (!block) return true
+  return AUTO_LAYOUT_EXCLUDED_TYPES.has(block.type)
+}
+
+export function filterLayoutEligibleBlockIds(
+  blockIds: string[],
+  blocks: Record<string, BlockState>
+): string[] {
+  return blockIds.filter((id) => {
+    const block = blocks[id]
+    if (!block) return false
+    return !shouldSkipAutoLayout(block)
+  })
 }
 
 function getContainerMetrics(block: BlockState): BlockMetrics {

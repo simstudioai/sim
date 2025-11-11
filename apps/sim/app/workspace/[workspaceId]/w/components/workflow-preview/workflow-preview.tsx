@@ -15,6 +15,7 @@ import 'reactflow/dist/style.css'
 
 import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
+import { NoteBlock } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/note-block/note-block'
 import { SubflowNodeComponent } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/subflow-node'
 import { WorkflowBlock } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/workflow-block'
 import { WorkflowEdge } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-edge/workflow-edge'
@@ -39,6 +40,7 @@ interface WorkflowPreviewProps {
 // Define node types - the components now handle preview mode internally
 const nodeTypes: NodeTypes = {
   workflowBlock: WorkflowBlock,
+  noteBlock: NoteBlock,
   subflowNode: SubflowNodeComponent,
 }
 
@@ -179,9 +181,11 @@ export function WorkflowPreview({
 
       const subBlocksClone = block.subBlocks ? cloneDeep(block.subBlocks) : {}
 
+      const nodeType = block.type === 'note' ? 'noteBlock' : 'workflowBlock'
+
       nodeArray.push({
         id: blockId,
-        type: 'workflowBlock',
+        type: nodeType,
         position: absolutePosition,
         draggable: false,
         data: {
@@ -204,9 +208,11 @@ export function WorkflowPreview({
           const childConfig = getBlock(childBlock.type)
 
           if (childConfig) {
+            const childNodeType = childBlock.type === 'note' ? 'noteBlock' : 'workflowBlock'
+
             nodeArray.push({
               id: childId,
-              type: 'workflowBlock',
+              type: childNodeType,
               position: {
                 x: block.position.x + 50,
                 y: block.position.y + (childBlock.position?.y || 100),
