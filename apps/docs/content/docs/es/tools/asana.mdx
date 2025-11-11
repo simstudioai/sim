@@ -1,0 +1,166 @@
+---
+title: Asana
+description: Interactúa con Asana
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="asana"
+  color="#E0E0E0"
+  icon={true}
+  iconSvg={`<svg className="block-icon"
+      
+      xmlns='http://www.w3.org/2000/svg'
+      
+      
+      viewBox='781.361 0 944.893 873.377'
+    >
+      <radialGradient
+        id='asana_radial_gradient'
+        cx='943.992'
+        cy='1221.416'
+        r='.663'
+        gradientTransform='matrix(944.8934 0 0 -873.3772 -890717.875 1067234.75)'
+        gradientUnits='userSpaceOnUse'
+      >
+        <stop offset='0' stopColor='#ffb900' />
+        <stop offset='.6' stopColor='#f95d8f' />
+        <stop offset='.999' stopColor='#f95353' />
+      </radialGradient>
+      <path
+        fill='url(#asana_radial_gradient)'
+        d='M1520.766 462.371c-113.508 0-205.508 92-205.508 205.488 0 113.499 92 205.518 205.508 205.518 113.489 0 205.488-92.019 205.488-205.518 0-113.488-91.999-205.488-205.488-205.488zm-533.907.01c-113.489.01-205.498 91.99-205.498 205.488 0 113.489 92.009 205.498 205.498 205.498 113.498 0 205.508-92.009 205.508-205.498 0-113.499-92.01-205.488-205.518-205.488h.01zm472.447-256.883c0 113.489-91.999 205.518-205.488 205.518-113.508 0-205.508-92.029-205.508-205.518S1140.31 0 1253.817 0c113.489 0 205.479 92.009 205.479 205.498h.01z'
+      />
+    </svg>`}
+/>
+
+## Instrucciones de uso
+
+Integra Asana en el flujo de trabajo. Puede leer, escribir y actualizar tareas.
+
+## Herramientas
+
+### `asana_get_task`
+
+Recupera una tarea individual por GID u obtén múltiples tareas con filtros
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ----------- | ----------- |
+| `taskGid` | string | No | El identificador único global \(GID\) de la tarea. Si no se proporciona, obtendrá múltiples tareas. |
+| `workspace` | string | No | GID del espacio de trabajo para filtrar tareas \(requerido cuando no se usa taskGid\) |
+| `project` | string | No | GID del proyecto para filtrar tareas |
+| `limit` | number | No | Número máximo de tareas a devolver \(predeterminado: 50\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Detalles de una tarea individual o matriz de tareas, dependiendo de si se proporcionó taskGid |
+
+### `asana_create_task`
+
+Crear una nueva tarea en Asana
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `workspace` | string | Sí | GID del espacio de trabajo donde se creará la tarea |
+| `name` | string | Sí | Nombre de la tarea |
+| `notes` | string | No | Notas o descripción para la tarea |
+| `assignee` | string | No | GID del usuario al que se asignará la tarea |
+| `due_on` | string | No | Fecha de vencimiento en formato AAAA-MM-DD |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Detalles de la tarea creada con marca de tiempo, gid, nombre, notas y enlace permanente |
+
+### `asana_update_task`
+
+Actualizar una tarea existente en Asana
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `taskGid` | string | Sí | El identificador único global (GID) de la tarea a actualizar |
+| `name` | string | No | Nombre actualizado para la tarea |
+| `notes` | string | No | Notas o descripción actualizadas para la tarea |
+| `assignee` | string | No | GID del usuario asignado actualizado |
+| `completed` | boolean | No | Marcar tarea como completada o no completada |
+| `due_on` | string | No | Fecha de vencimiento actualizada en formato AAAA-MM-DD |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Detalles actualizados de la tarea con marca de tiempo, gid, nombre, notas y marca de tiempo de modificación |
+
+### `asana_get_projects`
+
+Recuperar todos los proyectos de un espacio de trabajo de Asana
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `workspace` | string | Sí | GID del espacio de trabajo del que recuperar los proyectos |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Lista de proyectos con su gid, nombre y tipo de recurso |
+
+### `asana_search_tasks`
+
+Buscar tareas en un espacio de trabajo de Asana
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `workspace` | string | Sí | GID del espacio de trabajo donde buscar tareas |
+| `text` | string | No | Texto a buscar en los nombres de las tareas |
+| `assignee` | string | No | Filtrar tareas por GID del usuario asignado |
+| `projects` | array | No | Array de GIDs de proyectos para filtrar tareas |
+| `completed` | boolean | No | Filtrar por estado de finalización |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Lista de tareas que coinciden con los criterios de búsqueda |
+
+### `asana_add_comment`
+
+Añadir un comentario (historia) a una tarea de Asana
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ---------- | ----------- |
+| `taskGid` | string | Sí | El identificador único global \(GID\) de la tarea |
+| `text` | string | Sí | El contenido de texto del comentario |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Detalles del comentario incluyendo gid, texto, marca de tiempo de creación y autor |
+
+## Notas
+
+- Categoría: `tools`
+- Tipo: `asana`

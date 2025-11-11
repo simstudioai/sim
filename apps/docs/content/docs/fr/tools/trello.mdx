@@ -1,0 +1,163 @@
+---
+title: Trello
+description: Gérer les tableaux et cartes Trello
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="trello"
+  color="#0052CC"
+  icon={true}
+  iconSvg={`<svg className="block-icon"
+      
+      xmlns='http://www.w3.org/2000/svg'
+      
+      
+      viewBox='0 0 256 256'
+      preserveAspectRatio='xMidYMid'
+    >
+      <rect fill='#0052CC' x='0' y='0'   rx='32' />
+      <rect fill='#FFF' x='144.64' y='33.28'   rx='12' />
+      <rect fill='#FFF' x='33.28' y='33.28'   rx='12' />
+    </svg>`}
+/>
+
+## Instructions d'utilisation
+
+Intégrez avec Trello pour gérer les tableaux et les cartes. Listez les tableaux, listez les cartes, créez des cartes, mettez à jour des cartes, obtenez des actions et ajoutez des commentaires.
+
+## Outils
+
+### `trello_list_lists`
+
+Lister toutes les listes d'un tableau Trello
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `boardId` | string | Oui | ID du tableau dont on veut lister les listes |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Si l'opération a réussi |
+| `lists` | array | Tableau d'objets liste avec id, nom, fermé, position et idTableau |
+| `count` | number | Nombre de listes retournées |
+| `error` | string | Message d'erreur si l'opération a échoué |
+
+### `trello_list_cards`
+
+Lister toutes les cartes d'un tableau Trello
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `boardId` | string | Oui | ID du tableau dont on veut lister les cartes |
+| `listId` | string | Non | Optionnel : Filtrer les cartes par ID de liste |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Si l'opération a réussi |
+| `cards` | array | Tableau d'objets carte avec id, nom, description, url, IDs de tableau/liste, étiquettes et date d'échéance |
+| `count` | number | Nombre de cartes retournées |
+| `error` | string | Message d'erreur si l'opération a échoué |
+
+### `trello_create_card`
+
+Créer une nouvelle carte sur un tableau Trello
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `boardId` | chaîne | Oui | ID du tableau sur lequel créer la carte |
+| `listId` | chaîne | Oui | ID de la liste dans laquelle créer la carte |
+| `name` | chaîne | Oui | Nom/titre de la carte |
+| `desc` | chaîne | Non | Description de la carte |
+| `pos` | chaîne | Non | Position de la carte \(haut, bas, ou nombre flottant positif\) |
+| `due` | chaîne | Non | Date d'échéance \(format ISO 8601\) |
+| `labels` | chaîne | Non | Liste d'IDs d'étiquettes séparés par des virgules |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | booléen | Indique si la carte a été créée avec succès |
+| `card` | objet | L'objet carte créé avec id, nom, description, url et autres propriétés |
+| `error` | chaîne | Message d'erreur si l'opération a échoué |
+
+### `trello_update_card`
+
+Mettre à jour une carte existante sur Trello
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `cardId` | chaîne | Oui | ID de la carte à mettre à jour |
+| `name` | chaîne | Non | Nouveau nom/titre de la carte |
+| `desc` | chaîne | Non | Nouvelle description de la carte |
+| `closed` | booléen | Non | Archiver/fermer la carte \(true\) ou la rouvrir \(false\) |
+| `idList` | chaîne | Non | Déplacer la carte vers une liste différente |
+| `due` | chaîne | Non | Date d'échéance \(format ISO 8601\) |
+| `dueComplete` | booléen | Non | Marquer la date d'échéance comme terminée |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Indique si la carte a été mise à jour avec succès |
+| `card` | object | L'objet carte mis à jour avec id, nom, description, url et autres propriétés |
+| `error` | string | Message d'erreur si l'opération a échoué |
+
+### `trello_get_actions`
+
+Obtenir l'activité/les actions d'un tableau ou d'une carte
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `boardId` | string | Non | ID du tableau pour obtenir les actions (soit boardId soit cardId requis) |
+| `cardId` | string | Non | ID de la carte pour obtenir les actions (soit boardId soit cardId requis) |
+| `filter` | string | Non | Filtrer les actions par type (par exemple, "commentCard,updateCard,createCard" ou "all") |
+| `limit` | number | Non | Nombre maximum d'actions à retourner (par défaut : 50, max : 1000) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Indique si l'opération a réussi |
+| `actions` | array | Tableau d'objets d'action avec type, date, membre et données |
+| `count` | number | Nombre d'actions retournées |
+| `error` | string | Message d'erreur si l'opération a échoué |
+
+### `trello_add_comment`
+
+Ajouter un commentaire à une carte Trello
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `cardId` | string | Oui | ID de la carte à commenter |
+| `text` | string | Oui | Texte du commentaire |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Indique si le commentaire a été ajouté avec succès |
+| `comment` | object | L'objet commentaire créé avec id, texte, date et membre créateur |
+| `error` | string | Message d'erreur si l'opération a échoué |
+
+## Notes
+
+- Catégorie : `tools`
+- Type : `trello`
