@@ -3,7 +3,6 @@ import { Badge } from '@/components/emcn'
 import { Combobox, type ComboboxOption } from '@/components/emcn/components'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/components/sub-block/hooks/use-sub-block-value'
 import { ResponseBlockHandler } from '@/executor/handlers/response/response-handler'
-import { useDisplayNamesStore } from '@/stores/display-names/store'
 
 /**
  * Dropdown option type - can be a simple string or an object with label, id, and optional icon
@@ -124,22 +123,6 @@ export function Dropdown({
     }
     return evaluatedOptions
   }, [fetchOptions, normalizedFetchedOptions, evaluatedOptions])
-
-  // Cache workflow names if this is a workflow selector
-  useEffect(() => {
-    if (subBlockId !== 'workflowId' || availableOptions.length === 0) return
-
-    const workflowMap = availableOptions.reduce<Record<string, string>>((acc, opt) => {
-      if (typeof opt === 'object' && 'id' in opt && 'label' in opt) {
-        acc[opt.id] = opt.label
-      }
-      return acc
-    }, {})
-
-    if (Object.keys(workflowMap).length > 0) {
-      useDisplayNamesStore.getState().setDisplayNames('workflows', 'global', workflowMap)
-    }
-  }, [subBlockId, availableOptions])
 
   /**
    * Convert dropdown options to Combobox format
