@@ -61,6 +61,12 @@ export interface ExecuteStreamOptions {
   startBlockId?: string
   triggerType?: string
   useDraftState?: boolean
+  workflowStateOverride?: {
+    blocks: Record<string, any>
+    edges: any[]
+    loops?: Record<string, any>
+    parallels?: Record<string, any>
+  }
   callbacks?: ExecutionStreamCallbacks
 }
 
