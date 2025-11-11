@@ -29,6 +29,7 @@ import { GoogleVaultBlock } from '@/blocks/blocks/google_vault'
 import { GuardrailsBlock } from '@/blocks/blocks/guardrails'
 import { HubSpotBlock } from '@/blocks/blocks/hubspot'
 import { HuggingFaceBlock } from '@/blocks/blocks/huggingface'
+import { HumanInTheLoopBlock } from '@/blocks/blocks/human_in_the_loop'
 import { HunterBlock } from '@/blocks/blocks/hunter'
 import { ImageGeneratorBlock } from '@/blocks/blocks/image_generator'
 import { InputTriggerBlock } from '@/blocks/blocks/input_trigger'
@@ -47,12 +48,12 @@ import { MicrosoftTeamsBlock } from '@/blocks/blocks/microsoft_teams'
 import { MistralParseBlock } from '@/blocks/blocks/mistral_parse'
 import { MongoDBBlock } from '@/blocks/blocks/mongodb'
 import { MySQLBlock } from '@/blocks/blocks/mysql'
+import { NoteBlock } from '@/blocks/blocks/note'
 import { NotionBlock } from '@/blocks/blocks/notion'
 import { OneDriveBlock } from '@/blocks/blocks/onedrive'
 import { OpenAIBlock } from '@/blocks/blocks/openai'
 import { OutlookBlock } from '@/blocks/blocks/outlook'
 import { ParallelBlock } from '@/blocks/blocks/parallel'
-import { PauseResumeBlock } from '@/blocks/blocks/pause_resume'
 import { PerplexityBlock } from '@/blocks/blocks/perplexity'
 import { PineconeBlock } from '@/blocks/blocks/pinecone'
 import { PipedriveBlock } from '@/blocks/blocks/pipedrive'
@@ -102,7 +103,6 @@ export const registry: Record<string, BlockConfig> = {
   agent: AgentBlock,
   airtable: AirtableBlock,
   api: ApiBlock,
-  approval: PauseResumeBlock,
   arxiv: ArxivBlock,
   asana: AsanaBlock,
   browser_use: BrowserUseBlock,
@@ -129,6 +129,7 @@ export const registry: Record<string, BlockConfig> = {
   google_vault: GoogleVaultBlock,
   hubspot: HubSpotBlock,
   huggingface: HuggingFaceBlock,
+  human_in_the_loop: HumanInTheLoopBlock,
   hunter: HunterBlock,
   image_generator: ImageGeneratorBlock,
   jina: JinaBlock,
@@ -145,6 +146,7 @@ export const registry: Record<string, BlockConfig> = {
   mistral_parse: MistralParseBlock,
   mongodb: MongoDBBlock,
   mysql: MySQLBlock,
+  note: NoteBlock,
   notion: NotionBlock,
   openai: OpenAIBlock,
   outlook: OutlookBlock,

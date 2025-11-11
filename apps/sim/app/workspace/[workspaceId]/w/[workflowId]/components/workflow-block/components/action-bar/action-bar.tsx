@@ -3,6 +3,7 @@ import { ArrowLeftRight, ArrowUpDown, Circle, CircleOff, LogOut } from 'lucide-r
 import { Button, Duplicate, Tooltip, Trash2 } from '@/components/emcn'
 import { cn } from '@/lib/utils'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
+import { supportsHandles } from '@/executor/consts'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
@@ -146,29 +147,31 @@ export const ActionBar = memo(
           </Tooltip.Root>
         )}
 
-        <Tooltip.Root>
-          <Tooltip.Trigger asChild>
-            <Button
-              variant='ghost'
-              onClick={() => {
-                if (!disabled) {
-                  collaborativeToggleBlockHandles(blockId)
-                }
-              }}
-              className='h-[30px] w-[30px] rounded-[8px] bg-[#363636] p-0 text-[#868686] hover:bg-[#33B4FF] hover:text-[#1B1B1B] dark:text-[#868686] dark:hover:bg-[#33B4FF] dark:hover:text-[#1B1B1B]'
-              disabled={disabled}
-            >
-              {horizontalHandles ? (
-                <ArrowLeftRight className='h-[14px] w-[14px]' />
-              ) : (
-                <ArrowUpDown className='h-[14px] w-[14px]' />
-              )}
-            </Button>
-          </Tooltip.Trigger>
-          <Tooltip.Content side='right'>
-            {getTooltipMessage(horizontalHandles ? 'Vertical Ports' : 'Horizontal Ports')}
-          </Tooltip.Content>
-        </Tooltip.Root>
+        {supportsHandles(blockType) && (
+          <Tooltip.Root>
+            <Tooltip.Trigger asChild>
+              <Button
+                variant='ghost'
+                onClick={() => {
+                  if (!disabled) {
+                    collaborativeToggleBlockHandles(blockId)
+                  }
+                }}
+                className='h-[30px] w-[30px] rounded-[8px] bg-[#363636] p-0 text-[#868686] hover:bg-[#33B4FF] hover:text-[#1B1B1B] dark:text-[#868686] dark:hover:bg-[#33B4FF] dark:hover:text-[#1B1B1B]'
+                disabled={disabled}
+              >
+                {horizontalHandles ? (
+                  <ArrowLeftRight className='h-[14px] w-[14px]' />
+                ) : (
+                  <ArrowUpDown className='h-[14px] w-[14px]' />
+                )}
+              </Button>
+            </Tooltip.Trigger>
+            <Tooltip.Content side='right'>
+              {getTooltipMessage(horizontalHandles ? 'Vertical Ports' : 'Horizontal Ports')}
+            </Tooltip.Content>
+          </Tooltip.Root>
+        )}
 
         {!isStarterBlock && (
           <Tooltip.Root>

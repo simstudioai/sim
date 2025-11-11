@@ -3,6 +3,8 @@ import { Badge } from '@/components/emcn'
 import { Combobox, type ComboboxOption } from '@/components/emcn/components'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/components/sub-block/hooks/use-sub-block-value'
 import { ResponseBlockHandler } from '@/executor/handlers/response/response-handler'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 
 /**
  * Dropdown option type - can be a simple string or an object with label, id, and optional icon
@@ -40,6 +42,8 @@ interface DropdownProps {
     blockId: string,
     subBlockId: string
   ) => Promise<Array<{ label: string; id: string }>>
+  /** Field dependencies that trigger option refetch when changed */
+  dependsOn?: string[]
 }
 
 /**
@@ -63,11 +67,25 @@ export function Dropdown({
   placeholder = 'Select an option...',
   multiSelect = false,
   fetchOptions,
+  dependsOn = [],
 }: DropdownProps) {
   const [storeValue, setStoreValue] = useSubBlockValue<string | string[]>(blockId, subBlockId) as [
     string | string[] | null | undefined,
     (value: string | string[]) => void,
   ]
+
+  const activeWorkflowId = useWorkflowRegistry((s) => s.activeWorkflowId)
+  const dependencyValues = useSubBlockStore(
+    useCallback(
+      (state) => {
+        if (dependsOn.length === 0 || !activeWorkflowId) return []
+        const workflowValues = state.workflowValues[activeWorkflowId] || {}
+        const blockValues = workflowValues[blockId] || {}
+        return dependsOn.map((depKey) => blockValues[depKey] ?? null)
+      },
+      [dependsOn, activeWorkflowId, blockId]
+    )
+  )
 
   const [storeInitialized, setStoreInitialized] = useState(false)
   const [fetchedOptions, setFetchedOptions] = useState<Array<{ label: string; id: string }>>([])
@@ -75,6 +93,7 @@ export function Dropdown({
   const [fetchError, setFetchError] = useState<string | null>(null)
 
   const previousModeRef = useRef<string | null>(null)
+  const previousDependencyValuesRef = useRef<string>('')
 
   const [builderData, setBuilderData] = useSubBlockValue<any[]>(blockId, 'builderData')
   const [data, setData] = useSubBlockValue<string>(blockId, 'data')
@@ -278,7 +297,27 @@ export function Dropdown({
   )
 
   /**
-   * Effect to fetch options when needed (on mount or when enabled)
+   * Effect to clear fetched options when dependencies actually change
+   * This ensures options are refetched with new dependency values (e.g., new credentials)
+   */
+  useEffect(() => {
+    if (fetchOptions && dependsOn.length > 0) {
+      const currentDependencyValuesStr = JSON.stringify(dependencyValues)
+      const previousDependencyValuesStr = previousDependencyValuesRef.current
+
+      if (
+        previousDependencyValuesStr &&
+        currentDependencyValuesStr !== previousDependencyValuesStr
+      ) {
+        setFetchedOptions([])
+      }
+
+      previousDependencyValuesRef.current = currentDependencyValuesStr
+    }
+  }, [dependencyValues, fetchOptions, dependsOn.length])
+
+  /**
+   * Effect to fetch options when needed (on mount, when enabled, or when dependencies change)
    */
   useEffect(() => {
     if (
@@ -297,6 +336,7 @@ export function Dropdown({
     fetchedOptions.length,
     isLoadingOptions,
     fetchOptionsIfNeeded,
+    dependencyValues, // Refetch when dependencies change
   ])
 
   /**

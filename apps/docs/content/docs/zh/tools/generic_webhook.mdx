@@ -4,6 +4,7 @@ description: 通过配置自定义 webhook，从任何服务接收 webhook。
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { Image } from '@/components/ui/image'
 
 <BlockInfoCard 
   type="generic_webhook"
@@ -21,6 +22,16 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
       <path fill='none' d='M0 0h24v24H0z' />
     </svg>`}
 />
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/webhook.png"
+    alt="Webhook Block Configuration"
+    width={500}
+    height={400}
+    className="my-6"
+  />
+</div>
 
 ## 概述
 
@@ -44,7 +55,7 @@ curl -X POST https://sim.ai/api/webhooks/trigger/{webhook-path} \
   }'
 ```
 
-在下游模块中访问数据：
+在下游模块中使用以下方式访问数据：
 - `<webhook1.message>` → "测试 webhook 触发器"
 - `<webhook1.data.key>` → "值"
 
@@ -109,7 +120,7 @@ webhook 支持两种文件输入格式：
 - **存储**：文件上传到安全的执行存储
 
 #### 2. URL 引用
-用于传递现有文件的 URL：
+用于传递现有文件 URL：
 
 ```json
 {
@@ -126,7 +137,7 @@ webhook 支持两种文件输入格式：
 
 ### 在下游模块中访问文件
 
-文件被处理为 `UserFile` 对象，具有以下属性：
+文件被处理为具有以下属性的 `UserFile` 对象：
 
 ```typescript
 {
@@ -141,13 +152,13 @@ webhook 支持两种文件输入格式：
 }
 ```
 
-**在模块中访问：**
+**分块访问：**
 - `<webhook1.documents[0].url>` → 下载 URL
 - `<webhook1.documents[0].name>` → "invoice.pdf"
 - `<webhook1.documents[0].size>` → 524288
 - `<webhook1.documents[0].type>` → "application/pdf"
 
-### 完整的文件上传示例
+### 完整文件上传示例
 
 ```bash
 # Create a base64-encoded file
@@ -179,8 +190,8 @@ curl -X POST https://sim.ai/api/webhooks/trigger/{webhook-path} \
 1. 启用“需要身份验证”
 2. 设置一个密钥令牌
 3. 选择头类型：
-   - **自定义头**：`X-Sim-Secret: your-token`
-   - **授权 Bearer**：`Authorization: Bearer your-token`
+   - **自定义头**: `X-Sim-Secret: your-token`
+   - **授权 Bearer**: `Authorization: Bearer your-token`
 
 ### 使用身份验证
 
@@ -200,7 +211,7 @@ curl -X POST https://sim.ai/api/webhooks/trigger/{webhook-path} \
 
 ## 最佳实践
 
-1. **使用输入格式定义结构**：当您知道预期的模式时，定义一个输入格式。这可以提供：
+1. **使用输入格式定义结构**：当您知道预期的模式时，定义输入格式。这提供：
    - 类型验证
    - 编辑器中的更好自动完成
    - 文件上传功能
@@ -209,11 +220,11 @@ curl -X POST https://sim.ai/api/webhooks/trigger/{webhook-path} \
 
 3. **文件大小限制**：将文件保持在 20MB 以下。对于更大的文件，请使用 URL 引用。
 
-4. **文件过期**：下载的文件具有 5 分钟的过期 URL。请及时处理，或者如果需要更长时间，请将其存储在其他地方。
+4. **文件过期**：下载的文件具有 5 分钟的 URL 过期时间。请及时处理，或如果需要更长时间，请将其存储在其他地方。
 
 5. **错误处理**：Webhook 处理是异步的。请检查执行日志以获取错误信息。
 
-6. **测试**：在部署之前，使用编辑器中的“测试 Webhook”按钮验证您的配置。
+6. **测试**：在部署前，使用编辑器中的“测试 Webhook”按钮验证您的配置。
 
 ## 使用场景
 

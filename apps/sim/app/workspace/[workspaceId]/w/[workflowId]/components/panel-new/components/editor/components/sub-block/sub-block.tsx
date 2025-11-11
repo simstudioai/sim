@@ -15,7 +15,6 @@ import {
   DocumentSelector,
   DocumentTagEntry,
   Dropdown,
-  E2BSwitch,
   EvalInput,
   FileSelectorInput,
   FileUpload,
@@ -219,6 +218,7 @@ function SubBlockComponent({
               disabled={isDisabled}
               multiSelect={config.multiSelect}
               fetchOptions={config.fetchOptions}
+              dependsOn={config.dependsOn}
             />
           </div>
         )
@@ -299,18 +299,6 @@ function SubBlockComponent({
         )
 
       case 'switch':
-        if (config.id === 'remoteExecution') {
-          return (
-            <E2BSwitch
-              blockId={blockId}
-              subBlockId={config.id}
-              title={config.title ?? ''}
-              isPreview={isPreview}
-              previewValue={previewValue as any}
-              disabled={isDisabled}
-            />
-          )
-        }
         return (
           <Switch
             blockId={blockId}

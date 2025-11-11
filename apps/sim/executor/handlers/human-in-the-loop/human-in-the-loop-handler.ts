@@ -12,14 +12,14 @@ import {
 import {
   generatePauseContextId,
   mapNodeMetadataToPauseScopes,
-} from '@/executor/pause-resume/utils.ts'
+} from '@/executor/human-in-the-loop/utils'
 import type { BlockHandler, ExecutionContext, PauseMetadata } from '@/executor/types'
 import { collectBlockData } from '@/executor/utils/block-data'
 import type { SerializedBlock } from '@/serializer/types'
 import { normalizeBlockName } from '@/stores/workflows/utils'
 import { executeTool } from '@/tools'
 
-const logger = createLogger('PauseResumeBlockHandler')
+const logger = createLogger('HumanInTheLoopBlockHandler')
 
 interface JSONProperty {
   id: string
@@ -55,9 +55,9 @@ interface NotificationToolResult {
   durationMs?: number
 }
 
-export class PauseResumeBlockHandler implements BlockHandler {
+export class HumanInTheLoopBlockHandler implements BlockHandler {
   canHandle(block: SerializedBlock): boolean {
-    return block.metadata?.id === BlockType.APPROVAL
+    return block.metadata?.id === BlockType.HUMAN_IN_THE_LOOP
   }
 
   async execute(

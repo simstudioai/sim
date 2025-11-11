@@ -24,20 +24,19 @@ import {
 import { Video } from '@/components/ui/video'
 import { Image } from '@/components/ui/image'
 
-This tutorial will guide you through building your first AI workflow in Sim. We'll create a people research agent that can find information about individuals using state-of-the-art LLM-Search tools.
+Build your first AI workflow in 10 minutes. In this tutorial, you'll create a people research agent that uses advanced LLM-powered search tools to extract and structure information about individuals.
 
 <Callout type="info">
-  This tutorial takes about 10 minutes and covers the essential concepts of building workflows in Sim.
+  This tutorial covers the essential concepts of building workflows in Sim. Estimated completion time: 10 minutes.
 </Callout>
 
-## What We're Building
+## What You'll Build
 
 A people research agent that:
-1. Receives a person's name via chat interface
-2. Uses an AI agent with advanced search capabilities
-3. Searches the web using state-of-the-art LLM-Search tools (Exa and Linkup)
-4. Extracts structured information using a response format
-5. Returns comprehensive data about the person
+1. Accepts user input through a chat interface
+2. Searches the web using AI-powered tools (Exa and Linkup)
+3. Extracts and structures information about individuals
+4. Returns formatted JSON data with location, profession, and education
 
 <Image
   src="/static/getting-started/started-1.png"
@@ -49,74 +48,71 @@ A people research agent that:
 ## Step-by-Step Tutorial
 
 <Steps>
-  <Step title="Create workflow and add AI agent">
-    Open Sim and click "New Workflow" in the dashboard. Name it "Getting Started".
+  <Step title="Create a workflow and add an AI agent">
+    Click **New Workflow** in the dashboard and name it "Getting Started".
     
-    When you create a new workflow, it automatically includes a **Start block** - this is the entry point that receives input from users. For this example, we'll be triggering the workflow via chat, so we don't need to configure anything on the Start block.
+    Every new workflow includes a **Start block** by default—this is the entry point that receives user input. Since we'll trigger this workflow via chat, no configuration is needed for the Start block.
     
-    Now drag an **Agent Block** onto the canvas from the blocks panel on the left.
-    
-    Configure the Agent Block:
+    Drag an **Agent Block** onto the canvas from the left panel and configure it:
     - **Model**: Select "OpenAI GPT-4o"
     - **System Prompt**: "You are a people research agent. When given a person's name, use your available search tools to find comprehensive information about them including their location, profession, educational background, and other relevant details."
-    - **User Prompt**: Drag the connection from the Start block's output into this field (this connects `<start.input>` to the user prompt)
+    - **User Prompt**: Drag the connection from the Start block's output into this field to connect `<start.input>` to the user prompt
     
     <div className="mx-auto w-full overflow-hidden rounded-lg">
       <Video src="getting-started/started-2.mp4" width={700} height={450} />
     </div>
   </Step>
   
-  <Step title="Add tools to the agent">
-    Let's enhance our agent with tools for better capabilities. Click on the Agent block to select it.
+  <Step title="Add search tools to the agent">
+    Enhance your agent with web search capabilities. Click on the Agent block to select it.
     
     In the **Tools** section:
     - Click **Add Tool**
-    - Select **Exa** from the available tools
-    - Select **Linkup** from the available tools
-    - Add your API keys for both tools (this allows the agent to search the web and access additional information)
+    - Select **Exa** and **Linkup** from the available tools
+    - Provide your API keys for both tools to enable web search and data access
     
     <div className="mx-auto w-3/5 overflow-hidden rounded-lg">
       <Video src="getting-started/started-3.mp4" width={700} height={450} />
     </div>
   </Step>
   
-  <Step title="Test the basic workflow">
-    Now let's test our workflow. Go to the **Chat panel** on the right side of the screen.
+  <Step title="Test your workflow">
+    Test your workflow using the **Chat panel** on the right side of the screen.
     
     In the chat panel:
-    - Click the dropdown and select `agent1.content` (this will show us the output of our agent)
-    - Enter a test message like: "John is a software engineer from San Francisco who studied Computer Science at Stanford University."
-    - Click "Send" to run the workflow
+    - Click the dropdown and select `agent1.content` to view the agent's output
+    - Enter a test message: "John is a software engineer from San Francisco who studied Computer Science at Stanford University."
+    - Click **Send** to execute the workflow
     
-    You should see the agent's response analyzing the person described in your text.
+    The agent will analyze the person and return structured information.
     
     <div className="mx-auto w-full overflow-hidden rounded-lg">
       <Video src="getting-started/started-4.mp4" width={700} height={450} />
     </div>
   </Step>
   
-  <Step title="Add structured output">
-    Now let's make our agent return structured data. Click on the Agent block to select it.
+  <Step title="Configure structured output">
+    Configure your agent to return structured JSON data. Click on the Agent block to select it.
     
     In the **Response Format** section:
     - Click the **magic wand icon** (✨) next to the schema field
-    - In the prompt that appears, type: "create a schema named person, that contains location, profession, and education"
-    - The AI will generate a JSON schema for you automatically
+    - Enter the prompt: "create a schema named person, that contains location, profession, and education"
+    - The AI will automatically generate the JSON schema
     
     <div className="mx-auto w-full overflow-hidden rounded-lg">
       <Video src="getting-started/started-5.mp4" width={700} height={450} />
     </div>
   </Step>
   
-  <Step title="Test the structured output">
-    Go back to the **Chat panel**.
+  <Step title="Test with structured output">
+    Return to the **Chat panel** to test the structured response format.
     
-    Since we added a response format, new output options are now available:
-    - Click the dropdown and select the new structured output option (the schema we just created)
-    - Enter a new test message like: "Sarah is a marketing manager from New York who has an MBA from Harvard Business School."
-    - Click "Send" to run the workflow again
+    With the response format configured, new output options are now available:
+    - Click the dropdown and select the structured output option (the schema you just created)
+    - Enter a test message: "Sarah is a marketing manager from New York who has an MBA from Harvard Business School."
+    - Click **Send** to execute the workflow
     
-    You should now see structured JSON output with the person's information organized into location, profession, and education fields.
+    The agent will now return structured JSON output with the person's information organized into location, profession, and education fields.
     
     <div className="mx-auto w-full overflow-hidden rounded-lg">
       <Video src="getting-started/started-6.mp4" width={700} height={450} />
@@ -124,15 +120,15 @@ A people research agent that:
   </Step>
 </Steps>
 
-## What You Just Built
+## What You've Built
 
-Congratulations! You've created your first AI workflow that:
-- ✅ Receives text input via chat interface
-- ✅ Uses AI to extract information from unstructured text
-- ✅ Integrates external tools (Exa and Linkup) for enhanced capabilities
-- ✅ Returns structured JSON data using AI-generated schemas
-- ✅ Demonstrates workflow testing and iteration
-- ✅ Shows the power of visual workflow building
+You've successfully created an AI workflow that:
+- ✅ Accepts user input through a chat interface
+- ✅ Processes unstructured text using AI
+- ✅ Integrates external search tools (Exa and Linkup)
+- ✅ Returns structured JSON data with AI-generated schemas
+- ✅ Demonstrates real-time testing and iteration
+- ✅ Showcases the power of visual, no-code development
 
 ## Key Concepts You Learned
 
@@ -153,41 +149,48 @@ Congratulations! You've created your first AI workflow that:
 
 ### Core Workflow Concepts
 
-**Data Flow**: Variables flow between blocks by dragging connections
+**Data Flow**  
+Connect blocks by dragging connections to pass data between workflow steps
 
-**Chat Interface**: Test workflows in real-time using the chat panel with different output options
+**Chat Interface**  
+Test workflows in real-time with the chat panel and select different output options
 
-**Tool Integration**: Enhance agent capabilities by adding external tools like Exa and Linkup
+**Tool Integration**  
+Extend agent capabilities by integrating external services like Exa and Linkup
 
-**Variable References**: Access block outputs using `<blockName.output>` syntax
+**Variable References**  
+Access block outputs using the `<blockName.output>` syntax
 
-**Structured Output**: Use JSON schemas to get consistent, structured data from AI
+**Structured Output**  
+Define JSON schemas to ensure consistent, formatted responses from AI
 
-**AI-Generated Schemas**: Use the magic wand (✨) to generate schemas with natural language
+**AI-Generated Schemas**  
+Use the magic wand (✨) to generate schemas from natural language prompts
 
-**Iterative Development**: Test, modify, and re-test workflows easily
+**Iterative Development**  
+Build, test, and refine workflows quickly with immediate feedback
 
 ## Next Steps
 
 <Cards>
-  <Card title="Add More Blocks" href="/blocks">
-    Learn about API, Function, and Condition blocks
+  <Card title="Explore Workflow Blocks" href="/blocks">
+    Discover API, Function, Condition, and other workflow blocks
   </Card>
-  <Card title="Use Tools" href="/tools">
-    Integrate with external services like Gmail, Slack, and Notion
+  <Card title="Browse Integrations" href="/tools">
+    Connect 80+ services including Gmail, Slack, Notion, and more
   </Card>
   <Card title="Add Custom Logic" href="/blocks/function">
-    Use Function blocks for custom data processing
+    Write custom functions for advanced data processing
   </Card>
   <Card title="Deploy Your Workflow" href="/execution">
-    Make your workflow accessible via REST API
+    Make your workflow accessible via REST API or webhooks
   </Card>
 </Cards>
 
-## Need Help?
+## Resources
 
-**Stuck on a step?** Check our [Blocks documentation](/blocks) for detailed explanations of each component.
+**Need detailed explanations?** Visit the [Blocks documentation](/blocks) for comprehensive guides on each component.
 
-**Want to see more examples?** Browse our [Tools documentation](/tools) to see what integrations are available.
+**Looking for integrations?** Explore the [Tools documentation](/tools) to see all 80+ available integrations.
 
-**Ready to deploy?** Learn about [Execution and Deployment](/execution) to make your workflows live.
+**Ready to go live?** Learn about [Execution and Deployment](/execution) to make your workflows production-ready.

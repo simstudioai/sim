@@ -2,7 +2,6 @@ import { createCipheriv, createDecipheriv, randomBytes } from 'crypto'
 import { db } from '@sim/db'
 import { apiKey as apiKeyTable } from '@sim/db/schema'
 import { and, eq } from 'drizzle-orm'
-import { nanoid } from 'nanoid'
 import { authenticateApiKey } from '@/lib/api-key/auth'
 import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
@@ -266,7 +265,7 @@ export async function decryptApiKey(encryptedValue: string): Promise<{ decrypted
  * @returns A new API key string
  */
 export function generateApiKey(): string {
-  return `sim_${nanoid(32)}`
+  return `sim_${randomBytes(24).toString('base64url')}`
 }
 
 /**
@@ -274,7 +273,7 @@ export function generateApiKey(): string {
  * @returns A new encrypted API key string
  */
 export function generateEncryptedApiKey(): string {
-  return `sk-sim-${nanoid(32)}`
+  return `sk-sim-${randomBytes(24).toString('base64url')}`
 }
 
 /**

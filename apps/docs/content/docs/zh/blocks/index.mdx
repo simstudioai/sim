@@ -29,8 +29,9 @@ Sim 提供了处理 AI 工作流核心功能的基本模块类型：
 - **[Evaluator](/blocks/evaluator)** - 使用 AI 评分并评估内容质量
 
 ### 控制流模块
-- **[变量](/blocks/variables)** - 设置和管理工作流范围内的变量
-- **[等待](/blocks/wait)** - 暂停工作流执行指定的时间延迟
+- **[Variables](/blocks/variables)** - 设置和管理工作流范围内的变量
+- **[Wait](/blocks/wait)** - 暂停工作流执行指定的时间延迟
+- **[Human in the Loop](/blocks/human-in-the-loop)** - 在继续之前暂停以获得人工批准和反馈
 
 ### 输出模块
 - **[响应](/blocks/response)** - 格式化并返回工作流的最终结果
@@ -125,13 +126,16 @@ Agent → Evaluator → Condition → Response (if good)
     运行自定义代码以处理和转换数据
   </Card>
   <Card title="API 模块" href="/blocks/api">
-    与外部服务和 API 集成
+    集成外部服务和 API
   </Card>
   <Card title="Condition 模块" href="/blocks/condition">
     基于数据评估创建分支逻辑
   </Card>
+  <Card title="Human in the Loop 模块" href="/blocks/human-in-the-loop">
+    在继续之前暂停以获得人工批准和反馈
+  </Card>
   <Card title="Variables 模块" href="/blocks/variables">
-    设置和管理工作流范围的变量
+    设置和管理工作流范围内的变量
   </Card>
   <Card title="Wait 模块" href="/blocks/wait">
     暂停工作流执行指定的时间延迟

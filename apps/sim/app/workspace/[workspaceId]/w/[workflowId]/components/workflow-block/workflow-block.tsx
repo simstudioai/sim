@@ -1,6 +1,6 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams } from 'next/navigation'
-import { Handle, type NodeProps, Position, useUpdateNodeInternals } from 'reactflow'
+import { Handle, type NodeProps, Position } from 'reactflow'
 import { Badge } from '@/components/emcn/components/badge/badge'
 import { Tooltip } from '@/components/emcn/components/tooltip/tooltip'
 import { getEnv, isTruthy } from '@/lib/env'
@@ -8,22 +8,19 @@ import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { SELECTOR_TYPES_HYDRATION_REQUIRED, type SubBlockConfig } from '@/blocks/types'
+import { useBlockCore } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
+import {
+  BLOCK_DIMENSIONS,
+  useBlockDimensions,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-block-dimensions'
+import type { SubBlockConfig } from '@/blocks/types'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { useCredentialDisplay } from '@/hooks/use-credential-display'
 import { useDisplayName } from '@/hooks/use-display-name'
-import { usePanelEditorStore } from '@/stores/panel-new/editor/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
-import { useWorkflowStore } from '@/stores/workflows/workflow/store'
-import { useCurrentWorkflow } from '../../hooks'
 import { ActionBar, Connections } from './components'
-import {
-  useBlockProperties,
-  useBlockState,
-  useChildWorkflow,
-  useScheduleInfo,
-  useWebhookInfo,
-} from './hooks'
+import { useBlockProperties, useChildWorkflow, useScheduleInfo, useWebhookInfo } from './hooks'
 import type { WorkflowBlockProps } from './types'
 import { getProviderName, shouldSkipBlockRender } from './utils'
 
@@ -270,20 +267,25 @@ export const WorkflowBlock = memo(function WorkflowBlock({
   const { type, config, name, isPending } = data
 
   const contentRef = useRef<HTMLDivElement>(null)
-  const updateNodeInternals = useUpdateNodeInternals()
 
   const params = useParams()
   const currentWorkflowId = params.workflowId as string
   const workspaceId = params.workspaceId as string
 
-  const currentWorkflow = useCurrentWorkflow()
-  const currentBlock = currentWorkflow.getBlockById(id)
-
-  const { isEnabled, isActive, diffStatus, isDeletedBlock } = useBlockState(
-    id,
+  const {
     currentWorkflow,
-    data
-  )
+    activeWorkflowId,
+    isEnabled,
+    isActive,
+    diffStatus,
+    isDeletedBlock,
+    isFocused,
+    handleClick,
+    hasRing,
+    ringStyles,
+  } = useBlockCore({ blockId: id, data, isPending })
+
+  const currentBlock = currentWorkflow.getBlockById(id)
 
   const { horizontalHandles, blockHeight, blockWidth, displayAdvancedMode, displayTriggerMode } =
     useBlockProperties(
@@ -371,23 +373,10 @@ export const WorkflowBlock = memo(function WorkflowBlock({
     }
   }, [id, collaborativeSetSubblockValue])
 
-  const updateBlockLayoutMetrics = useWorkflowStore((state) => state.updateBlockLayoutMetrics)
-  const activeWorkflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
-  const setCurrentBlockId = usePanelEditorStore((state) => state.setCurrentBlockId)
-  const currentBlockId = usePanelEditorStore((state) => state.currentBlockId)
-  const isFocused = currentBlockId === id
   const currentStoreBlock = currentWorkflow.getBlockById(id)
 
   const isStarterBlock = type === 'starter'
   const isWebhookTriggerBlock = type === 'webhook' || type === 'generic_webhook'
-
-  /**
-   * Update node internals when handles change to ensure ReactFlow
-   * correctly calculates connection points.
-   */
-  useEffect(() => {
-    updateNodeInternals(id)
-  }, [id, horizontalHandles, updateNodeInternals])
 
   /**
    * Subscribe to this block's subblock values to track changes for conditional rendering
@@ -600,59 +589,45 @@ export const WorkflowBlock = memo(function WorkflowBlock({
   /**
    * Compute and publish deterministic layout metrics for workflow blocks.
    * This avoids ResizeObserver/animation-frame jitter and prevents initial "jump".
-   *
-   * Height model:
-   * - Fixed header height: 40px
-   * - Content padding when present: 16px (8 top + 8 bottom)
-   * - Row height: 29px per rendered row (subblock rows, condition rows, plus error row if present)
-   *
-   * Width is a fixed 250px for workflow blocks.
    */
-  useEffect(() => {
-    // Only workflow blocks (non-subflow) render here, width is constant
-    const FIXED_WIDTH = 250
-    const HEADER_HEIGHT = 40
-    const CONTENT_PADDING = 16
-    const ROW_HEIGHT = 29
+  useBlockDimensions({
+    blockId: id,
+    calculateDimensions: () => {
+      const shouldShowDefaultHandles =
+        config.category !== 'triggers' && type !== 'starter' && !displayTriggerMode
+      const hasContentBelowHeader = subBlockRows.length > 0 || shouldShowDefaultHandles
 
-    const shouldShowDefaultHandles =
-      config.category !== 'triggers' && type !== 'starter' && !displayTriggerMode
-    const hasContentBelowHeader = subBlockRows.length > 0 || shouldShowDefaultHandles
+      // Count rows based on block type and whether default handles section is shown
+      const defaultHandlesRow = shouldShowDefaultHandles ? 1 : 0
 
-    // Count rows based on block type and whether default handles section is shown
-    const defaultHandlesRow = shouldShowDefaultHandles ? 1 : 0
+      let rowsCount = 0
+      if (type === 'condition') {
+        rowsCount = conditionRows.length + defaultHandlesRow
+      } else {
+        const subblockRowCount = subBlockRows.reduce((acc, row) => acc + row.length, 0)
+        rowsCount = subblockRowCount + defaultHandlesRow
+      }
 
-    let rowsCount = 0
-    if (type === 'condition') {
-      rowsCount = conditionRows.length + defaultHandlesRow
-    } else {
-      const subblockRowCount = subBlockRows.reduce((acc, row) => acc + row.length, 0)
-      rowsCount = subblockRowCount + defaultHandlesRow
-    }
+      const contentHeight = hasContentBelowHeader
+        ? BLOCK_DIMENSIONS.WORKFLOW_CONTENT_PADDING +
+          rowsCount * BLOCK_DIMENSIONS.WORKFLOW_ROW_HEIGHT
+        : 0
+      const calculatedHeight = Math.max(
+        BLOCK_DIMENSIONS.HEADER_HEIGHT + contentHeight,
+        BLOCK_DIMENSIONS.MIN_HEIGHT
+      )
 
-    const contentHeight = hasContentBelowHeader ? CONTENT_PADDING + rowsCount * ROW_HEIGHT : 0
-    const calculatedHeight = Math.max(HEADER_HEIGHT + contentHeight, 100)
-
-    const prevHeight =
-      typeof currentStoreBlock?.height === 'number' ? currentStoreBlock.height : undefined
-    const prevWidth = 250 // fixed across the app for workflow blocks
-
-    if (prevHeight !== calculatedHeight || prevWidth !== FIXED_WIDTH) {
-      updateBlockLayoutMetrics(id, { width: FIXED_WIDTH, height: calculatedHeight })
-      updateNodeInternals(id)
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    id,
-    type,
-    config.category,
-    displayTriggerMode,
-    subBlockRows.length,
-    conditionRows.length,
-    currentStoreBlock?.height,
-    updateBlockLayoutMetrics,
-    updateNodeInternals,
-  ])
+      return { width: BLOCK_DIMENSIONS.FIXED_WIDTH, height: calculatedHeight }
+    },
+    dependencies: [
+      type,
+      config.category,
+      displayTriggerMode,
+      subBlockRows.length,
+      conditionRows.length,
+      horizontalHandles,
+    ],
+  })
 
   const showWebhookIndicator = (isStarterBlock || isWebhookTriggerBlock) && isWebhookConfigured
   const shouldShowScheduleBadge =
@@ -660,35 +635,11 @@ export const WorkflowBlock = memo(function WorkflowBlock({
   const userPermissions = useUserPermissionsContext()
   const isWorkflowSelector = type === 'workflow' || type === 'workflow_input'
 
-  /**
-   * Determine the ring styling based on block state priority:
-   * 1. Active (executing) - purple ring with pulse animation
-   * 2. Pending (next step) - orange ring
-   * 3. Focused (selected in editor) - blue ring
-   * 4. Diff status (version comparison) - green/orange/red ring
-   */
-  const hasRing =
-    isActive ||
-    isPending ||
-    isFocused ||
-    diffStatus === 'new' ||
-    diffStatus === 'edited' ||
-    isDeletedBlock
-  const ringStyles = cn(
-    hasRing && 'ring-[1.75px]',
-    isActive && 'ring-[#8C10FF] animate-pulse-ring',
-    isPending && 'ring-[#FF6600]',
-    isFocused && 'ring-[#33B4FF]',
-    diffStatus === 'new' && 'ring-[#22C55F]',
-    diffStatus === 'edited' && 'ring-[#FF6600]',
-    isDeletedBlock && 'ring-[#EF4444]'
-  )
-
   return (
     <div className='group relative'>
       <div
         ref={contentRef}
-        onClick={() => setCurrentBlockId(id)}
+        onClick={handleClick}
         className={cn(
           'relative z-[20] w-[250px] cursor-default select-none rounded-[8px] bg-[#232323]'
         )}

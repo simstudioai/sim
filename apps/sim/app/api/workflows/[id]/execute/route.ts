@@ -13,7 +13,7 @@ import {
 } from '@/lib/workflows/db-helpers'
 import { executeWorkflowCore } from '@/lib/workflows/executor/execution-core'
 import { type ExecutionEvent, encodeSSEEvent } from '@/lib/workflows/executor/execution-events'
-import { PauseResumeManager } from '@/lib/workflows/executor/pause-resume-manager'
+import { PauseResumeManager } from '@/lib/workflows/executor/human-in-the-loop-manager'
 import { createStreamingResponse } from '@/lib/workflows/streaming'
 import { validateWorkflowAccess } from '@/app/api/workflows/middleware'
 import { type ExecutionMetadata, ExecutionSnapshot } from '@/executor/execution/snapshot'
@@ -30,6 +30,15 @@ const ExecuteWorkflowSchema = z.object({
   useDraftState: z.boolean().optional(),
   input: z.any().optional(),
   startBlockId: z.string().optional(),
+  // Optional workflow state override (for executing diff workflows)
+  workflowStateOverride: z
+    .object({
+      blocks: z.record(z.any()),
+      edges: z.array(z.any()),
+      loops: z.record(z.any()).optional(),
+      parallels: z.record(z.any()).optional(),
+    })
+    .optional(),
 })
 
 export const runtime = 'nodejs'
@@ -310,6 +319,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       stream: streamParam,
       useDraftState,
       input: validatedInput,
+      workflowStateOverride,
     } = validation.data
 
     // For API key auth, the entire body is the input (except for our control fields)
@@ -317,7 +327,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const input =
       auth.authType === 'api_key'
         ? (() => {
-            const { selectedOutputs, triggerType, stream, useDraftState, ...rest } = body
+            const {
+              selectedOutputs,
+              triggerType,
+              stream,
+              useDraftState,
+              workflowStateOverride,
+              ...rest
+            } = body
             return Object.keys(rest).length > 0 ? rest : validatedInput
           })()
         : validatedInput
@@ -460,6 +477,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           triggerType,
           useDraftState: shouldUseDraftState,
           startTime: new Date().toISOString(),
+          workflowStateOverride,
         }
 
         const snapshot = new ExecutionSnapshot(
@@ -714,6 +732,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
             triggerType,
             useDraftState: shouldUseDraftState,
             startTime: new Date().toISOString(),
+            workflowStateOverride,
           }
 
           const snapshot = new ExecutionSnapshot(

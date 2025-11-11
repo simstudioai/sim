@@ -15,11 +15,13 @@ export enum BlockType {
   VARIABLES = 'variables',
 
   RESPONSE = 'response',
-  APPROVAL = 'approval',
+  HUMAN_IN_THE_LOOP = 'human_in_the_loop',
   WORKFLOW = 'workflow',
   WORKFLOW_INPUT = 'workflow_input',
 
   WAIT = 'wait',
+
+  NOTE = 'note',
 
   SENTINEL_START = 'sentinel_start',
   SENTINEL_END = 'sentinel_end',
@@ -31,7 +33,11 @@ export const TRIGGER_BLOCK_TYPES = [
   BlockType.TRIGGER,
 ] as const
 
-export const METADATA_ONLY_BLOCK_TYPES = [BlockType.LOOP, BlockType.PARALLEL] as const
+export const METADATA_ONLY_BLOCK_TYPES = [
+  BlockType.LOOP,
+  BlockType.PARALLEL,
+  BlockType.NOTE,
+] as const
 
 export type LoopType = 'for' | 'forEach' | 'while' | 'doWhile'
 
@@ -245,6 +251,14 @@ export function isRouterBlockType(blockType: string | undefined): boolean {
 
 export function isAgentBlockType(blockType: string | undefined): boolean {
   return blockType === BlockType.AGENT
+}
+
+export function isAnnotationOnlyBlock(blockType: string | undefined): boolean {
+  return blockType === BlockType.NOTE
+}
+
+export function supportsHandles(blockType: string | undefined): boolean {
+  return !isAnnotationOnlyBlock(blockType)
 }
 
 export function getDefaultTokens() {

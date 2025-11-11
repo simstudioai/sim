@@ -2,7 +2,6 @@
 title: 成本计算
 ---
 
-import { Accordion, Accordions } from 'fumadocs-ui/components/accordion'
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 import { Image } from '@/components/ui/image'
@@ -86,27 +85,11 @@ totalCost = baseExecutionCharge + modelCost
 
 ## 成本优化策略
 
-<Accordions>
-  <Accordion title="模型选择">
-    根据任务复杂性选择模型。简单任务可以使用 GPT-4.1-nano（$0.10/$0.40），而复杂推理可能需要 o1 或 Claude Opus。
-  </Accordion>
-  
-  <Accordion title="提示工程">
-    结构良好、简洁的提示可以减少 token 使用量，同时不影响质量。
-  </Accordion>
-  
-  <Accordion title="本地模型">
-    对于非关键任务，使用 Ollama 可以完全消除 API 成本。
-  </Accordion>
-  
-  <Accordion title="缓存与重用">
-    将经常使用的结果存储在变量或文件中，以避免重复调用 AI 模型。
-  </Accordion>
-  
-  <Accordion title="批量处理">
-    在单次 AI 请求中处理多个项目，而不是逐一调用。
-  </Accordion>
-</Accordions>
+- **模型选择**：根据任务复杂性选择模型。简单任务可以使用 GPT-4.1-nano，而复杂推理可能需要 o1 或 Claude Opus。
+- **提示工程**：结构良好、简洁的提示可以在不牺牲质量的情况下减少 token 的使用。
+- **本地模型**：对于非关键任务，使用 Ollama 可以完全消除 API 成本。
+- **缓存和重用**：将经常使用的结果存储在变量或文件中，以避免重复调用 AI 模型。
+- **批量处理**：在单次 AI 请求中处理多个项目，而不是逐一调用。
 
 ## 使用监控
 

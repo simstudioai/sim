@@ -23,18 +23,29 @@ Coloca un bloque de Flujo de trabajo cuando quieras llamar a un flujo de trabajo
 ## Cómo configurarlo
 
 1. **Elige un flujo de trabajo** del menú desplegable (las auto-referencias están bloqueadas para evitar bucles).
-2. **Asigna entradas**: Si el flujo de trabajo secundario tiene un disparador de Formulario de entrada, verás cada campo y podrás conectar variables del principal. Los valores asignados son los que recibe el secundario.
-3. **Salidas**: Después de que el secundario finaliza, el bloque expone:
-   - `result` – la respuesta final del flujo de trabajo secundario
+2. **Mapea las entradas**: Si el flujo de trabajo hijo tiene un disparador de Formulario de Entrada, verás cada campo y podrás conectar variables del padre. Los valores mapeados son los que recibe el hijo.
+
+<div className='flex justify-center my-6'>
+  <Image
+    src='/static/blocks/workflow-2.png'
+    alt='Bloque de flujo de trabajo con ejemplo de mapeo de entrada'
+    width={700}
+    height={400}
+    className='rounded-xl border border-border shadow-sm'
+  />
+</div>
+
+3. **Salidas**: Después de que el hijo finalice, el bloque expone:
+   - `result` – la respuesta final del flujo de trabajo hijo
    - `success` – si se ejecutó sin errores
    - `error` – mensaje cuando la ejecución falla
 
 ## Notas de ejecución
 
-- Los flujos de trabajo secundarios se ejecutan en el mismo contexto de espacio de trabajo, por lo que las variables de entorno y herramientas se mantienen.
-- El bloque utiliza el versionado de implementación: cualquier ejecución de API, programación, webhook, manual o chat llama a la instantánea implementada. Vuelve a implementar el secundario cuando lo cambies.
-- Si el secundario falla, el bloque genera un error a menos que lo gestiones posteriormente.
+- Los flujos de trabajo hijos se ejecutan en el mismo contexto de espacio de trabajo, por lo que las variables de entorno y herramientas se mantienen.
+- El bloque utiliza versionado de despliegue: cualquier ejecución de API, programación, webhook, manual o chat llama a la instantánea desplegada. Vuelve a desplegar el hijo cuando lo cambies.
+- Si el hijo falla, el bloque genera un error a menos que lo manejes en etapas posteriores.
 
 <Callout>
-Mantén los flujos de trabajo secundarios enfocados. Los flujos pequeños y reutilizables facilitan su combinación sin crear anidamientos profundos.
+Mantén los flujos de trabajo hijos enfocados. Los flujos pequeños y reutilizables facilitan su combinación sin crear anidamientos profundos.
 </Callout>

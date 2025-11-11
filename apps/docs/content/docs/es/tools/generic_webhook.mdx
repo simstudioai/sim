@@ -4,6 +4,7 @@ description: Recibe webhooks de cualquier servicio configurando un webhook perso
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { Image } from '@/components/ui/image'
 
 <BlockInfoCard 
   type="generic_webhook"
@@ -22,9 +23,19 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
     </svg>`}
 />
 
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/webhook.png"
+    alt="Configuración del bloque Webhook"
+    width={500}
+    height={400}
+    className="my-6"
+  />
+</div>
+
 ## Descripción general
 
-El bloque de Webhook Genérico te permite recibir webhooks desde cualquier servicio externo. Este es un disparador flexible que puede manejar cualquier carga útil JSON, lo que lo hace ideal para integrarse con servicios que no tienen un bloque Sim dedicado.
+El bloque Webhook genérico te permite recibir webhooks desde cualquier servicio externo. Este es un disparador flexible que puede manejar cualquier carga útil JSON, lo que lo hace ideal para integrarse con servicios que no tienen un bloque Sim dedicado.
 
 ## Uso básico
 
@@ -106,7 +117,7 @@ Para cargar contenido de archivos directamente:
 
 - **Tamaño máximo**: 20MB por archivo
 - **Formato**: URL de datos estándar con codificación base64
-- **Almacenamiento**: Los archivos se cargan en un almacenamiento de ejecución seguro
+- **Almacenamiento**: Los archivos se cargan en almacenamiento seguro de ejecución
 
 #### 2. Referencias URL
 Para pasar URLs de archivos existentes:
@@ -176,9 +187,9 @@ curl -X POST https://sim.ai/api/webhooks/trigger/{webhook-path} \
 ### Configurar autenticación (opcional)
 
 En la configuración del webhook:
-1. Habilita "Requerir autenticación"
-2. Establece un token secreto
-3. Elige el tipo de encabezado:
+1. Habilitar "Requerir autenticación"
+2. Establecer un token secreto
+3. Elegir tipo de encabezado:
    - **Encabezado personalizado**: `X-Sim-Secret: your-token`
    - **Autorización Bearer**: `Authorization: Bearer your-token`
 
@@ -200,28 +211,28 @@ curl -X POST https://sim.ai/api/webhooks/trigger/{webhook-path} \
 
 ## Mejores prácticas
 
-1. **Usa formato de entrada para la estructura**: define un formato de entrada cuando conozcas el esquema esperado. Esto proporciona:
+1. **Usar formato de entrada para estructura**: Define un formato de entrada cuando conozcas el esquema esperado. Esto proporciona:
    - Validación de tipo
    - Mejor autocompletado en el editor
    - Capacidades de carga de archivos
 
-2. **Autenticación**: habilita siempre la autenticación para webhooks en producción para prevenir accesos no autorizados.
+2. **Autenticación**: Habilita siempre la autenticación para webhooks en producción para prevenir accesos no autorizados.
 
-3. **Límites de tamaño de archivo**: mantén los archivos por debajo de 20MB. Para archivos más grandes, usa referencias URL en su lugar.
+3. **Límites de tamaño de archivo**: Mantén los archivos por debajo de 20MB. Para archivos más grandes, usa referencias URL en su lugar.
 
-4. **Caducidad de archivos**: los archivos descargados tienen URLs con caducidad de 5 minutos. Procésalos rápidamente o almacénalos en otro lugar si los necesitas por más tiempo.
+4. **Caducidad de archivos**: Los archivos descargados tienen URLs con caducidad de 5 minutos. Procésalos rápidamente o almacénalos en otro lugar si los necesitas por más tiempo.
 
-5. **Manejo de errores**: el procesamiento de webhooks es asíncrono. Revisa los registros de ejecución para ver errores.
+5. **Manejo de errores**: El procesamiento de webhooks es asíncrono. Revisa los registros de ejecución para detectar errores.
 
-6. **Pruebas**: usa el botón "Probar webhook" en el editor para validar tu configuración antes de implementarla.
+6. **Pruebas**: Usa el botón "Probar webhook" en el editor para validar tu configuración antes de implementarla.
 
 ## Casos de uso
 
-- **Envíos de formularios**: recibe datos de formularios personalizados con cargas de archivos
-- **Integraciones con terceros**: conéctate con servicios que envían webhooks (Stripe, GitHub, etc.)
-- **Procesamiento de documentos**: acepta documentos de sistemas externos para procesamiento
-- **Notificaciones de eventos**: recibe datos de eventos de varias fuentes
-- **APIs personalizadas**: construye endpoints de API personalizados para tus aplicaciones
+- **Envíos de formularios**: Recibe datos de formularios personalizados con cargas de archivos
+- **Integraciones con terceros**: Conéctate con servicios que envían webhooks (Stripe, GitHub, etc.)
+- **Procesamiento de documentos**: Acepta documentos de sistemas externos para procesarlos
+- **Notificaciones de eventos**: Recibe datos de eventos de varias fuentes
+- **APIs personalizadas**: Construye endpoints de API personalizados para tus aplicaciones
 
 ## Notas
 

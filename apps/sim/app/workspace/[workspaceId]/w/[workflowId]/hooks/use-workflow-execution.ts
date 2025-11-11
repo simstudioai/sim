@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react'
 import { v4 as uuidv4 } from 'uuid'
+import { shallow } from 'zustand/shallow'
 import { createLogger } from '@/lib/logs/console/logger'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import { processStreamingBlockLogs } from '@/lib/tokenization'
@@ -16,6 +17,7 @@ import { useExecutionStore } from '@/stores/execution/store'
 import { useVariablesStore } from '@/stores/panel/variables/store'
 import { useEnvironmentStore } from '@/stores/settings/environment/store'
 import { useTerminalConsoleStore } from '@/stores/terminal'
+import { useWorkflowDiffStore } from '@/stores/workflow-diff'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { mergeSubblockState } from '@/stores/workflows/utils'
 import { useCurrentWorkflow } from './use-current-workflow'
@@ -99,6 +101,26 @@ export function useWorkflowExecution() {
   } = useExecutionStore()
   const [executionResult, setExecutionResult] = useState<ExecutionResult | null>(null)
   const executionStream = useExecutionStream()
+  const {
+    diffWorkflow: executionDiffWorkflow,
+    isDiffReady: isDiffWorkflowReady,
+    isShowingDiff: isViewingDiff,
+  } = useWorkflowDiffStore(
+    useCallback(
+      (state) => ({
+        diffWorkflow: state.diffWorkflow,
+        isDiffReady: state.isDiffReady,
+        isShowingDiff: state.isShowingDiff,
+      }),
+      []
+    ),
+    shallow
+  )
+  const hasActiveDiffWorkflow =
+    isDiffWorkflowReady &&
+    isViewingDiff &&
+    !!executionDiffWorkflow &&
+    Object.keys(executionDiffWorkflow.blocks || {}).length > 0
 
   /**
    * Validates debug state before performing debug operations
@@ -645,8 +667,14 @@ export function useWorkflowExecution() {
     onBlockComplete?: (blockId: string, output: any) => Promise<void>,
     overrideTriggerType?: 'chat' | 'manual' | 'api'
   ): Promise<ExecutionResult | StreamingExecution> => {
-    // Use currentWorkflow but check if we're in diff mode
-    const { blocks: workflowBlocks, edges: workflowEdges } = currentWorkflow
+    // Use diff workflow for execution when available, regardless of canvas view state
+    const executionWorkflowState =
+      hasActiveDiffWorkflow && executionDiffWorkflow ? executionDiffWorkflow : null
+    const usingDiffForExecution = executionWorkflowState !== null
+    const workflowBlocks = (executionWorkflowState?.blocks ??
+      currentWorkflow.blocks) as typeof currentWorkflow.blocks
+    const workflowEdges = (executionWorkflowState?.edges ??
+      currentWorkflow.edges) as typeof currentWorkflow.edges
 
     // Filter out blocks without type (these are layout-only blocks)
     const validBlocks = Object.entries(workflowBlocks).reduce(
@@ -665,6 +693,9 @@ export function useWorkflowExecution() {
 
     logger.info('Executing workflow', {
       isDiffMode: currentWorkflow.isDiffMode,
+      usingDiffForExecution,
+      isViewingDiff,
+      executingDiffWorkflow: usingDiffForExecution && isViewingDiff,
       isExecutingFromChat,
       totalBlocksCount: Object.keys(workflowBlocks).length,
       validBlocksCount: Object.keys(validBlocks).length,
@@ -838,6 +869,15 @@ export function useWorkflowExecution() {
           selectedOutputs,
           triggerType: overrideTriggerType || 'manual',
           useDraftState: true,
+          // Pass diff workflow state if available for execution
+          workflowStateOverride: executionWorkflowState
+            ? {
+                blocks: executionWorkflowState.blocks,
+                edges: executionWorkflowState.edges,
+                loops: executionWorkflowState.loops,
+                parallels: executionWorkflowState.parallels,
+              }
+            : undefined,
           callbacks: {
             onExecutionStarted: (data) => {
               logger.info('Server execution started:', data)

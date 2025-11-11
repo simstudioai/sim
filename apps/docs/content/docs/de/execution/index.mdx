@@ -52,51 +52,13 @@ Jeder Workflow behält während der Ausführung einen umfangreichen Kontext bei,
 - Umgebungsvariablen
 - Routing-Entscheidungen
 
-## Ausführungsauslöser
-
-Workflows können über mehrere Kanäle ausgeführt werden:
-
-- **Manuell**: Testen und debuggen direkt im Editor
-- **Als API bereitstellen**: Einen HTTP-Endpunkt erstellen, der mit API-Schlüsseln gesichert ist
-- **Als Chat bereitstellen**: Eine Konversationsschnittstelle auf einer benutzerdefinierten Subdomain erstellen
-- **Webhooks**: Auf externe Ereignisse von Drittanbieterdiensten reagieren
-- **Geplant**: Nach einem wiederkehrenden Zeitplan mit Cron-Ausdrücken ausführen
-
-### Als API bereitstellen
-
-Wenn Sie einen Workflow als API bereitstellen, macht Sim Folgendes:
-- Erstellt einen eindeutigen HTTP-Endpunkt: `https://sim.ai/api/workflows/{workflowId}/execute`
-- Generiert einen API-Schlüssel zur Authentifizierung
-- Akzeptiert POST-Anfragen mit JSON-Payloads
-- Gibt Workflow-Ausführungsergebnisse als JSON zurück
-
-Beispiel für einen API-Aufruf:
-
-```bash
-curl -X POST https://sim.ai/api/workflows/your-workflow-id/execute \
-  -H "X-API-Key: your-api-key" \
-  -H "Content-Type: application/json" \
-  -d '{"input": "your data here"}'
-```
-
-### Als Chat bereitstellen
-
-Die Chat-Bereitstellung erstellt eine Konversationsschnittstelle für Ihren Workflow:
-- Gehostet auf einer benutzerdefinierten Subdomain: `https://your-name.sim.ai`
-- Optionale Authentifizierung (öffentlich, passwortgeschützt oder E-Mail-basiert)
-- Anpassbare Benutzeroberfläche mit Ihrem Branding
-- Streaming-Antworten für Echtzeit-Interaktion
-- Perfekt für KI-Assistenten, Support-Bots oder interaktive Tools
-
-Jede Bereitstellungsmethode übergibt Daten an den Starter-Block Ihres Workflows und beginnt so den Ausführungsfluss.
-
 ## Deployment-Snapshots
 
-Alle öffentlichen Einstiegspunkte—API, Chat, Zeitplan, Webhook und manuelle Ausführungen—führen den aktiven Deployment-Snapshot des Workflows aus. Veröffentliche ein neues Deployment, wann immer du die Arbeitsfläche änderst, damit jeder Trigger die aktualisierte Version verwendet.
+Alle öffentlichen Einstiegspunkte – API, Chat, Zeitplan, Webhook und manuelle Ausführungen – führen den aktiven Deployment-Snapshot des Workflows aus. Veröffentliche ein neues Deployment, wann immer du die Arbeitsfläche änderst, damit jeder Auslöser die aktualisierte Version verwendet.
 
 <div className='flex justify-center my-6'>
   <Image
-    src='/static/execution/deployment-versions-light.png'
+    src='/static/execution/deployment-versions.png'
     alt='Tabelle mit Deployment-Versionen'
     width={500}
     height={280}
@@ -104,11 +66,11 @@ Alle öffentlichen Einstiegspunkte—API, Chat, Zeitplan, Webhook und manuelle A
   />
 </div>
 
-Das Deploy-Modal behält eine vollständige Versionshistorie bei—inspiziere jeden Snapshot, vergleiche ihn mit deinem Entwurf und führe Upgrades oder Rollbacks mit einem Klick durch, wenn du eine frühere Version wiederherstellen musst.
+Das Deploy-Modal behält eine vollständige Versionshistorie bei – untersuche jeden Snapshot, vergleiche ihn mit deinem Entwurf und führe Upgrades oder Rollbacks mit einem Klick durch, wenn du eine frühere Version wiederherstellen musst.
 
 ## Programmatische Ausführung
 
-Führe Workflows aus deinen Anwendungen mit unseren offiziellen SDKs aus:
+Führe Workflows aus deinen Anwendungen heraus mit unseren offiziellen SDKs aus:
 
 ```bash
 # TypeScript/JavaScript
@@ -138,12 +100,12 @@ const result = await client.executeWorkflow('workflow-id', {
 - Verwende Umgebungsvariablen für sensible Daten
 - Füge Logging zu Funktionsblöcken für Debugging hinzu
 
-### Leistung optimieren
+### Optimiere Performance
 - Minimiere externe API-Aufrufe wo möglich
 - Nutze parallele Ausführung für unabhängige Operationen
-- Cache Ergebnisse mit Memory-Blöcken, wenn angemessen
+- Cache Ergebnisse mit Memory-Blöcken wenn angemessen
 
-### Ausführungen überwachen
+### Überwache Ausführungen
 - Überprüfe Logs regelmäßig, um Leistungsmuster zu verstehen
 - Verfolge Kosten für KI-Modellnutzung
 - Verwende Workflow-Snapshots zur Fehlerbehebung

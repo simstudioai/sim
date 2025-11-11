@@ -24,15 +24,26 @@ Füge einen Workflow-Block hinzu, wenn du einen untergeordneten Workflow als Tei
 
 1. **Wähle einen Workflow** aus dem Dropdown-Menü (Selbstreferenzen sind blockiert, um Schleifen zu verhindern).
 2. **Eingaben zuordnen**: Wenn der untergeordnete Workflow einen Eingabeformular-Trigger hat, siehst du jedes Feld und kannst übergeordnete Variablen verbinden. Die zugeordneten Werte sind das, was der untergeordnete Workflow erhält.
-3. **Ausgaben**: Nach Abschluss des untergeordneten Workflows stellt der Block folgendes bereit:
+
+<div className='flex justify-center my-6'>
+  <Image
+    src='/static/blocks/workflow-2.png'
+    alt='Workflow-Block mit Beispiel für Eingabezuordnung'
+    width={700}
+    height={400}
+    className='rounded-xl border border-border shadow-sm'
+  />
+</div>
+
+3. **Ausgaben**: Nachdem der untergeordnete Workflow abgeschlossen ist, stellt der Block folgendes bereit:
    - `result` – die endgültige Antwort des untergeordneten Workflows
    - `success` – ob er ohne Fehler ausgeführt wurde
    - `error` – Nachricht, wenn die Ausführung fehlschlägt
 
 ## Ausführungshinweise
 
-- Untergeordnete Workflows laufen im gleichen Workspace-Kontext, sodass Umgebungsvariablen und Tools übernommen werden.
-- Der Block verwendet Deployment-Versionierung: Jede API-, Zeitplan-, Webhook-, manuelle oder Chat-Ausführung ruft den bereitgestellten Snapshot auf. Stelle den untergeordneten Workflow neu bereit, wenn du ihn änderst.
+- Untergeordnete Workflows werden im gleichen Workspace-Kontext ausgeführt, sodass Umgebungsvariablen und Tools übernommen werden.
+- Der Block verwendet Deployment-Versionierung: jede API-, Zeitplan-, Webhook-, manuelle oder Chat-Ausführung ruft den bereitgestellten Snapshot auf. Stelle den untergeordneten Workflow neu bereit, wenn du ihn änderst.
 - Wenn der untergeordnete Workflow fehlschlägt, löst der Block einen Fehler aus, es sei denn, du behandelst ihn nachgelagert.
 
 <Callout>

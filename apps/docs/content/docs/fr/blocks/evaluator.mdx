@@ -3,12 +3,10 @@ title: Évaluateur
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
-import { Step, Steps } from 'fumadocs-ui/components/steps'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 import { Image } from '@/components/ui/image'
-import { Video } from '@/components/ui/video'
 
-Le bloc Évaluateur utilise l'IA pour noter et évaluer la qualité du contenu à l'aide de métriques d'évaluation personnalisables que vous définissez. Parfait pour le contrôle qualité, les tests A/B et pour garantir que vos résultats d'IA répondent à des normes spécifiques.
+Le bloc Évaluateur utilise l'IA pour noter et évaluer la qualité du contenu selon des métriques personnalisées. Parfait pour le contrôle qualité, les tests A/B et pour s'assurer que les résultats de l'IA répondent à des normes spécifiques.
 
 <div className="flex justify-center">
   <Image
@@ -20,43 +18,15 @@ Le bloc Évaluateur utilise l'IA pour noter et évaluer la qualité du contenu �
   />
 </div>
 
-## Aperçu
-
-Le bloc Évaluateur vous permet de :
-
-<Steps>
-  <Step>
-    <strong>Noter la qualité du contenu</strong> : utilisez l'IA pour évaluer le contenu selon des métriques personnalisées avec des scores numériques
-  </Step>
-  <Step>
-    <strong>Définir des métriques personnalisées</strong> : créez des critères d'évaluation spécifiques adaptés à votre cas d'utilisation  
-  </Step>
-  <Step>
-    <strong>Automatiser le contrôle qualité</strong> : créez des flux de travail qui évaluent et filtrent automatiquement le contenu
-  </Step>
-  <Step>
-    <strong>Suivre les performances</strong> : surveillez les améliorations et la cohérence dans le temps grâce à une notation objective
-  </Step>
-</Steps>
-
-## Comment ça fonctionne
-
-Le bloc Évaluateur traite le contenu via une évaluation basée sur l'IA :
-
-1. **Réception du contenu** - Prend le contenu d'entrée des blocs précédents dans votre flux de travail
-2. **Application des métriques** - Évalue le contenu selon vos métriques personnalisées définies  
-3. **Génération des scores** - Le modèle d'IA attribue des scores numériques pour chaque métrique
-4. **Fourniture d'un résumé** - Renvoie une évaluation détaillée avec des scores et des explications
-
 ## Options de configuration
 
 ### Métriques d'évaluation
 
 Définissez des métriques personnalisées pour évaluer le contenu. Chaque métrique comprend :
 
-- **Nom** : un identifiant court pour la métrique
-- **Description** : une explication détaillée de ce que mesure la métrique
-- **Plage** : la plage numérique pour la notation (par ex., 1-5, 0-10)
+- **Nom** : Un identifiant court pour la métrique
+- **Description** : Une explication détaillée de ce que mesure la métrique
+- **Échelle** : La plage numérique pour la notation (par ex., 1-5, 0-10)
 
 Exemples de métriques :
 
@@ -68,7 +38,7 @@ Relevance (1-5): How relevant is the content to the original query?
 
 ### Contenu
 
-Le contenu à évaluer. Cela peut être :
+Le contenu à évaluer. Celui-ci peut être :
 
 - Fourni directement dans la configuration du bloc
 - Connecté depuis la sortie d'un autre bloc (généralement un bloc Agent)
@@ -78,122 +48,49 @@ Le contenu à évaluer. Cela peut être :
 
 Choisissez un modèle d'IA pour effectuer l'évaluation :
 
-**OpenAI** : GPT-4o, o1, o3, o4-mini, gpt-4.1
-**Anthropic** : Claude 3.7 Sonnet
-**Google** : Gemini 2.5 Pro, Gemini 2.0 Flash
-**Autres fournisseurs** : Groq, Cerebras, xAI, DeepSeek
-**Modèles locaux** : Tout modèle fonctionnant sur Ollama
+- **OpenAI** : GPT-4o, o1, o3, o4-mini, gpt-4.1
+- **Anthropic** : Claude 3.7 Sonnet
+- **Google** : Gemini 2.5 Pro, Gemini 2.0 Flash
+- **Autres fournisseurs** : Groq, Cerebras, xAI, DeepSeek
+- **Modèles locaux** : Modèles compatibles avec Ollama
 
-<div className="w-full max-w-2xl mx-auto overflow-hidden rounded-lg">
-  <Video src="models.mp4" width={500} height={350} />
-</div>
-
-**Recommandation** : utilisez des modèles avec de fortes capacités de raisonnement comme GPT-4o ou Claude 3.7 Sonnet pour des évaluations plus précises.
+Utilisez des modèles avec de fortes capacités de raisonnement comme GPT-4o ou Claude 3.7 Sonnet pour de meilleurs résultats.
 
 ### Clé API
 
-Votre clé API pour le fournisseur LLM sélectionné. Elle est stockée de manière sécurisée et utilisée pour l'authentification.
-
-## Comment ça fonctionne
-
-1. Le bloc Évaluateur prend le contenu fourni et vos métriques personnalisées
-2. Il génère une invite spécialisée qui demande au LLM d'évaluer le contenu
-3. L'invite inclut des directives claires sur la façon de noter chaque métrique
-4. Le LLM évalue le contenu et renvoie des scores numériques pour chaque métrique
-5. Le bloc Évaluateur formate ces scores sous forme de sortie structurée pour utilisation dans votre workflow
+Votre clé API pour le fournisseur de LLM sélectionné. Elle est stockée en toute sécurité et utilisée pour l'authentification.
 
 ## Exemples de cas d'utilisation
 
-### Évaluation de la qualité du contenu
+**Évaluation de la qualité du contenu** - Évaluez le contenu avant publication
 
-<div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">Scénario : évaluer la qualité d'un article de blog avant publication</h4>
-  <ol className="list-decimal pl-5 text-sm">
-    <li>Le bloc Agent génère le contenu de l'article</li>
-    <li>L'Évaluateur évalue la précision, la lisibilité et l'engagement</li>
-    <li>Le bloc Condition vérifie si les scores atteignent les seuils minimums</li>
-    <li>Scores élevés → Publication, Scores faibles → Révision et nouvel essai</li>
-  </ol>
-</div>
+```
+Agent (Generate) → Evaluator (Score) → Condition (Check threshold) → Publish or Revise
+```
 
-### Test A/B de contenu
+**Tests A/B de contenu** - Comparez plusieurs réponses générées par l'IA
 
-<div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">Scénario : comparer plusieurs réponses générées par l'IA</h4>
-  <ol className="list-decimal pl-5 text-sm">
-    <li>Le bloc parallèle génère plusieurs variantes de réponses</li>
-    <li>L'évaluateur note chaque variante sur la clarté et la pertinence</li>
-    <li>Le bloc de fonction sélectionne la réponse ayant obtenu le meilleur score</li>
-    <li>Le bloc de réponse renvoie le meilleur résultat</li>
-  </ol>
-</div>
+```
+Parallel (Variations) → Evaluator (Score Each) → Function (Select Best) → Response
+```
 
-### Contrôle qualité du service client
+**Contrôle qualité du service client** - Assurez-vous que les réponses respectent les normes de qualité
 
-<div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">Scénario : s'assurer que les réponses du support répondent aux normes de qualité</h4>
-  <ol className="list-decimal pl-5 text-sm">
-    <li>L'agent de support génère une réponse à la demande du client</li>
-    <li>L'évaluateur note l'utilité, l'empathie et la précision</li>
-    <li>Les scores sont enregistrés pour la formation et le suivi des performances</li>
-    <li>Les scores faibles déclenchent un processus de révision humaine</li>
-  </ol>
-</div>
+```
+Agent (Support Response) → Evaluator (Score) → Function (Log) → Condition (Review if Low)
+```
 
-## Entrées et sorties
+## Sorties
 
-<Tabs items={['Configuration', 'Variables', 'Résultats']}>
-  <Tab>
-    <ul className="list-disc space-y-2 pl-6">
-      <li>
-        <strong>Contenu</strong> : le texte ou les données structurées à évaluer
-      </li>
-      <li>
-        <strong>Métriques d'évaluation</strong> : critères personnalisés avec plages de notation
-      </li>
-      <li>
-        <strong>Modèle</strong> : modèle d'IA pour l'analyse d'évaluation
-      </li>
-      <li>
-        <strong>Clé API</strong> : authentification pour le fournisseur LLM sélectionné
-      </li>
-    </ul>
-  </Tab>
-  <Tab>
-    <ul className="list-disc space-y-2 pl-6">
-      <li>
-        <strong>evaluator.content</strong> : résumé de l'évaluation
-      </li>
-      <li>
-        <strong>evaluator.model</strong> : modèle utilisé pour l'évaluation
-      </li>
-      <li>
-        <strong>evaluator.tokens</strong> : statistiques d'utilisation des tokens
-      </li>
-      <li>
-        <strong>evaluator.cost</strong> : résumé des coûts pour l'appel d'évaluation
-      </li>
-    </ul>
-  </Tab>
-  <Tab>
-    <ul className="list-disc space-y-2 pl-6">
-      <li>
-        <strong>Scores des métriques</strong> : scores numériques pour chaque métrique définie
-      </li>
-      <li>
-        <strong>Résumé de l'évaluation</strong> : évaluation détaillée avec explications
-      </li>
-      <li>
-        <strong>Accès</strong> : disponible dans les blocs après l'évaluateur
-      </li>
-    </ul>
-  </Tab>
-</Tabs>
+- **`<evaluator.content>`** : Résumé de l'évaluation avec les scores
+- **`<evaluator.model>`** : Modèle utilisé pour l'évaluation
+- **`<evaluator.tokens>`** : Statistiques d'utilisation des tokens
+- **`<evaluator.cost>`** : Coût estimé de l'évaluation
 
 ## Bonnes pratiques
 
 - **Utilisez des descriptions de métriques spécifiques** : définissez clairement ce que mesure chaque métrique pour obtenir des évaluations plus précises
 - **Choisissez des plages appropriées** : sélectionnez des plages de notation qui offrent une granularité suffisante sans être trop complexes
 - **Connectez avec des blocs Agent** : utilisez des blocs Évaluateur pour évaluer les sorties des blocs Agent et créer des boucles de rétroaction
-- **Utilisez des métriques cohérentes** : pour une analyse comparative, maintenez des métriques cohérentes entre les évaluations similaires
+- **Utilisez des métriques cohérentes** : pour une analyse comparative, maintenez des métriques cohérentes à travers des évaluations similaires
 - **Combinez plusieurs métriques** : utilisez plusieurs métriques pour obtenir une évaluation complète

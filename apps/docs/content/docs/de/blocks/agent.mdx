@@ -3,12 +3,10 @@ title: Agent
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
-import { Step, Steps } from 'fumadocs-ui/components/steps'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 import { Image } from '@/components/ui/image'
-import { Video } from '@/components/ui/video'
 
-Der Agent-Block dient als Schnittstelle zwischen Ihrem Workflow und Large Language Models (LLMs). Er führt Inferenzanfragen an verschiedene KI-Anbieter aus, verarbeitet natürlichsprachliche Eingaben gemäß definierten Anweisungen und erzeugt strukturierte oder unstrukturierte Ausgaben für die nachgelagerte Verarbeitung.
+Der Agent-Block verbindet deinen Workflow mit Large Language Models (LLMs). Er verarbeitet natürlichsprachliche Eingaben, ruft externe Tools auf und generiert strukturierte oder unstrukturierte Ausgaben.
 
 <div className="flex justify-center">
   <Image
@@ -18,26 +16,7 @@ Der Agent-Block dient als Schnittstelle zwischen Ihrem Workflow und Large Langua
     height={400}
     className="my-6"
   />
-</div>
-
-## Überblick
-
-Der Agent-Block ermöglicht Ihnen:
-
-<Steps>
-  <Step>
-    <strong>Natürliche Sprache verarbeiten</strong>: Benutzereingaben analysieren und kontextbezogene Antworten generieren
-  </Step>
-  <Step>
-    <strong>KI-gestützte Aufgaben ausführen</strong>: Inhaltsanalyse, -erstellung und Entscheidungsfindung durchführen
-  </Step>
-  <Step>
-    <strong>Externe Tools aufrufen</strong>: Während der Verarbeitung auf APIs, Datenbanken und Dienste zugreifen
-  </Step>
-  <Step>
-    <strong>Strukturierte Ausgabe erzeugen</strong>: JSON-Daten zurückgeben, die Ihren Schema-Anforderungen entsprechen
-  </Step>
-</Steps> 
+</div> 
 
 ## Konfigurationsoptionen
 
@@ -57,44 +36,25 @@ Der Benutzer-Prompt stellt die primären Eingabedaten für die Inferenzverarbeit
 
 - **Statische Konfiguration**: Direkte Texteingabe, die in der Block-Konfiguration angegeben ist
 - **Dynamische Eingabe**: Daten, die von vorgelagerten Blöcken über Verbindungsschnittstellen übergeben werden
-- **Laufzeitgenerierung**: Programmatisch erzeugte Inhalte während der Workflow-Ausführung
+- **Laufzeitgenerierung**: Programmatisch generierte Inhalte während der Workflow-Ausführung
 
 ### Modellauswahl
 
 Der Agent-Block unterstützt mehrere LLM-Anbieter über eine einheitliche Inferenzschnittstelle. Verfügbare Modelle umfassen:
 
-**OpenAI-Modelle**: GPT-5, GPT-4o, o1, o3, o4-mini, gpt-4.1 (API-basierte Inferenz)
-**Anthropic-Modelle**: Claude 3.7 Sonnet (API-basierte Inferenz)
-**Google-Modelle**: Gemini 2.5 Pro, Gemini 2.0 Flash (API-basierte Inferenz)
-**Alternative Anbieter**: Groq, Cerebras, xAI, DeepSeek (API-basierte Inferenz)
-**Lokale Bereitstellung**: Ollama-kompatible Modelle (selbst gehostete Inferenz)
-
-<div className="mx-auto w-3/5 overflow-hidden rounded-lg">
-  <Video src="models.mp4" width={500} height={350} />
-</div>
+- **OpenAI**: GPT-5, GPT-4o, o1, o3, o4-mini, gpt-4.1
+- **Anthropic**: Claude 3.7 Sonnet
+- **Google**: Gemini 2.5 Pro, Gemini 2.0 Flash
+- **Andere Anbieter**: Groq, Cerebras, xAI, DeepSeek
+- **Lokale Modelle**: Ollama-kompatible Modelle
 
 ### Temperatur
 
-Steuern Sie die Kreativität und Zufälligkeit der Antworten:
+Steuert die Zufälligkeit und Kreativität der Antworten:
 
-<Tabs items={['Niedrig (0-0,3)', 'Mittel (0,3-0,7)', 'Hoch (0,7-2,0)']}>
-  <Tab>
-    Deterministische, fokussierte Antworten. Am besten für faktische Aufgaben, Kundensupport und
-    Situationen, in denen Genauigkeit entscheidend ist.
-  </Tab>
-  <Tab>
-    Ausgewogene Kreativität und Fokus. Geeignet für allgemeine Anwendungen, die sowohl
-    Genauigkeit als auch etwas Kreativität erfordern.
-  </Tab>
-  <Tab>
-    Kreativere, abwechslungsreichere Antworten. Ideal für kreatives Schreiben, Brainstorming und das Generieren
-    vielfältiger Ideen.
-  </Tab>
-</Tabs>
-
-<div className="mt-4 text-sm text-gray-600 dark:text-gray-400">
-  Der Temperaturbereich (0-1 oder 0-2) variiert je nach ausgewähltem Modell.
-</div>
+- **Niedrig (0-0,3)**: Deterministisch und fokussiert. Am besten für faktische Aufgaben und Genauigkeit.
+- **Mittel (0,3-0,7)**: Ausgewogene Kreativität und Fokus. Gut für allgemeine Verwendung.
+- **Hoch (0,7-2,0)**: Kreativ und abwechslungsreich. Ideal für Brainstorming und Content-Generierung.
 
 ### API-Schlüssel
 
@@ -102,179 +62,93 @@ Ihr API-Schlüssel für den ausgewählten LLM-Anbieter. Dieser wird sicher gespe
 
 ### Tools
 
-Tools erweitern die Fähigkeiten des Agenten durch externe API-Integrationen und Service-Verbindungen. Das Tool-System ermöglicht Funktionsaufrufe, sodass der Agent Operationen über die Texterstellung hinaus ausführen kann.
+Erweitern Sie die Fähigkeiten des Agenten mit externen Integrationen. Wählen Sie aus über 60 vorgefertigten Tools oder definieren Sie benutzerdefinierte Funktionen.
 
-**Tool-Integrationsprozess**:
-1. Zugriff auf den Tools-Konfigurationsbereich innerhalb des Agent-Blocks
-2. Auswahl aus über 60 vorgefertigten Integrationen oder Definition benutzerdefinierter Funktionen
-3. Konfiguration von Authentifizierungsparametern und Betriebseinschränkungen
-
-<div className="mx-auto w-3/5 overflow-hidden rounded-lg">
-  <Video src="tools.mp4" width={500} height={350} />
-</div>
-
-**Verfügbare Tool-Kategorien**:
+**Verfügbare Kategorien:**
 - **Kommunikation**: Gmail, Slack, Telegram, WhatsApp, Microsoft Teams
 - **Datenquellen**: Notion, Google Sheets, Airtable, Supabase, Pinecone
 - **Webdienste**: Firecrawl, Google Search, Exa AI, Browser-Automatisierung
-- **Entwicklung**: GitHub, Jira, Linear Repository- und Issue-Management
+- **Entwicklung**: GitHub, Jira, Linear
 - **KI-Dienste**: OpenAI, Perplexity, Hugging Face, ElevenLabs
 
-**Steuerung der Tool-Ausführung**:
-- **Auto**: Modell bestimmt Tool-Aufruf basierend auf Kontext und Notwendigkeit
-- **Required**: Tool muss bei jeder Inferenzanfrage aufgerufen werden
-- **None**: Tool-Definition verfügbar, aber vom Modellkontext ausgeschlossen
-
-<div className="mx-auto w-3/5 overflow-hidden rounded-lg">
-  <Video src="granular-tool-control.mp4" width={500} height={350} />
-</div>
+**Ausführungsmodi:**
+- **Auto**: Modell entscheidet kontextbasiert, wann Tools verwendet werden
+- **Erforderlich**: Tool muss bei jeder Anfrage aufgerufen werden
+- **Keine**: Tool verfügbar, aber dem Modell nicht vorgeschlagen
 
 ### Antwortformat
 
-Der Parameter für das Antwortformat erzwingt eine strukturierte Ausgabegenerierung durch JSON-Schema-Validierung. Dies gewährleistet konsistente, maschinenlesbare Antworten, die vordefinierten Datenstrukturen entsprechen:
+Der Parameter für das Antwortformat erzwingt die Generierung strukturierter Ausgaben durch JSON-Schema-Validierung. Dies gewährleistet konsistente, maschinenlesbare Antworten, die vordefinierten Datenstrukturen entsprechen:
 
 ```json
 {
-  "name": "user_analysis",
-  "schema": {
-    "type": "object",
-    "properties": {
-      "sentiment": {
-        "type": "string",
-        "enum": ["positive", "negative", "neutral"]
-      },
-      "confidence": {
-        "type": "number",
-        "minimum": 0,
-        "maximum": 1
-      }
+  "type": "object",
+  "properties": {
+    "sentiment": {
+      "type": "string",
+      "enum": ["positive", "neutral", "negative"]
     },
-    "required": ["sentiment", "confidence"]
-  }
+    "summary": {
+      "type": "string",
+      "description": "Brief summary of the content"
+    }
+  },
+  "required": ["sentiment", "summary"]
 }
 ```
 
-Diese Konfiguration beschränkt die Ausgabe des Modells auf die Einhaltung des angegebenen Schemas, verhindert Freitext-Antworten und stellt eine strukturierte Datengenerierung sicher.
+Diese Konfiguration beschränkt die Ausgabe des Modells auf die Einhaltung des angegebenen Schemas, verhindert Freitextantworten und stellt die Generierung strukturierter Daten sicher.
 
 ### Zugriff auf Ergebnisse
 
 Nach Abschluss eines Agenten können Sie auf seine Ausgaben zugreifen:
 
-- **`<agent.content>`**: Der Antworttext oder die strukturierten Daten des Agenten
-- **`<agent.tokens>`**: Token-Nutzungsstatistiken (Prompt, Completion, Gesamt)
-- **`<agent.tool_calls>`**: Details zu allen Tools, die der Agent während der Ausführung verwendet hat
-- **`<agent.cost>`**: Geschätzte Kosten des API-Aufrufs (falls verfügbar)
+- **response**: Der Antworttext oder die strukturierten Daten des Agenten
+- **usage**: Token-Nutzungsstatistiken (Prompt, Completion, Gesamt)
+- **toolExecutions**: Details zu allen Tools, die der Agent während der Ausführung verwendet hat
+- **estimatedCost**: Geschätzte Kosten des API-Aufrufs (falls verfügbar)
 
 ## Erweiterte Funktionen
 
 ### Memory + Agent: Gesprächsverlauf
 
-Verwenden Sie einen `Memory`Block mit einer konsistenten `id` (zum Beispiel `chat`), um Nachrichten zwischen Durchläufen zu speichern und diesen Verlauf in den Prompt des Agenten einzubeziehen.
+Verwenden Sie einen memory Block mit einer konsistenten memoryId (zum Beispiel, conversationHistory), um Nachrichten zwischen Durchläufen zu speichern und diesen Verlauf in den Prompt des Agenten einzubeziehen.
 
 - Fügen Sie die Nachricht des Benutzers vor dem Agenten hinzu
 - Lesen Sie den Gesprächsverlauf für den Kontext
 - Hängen Sie die Antwort des Agenten nach dessen Ausführung an
 
-Siehe die [`Memory`](/tools/memory) Blockreferenz für Details.
+Siehe den [`Memory`](/tools/memory) Blockverweis für Details.
 
-## Eingaben und Ausgaben
+## Ausgaben
 
-<Tabs items={['Konfiguration', 'Variablen', 'Ergebnisse']}>
-  <Tab>
-    <ul className="list-disc space-y-2 pl-6">
-      <li>
-        <strong>System-Prompt</strong>: Anweisungen, die das Verhalten und die Rolle des Agenten definieren
-      </li>
-      <li>
-        <strong>Benutzer-Prompt</strong>: Eingabetext oder zu verarbeitende Daten
-      </li>
-      <li>
-        <strong>Modell</strong>: KI-Modellauswahl (OpenAI, Anthropic, Google, usw.)
-      </li>
-      <li>
-        <strong>Temperatur</strong>: Steuerung der Zufälligkeit der Antwort (0-2)
-      </li>
-      <li>
-        <strong>Tools</strong>: Array verfügbarer Tools für Funktionsaufrufe
-      </li>
-      <li>
-        <strong>Antwortformat</strong>: JSON-Schema für strukturierte Ausgabe
-      </li>
-    </ul>
-  </Tab>
-  <Tab>
-    <ul className="list-disc space-y-2 pl-6">
-      <li>
-        <strong>agent.content</strong>: Antworttext oder strukturierte Daten des Agenten
-      </li>
-      <li>
-        <strong>agent.tokens</strong>: Token-Nutzungsstatistik-Objekt
-      </li>
-      <li>
-        <strong>agent.tool_calls</strong>: Array mit Details zur Tool-Ausführung
-      </li>
-      <li>
-        <strong>agent.cost</strong>: Geschätzte API-Aufrufkosten (falls verfügbar)
-      </li>
-    </ul>
-  </Tab>
-  <Tab>
-    <ul className="list-disc space-y-2 pl-6">
-      <li>
-        <strong>Content</strong>: Primäre Antwortausgabe vom Agenten
-      </li>
-      <li>
-        <strong>Metadata</strong>: Nutzungsstatistiken und Ausführungsdetails
-      </li>
-      <li>
-        <strong>Access</strong>: Verfügbar in Blöcken nach dem Agenten
-      </li>
-    </ul>
-  </Tab>
-</Tabs>
+- **`<agent.content>`**: Antworttext des Agenten
+- **`<agent.tokens>`**: Token-Nutzungsstatistiken
+- **`<agent.tool_calls>`**: Details zur Tool-Ausführung
+- **`<agent.cost>`**: Geschätzte Kosten des API-Aufrufs
 
 ## Beispielanwendungsfälle
 
-### Automatisierung des Kundenservice
+**Automatisierung des Kundenservice** - Bearbeitung von Anfragen mit Datenbank- und Tool-Zugriff
 
-<div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">Szenario: Bearbeitung von Kundenanfragen mit Datenbankzugriff</h4>
-  <ol className="list-decimal pl-5 text-sm">
-    <li>Benutzer reicht ein Support-Ticket über den API-Block ein</li>
-    <li>Agent prüft Bestellungen/Abonnements in Postgres und durchsucht die Wissensdatenbank nach Anleitungen</li>
-    <li>Falls eine Eskalation erforderlich ist, erstellt der Agent ein Linear-Ticket mit relevantem Kontext</li>
-    <li>Agent erstellt eine klare E-Mail-Antwort</li>
-    <li>Gmail sendet die Antwort an den Kunden</li>
-    <li>Konversation wird im Memory gespeichert, um den Verlauf für zukünftige Nachrichten beizubehalten</li>
-  </ol>
-</div>
+```
+API (Ticket) → Agent (Postgres, KB, Linear) → Gmail (Reply) → Memory (Save)
+```
 
-### Multi-Modell-Inhaltsanalyse
+**Multi-Modell-Inhaltsanalyse** - Analyse von Inhalten mit verschiedenen KI-Modellen
 
-<div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">Szenario: Analyse von Inhalten mit verschiedenen KI-Modellen</h4>
-  <ol className="list-decimal pl-5 text-sm">
-    <li>Funktionsblock verarbeitet hochgeladenes Dokument</li>
-    <li>Agent mit GPT-4o führt technische Analyse durch</li>
-    <li>Agent mit Claude analysiert Stimmung und Tonfall</li>
-    <li>Funktionsblock kombiniert Ergebnisse für den Abschlussbericht</li>
-  </ol>
-</div>
+```
+Function (Process) → Agent (GPT-4o Technical) → Agent (Claude Sentiment) → Function (Report)
+```
 
-### Werkzeuggestützter Forschungsassistent
+**Tool-gestützter Rechercheassistent** - Recherche mit Websuche und Dokumentenzugriff
 
-<div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">Szenario: Forschungsassistent mit Websuche und Dokumentenzugriff</h4>
-  <ol className="list-decimal pl-5 text-sm">
-    <li>Benutzeranfrage über Eingabe erhalten</li>
-    <li>Agent durchsucht das Web mit dem Google-Suchwerkzeug</li>
-    <li>Agent greift auf Notion-Datenbank für interne Dokumente zu</li>
-    <li>Agent erstellt umfassenden Forschungsbericht</li>
-  </ol>
-</div>
+```
+Input → Agent (Google Search, Notion) → Function (Compile Report)
+```
 
 ## Bewährte Praktiken
 
 - **Sei spezifisch in System-Prompts**: Definiere die Rolle, den Ton und die Einschränkungen des Agenten klar. Je spezifischer deine Anweisungen sind, desto besser kann der Agent seinen vorgesehenen Zweck erfüllen.
-- **Wähle die richtige Temperatureinstellung**: Verwende niedrigere Temperatureinstellungen (0-0,3), wenn Genauigkeit wichtig ist, oder erhöhe die Temperatur (0,7-2,0) für kreativere oder abwechslungsreichere Antworten
-- **Nutze Werkzeuge effektiv**: Integriere Werkzeuge, die den Zweck des Agenten ergänzen und seine Fähigkeiten verbessern. Sei selektiv bei der Auswahl der Werkzeuge, um den Agenten nicht zu überfordern. Für Aufgaben mit wenig Überschneidung verwende einen anderen Agent-Block für die besten Ergebnisse.
+- **Wähle die richtige Temperatureinstellung**: Verwende niedrigere Temperatureinstellungen (0-0,3), wenn Genauigkeit wichtig ist, oder erhöhe die Temperatur (0,7-2,0) für kreativere oder vielfältigere Antworten
+- **Nutze Tools effektiv**: Integriere Tools, die den Zweck des Agenten ergänzen und seine Fähigkeiten erweitern. Sei selektiv bei der Auswahl der Tools, um den Agenten nicht zu überfordern. Für Aufgaben mit wenig Überschneidung verwende einen anderen Agent-Block für die besten Ergebnisse.

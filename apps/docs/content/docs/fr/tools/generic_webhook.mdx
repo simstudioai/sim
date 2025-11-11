@@ -5,6 +5,7 @@ description: Recevez des webhooks de n'importe quel service en configurant un
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { Image } from '@/components/ui/image'
 
 <BlockInfoCard 
   type="generic_webhook"
@@ -22,6 +23,16 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
       <path fill='none' d='M0 0h24v24H0z' />
     </svg>`}
 />
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/webhook.png"
+    alt="Configuration du bloc Webhook"
+    width={500}
+    height={400}
+    className="my-6"
+  />
+</div>
 
 ## Aperçu
 
@@ -63,7 +74,7 @@ Définissez un schéma d'entrée pour obtenir des champs typés et activer des f
 ]
 ```
 
-**Requête webhook :**
+**Requête Webhook :**
 
 ```bash
 curl -X POST https://sim.ai/api/webhooks/trigger/{webhook-path} \
@@ -174,7 +185,7 @@ curl -X POST https://sim.ai/api/webhooks/trigger/{webhook-path} \
 
 ## Authentification
 
-### Configurer l'authentification (facultatif)
+### Configurer l'authentification (optionnel)
 
 Dans la configuration du webhook :
 1. Activez "Exiger l'authentification"
@@ -201,14 +212,14 @@ curl -X POST https://sim.ai/api/webhooks/trigger/{webhook-path} \
 
 ## Bonnes pratiques
 
-1. **Utilisez le format d'entrée pour la structure** : définissez un format d'entrée lorsque vous connaissez le schéma attendu. Cela fournit :
+1. **Utiliser le format d'entrée pour la structure** : définissez un format d'entrée lorsque vous connaissez le schéma attendu. Cela fournit :
    - Validation de type
    - Meilleure autocomplétion dans l'éditeur
    - Capacités de téléchargement de fichiers
 
-2. **Authentification** : activez toujours l'authentification pour les webhooks de production afin d'empêcher les accès non autorisés.
+2. **Authentification** : activez toujours l'authentification pour les webhooks en production afin d'empêcher les accès non autorisés.
 
-3. **Limites de taille de fichier** : gardez les fichiers sous 20 Mo. Pour les fichiers plus volumineux, utilisez plutôt des références URL.
+3. **Limites de taille de fichier** : gardez les fichiers en dessous de 20 Mo. Pour les fichiers plus volumineux, utilisez plutôt des références URL.
 
 4. **Expiration des fichiers** : les fichiers téléchargés ont des URL d'expiration de 5 minutes. Traitez-les rapidement ou stockez-les ailleurs si vous en avez besoin plus longtemps.
 
@@ -218,8 +229,8 @@ curl -X POST https://sim.ai/api/webhooks/trigger/{webhook-path} \
 
 ## Cas d'utilisation
 
-- **Soumissions de formulaires** : recevez des données de formulaires personnalisés avec téléchargements de fichiers
-- **Intégrations tierces** : connectez-vous à des services qui envoient des webhooks (Stripe, GitHub, etc.)
+- **Soumissions de formulaires** : recevez des données de formulaires personnalisés avec téléchargement de fichiers
+- **Intégrations tierces** : connectez-vous avec des services qui envoient des webhooks (Stripe, GitHub, etc.)
 - **Traitement de documents** : acceptez des documents de systèmes externes pour traitement
 - **Notifications d'événements** : recevez des données d'événements de diverses sources
 - **API personnalisées** : créez des points de terminaison API personnalisés pour vos applications

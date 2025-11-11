@@ -18,35 +18,19 @@ import { Image } from '@/components/ui/image'
   />
 </div>
 
-## 概要
-
-待機ブロックでは以下のことが可能です：
-
-<Steps>
-  <Step>
-    <strong>時間遅延の追加</strong>：ワークフローステップ間で実行を一時停止する
-  </Step>
-  <Step>
-    <strong>レート制限の尊重</strong>：制限内に収まるようにAPI呼び出しの間隔を空ける
-  </Step>
-  <Step>
-    <strong>シーケンスのスケジュール</strong>：アクション間に遅延を持つタイムドワークフローを作成する
-  </Step>
-</Steps>
-
 ## 設定
 
 ### 待機時間
 
-実行を一時停止する時間を入力します：
-- **入力**：正の数値
+実行を一時停止する時間を入力してください：
+- **入力値**：正の数
 - **最大値**：600秒（10分）または10分
 
 ### 単位
 
-時間単位を選択します：
-- **秒**：短く正確な遅延のため
-- **分**：より長い一時停止のため
+時間単位を選択してください：
+- **秒**：短く正確な遅延に
+- **分**：長めの一時停止に
 
 <Callout type="info">
   待機ブロックはワークフローを停止することでキャンセルできます。最大待機時間は10分です。
@@ -59,41 +43,25 @@ import { Image } from '@/components/ui/image'
 
 ## 使用例
 
-### APIレート制限
+**APIレート制限** - リクエスト間でAPIレート制限内に留まる
 
-<div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">シナリオ：APIレート制限内に収める</h4>
-  <ol className="list-decimal pl-5 text-sm">
-    <li>APIブロックが最初のリクエストを行う</li>
-    <li>待機ブロックが2秒間一時停止する</li>
-    <li>APIブロックが2番目のリクエストを行う</li>
-    <li>レート制限に達することなくプロセスが続行される</li>
-  </ol>
-</div>
+```
+API (Request 1) → Wait (2s) → API (Request 2)
+```
 
-### タイムド通知
+**タイムド通知** - 遅延後にフォローアップメッセージを送信
 
-<div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">シナリオ：フォローアップメッセージを送信する</h4>
-  <ol className="list-decimal pl-5 text-sm">
-    <li>関数が初期メールを送信する</li>
-    <li>待機ブロックが5分間一時停止する</li>
-    <li>関数がフォローアップメールを送信する</li>
-  </ol>
-</div>
+```
+Function (Send Email) → Wait (5min) → Function (Follow-up)
+```
 
-### 処理の遅延
+**処理遅延** - 外部システムが処理を完了するまで待機
 
-<div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">シナリオ：外部システムを待機</h4>
-  <ol className="list-decimal pl-5 text-sm">
-    <li>APIブロックが外部システムでジョブをトリガー</li>
-    <li>待機ブロックが30秒間一時停止</li>
-    <li>APIブロックがジョブの完了状態を確認</li>
-  </ol>
-</div>
+```
+API (Trigger Job) → Wait (30s) → API (Check Status)
+```
 
 ## ベストプラクティス
 
-- **待機時間を適切に保つ**：最大10分までの遅延には待機を使用。より長い遅延にはスケジュールされたワークフローを検討
-- **実行時間を監視する**：待機によってワークフローの合計所要時間が延長されることに注意
+- **適切な待機時間を設定する**：最大10分までの遅延には待機機能を使用してください。より長い遅延にはスケジュールされたワークフローを検討してください
+- **実行時間を監視する**：待機はワークフローの合計実行時間を延長することを忘れないでください

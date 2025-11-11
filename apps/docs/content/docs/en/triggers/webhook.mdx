@@ -4,16 +4,23 @@ title: Webhooks
 
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Image } from '@/components/ui/image'
 import { Video } from '@/components/ui/video'
 
-Webhooks allow external services to trigger workflow execution from external webhooks by sending HTTP requests to your workflow. Sim supports two approaches for webhook-based triggers.
+Webhooks allow external services to trigger workflow execution by sending HTTP requests to your workflow. Sim supports two approaches for webhook-based triggers.
 
 ## Generic Webhook Trigger
 
 The Generic Webhook block creates a flexible endpoint that can receive any payload and trigger your workflow:
 
-<div className="mx-auto w-full overflow-hidden rounded-lg">
-  <Video src="webhooks-1.mp4" width={700} height={450} />
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/webhook.png"
+    alt="Generic Webhook Configuration"
+    width={700}
+    height={450}
+    className="my-6"
+  />
 </div>
 
 ### How It Works

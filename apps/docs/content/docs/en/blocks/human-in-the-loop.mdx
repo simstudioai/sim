@@ -1,0 +1,172 @@
+---
+title: Human in the Loop
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Image } from '@/components/ui/image'
+
+The Human in the Loop block pauses workflow execution and waits for human intervention before continuing. Use it to add approval gates, collect feedback, or gather additional input at critical decision points.
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/hitl-1.png"
+    alt="Human in the Loop Block Configuration"
+    width={500}
+    height={400}
+    className="my-6"
+  />
+</div>
+
+When execution reaches this block, the workflow pauses indefinitely until a human provides input through the approval portal, API, or webhook.
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/hitl-2.png"
+    alt="Human in the Loop Approval Portal"
+    width={700}
+    height={500}
+    className="my-6"
+  />
+</div>
+
+## Configuration Options
+
+### Paused Output
+
+Defines what data is displayed to the approver. This is the context shown in the approval portal to help them make an informed decision.
+
+Use the visual builder or JSON editor to structure the data. Reference workflow variables using `<blockName.output>` syntax.
+
+```json
+{
+  "customerName": "<agent1.content.name>",
+  "proposedAction": "<router1.selectedPath>",
+  "confidenceScore": "<evaluator1.score>",
+  "generatedEmail": "<agent2.content>"
+}
+```
+
+### Notification
+
+Configures how approvers are alerted when approval is needed. Supported channels include:
+
+- **Slack** - Messages to channels or DMs
+- **Gmail** - Email with approval link
+- **Microsoft Teams** - Team channel notifications
+- **SMS** - Text alerts via Twilio
+- **Webhooks** - Custom notification systems
+
+Include the approval URL (`<blockId.url>`) in your notification messages so approvers can access the portal.
+
+### Resume Input
+
+Defines the fields approvers fill in when responding. This data becomes available to downstream blocks after the workflow resumes.
+
+```json
+{
+  "approved": {
+    "type": "boolean",
+    "description": "Approve or reject this request"
+  },
+  "comments": {
+    "type": "string",
+    "description": "Optional feedback or explanation"
+  }
+}
+```
+
+Access resume data in downstream blocks using `<blockId.resumeInput.fieldName>`.
+
+## Approval Methods
+
+<Tabs items={['Approval Portal', 'API', 'Webhook']}>
+  <Tab>
+    ### Approval Portal
+    
+    Every block generates a unique portal URL (`<blockId.url>`) with a visual interface showing all paused output data and form fields for resume input. Mobile-responsive and secure.
+    
+    Share this URL in notifications for approvers to review and respond.
+  </Tab>
+  <Tab>
+    ### REST API
+    
+    Programmatically resume workflows:
+    
+    ```bash
+    POST /api/workflows/{workflowId}/executions/{executionId}/resume/{blockId}
+    
+    {
+      "approved": true,
+      "comments": "Looks good to proceed"
+    }
+    ```
+    
+    Build custom approval UIs or integrate with existing systems.
+  </Tab>
+  <Tab>
+    ### Webhook
+    
+    Add a webhook tool to the Notification section to send approval requests to external systems. Integrate with ticketing systems like Jira or ServiceNow.
+  </Tab>
+</Tabs>
+
+## Common Use Cases
+
+**Content Approval** - Review AI-generated content before publishing
+```
+Agent → Human in the Loop → API (Publish)
+```
+
+**Multi-Stage Approvals** - Chain multiple approval steps for high-stakes decisions
+```
+Agent → Human in the Loop (Manager) → Human in the Loop (Director) → Execute
+```
+
+**Data Validation** - Verify extracted data before processing
+```
+Agent (Extract) → Human in the Loop (Validate) → Function (Process)
+```
+
+**Quality Control** - Review AI outputs before sending to customers
+```
+Agent (Generate) → Human in the Loop (QA) → Gmail (Send)
+```
+
+## Block Outputs
+
+**`url`** - Unique URL for the approval portal  
+**`resumeInput.*`** - All fields defined in Resume Input become available after the workflow resumes
+
+Access using `<blockId.resumeInput.fieldName>`.
+
+## Example
+
+**Paused Output:**
+```json
+{
+  "title": "<agent1.content.title>",
+  "body": "<agent1.content.body>",
+  "qualityScore": "<evaluator1.score>"
+}
+```
+
+**Resume Input:**
+```json
+{
+  "approved": { "type": "boolean" },
+  "feedback": { "type": "string" }
+}
+```
+
+**Downstream Usage:**
+```javascript
+// Condition block
+<approval1.resumeInput.approved> === true
+```
+
+## Related Blocks
+
+- **[Condition](/blocks/condition)** - Branch based on approval decisions
+- **[Variables](/blocks/variables)** - Store approval history and metadata
+- **[Response](/blocks/response)** - Return workflow results to API callers

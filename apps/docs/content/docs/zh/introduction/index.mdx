@@ -6,7 +6,7 @@ import { Card, Cards } from 'fumadocs-ui/components/card'
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Image } from '@/components/ui/image'
 
-Sim 是一个用于构建 AI 应用程序的可视化工作流构建器，允许您以可视化方式创建 AI 代理工作流。通过在画布上连接模块，无需编写代码即可创建强大的 AI 代理、自动化工作流和数据处理管道。
+Sim 是一个开源的可视化工作流构建器，用于构建和部署 AI 代理工作流。通过无代码界面设计智能自动化系统——通过直观的拖放画布连接 AI 模型、数据库、API 和业务工具。无论是构建聊天机器人、自动化业务流程，还是协调复杂的数据管道，Sim 都提供了将 AI 工作流变为现实的工具。
 
 <div className="flex justify-center">
   <Image
@@ -20,50 +20,52 @@ Sim 是一个用于构建 AI 应用程序的可视化工作流构建器，允许
 
 ## 您可以构建的内容
 
-**AI 助手与聊天机器人**
-创建能够搜索网络、访问日历、发送电子邮件以及与您的业务工具交互的智能代理。
+**AI 助手与聊天机器人**  
+构建与您的工具和数据集成的智能对话代理。启用网页搜索、日历管理、电子邮件自动化以及与业务系统的无缝交互等功能。
 
-**业务流程自动化**
-自动化重复性任务，例如数据录入、报告生成、客户支持回复和内容创建。
+**业务流程自动化**  
+消除组织中的手动任务。自动化数据输入、生成报告、响应客户询问，并简化内容创建工作流。
 
-**数据处理与分析**
-从文档中提取洞察，分析数据集，生成报告，并在系统之间同步数据。
+**数据处理与分析**  
+将原始数据转化为可操作的洞察。提取文档信息、执行数据集分析、生成自动化报告，并在各平台间同步数据。
 
-**API 集成工作流**
-将多个服务连接到统一的端点，编排复杂的业务逻辑，并处理事件驱动的自动化。
+**API 集成工作流**  
+协调复杂的多服务交互。创建统一的 API 端点，实施复杂的业务逻辑，并构建事件驱动的自动化系统。
 
 ## 工作原理
 
-**可视化画布**
-通过拖放模块来构建工作流。使用简单的点选连接将 AI 模型、数据库、API 和业务工具连接起来。
+**可视化工作流编辑器**  
+使用直观的拖放画布设计工作流。通过可视化的无代码界面连接 AI 模型、数据库、API 和第三方服务，使复杂的自动化逻辑易于理解和维护。
 
-**智能模块**
-从处理模块（AI 代理、API、函数）、逻辑模块（条件、循环、路由器）和输出模块（响应、评估器）中进行选择。
+**模块化块系统**  
+使用专业组件构建：处理块（AI 代理、API 调用、自定义函数）、逻辑块（条件分支、循环、路由器）和输出块（响应、评估器）。每个块在工作流中处理特定任务。
 
-**多种触发方式**
-通过聊天界面、REST API、webhooks、计划任务或来自 Slack 和 GitHub 等服务的外部事件启动工作流。
+**灵活的执行触发器**  
+通过多种渠道启动工作流，包括聊天界面、REST API、webhook、计划的 cron 作业或来自 Slack 和 GitHub 等平台的外部事件。
 
-**团队协作**
-与团队成员同时在同一工作流上工作，支持实时编辑和权限管理。
+**实时协作**  
+让您的团队共同构建。多位用户可以同时编辑工作流，支持实时更新和细粒度的权限控制。
 
-## 内置集成
+## 集成
 
-Sim 开箱即用地连接到 80 多种服务：
+Sim 提供了跨多个类别的 80 多种服务的原生集成：
 
-- **AI 模型**：OpenAI、Anthropic、Google、Groq、Cerebras、本地 Ollama 模型
-- **通信**：Gmail、Slack、Teams、Telegram、WhatsApp  
-- **生产力**：Notion、Google Sheets、Airtable、Monday.com
-- **开发**：GitHub、Jira、Linear、浏览器自动化
-- **搜索与网络**：Google Search、Perplexity、Firecrawl、Exa AI
+- **AI 模型**：OpenAI、Anthropic、Google Gemini、Groq、Cerebras、通过 Ollama 的本地模型
+- **通信**：Gmail、Slack、Microsoft Teams、Telegram、WhatsApp  
+- **生产力**：Notion、Google Workspace、Airtable、Monday.com
+- **开发**：GitHub、Jira、Linear、自动化浏览器测试
+- **搜索与数据**：Google 搜索、Perplexity、Firecrawl、Exa AI
 - **数据库**：PostgreSQL、MySQL、Supabase、Pinecone、Qdrant
 
-需要定制功能？使用我们的 [MCP 集成](/mcp) 连接任何外部服务。
+对于自定义集成，可以利用我们的 [MCP（模型上下文协议）支持](/mcp) 来连接任何外部服务或工具。
 
 ## 部署选项
 
-**云托管**：在 [sim.ai](https://sim.ai) 上立即开始，享受托管基础设施、自动扩展和内置监控。
+**云托管**  
+通过完全托管的基础设施、自动扩展和内置可观测性，立即在 [sim.ai](https://sim.ai) 启动。专注于构建工作流，我们负责运营。
 
-**自托管**：使用 Docker 在您自己的基础设施上部署，通过 Ollama 支持本地 AI 模型，确保数据完全隐私。
+**自托管**  
+使用 Docker Compose 或 Kubernetes 部署在您自己的基础设施上。通过 Ollama 集成支持本地 AI 模型，完全掌控您的数据。
 
 ## 下一步
 
@@ -77,7 +79,7 @@ Sim 开箱即用地连接到 80 多种服务：
     了解构建模块
   </Card>
   <Card title="工具与集成" href="/tools">
-    探索 60 多种内置集成
+    探索 80 多种内置集成
   </Card>
   <Card title="团队权限" href="/permissions/roles-and-permissions">
     设置工作区角色和权限

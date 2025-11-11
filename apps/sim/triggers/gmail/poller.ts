@@ -60,6 +60,7 @@ export const gmailPollingTrigger: TriggerConfig = {
           throw error
         }
       },
+      dependsOn: ['triggerCredentials'],
       mode: 'trigger',
     },
     {

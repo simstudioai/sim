@@ -1,0 +1,181 @@
+---
+title: Human in the Loop
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Image } from '@/components/ui/image'
+
+El bloque Human in the Loop pausa la ejecución del flujo de trabajo y espera la intervención humana antes de continuar. Úsalo para añadir puntos de aprobación, recopilar comentarios o reunir información adicional en puntos críticos de decisión.
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/hitl-1.png"
+    alt="Configuración del bloque Human in the Loop"
+    width={500}
+    height={400}
+    className="my-6"
+  />
+</div>
+
+Cuando la ejecución llega a este bloque, el flujo de trabajo se pausa indefinidamente hasta que un humano proporcione información a través del portal de aprobación, API o webhook.
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/hitl-2.png"
+    alt="Portal de aprobación Human in the Loop"
+    width={700}
+    height={500}
+    className="my-6"
+  />
+</div>
+
+## Opciones de configuración
+
+### Salida en pausa
+
+Define qué datos se muestran al aprobador. Este es el contexto que se muestra en el portal de aprobación para ayudarles a tomar una decisión informada.
+
+Utiliza el constructor visual o el editor JSON para estructurar los datos. Haz referencia a las variables del flujo de trabajo usando la sintaxis `<blockName.output>`.
+
+```json
+{
+  "customerName": "<agent1.content.name>",
+  "proposedAction": "<router1.selectedPath>",
+  "confidenceScore": "<evaluator1.score>",
+  "generatedEmail": "<agent2.content>"
+}
+```
+
+### Notificación
+
+Configura cómo se alerta a los aprobadores cuando se necesita aprobación. Los canales compatibles incluyen:
+
+- **Slack** - Mensajes a canales o mensajes directos
+- **Gmail** - Correo electrónico con enlace de aprobación
+- **Microsoft Teams** - Notificaciones de canal de equipo
+- **SMS** - Alertas de texto vía Twilio
+- **Webhooks** - Sistemas de notificación personalizados
+
+Incluye la URL de aprobación (`<blockId.url>`) en tus mensajes de notificación para que los aprobadores puedan acceder al portal.
+
+### Entrada para reanudar
+
+Define los campos que los aprobadores completan al responder. Estos datos estarán disponibles para los bloques posteriores después de que el flujo de trabajo se reanude.
+
+```json
+{
+  "approved": {
+    "type": "boolean",
+    "description": "Approve or reject this request"
+  },
+  "comments": {
+    "type": "string",
+    "description": "Optional feedback or explanation"
+  }
+}
+```
+
+Accede a los datos de reanudación en bloques posteriores usando `<blockId.resumeInput.fieldName>`.
+
+## Métodos de aprobación
+
+<Tabs items={['Portal de aprobación', 'API', 'Webhook']}>
+  <Tab>
+    ### Portal de aprobación
+    
+    Cada bloque genera una URL única del portal (`<blockId.url>`) con una interfaz visual que muestra todos los datos de salida pausados y campos de formulario para reanudar la entrada. Adaptable a dispositivos móviles y seguro.
+    
+    Comparte esta URL en notificaciones para que los aprobadores revisen y respondan.
+  </Tab>
+  <Tab>
+    ### API REST
+    
+    Reanuda flujos de trabajo programáticamente:
+    
+
+    ```bash
+    POST /api/workflows/{workflowId}/executions/{executionId}/resume/{blockId}
+    
+    {
+      "approved": true,
+      "comments": "Looks good to proceed"
+    }
+    ```
+
+    
+    Construye interfaces de aprobación personalizadas o intégralas con sistemas existentes.
+  </Tab>
+  <Tab>
+    ### Webhook
+    
+    Añade una herramienta de webhook a la sección de Notificación para enviar solicitudes de aprobación a sistemas externos. Integra con sistemas de tickets como Jira o ServiceNow.
+  </Tab>
+</Tabs>
+
+## Casos de uso comunes
+
+**Aprobación de contenido** - Revisa el contenido generado por IA antes de publicarlo
+
+```
+Agent → Human in the Loop → API (Publish)
+```
+
+**Aprobaciones de múltiples etapas** - Encadena múltiples pasos de aprobación para decisiones de alto riesgo
+
+```
+Agent → Human in the Loop (Manager) → Human in the Loop (Director) → Execute
+```
+
+**Validación de datos** - Verifica los datos extraídos antes de procesarlos
+
+```
+Agent (Extract) → Human in the Loop (Validate) → Function (Process)
+```
+
+**Control de calidad** - Revisa las salidas de IA antes de enviarlas a los clientes
+
+```
+Agent (Generate) → Human in the Loop (QA) → Gmail (Send)
+```
+
+## Salidas del bloque
+
+**`url`** - URL única para el portal de aprobación  
+**`resumeInput.*`** - Todos los campos definidos en Reanudar entrada quedan disponibles después de que el flujo de trabajo se reanude
+
+Accede usando `<blockId.resumeInput.fieldName>`.
+
+## Ejemplo
+
+**Salida pausada:**
+
+```json
+{
+  "title": "<agent1.content.title>",
+  "body": "<agent1.content.body>",
+  "qualityScore": "<evaluator1.score>"
+}
+```
+
+**Reanudar entrada:**
+
+```json
+{
+  "approved": { "type": "boolean" },
+  "feedback": { "type": "string" }
+}
+```
+
+**Uso posterior:**
+
+```javascript
+// Condition block
+<approval1.resumeInput.approved> === true
+```
+
+## Bloques relacionados
+
+- **[Condición](/blocks/condition)** - Ramifica basado en decisiones de aprobación
+- **[Variables](/blocks/variables)** - Almacena historial de aprobaciones y metadatos
+- **[Respuesta](/blocks/response)** - Devuelve resultados del flujo de trabajo a los llamantes de API

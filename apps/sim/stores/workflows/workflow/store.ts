@@ -6,6 +6,7 @@ import { getBlockOutputs } from '@/lib/workflows/block-outputs'
 import { TriggerUtils } from '@/lib/workflows/triggers'
 import { getBlock } from '@/blocks'
 import type { SubBlockConfig } from '@/blocks/types'
+import { isAnnotationOnlyBlock } from '@/executor/consts'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import {
@@ -422,6 +423,14 @@ export const useWorkflowStore = create<WorkflowStore>()(
       },
 
       addEdge: (edge: Edge) => {
+        // Prevent connections to/from annotation-only blocks (non-executable)
+        const sourceBlock = get().blocks[edge.source]
+        const targetBlock = get().blocks[edge.target]
+
+        if (isAnnotationOnlyBlock(sourceBlock?.type) || isAnnotationOnlyBlock(targetBlock?.type)) {
+          return
+        }
+
         // Check for duplicate connections
         const isDuplicate = get().edges.some(
           (existingEdge) =>

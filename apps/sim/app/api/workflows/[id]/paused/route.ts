@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { PauseResumeManager } from '@/lib/workflows/executor/pause-resume-manager'
+import { PauseResumeManager } from '@/lib/workflows/executor/human-in-the-loop-manager'
 import { validateWorkflowAccess } from '@/app/api/workflows/middleware'
 
 const queryParamsSchema = z.object({

@@ -18,6 +18,7 @@ import { DiffControls } from '@/app/workspace/[workspaceId]/w/[workflowId]/compo
 import { Chat } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/chat/chat'
 import { UserAvatarStack } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/control-bar/components/user-avatar-stack/user-avatar-stack'
 import { ErrorBoundary } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/error/index'
+import { NoteBlock } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/note-block/note-block'
 import { Panel } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/panel-new'
 import { SubflowNodeComponent } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/subflow-node'
 import { Terminal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/terminal'
@@ -37,6 +38,7 @@ import {
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
 import { getBlock } from '@/blocks'
 import { useSocket } from '@/contexts/socket-context'
+import { isAnnotationOnlyBlock } from '@/executor/consts'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { useStreamCleanup } from '@/hooks/use-stream-cleanup'
 import { useWorkspacePermissions } from '@/hooks/use-workspace-permissions'
@@ -55,6 +57,7 @@ const logger = createLogger('Workflow')
 // Define custom node and edge types - memoized outside component to prevent re-creation
 const nodeTypes: NodeTypes = {
   workflowBlock: WorkflowBlock,
+  noteBlock: NoteBlock,
   subflowNode: SubflowNodeComponent,
 }
 const edgeTypes: EdgeTypes = {
@@ -1298,13 +1301,17 @@ const WorkflowContent = React.memo(() => {
       const isActive = activeBlockIds.has(block.id)
       const isPending = isDebugging && pendingBlocks.includes(block.id)
 
+      // Both note blocks and workflow blocks use deterministic dimensions
+      const nodeType = block.type === 'note' ? 'noteBlock' : 'workflowBlock'
+      const dragHandle = block.type === 'note' ? '.note-drag-handle' : '.workflow-drag-handle'
+
       // Create stable node object - React Flow will handle shallow comparison
       nodeArray.push({
         id: block.id,
-        type: 'workflowBlock',
+        type: nodeType,
         position,
         parentId: block.data?.parentId,
-        dragHandle: '.workflow-drag-handle',
+        dragHandle,
         extent: (() => {
           // Clamp children to subflow body (exclude header)
           const parentId = block.data?.parentId as string | undefined
@@ -1332,8 +1339,9 @@ const WorkflowContent = React.memo(() => {
           isPending,
         },
         // Include dynamic dimensions for container resizing calculations (must match rendered size)
-        width: 250, // Standard width - matches w-[250px] in workflow-block.tsx
-        height: Math.max(block.height || 100, 100), // Use actual height with minimum
+        // Both note and workflow blocks calculate dimensions deterministically via useBlockDimensions
+        width: 250, // Standard width for both block types
+        height: Math.max(block.height || 100, 100), // Use calculated height with minimum
       })
     })
 
@@ -1439,6 +1447,14 @@ const WorkflowContent = React.memo(() => {
         const targetNode = getNodes().find((n) => n.id === connection.target)
 
         if (!sourceNode || !targetNode) return
+
+        // Prevent connections to/from annotation-only blocks (non-executable)
+        if (
+          isAnnotationOnlyBlock(sourceNode.data?.type) ||
+          isAnnotationOnlyBlock(targetNode.data?.type)
+        ) {
+          return
+        }
 
         // Prevent incoming connections to trigger blocks (webhook, schedule, etc.)
         if (targetNode.data?.config?.category === 'triggers') {
