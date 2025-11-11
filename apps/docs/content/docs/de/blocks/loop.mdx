@@ -70,7 +70,7 @@ Wähle zwischen vier Arten von Schleifen:
 
   </Tab>
   <Tab>
-    **While-Schleife (Bedingungsbasiert)** - Wird weiter ausgeführt, solange eine Bedingung als wahr ausgewertet wird:
+    **While-Schleife (Bedingungsbasiert)** - Wird ausgeführt, solange eine Bedingung als wahr ausgewertet wird:
     
     <div className="flex justify-center">
       <Image
@@ -82,7 +82,7 @@ Wähle zwischen vier Arten von Schleifen:
       />
     </div>
     
-    Verwende diese, wenn du eine Schleife ausführen musst, bis eine bestimmte Bedingung erfüllt ist. Die Bedingung wird **vor** jeder Iteration überprüft.
+    Verwende diese, wenn du eine Schleife benötigst, die läuft, bis eine bestimmte Bedingung erfüllt ist. Die Bedingung wird **vor** jeder Iteration überprüft.
 
     ```
     Example: While {"<variable.i>"} < 10
@@ -107,12 +107,13 @@ Wähle zwischen vier Arten von Schleifen:
       />
     </div>
     
-    Verwende diese, wenn du mindestens einmal ausführen und dann eine Schleife durchlaufen musst, bis eine Bedingung erfüllt ist. Die Bedingung wird **nach** jeder Iteration überprüft.
-
+    Verwende diese, wenn du eine Operation mindestens einmal ausführen musst und dann die Schleife fortsetzen willst, bis eine Bedingung erfüllt ist. Die Bedingung wird **nach** jeder Iteration überprüft.
 
     ```
-    Example: Do-While Loop
-    - Execute first iteration
+    Example: Do-while {"<variable.i>"} < 10
+    - Execute blocks
+    - Inside loop: Increment {"<variable.i>"}
+    - Inside loop: Variables assigns i = {"<variable.i>"} + 1
     - Check condition → Continue if true
     - Check condition → Exit if false
     ```

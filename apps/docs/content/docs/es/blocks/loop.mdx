@@ -82,7 +82,7 @@ Elige entre cuatro tipos de bucles:
       />
     </div>
     
-    Úsalo cuando necesites hacer un bucle hasta que se cumpla una condición específica. La condición se comprueba **antes** de cada iteración.
+    Úsalo cuando necesites repetir hasta que se cumpla una condición específica. La condición se verifica **antes** de cada iteración.
 
     ```
     Example: While {"<variable.i>"} < 10
@@ -107,12 +107,13 @@ Elige entre cuatro tipos de bucles:
       />
     </div>
     
-    Úsalo cuando necesites ejecutar al menos una vez, luego hacer un bucle hasta que se cumpla una condición. La condición se comprueba **después** de cada iteración.
-
+    Úsalo cuando necesites ejecutar al menos una vez, luego repetir hasta que se cumpla una condición. La condición se verifica **después** de cada iteración.
 
     ```
-    Example: Do-While Loop
-    - Execute first iteration
+    Example: Do-while {"<variable.i>"} < 10
+    - Execute blocks
+    - Inside loop: Increment {"<variable.i>"}
+    - Inside loop: Variables assigns i = {"<variable.i>"} + 1
     - Check condition → Continue if true
     - Check condition → Exit if false
     ```

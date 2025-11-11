@@ -70,7 +70,7 @@ Choisissez entre quatre types de boucles :
 
   </Tab>
   <Tab>
-    **Boucle While (Basée sur condition)** - Continue l'exécution tant qu'une condition est évaluée comme vraie :
+    **Boucle While (Basée sur une condition)** - Continue à s'exécuter tant qu'une condition est évaluée comme vraie :
     
     <div className="flex justify-center">
       <Image
@@ -95,7 +95,7 @@ Choisissez entre quatre types de boucles :
 
   </Tab>
   <Tab>
-    **Boucle Do-While (Basée sur condition)** - S'exécute au moins une fois, puis continue tant qu'une condition est vraie :
+    **Boucle Do-While (Basée sur une condition)** - S'exécute au moins une fois, puis continue tant qu'une condition est vraie :
     
     <div className="flex justify-center">
       <Image
@@ -109,10 +109,11 @@ Choisissez entre quatre types de boucles :
     
     Utilisez cette option lorsque vous devez exécuter au moins une fois, puis boucler jusqu'à ce qu'une condition soit remplie. La condition est vérifiée **après** chaque itération.
 
-
     ```
-    Example: Do-While Loop
-    - Execute first iteration
+    Example: Do-while {"<variable.i>"} < 10
+    - Execute blocks
+    - Inside loop: Increment {"<variable.i>"}
+    - Inside loop: Variables assigns i = {"<variable.i>"} + 1
     - Check condition → Continue if true
     - Check condition → Exit if false
     ```

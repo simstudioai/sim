@@ -70,7 +70,7 @@ import { Image } from '@/components/ui/image'
 
   </Tab>
   <Tab>
-    **While ループ（条件ベース）** - 条件がtrueと評価される間、実行を継続します：
+    **While ループ（条件ベース）** - 条件が真と評価される間、実行を継続します：
     
     <div className="flex justify-center">
       <Image
@@ -95,8 +95,8 @@ import { Image } from '@/components/ui/image'
 
   </Tab>
   <Tab>
-    **Do-While ループ（条件ベース）** - 少なくとも1回実行し、その後条件がtrueの間継続します：
-
+    **Do-While ループ（条件ベース）** - 少なくとも1回実行し、その後条件が真である間継続します：
+    
     <div className="flex justify-center">
       <Image
         src="/static/blocks/loop-4.png"
@@ -106,6 +106,17 @@ import { Image } from '@/components/ui/image'
         className="my-6"
       />
     </div>
+    
+    少なくとも1回実行し、その後条件が満たされるまでループする必要がある場合に使用します。条件は各反復の**後に**チェックされます。
+
+    ```
+    Example: Do-while {"<variable.i>"} < 10
+    - Execute blocks
+    - Inside loop: Increment {"<variable.i>"}
+    - Inside loop: Variables assigns i = {"<variable.i>"} + 1
+    - Check condition → Continue if true
+    - Check condition → Exit if false
+    ```
 
     少なくとも1回実行し、その後条件が満たされるまでループする必要がある場合に使用します。条件は各反復の**後に**チェックされます。
 
@@ -246,9 +257,3 @@ while (counter < items.length && !foundTarget) {
     </ul>
   </Tab>
 </Tabs>
-
-## ベストプラクティス
-
-- **適切な制限を設定する**: 実行時間が長くならないよう、反復回数を適切に保つ
-- **コレクションにはForEachを使用する**: 配列やオブジェクトを処理する場合、Forループの代わりにForEachを使用する
-- **エラーを適切に処理する**: 堅牢なワークフローのために、ループ内でのエラー処理を検討する
