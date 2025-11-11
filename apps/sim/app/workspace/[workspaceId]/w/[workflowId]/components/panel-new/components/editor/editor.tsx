@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useRef } from 'react'
-import { BookOpen, ChevronUp, Crosshair, Settings } from 'lucide-react'
+import { BookOpen, ChevronUp, Crosshair, RepeatIcon, Settings, SplitIcon } from 'lucide-react'
 import { Button, Tooltip } from '@/components/emcn'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { getSubBlockStableKey } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/utils'
@@ -12,7 +12,7 @@ import { useFocusOnBlock } from '@/hooks/use-focus-on-block'
 import { usePanelEditorStore } from '@/stores/panel-new/editor/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
-import { ConnectionBlocks, SubBlock } from './components'
+import { ConnectionBlocks, SubBlock, SubflowEditor } from './components'
 import {
   useBlockConnections,
   useConnectionsResize,
@@ -44,6 +44,14 @@ export function Editor() {
   const currentBlock = currentBlockId ? currentWorkflow.getBlockById(currentBlockId) : null
   const blockConfig = currentBlock ? getBlock(currentBlock.type) : null
   const title = currentBlock?.name || 'Editor'
+
+  // Check if selected block is a subflow (loop or parallel)
+  const isSubflow =
+    currentBlock && (currentBlock.type === 'loop' || currentBlock.type === 'parallel')
+
+  // Get subflow display properties
+  const subflowIcon = isSubflow && currentBlock.type === 'loop' ? RepeatIcon : SplitIcon
+  const subflowBgColor = isSubflow && currentBlock.type === 'loop' ? '#2FB3FF' : '#FEE12B'
 
   // Refs for resize functionality
   const subBlocksRef = useRef<HTMLDivElement>(null)
@@ -126,12 +134,15 @@ export function Editor() {
       {/* Header */}
       <div className='flex flex-shrink-0 items-center justify-between rounded-[4px] bg-[#2A2A2A] px-[12px] py-[8px] dark:bg-[#2A2A2A]'>
         <div className='flex min-w-0 flex-1 items-center gap-[8px]'>
-          {blockConfig && (
+          {(blockConfig || isSubflow) && (
             <div
               className='flex h-[18px] w-[18px] items-center justify-center rounded-[4px]'
-              style={{ backgroundColor: blockConfig.bgColor }}
+              style={{ backgroundColor: isSubflow ? subflowBgColor : blockConfig?.bgColor }}
             >
-              <IconComponent icon={blockConfig.icon} className='h-[12px] w-[12px] text-[#FFFFFF]' />
+              <IconComponent
+                icon={isSubflow ? subflowIcon : blockConfig?.icon}
+                className='h-[12px] w-[12px] text-[#FFFFFF]'
+              />
             </div>
           )}
           <h2
@@ -160,8 +171,8 @@ export function Editor() {
               </Tooltip.Content>
             </Tooltip.Root>
           )}
-          {/* Mode toggles */}
-          {currentBlock && hasAdvancedMode && (
+          {/* Mode toggles - Only show for regular blocks, not subflows */}
+          {currentBlock && !isSubflow && hasAdvancedMode && (
             <Tooltip.Root>
               <Tooltip.Trigger asChild>
                 <Button
@@ -179,7 +190,7 @@ export function Editor() {
               </Tooltip.Content>
             </Tooltip.Root>
           )}
-          {currentBlock && blockConfig?.docsLink && (
+          {currentBlock && !isSubflow && blockConfig?.docsLink && (
             <Tooltip.Root>
               <Tooltip.Trigger asChild>
                 <Button
@@ -203,6 +214,20 @@ export function Editor() {
         <div className='flex flex-1 items-center justify-center text-[#8D8D8D] text-[13px]'>
           Select a block to edit
         </div>
+      ) : isSubflow ? (
+        <SubflowEditor
+          currentBlock={currentBlock}
+          currentBlockId={currentBlockId}
+          subBlocksRef={subBlocksRef}
+          connectionsHeight={connectionsHeight}
+          isResizing={isResizing}
+          hasIncomingConnections={hasIncomingConnections}
+          incomingConnections={incomingConnections}
+          handleConnectionsResizeMouseDown={handleConnectionsResizeMouseDown}
+          toggleConnectionsCollapsed={toggleConnectionsCollapsed}
+          userCanEdit={userPermissions.canEdit}
+          isConnectionsAtMinHeight={isConnectionsAtMinHeight}
+        />
       ) : (
         <div className='flex flex-1 flex-col overflow-hidden pt-[0px]'>
           {/* Subblocks Section */}

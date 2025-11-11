@@ -139,6 +139,7 @@ export function WorkflowPreview({
           draggable: false,
           data: {
             ...block.data,
+            name: block.name,
             width: block.data?.width || 500,
             height: block.data?.height || 300,
             state: 'valid',
@@ -159,6 +160,7 @@ export function WorkflowPreview({
           draggable: false,
           data: {
             ...block.data,
+            name: block.name,
             width: block.data?.width || 500,
             height: block.data?.height || 300,
             state: 'valid',

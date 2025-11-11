@@ -250,7 +250,7 @@ export function SidebarNew() {
                     className='group -m-1 p-0 p-1'
                   >
                     <ChevronDown
-                      className={`h-[8px] w-[12px] transition-transform duration-200 ${
+                      className={`h-[8px] w-[12px] transition-transform duration-100 ${
                         isWorkspaceMenuOpen ? 'rotate-180' : ''
                       }`}
                     />
