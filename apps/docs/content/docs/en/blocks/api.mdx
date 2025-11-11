@@ -3,11 +3,10 @@ title: API
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
-import { Step, Steps } from 'fumadocs-ui/components/steps'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 import { Image } from '@/components/ui/image'
 
-The API block enables you to connect your workflow to external services through API endpoints using HTTP requests. It supports various methods like GET, POST, PUT, DELETE, and PATCH, allowing you to interact with virtually any API endpoint.
+The API block connects your workflow to external services through HTTP requests. Supports GET, POST, PUT, DELETE, and PATCH methods for interacting with REST APIs.
 
 <div className="flex justify-center">
   <Image
@@ -18,34 +17,6 @@ The API block enables you to connect your workflow to external services through 
     className="my-6"
   />
 </div>
-
-## Overview
-
-The API block enables you to:
-
-<Steps>
-  <Step>
-    <strong>Connect to external services</strong>: Make HTTP requests to REST APIs and web services
-  </Step>
-  <Step>
-    <strong>Send and receive data</strong>: Process responses and transform data from external sources
-  </Step>
-  <Step>
-    <strong>Integrate third-party platforms</strong>: Connect with services like Stripe, Slack, or custom APIs
-  </Step>
-  <Step>
-    <strong>Handle authentication</strong>: Support various auth methods including Bearer tokens and API keys
-  </Step>
-</Steps>
-
-## How It Works
-
-The API block processes HTTP requests through a structured approach:
-
-1. **Configure Request** - Set URL, method, headers, and body parameters
-2. **Execute Request** - Send HTTP request to the specified endpoint
-3. **Process Response** - Handle response data, status codes, and headers
-4. **Error Handling** - Manage timeouts, retries, and error conditions
 
 ## Configuration Options
 
@@ -145,84 +116,24 @@ if (<api.status> === 200) {
 }
 ```
 
-## Inputs and Outputs
+## Outputs
 
-<Tabs items={['Configuration', 'Variables', 'Results']}>
-  <Tab>
-    <ul className="list-disc space-y-2 pl-6">
-      <li>
-        <strong>URL</strong>: The endpoint to send the request to
-      </li>
-      <li>
-        <strong>Method</strong>: HTTP method (GET, POST, PUT, DELETE, PATCH)
-      </li>
-      <li>
-        <strong>Query Parameters</strong>: Key-value pairs for URL parameters
-      </li>
-      <li>
-        <strong>Headers</strong>: HTTP headers for authentication and content type
-      </li>
-      <li>
-        <strong>Body</strong>: Request payload for POST/PUT/PATCH methods
-      </li>
-    </ul>
-  </Tab>
-  <Tab>
-    <ul className="list-disc space-y-2 pl-6">
-      <li>
-        <strong>api.data</strong>: Response body data from the API call
-      </li>
-      <li>
-        <strong>api.status</strong>: HTTP status code returned by server
-      </li>
-      <li>
-        <strong>api.headers</strong>: Response headers from the server
-      </li>
-      <li>
-        <strong>api.error</strong>: Error details if request failed
-      </li>
-    </ul>
-  </Tab>
-  <Tab>
-    <ul className="list-disc space-y-2 pl-6">
-      <li>
-        <strong>Response Data</strong>: Primary API response content
-      </li>
-      <li>
-        <strong>Status Information</strong>: HTTP status and error details
-      </li>
-      <li>
-        <strong>Access</strong>: Available in blocks after the API call
-      </li>
-    </ul>
-  </Tab>
-</Tabs>
+- **`<api.data>`**: Response body data from the API
+- **`<api.status>`**: HTTP status code
+- **`<api.headers>`**: Response headers
+- **`<api.error>`**: Error details if request failed
 
 ## Example Use Cases
 
-### Fetch User Profile Data
+**Fetch User Profile Data** - Retrieve user information from external service
+```
+Function (Build ID) → API (GET /users/{id}) → Function (Format) → Response
+```
 
-<div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">Scenario: Retrieve user information from external service</h4>
-  <ol className="list-decimal pl-5 text-sm">
-    <li>Function block constructs user ID from input</li>
-    <li>API block calls GET /users/&#123;id&#125; endpoint</li>
-    <li>Function block processes and formats user data</li>
-    <li>Response block returns formatted profile</li>
-  </ol>
-</div>
-
-### Payment Processing
-
-<div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">Scenario: Process payment through Stripe API</h4>
-  <ol className="list-decimal pl-5 text-sm">
-    <li>Function block validates payment data</li>
-    <li>API block creates payment intent via Stripe</li>
-    <li>Condition block handles payment success/failure</li>
-    <li>Supabase block updates order status in database</li>
-  </ol>
-</div>
+**Payment Processing** - Process payment through Stripe API
+```
+Function (Validate) → API (Stripe) → Condition (Success) → Supabase (Update)
+```
 
 ## Best Practices
 

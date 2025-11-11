@@ -7,7 +7,7 @@ import { checkServerSideUsageLimits } from '@/lib/billing'
 import { createLogger } from '@/lib/logs/console/logger'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { executeWorkflowCore } from '@/lib/workflows/executor/execution-core'
-import { PauseResumeManager } from '@/lib/workflows/executor/pause-resume-manager'
+import { PauseResumeManager } from '@/lib/workflows/executor/human-in-the-loop-manager'
 import { getWorkflowById } from '@/lib/workflows/utils'
 import { type ExecutionMetadata, ExecutionSnapshot } from '@/executor/execution/snapshot'
 

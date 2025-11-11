@@ -5,9 +5,13 @@ description: Powerful tools to enhance your agentic workflows
 
 import { Card, Cards } from "fumadocs-ui/components/card";
 import { Step, Steps } from "fumadocs-ui/components/steps";
-import { Tab, Tabs } from "fumadocs-ui/components/tabs";
+import { Video } from '@/components/ui/video';
 
 Tools are powerful components in Sim that allow your workflows to interact with external services, process data, and perform specialized tasks. They extend the capabilities of your agents and workflows by providing access to various APIs and services.
+
+<div className="mx-auto w-full overflow-hidden rounded-lg">
+  <Video src="toolbar.mp4" width={700} height={450} />
+</div>
 
 ## What is a Tool?
 
@@ -64,14 +68,3 @@ Tools typically return structured data that can be processed by subsequent block
 - Status information
 
 Refer to each tool's specific documentation to understand its exact output format.
-
-## YAML Configuration
-
-For detailed YAML workflow configuration and syntax, see the [YAML Workflow Reference](/yaml) documentation. This includes comprehensive guides for:
-
-- **Block Reference Syntax**: How to connect and reference data between blocks
-- **Tool Configuration**: Using tools in both standalone blocks and agent configurations  
-- **Environment Variables**: Secure handling of API keys and credentials
-- **Complete Examples**: Real-world workflow patterns and configurations
-
-For specific tool parameters and configuration options, refer to each tool's individual documentation page.

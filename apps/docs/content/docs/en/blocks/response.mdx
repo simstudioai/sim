@@ -3,11 +3,10 @@ title: Response
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
-import { Step, Steps } from 'fumadocs-ui/components/steps'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 import { Image } from '@/components/ui/image'
 
-The Response block is the final step in your workflow that formats and sends a structured response back to API calls. It's like the "return" statement for your entire workflow—it packages up results and sends them back.
+The Response block formats and sends structured HTTP responses back to API callers. Use it to return workflow results with proper status codes and headers.
 
 <div className="flex justify-center">
   <Image
@@ -20,56 +19,8 @@ The Response block is the final step in your workflow that formats and sends a s
 </div>
 
 <Callout type="info">
-  Response blocks are terminal blocks - they end the workflow execution and cannot connect to other blocks.
+  Response blocks are terminal blocks - they end workflow execution and cannot connect to other blocks.
 </Callout>
-
-## Overview
-
-The Response block enables you to:
-
-<Steps>
-  <Step>
-    <strong>Format API Responses</strong>: Structure workflow results into proper HTTP responses
-  </Step>
-  <Step>
-    <strong>Set Status Codes</strong>: Configure appropriate HTTP status codes based on workflow outcomes
-  </Step>
-  <Step>
-    <strong>Control Headers</strong>: Add custom headers for API responses and webhooks
-  </Step>
-  <Step>
-    <strong>Transform Data</strong>: Convert workflow variables into client-friendly response formats
-  </Step>
-</Steps>
-
-## How It Works
-
-The Response block finalizes workflow execution:
-
-1. **Collect Data** - Gathers variables and outputs from previous blocks
-2. **Format Response** - Structures data according to your configuration
-3. **Set HTTP Details** - Applies status codes and headers
-4. **Send Response** - Returns the formatted response to the API caller
-
-## When You Need Response Blocks
-
-- **API Endpoints**: When your workflow is called via API, Response blocks format the return data
-- **Webhooks**: Return confirmation or data back to the calling system
-- **Testing**: See formatted results when testing your workflow
-
-## Two Ways to Build Responses
-
-### Builder Mode (Recommended)
-Visual interface for building response structure:
-- Drag and drop fields
-- Reference workflow variables easily
-- Visual preview of response structure
-
-### Editor Mode (Advanced)
-Write JSON directly:
-- Full control over response format
-- Support for complex nested structures
-- Use `<variable.name>` syntax for dynamic values
 
 ## Configuration Options
 
@@ -84,36 +35,23 @@ The response data is the main content that will be sent back to the API caller. 
 
 ### Status Code
 
-Set the HTTP status code for the response. Common status codes include:
+Set the HTTP status code for the response (defaults to 200):
 
-<Tabs items={['Success (2xx)', 'Client Error (4xx)', 'Server Error (5xx)']}>
-  <Tab>
-    <ul className="list-disc space-y-2 pl-6">
-      <li><strong>200</strong>: OK - Standard success response</li>
-      <li><strong>201</strong>: Created - Resource successfully created</li>
-      <li><strong>204</strong>: No Content - Success with no response body</li>
-    </ul>
-  </Tab>
-  <Tab>
-    <ul className="list-disc space-y-2 pl-6">
-      <li><strong>400</strong>: Bad Request - Invalid request parameters</li>
-      <li><strong>401</strong>: Unauthorized - Authentication required</li>
-      <li><strong>404</strong>: Not Found - Resource doesn't exist</li>
-      <li><strong>422</strong>: Unprocessable Entity - Validation errors</li>
-    </ul>
-  </Tab>
-  <Tab>
-    <ul className="list-disc space-y-2 pl-6">
-      <li><strong>500</strong>: Internal Server Error - Server-side error</li>
-      <li><strong>502</strong>: Bad Gateway - External service error</li>
-      <li><strong>503</strong>: Service Unavailable - Service temporarily down</li>
-    </ul>
-  </Tab>
-</Tabs>
+**Success (2xx):**
+- **200**: OK - Standard success response
+- **201**: Created - Resource successfully created
+- **204**: No Content - Success with no response body
 
-<div className="mt-4 text-sm text-gray-600 dark:text-gray-400">
-  Default status code is 200 if not specified.
-</div>
+**Client Error (4xx):**
+- **400**: Bad Request - Invalid request parameters
+- **401**: Unauthorized - Authentication required
+- **404**: Not Found - Resource doesn't exist
+- **422**: Unprocessable Entity - Validation errors
+
+**Server Error (5xx):**
+- **500**: Internal Server Error - Server-side error
+- **502**: Bad Gateway - External service error
+- **503**: Service Unavailable - Service temporarily down
 
 ### Response Headers
 
@@ -129,91 +67,24 @@ Headers are configured as key-value pairs:
 
 ## Example Use Cases
 
-### API Endpoint Response
+**API Endpoint Response** - Return structured data from a search API
+```
+Agent (Search) → Function (Format & Paginate) → Response (200, JSON)
+```
 
-<div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">Scenario: Return structured data from a search API</h4>
-  <ol className="list-decimal pl-5 text-sm">
-    <li>Workflow processes search query and retrieves results</li>
-    <li>Function block formats and paginates results</li>
-    <li>Response block returns JSON with data, pagination, and metadata</li>
-    <li>Client receives structured response with 200 status</li>
-  </ol>
-</div>
+**Webhook Confirmation** - Acknowledge webhook receipt and processing
+```
+Webhook Trigger → Function (Process) → Response (200, Confirmation)
+```
 
-### Webhook Confirmation
+**Error Response Handling** - Return appropriate error responses
+```
+Condition (Error Detected) → Router → Response (400/500, Error Details)
+```
 
-<div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">Scenario: Acknowledge webhook receipt and processing</h4>
-  <ol className="list-decimal pl-5 text-sm">
-    <li>Webhook trigger receives external system data</li>
-    <li>Workflow processes the incoming data</li>
-    <li>Response block returns confirmation with processing status</li>
-    <li>External system receives acknowledgment</li>
-  </ol>
-</div>
+## Outputs
 
-### Error Response Handling
-
-<div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">Scenario: Return appropriate error responses</h4>
-  <ol className="list-decimal pl-5 text-sm">
-    <li>Condition block detects validation failure or system error</li>
-    <li>Router directs to error handling path</li>
-    <li>Response block returns 400/500 status with error details</li>
-    <li>Client receives structured error information</li>
-  </ol>
-</div>
-
-## Inputs and Outputs
-
-<Tabs items={['Configuration', 'Variables', 'Results']}>
-  <Tab>
-    <ul className="list-disc space-y-2 pl-6">
-      <li>
-        <strong>Response Data</strong>: JSON structure for response body
-      </li>
-      <li>
-        <strong>Status Code</strong>: HTTP status code (default: 200)
-      </li>
-      <li>
-        <strong>Headers</strong>: Custom HTTP headers as key-value pairs
-      </li>
-      <li>
-        <strong>Mode</strong>: Builder or Editor mode for response construction
-      </li>
-    </ul>
-  </Tab>
-  <Tab>
-    <ul className="list-disc space-y-2 pl-6">
-      <li>
-        <strong>response.data</strong>: The structured response body
-      </li>
-      <li>
-        <strong>response.status</strong>: HTTP status code sent
-      </li>
-      <li>
-        <strong>response.headers</strong>: Headers included in response
-      </li>
-      <li>
-        <strong>response.success</strong>: Boolean indicating successful completion
-      </li>
-    </ul>
-  </Tab>
-  <Tab>
-    <ul className="list-disc space-y-2 pl-6">
-      <li>
-        <strong>HTTP Response</strong>: Complete response sent to API caller
-      </li>
-      <li>
-        <strong>Workflow Termination</strong>: Ends workflow execution
-      </li>
-      <li>
-        <strong>Access</strong>: Response blocks are terminal - no subsequent blocks
-      </li>
-    </ul>
-  </Tab>
-</Tabs>
+Response blocks are terminal - they end workflow execution and send the HTTP response to the API caller. No outputs are available to downstream blocks.
 
 ## Variable References
 

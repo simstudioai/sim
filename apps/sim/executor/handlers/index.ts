@@ -4,7 +4,7 @@ import { ConditionBlockHandler } from '@/executor/handlers/condition/condition-h
 import { EvaluatorBlockHandler } from '@/executor/handlers/evaluator/evaluator-handler'
 import { FunctionBlockHandler } from '@/executor/handlers/function/function-handler'
 import { GenericBlockHandler } from '@/executor/handlers/generic/generic-handler'
-import { PauseResumeBlockHandler } from '@/executor/handlers/pause-resume/pause-resume-handler'
+import { HumanInTheLoopBlockHandler } from '@/executor/handlers/human-in-the-loop/human-in-the-loop-handler'
 import { ResponseBlockHandler } from '@/executor/handlers/response/response-handler'
 import { RouterBlockHandler } from '@/executor/handlers/router/router-handler'
 import { TriggerBlockHandler } from '@/executor/handlers/trigger/trigger-handler'
@@ -20,7 +20,7 @@ export {
   FunctionBlockHandler,
   GenericBlockHandler,
   ResponseBlockHandler,
-  PauseResumeBlockHandler,
+  HumanInTheLoopBlockHandler,
   RouterBlockHandler,
   TriggerBlockHandler,
   VariablesBlockHandler,

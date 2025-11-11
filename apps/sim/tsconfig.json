@@ -27,9 +27,7 @@
       "@sim/db": ["../../packages/db"],
       "@sim/db/*": ["../../packages/db/*"],
       "@/executor": ["./executor"],
-      "@/executor/*": ["./executor/*"],
-      "@/executor/pause-resume": ["./executor/pause-resume"],
-      "@/executor/pause-resume/*": ["./executor/pause-resume/*"]
+      "@/executor/*": ["./executor/*"]
     },
     "allowJs": true,
     "noEmit": true,

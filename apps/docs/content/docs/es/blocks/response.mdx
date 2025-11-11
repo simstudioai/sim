@@ -23,54 +23,6 @@ El bloque de Respuesta es el paso final en tu flujo de trabajo que formatea y en
   Los bloques de respuesta son bloques terminales - finalizan la ejecución del flujo de trabajo y no pueden conectarse a otros bloques.
 </Callout>
 
-## Descripción general
-
-El bloque de Respuesta te permite:
-
-<Steps>
-  <Step>
-    <strong>Formatear respuestas API</strong>: Estructurar los resultados del flujo de trabajo en respuestas HTTP adecuadas
-  </Step>
-  <Step>
-    <strong>Establecer códigos de estado</strong>: Configurar códigos de estado HTTP apropiados según los resultados del flujo de trabajo
-  </Step>
-  <Step>
-    <strong>Controlar encabezados</strong>: Añadir encabezados personalizados para respuestas API y webhooks
-  </Step>
-  <Step>
-    <strong>Transformar datos</strong>: Convertir variables del flujo de trabajo en formatos de respuesta amigables para el cliente
-  </Step>
-</Steps>
-
-## Cómo funciona
-
-El bloque de Respuesta finaliza la ejecución del flujo de trabajo:
-
-1. **Recopilar datos** - Reúne variables y salidas de bloques anteriores
-2. **Formatear respuesta** - Estructura los datos según tu configuración
-3. **Establecer detalles HTTP** - Aplica códigos de estado y encabezados
-4. **Enviar respuesta** - Devuelve la respuesta formateada al solicitante de la API
-
-## Cuándo necesitas bloques de respuesta
-
-- **Endpoints API**: Cuando tu flujo de trabajo es llamado vía API, los bloques de Respuesta formatean los datos de retorno
-- **Webhooks**: Devuelven confirmación o datos al sistema que realiza la llamada
-- **Pruebas**: Ver resultados formateados al probar tu flujo de trabajo
-
-## Dos formas de construir respuestas
-
-### Modo constructor (recomendado)
-Interfaz visual para construir la estructura de respuesta:
-- Arrastrar y soltar campos
-- Referenciar variables de flujo de trabajo fácilmente
-- Vista previa visual de la estructura de respuesta
-
-### Modo editor (avanzado)
-Escribir JSON directamente:
-- Control total sobre el formato de respuesta
-- Soporte para estructuras anidadas complejas
-- Usar sintaxis `<variable.name>` para valores dinámicos
-
 ## Opciones de configuración
 
 ### Datos de respuesta

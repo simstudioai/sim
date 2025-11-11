@@ -1,20 +1,16 @@
-import type { SVGProps } from 'react'
-import { createElement } from 'react'
-import { UserCheck } from 'lucide-react'
+import { HumanInTheLoopIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
 import type { ResponseBlockOutput } from '@/tools/response/types'
 
-const ApprovalIcon = (props: SVGProps<SVGSVGElement>) => createElement(UserCheck, props)
-
-export const PauseResumeBlock: BlockConfig<ResponseBlockOutput> = {
-  type: 'approval',
-  name: 'Approval',
-  description: 'Pause workflow execution and send structured API response',
+export const HumanInTheLoopBlock: BlockConfig<ResponseBlockOutput> = {
+  type: 'human_in_the_loop',
+  name: 'Human in the Loop',
+  description: 'Pause workflow execution and wait for human input',
   longDescription:
     'Combines response and start functionality. Sends structured responses and allows workflow to resume from this point.',
   category: 'blocks',
   bgColor: '#10B981',
-  icon: ApprovalIcon,
+  icon: HumanInTheLoopIcon,
   subBlocks: [
     // Operation dropdown hidden - block defaults to human approval mode
     // {

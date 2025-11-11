@@ -5,15 +5,11 @@ import type { Edge } from 'reactflow'
 import { v4 as uuidv4 } from 'uuid'
 import { createLogger } from '@/lib/logs/console/logger'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
+import { executeWorkflowCore } from '@/lib/workflows/executor/execution-core'
 import { ExecutionSnapshot } from '@/executor/execution/snapshot'
 import type { ExecutionResult, PausePoint, SerializedSnapshot } from '@/executor/types'
-import { executeWorkflowCore } from './execution-core'
 
-function isPlainObject(value: unknown): value is Record<string, any> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
-const logger = createLogger('PauseResumeManager')
+const logger = createLogger('HumanInTheLoopManager')
 
 interface ResumeQueueEntrySummary {
   id: string

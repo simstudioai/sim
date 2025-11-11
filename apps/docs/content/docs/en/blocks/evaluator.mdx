@@ -3,12 +3,10 @@ title: Evaluator
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
-import { Step, Steps } from 'fumadocs-ui/components/steps'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 import { Image } from '@/components/ui/image'
-import { Video } from '@/components/ui/video'
 
-The Evaluator block uses AI to score and assess content quality using customizable evaluation metrics that you define. Perfect for quality control, A/B testing, and ensuring your AI outputs meet specific standards.
+The Evaluator block uses AI to score and assess content quality against custom metrics. Perfect for quality control, A/B testing, and ensuring AI outputs meet specific standards.
 
 <div className="flex justify-center">
   <Image
@@ -19,34 +17,6 @@ The Evaluator block uses AI to score and assess content quality using customizab
     className="my-6"
   />
 </div>
-
-## Overview
-
-The Evaluator block enables you to:
-
-<Steps>
-  <Step>
-    <strong>Score Content Quality</strong>: Use AI to evaluate content against custom metrics with numeric scores
-  </Step>
-  <Step>
-    <strong>Define Custom Metrics</strong>: Create specific evaluation criteria tailored to your use case  
-  </Step>
-  <Step>
-    <strong>Automate Quality Control</strong>: Build workflows that automatically assess and filter content
-  </Step>
-  <Step>
-    <strong>Track Performance</strong>: Monitor improvements and consistency over time with objective scoring
-  </Step>
-</Steps>
-
-## How It Works
-
-The Evaluator block processes content through AI-powered assessment:
-
-1. **Receive Content** - Takes input content from previous blocks in your workflow
-2. **Apply Metrics** - Evaluates content against your defined custom metrics  
-3. **Generate Scores** - AI model assigns numeric scores for each metric
-4. **Provide Summary** - Returns detailed evaluation with scores and explanations
 
 ## Configuration Options
 
@@ -78,117 +48,41 @@ The content to be evaluated. This can be:
 
 Choose an AI model to perform the evaluation:
 
-**OpenAI**: GPT-4o, o1, o3, o4-mini, gpt-4.1
-**Anthropic**: Claude 3.7 Sonnet
-**Google**: Gemini 2.5 Pro, Gemini 2.0 Flash
-**Other Providers**: Groq, Cerebras, xAI, DeepSeek
-**Local Models**: Any model running on Ollama
+- **OpenAI**: GPT-4o, o1, o3, o4-mini, gpt-4.1
+- **Anthropic**: Claude 3.7 Sonnet
+- **Google**: Gemini 2.5 Pro, Gemini 2.0 Flash
+- **Other Providers**: Groq, Cerebras, xAI, DeepSeek
+- **Local Models**: Ollama-compatible models
 
-<div className="w-full max-w-2xl mx-auto overflow-hidden rounded-lg">
-  <Video src="models.mp4" width={500} height={350} />
-</div>
-
-**Recommendation**: Use models with strong reasoning capabilities like GPT-4o or Claude 3.7 Sonnet for more accurate evaluations.
+Use models with strong reasoning capabilities like GPT-4o or Claude 3.7 Sonnet for best results.
 
 ### API Key
 
 Your API key for the selected LLM provider. This is securely stored and used for authentication.
 
-## How It Works
-
-1. The Evaluator block takes the provided content and your custom metrics
-2. It generates a specialized prompt that instructs the LLM to evaluate the content
-3. The prompt includes clear guidelines on how to score each metric
-4. The LLM evaluates the content and returns numeric scores for each metric
-5. The Evaluator block formats these scores as structured output for use in your workflow
-
 ## Example Use Cases
 
-### Content Quality Assessment
+**Content Quality Assessment** - Evaluate content before publication
+```
+Agent (Generate) → Evaluator (Score) → Condition (Check threshold) → Publish or Revise
+```
 
-<div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">Scenario: Evaluate blog post quality before publication</h4>
-  <ol className="list-decimal pl-5 text-sm">
-    <li>Agent block generates blog post content</li>
-    <li>Evaluator assesses accuracy, readability, and engagement</li>
-    <li>Condition block checks if scores meet minimum thresholds</li>
-    <li>High scores → Publish, Low scores → Revise and retry</li>
-  </ol>
-</div>
+**A/B Testing Content** - Compare multiple AI-generated responses
+```
+Parallel (Variations) → Evaluator (Score Each) → Function (Select Best) → Response
+```
 
-### A/B Testing Content
+**Customer Support Quality Control** - Ensure responses meet quality standards
+```
+Agent (Support Response) → Evaluator (Score) → Function (Log) → Condition (Review if Low)
+```
 
-<div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">Scenario: Compare multiple AI-generated responses</h4>
-  <ol className="list-decimal pl-5 text-sm">
-    <li>Parallel block generates multiple response variations</li>
-    <li>Evaluator scores each variation on clarity and relevance</li>
-    <li>Function block selects highest-scoring response</li>
-    <li>Response block returns the best result</li>
-  </ol>
-</div>
+## Outputs
 
-### Customer Support Quality Control
-
-<div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">Scenario: Ensure support responses meet quality standards</h4>
-  <ol className="list-decimal pl-5 text-sm">
-    <li>Support agent generates response to customer inquiry</li>
-    <li>Evaluator scores helpfulness, empathy, and accuracy</li>
-    <li>Scores logged for training and performance monitoring</li>
-    <li>Low scores trigger human review process</li>
-  </ol>
-</div>
-
-## Inputs and Outputs
-
-<Tabs items={['Configuration', 'Variables', 'Results']}>
-  <Tab>
-    <ul className="list-disc space-y-2 pl-6">
-      <li>
-        <strong>Content</strong>: The text or structured data to evaluate
-      </li>
-      <li>
-        <strong>Evaluation Metrics</strong>: Custom criteria with scoring ranges
-      </li>
-      <li>
-        <strong>Model</strong>: AI model for evaluation analysis
-      </li>
-      <li>
-        <strong>API Key</strong>: Authentication for selected LLM provider
-      </li>
-    </ul>
-  </Tab>
-  <Tab>
-    <ul className="list-disc space-y-2 pl-6">
-      <li>
-        <strong>evaluator.content</strong>: Summary of the evaluation
-      </li>
-      <li>
-        <strong>evaluator.model</strong>: Model used for evaluation
-      </li>
-      <li>
-        <strong>evaluator.tokens</strong>: Token usage statistics
-      </li>
-      <li>
-        <strong>evaluator.cost</strong>: Cost summary for the evaluation call
-      </li>
-    </ul>
-  </Tab>
-  <Tab>
-    <ul className="list-disc space-y-2 pl-6">
-      <li>
-        <strong>Metric Scores</strong>: Numeric scores for each defined metric
-      </li>
-      <li>
-        <strong>Evaluation Summary</strong>: Detailed assessment with explanations
-      </li>
-      <li>
-        <strong>Access</strong>: Available in blocks after the evaluator
-      </li>
-    </ul>
-  </Tab>
-</Tabs>
+- **`<evaluator.content>`**: Summary of the evaluation with scores
+- **`<evaluator.model>`**: Model used for evaluation
+- **`<evaluator.tokens>`**: Token usage statistics
+- **`<evaluator.cost>`**: Estimated evaluation cost
 
 ## Best Practices
 

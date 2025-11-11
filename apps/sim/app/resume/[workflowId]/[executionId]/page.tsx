@@ -1,4 +1,4 @@
-import { PauseResumeManager } from '@/lib/workflows/executor/pause-resume-manager'
+import { PauseResumeManager } from '@/lib/workflows/executor/human-in-the-loop-manager'
 import ResumeExecutionPage from './resume-page-client'
 
 export const runtime = 'nodejs'

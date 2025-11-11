@@ -23,54 +23,6 @@ Le bloc Réponse est la dernière étape de votre workflow qui formate et envoie
   Les blocs Réponse sont des blocs terminaux - ils mettent fin à l'exécution du workflow et ne peuvent pas se connecter à d'autres blocs.
 </Callout>
 
-## Aperçu
-
-Le bloc Réponse vous permet de :
-
-<Steps>
-  <Step>
-    <strong>Formater les réponses API</strong> : structurer les résultats du workflow en réponses HTTP appropriées
-  </Step>
-  <Step>
-    <strong>Définir les codes d'état</strong> : configurer les codes d'état HTTP appropriés en fonction des résultats du workflow
-  </Step>
-  <Step>
-    <strong>Contrôler les en-têtes</strong> : ajouter des en-têtes personnalisés pour les réponses API et les webhooks
-  </Step>
-  <Step>
-    <strong>Transformer les données</strong> : convertir les variables du workflow en formats de réponse adaptés aux clients
-  </Step>
-</Steps>
-
-## Comment ça fonctionne
-
-Le bloc Réponse finalise l'exécution du workflow :
-
-1. **Collecte des données** - Rassemble les variables et les sorties des blocs précédents
-2. **Formatage de la réponse** - Structure les données selon votre configuration
-3. **Définition des détails HTTP** - Applique les codes d'état et les en-têtes
-4. **Envoi de la réponse** - Renvoie la réponse formatée à l'appelant de l'API
-
-## Quand utiliser les blocs Réponse
-
-- **Points de terminaison API** : lorsque votre workflow est appelé via API, les blocs Réponse formatent les données de retour
-- **Webhooks** : renvoie une confirmation ou des données au système appelant
-- **Tests** : visualisez les résultats formatés lors du test de votre workflow
-
-## Deux façons de construire des réponses
-
-### Mode constructeur (recommandé)
-Interface visuelle pour construire la structure de réponse :
-- Glisser-déposer des champs
-- Référencer facilement les variables de flux
-- Aperçu visuel de la structure de réponse
-
-### Mode éditeur (avancé)
-Écrire du JSON directement :
-- Contrôle total sur le format de réponse
-- Prise en charge des structures imbriquées complexes
-- Utiliser la syntaxe `<variable.name>` pour les valeurs dynamiques
-
 ## Options de configuration
 
 ### Données de réponse

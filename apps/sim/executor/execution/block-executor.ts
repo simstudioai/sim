@@ -13,7 +13,7 @@ import type { BlockStateWriter, ContextExtensions } from '@/executor/execution/t
 import {
   generatePauseContextId,
   mapNodeMetadataToPauseScopes,
-} from '@/executor/pause-resume/utils.ts'
+} from '@/executor/human-in-the-loop/utils.ts'
 import type {
   BlockHandler,
   BlockLog,
@@ -65,7 +65,7 @@ export class BlockExecutor {
     const nodeMetadata = this.buildNodeMetadata(node)
     let cleanupSelfReference: (() => void) | undefined
 
-    if (block.metadata?.id === BlockType.APPROVAL) {
+    if (block.metadata?.id === BlockType.HUMAN_IN_THE_LOOP) {
       cleanupSelfReference = this.preparePauseResumeSelfReference(ctx, node, block, nodeMetadata)
     }
 
@@ -296,7 +296,7 @@ export class BlockExecutor {
     block: SerializedBlock,
     output: NormalizedBlockOutput
   ): NormalizedBlockOutput {
-    if (block.metadata?.id === BlockType.APPROVAL) {
+    if (block.metadata?.id === BlockType.HUMAN_IN_THE_LOOP) {
       const filtered: NormalizedBlockOutput = {}
       for (const [key, value] of Object.entries(output)) {
         if (key.startsWith('_')) continue

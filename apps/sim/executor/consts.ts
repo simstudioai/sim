@@ -15,7 +15,7 @@ export enum BlockType {
   VARIABLES = 'variables',
 
   RESPONSE = 'response',
-  APPROVAL = 'approval',
+  HUMAN_IN_THE_LOOP = 'human_in_the_loop',
   WORKFLOW = 'workflow',
   WORKFLOW_INPUT = 'workflow_input',
 

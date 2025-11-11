@@ -19,34 +19,6 @@ Der API-Block ermöglicht es Ihnen, Ihren Workflow über API-Endpunkte mit exter
   />
 </div>
 
-## Überblick
-
-Der API-Block ermöglicht Ihnen:
-
-<Steps>
-  <Step>
-    <strong>Verbindung zu externen Diensten</strong>: HTTP-Anfragen an REST-APIs und Webdienste stellen
-  </Step>
-  <Step>
-    <strong>Daten senden und empfangen</strong>: Antworten verarbeiten und Daten aus externen Quellen transformieren
-  </Step>
-  <Step>
-    <strong>Integration von Drittanbieter-Plattformen</strong>: Verbindung mit Diensten wie Stripe, Slack oder benutzerdefinierten APIs
-  </Step>
-  <Step>
-    <strong>Authentifizierung verwalten</strong>: Unterstützung verschiedener Authentifizierungsmethoden einschließlich Bearer-Tokens und API-Schlüssel
-  </Step>
-</Steps>
-
-## Funktionsweise
-
-Der API-Block verarbeitet HTTP-Anfragen durch einen strukturierten Ansatz:
-
-1. **Anfrage konfigurieren** - URL, Methode, Header und Body-Parameter festlegen
-2. **Anfrage ausführen** - HTTP-Anfrage an den angegebenen Endpunkt senden
-3. **Antwort verarbeiten** - Antwortdaten, Statuscodes und Header verarbeiten
-4. **Fehlerbehandlung** - Timeouts, Wiederholungsversuche und Fehlerbedingungen verwalten
-
 ## Konfigurationsoptionen
 
 ### URL
@@ -145,58 +117,12 @@ if (<api.status> === 200) {
 }
 ```
 
-## Eingaben und Ausgaben
+## Ausgaben
 
-<Tabs items={['Configuration', 'Variables', 'Results']}>
-  <Tab>
-    <ul className="list-disc space-y-2 pl-6">
-      <li>
-        <strong>URL</strong>: Der Endpunkt, an den die Anfrage gesendet werden soll
-      </li>
-      <li>
-        <strong>Method</strong>: HTTP-Methode (GET, POST, PUT, DELETE, PATCH)
-      </li>
-      <li>
-        <strong>Query Parameters</strong>: Schlüssel-Wert-Paare für URL-Parameter
-      </li>
-      <li>
-        <strong>Headers</strong>: HTTP-Header für Authentifizierung und Inhaltstyp
-      </li>
-      <li>
-        <strong>Body</strong>: Anfrage-Payload für POST/PUT/PATCH-Methoden
-      </li>
-    </ul>
-  </Tab>
-  <Tab>
-    <ul className="list-disc space-y-2 pl-6">
-      <li>
-        <strong>api.data</strong>: Antwortdaten vom API-Aufruf
-      </li>
-      <li>
-        <strong>api.status</strong>: Vom Server zurückgegebener HTTP-Statuscode
-      </li>
-      <li>
-        <strong>api.headers</strong>: Antwort-Header vom Server
-      </li>
-      <li>
-        <strong>api.error</strong>: Fehlerdetails, falls die Anfrage fehlgeschlagen ist
-      </li>
-    </ul>
-  </Tab>
-  <Tab>
-    <ul className="list-disc space-y-2 pl-6">
-      <li>
-        <strong>Response Data</strong>: Primärer API-Antwortinhalt
-      </li>
-      <li>
-        <strong>Status Information</strong>: HTTP-Status und Fehlerdetails
-      </li>
-      <li>
-        <strong>Access</strong>: Verfügbar in Blöcken nach dem API-Aufruf
-      </li>
-    </ul>
-  </Tab>
-</Tabs>
+- **`<api.data>`**: Antwortdaten vom API-Aufruf
+- **`<api.status>`**: HTTP-Statuscode
+- **`<api.headers>`**: Antwort-Header
+- **`<api.error>`**: Fehlerdetails, falls die Anfrage fehlgeschlagen ist
 
 ## Beispielanwendungsfälle
 

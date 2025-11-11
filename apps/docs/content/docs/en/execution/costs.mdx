@@ -2,7 +2,6 @@
 title: Cost Calculation
 ---
 
-import { Accordion, Accordions } from 'fumadocs-ui/components/accordion'
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 import { Image } from '@/components/ui/image'
@@ -85,27 +84,11 @@ The model breakdown shows:
 
 ## Cost Optimization Strategies
 
-<Accordions>
-  <Accordion title="Model Selection">
-    Choose models based on task complexity. Simple tasks can use GPT-4.1-nano ($0.10/$0.40) while complex reasoning might need o1 or Claude Opus.
-  </Accordion>
-  
-  <Accordion title="Prompt Engineering">
-    Well-structured, concise prompts reduce token usage without sacrificing quality.
-  </Accordion>
-  
-  <Accordion title="Local Models">
-    Use Ollama for non-critical tasks to eliminate API costs entirely.
-  </Accordion>
-  
-  <Accordion title="Caching and Reuse">
-    Store frequently used results in variables or files to avoid repeated AI model calls.
-  </Accordion>
-  
-  <Accordion title="Batch Processing">
-    Process multiple items in a single AI request rather than making individual calls.
-  </Accordion>
-</Accordions>
+- **Model Selection**: Choose models based on task complexity. Simple tasks can use GPT-4.1-nano while complex reasoning might need o1 or Claude Opus.
+- **Prompt Engineering**: Well-structured, concise prompts reduce token usage without sacrificing quality.
+- **Local Models**: Use Ollama for non-critical tasks to eliminate API costs entirely.
+- **Caching and Reuse**: Store frequently used results in variables or files to avoid repeated AI model calls.
+- **Batch Processing**: Process multiple items in a single AI request rather than making individual calls.
 
 ## Usage Monitoring
 

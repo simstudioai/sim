@@ -20,39 +20,6 @@ Der Bedingungsblock ermöglicht es Ihnen, den Ausführungspfad Ihres Workflows b
   />
 </div>
 
-<Callout>
-  Bedingungsblöcke ermöglichen deterministische Entscheidungsfindung ohne ein LLM zu benötigen, was sie ideal
-  für unkomplizierte Verzweigungslogik macht.
-</Callout>
-
-## Überblick
-
-Der Bedingungsblock ermöglicht Ihnen:
-
-<Steps>
-  <Step>
-    <strong>Verzweigungslogik erstellen</strong>: Workflows basierend auf booleschen Ausdrücken leiten
-  </Step>
-  <Step>
-    <strong>Datengesteuerte Entscheidungen treffen</strong>: Bedingungen anhand von Ausgaben vorheriger Blöcke auswerten
-  </Step>
-  <Step>
-    <strong>Mehrere Szenarien behandeln</strong>: Mehrere Bedingungen mit unterschiedlichen Pfaden definieren
-  </Step>
-  <Step>
-    <strong>Deterministische Weiterleitung bieten</strong>: Entscheidungen ohne ein LLM treffen
-  </Step>
-</Steps>
-
-## Funktionsweise
-
-Der Bedingungsblock arbeitet durch einen sequentiellen Auswertungsprozess:
-
-1. **Ausdruck auswerten** - Verarbeitet den JavaScript/TypeScript-booleschen Ausdruck mit aktuellen Workflow-Daten
-2. **Ergebnis bestimmen** - Gibt basierend auf der Ausdrucksauswertung true oder false zurück
-3. **Workflow weiterleiten** - Leitet die Ausführung basierend auf dem Ergebnis an den entsprechenden Zielblock weiter  
-4. **Kontext bereitstellen** - Generiert Metadaten über die Entscheidung für Debugging und Überwachung
-
 ## Konfigurationsoptionen
 
 ### Bedingungen

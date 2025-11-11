@@ -147,7 +147,7 @@ export class NodeConstructor {
         branchIndex,
         branchTotal: expansion.branchCount,
         distributionItem: expansion.distributionItems[branchIndex],
-        isPauseResponse: baseBlock.metadata?.id === BlockType.APPROVAL,
+        isPauseResponse: baseBlock.metadata?.id === BlockType.HUMAN_IN_THE_LOOP,
         originalBlockId: baseBlock.id,
       },
     }
@@ -160,7 +160,7 @@ export class NodeConstructor {
   ): void {
     const isLoopNode = blocksInLoops.has(block.id)
     const loopId = isLoopNode ? this.findLoopIdForBlock(block.id, dag) : undefined
-    const isPauseBlock = block.metadata?.id === BlockType.APPROVAL
+    const isPauseBlock = block.metadata?.id === BlockType.HUMAN_IN_THE_LOOP
 
     dag.nodes.set(block.id, {
       id: block.id,

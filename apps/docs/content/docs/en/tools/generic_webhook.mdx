@@ -4,6 +4,7 @@ description: Receive webhooks from any service by configuring a custom webhook.
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { Image } from '@/components/ui/image'
 
 <BlockInfoCard 
   type="generic_webhook"
@@ -22,9 +23,15 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
     </svg>`}
 />
 
-
-
-
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/webhook.png"
+    alt="Webhook Block Configuration"
+    width={500}
+    height={400}
+    className="my-6"
+  />
+</div>
 
 ## Overview
 
