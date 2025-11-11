@@ -32,7 +32,6 @@ export const gmailPollingTrigger: TriggerConfig = {
       placeholder: 'Select Gmail labels to monitor for new emails',
       description: 'Choose which Gmail labels to monitor. Leave empty to monitor all emails.',
       required: false,
-      dependsOn: ['triggerCredentials'],
       options: [], // Will be populated dynamically from user's Gmail labels
       fetchOptions: async (blockId: string, subBlockId: string) => {
         const credentialId = useSubBlockStore.getState().getValue(blockId, 'triggerCredentials') as
