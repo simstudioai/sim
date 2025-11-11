@@ -93,10 +93,6 @@ export interface MicrosoftTeamsConfig {
   hmacSecret: string
 }
 
-export interface HubSpotConfig {
-  triggerId?: string
-}
-
 // Union type for all provider configurations
 export type ProviderConfig =
   | WhatsAppConfig
@@ -109,7 +105,6 @@ export type ProviderConfig =
   | GmailConfig
   | OutlookConfig
   | MicrosoftTeamsConfig
-  | HubSpotConfig
   | Record<string, never>
 
 // Define available webhook providers
@@ -375,9 +370,6 @@ export function WebhookConfig({
     'outlookCredential'
   )
 
-  // Get the selected trigger ID for trigger-based webhooks (e.g., HubSpot, GitHub, Jira)
-  const [selectedTriggerId] = useSubBlockValue(blockId, 'selectedTriggerId')
-
   // Don't auto-generate webhook paths - only create them when user actually configures a webhook
   // This prevents the "Active Webhook" badge from showing on unconfigured blocks
 
@@ -611,16 +603,6 @@ export function WebhookConfig({
           ...config,
           credentialId: outlookCredentialId,
         }
-      } else if (webhookProvider === 'hubspot' && selectedTriggerId) {
-        // Include triggerId for HubSpot webhooks to enable event filtering
-        finalConfig = {
-          ...config,
-          triggerId: selectedTriggerId,
-        }
-        logger.info('Adding triggerId to HubSpot webhook config', {
-          triggerId: selectedTriggerId,
-          blockId,
-        })
       }
 
       // Set the provider config in the block state
