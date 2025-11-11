@@ -679,7 +679,7 @@ export const auth = betterAuth({
             'leads:full',
             'activities:full',
             'mail:full',
-            'projects:full'
+            'projects:full',
           ],
           responseType: 'code',
           redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/pipedrive`,

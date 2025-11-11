@@ -54,7 +54,7 @@ export const PipedriveBlock: BlockConfig<PipedriveResponse> = {
         'leads:full',
         'activities:full',
         'mail:full',
-        'projects:full'
+        'projects:full',
       ],
       placeholder: 'Select Pipedrive account',
       required: true,
