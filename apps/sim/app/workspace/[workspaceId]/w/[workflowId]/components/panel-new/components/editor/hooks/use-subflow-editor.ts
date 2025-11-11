@@ -5,7 +5,7 @@ import {
   SYSTEM_REFERENCE_PREFIXES,
   splitReferenceSegment,
 } from '@/lib/workflows/references'
-import { checkTagTrigger } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/components/sub-block/components/tag-dropdown'
+import { checkTagTrigger } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/components/sub-block/components/tag-dropdown/tag-dropdown'
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { normalizeBlockName } from '@/stores/workflows/utils'
