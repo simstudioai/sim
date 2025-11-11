@@ -4,6 +4,7 @@ title: Webhooks
 
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Image } from '@/components/ui/image'
 import { Video } from '@/components/ui/video'
 
 Webhookを使用すると、外部サービスがHTTPリクエストをワークフローに送信することで、外部webhookからワークフロー実行をトリガーできます。Simはwebhookベースのトリガーに対して2つのアプローチをサポートしています。
@@ -12,8 +13,14 @@ Webhookを使用すると、外部サービスがHTTPリクエストをワーク
 
 汎用Webhookブロックは、あらゆるペイロードを受信してワークフローをトリガーできる柔軟なエンドポイントを作成します：
 
-<div className="mx-auto w-full overflow-hidden rounded-lg">
-  <Video src="webhooks-1.mp4" width={700} height={450} />
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/webhook.png"
+    alt="Generic Webhook Configuration"
+    width={700}
+    height={450}
+    className="my-6"
+  />
 </div>
 
 ### 仕組み

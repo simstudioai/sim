@@ -4,6 +4,7 @@ title: Webhooks
 
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Image } from '@/components/ui/image'
 import { Video } from '@/components/ui/video'
 
 Les webhooks permettent aux services externes de déclencher l'exécution de flux de travail à partir de webhooks externes en envoyant des requêtes HTTP à votre flux de travail. Sim prend en charge deux approches pour les déclencheurs basés sur les webhooks.
@@ -12,8 +13,14 @@ Les webhooks permettent aux services externes de déclencher l'exécution de flu
 
 Le bloc Webhook générique crée un point de terminaison flexible qui peut recevoir n'importe quelle charge utile et déclencher votre flux de travail :
 
-<div className="mx-auto w-full overflow-hidden rounded-lg">
-  <Video src="webhooks-1.mp4" width={700} height={450} />
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/webhook.png"
+    alt="Generic Webhook Configuration"
+    width={700}
+    height={450}
+    className="my-6"
+  />
 </div>
 
 ### Comment ça fonctionne

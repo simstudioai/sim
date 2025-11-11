@@ -4,6 +4,7 @@ title: Webhooks
 
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Image } from '@/components/ui/image'
 import { Video } from '@/components/ui/video'
 
 Webhook 允许外部服务通过发送 HTTP 请求到您的工作流，从外部触发工作流的执行。Sim 支持两种基于 Webhook 的触发方式。
@@ -12,8 +13,14 @@ Webhook 允许外部服务通过发送 HTTP 请求到您的工作流，从外部
 
 通用 Webhook 模块创建了一个灵活的端点，可以接收任何有效负载并触发您的工作流：
 
-<div className="mx-auto w-full overflow-hidden rounded-lg">
-  <Video src="webhooks-1.mp4" width={700} height={450} />
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/webhook.png"
+    alt="Generic Webhook Configuration"
+    width={700}
+    height={450}
+    className="my-6"
+  />
 </div>
 
 ### 工作原理

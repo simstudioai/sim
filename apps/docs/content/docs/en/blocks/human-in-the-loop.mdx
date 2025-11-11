@@ -3,11 +3,10 @@ title: Human in the Loop
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
-import { Step, Steps } from 'fumadocs-ui/components/steps'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 import { Image } from '@/components/ui/image'
 
-The Human in the Loop block pauses workflow execution and waits for human intervention before continuing. Use it to add approval gates, collect feedback, enable manual review, or gather additional input at critical decision points in your workflow.
+The Human in the Loop block pauses workflow execution and waits for human intervention before continuing. Use it to add approval gates, collect feedback, or gather additional input at critical decision points.
 
 <div className="flex justify-center">
   <Image
@@ -19,41 +18,7 @@ The Human in the Loop block pauses workflow execution and waits for human interv
   />
 </div>
 
-<Callout type="info">
-  When execution reaches this block, the workflow pauses and waits indefinitely until a human approver provides input or approval through one of the available interfaces.
-</Callout>
-
-## Overview
-
-The Human in the Loop block enables you to:
-
-<Steps>
-  <Step>
-    <strong>Pause Workflow Execution</strong>: Stop the workflow at a critical point and wait for human input
-  </Step>
-  <Step>
-    <strong>Display Context</strong>: Show relevant workflow data to the approver for informed decision-making
-  </Step>
-  <Step>
-    <strong>Collect Feedback</strong>: Gather approval decisions, comments, edits, or additional data from humans
-  </Step>
-  <Step>
-    <strong>Notify Stakeholders</strong>: Send alerts via Slack, Gmail, or other channels when approval is needed
-  </Step>
-  <Step>
-    <strong>Resume with Input</strong>: Continue workflow execution with the human-provided data
-  </Step>
-</Steps>
-
-## How It Works
-
-The Human in the Loop block creates a pause-and-resume flow:
-
-1. **Workflow Pauses** - Execution stops when it reaches the Human in the Loop block
-2. **Context Displayed** - Configured data is shown to the approver through the approval portal
-3. **Notifications Sent** - Alerts are dispatched via configured channels (Slack, email, etc.)
-4. **Human Reviews** - Approver examines the data and provides input or approval
-5. **Workflow Resumes** - Execution continues with the human-provided data available to downstream blocks
+When execution reaches this block, the workflow pauses indefinitely until a human provides input through the approval portal, API, or webhook.
 
 <div className="flex justify-center">
   <Image
@@ -69,16 +34,9 @@ The Human in the Loop block creates a pause-and-resume flow:
 
 ### Paused Output
 
-The Paused Output defines what data is displayed to the approver when the workflow pauses. Think of this as the "context" you're providing to help them make an informed decision.
+Defines what data is displayed to the approver. This is the context shown in the approval portal to help them make an informed decision.
 
-**Use Cases:**
-- Display extracted data for verification: "Is this customer information correct?"
-- Show AI-generated content for approval: "Review this email draft before sending"
-- Present analysis results for validation: "Confirm these findings before proceeding"
-- Expose workflow variables for review: "Check these values before final processing"
-
-**Configuration:**
-Use the visual builder or JSON editor to define the structure of data shown to approvers. Reference workflow variables using `<blockName.output>` syntax.
+Use the visual builder or JSON editor to structure the data. Reference workflow variables using `<blockName.output>` syntax.
 
 ```json
 {
@@ -91,37 +49,19 @@ Use the visual builder or JSON editor to define the structure of data shown to a
 
 ### Notification
 
-The Notification section configures how approvers are alerted when the workflow pauses and requires their attention.
+Configures how approvers are alerted when approval is needed. Supported channels include:
 
-**Supported Channels:**
-- **Slack**: Send messages to channels or direct messages with approval links
-- **Gmail**: Email approvers with context and links to the approval portal
-- **Microsoft Teams**: Notify team members through Teams channels
-- **Custom Webhooks**: Trigger your own notification systems
-- **SMS**: Send text message alerts via Twilio
+- **Slack** - Messages to channels or DMs
+- **Gmail** - Email with approval link
+- **Microsoft Teams** - Team channel notifications
+- **SMS** - Text alerts via Twilio
+- **Webhooks** - Custom notification systems
 
-**Configuration:**
-Add notification tools and configure them with the relevant details:
-- For Slack: Select channel and compose message with approval link
-- For Gmail: Specify recipients, subject, and email body
-- For Teams: Choose team and channel for notifications
-
-<Callout type="tip">
-  Include the approval URL (`<approval1.url>`) in your notification messages so approvers can quickly access the approval portal.
-</Callout>
+Include the approval URL (`<blockId.url>`) in your notification messages so approvers can access the portal.
 
 ### Resume Input
 
-The Resume Input defines what fields the approver can fill in when reviewing the paused workflow. This is the data that will be collected from the human and made available to downstream blocks.
-
-**Use Cases:**
-- **Binary Approval**: Simple approved/rejected boolean field
-- **Feedback Collection**: Text field for comments or explanations
-- **Data Editing**: Fields for modifying AI-generated content
-- **Multi-field Forms**: Complex approval forms with multiple input types
-
-**Configuration:**
-Define input fields with names, types, and validation rules:
+Defines the fields approvers fill in when responding. This data becomes available to downstream blocks after the workflow resumes.
 
 ```json
 {
@@ -132,213 +72,101 @@ Define input fields with names, types, and validation rules:
   "comments": {
     "type": "string",
     "description": "Optional feedback or explanation"
-  },
-  "modifiedEmail": {
-    "type": "string",
-    "description": "Edit the email content if needed"
   }
 }
 ```
 
-**Accessing Resume Data:**
-After the workflow resumes, access the human-provided input using `<approval1.resumeInput.fieldName>` in downstream blocks.
+Access resume data in downstream blocks using `<blockId.resumeInput.fieldName>`.
 
 ## Approval Methods
 
-The Human in the Loop block supports multiple ways for approvers to interact with paused workflows:
-
 <Tabs items={['Approval Portal', 'API', 'Webhook']}>
   <Tab>
-    ### Approval Portal (Web UI)
+    ### Approval Portal
     
-    Every Human in the Loop block generates a unique approval portal URL accessible via the `url` output.
+    Every block generates a unique portal URL (`<blockId.url>`) with a visual interface showing all paused output data and form fields for resume input. Mobile-responsive and secure.
     
-    **Features:**
-    - Visual interface showing all Paused Output data
-    - Form fields for Resume Input
-    - Mobile-responsive design
-    - Secure, time-limited access
-    
-    **Usage:**
-    ```
-    Access URL: <approval1.url>
-    ```
-    
-    Share this URL in notifications or embed it in your application for approvers to review and respond.
+    Share this URL in notifications for approvers to review and respond.
   </Tab>
   <Tab>
     ### REST API
     
-    Programmatically resume workflows by calling the approval API endpoint.
+    Programmatically resume workflows:
     
-    **Endpoint:**
     ```bash
     POST /api/workflows/{workflowId}/executions/{executionId}/resume/{blockId}
-    Content-Type: application/json
     
     {
       "approved": true,
-      "comments": "Looks good to proceed",
-      "modifiedEmail": "Updated email content..."
+      "comments": "Looks good to proceed"
     }
     ```
     
-    **Use Cases:**
-    - Build custom approval UIs
-    - Integrate with existing approval systems
-    - Automate approvals based on external logic
+    Build custom approval UIs or integrate with existing systems.
   </Tab>
   <Tab>
-    ### Webhook Listener
+    ### Webhook
     
-    Configure external systems to listen for approval requests via webhooks.
-    
-    **Setup:**
-    1. Add a webhook tool to the Notification section
-    2. Configure your webhook endpoint
-    3. Receive approval request payloads
-    4. Respond to resume the workflow
-    
-    **Use Cases:**
-    - Integrate with ticketing systems (Jira, ServiceNow)
-    - Connect to approval workflow platforms
-    - Build custom notification pipelines
+    Add a webhook tool to the Notification section to send approval requests to external systems. Integrate with ticketing systems like Jira or ServiceNow.
   </Tab>
 </Tabs>
 
 ## Common Use Cases
 
-### Content Approval Workflow
-
-Pause before publishing AI-generated content:
-
+**Content Approval** - Review AI-generated content before publishing
 ```
-Agent (Generate) → Human in the Loop (Review) → API (Publish)
+Agent → Human in the Loop → API (Publish)
 ```
 
-**Paused Output:** Generated article, metadata, SEO analysis  
-**Resume Input:** approved (boolean), edits (text), publishDate (date)
-
-### Multi-Stage Approval Pipeline
-
-Require multiple approvals for high-stakes decisions:
-
+**Multi-Stage Approvals** - Chain multiple approval steps for high-stakes decisions
 ```
-Agent (Analyze) → Human in the Loop (Manager) → Human in the Loop (Director) → API (Execute)
+Agent → Human in the Loop (Manager) → Human in the Loop (Director) → Execute
 ```
 
-**Use Case:** Financial transactions, contract approvals, policy changes
-
-### Data Validation Gate
-
-Verify extracted data before processing:
-
+**Data Validation** - Verify extracted data before processing
 ```
-Agent (Extract) → Human in the Loop (Validate) → Function (Process) → Database (Store)
+Agent (Extract) → Human in the Loop (Validate) → Function (Process)
 ```
 
-**Paused Output:** Extracted fields from documents  
-**Resume Input:** confirmed (boolean), corrections (object)
-
-### Quality Control Check
-
-Review AI outputs before sending to customers:
-
+**Quality Control** - Review AI outputs before sending to customers
 ```
-Agent (Generate Response) → Human in the Loop (QA) → Gmail (Send)
+Agent (Generate) → Human in the Loop (QA) → Gmail (Send)
 ```
-
-**Paused Output:** Generated email, customer context  
-**Resume Input:** approved (boolean), modifications (text)
 
 ## Block Outputs
 
-The Human in the Loop block provides the following outputs:
+**`url`** - Unique URL for the approval portal  
+**`resumeInput.*`** - All fields defined in Resume Input become available after the workflow resumes
 
-**`url`** (string)  
-The unique URL for the approval portal where humans can review and respond to the paused workflow.
+Access using `<blockId.resumeInput.fieldName>`.
 
-**`resumeInput.*`** (dynamic)  
-All fields defined in the Resume Input section become available as outputs after the workflow resumes. Access them using `<blockId.resumeInput.fieldName>`.
-
-## Best Practices
-
-<Steps>
-  <Step>
-    <strong>Provide Clear Context</strong>: Include all relevant data in Paused Output so approvers can make informed decisions
-  </Step>
-  <Step>
-    <strong>Use Multiple Notification Channels</strong>: Don't rely on a single notification method—add Slack and email for redundancy
-  </Step>
-  <Step>
-    <strong>Set Timeout Policies</strong>: Consider adding workflow-level timeouts to handle abandoned approvals
-  </Step>
-  <Step>
-    <strong>Include Instructions</strong>: Add description fields to Resume Input to guide approvers
-  </Step>
-  <Step>
-    <strong>Track Approval History</strong>: Log approval decisions and comments for audit trails
-  </Step>
-  <Step>
-    <strong>Test Portal Access</strong>: Verify that approvers can access the portal URL from their devices
-  </Step>
-</Steps>
-
-<Callout type="warning">
-  Paused workflows consume execution state resources. Implement timeout mechanisms or periodic cleanup for abandoned approvals to avoid accumulating paused executions.
-</Callout>
-
-## Example Configuration
-
-Here's a complete example of a Human in the Loop block configured for content approval:
+## Example
 
 **Paused Output:**
 ```json
 {
   "title": "<agent1.content.title>",
   "body": "<agent1.content.body>",
-  "targetAudience": "<router1.selectedPath>",
-  "qualityScore": "<evaluator1.score>",
-  "generatedAt": "<function1.output.timestamp>"
+  "qualityScore": "<evaluator1.score>"
 }
 ```
-
-**Notification:**
-- **Slack**: Channel: #content-review, Message: "New article ready for review: `<approval1.url>`"
-- **Gmail**: To: editors@company.com, Subject: "Article Approval Required"
 
 **Resume Input:**
 ```json
 {
-  "decision": {
-    "type": "boolean",
-    "description": "Approve this article for publication?"
-  },
-  "feedback": {
-    "type": "string",
-    "description": "Provide feedback or request changes"
-  },
-  "publishDate": {
-    "type": "string",
-    "description": "Scheduled publish date (YYYY-MM-DD)"
-  }
+  "approved": { "type": "boolean" },
+  "feedback": { "type": "string" }
 }
 ```
 
 **Downstream Usage:**
 ```javascript
-// In a Condition block:
-if (<approval1.resumeInput.decision> === true) {
-  // Proceed to publish
-} else {
-  // Route to revision workflow
-}
+// Condition block
+<approval1.resumeInput.approved> === true
 ```
 
 ## Related Blocks
 
-- **[Response](/blocks/response)**: Return workflow results to API callers
-- **[Condition](/blocks/condition)**: Branch based on approval decisions
-- **[Variables](/blocks/variables)**: Store approval history and metadata
-- **[Wait](/blocks/wait)**: Add time delays before or after approvals
-
+- **[Condition](/blocks/condition)** - Branch based on approval decisions
+- **[Variables](/blocks/variables)** - Store approval history and metadata
+- **[Response](/blocks/response)** - Return workflow results to API callers
