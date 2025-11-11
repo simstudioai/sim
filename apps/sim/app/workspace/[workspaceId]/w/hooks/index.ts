@@ -1,3 +1,6 @@
 export { useAutoScroll } from './use-auto-scroll'
+export { useDeleteFolder } from './use-delete-folder'
 export { useDeleteWorkflow } from './use-delete-workflow'
+export { useDuplicateFolder } from './use-duplicate-folder'
+export { useDuplicateWorkflow } from './use-duplicate-workflow'
 export { useKeyboardShortcuts } from './use-keyboard-shortcuts'

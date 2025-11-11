@@ -74,6 +74,7 @@ interface FolderState {
   }) => Promise<WorkflowFolder>
   updateFolderAPI: (id: string, updates: Partial<WorkflowFolder>) => Promise<WorkflowFolder>
   deleteFolder: (id: string, workspaceId: string) => Promise<void>
+  duplicateFolder: (id: string) => Promise<string | null>
 
   // Helper functions
   isWorkflowInDeletedSubfolder: (workflow: Workflow, deletedFolderId: string) => boolean
@@ -380,6 +381,50 @@ export const useFolderStore = create<FolderState>()(
           },
           errorMessage: 'Failed to delete folder',
         })
+      },
+
+      duplicateFolder: async (id: string) => {
+        const sourceFolder = get().folders[id]
+        if (!sourceFolder) {
+          logger.error(`Folder ${id} not found`)
+          return null
+        }
+
+        try {
+          const response = await fetch(`/api/folders/${id}/duplicate`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              name: `${sourceFolder.name} (Copy)`,
+              workspaceId: sourceFolder.workspaceId,
+              parentId: sourceFolder.parentId,
+              color: sourceFolder.color,
+            }),
+          })
+
+          if (!response.ok) {
+            const error = await response.json()
+            throw new Error(error.error || 'Failed to duplicate folder')
+          }
+
+          const result = await response.json()
+
+          logger.info(
+            `Successfully duplicated folder ${id} to ${result.id} with ${result.foldersCount} folder(s) and ${result.workflowsCount} workflow(s)`
+          )
+
+          // Reload folders and workflows to reflect the duplication
+          const workflowRegistry = useWorkflowRegistry.getState()
+          await Promise.all([
+            get().fetchFolders(sourceFolder.workspaceId),
+            workflowRegistry.loadWorkflows(sourceFolder.workspaceId),
+          ])
+
+          return result.id
+        } catch (error) {
+          logger.error(`Failed to duplicate folder ${id}:`, error)
+          throw error
+        }
       },
 
       isWorkflowInDeletedSubfolder: (workflow: Workflow, deletedFolderId: string) => {

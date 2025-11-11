@@ -4,13 +4,16 @@ import { useCallback, useState } from 'react'
 import clsx from 'clsx'
 import { ChevronRight, Folder, FolderOpen } from 'lucide-react'
 import { useParams } from 'next/navigation'
-import { createLogger } from '@/lib/logs/console/logger'
+import { ContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/components-new/workflow-list/components/context-menu/context-menu'
+import { DeleteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components-new/workflow-list/components/delete-modal/delete-modal'
+import {
+  useContextMenu,
+  useFolderExpand,
+  useItemDrag,
+  useItemRename,
+} from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
+import { useDeleteFolder, useDuplicateFolder } from '@/app/workspace/[workspaceId]/w/hooks'
 import { type FolderTreeNode, useFolderStore } from '@/stores/folders/store'
-import { useContextMenu, useFolderExpand, useItemDrag, useItemRename } from '../../../../hooks'
-import { ContextMenu } from '../context-menu/context-menu'
-import { DeleteModal } from '../delete-modal/delete-modal'
-
-const logger = createLogger('FolderItem')
 
 interface FolderItemProps {
   folder: FolderTreeNode
@@ -32,11 +35,23 @@ interface FolderItemProps {
 export function FolderItem({ folder, level, hoverHandlers }: FolderItemProps) {
   const params = useParams()
   const workspaceId = params.workspaceId as string
-  const { updateFolderAPI, deleteFolder } = useFolderStore()
+  const { updateFolderAPI } = useFolderStore()
 
   // Delete modal state
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
-  const [isDeleting, setIsDeleting] = useState(false)
+
+  // Delete folder hook
+  const { isDeleting, handleDeleteFolder } = useDeleteFolder({
+    workspaceId,
+    getFolderIds: () => folder.id,
+    onSuccess: () => setIsDeleteModalOpen(false),
+  })
+
+  // Duplicate folder hook
+  const { handleDuplicateFolder } = useDuplicateFolder({
+    workspaceId,
+    getFolderIds: () => folder.id,
+  })
 
   // Folder expand hook
   const {
@@ -98,22 +113,6 @@ export function FolderItem({ folder, level, hoverHandlers }: FolderItemProps) {
     itemType: 'folder',
     itemId: folder.id,
   })
-
-  /**
-   * Handle delete folder after confirmation
-   */
-  const handleDeleteFolder = useCallback(async () => {
-    setIsDeleting(true)
-    try {
-      await deleteFolder(folder.id, workspaceId)
-      setIsDeleteModalOpen(false)
-      logger.info('Folder deleted successfully')
-    } catch (error) {
-      logger.error('Error deleting folder:', error)
-    } finally {
-      setIsDeleting(false)
-    }
-  }, [folder.id, workspaceId, deleteFolder])
 
   /**
    * Handle click - toggles folder expansion
@@ -220,6 +219,7 @@ export function FolderItem({ folder, level, hoverHandlers }: FolderItemProps) {
         menuRef={menuRef}
         onClose={closeMenu}
         onRename={handleStartEdit}
+        onDuplicate={handleDuplicateFolder}
         onDelete={() => setIsDeleteModalOpen(true)}
       />
 
