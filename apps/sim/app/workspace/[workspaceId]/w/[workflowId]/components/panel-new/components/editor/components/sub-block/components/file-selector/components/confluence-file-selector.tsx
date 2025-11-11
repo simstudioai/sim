@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Check, ChevronDown, RefreshCw } from 'lucide-react'
+import { Check, ChevronDown, ExternalLink, RefreshCw, X } from 'lucide-react'
 import { ConfluenceIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
 import {
@@ -71,6 +71,7 @@ export function ConfluenceFileSelector({
   const [files, setFiles] = useState<ConfluenceFileInfo[]>([])
   const [selectedCredentialId, setSelectedCredentialId] = useState<string>(credentialId || '')
   const [selectedFileId, setSelectedFileId] = useState(value)
+  const [selectedFile, setSelectedFile] = useState<ConfluenceFileInfo | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [showOAuthModal, setShowOAuthModal] = useState(false)
   const initialFetchRef = useRef(false)
@@ -210,6 +211,7 @@ export function ConfluenceFileSelector({
 
         const data = await response.json()
         if (data.file) {
+          setSelectedFile(data.file)
           onFileInfoChange?.(data.file)
         } else {
           const fileInfo: ConfluenceFileInfo = {
@@ -221,6 +223,7 @@ export function ConfluenceFileSelector({
             spaceId: undefined,
             url: undefined,
           }
+          setSelectedFile(fileInfo)
           onFileInfoChange?.(fileInfo)
         }
       } catch (error) {
@@ -328,11 +331,12 @@ export function ConfluenceFileSelector({
           useDisplayNamesStore.getState().setDisplayNames('files', selectedCredentialId, fileMap)
         }
 
-        // If we have a selected file ID, notify parent if callback exists
-        if (selectedFileId && onFileInfoChange) {
+        // If we have a selected file ID, update state and notify parent
+        if (selectedFileId) {
           const fileInfo = data.files.find((file: ConfluenceFileInfo) => file.id === selectedFileId)
           if (fileInfo) {
-            onFileInfoChange(fileInfo)
+            setSelectedFile(fileInfo)
+            onFileInfoChange?.(fileInfo)
           } else if (!searchQuery && selectedFileId) {
             // If we can't find the file in the list, try to fetch it directly
             fetchPageInfo(selectedFileId)
@@ -385,6 +389,7 @@ export function ConfluenceFileSelector({
   // Clear callback when value is cleared
   useEffect(() => {
     if (!value) {
+      setSelectedFile(null)
       onFileInfoChange?.(null)
     }
   }, [value, onFileInfoChange])
@@ -392,6 +397,7 @@ export function ConfluenceFileSelector({
   // Handle file selection
   const handleSelectFile = (file: ConfluenceFileInfo) => {
     setSelectedFileId(file.id)
+    setSelectedFile(file)
     onChange(file.id, file)
     onFileInfoChange?.(file)
     setOpen(false)
@@ -556,6 +562,48 @@ export function ConfluenceFileSelector({
             </PopoverContent>
           )}
         </Popover>
+
+        {showPreview && selectedFile && selectedFileId && selectedFile.id === selectedFileId && (
+          <div className='relative mt-2 rounded-md border border-muted bg-muted/10 p-2'>
+            <div className='absolute top-2 right-2'>
+              <Button
+                variant='ghost'
+                size='icon'
+                className='h-5 w-5 hover:bg-muted'
+                onClick={handleClearSelection}
+              >
+                <X className='h-3 w-3' />
+              </Button>
+            </div>
+            <div className='flex items-center gap-3 pr-4'>
+              <div className='flex h-6 w-6 flex-shrink-0 items-center justify-center rounded bg-muted/20'>
+                <ConfluenceIcon className='h-4 w-4' />
+              </div>
+              <div className='min-w-0 flex-1 overflow-hidden'>
+                <div className='flex items-center gap-2'>
+                  <h4 className='truncate font-medium text-xs'>{selectedFile.name}</h4>
+                  {selectedFile.modifiedTime && (
+                    <span className='whitespace-nowrap text-muted-foreground text-xs'>
+                      {new Date(selectedFile.modifiedTime).toLocaleDateString()}
+                    </span>
+                  )}
+                </div>
+                {selectedFile.webViewLink && (
+                  <a
+                    href={selectedFile.webViewLink}
+                    target='_blank'
+                    rel='noopener noreferrer'
+                    className='flex items-center gap-1 text-foreground text-xs hover:underline'
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <span>Open in Confluence</span>
+                    <ExternalLink className='h-3 w-3' />
+                  </a>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {showOAuthModal && (

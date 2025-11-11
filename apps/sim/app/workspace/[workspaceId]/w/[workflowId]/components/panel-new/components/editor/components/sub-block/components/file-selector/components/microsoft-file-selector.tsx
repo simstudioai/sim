@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Check, ChevronDown, ExternalLink, RefreshCw } from 'lucide-react'
+import { Check, ChevronDown, ExternalLink, RefreshCw, X } from 'lucide-react'
 import { MicrosoftExcelIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
 import {
@@ -82,6 +82,7 @@ export function MicrosoftFileSelector({
   const [credentials, setCredentials] = useState<Credential[]>([])
   const [selectedCredentialId, setSelectedCredentialId] = useState<string>(credentialId || '')
   const [selectedFileId, setSelectedFileId] = useState(value)
+  const [selectedFile, setSelectedFile] = useState<MicrosoftFileInfo | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [isLoadingSelectedFile, setIsLoadingSelectedFile] = useState(false)
   const [isLoadingFiles, setIsLoadingFiles] = useState(false)
@@ -90,10 +91,8 @@ export function MicrosoftFileSelector({
   const [showOAuthModal, setShowOAuthModal] = useState(false)
   const [credentialsLoaded, setCredentialsLoaded] = useState(false)
   const initialFetchRef = useRef(false)
-  // Track the last (credentialId, fileId) we attempted to resolve to avoid tight retry loops
   const lastMetaAttemptRef = useRef<string>('')
 
-  // Handle Microsoft Planner task selection
   const [plannerTasks, setPlannerTasks] = useState<PlannerTask[]>([])
   const [isLoadingTasks, setIsLoadingTasks] = useState(false)
   const [selectedTask, setSelectedTask] = useState<PlannerTask | null>(null)
@@ -281,6 +280,7 @@ export function MicrosoftFileSelector({
                 ]
               : [],
           }
+          setSelectedFile(fileInfo)
           onFileInfoChange?.(fileInfo)
           return fileInfo
         }
@@ -308,6 +308,7 @@ export function MicrosoftFileSelector({
           mimeType: 'sharepoint/site',
           webViewLink: site.webUrl,
         }
+        setSelectedFile(siteInfo)
         onFileInfoChange?.(siteInfo)
         return siteInfo
       } catch (error) {
@@ -431,6 +432,7 @@ export function MicrosoftFileSelector({
           modifiedTime: task.createdDateTime,
         }
         setSelectedTask(task)
+        setSelectedFile(taskAsFileInfo)
         onFileInfoChange?.(taskAsFileInfo)
         return taskAsFileInfo
       } catch {
@@ -493,10 +495,9 @@ export function MicrosoftFileSelector({
       modifiedTime: task.createdDateTime,
     }
 
-    // Update internal state first to avoid race with list refetch
     setSelectedFileId(taskId)
     setSelectedTask(task)
-    // Then propagate up
+    setSelectedFile(taskAsFileInfo)
     onChange(taskId, taskAsFileInfo)
     onFileInfoChange?.(taskAsFileInfo)
     setOpen(false)
@@ -540,10 +541,11 @@ export function MicrosoftFileSelector({
   // Handle selecting a file from the available files
   const handleFileSelect = (file: MicrosoftFileInfo) => {
     setSelectedFileId(file.id)
+    setSelectedFile(file)
     onChange(file.id, file)
     onFileInfoChange?.(file)
     setOpen(false)
-    setSearchQuery('') // Clear search when file is selected
+    setSearchQuery('')
   }
 
   // Handle adding a new credential
@@ -557,6 +559,8 @@ export function MicrosoftFileSelector({
   // Clear selection
   const handleClearSelection = () => {
     setSelectedFileId('')
+    setSelectedFile(null)
+    setSelectedTask(null)
     onChange('', undefined)
     onFileInfoChange?.(null)
   }
@@ -720,6 +724,13 @@ export function MicrosoftFileSelector({
           return title.toLowerCase().includes(query.toLowerCase())
         })
       : availableFiles
+
+  const canShowPreview = !!(
+    showPreview &&
+    selectedFile &&
+    selectedFileId &&
+    selectedFile.id === selectedFileId
+  )
 
   return (
     <>
@@ -912,6 +923,67 @@ export function MicrosoftFileSelector({
             </PopoverContent>
           )}
         </Popover>
+
+        {canShowPreview && (
+          <div className='relative mt-2 rounded-md border border-muted bg-muted/10 p-2'>
+            <div className='absolute top-2 right-2'>
+              <Button
+                variant='ghost'
+                size='icon'
+                className='h-5 w-5 hover:bg-muted'
+                onClick={handleClearSelection}
+              >
+                <X className='h-3 w-3' />
+              </Button>
+            </div>
+            <div className='flex items-center gap-3 pr-4'>
+              <div className='flex h-6 w-6 flex-shrink-0 items-center justify-center rounded bg-muted/20'>
+                {getFileIcon(selectedFile, 'sm')}
+              </div>
+              <div className='min-w-0 flex-1 overflow-hidden'>
+                <div className='flex items-center gap-2'>
+                  <h4 className='truncate font-medium text-xs'>{selectedFile.name}</h4>
+                  {selectedFile.modifiedTime && (
+                    <span className='whitespace-nowrap text-muted-foreground text-xs'>
+                      {new Date(selectedFile.modifiedTime).toLocaleDateString()}
+                    </span>
+                  )}
+                </div>
+                {selectedFile.webViewLink ? (
+                  <a
+                    href={selectedFile.webViewLink}
+                    target='_blank'
+                    rel='noopener noreferrer'
+                    className='flex items-center gap-1 text-foreground text-xs hover:underline'
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <span>
+                      {serviceId === 'microsoft-planner'
+                        ? 'Open in Planner'
+                        : serviceId === 'sharepoint'
+                          ? 'Open in SharePoint'
+                          : 'Open in OneDrive'}
+                    </span>
+                    <ExternalLink className='h-3 w-3' />
+                  </a>
+                ) : (
+                  <a
+                    href={`https://graph.microsoft.com/v1.0/me/drive/items/${selectedFile.id}`}
+                    target='_blank'
+                    rel='noopener noreferrer'
+                    className='flex items-center gap-1 text-foreground text-xs hover:underline'
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <span>
+                      {serviceId === 'sharepoint' ? 'Open in SharePoint' : 'Open in OneDrive'}
+                    </span>
+                    <ExternalLink className='h-3 w-3' />
+                  </a>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {showOAuthModal && (

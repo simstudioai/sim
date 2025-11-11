@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Check, ChevronDown, RefreshCw } from 'lucide-react'
+import { Check, ChevronDown, ExternalLink, RefreshCw, X } from 'lucide-react'
 import { JiraIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
 import {
@@ -73,6 +73,7 @@ export function JiraIssueSelector({
   const [issues, setIssues] = useState<JiraIssueInfo[]>([])
   const [selectedCredentialId, setSelectedCredentialId] = useState<string>(credentialId || '')
   const [selectedIssueId, setSelectedIssueId] = useState(value)
+  const [selectedIssue, setSelectedIssue] = useState<JiraIssueInfo | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [showOAuthModal, setShowOAuthModal] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -226,9 +227,11 @@ export function JiraIssueSelector({
 
         if (data.issue) {
           logger.info('Successfully fetched issue:', data.issue.name)
+          setSelectedIssue(data.issue)
           onIssueInfoChange?.(data.issue)
         } else {
           logger.warn('No issue data received in response')
+          setSelectedIssue(null)
           onIssueInfoChange?.(null)
         }
       } catch (error) {
@@ -362,11 +365,12 @@ export function JiraIssueSelector({
           useDisplayNamesStore.getState().setDisplayNames('files', selectedCredentialId, issueMap)
         }
 
-        // If we have a selected issue ID, notify parent if callback exists
-        if (selectedIssueId && onIssueInfoChange) {
+        // If we have a selected issue ID, update state and notify parent
+        if (selectedIssueId) {
           const issueInfo = foundIssues.find((issue: JiraIssueInfo) => issue.id === selectedIssueId)
           if (issueInfo) {
-            onIssueInfoChange(issueInfo)
+            setSelectedIssue(issueInfo)
+            onIssueInfoChange?.(issueInfo)
           } else if (!searchQuery && selectedIssueId) {
             // If we can't find the issue in the list, try to fetch it directly
             fetchIssueInfo(selectedIssueId)
@@ -424,6 +428,7 @@ export function JiraIssueSelector({
     // When the upstream value is cleared (e.g., project changed or remote user cleared),
     // clear local selection and preview immediately
     if (!value) {
+      setSelectedIssue(null)
       setIssues([])
       setError(null)
       onIssueInfoChange?.(null)
@@ -433,6 +438,7 @@ export function JiraIssueSelector({
   // Handle issue selection
   const handleSelectIssue = (issue: JiraIssueInfo) => {
     setSelectedIssueId(issue.id)
+    setSelectedIssue(issue)
     onChange(issue.id, issue)
     onIssueInfoChange?.(issue)
     setOpen(false)
@@ -598,6 +604,48 @@ export function JiraIssueSelector({
             </PopoverContent>
           )}
         </Popover>
+
+        {showPreview && selectedIssue && (
+          <div className='relative mt-2 rounded-md border border-muted bg-muted/10 p-2'>
+            <div className='absolute top-2 right-2'>
+              <Button
+                variant='ghost'
+                size='icon'
+                className='h-5 w-5 hover:bg-muted'
+                onClick={handleClearSelection}
+              >
+                <X className='h-3 w-3' />
+              </Button>
+            </div>
+            <div className='flex items-center gap-3 pr-4'>
+              <div className='flex h-6 w-6 flex-shrink-0 items-center justify-center rounded bg-muted/20'>
+                <JiraIcon className='h-4 w-4' />
+              </div>
+              <div className='min-w-0 flex-1 overflow-hidden'>
+                <div className='flex items-center gap-2'>
+                  <h4 className='truncate font-medium text-xs'>{selectedIssue.name}</h4>
+                  {selectedIssue.modifiedTime && (
+                    <span className='whitespace-nowrap text-muted-foreground text-xs'>
+                      {new Date(selectedIssue.modifiedTime).toLocaleDateString()}
+                    </span>
+                  )}
+                </div>
+                {selectedIssue.webViewLink && (
+                  <a
+                    href={selectedIssue.webViewLink}
+                    target='_blank'
+                    rel='noopener noreferrer'
+                    className='flex items-center gap-1 text-foreground text-xs hover:underline'
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <span>Open in Jira</span>
+                    <ExternalLink className='h-3 w-3' />
+                  </a>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {showOAuthModal && (

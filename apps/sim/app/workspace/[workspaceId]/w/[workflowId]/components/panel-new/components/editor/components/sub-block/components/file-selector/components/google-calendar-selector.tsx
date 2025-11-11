@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { Check, ChevronDown, RefreshCw } from 'lucide-react'
+import { Check, ChevronDown, RefreshCw, X } from 'lucide-react'
 import { GoogleCalendarIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
 import {
@@ -52,6 +52,7 @@ export function GoogleCalendarSelector({
   const [open, setOpen] = useState(false)
   const [calendars, setCalendars] = useState<GoogleCalendarInfo[]>([])
   const [selectedCalendarId, setSelectedCalendarId] = useState(value)
+  const [selectedCalendar, setSelectedCalendar] = useState<GoogleCalendarInfo | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [initialFetchDone, setInitialFetchDone] = useState(false)
@@ -106,6 +107,12 @@ export function GoogleCalendarSelector({
         }, {})
         useDisplayNamesStore.getState().setDisplayNames('files', credentialId, calendarMap)
       }
+
+      // Update selected calendar if we have a value
+      if (selectedCalendarId && calendars.length > 0) {
+        const calendar = calendars.find((c) => c.id === selectedCalendarId)
+        setSelectedCalendar(calendar || null)
+      }
     } catch (error) {
       logger.error('Error fetching calendars:', error)
       setError((error as Error).message)
@@ -134,6 +141,7 @@ export function GoogleCalendarSelector({
   // Handle calendar selection
   const handleSelectCalendar = (calendar: GoogleCalendarInfo) => {
     setSelectedCalendarId(calendar.id)
+    setSelectedCalendar(calendar)
     onChange(calendar.id, calendar)
     onCalendarInfoChange?.(calendar)
     setOpen(false)
@@ -242,6 +250,39 @@ export function GoogleCalendarSelector({
           </Command>
         </PopoverContent>
       </Popover>
+
+      {showPreview && selectedCalendar && (
+        <div className='relative mt-2 rounded-md border border-muted bg-muted/10 p-2'>
+          <div className='absolute top-2 right-2'>
+            <Button
+              variant='ghost'
+              size='icon'
+              className='h-5 w-5 hover:bg-muted'
+              onClick={handleClearSelection}
+            >
+              <X className='h-3 w-3' />
+            </Button>
+          </div>
+          <div className='flex items-center gap-3 pr-4'>
+            <div className='flex h-6 w-6 flex-shrink-0 items-center justify-center rounded bg-muted/20'>
+              <div
+                className='h-3 w-3 rounded-full'
+                style={{
+                  backgroundColor: selectedCalendar.backgroundColor || '#4285f4',
+                }}
+              />
+            </div>
+            <div className='min-w-0 flex-1 overflow-hidden'>
+              <h4 className='truncate font-medium text-xs'>
+                {getCalendarDisplayName(selectedCalendar)}
+              </h4>
+              <div className='text-muted-foreground text-xs'>
+                Access: {selectedCalendar.accessRole}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

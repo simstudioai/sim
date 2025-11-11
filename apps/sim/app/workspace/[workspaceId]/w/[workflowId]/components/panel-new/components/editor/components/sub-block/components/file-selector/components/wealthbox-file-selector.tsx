@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Check, ChevronDown } from 'lucide-react'
+import { Check, ChevronDown, X } from 'lucide-react'
 import { WealthboxIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
 import {
@@ -64,6 +64,7 @@ export function WealthboxFileSelector({
   const [credentials, setCredentials] = useState<Credential[]>([])
   const [selectedCredentialId, setSelectedCredentialId] = useState<string>(credentialId || '')
   const [selectedItemId, setSelectedItemId] = useState(value)
+  const [selectedItem, setSelectedItem] = useState<WealthboxItemInfo | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [isLoadingSelectedItem, setIsLoadingSelectedItem] = useState(false)
   const [isLoadingItems, setIsLoadingItems] = useState(false)
@@ -191,6 +192,7 @@ export function WealthboxFileSelector({
         if (response.ok) {
           const data = await response.json()
           if (data.item) {
+            setSelectedItem(data.item)
             onFileInfoChange?.(data.item)
             return data.item
           }
@@ -267,6 +269,7 @@ export function WealthboxFileSelector({
   // Handle selecting an item
   const handleItemSelect = (item: WealthboxItemInfo) => {
     setSelectedItemId(item.id)
+    setSelectedItem(item)
     onChange(item.id, item)
     onFileInfoChange?.(item)
     setOpen(false)
@@ -412,6 +415,37 @@ export function WealthboxFileSelector({
             </Command>
           </PopoverContent>
         </Popover>
+
+        {showPreview && selectedItem && (
+          <div className='relative mt-2 rounded-md border border-muted bg-muted/10 p-2'>
+            <div className='absolute top-2 right-2'>
+              <Button
+                variant='ghost'
+                size='icon'
+                className='h-5 w-5 hover:bg-muted'
+                onClick={handleClearSelection}
+              >
+                <X className='h-3 w-3' />
+              </Button>
+            </div>
+            <div className='flex items-center gap-3 pr-4'>
+              <div className='flex h-6 w-6 flex-shrink-0 items-center justify-center rounded bg-muted/20'>
+                <WealthboxIcon className='h-4 w-4' />
+              </div>
+              <div className='min-w-0 flex-1 overflow-hidden'>
+                <div className='flex items-center gap-2'>
+                  <h4 className='truncate font-medium text-xs'>{selectedItem.name}</h4>
+                  {selectedItem.updatedAt && (
+                    <span className='whitespace-nowrap text-muted-foreground text-xs'>
+                      {new Date(selectedItem.updatedAt).toLocaleDateString()}
+                    </span>
+                  )}
+                </div>
+                <div className='text-muted-foreground text-xs capitalize'>{selectedItem.type}</div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {showOAuthModal && (
