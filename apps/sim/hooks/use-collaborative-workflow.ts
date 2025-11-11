@@ -3,6 +3,7 @@ import type { Edge } from 'reactflow'
 import { useSession } from '@/lib/auth-client'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getBlockOutputs } from '@/lib/workflows/block-outputs'
+import { TriggerUtils } from '@/lib/workflows/triggers'
 import { getBlock } from '@/blocks'
 import { useSocket } from '@/contexts/socket-context'
 import { useUndoRedo } from '@/hooks/use-undo-redo'
@@ -972,20 +973,17 @@ export function useCollaborativeWorkflow() {
       const newTriggerMode = !currentBlock.triggerMode
 
       // When enabling trigger mode, check if block is inside a subflow
-      if (newTriggerMode && currentBlock.data?.parentId) {
-        const parent = workflowStore.blocks[currentBlock.data.parentId]
-        if (parent && (parent.type === 'loop' || parent.type === 'parallel')) {
-          // Dispatch custom event to show warning modal
-          window.dispatchEvent(
-            new CustomEvent('show-trigger-warning', {
-              detail: {
-                type: 'trigger_in_subflow',
-                triggerName: 'trigger',
-              },
-            })
-          )
-          return
-        }
+      if (newTriggerMode && TriggerUtils.isBlockInSubflow(id, workflowStore.blocks)) {
+        // Dispatch custom event to show warning modal
+        window.dispatchEvent(
+          new CustomEvent('show-trigger-warning', {
+            detail: {
+              type: 'trigger_in_subflow',
+              triggerName: 'trigger',
+            },
+          })
+        )
+        return
       }
 
       executeQueuedOperation(

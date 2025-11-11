@@ -3,6 +3,7 @@ import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getBlockOutputs } from '@/lib/workflows/block-outputs'
+import { TriggerUtils } from '@/lib/workflows/triggers'
 import { getBlock } from '@/blocks'
 import type { SubBlockConfig } from '@/blocks/types'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -1052,17 +1053,12 @@ export const useWorkflowStore = create<WorkflowStore>()(
         const newTriggerMode = !block.triggerMode
 
         // When switching TO trigger mode, check if block is inside a subflow
-        if (newTriggerMode && block.data?.parentId) {
-          const parent = get().blocks[block.data.parentId]
-          if (parent && (parent.type === 'loop' || parent.type === 'parallel')) {
-            logger.warn('Cannot enable trigger mode for block inside loop or parallel subflow', {
-              blockId: id,
-              blockType: block.type,
-              parentId: block.data.parentId,
-              parentType: parent.type,
-            })
-            return
-          }
+        if (newTriggerMode && TriggerUtils.isBlockInSubflow(id, get().blocks)) {
+          logger.warn('Cannot enable trigger mode for block inside loop or parallel subflow', {
+            blockId: id,
+            blockType: block.type,
+          })
+          return
         }
 
         // When switching TO trigger mode, remove all incoming connections
