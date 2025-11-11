@@ -52,7 +52,7 @@
     "drizzle-kit": "^0.31.4",
     "husky": "9.1.7",
     "lint-staged": "16.0.0",
-    "turbo": "2.6.0"
+    "turbo": "2.6.1"
   },
   "lint-staged": {
     "*.{js,jsx,ts,tsx,json,css,scss}": [

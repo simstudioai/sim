@@ -26,17 +26,15 @@ interface UsageIndicatorProps {
 }
 
 export function UsageIndicator({ onClick }: UsageIndicatorProps) {
-  const { loadData, getUsage, getSubscriptionStatus, isLoading } = useSubscriptionStore()
+  const { getUsage, getSubscriptionStatus, isLoading } = useSubscriptionStore()
 
-  // Load subscription data on mount
   useEffect(() => {
-    loadData()
-  }, [loadData])
+    useSubscriptionStore.getState().loadData()
+  }, [])
 
   const usage = getUsage()
   const subscription = getSubscriptionStatus()
 
-  // Show skeleton while loading
   if (isLoading) {
     return (
       <div className={CONTAINER_STYLES} onClick={() => onClick?.()}>
@@ -54,10 +52,8 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
     )
   }
 
-  // Calculate progress percentage (capped at 100)
   const progressPercentage = Math.min(usage.percentUsed, 100)
 
-  // Determine plan type
   const planType = subscription.isEnterprise
     ? 'enterprise'
     : subscription.isTeam
@@ -66,7 +62,6 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
         ? 'pro'
         : 'free'
 
-  // Determine badge to show
   const billingStatus = useSubscriptionStore.getState().getBillingStatus()
   const isBlocked = billingStatus === 'blocked'
   const badgeText = isBlocked ? 'Payment Failed' : planType === 'free' ? 'Upgrade' : undefined

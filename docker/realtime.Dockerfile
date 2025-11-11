@@ -13,9 +13,10 @@ WORKDIR /app
 # Install turbo globally
 RUN bun install -g turbo
 
-COPY package.json bun.lock ./
-RUN mkdir -p apps
+COPY package.json bun.lock turbo.json ./
+RUN mkdir -p apps packages/db
 COPY apps/sim/package.json ./apps/sim/package.json
+COPY packages/db/package.json ./packages/db/package.json
 
 RUN bun install --omit dev --ignore-scripts
 

@@ -309,17 +309,10 @@ export function useDocumentChunks(
     hasMore: false,
   })
   const [initialLoadDone, setInitialLoadDone] = useState(false)
-  const [isMounted, setIsMounted] = useState(false)
 
   // Client-side search state
   const [searchQuery, setSearchQuery] = useState('')
   const [currentPage, setCurrentPage] = useState(urlPage)
-
-  // Handle mounting state
-  useEffect(() => {
-    setIsMounted(true)
-    return () => setIsMounted(false)
-  }, [])
 
   // Sync with URL page changes
   useEffect(() => {
@@ -331,7 +324,7 @@ export function useDocumentChunks(
 
   if (enableClientSearch) {
     const loadAllChunks = useCallback(async () => {
-      if (!knowledgeBaseId || !documentId || !isMounted) return
+      if (!knowledgeBaseId || !documentId) return
 
       try {
         setIsLoading(true)
@@ -342,7 +335,7 @@ export function useDocumentChunks(
         let offset = 0
         const limit = 50
 
-        while (hasMore && isMounted) {
+        while (hasMore) {
           const response = await fetch(
             `/api/knowledge/${knowledgeBaseId}/documents/${documentId}/chunks?limit=${limit}&offset=${offset}`
           )
@@ -362,32 +355,24 @@ export function useDocumentChunks(
           }
         }
 
-        if (isMounted) {
-          setAllChunks(allChunksData)
-          setChunks(allChunksData) // For compatibility
-        }
+        setAllChunks(allChunksData)
+        setChunks(allChunksData) // For compatibility
       } catch (err) {
-        if (isMounted) {
-          setError(err instanceof Error ? err.message : 'Failed to load chunks')
-          logger.error(`Failed to load chunks for document ${documentId}:`, err)
-        }
+        setError(err instanceof Error ? err.message : 'Failed to load chunks')
+        logger.error(`Failed to load chunks for document ${documentId}:`, err)
       } finally {
-        if (isMounted) {
-          setIsLoading(false)
-        }
+        setIsLoading(false)
       }
-    }, [knowledgeBaseId, documentId, isMounted])
+    }, [knowledgeBaseId, documentId])
 
-    // Load chunks on mount
+    // Load chunks when knowledgeBaseId or documentId changes
     useEffect(() => {
-      if (isMounted) {
-        loadAllChunks()
-      }
-    }, [isMounted, loadAllChunks])
+      loadAllChunks()
+    }, [loadAllChunks])
 
     // Client-side filtering with fuzzy search
     const filteredChunks = useMemo(() => {
-      if (!isMounted || !searchQuery.trim()) return allChunks
+      if (!searchQuery.trim()) return allChunks
 
       const fuse = new Fuse(allChunks, {
         keys: ['content'],
@@ -400,7 +385,7 @@ export function useDocumentChunks(
 
       const results = fuse.search(searchQuery)
       return results.map((result) => result.item)
-    }, [allChunks, searchQuery, isMounted])
+    }, [allChunks, searchQuery])
 
     // Client-side pagination
     const CHUNKS_PER_PAGE = 50
