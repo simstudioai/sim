@@ -167,6 +167,7 @@ export const ChatInput: React.FC<{
   }
 
   const handleSubmit = () => {
+    if (isStreaming) return
     if (!inputValue.trim() && attachedFiles.length === 0) return
     onSubmit?.(inputValue.trim(), false, attachedFiles) // false = not voice input
     setInputValue('')
