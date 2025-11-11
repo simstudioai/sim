@@ -150,6 +150,14 @@ export function GoogleDrivePicker({
           if (data.file) {
             setSelectedFile(data.file)
             onFileInfoChange?.(data.file)
+
+            // Cache the file name
+            if (selectedCredentialId && data.file.id && data.file.name) {
+              useDisplayNamesStore.getState().setDisplayNames('files', selectedCredentialId, {
+                [data.file.id]: data.file.name,
+              })
+            }
+
             return data.file
           }
         } else {
@@ -335,6 +343,13 @@ export function GoogleDrivePicker({
               setSelectedFile(fileInfo)
               onChange(file.id, fileInfo)
               onFileInfoChange?.(fileInfo)
+
+              // Cache the selected file name
+              if (selectedCredentialId) {
+                useDisplayNamesStore
+                  .getState()
+                  .setDisplayNames('files', selectedCredentialId, { [file.id]: file.name })
+              }
             }
           }
         },

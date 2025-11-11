@@ -73,6 +73,20 @@ export type SubBlockType =
   | 'variables-input' // Variable assignments for updating workflow variables
   | 'text' // Read-only text display
 
+/**
+ * Selector types that require display name hydration
+ * These show IDs/keys that need to be resolved to human-readable names
+ */
+export const SELECTOR_TYPES_HYDRATION_REQUIRED: SubBlockType[] = [
+  'oauth-input',
+  'channel-selector',
+  'file-selector',
+  'folder-selector',
+  'project-selector',
+  'knowledge-base-selector',
+  'document-selector',
+] as const
+
 export type ExtractToolOutput<T> = T extends ToolResponse ? T['output'] : never
 
 export type ToolOutputToValueType<T> = T extends Record<string, any>

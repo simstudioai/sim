@@ -516,6 +516,28 @@ export function useDisplayName(
         })
         .catch(() => {})
         .finally(() => setIsFetching(false))
+    }
+    // Google Drive files/folders (fetch by ID since no list endpoint via Picker API)
+    else if (
+      (provider === 'google-drive' || subBlock.serviceId === 'google-drive') &&
+      typeof value === 'string' &&
+      value
+    ) {
+      const queryParams = new URLSearchParams({
+        credentialId: context.credentialId,
+        fileId: value,
+      })
+      fetch(`/api/tools/drive/file?${queryParams.toString()}`)
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.file && data.file.id && data.file.name) {
+            useDisplayNamesStore
+              .getState()
+              .setDisplayNames('files', context.credentialId!, { [data.file.id]: data.file.name })
+          }
+        })
+        .catch(() => {})
+        .finally(() => setIsFetching(false))
     } else {
       setIsFetching(false)
     }

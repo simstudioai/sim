@@ -42,6 +42,11 @@ interface DisplayNamesStore {
   getDisplayName: (type: keyof DisplayNamesCache, context: string, id: string) => string | null
 
   /**
+   * Remove a single display name
+   */
+  removeDisplayName: (type: keyof DisplayNamesCache, context: string, id: string) => void
+
+  /**
    * Clear all cached display names for a type/context
    */
   clearContext: (type: keyof DisplayNamesCache, context: string) => void
@@ -101,6 +106,22 @@ export const useDisplayNamesStore = create<DisplayNamesStore>((set, get) => ({
   getDisplayName: (type, context, id) => {
     const contextCache = get().cache[type][context]
     return contextCache?.[id] || null
+  },
+
+  removeDisplayName: (type, context, id) => {
+    set((state) => {
+      const contextCache = { ...state.cache[type][context] }
+      delete contextCache[id]
+      return {
+        cache: {
+          ...state.cache,
+          [type]: {
+            ...state.cache[type],
+            [context]: contextCache,
+          },
+        },
+      }
+    })
   },
 
   clearContext: (type, context) => {
