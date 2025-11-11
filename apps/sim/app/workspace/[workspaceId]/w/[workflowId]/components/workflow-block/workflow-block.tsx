@@ -136,9 +136,20 @@ const getDisplayValue = (value: unknown): string => {
   if (Array.isArray(value)) {
     const nonEmptyItems = value.filter((item) => item !== null && item !== undefined && item !== '')
     if (nonEmptyItems.length === 0) return '-'
-    if (nonEmptyItems.length === 1) return String(nonEmptyItems[0])
-    if (nonEmptyItems.length === 2) return `${nonEmptyItems[0]}, ${nonEmptyItems[1]}`
-    return `${nonEmptyItems[0]}, ${nonEmptyItems[1]} +${nonEmptyItems.length - 2}`
+
+    const getItemDisplayValue = (item: unknown): string => {
+      if (typeof item === 'object' && item !== null) {
+        const obj = item as Record<string, unknown>
+        return String(obj.title || obj.name || obj.label || obj.id || JSON.stringify(item))
+      }
+      return String(item)
+    }
+
+    if (nonEmptyItems.length === 1) return getItemDisplayValue(nonEmptyItems[0])
+    if (nonEmptyItems.length === 2) {
+      return `${getItemDisplayValue(nonEmptyItems[0])}, ${getItemDisplayValue(nonEmptyItems[1])}`
+    }
+    return `${getItemDisplayValue(nonEmptyItems[0])}, ${getItemDisplayValue(nonEmptyItems[1])} +${nonEmptyItems.length - 2}`
   }
 
   const stringValue = String(value)
