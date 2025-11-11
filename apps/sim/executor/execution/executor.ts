@@ -1,17 +1,20 @@
 import { createLogger } from '@/lib/logs/console/logger'
 import { StartBlockPath } from '@/lib/workflows/triggers'
 import type { BlockOutput } from '@/blocks/types'
+import type { DAG } from '@/executor/dag/builder'
 import { DAGBuilder } from '@/executor/dag/builder'
 import { BlockExecutor } from '@/executor/execution/block-executor'
 import { EdgeManager } from '@/executor/execution/edge-manager'
 import { ExecutionEngine } from '@/executor/execution/engine'
 import { ExecutionState } from '@/executor/execution/state'
 import type { ContextExtensions, WorkflowInput } from '@/executor/execution/types'
+import { buildSerializableExecutionState } from '@/executor/execution/snapshot-serializer'
 import { createBlockHandlers } from '@/executor/handlers/registry'
 import { LoopOrchestrator } from '@/executor/orchestrators/loop'
 import { NodeExecutionOrchestrator } from '@/executor/orchestrators/node'
 import { ParallelOrchestrator } from '@/executor/orchestrators/parallel'
 import type { BlockState, ExecutionContext, ExecutionResult } from '@/executor/types'
+import type { SerializableExecutionState } from '@/executor/execution/snapshot'
 import {
   buildResolutionFromBlock,
   buildStartBlockOutput,
@@ -39,6 +42,8 @@ export class DAGExecutor {
   private contextExtensions: ContextExtensions
   private isCancelled = false
   private dagBuilder: DAGBuilder
+  private lastContext?: ExecutionContext
+  private lastDag?: DAG
 
   constructor(options: DAGExecutorOptions) {
     this.workflow = options.workflow
@@ -53,6 +58,9 @@ export class DAGExecutor {
     const savedIncomingEdges = this.contextExtensions.dagIncomingEdges
     const dag = this.dagBuilder.build(this.workflow, triggerBlockId, savedIncomingEdges)
     const { context, state } = this.createExecutionContext(workflowId, triggerBlockId)
+    context.metadata.triggerBlockId = triggerBlockId
+    this.lastContext = context
+    this.lastDag = dag
 
     // Link cancellation flag to context
     Object.defineProperty(context, 'isCancelled', {
@@ -76,6 +84,11 @@ export class DAGExecutor {
     )
     const engine = new ExecutionEngine(context, dag, edgeManager, nodeOrchestrator)
     return await engine.run(triggerBlockId)
+  }
+
+  getSerializableState(pendingQueue: string[] = []): SerializableExecutionState | undefined {
+    if (!this.lastContext) return undefined
+    return buildSerializableExecutionState(this.lastContext, this.lastDag, pendingQueue)
   }
 
   cancel(): void {

@@ -87,6 +87,13 @@ export class BlockExecutor {
     }
     cleanupSelfReference?.()
 
+    if (!isSentinel) {
+      this.state.setBlockInputs(node.id, resolvedInputs)
+      if (blockLog) {
+        blockLog.input = resolvedInputs
+      }
+    }
+
     try {
       const output = handler.executeWithNode
         ? await handler.executeWithNode(ctx, block, resolvedInputs, nodeMetadata)

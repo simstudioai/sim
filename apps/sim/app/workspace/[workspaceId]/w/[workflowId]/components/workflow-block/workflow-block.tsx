@@ -24,6 +24,7 @@ import {
 } from './hooks'
 import type { WorkflowBlockProps } from './types'
 import { debounce, getProviderName, shouldSkipBlockRender } from './utils'
+import { useWorkflowExecution } from '../../hooks/use-workflow-execution'
 
 const logger = createLogger('WorkflowBlock')
 
@@ -195,6 +196,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
     currentWorkflow,
     data
   )
+  const { handleRunFromBlock, isExecuting } = useWorkflowExecution()
 
   const { horizontalHandles, blockHeight, blockWidth, displayAdvancedMode, displayTriggerMode } =
     useBlockProperties(
@@ -600,7 +602,13 @@ export const WorkflowBlock = memo(function WorkflowBlock({
           </div>
         )}
 
-        <ActionBar blockId={id} blockType={type} disabled={!userPermissions.canEdit} />
+        <ActionBar
+          blockId={id}
+          blockType={type}
+          disabled={!userPermissions.canEdit}
+          isExecuting={isExecuting}
+          onRunFromBlock={handleRunFromBlock}
+        />
 
         {shouldShowDefaultHandles && (
           <Connections blockId={id} horizontalHandles={horizontalHandles} />

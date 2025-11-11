@@ -54,6 +54,7 @@ export interface BlockStateReader {
 }
 
 export interface BlockStateWriter {
+  setBlockInputs(blockId: string, inputs: Record<string, any>): void
   setBlockOutput(blockId: string, output: NormalizedBlockOutput, executionTime?: number): void
   setBlockState(blockId: string, state: BlockState): void
   deleteBlockState(blockId: string): void

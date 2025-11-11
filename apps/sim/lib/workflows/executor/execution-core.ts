@@ -21,6 +21,10 @@ import type { ExecutionCallbacks, ExecutionSnapshot } from '@/executor/execution
 import type { ExecutionResult } from '@/executor/types'
 import { Serializer } from '@/serializer'
 import { mergeSubblockState } from '@/stores/workflows/server-utils'
+import {
+  upsertWorkflowExecutionState,
+  type WorkflowExecutionStateStatus,
+} from '@/lib/workflows/execution-state/service'
 
 const logger = createLogger('ExecutionCore')
 
@@ -334,6 +338,72 @@ export async function executeWorkflowCore(
       workflowId,
       resolvedTriggerBlockId
     )) as ExecutionResult
+
+    const executionMode =
+      snapshot.metadata.executionMode ?? (metadata.resumeFromSnapshot ? 'resume' : 'full')
+    snapshot.metadata.executionMode = executionMode
+    const storageTriggerBlockId = metadata.triggerBlockId ?? resolvedTriggerBlockId
+    metadata.triggerBlockId = storageTriggerBlockId
+    if (result.metadata) {
+      result.metadata.executionMode = result.metadata.executionMode ?? executionMode
+      if (storageTriggerBlockId) {
+        result.metadata.triggerBlockId =
+          result.metadata.triggerBlockId ?? storageTriggerBlockId
+      }
+    }
+
+    if (snapshot.metadata.useDraftState && storageTriggerBlockId) {
+      try {
+        const pendingQueue =
+          result.metadata?.pendingBlocks && result.metadata.pendingBlocks.length > 0
+            ? result.metadata.pendingBlocks
+            : []
+        const serializedState = executorInstance.getSerializableState(pendingQueue)
+        if (serializedState) {
+          const resolvedInputs: Record<string, any> = {}
+          const resolvedOutputs: Record<string, any> = {}
+
+          for (const [blockId, state] of Object.entries(serializedState.blockStates)) {
+            resolvedInputs[blockId] = state.inputs ?? {}
+            resolvedOutputs[blockId] = state.output ?? {}
+          }
+
+          let status: WorkflowExecutionStateStatus = 'success'
+          if (result.status === 'paused') {
+            status = 'paused'
+          } else if (!result.success) {
+            status = 'failed'
+          }
+
+          const runVersion =
+            typeof (workflow as any)?.updatedAt === 'string'
+              ? ((workflow as any).updatedAt as string)
+              : null
+
+          await upsertWorkflowExecutionState({
+            workflowId,
+            triggerBlockId: storageTriggerBlockId,
+            executionId: metadata.executionId ?? metadata.requestId ?? '',
+            runVersion,
+            serializedState,
+            resolvedInputs,
+            resolvedOutputs,
+            status,
+          })
+        } else {
+          logger.warn(`[${requestId}] Unable to capture execution state for persistence`, {
+            workflowId,
+          triggerBlockId: storageTriggerBlockId,
+          })
+        }
+      } catch (stateError) {
+        logger.error(`[${requestId}] Failed to persist workflow execution state`, {
+          workflowId,
+        triggerBlockId: storageTriggerBlockId,
+          error: stateError,
+        })
+      }
+    }
 
     // Build trace spans for logging from the full execution result
     const { traceSpans, totalDuration } = buildTraceSpans(result)

@@ -11,15 +11,23 @@ import {
   loadDeployedWorkflowState,
   loadWorkflowFromNormalizedTables,
 } from '@/lib/workflows/db-helpers'
+import type { NormalizedWorkflowData } from '@/lib/workflows/db-helpers'
 import { executeWorkflowCore } from '@/lib/workflows/executor/execution-core'
 import { type ExecutionEvent, encodeSSEEvent } from '@/lib/workflows/executor/execution-events'
 import { PauseResumeManager } from '@/lib/workflows/executor/pause-resume-manager'
 import { createStreamingResponse } from '@/lib/workflows/streaming'
 import { validateWorkflowAccess } from '@/app/api/workflows/middleware'
-import { type ExecutionMetadata, ExecutionSnapshot } from '@/executor/execution/snapshot'
+import {
+  type ExecutionMetadata,
+  type SerializableExecutionState,
+  ExecutionSnapshot,
+} from '@/executor/execution/snapshot'
 import type { StreamingExecution } from '@/executor/types'
 import { Serializer } from '@/serializer'
 import type { SubflowType } from '@/stores/workflows/workflow/types'
+import { getWorkflowExecutionState } from '@/lib/workflows/execution-state/service'
+import { buildRunFromBlockPlan } from '@/lib/workflows/run-from-block/planner'
+import { TriggerUtils } from '@/lib/workflows/triggers'
 
 const logger = createLogger('WorkflowExecuteAPI')
 
@@ -30,6 +38,7 @@ const ExecuteWorkflowSchema = z.object({
   useDraftState: z.boolean().optional(),
   input: z.any().optional(),
   startBlockId: z.string().optional(),
+  executionMode: z.enum(['run_from_block']).optional(),
 })
 
 export const runtime = 'nodejs'
@@ -123,6 +132,7 @@ export async function executeWorkflow(
       triggerType,
       useDraftState: false,
       startTime: new Date().toISOString(),
+      executionMode: 'full',
     }
 
     const snapshot = new ExecutionSnapshot(
@@ -310,6 +320,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       stream: streamParam,
       useDraftState,
       input: validatedInput,
+      startBlockId,
+      executionMode,
     } = validation.data
 
     // For API key auth, the entire body is the input (except for our control fields)
@@ -322,16 +334,37 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           })()
         : validatedInput
 
-    const shouldUseDraftState = useDraftState ?? auth.authType === 'session'
+    let shouldUseDraftState = useDraftState ?? auth.authType === 'session'
+
+    const isRunFromBlock = executionMode === 'run_from_block'
+
+    if (isRunFromBlock && auth.authType !== 'session') {
+      return NextResponse.json(
+        { error: 'Run from block is only available within the client editor' },
+        { status: 403 }
+      )
+    }
+
+    if (isRunFromBlock) {
+      if (!startBlockId) {
+        return NextResponse.json(
+          { error: 'Run from block requires a block identifier.' },
+          { status: 400 }
+        )
+      }
+      shouldUseDraftState = true
+    }
 
     const streamHeader = req.headers.get('X-Stream-Response') === 'true'
     const enableSSE = streamHeader || streamParam === true
+
+    const effectiveTriggerType = isRunFromBlock ? 'manual' : triggerType
 
     logger.info(`[${requestId}] Starting server-side execution`, {
       workflowId,
       userId,
       hasInput: !!input,
-      triggerType,
+      triggerType: effectiveTriggerType,
       authType: auth.authType,
       streamParam,
       streamHeader,
@@ -342,13 +375,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     type LoggingTriggerType = 'api' | 'webhook' | 'schedule' | 'manual' | 'chat'
     let loggingTriggerType: LoggingTriggerType = 'manual'
     if (
-      triggerType === 'api' ||
-      triggerType === 'chat' ||
-      triggerType === 'webhook' ||
-      triggerType === 'schedule' ||
-      triggerType === 'manual'
+      effectiveTriggerType === 'api' ||
+      effectiveTriggerType === 'chat' ||
+      effectiveTriggerType === 'webhook' ||
+      effectiveTriggerType === 'schedule' ||
+      effectiveTriggerType === 'manual'
     ) {
-      loggingTriggerType = triggerType as LoggingTriggerType
+      loggingTriggerType = effectiveTriggerType as LoggingTriggerType
     }
     const loggingSession = new LoggingSession(
       workflowId,
@@ -366,7 +399,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         currentUsage: usageCheck.currentUsage,
         limit: usageCheck.limit,
         workflowId,
-        triggerType,
+        triggerType: effectiveTriggerType,
       })
 
       await loggingSession.safeStart({
@@ -395,8 +428,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     // Process file fields in workflow input (base64/URL to UserFile conversion)
     let processedInput = input
+    let workflowData: NormalizedWorkflowData | null = null
     try {
-      const workflowData = shouldUseDraftState
+      workflowData = shouldUseDraftState
         ? await loadWorkflowFromNormalizedTables(workflowId)
         : await loadDeployedWorkflowState(workflowId)
 
@@ -448,6 +482,79 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       )
     }
 
+    let runFromBlockPlan:
+      | {
+          snapshotState: SerializableExecutionState
+          resumePendingQueue: string[]
+          triggerBlockId: string
+        }
+      | null = null
+
+    if (isRunFromBlock) {
+      if (!workflowData) {
+        return NextResponse.json(
+          { error: 'Unable to load workflow state for run from block execution' },
+          { status: 400 }
+        )
+      }
+
+      const startCandidate = TriggerUtils.findStartBlock(workflowData.blocks, 'manual', false)
+      if (!startCandidate) {
+        return NextResponse.json(
+          { error: 'No manual trigger block found for this workflow' },
+          { status: 400 }
+        )
+      }
+
+      const latestState = await getWorkflowExecutionState(workflowId, startCandidate.blockId)
+      if (!latestState) {
+        return NextResponse.json(
+          {
+            error:
+              'No prior execution snapshot found. Run the workflow once before using run from block.',
+          },
+          { status: 400 }
+        )
+      }
+
+      const serializedWorkflow = new Serializer().serializeWorkflow(
+        workflowData.blocks,
+        workflowData.edges,
+        workflowData.loops,
+        workflowData.parallels,
+        true
+      )
+
+      try {
+        const trimmedStartBlockId = startBlockId!.trim()
+
+        const plan = buildRunFromBlockPlan({
+          serializedWorkflow,
+          previousState: latestState.serializedState,
+          startBlockId: trimmedStartBlockId,
+        })
+
+        const triggerBlockIdForPlan = latestState.triggerBlockId || startCandidate.blockId
+
+        runFromBlockPlan = {
+          snapshotState: plan.snapshotState,
+          resumePendingQueue: plan.resumePendingQueue,
+          triggerBlockId: triggerBlockIdForPlan,
+        }
+      } catch (planError) {
+        logger.error(`[${requestId}] Failed to build run-from-block plan`, {
+          error: planError,
+        })
+        return NextResponse.json(
+          {
+            error:
+              planError instanceof Error ? planError.message : 'Unable to build run from block plan',
+          },
+          { status: 400 }
+        )
+      }
+    }
+
     if (!enableSSE) {
       logger.info(`[${requestId}] Using non-SSE execution (direct JSON response)`)
       try {
@@ -457,9 +564,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           workflowId,
           workspaceId: workflow.workspaceId,
           userId,
-          triggerType,
+          triggerType: effectiveTriggerType,
+          triggerBlockId: runFromBlockPlan?.triggerBlockId,
           useDraftState: shouldUseDraftState,
           startTime: new Date().toISOString(),
+          resumeFromSnapshot: isRunFromBlock,
+          executionMode: isRunFromBlock ? 'run_from_block' : 'full',
+          pendingBlocks: runFromBlockPlan?.resumePendingQueue,
         }
 
         const snapshot = new ExecutionSnapshot(
@@ -468,7 +579,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           processedInput,
           {},
           workflow.variables || {},
-          selectedOutputs
+          selectedOutputs,
+          runFromBlockPlan?.snapshotState
         )
 
         const result = await executeWorkflowCore({
@@ -528,7 +640,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         streamConfig: {
           selectedOutputs: resolvedSelectedOutputs,
           isSecureMode: false,
-          workflowTriggerType: triggerType === 'chat' ? 'chat' : 'api',
+        workflowTriggerType: effectiveTriggerType === 'chat' ? 'chat' : 'api',
         },
         createFilteredResult,
         executionId,
@@ -711,9 +823,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
             workflowId,
             workspaceId: workflow.workspaceId,
             userId,
-            triggerType,
+            triggerType: effectiveTriggerType,
+            triggerBlockId: runFromBlockPlan?.triggerBlockId,
             useDraftState: shouldUseDraftState,
             startTime: new Date().toISOString(),
+            resumeFromSnapshot: isRunFromBlock,
+            executionMode: isRunFromBlock ? 'run_from_block' : 'full',
+            pendingBlocks: runFromBlockPlan?.resumePendingQueue,
           }
 
           const snapshot = new ExecutionSnapshot(
@@ -722,7 +838,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
             processedInput,
             {},
             workflow.variables || {},
-            selectedOutputs
+            selectedOutputs,
+            runFromBlockPlan?.snapshotState
           )
 
           const result = await executeWorkflowCore({

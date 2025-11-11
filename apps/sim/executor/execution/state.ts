@@ -71,8 +71,29 @@ export class ExecutionState implements BlockStateController {
   }
 
   setBlockOutput(blockId: string, output: NormalizedBlockOutput, executionTime = 0): void {
-    this.blockStates.set(blockId, { output, executed: true, executionTime })
+    const existing = this.blockStates.get(blockId)
+    const inputs = existing?.inputs
+    this.blockStates.set(blockId, {
+      inputs,
+      output,
+      executed: true,
+      executionTime,
+    })
     this.executedBlocks.add(blockId)
+  }
+
+  setBlockInputs(blockId: string, inputs: Record<string, any>): void {
+    const existing = this.blockStates.get(blockId)
+    if (existing) {
+      this.blockStates.set(blockId, { ...existing, inputs })
+    } else {
+      this.blockStates.set(blockId, {
+        inputs,
+        output: {},
+        executed: false,
+        executionTime: 0,
+      })
+    }
   }
 
   setBlockState(blockId: string, state: BlockState): void {

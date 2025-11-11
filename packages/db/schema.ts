@@ -318,6 +318,43 @@ export const workflowExecutionLogs = pgTable(
   })
 )
 
+export const workflowExecutionStateStatusEnum = pgEnum('workflow_execution_state_status', [
+  'success',
+  'failed',
+  'paused',
+])
+
+export const workflowExecutionStates = pgTable(
+  'workflow_execution_states',
+  {
+    id: text('id').primaryKey(),
+    workflowId: text('workflow_id')
+      .notNull()
+      .references(() => workflow.id, { onDelete: 'cascade' }),
+    triggerBlockId: text('trigger_block_id')
+      .notNull()
+      .references(() => workflowBlocks.id, { onDelete: 'cascade' }),
+    executionId: text('execution_id').notNull(),
+    runVersion: text('run_version'),
+    serializedState: jsonb('serialized_state').notNull(),
+    resolvedInputs: jsonb('resolved_inputs').notNull().default(sql`'{}'::jsonb`),
+    resolvedOutputs: jsonb('resolved_outputs').notNull().default(sql`'{}'::jsonb`),
+    status: workflowExecutionStateStatusEnum('status').notNull().default('success'),
+    attemptAt: timestamp('attempt_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    workflowTriggerUnique: uniqueIndex('workflow_execution_states_workflow_trigger_unique').on(
+      table.workflowId,
+      table.triggerBlockId
+    ),
+    workflowIdx: index('workflow_execution_states_workflow_idx').on(table.workflowId),
+    triggerIdx: index('workflow_execution_states_trigger_idx').on(table.triggerBlockId),
+    executionIdx: index('workflow_execution_states_execution_idx').on(table.executionId),
+    statusIdx: index('workflow_execution_states_status_idx').on(table.status),
+    attemptAtIdx: index('workflow_execution_states_attempt_at_idx').on(table.attemptAt),
+  })
+)
+
 export const pausedExecutions = pgTable(
   'paused_executions',
   {

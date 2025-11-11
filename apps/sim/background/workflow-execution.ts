@@ -103,6 +103,7 @@ export async function executeWorkflowJob(payload: WorkflowExecutionPayload) {
       triggerType: payload.triggerType || 'api',
       useDraftState: false,
       startTime: new Date().toISOString(),
+      executionMode: 'full',
     }
 
     const snapshot = new ExecutionSnapshot(

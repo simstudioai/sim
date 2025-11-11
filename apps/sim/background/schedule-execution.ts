@@ -438,6 +438,7 @@ async function runWorkflowExecution({
       triggerBlockId: payload.blockId || undefined,
       useDraftState: false,
       startTime: new Date().toISOString(),
+      executionMode: 'full',
     }
 
     const snapshot = new ExecutionSnapshot(

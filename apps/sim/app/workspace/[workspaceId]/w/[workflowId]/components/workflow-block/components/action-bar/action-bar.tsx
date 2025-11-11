@@ -1,5 +1,5 @@
 import { memo, useCallback } from 'react'
-import { ArrowLeftRight, ArrowUpDown, Circle, CircleOff, LogOut } from 'lucide-react'
+import { ArrowLeftRight, ArrowUpDown, Circle, CircleOff, LogOut, Play } from 'lucide-react'
 import { Button, Duplicate, Tooltip, Trash2 } from '@/components/emcn'
 import { cn } from '@/lib/utils'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
@@ -16,6 +16,10 @@ interface ActionBarProps {
   blockType: string
   /** Whether the action bar is disabled */
   disabled?: boolean
+  /** Whether an execution is currently in progress */
+  isExecuting?: boolean
+  /** Handler to run the workflow starting from this block */
+  onRunFromBlock?: (blockId: string) => Promise<any> | void
 }
 
 /**
@@ -25,7 +29,13 @@ interface ActionBarProps {
  * @component
  */
 export const ActionBar = memo(
-  function ActionBar({ blockId, blockType, disabled = false }: ActionBarProps) {
+  function ActionBar({
+    blockId,
+    blockType,
+    disabled = false,
+    isExecuting = false,
+    onRunFromBlock,
+  }: ActionBarProps) {
     const {
       collaborativeRemoveBlock,
       collaborativeToggleBlockEnabled,
@@ -69,6 +79,8 @@ export const ActionBar = memo(
       return defaultMessage
     }
 
+    const canRunFromBlock = !disabled && !isExecuting && Boolean(onRunFromBlock)
+
     return (
       <div
         className={cn(
@@ -78,6 +90,26 @@ export const ActionBar = memo(
           'gap-[6px] rounded-[10px] bg-[#242424] p-[6px]'
         )}
       >
+        {onRunFromBlock && (
+          <Tooltip.Root>
+            <Tooltip.Trigger asChild>
+              <Button
+                variant='ghost'
+                onClick={() => {
+                  if (canRunFromBlock) {
+                    onRunFromBlock?.(blockId)
+                  }
+                }}
+                className='h-[30px] w-[30px] rounded-[8px] bg-[#363636] p-0 text-[#868686] hover:bg-[#33B4FF] hover:text-[#1B1B1B] dark:text-[#868686] dark:hover:bg-[#33B4FF] dark:hover:text-[#1B1B1B]'
+                disabled={!canRunFromBlock}
+              >
+                <Play className='h-[14px] w-[14px]' />
+              </Button>
+            </Tooltip.Trigger>
+            <Tooltip.Content side='right'>{getTooltipMessage('Run From Here')}</Tooltip.Content>
+          </Tooltip.Root>
+        )}
+
         <Tooltip.Root>
           <Tooltip.Trigger asChild>
             <Button
@@ -204,7 +236,9 @@ export const ActionBar = memo(
     return (
       prevProps.blockId === nextProps.blockId &&
       prevProps.blockType === nextProps.blockType &&
-      prevProps.disabled === nextProps.disabled
+      prevProps.disabled === nextProps.disabled &&
+      prevProps.isExecuting === nextProps.isExecuting &&
+      prevProps.onRunFromBlock === nextProps.onRunFromBlock
     )
   }
 )

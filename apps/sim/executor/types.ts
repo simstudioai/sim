@@ -136,9 +136,11 @@ export interface ExecutionMetadata {
   triggerBlockId?: string
   useDraftState?: boolean
   resumeFromSnapshot?: boolean
+  executionMode?: 'full' | 'run_from_block' | 'resume'
 }
 
 export interface BlockState {
+  inputs?: Record<string, any>
   output: NormalizedBlockOutput
   executed: boolean
   executionTime: number

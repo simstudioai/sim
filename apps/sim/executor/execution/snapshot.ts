@@ -13,6 +13,7 @@ export interface ExecutionMetadata {
   startTime: string
   pendingBlocks?: string[]
   resumeFromSnapshot?: boolean
+  executionMode?: 'full' | 'run_from_block' | 'resume'
 }
 
 export interface ExecutionCallbacks {

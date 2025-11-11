@@ -55,6 +55,38 @@ function serializeParallelExecutions(
   return result
 }
 
+export function buildSerializableExecutionState(
+  context: ExecutionContext,
+  dag?: DAG,
+  pendingQueue: string[] = []
+): SerializableExecutionState {
+  const dagIncomingEdges: Record<string, string[]> | undefined = dag
+    ? Object.fromEntries(
+        Array.from(dag.nodes.entries()).map(([nodeId, node]) => [
+          nodeId,
+          Array.from(node.incomingEdges),
+        ])
+      )
+    : undefined
+
+  return {
+    blockStates: Object.fromEntries(context.blockStates),
+    executedBlocks: Array.from(context.executedBlocks),
+    blockLogs: context.blockLogs,
+    decisions: {
+      router: Object.fromEntries(context.decisions.router),
+      condition: Object.fromEntries(context.decisions.condition),
+    },
+    completedLoops: Array.from(context.completedLoops),
+    loopExecutions: serializeLoopExecutions(context.loopExecutions),
+    parallelExecutions: serializeParallelExecutions(context.parallelExecutions),
+    parallelBlockMapping: mapFromEntries(context.parallelBlockMapping),
+    activeExecutionPath: Array.from(context.activeExecutionPath),
+    pendingQueue,
+    dagIncomingEdges,
+  }
+}
+
 export function serializePauseSnapshot(
   context: ExecutionContext,
   triggerBlockIds: string[],
@@ -70,31 +102,7 @@ export function serializePauseSnapshot(
     useDraftState = true
   }
 
-  const dagIncomingEdges: Record<string, string[]> | undefined = dag
-    ? Object.fromEntries(
-        Array.from(dag.nodes.entries()).map(([nodeId, node]) => [
-          nodeId,
-          Array.from(node.incomingEdges),
-        ])
-      )
-    : undefined
-
-  const state: SerializableExecutionState = {
-    blockStates: Object.fromEntries(context.blockStates),
-    executedBlocks: Array.from(context.executedBlocks),
-    blockLogs: context.blockLogs,
-    decisions: {
-      router: Object.fromEntries(context.decisions.router),
-      condition: Object.fromEntries(context.decisions.condition),
-    },
-    completedLoops: Array.from(context.completedLoops),
-    loopExecutions: serializeLoopExecutions(context.loopExecutions),
-    parallelExecutions: serializeParallelExecutions(context.parallelExecutions),
-    parallelBlockMapping: mapFromEntries(context.parallelBlockMapping),
-    activeExecutionPath: Array.from(context.activeExecutionPath),
-    pendingQueue: triggerBlockIds,
-    dagIncomingEdges,
-  }
+  const state = buildSerializableExecutionState(context, dag, triggerBlockIds)
 
   const executionMetadata = {
     requestId:

@@ -643,7 +643,11 @@ export function useWorkflowExecution() {
     onStream?: (se: StreamingExecution) => Promise<void>,
     executionId?: string,
     onBlockComplete?: (blockId: string, output: any) => Promise<void>,
-    overrideTriggerType?: 'chat' | 'manual' | 'api'
+    overrideTriggerType?: 'chat' | 'manual' | 'api',
+    overrides?: {
+      startBlockId?: string
+      executionMode?: 'run_from_block'
+    }
   ): Promise<ExecutionResult | StreamingExecution> => {
     // Use currentWorkflow but check if we're in diff mode
     const { blocks: workflowBlocks, edges: workflowEdges } = currentWorkflow
@@ -725,10 +729,19 @@ export function useWorkflowExecution() {
     }
 
     // Determine start block and workflow input based on execution type
-    let startBlockId: string | undefined
+    const overrideStartBlockId = overrides?.startBlockId?.trim()
+
+    let startBlockId: string | undefined = overrideStartBlockId
     let finalWorkflowInput = workflowInput
 
-    if (isExecutingFromChat) {
+    if (overrideStartBlockId) {
+      if (!filteredStates[overrideStartBlockId]) {
+        setIsExecuting(false)
+        throw new Error('Selected block is not part of this workflow')
+      }
+    }
+
+    if (!startBlockId && isExecutingFromChat) {
       // For chat execution, find the appropriate chat trigger
       const startBlock = TriggerUtils.findStartBlock(filteredStates, 'chat')
 
@@ -737,7 +750,7 @@ export function useWorkflowExecution() {
       }
 
       startBlockId = startBlock.blockId
-    } else {
+    } else if (!startBlockId) {
       // Manual execution: detect and group triggers by paths
       const candidates = resolveStartCandidates(filteredStates, {
         execution: 'manual',
@@ -838,6 +851,7 @@ export function useWorkflowExecution() {
           selectedOutputs,
           triggerType: overrideTriggerType || 'manual',
           useDraftState: true,
+          executionMode: overrides?.executionMode,
           callbacks: {
             onExecutionStarted: (data) => {
               logger.info('Server execution started:', data)
@@ -1211,6 +1225,63 @@ export function useWorkflowExecution() {
   /**
    * Handles cancelling the current debugging session
    */
+  const handleRunFromBlock = useCallback(
+    async (blockId: string) => {
+      if (!activeWorkflowId || !blockId?.trim()) {
+        logger.warn('Run from block requested without active workflow or block id')
+        return
+      }
+
+      setExecutionResult(null)
+      setIsExecuting(true)
+      setIsDebugging(false)
+
+      try {
+        const runResult = await executeWorkflow(
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          'manual',
+          {
+            startBlockId: blockId,
+            executionMode: 'run_from_block',
+          }
+        )
+
+        if (runResult && 'metadata' in runResult && runResult.metadata?.isDebugSession) {
+          setDebugContext(runResult.metadata.context || null)
+          if (runResult.metadata.pendingBlocks) {
+            setPendingBlocks(runResult.metadata.pendingBlocks)
+          }
+        } else if (runResult && 'success' in runResult) {
+          setExecutionResult(runResult)
+          setIsExecuting(false)
+          setIsDebugging(false)
+          setActiveBlocks(new Set())
+        }
+
+        return runResult
+      } catch (error) {
+        return handleExecutionError(error, { executionId: undefined })
+      }
+    },
+    [
+      activeWorkflowId,
+      executeWorkflow,
+      handleExecutionError,
+      setExecutionResult,
+      setIsExecuting,
+      setIsDebugging,
+      setDebugContext,
+      setPendingBlocks,
+      setActiveBlocks,
+    ]
+  )
+
+  /**
+   * Handles cancelling the current debugging session
+   */
   const handleCancelDebug = useCallback(() => {
     logger.info('Debug session cancelled')
     resetDebugState()
@@ -1249,6 +1320,7 @@ export function useWorkflowExecution() {
     pendingBlocks,
     executionResult,
     handleRunWorkflow,
+    handleRunFromBlock,
     handleStepDebug,
     handleResumeDebug,
     handleCancelDebug,

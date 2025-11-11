@@ -61,6 +61,7 @@ export interface ExecuteStreamOptions {
   startBlockId?: string
   triggerType?: string
   useDraftState?: boolean
+  executionMode?: 'run_from_block'
   callbacks?: ExecutionStreamCallbacks
 }
 
