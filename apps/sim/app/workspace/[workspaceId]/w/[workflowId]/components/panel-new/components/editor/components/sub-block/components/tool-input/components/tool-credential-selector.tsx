@@ -20,8 +20,8 @@ import {
   parseProvider,
 } from '@/lib/oauth'
 import { OAuthRequiredModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/components/sub-block/components/credential-selector/components/oauth-required-modal'
-import { useDisplayNamesStore } from '@/stores/display-names/store'
 import { getMissingRequiredScopes } from '@/hooks/use-oauth-scope-status'
+import { useDisplayNamesStore } from '@/stores/display-names/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 const logger = createLogger('ToolCredentialSelector')

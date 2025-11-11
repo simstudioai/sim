@@ -26,8 +26,8 @@ import { OAuthRequiredModal } from '@/app/workspace/[workspaceId]/w/[workflowId]
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/components/sub-block/hooks/use-sub-block-value'
 import type { SubBlockConfig } from '@/blocks/types'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
-import { useDisplayNamesStore } from '@/stores/display-names/store'
 import { getMissingRequiredScopes } from '@/hooks/use-oauth-scope-status'
+import { useDisplayNamesStore } from '@/stores/display-names/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 const logger = createLogger('CredentialSelector')
