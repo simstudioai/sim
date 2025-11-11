@@ -1,4 +1,5 @@
 import type React from 'react'
+import { useState } from 'react'
 import { ChevronDown, ChevronRight, Code, Cpu, ExternalLink } from 'lucide-react'
 import { Tooltip } from '@/components/emcn'
 import {
@@ -29,9 +30,8 @@ interface TraceSpanItemProps {
   onToggle: (spanId: string, expanded: boolean, hasSubItems: boolean) => void
   expandedSpans: Set<string>
   hasSubItems?: boolean
-  hoveredPercent?: number | null
-  hoveredWorkflowMs?: number | null
-  forwardHover: (clientX: number, clientY: number) => void
+  onTimelineHover?: (clientX: number, clientY: number, rect: DOMRect) => void
+  onTimelineLeave?: () => void
   gapBeforeMs?: number
   gapBeforePercent?: number
   showRelativeChip?: boolean
@@ -52,13 +52,14 @@ export function TraceSpanItem({
   workflowStartTime,
   onToggle,
   expandedSpans,
-  hoveredPercent,
-  forwardHover,
+  onTimelineHover,
+  onTimelineLeave,
   gapBeforeMs = 0,
   gapBeforePercent = 0,
   showRelativeChip = true,
   chipVisibility = { model: true, toolProvider: true, tokens: true, cost: true, relative: true },
 }: TraceSpanItemProps): React.ReactNode {
+  const [localHoveredPercent, setLocalHoveredPercent] = useState<number | null>(null)
   const spanId = span.id || `span-${span.name}-${span.startTime}`
   const expanded = expandedSpans.has(spanId)
   const hasChildren = span.children && span.children.length > 0
@@ -427,9 +428,18 @@ export function TraceSpanItem({
             style={{ width: 'calc(45% - 73px)', pointerEvents: 'none' }}
           >
             <div
-              className='relative h-2 w-full overflow-visible rounded-full bg-accent/30'
+              className='relative h-2 w-full overflow-hidden bg-accent/30'
               style={{ pointerEvents: 'auto' }}
-              onPointerMove={(e) => forwardHover(e.clientX, e.clientY)}
+              onPointerMove={(e) => {
+                const rect = e.currentTarget.getBoundingClientRect()
+                const clamped = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width))
+                setLocalHoveredPercent(clamped * 100)
+                onTimelineHover?.(e.clientX, e.clientY, rect)
+              }}
+              onPointerLeave={() => {
+                setLocalHoveredPercent(null)
+                onTimelineLeave?.()
+              }}
             >
               {gapBeforeMs > 5 && (
                 <div
@@ -456,7 +466,6 @@ export function TraceSpanItem({
                   ? 'rgba(148, 163, 184, 0.28)'
                   : 'rgba(148, 163, 184, 0.32)'
                 const baseColor = type === 'workflow' ? neutralRail : softenColor(spanColor, isDark)
-                const isFlatBase = type !== 'workflow'
                 return (
                   <div
                     className='absolute h-full'
@@ -464,7 +473,6 @@ export function TraceSpanItem({
                       left: `${safeStartPercent}%`,
                       width: `${safeWidthPercent}%`,
                       backgroundColor: baseColor,
-                      borderRadius: isFlatBase ? 0 : 9999,
                       zIndex: 5,
                     }}
                   />
@@ -600,13 +608,15 @@ export function TraceSpanItem({
                     )
                   })
               })()}
-              {hoveredPercent != null && (
+              {localHoveredPercent != null && (
                 <div
-                  className='pointer-events-none absolute top-[-10px] bottom-[-10px] w-px bg-black/30 dark:bg-white/45'
-                  style={{ left: `${Math.max(0, Math.min(100, hoveredPercent))}%`, zIndex: 12 }}
+                  className='pointer-events-none absolute inset-y-0 w-px bg-black/30 dark:bg-white/45'
+                  style={{
+                    left: `${Math.max(0, Math.min(100, localHoveredPercent))}%`,
+                    zIndex: 12,
+                  }}
                 />
               )}
-              <div className='absolute inset-x-0 inset-y-[-12px] cursor-crosshair' />
             </div>
           </div>
 
@@ -658,7 +668,8 @@ export function TraceSpanItem({
                     onToggle={onToggle}
                     expandedSpans={expandedSpans}
                     hasSubItems={childHasSubItems}
-                    forwardHover={forwardHover}
+                    onTimelineHover={onTimelineHover}
+                    onTimelineLeave={onTimelineLeave}
                     gapBeforeMs={childGapMs}
                     gapBeforePercent={childGapPercent}
                     showRelativeChip={chipVisibility.relative}
@@ -707,7 +718,8 @@ export function TraceSpanItem({
                     onToggle={onToggle}
                     expandedSpans={expandedSpans}
                     hasSubItems={hasToolCallData}
-                    forwardHover={forwardHover}
+                    onTimelineHover={onTimelineHover}
+                    onTimelineLeave={onTimelineLeave}
                     showRelativeChip={chipVisibility.relative}
                     chipVisibility={chipVisibility}
                   />

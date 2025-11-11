@@ -19,10 +19,9 @@ export function TraceSpans({ traceSpans, totalDuration = 0, onExpansionChange }:
   const [expandedSpans, setExpandedSpans] = useState<Set<string>>(new Set())
   const [typeFilters, setTypeFilters] = useState<Record<string, boolean>>({})
   const containerRef = useRef<HTMLDivElement | null>(null)
-  const timelineHitboxRef = useRef<HTMLDivElement | null>(null)
-  const [hoveredPercent, setHoveredPercent] = useState<number | null>(null)
   const [hoveredWorkflowMs, setHoveredWorkflowMs] = useState<number | null>(null)
   const [hoveredX, setHoveredX] = useState<number | null>(null)
+  const [hoveredY, setHoveredY] = useState<number | null>(null)
   const [containerWidth, setContainerWidth] = useState<number>(0)
 
   type ChipVisibility = {
@@ -151,39 +150,24 @@ export function TraceSpans({ traceSpans, totalDuration = 0, onExpansionChange }:
     return traceSpans ? filterTree(traceSpans) : []
   }, [traceSpans, effectiveTypeFilters])
 
-  const forwardHover = useCallback(
-    (clientX: number, clientY: number) => {
-      if (!timelineHitboxRef.current || !containerRef.current) return
-
-      const railRect = timelineHitboxRef.current.getBoundingClientRect()
+  const handleTimelineHover = useCallback(
+    (clientX: number, clientY: number, timelineRect: DOMRect) => {
+      if (!containerRef.current) return
       const containerRect = containerRef.current.getBoundingClientRect()
+      const clamped = Math.max(0, Math.min(1, (clientX - timelineRect.left) / timelineRect.width))
 
-      const withinX = clientX >= railRect.left && clientX <= railRect.right
-      const withinY = clientY >= railRect.top && clientY <= railRect.bottom
-
-      if (!withinX || !withinY) {
-        setHoveredPercent(null)
-        setHoveredWorkflowMs(null)
-        setHoveredX(null)
-        return
-      }
-
-      const clamped = Math.max(0, Math.min(1, (clientX - railRect.left) / railRect.width))
-      setHoveredPercent(clamped * 100)
       setHoveredWorkflowMs(workflowStartTime + clamped * actualTotalDuration)
-      setHoveredX(railRect.left + clamped * railRect.width - containerRect.left)
+      setHoveredX(timelineRect.left + clamped * timelineRect.width - containerRect.left)
+      setHoveredY(timelineRect.top - containerRect.top)
     },
     [actualTotalDuration, workflowStartTime]
   )
 
-  useEffect(() => {
-    const handleMove = (event: MouseEvent) => {
-      forwardHover(event.clientX, event.clientY)
-    }
-
-    window.addEventListener('pointermove', handleMove)
-    return () => window.removeEventListener('pointermove', handleMove)
-  }, [forwardHover])
+  const handleTimelineLeave = useCallback(() => {
+    setHoveredWorkflowMs(null)
+    setHoveredX(null)
+    setHoveredY(null)
+  }, [])
 
   useEffect(() => {
     if (!containerRef.current) return
@@ -203,7 +187,7 @@ export function TraceSpans({ traceSpans, totalDuration = 0, onExpansionChange }:
   }
 
   return (
-    <div className='w-full'>
+    <div className='relative w-full'>
       <div className='mb-2 flex items-center justify-between'>
         <div className='flex items-center gap-2'>
           <div className='font-medium text-muted-foreground text-xs'>Workflow Execution</div>
@@ -234,11 +218,6 @@ export function TraceSpans({ traceSpans, totalDuration = 0, onExpansionChange }:
       <div
         ref={containerRef}
         className='relative w-full overflow-hidden rounded-md border shadow-sm'
-        onMouseLeave={() => {
-          setHoveredPercent(null)
-          setHoveredWorkflowMs(null)
-          setHoveredX(null)
-        }}
       >
         {filtered.map((span, index) => {
           const normalizedSpan = normalizeChildWorkflowSpan(span)
@@ -276,9 +255,8 @@ export function TraceSpans({ traceSpans, totalDuration = 0, onExpansionChange }:
               onToggle={handleSpanToggle}
               expandedSpans={expandedSpans}
               hasSubItems={hasSubItems}
-              hoveredPercent={hoveredPercent}
-              hoveredWorkflowMs={hoveredWorkflowMs}
-              forwardHover={forwardHover}
+              onTimelineHover={handleTimelineHover}
+              onTimelineLeave={handleTimelineLeave}
               gapBeforeMs={gapMs}
               gapBeforePercent={gapPercent}
               showRelativeChip={chipVisibility.relative}
@@ -286,29 +264,17 @@ export function TraceSpans({ traceSpans, totalDuration = 0, onExpansionChange }:
             />
           )
         })}
-
-        {/* Time label for hover (keep top label, row lines render per-row) */}
-        {hoveredPercent !== null && hoveredX !== null && (
-          <div
-            className='-translate-x-1/2 pointer-events-none absolute top-1 rounded bg-popover px-1.5 py-0.5 text-[10px] text-foreground shadow'
-            style={{ left: hoveredX, zIndex: 20 }}
-          >
-            {formatDurationDisplay(Math.max(0, (hoveredWorkflowMs || 0) - workflowStartTime))}
-          </div>
-        )}
-
-        {/* Hover capture area - aligned to timeline bars, not extending to edge */}
-        <div
-          ref={timelineHitboxRef}
-          className='pointer-events-auto absolute inset-y-0 right-[73px] w-[calc(45%-73px)]'
-          onPointerMove={(e) => forwardHover(e.clientX, e.clientY)}
-          onPointerLeave={() => {
-            setHoveredPercent(null)
-            setHoveredWorkflowMs(null)
-            setHoveredX(null)
-          }}
-        />
       </div>
+
+      {/* Time label for hover (positioned at top of timeline) */}
+      {hoveredWorkflowMs !== null && hoveredX !== null && hoveredY !== null && (
+        <div
+          className='-translate-x-1/2 pointer-events-none absolute rounded border bg-popover px-1.5 py-0.5 font-mono text-[10px] text-foreground shadow-lg'
+          style={{ left: hoveredX, top: hoveredY, zIndex: 20 }}
+        >
+          {formatDurationDisplay(Math.max(0, (hoveredWorkflowMs || 0) - workflowStartTime))}
+        </div>
+      )}
     </div>
   )
 }
