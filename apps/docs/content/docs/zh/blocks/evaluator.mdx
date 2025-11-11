@@ -3,12 +3,10 @@ title: Evaluator
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
-import { Step, Steps } from 'fumadocs-ui/components/steps'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 import { Image } from '@/components/ui/image'
-import { Video } from '@/components/ui/video'
 
-Evaluator 模块使用 AI 根据您定义的可自定义评估指标对内容质量进行评分和评估。非常适合质量控制、A/B 测试以及确保您的 AI 输出符合特定标准。
+Evaluator 模块使用 AI 根据自定义指标对内容质量进行评分和评估。非常适合质量控制、A/B 测试，以及确保 AI 输出符合特定标准。
 
 <div className="flex justify-center">
   <Image
@@ -20,39 +18,11 @@ Evaluator 模块使用 AI 根据您定义的可自定义评估指标对内容质
   />
 </div>
 
-## 概述
-
-Evaluator 模块可以让您：
-
-<Steps>
-  <Step>
-    <strong>评分内容质量</strong>：使用 AI 根据自定义指标对内容进行数值评分
-  </Step>
-  <Step>
-    <strong>定义自定义指标</strong>：创建针对您的使用场景量身定制的评估标准  
-  </Step>
-  <Step>
-    <strong>自动化质量控制</strong>：构建自动评估和筛选内容的工作流程
-  </Step>
-  <Step>
-    <strong>跟踪性能</strong>：通过客观评分监控改进和一致性
-  </Step>
-</Steps>
-
-## 工作原理
-
-Evaluator 模块通过 AI 驱动的评估处理内容：
-
-1. **接收内容** - 从工作流程中的前置模块接收输入内容
-2. **应用指标** - 根据您定义的自定义指标评估内容  
-3. **生成评分** - AI 模型为每个指标分配数值评分
-4. **提供总结** - 返回包含评分和解释的详细评估
-
 ## 配置选项
 
 ### 评估指标
 
-定义自定义指标以评估内容。每个指标包括：
+定义用于评估内容的自定义指标。每个指标包括：
 
 - **名称**：指标的简短标识符
 - **描述**：对指标测量内容的详细说明
@@ -68,132 +38,59 @@ Relevance (1-5): How relevant is the content to the original query?
 
 ### 内容
 
-需要评估的内容。这可以是：
+需要评估的内容可以是：
 
-- 直接在模块配置中提供
-- 从另一个模块的输出连接（通常是 Agent 模块）
+- 在模块配置中直接提供
+- 从另一个模块的输出（通常是 Agent 模块）连接
 - 在工作流执行期间动态生成
 
 ### 模型选择
 
 选择一个 AI 模型来执行评估：
 
-**OpenAI**：GPT-4o、o1、o3、o4-mini、gpt-4.1
-**Anthropic**：Claude 3.7 Sonnet
-**Google**：Gemini 2.5 Pro、Gemini 2.0 Flash
-**其他提供商**：Groq、Cerebras、xAI、DeepSeek
-**本地模型**：任何在 Ollama 上运行的模型
+- **OpenAI**：GPT-4o, o1, o3, o4-mini, gpt-4.1
+- **Anthropic**：Claude 3.7 Sonnet
+- **Google**：Gemini 2.5 Pro, Gemini 2.0 Flash
+- **其他提供商**：Groq, Cerebras, xAI, DeepSeek
+- **本地模型**：支持 Ollama 的模型
 
-<div className="w-full max-w-2xl mx-auto overflow-hidden rounded-lg">
-  <Video src="models.mp4" width={500} height={350} />
-</div>
-
-**推荐**：使用具有强大推理能力的模型，例如 GPT-4o 或 Claude 3.7 Sonnet，以获得更准确的评估。
+使用具有强大推理能力的模型，例如 GPT-4o 或 Claude 3.7 Sonnet，以获得最佳效果。
 
 ### API 密钥
 
-您为所选 LLM 提供商设置的 API 密钥。此密钥将被安全存储并用于身份验证。
-
-## 工作原理
-
-1. Evaluator 模块接收提供的内容和您的自定义指标
-2. 它生成一个专门的提示，指示 LLM 评估内容
-3. 提示中包含关于如何对每个指标评分的明确指南
-4. LLM 评估内容并返回每个指标的数值评分
-5. Evaluator 模块将这些评分格式化为结构化输出，以便在您的工作流中使用
+您所选 LLM 提供商的 API 密钥。此密钥会被安全存储并用于身份验证。
 
 ## 示例用例
 
-### 内容质量评估
+**内容质量评估** - 在发布前评估内容
 
-<div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">场景：在发布前评估博客文章的质量</h4>
-  <ol className="list-decimal pl-5 text-sm">
-    <li>Agent 模块生成博客文章内容</li>
-    <li>Evaluator 评估准确性、可读性和吸引力</li>
-    <li>Condition 模块检查评分是否达到最低阈值</li>
-    <li>高分 → 发布，低分 → 修改并重试</li>
-  </ol>
-</div>
+```
+Agent (Generate) → Evaluator (Score) → Condition (Check threshold) → Publish or Revise
+```
 
-### A/B 测试内容
+**A/B 测试内容** - 比较多个 AI 生成的响应
 
-<div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">场景：比较多个 AI 生成的回复</h4>
-  <ol className="list-decimal pl-5 text-sm">
-    <li>并行模块生成多个回复变体</li>
-    <li>评估者根据清晰度和相关性为每个变体评分</li>
-    <li>功能模块选择得分最高的回复</li>
-    <li>回复模块返回最佳结果</li>
-  </ol>
-</div>
+```
+Parallel (Variations) → Evaluator (Score Each) → Function (Select Best) → Response
+```
 
-### 客户支持质量控制
+**客户支持质量控制** - 确保响应符合质量标准
 
-<div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">场景：确保支持回复符合质量标准</h4>
-  <ol className="list-decimal pl-5 text-sm">
-    <li>支持代理生成对客户询问的回复</li>
-    <li>评估者对回复的有用性、同理心和准确性进行评分</li>
-    <li>评分记录用于培训和绩效监控</li>
-    <li>低评分会触发人工审核流程</li>
-  </ol>
-</div>
+```
+Agent (Support Response) → Evaluator (Score) → Function (Log) → Condition (Review if Low)
+```
 
-## 输入和输出
+## 输出
 
-<Tabs items={['Configuration', 'Variables', 'Results']}>
-  <Tab>
-    <ul className="list-disc space-y-2 pl-6">
-      <li>
-        <strong>内容</strong>：需要评估的文本或结构化数据
-      </li>
-      <li>
-        <strong>评估指标</strong>：带有评分范围的自定义标准
-      </li>
-      <li>
-        <strong>模型</strong>：用于评估分析的 AI 模型
-      </li>
-      <li>
-        <strong>API 密钥</strong>：选定 LLM 提供商的身份验证
-      </li>
-    </ul>
-  </Tab>
-  <Tab>
-    <ul className="list-disc space-y-2 pl-6">
-      <li>
-        <strong>evaluator.content</strong>：评估摘要
-      </li>
-      <li>
-        <strong>evaluator.model</strong>：用于评估的模型
-      </li>
-      <li>
-        <strong>evaluator.tokens</strong>：令牌使用统计
-      </li>
-      <li>
-        <strong>evaluator.cost</strong>：评估调用的成本摘要
-      </li>
-    </ul>
-  </Tab>
-  <Tab>
-    <ul className="list-disc space-y-2 pl-6">
-      <li>
-        <strong>指标评分</strong>：每个定义指标的数值评分
-      </li>
-      <li>
-        <strong>评估摘要</strong>：带有解释的详细评估
-      </li>
-      <li>
-        <strong>访问</strong>：在评估器之后的模块中可用
-      </li>
-    </ul>
-  </Tab>
-</Tabs>
+- **`<evaluator.content>`**：评估摘要及评分
+- **`<evaluator.model>`**：用于评估的模型
+- **`<evaluator.tokens>`**：令牌使用统计
+- **`<evaluator.cost>`**：评估成本估算
 
 ## 最佳实践
 
-- **使用具体的指标描述**：清楚定义每个指标的衡量内容，以获得更准确的评估
-- **选择合适的范围**：选择提供足够细分但不过于复杂的评分范围
-- **与代理模块连接**：使用评估器模块评估代理模块的输出并创建反馈循环
-- **使用一致的指标**：在比较分析中，保持类似评估的一致指标
-- **结合多个指标**：使用多个指标以获得全面的评估
+- **使用具体的指标描述**：清晰定义每个指标的衡量内容，以获得更准确的评估
+- **选择合适的范围**：选择提供足够细粒度但不过于复杂的评分范围
+- **与 Agent 模块连接**：使用 Evaluator 模块评估 Agent 模块的输出并创建反馈循环
+- **使用一致的指标**：为了进行比较分析，在类似评估中保持指标的一致性
+- **结合多种指标**：使用多种指标以获得全面的评估

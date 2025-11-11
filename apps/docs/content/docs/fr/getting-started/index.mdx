@@ -24,20 +24,19 @@ import {
 import { Video } from '@/components/ui/video'
 import { Image } from '@/components/ui/image'
 
-Ce tutoriel vous guidera dans la création de votre premier flux de travail IA dans Sim. Nous allons créer un agent de recherche de personnes capable de trouver des informations sur des individus en utilisant des outils de recherche LLM à la pointe de la technologie.
+Créez votre premier flux de travail IA en 10 minutes. Dans ce tutoriel, vous allez créer un agent de recherche de personnes qui utilise des outils de recherche avancés alimentés par LLM pour extraire et structurer des informations sur des individus.
 
 <Callout type="info">
-  Ce tutoriel prend environ 10 minutes et couvre les concepts essentiels de la création de flux de travail dans Sim.
+  Ce tutoriel couvre les concepts essentiels de la création de flux de travail dans Sim. Temps estimé pour compléter : 10 minutes.
 </Callout>
 
-## Ce que nous allons construire
+## Ce que vous allez créer
 
 Un agent de recherche de personnes qui :
-1. Reçoit le nom d'une personne via une interface de chat
-2. Utilise un agent IA avec des capacités de recherche avancées
-3. Effectue des recherches sur le web à l'aide d'outils LLM-Search de pointe (Exa et Linkup)
-4. Extrait des informations structurées à l'aide d'un format de réponse
-5. Renvoie des données complètes sur la personne
+1. Accepte les entrées utilisateur via une interface de chat
+2. Recherche sur le web en utilisant des outils alimentés par l'IA (Exa et Linkup)
+3. Extrait et structure les informations sur les individus
+4. Renvoie des données JSON formatées avec la localisation, la profession et l'éducation
 
 <Image
   src="/static/getting-started/started-1.png"
@@ -50,73 +49,70 @@ Un agent de recherche de personnes qui :
 
 <Steps>
   <Step title="Créer un flux de travail et ajouter un agent IA">
-    Ouvrez Sim et cliquez sur « Nouveau flux de travail » dans le tableau de bord. Nommez-le « Premiers pas ».
+    Cliquez sur **Nouveau flux de travail** dans le tableau de bord et nommez-le "Premiers pas".
     
-    Lorsque vous créez un nouveau flux de travail, il inclut automatiquement un **bloc de démarrage** - c'est le point d'entrée qui reçoit les données des utilisateurs. Pour cet exemple, nous allons déclencher le flux de travail via le chat, donc nous n'avons pas besoin de configurer quoi que ce soit sur le bloc de démarrage.
+    Chaque nouveau flux de travail inclut un **bloc Démarrage** par défaut—c'est le point d'entrée qui reçoit les entrées utilisateur. Comme nous allons déclencher ce flux de travail via le chat, aucune configuration n'est nécessaire pour le bloc Démarrage.
     
-    Maintenant, faites glisser un **bloc Agent** sur le canevas depuis le panneau de blocs à gauche.
-    
-    Configurez le bloc Agent :
-    - **Modèle** : sélectionnez « OpenAI GPT-4o »
-    - **Invite système** : « Vous êtes un agent de recherche de personnes. Lorsqu'on vous donne le nom d'une personne, utilisez vos outils de recherche disponibles pour trouver des informations complètes sur elle, notamment son lieu de résidence, sa profession, son parcours éducatif et d'autres détails pertinents. »
-    - **Invite utilisateur** : faites glisser la connexion depuis la sortie du bloc de démarrage dans ce champ (cela connecte `<start.input>` à l'invite utilisateur)
+    Faites glisser un **Bloc Agent** sur le canevas depuis le panneau de gauche et configurez-le :
+    - **Modèle** : Sélectionnez "OpenAI GPT-4o"
+    - **Invite système** : "Vous êtes un agent de recherche de personnes. Lorsqu'on vous donne le nom d'une personne, utilisez vos outils de recherche disponibles pour trouver des informations complètes sur elle, notamment sa localisation, sa profession, son parcours éducatif et d'autres détails pertinents."
+    - **Invite utilisateur** : Faites glisser la connexion depuis la sortie du bloc Démarrage vers ce champ pour connecter `<start.input>` à l'invite utilisateur
     
     <div className="mx-auto w-full overflow-hidden rounded-lg">
       <Video src="getting-started/started-2.mp4" width={700} height={450} />
     </div>
   </Step>
   
-  <Step title="Ajouter des outils à l'agent">
-    Améliorons notre agent avec des outils pour de meilleures capacités. Cliquez sur le bloc Agent pour le sélectionner.
+  <Step title="Ajouter des outils de recherche à l'agent">
+    Améliorez votre agent avec des capacités de recherche web. Cliquez sur le bloc Agent pour le sélectionner.
     
     Dans la section **Outils** :
     - Cliquez sur **Ajouter un outil**
-    - Sélectionnez **Exa** parmi les outils disponibles
-    - Sélectionnez **Linkup** parmi les outils disponibles
-    - Ajoutez vos clés API pour les deux outils (cela permet à l'agent de rechercher sur le web et d'accéder à des informations supplémentaires)
+    - Sélectionnez **Exa** et **Linkup** parmi les outils disponibles
+    - Fournissez vos clés API pour les deux outils afin d'activer la recherche web et l'accès aux données
     
     <div className="mx-auto w-3/5 overflow-hidden rounded-lg">
       <Video src="getting-started/started-3.mp4" width={700} height={450} />
     </div>
   </Step>
   
-  <Step title="Tester le flux de travail de base">
-    Testons maintenant notre flux de travail. Allez dans le **panneau de chat** sur le côté droit de l'écran.
+  <Step title="Tester votre flux de travail">
+    Testez votre flux de travail en utilisant le **panneau de chat** sur le côté droit de l'écran.
     
     Dans le panneau de chat :
-    - Cliquez sur le menu déroulant et sélectionnez `agent1.content` (cela nous montrera la sortie de notre agent)
-    - Entrez un message de test comme : « John est un ingénieur logiciel de San Francisco qui a étudié l'informatique à l'Université Stanford. »
-    - Cliquez sur « Envoyer » pour exécuter le flux de travail
+    - Cliquez sur le menu déroulant et sélectionnez `agent1.content` pour voir la sortie de l'agent
+    - Entrez un message test : "John est un ingénieur logiciel de San Francisco qui a étudié l'informatique à l'Université Stanford."
+    - Cliquez sur **Envoyer** pour exécuter le flux de travail
     
-    Vous devriez voir la réponse de l'agent analysant la personne décrite dans votre texte.
+    L'agent analysera la personne et renverra des informations structurées.
     
     <div className="mx-auto w-full overflow-hidden rounded-lg">
       <Video src="getting-started/started-4.mp4" width={700} height={450} />
     </div>
   </Step>
   
-  <Step title="Ajouter une sortie structurée">
-    Maintenant, faisons en sorte que notre agent renvoie des données structurées. Cliquez sur le bloc Agent pour le sélectionner.
+  <Step title="Configurer une sortie structurée">
+    Configurez votre agent pour qu'il renvoie des données JSON structurées. Cliquez sur le bloc Agent pour le sélectionner.
     
     Dans la section **Format de réponse** :
     - Cliquez sur **l'icône de baguette magique** (✨) à côté du champ de schéma
-    - Dans l'invite qui apparaît, tapez : « créer un schéma nommé personne, qui contient lieu, profession et éducation »
-    - L'IA générera automatiquement un schéma JSON pour vous
+    - Entrez l'invite : "créer un schéma nommé personne, qui contient la localisation, la profession et l'éducation"
+    - L'IA générera automatiquement le schéma JSON
     
     <div className="mx-auto w-full overflow-hidden rounded-lg">
       <Video src="getting-started/started-5.mp4" width={700} height={450} />
     </div>
   </Step>
   
-  <Step title="Tester la sortie structurée">
-    Retournez au **panneau de chat**.
+  <Step title="Tester avec une sortie structurée">
+    Retournez au **panneau de chat** pour tester le format de réponse structurée.
     
-    Comme nous avons ajouté un format de réponse, de nouvelles options de sortie sont maintenant disponibles :
-    - Cliquez sur le menu déroulant et sélectionnez la nouvelle option de sortie structurée (le schéma que nous venons de créer)
-    - Entrez un nouveau message de test comme : « Sarah est une responsable marketing de New York qui possède un MBA de la Harvard Business School. »
-    - Cliquez sur « Envoyer » pour exécuter à nouveau le flux de travail
+    Avec le format de réponse configuré, de nouvelles options de sortie sont maintenant disponibles :
+    - Cliquez sur le menu déroulant et sélectionnez l'option de sortie structurée (le schéma que vous venez de créer)
+    - Entrez un message test : "Sarah est une responsable marketing de New York qui possède un MBA de Harvard Business School."
+    - Cliquez sur **Envoyer** pour exécuter le flux de travail
     
-    Vous devriez maintenant voir une sortie JSON structurée avec les informations de la personne organisées en champs de lieu, profession et éducation.
+    L'agent renverra désormais une sortie JSON structurée avec les informations de la personne organisées en champs de localisation, profession et éducation.
     
     <div className="mx-auto w-full overflow-hidden rounded-lg">
       <Video src="getting-started/started-6.mp4" width={700} height={450} />
@@ -124,15 +120,15 @@ Un agent de recherche de personnes qui :
   </Step>
 </Steps>
 
-## Ce que vous venez de créer
+## Ce que vous avez construit
 
-Félicitations ! Vous avez créé votre premier flux de travail IA qui :
-- ✅ Reçoit des entrées textuelles via une interface de chat
-- ✅ Utilise l'IA pour extraire des informations à partir de texte non structuré
-- ✅ Intègre des outils externes (Exa et Linkup) pour des capacités améliorées
-- ✅ Renvoie des données JSON structurées en utilisant des schémas générés par l'IA
-- ✅ Démontre les tests et l'itération de flux de travail
-- ✅ Montre la puissance de la création visuelle de flux de travail
+Vous avez créé avec succès un flux de travail IA qui :
+- ✅ Accepte les entrées utilisateur via une interface de chat
+- ✅ Traite du texte non structuré à l'aide de l'IA
+- ✅ Intègre des outils de recherche externes (Exa et Linkup)
+- ✅ Renvoie des données JSON structurées avec des schémas générés par IA
+- ✅ Démontre des tests et des itérations en temps réel
+- ✅ Met en valeur la puissance du développement visuel sans code
 
 ## Concepts clés que vous avez appris
 
@@ -153,41 +149,48 @@ Félicitations ! Vous avez créé votre premier flux de travail IA qui :
 
 ### Concepts fondamentaux du flux de travail
 
-**Flux de données** : Les variables circulent entre les blocs en faisant glisser les connexions
+**Flux de données**  
+Connectez les blocs en faisant glisser les connexions pour transmettre des données entre les étapes du flux de travail
 
-**Interface de chat** : Testez les flux de travail en temps réel à l'aide du panneau de chat avec différentes options de sortie
+**Interface de chat**  
+Testez les flux de travail en temps réel avec le panneau de chat et sélectionnez différentes options de sortie
 
-**Intégration d'outils** : Améliorez les capacités de l'agent en ajoutant des outils externes comme Exa et Linkup
+**Intégration d'outils**  
+Étendez les capacités de l'agent en intégrant des services externes comme Exa et Linkup
 
-**Références de variables** : Accédez aux sorties des blocs en utilisant la syntaxe `<blockName.output>`
+**Références de variables**  
+Accédez aux sorties des blocs en utilisant la syntaxe `<blockName.output>`
 
-**Sortie structurée** : Utilisez des schémas JSON pour obtenir des données cohérentes et structurées de l'IA
+**Sortie structurée**  
+Définissez des schémas JSON pour garantir des réponses cohérentes et formatées de l'IA
 
-**Schémas générés par l'IA** : Utilisez la baguette magique (✨) pour générer des schémas en langage naturel
+**Schémas générés par IA**  
+Utilisez la baguette magique (✨) pour générer des schémas à partir de requêtes en langage naturel
 
-**Développement itératif** : Testez, modifiez et retestez facilement les flux de travail
+**Développement itératif**  
+Construisez, testez et affinez rapidement les flux de travail avec un retour immédiat
 
 ## Prochaines étapes
 
 <Cards>
-  <Card title="Ajouter plus de blocs" href="/blocks">
-    Découvrez les blocs API, Fonction et Condition
+  <Card title="Explorer les blocs de flux de travail" href="/blocks">
+    Découvrez les blocs API, Fonction, Condition et autres blocs de flux de travail
   </Card>
-  <Card title="Utiliser des outils" href="/tools">
-    Intégrez des services externes comme Gmail, Slack et Notion
+  <Card title="Parcourir les intégrations" href="/tools">
+    Connectez plus de 80 services dont Gmail, Slack, Notion et plus encore
   </Card>
   <Card title="Ajouter une logique personnalisée" href="/blocks/function">
-    Utilisez des blocs Fonction pour le traitement personnalisé des données
+    Écrivez des fonctions personnalisées pour un traitement avancé des données
   </Card>
   <Card title="Déployer votre flux de travail" href="/execution">
-    Rendez votre flux de travail accessible via l'API REST
+    Rendez votre flux de travail accessible via API REST ou webhooks
   </Card>
 </Cards>
 
-## Besoin d'aide ?
+## Ressources
 
-**Bloqué sur une étape ?** Consultez notre [documentation sur les blocs](/blocks) pour des explications détaillées de chaque composant.
+**Besoin d'explications détaillées ?** Consultez la [documentation des blocs](/blocks) pour des guides complets sur chaque composant.
 
-**Vous voulez voir plus d'exemples ?** Parcourez notre [documentation des outils](/tools) pour découvrir les intégrations disponibles.
+**À la recherche d'intégrations ?** Explorez la [documentation des outils](/tools) pour voir les plus de 80 intégrations disponibles.
 
-**Prêt à déployer ?** Découvrez [Exécution et déploiement](/execution) pour mettre vos flux de travail en production.
+**Prêt à passer en production ?** Découvrez [Exécution et déploiement](/execution) pour rendre vos flux de travail prêts pour la production.

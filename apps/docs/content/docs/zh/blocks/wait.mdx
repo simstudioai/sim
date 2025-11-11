@@ -33,7 +33,7 @@ import { Image } from '@/components/ui/image'
 - **分钟**：用于较长时间的暂停
 
 <Callout type="info">
-  等待模块可以通过停止工作流来取消。最大等待时间为 10 分钟。
+  通过停止工作流可以取消等待块。最大等待时间为 10 分钟。
 </Callout>
 
 ## 输出
@@ -43,41 +43,25 @@ import { Image } from '@/components/ui/image'
 
 ## 示例用例
 
-### API 速率限制
+**API 速率限制** - 在请求之间保持在 API 速率限制范围内
 
-<div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">场景：保持在 API 速率限制范围内</h4>
-  <ol className="list-decimal pl-5 text-sm">
-    <li>API 模块发出第一个请求</li>
-    <li>等待模块暂停 2 秒</li>
-    <li>API 模块发出第二个请求</li>
-    <li>流程继续而不会触发速率限制</li>
-  </ol>
-</div>
+```
+API (Request 1) → Wait (2s) → API (Request 2)
+```
 
-### 定时通知
+**定时通知** - 延迟后发送后续消息
 
-<div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">场景：发送后续消息</h4>
-  <ol className="list-decimal pl-5 text-sm">
-    <li>函数发送初始电子邮件</li>
-    <li>等待模块暂停 5 分钟</li>
-    <li>函数发送后续电子邮件</li>
-  </ol>
-</div>
+```
+Function (Send Email) → Wait (5min) → Function (Follow-up)
+```
 
-### 处理延迟
+**处理延迟** - 等待外部系统完成处理
 
-<div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">场景：等待外部系统</h4>
-  <ol className="list-decimal pl-5 text-sm">
-    <li>API 块触发外部系统中的作业</li>
-    <li>等待块暂停 30 秒</li>
-    <li>API 块检查作业完成状态</li>
-  </ol>
-</div>
+```
+API (Trigger Job) → Wait (30s) → API (Check Status)
+```
 
 ## 最佳实践
 
-- **保持合理的等待时间**：使用等待块处理最长 10 分钟的延迟。对于更长的延迟，请考虑使用计划的工作流
+- **保持合理的等待时间**：使用等待块延迟最多 10 分钟。对于更长的延迟，请考虑使用计划的工作流
 - **监控执行时间**：请记住，等待会延长工作流的总持续时间

@@ -1,0 +1,181 @@
+---
+title: Human in the Loop
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Image } from '@/components/ui/image'
+
+Der Human in the Loop Block pausiert die Workflow-Ausführung und wartet auf menschliches Eingreifen, bevor er fortfährt. Verwenden Sie ihn, um Genehmigungspunkte hinzuzufügen, Feedback zu sammeln oder zusätzliche Eingaben an kritischen Entscheidungspunkten einzuholen.
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/hitl-1.png"
+    alt="Human in the Loop Block Konfiguration"
+    width={500}
+    height={400}
+    className="my-6"
+  />
+</div>
+
+Wenn die Ausführung diesen Block erreicht, pausiert der Workflow auf unbestimmte Zeit, bis ein Mensch über das Genehmigungsportal, die API oder den Webhook eine Eingabe macht.
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/hitl-2.png"
+    alt="Human in the Loop Genehmigungsportal"
+    width={700}
+    height={500}
+    className="my-6"
+  />
+</div>
+
+## Konfigurationsoptionen
+
+### Pausierte Ausgabe
+
+Definiert, welche Daten dem Genehmigenden angezeigt werden. Dies ist der Kontext, der im Genehmigungsportal angezeigt wird, um eine fundierte Entscheidung zu ermöglichen.
+
+Verwenden Sie den visuellen Builder oder den JSON-Editor, um die Daten zu strukturieren. Referenzieren Sie Workflow-Variablen mit der `<blockName.output>` Syntax.
+
+```json
+{
+  "customerName": "<agent1.content.name>",
+  "proposedAction": "<router1.selectedPath>",
+  "confidenceScore": "<evaluator1.score>",
+  "generatedEmail": "<agent2.content>"
+}
+```
+
+### Benachrichtigung
+
+Konfiguriert, wie Genehmigende benachrichtigt werden, wenn eine Genehmigung erforderlich ist. Unterstützte Kanäle sind:
+
+- **Slack** - Nachrichten an Kanäle oder DMs
+- **Gmail** - E-Mail mit Genehmigungslink
+- **Microsoft Teams** - Team-Kanal-Benachrichtigungen
+- **SMS** - Textwarnungen über Twilio
+- **Webhooks** - Benutzerdefinierte Benachrichtigungssysteme
+
+Fügen Sie die Genehmigungs-URL (`<blockId.url>`) in Ihre Benachrichtigungsnachrichten ein, damit Genehmigende auf das Portal zugreifen können.
+
+### Fortsetzungseingabe
+
+Definiert die Felder, die Genehmigende bei der Antwort ausfüllen. Diese Daten werden nach der Fortsetzung des Workflows für nachfolgende Blöcke verfügbar.
+
+```json
+{
+  "approved": {
+    "type": "boolean",
+    "description": "Approve or reject this request"
+  },
+  "comments": {
+    "type": "string",
+    "description": "Optional feedback or explanation"
+  }
+}
+```
+
+Greifen Sie in nachfolgenden Blöcken mit `<blockId.resumeInput.fieldName>` auf Fortsetzungsdaten zu.
+
+## Genehmigungsmethoden
+
+<Tabs items={['Genehmigungsportal', 'API', 'Webhook']}>
+  <Tab>
+    ### Genehmigungsportal
+    
+    Jeder Block generiert eine eindeutige Portal-URL (`<blockId.url>`) mit einer visuellen Oberfläche, die alle pausierten Ausgabedaten und Formularfelder für die Fortsetzungseingabe anzeigt. Mobilgerätekompatibel und sicher.
+    
+    Teilen Sie diese URL in Benachrichtigungen, damit Genehmiger die Anfragen prüfen und beantworten können.
+  </Tab>
+  <Tab>
+    ### REST API
+    
+    Workflows programmatisch fortsetzen:
+    
+
+    ```bash
+    POST /api/workflows/{workflowId}/executions/{executionId}/resume/{blockId}
+    
+    {
+      "approved": true,
+      "comments": "Looks good to proceed"
+    }
+    ```
+
+    
+    Erstellen Sie benutzerdefinierte Genehmigungs-UIs oder integrieren Sie bestehende Systeme.
+  </Tab>
+  <Tab>
+    ### Webhook
+    
+    Fügen Sie ein Webhook-Tool im Benachrichtigungsbereich hinzu, um Genehmigungsanfragen an externe Systeme zu senden. Integration mit Ticketing-Systemen wie Jira oder ServiceNow.
+  </Tab>
+</Tabs>
+
+## Häufige Anwendungsfälle
+
+**Inhaltsgenehmigung** - Überprüfung von KI-generierten Inhalten vor der Veröffentlichung
+
+```
+Agent → Human in the Loop → API (Publish)
+```
+
+**Mehrstufige Genehmigungen** - Verkettung mehrerer Genehmigungsschritte für wichtige Entscheidungen
+
+```
+Agent → Human in the Loop (Manager) → Human in the Loop (Director) → Execute
+```
+
+**Datenvalidierung** - Überprüfung extrahierter Daten vor der Verarbeitung
+
+```
+Agent (Extract) → Human in the Loop (Validate) → Function (Process)
+```
+
+**Qualitätskontrolle** - Überprüfung von KI-Ausgaben vor dem Versand an Kunden
+
+```
+Agent (Generate) → Human in the Loop (QA) → Gmail (Send)
+```
+
+## Block-Ausgaben
+
+**`url`** - Eindeutige URL für das Genehmigungsportal  
+**`resumeInput.*`** - Alle in der Fortsetzungseingabe definierten Felder werden verfügbar, nachdem der Workflow fortgesetzt wird
+
+Zugriff über `<blockId.resumeInput.fieldName>`.
+
+## Beispiel
+
+**Pausierte Ausgabe:**
+
+```json
+{
+  "title": "<agent1.content.title>",
+  "body": "<agent1.content.body>",
+  "qualityScore": "<evaluator1.score>"
+}
+```
+
+**Fortsetzungseingabe:**
+
+```json
+{
+  "approved": { "type": "boolean" },
+  "feedback": { "type": "string" }
+}
+```
+
+**Nachgelagerte Verwendung:**
+
+```javascript
+// Condition block
+<approval1.resumeInput.approved> === true
+```
+
+## Verwandte Blöcke
+
+- **[Bedingung](/blocks/condition)** - Verzweigung basierend auf Genehmigungsentscheidungen
+- **[Variablen](/blocks/variables)** - Speicherung von Genehmigungsverlauf und Metadaten
+- **[Antwort](/blocks/response)** - Rückgabe von Workflow-Ergebnissen an API-Aufrufer

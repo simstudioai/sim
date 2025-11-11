@@ -5,9 +5,13 @@ description: Des outils puissants pour améliorer vos flux de travail agentiques
 
 import { Card, Cards } from "fumadocs-ui/components/card";
 import { Step, Steps } from "fumadocs-ui/components/steps";
-import { Tab, Tabs } from "fumadocs-ui/components/tabs";
+import { Video } from '@/components/ui/video';
 
 Les outils sont des composants puissants dans Sim qui permettent à vos flux de travail d'interagir avec des services externes, de traiter des données et d'effectuer des tâches spécialisées. Ils étendent les capacités de vos agents et flux de travail en fournissant un accès à divers API et services.
+
+<div className="mx-auto w-full overflow-hidden rounded-lg">
+  <Video src="toolbar.mp4" width={700} height={450} />
+</div>
 
 ## Qu'est-ce qu'un outil ?
 
@@ -19,10 +23,10 @@ Il existe deux façons principales d'utiliser les outils dans vos flux de travai
 
 <Steps>
   <Step>
-    <strong>Comme blocs autonomes</strong> : les outils peuvent être ajoutés en tant que blocs individuels sur le canevas lorsque vous avez besoin d'un accès déterministe et direct à leur fonctionnalité. Cela vous donne un contrôle précis sur quand et comment l'outil est appelé.
+    <strong>En tant que blocs autonomes</strong> : Les outils peuvent être ajoutés comme des blocs individuels sur le canevas lorsque vous avez besoin d'un accès déterministe et direct à leur fonctionnalité. Cela vous donne un contrôle précis sur quand et comment l'outil est appelé.
   </Step>
   <Step>
-    <strong>Comme outils d'agent</strong> : les outils peuvent être ajoutés aux blocs d'agent en cliquant sur "Ajouter des outils" et en configurant les paramètres requis. Cela permet aux agents de choisir dynamiquement quels outils utiliser en fonction du contexte et des exigences de la tâche.
+    <strong>En tant qu'outils d'agent</strong> : Les outils peuvent être ajoutés aux blocs d'agent en cliquant sur "Ajouter des outils" et en configurant les paramètres requis. Cela permet aux agents de choisir dynamiquement quels outils utiliser en fonction du contexte et des exigences de la tâche.
   </Step>
 </Steps>
 
@@ -30,19 +34,19 @@ Il existe deux façons principales d'utiliser les outils dans vos flux de travai
 
 Chaque outil nécessite une configuration spécifique pour fonctionner correctement. Les éléments de configuration courants comprennent :
 
-- **Clés API** : de nombreux outils nécessitent une authentification via des clés API
-- **Paramètres de connexion** : points de terminaison, identifiants de base de données, etc.
-- **Formatage des entrées** : comment les données doivent être structurées pour l'outil
-- **Gestion des sorties** : comment traiter les résultats de l'outil
+- **Clés API** : De nombreux outils nécessitent une authentification via des clés API
+- **Paramètres de connexion** : Points de terminaison, identifiants de base de données, etc.
+- **Formatage des entrées** : Comment les données doivent être structurées pour l'outil
+- **Gestion des sorties** : Comment traiter les résultats de l'outil
 
 ## Outils disponibles
 
-Sim propose une collection diversifiée d'outils pour différents usages, notamment :
+Sim fournit une collection diverse d'outils pour différents usages, notamment :
 
 - **IA et traitement du langage** : OpenAI, ElevenLabs, services de traduction
 - **Recherche** : Google Search, Tavily, Exa, Perplexity
 - **Manipulation de documents** : Google Docs, Google Sheets, Notion, Confluence
-- **Traitement multimédia** : Vision, générateur d'images
+- **Traitement des médias** : Vision, générateur d'images
 - **Communication** : Slack, WhatsApp, Twilio SMS, Gmail
 - **Stockage de données** : Pinecone, Supabase, Airtable
 - **Développement** : GitHub
@@ -54,18 +58,7 @@ Chaque outil dispose de sa propre page de documentation dédiée avec des instru
 Les outils renvoient généralement des données structurées qui peuvent être traitées par les blocs suivants dans votre flux de travail. Le format de ces données varie selon l'outil et l'opération, mais comprend généralement :
 
 - Le contenu principal ou le résultat
-- Les métadonnées sur l'opération
-- Les informations d'état
+- Les métadonnées concernant l'opération
+- Les informations sur l'état
 
 Consultez la documentation spécifique de chaque outil pour comprendre son format de sortie exact.
-
-## Configuration YAML
-
-Pour une documentation détaillée sur la configuration et la syntaxe des flux de travail YAML, consultez la documentation [Référence des flux de travail YAML](/yaml). Celle-ci comprend des guides complets pour :
-
-- **Syntaxe de référence des blocs** : comment connecter et référencer des données entre les blocs
-- **Configuration des outils** : utilisation des outils dans des blocs autonomes et des configurations d'agents
-- **Variables d'environnement** : gestion sécurisée des clés API et des identifiants
-- **Exemples complets** : modèles et configurations de flux de travail réels
-
-Pour les paramètres spécifiques et les options de configuration des outils, consultez la page de documentation individuelle de chaque outil.

@@ -24,20 +24,19 @@ import {
 import { Video } from '@/components/ui/video'
 import { Image } from '@/components/ui/image'
 
-本教程将指导您在 Sim 中构建第一个 AI 工作流。我们将创建一个可以使用最先进的 LLM-Search 工具查找个人信息的人员研究代理。
+在 10 分钟内构建您的第一个 AI 工作流。在本教程中，您将创建一个使用先进的 LLM 驱动搜索工具来提取和结构化个人信息的人员研究代理。
 
 <Callout type="info">
-  本教程大约需要 10 分钟，涵盖了在 Sim 中构建工作流的基本概念。
+  本教程涵盖了在 Sim 中构建工作流的基本概念。预计完成时间：10 分钟。
 </Callout>
 
-## 我们将构建的内容
+## 您将构建的内容
 
 一个人员研究代理，它可以：
-1. 通过聊天界面接收一个人的姓名
-2. 使用具有高级搜索功能的 AI 代理
-3. 使用最先进的 LLM-Search 工具（Exa 和 Linkup）进行网络搜索
-4. 使用响应格式提取结构化信息
-5. 返回关于该人的全面数据
+1. 通过聊天界面接受用户输入
+2. 使用 AI 驱动的工具（Exa 和 Linkup）进行网络搜索
+3. 提取并结构化个人信息
+4. 返回包含位置、职业和教育的格式化 JSON 数据
 
 <Image
   src="/static/getting-started/started-1.png"
@@ -50,58 +49,55 @@ import { Image } from '@/components/ui/image'
 
 <Steps>
   <Step title="创建工作流并添加 AI 代理">
-    打开 Sim 并在仪表板中点击“新建工作流”。将其命名为“入门指南”。
+    在仪表板中点击 **New Workflow** 并将其命名为 "Getting Started"。
     
-    创建新工作流时，它会自动包含一个 **开始块**——这是接收用户输入的入口点。在本示例中，我们将通过聊天触发工作流，因此无需配置开始块。
+    每个新工作流默认包含一个 **Start block**——这是接收用户输入的入口点。由于我们将通过聊天触发此工作流，因此无需对 Start block 进行配置。
     
-    现在从左侧的块面板中拖动一个 **代理块** 到画布上。
-    
-    配置代理块：
-    - **模型**：选择“OpenAI GPT-4o”
-    - **系统提示**："你是一个人员研究代理。当给定一个人的姓名时，使用你可用的搜索工具查找关于他们的全面信息，包括他们的位置、职业、教育背景和其他相关细节。"
-    - **用户提示**：将连接从开始块的输出拖动到此字段（这将 `<start.input>` 连接到用户提示）
+    从左侧面板将一个 **Agent Block** 拖到画布上并进行配置：
+    - **Model**：选择 "OpenAI GPT-4o"
+    - **System Prompt**："您是一个人员研究代理。当给定一个人的名字时，使用您可用的搜索工具查找有关他们的全面信息，包括他们的位置、职业、教育背景和其他相关细节。"
+    - **User Prompt**：将 Start block 的输出连接拖到此字段中以连接 `<start.input>` 到用户提示
     
     <div className="mx-auto w-full overflow-hidden rounded-lg">
       <Video src="getting-started/started-2.mp4" width={700} height={450} />
     </div>
   </Step>
   
-  <Step title="为代理添加工具">
-    让我们通过工具增强代理的功能。点击代理块以选择它。
+  <Step title="为代理添加搜索工具">
+    为您的代理增强网络搜索功能。点击 Agent block 以选择它。
     
-    在 **工具** 部分：
-    - 点击 **添加工具**
-    - 从可用工具中选择 **Exa**
-    - 从可用工具中选择 **Linkup**
-    - 添加这两个工具的 API 密钥（这允许代理搜索网络并访问其他信息）
+    在 **Tools** 部分：
+    - 点击 **Add Tool**
+    - 从可用工具中选择 **Exa** 和 **Linkup**
+    - 提供这两个工具的 API 密钥以启用网络搜索和数据访问
     
     <div className="mx-auto w-3/5 overflow-hidden rounded-lg">
       <Video src="getting-started/started-3.mp4" width={700} height={450} />
     </div>
   </Step>
   
-  <Step title="测试基本工作流">
-    现在让我们测试我们的工作流。转到屏幕右侧的 **聊天面板**。
+  <Step title="测试您的工作流">
+    使用屏幕右侧的 **Chat panel** 测试您的工作流。
     
     在聊天面板中：
-    - 点击下拉菜单并选择 `agent1.content`（这将显示代理的输出）
-    - 输入一个测试消息，例如：“John 是一名来自旧金山的软件工程师，他在斯坦福大学学习计算机科学。”
-    - 点击“发送”以运行工作流
+    - 点击下拉菜单并选择 `agent1.content` 查看代理的输出
+    - 输入测试消息："John 是一名来自旧金山的软件工程师，他在斯坦福大学学习了计算机科学。"
+    - 点击 **Send** 执行工作流
     
-    您应该会看到代理分析您文本中描述的人的响应。
+    代理将分析此人并返回结构化信息。
     
     <div className="mx-auto w-full overflow-hidden rounded-lg">
       <Video src="getting-started/started-4.mp4" width={700} height={450} />
     </div>
   </Step>
   
-  <Step title="添加结构化输出">
-    现在让我们的代理返回结构化数据。点击代理块以选择它。
+  <Step title="配置结构化输出">
+    配置您的代理以返回结构化的 JSON 数据。点击 Agent block 以选择它。
     
-    在 **响应格式** 部分：
-    - 点击架构字段旁边的 **魔杖图标** (✨)
-    - 在出现的提示中输入：“创建一个名为 person 的架构，其中包含 location、profession 和 education”
-    - AI 将自动为您生成一个 JSON 架构
+    在 **Response Format** 部分：
+    - 点击 **magic wand icon** (✨) 在 schema 字段旁边
+    - 输入提示："创建一个名为 person 的 schema，其中包含 location、profession 和 education"
+    - AI 将自动生成 JSON schema
     
     <div className="mx-auto w-full overflow-hidden rounded-lg">
       <Video src="getting-started/started-5.mp4" width={700} height={450} />
@@ -109,14 +105,14 @@ import { Image } from '@/components/ui/image'
   </Step>
   
   <Step title="测试结构化输出">
-    返回到 **聊天面板**。
+    返回到 **Chat panel** 测试结构化响应格式。
     
-    由于我们添加了响应格式，现在可以使用新的输出选项：
-    - 点击下拉菜单并选择我们刚刚创建的新结构化输出选项（架构）
-    - 输入一个新的测试消息，例如：“Sarah 是一名来自纽约的市场经理，她拥有哈佛商学院的 MBA 学位。”
-    - 点击“发送”以再次运行工作流
+    配置响应格式后，现在可以使用新的输出选项：
+    - 点击下拉菜单并选择结构化输出选项（您刚刚创建的 schema）
+    - 输入测试消息："Sarah 是一名来自纽约的市场经理，她拥有哈佛商学院的 MBA 学位。"
+    - 点击 **Send** 执行工作流
     
-    您现在应该会看到结构化的 JSON 输出，其中包含按位置、职业和教育字段组织的人员信息。
+    代理现在将返回结构化的 JSON 输出，其中包含按位置、职业和教育字段组织的个人信息。
     
     <div className="mx-auto w-full overflow-hidden rounded-lg">
       <Video src="getting-started/started-6.mp4" width={700} height={450} />
@@ -124,15 +120,15 @@ import { Image } from '@/components/ui/image'
   </Step>
 </Steps>
 
-## 您刚刚构建了什么
+## 您已构建的内容
 
-恭喜！您已经创建了您的第一个 AI 工作流，该工作流：
-- ✅ 通过聊天界面接收文本输入
-- ✅ 使用 AI 从非结构化文本中提取信息
-- ✅ 集成外部工具（Exa 和 Linkup）以增强功能
-- ✅ 使用 AI 生成的模式返回结构化的 JSON 数据
-- ✅ 演示了工作流的测试和迭代
-- ✅ 展示了可视化工作流构建的强大功能
+您已成功创建了一个 AI 工作流，该工作流：
+- ✅ 通过聊天界面接受用户输入
+- ✅ 使用 AI 处理非结构化文本
+- ✅ 集成外部搜索工具（Exa 和 Linkup）
+- ✅ 使用 AI 生成的模式返回结构化 JSON 数据
+- ✅ 展示实时测试和迭代
+- ✅ 展现了可视化、无代码开发的强大功能
 
 ## 您学到的关键概念
 
@@ -153,41 +149,48 @@ import { Image } from '@/components/ui/image'
 
 ### 核心工作流概念
 
-**数据流**：通过拖动连接，变量在模块之间流动
+**数据流**  
+通过拖动连接线将数据传递到工作流步骤之间
 
-**聊天界面**：使用聊天面板实时测试工作流，并提供不同的输出选项
+**聊天界面**  
+通过聊天面板实时测试工作流，并选择不同的输出选项
 
-**工具集成**：通过添加 Exa 和 Linkup 等外部工具增强代理功能
+**工具集成**  
+通过集成 Exa 和 Linkup 等外部服务扩展代理功能
 
-**变量引用**：使用 `<blockName.output>` 语法访问模块输出
+**变量引用**  
+使用 `<blockName.output>` 语法访问模块输出
 
-**结构化输出**：使用 JSON 模式从 AI 获取一致的结构化数据
+**结构化输出**  
+定义 JSON 模式以确保 AI 响应的一致性和格式化
 
-**AI 生成的模式**：使用魔法棒（✨）通过自然语言生成模式
+**AI 生成的模式**  
+使用魔法棒 (✨) 从自然语言提示生成模式
 
-**迭代开发**：轻松测试、修改和重新测试工作流
+**迭代开发**  
+通过即时反馈快速构建、测试和优化工作流
 
 ## 下一步
 
 <Cards>
-  <Card title="添加更多模块" href="/blocks">
-    了解 API、函数和条件模块
+  <Card title="探索工作流模块" href="/blocks">
+    发现 API、函数、条件等工作流模块
   </Card>
-  <Card title="使用工具" href="/tools">
-    集成 Gmail、Slack 和 Notion 等外部服务
+  <Card title="浏览集成工具" href="/tools">
+    连接包括 Gmail、Slack、Notion 等在内的 80 多种服务
   </Card>
   <Card title="添加自定义逻辑" href="/blocks/function">
-    使用函数模块进行自定义数据处理
+    编写自定义函数以进行高级数据处理
   </Card>
   <Card title="部署您的工作流" href="/execution">
-    通过 REST API 使您的工作流可访问
+    通过 REST API 或 Webhooks 使您的工作流可访问
   </Card>
 </Cards>
 
-## 需要帮助？
+## 资源
 
-**某个步骤卡住了？** 查看我们的 [模块文档](/blocks)，获取每个组件的详细说明。
+**需要详细说明？** 请访问 [模块文档](/blocks)，获取每个组件的全面指南。
 
-**想查看更多示例吗？** 浏览我们的[工具文档](/tools)，了解可用的集成。
+**寻找集成工具？** 浏览 [工具文档](/tools)，查看所有 80 多种可用集成工具。
 
-**准备部署了吗？** 了解[执行和部署](/execution)，让您的工作流程上线。
+**准备上线了吗？** 了解 [执行和部署](/execution)，使您的工作流达到生产就绪状态。

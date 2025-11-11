@@ -79,12 +79,12 @@ Choose between four types of loops:
     </div>
     
     Use this when you need to loop until a specific condition is met. The condition is checked **before** each iteration.
-    
+
     ```
-    Example: While <variable.i> < 10
+    Example: While {"<variable.i>"} < 10
     - Check condition → Execute if true
-    - Inside loop: Increment <variable.i>
-    - Inside loop: Variables assigns i = <variable.i> + 1
+    - Inside loop: Increment {"<variable.i>"}
+    - Inside loop: Variables assigns i = {"<variable.i>"} + 1
     - Check condition → Execute if true
     - Check condition → Exit if false
     ```
@@ -103,12 +103,12 @@ Choose between four types of loops:
     </div>
     
     Use this when you need to execute at least once, then loop until a condition is met. The condition is checked **after** each iteration.
-    
+
     ```
-    Example: Do-while <variable.i> < 10
+    Example: Do-while {"<variable.i>"} < 10
     - Execute blocks
-    - Inside loop: Increment <variable.i>
-    - Inside loop: Variables assigns i = <variable.i> + 1
+    - Inside loop: Increment {"<variable.i>"}
+    - Inside loop: Variables assigns i = {"<variable.i>"} + 1
     - Check condition → Continue if true
     - Check condition → Exit if false
     ```

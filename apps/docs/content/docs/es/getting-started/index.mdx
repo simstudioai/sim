@@ -24,20 +24,19 @@ import {
 import { Video } from '@/components/ui/video'
 import { Image } from '@/components/ui/image'
 
-Este tutorial te guiará en la creación de tu primer flujo de trabajo de IA en Sim. Crearemos un agente de investigación de personas que puede encontrar información sobre individuos utilizando herramientas de búsqueda LLM de última generación.
+Construye tu primer flujo de trabajo de IA en 10 minutos. En este tutorial, crearás un agente de investigación de personas que utiliza herramientas de búsqueda avanzadas potenciadas por LLM para extraer y estructurar información sobre individuos.
 
 <Callout type="info">
-  Este tutorial dura aproximadamente 10 minutos y cubre los conceptos esenciales para crear flujos de trabajo en Sim.
+  Este tutorial cubre los conceptos esenciales para construir flujos de trabajo en Sim. Tiempo estimado de finalización: 10 minutos.
 </Callout>
 
-## Lo que vamos a construir
+## Lo que vas a construir
 
 Un agente de investigación de personas que:
-1. Recibe el nombre de una persona a través de la interfaz de chat
-2. Utiliza un agente de IA con capacidades avanzadas de búsqueda
-3. Busca en la web utilizando herramientas de búsqueda LLM de última generación (Exa y Linkup)
-4. Extrae información estructurada utilizando un formato de respuesta
-5. Devuelve datos completos sobre la persona
+1. Acepta la entrada del usuario a través de una interfaz de chat
+2. Busca en la web utilizando herramientas potenciadas por IA (Exa y Linkup)
+3. Extrae y estructura información sobre individuos
+4. Devuelve datos JSON formateados con ubicación, profesión y educación
 
 <Image
   src="/static/getting-started/started-1.png"
@@ -49,74 +48,71 @@ Un agente de investigación de personas que:
 ## Tutorial paso a paso
 
 <Steps>
-  <Step title="Crear flujo de trabajo y añadir agente de IA">
-    Abre Sim y haz clic en "Nuevo flujo de trabajo" en el panel de control. Nómbralo "Primeros pasos".
+  <Step title="Crear un flujo de trabajo y añadir un agente de IA">
+    Haz clic en **Nuevo flujo de trabajo** en el panel de control y nómbralo "Primeros pasos".
     
-    Cuando creas un nuevo flujo de trabajo, automáticamente incluye un **bloque de Inicio** - este es el punto de entrada que recibe la entrada de los usuarios. Para este ejemplo, activaremos el flujo de trabajo a través del chat, así que no necesitamos configurar nada en el bloque de Inicio.
+    Cada nuevo flujo de trabajo incluye un **bloque de Inicio** por defecto—este es el punto de entrada que recibe la entrada del usuario. Como activaremos este flujo de trabajo a través del chat, no se necesita configuración para el bloque de Inicio.
     
-    Ahora arrastra un **Bloque de Agente** al lienzo desde el panel de bloques a la izquierda.
-    
-    Configura el Bloque de Agente:
+    Arrastra un **Bloque de Agente** al lienzo desde el panel izquierdo y configúralo:
     - **Modelo**: Selecciona "OpenAI GPT-4o"
-    - **Prompt del sistema**: "Eres un agente de investigación de personas. Cuando te den el nombre de una persona, utiliza tus herramientas de búsqueda disponibles para encontrar información completa sobre ellos, incluyendo su ubicación, profesión, formación académica y otros detalles relevantes".
-    - **Prompt del usuario**: Arrastra la conexión desde la salida del bloque de Inicio a este campo (esto conecta `<start.input>` al prompt del usuario)
+    - **Prompt del sistema**: "Eres un agente de investigación de personas. Cuando se te proporcione el nombre de una persona, utiliza tus herramientas de búsqueda disponibles para encontrar información completa sobre ella, incluyendo su ubicación, profesión, formación académica y otros detalles relevantes."
+    - **Prompt del usuario**: Arrastra la conexión desde la salida del bloque de Inicio a este campo para conectar `<start.input>` al prompt del usuario
     
     <div className="mx-auto w-full overflow-hidden rounded-lg">
       <Video src="getting-started/started-2.mp4" width={700} height={450} />
     </div>
   </Step>
   
-  <Step title="Añadir herramientas al agente">
-    Vamos a mejorar nuestro agente con herramientas para obtener mejores capacidades. Haz clic en el bloque de Agente para seleccionarlo.
+  <Step title="Añadir herramientas de búsqueda al agente">
+    Mejora tu agente con capacidades de búsqueda web. Haz clic en el bloque de Agente para seleccionarlo.
     
     En la sección de **Herramientas**:
     - Haz clic en **Añadir herramienta**
-    - Selecciona **Exa** de las herramientas disponibles
-    - Selecciona **Linkup** de las herramientas disponibles
-    - Añade tus claves API para ambas herramientas (esto permite al agente buscar en la web y acceder a información adicional)
+    - Selecciona **Exa** y **Linkup** de las herramientas disponibles
+    - Proporciona tus claves API para ambas herramientas para habilitar la búsqueda web y el acceso a datos
     
     <div className="mx-auto w-3/5 overflow-hidden rounded-lg">
       <Video src="getting-started/started-3.mp4" width={700} height={450} />
     </div>
   </Step>
   
-  <Step title="Probar el flujo de trabajo básico">
-    Ahora vamos a probar nuestro flujo de trabajo. Ve al **panel de Chat** en el lado derecho de la pantalla.
+  <Step title="Probar tu flujo de trabajo">
+    Prueba tu flujo de trabajo usando el **panel de Chat** en el lado derecho de la pantalla.
     
     En el panel de chat:
-    - Haz clic en el menú desplegable y selecciona `agent1.content` (esto nos mostrará la salida de nuestro agente)
-    - Introduce un mensaje de prueba como: "John es un ingeniero de software de San Francisco que estudió Informática en la Universidad de Stanford".
-    - Haz clic en "Enviar" para ejecutar el flujo de trabajo
+    - Haz clic en el menú desplegable y selecciona `agent1.content` para ver la salida del agente
+    - Introduce un mensaje de prueba: "John es un ingeniero de software de San Francisco que estudió Ciencias de la Computación en la Universidad de Stanford."
+    - Haz clic en **Enviar** para ejecutar el flujo de trabajo
     
-    Deberías ver la respuesta del agente analizando a la persona descrita en tu texto.
+    El agente analizará a la persona y devolverá información estructurada.
     
     <div className="mx-auto w-full overflow-hidden rounded-lg">
       <Video src="getting-started/started-4.mp4" width={700} height={450} />
     </div>
   </Step>
   
-  <Step title="Añadir salida estructurada">
-    Ahora hagamos que nuestro agente devuelva datos estructurados. Haz clic en el bloque de Agente para seleccionarlo.
+  <Step title="Configurar la salida estructurada">
+    Configura tu agente para que devuelva datos JSON estructurados. Haz clic en el bloque de Agente para seleccionarlo.
     
-    En la sección de **Formato de respuesta**:
+    En la sección **Formato de respuesta**:
     - Haz clic en el **icono de varita mágica** (✨) junto al campo de esquema
-    - En el prompt que aparece, escribe: "crear un esquema llamado persona, que contenga ubicación, profesión y educación"
-    - La IA generará automáticamente un esquema JSON para ti
+    - Introduce el prompt: "crear un esquema llamado persona, que contenga ubicación, profesión y educación"
+    - La IA generará automáticamente el esquema JSON
     
     <div className="mx-auto w-full overflow-hidden rounded-lg">
       <Video src="getting-started/started-5.mp4" width={700} height={450} />
     </div>
   </Step>
   
-  <Step title="Probar la salida estructurada">
-    Vuelve al **panel de Chat**.
+  <Step title="Probar con salida estructurada">
+    Vuelve al **panel de Chat** para probar el formato de respuesta estructurada.
     
-    Como hemos añadido un formato de respuesta, ahora hay nuevas opciones de salida disponibles:
-    - Haz clic en el menú desplegable y selecciona la nueva opción de salida estructurada (el esquema que acabamos de crear)
-    - Introduce un nuevo mensaje de prueba como: "Sarah es una gerente de marketing de Nueva York que tiene un MBA de la Escuela de Negocios de Harvard".
-    - Haz clic en "Enviar" para ejecutar el flujo de trabajo de nuevo
+    Con el formato de respuesta configurado, ahora hay nuevas opciones de salida disponibles:
+    - Haz clic en el menú desplegable y selecciona la opción de salida estructurada (el esquema que acabas de crear)
+    - Introduce un mensaje de prueba: "Sarah es una gerente de marketing de Nueva York que tiene un MBA de Harvard Business School."
+    - Haz clic en **Enviar** para ejecutar el flujo de trabajo
     
-    Ahora deberías ver una salida JSON estructurada con la información de la persona organizada en campos de ubicación, profesión y educación.
+    El agente ahora devolverá una salida JSON estructurada con la información de la persona organizada en campos de ubicación, profesión y educación.
     
     <div className="mx-auto w-full overflow-hidden rounded-lg">
       <Video src="getting-started/started-6.mp4" width={700} height={450} />
@@ -124,15 +120,15 @@ Un agente de investigación de personas que:
   </Step>
 </Steps>
 
-## Lo que acabas de construir
+## Lo que has construido
 
-¡Felicidades! Has creado tu primer flujo de trabajo de IA que:
-- ✅ Recibe entrada de texto a través de la interfaz de chat
-- ✅ Utiliza IA para extraer información de texto no estructurado
-- ✅ Integra herramientas externas (Exa y Linkup) para capacidades mejoradas
-- ✅ Devuelve datos JSON estructurados utilizando esquemas generados por IA
-- ✅ Demuestra pruebas e iteración de flujos de trabajo
-- ✅ Muestra el poder de la construcción visual de flujos de trabajo
+Has creado con éxito un flujo de trabajo de IA que:
+- ✅ Acepta la entrada del usuario a través de una interfaz de chat
+- ✅ Procesa texto no estructurado utilizando IA
+- ✅ Integra herramientas de búsqueda externas (Exa y Linkup)
+- ✅ Devuelve datos JSON estructurados con esquemas generados por IA
+- ✅ Demuestra pruebas e iteración en tiempo real
+- ✅ Muestra el poder del desarrollo visual sin código
 
 ## Conceptos clave que has aprendido
 
@@ -153,41 +149,48 @@ Un agente de investigación de personas que:
 
 ### Conceptos fundamentales del flujo de trabajo
 
-**Flujo de datos**: Las variables fluyen entre bloques arrastrando conexiones
+**Flujo de datos**  
+Conecta bloques arrastrando conexiones para pasar datos entre los pasos del flujo de trabajo
 
-**Interfaz de chat**: Prueba flujos de trabajo en tiempo real usando el panel de chat con diferentes opciones de salida
+**Interfaz de chat**  
+Prueba flujos de trabajo en tiempo real con el panel de chat y selecciona diferentes opciones de salida
 
-**Integración de herramientas**: Mejora las capacidades del agente añadiendo herramientas externas como Exa y Linkup
+**Integración de herramientas**  
+Amplía las capacidades del agente integrando servicios externos como Exa y Linkup
 
-**Referencias de variables**: Accede a las salidas de los bloques usando la sintaxis `<blockName.output>`
+**Referencias de variables**  
+Accede a las salidas de los bloques utilizando la sintaxis `<blockName.output>`
 
-**Salida estructurada**: Utiliza esquemas JSON para obtener datos consistentes y estructurados de la IA
+**Salida estructurada**  
+Define esquemas JSON para garantizar respuestas consistentes y formateadas desde la IA
 
-**Esquemas generados por IA**: Usa la varita mágica (✨) para generar esquemas con lenguaje natural
+**Esquemas generados por IA**  
+Utiliza la varita mágica (✨) para generar esquemas a partir de indicaciones en lenguaje natural
 
-**Desarrollo iterativo**: Prueba, modifica y vuelve a probar flujos de trabajo fácilmente
+**Desarrollo iterativo**  
+Construye, prueba y refina flujos de trabajo rápidamente con retroalimentación inmediata
 
 ## Próximos pasos
 
 <Cards>
-  <Card title="Añadir más bloques" href="/blocks">
-    Aprende sobre bloques de API, Función y Condición
+  <Card title="Explorar bloques de flujo de trabajo" href="/blocks">
+    Descubre bloques de flujo de trabajo de API, Función, Condición y otros
   </Card>
-  <Card title="Usar herramientas" href="/tools">
-    Integra con servicios externos como Gmail, Slack y Notion
+  <Card title="Explorar integraciones" href="/tools">
+    Conecta más de 80 servicios incluyendo Gmail, Slack, Notion y más
   </Card>
   <Card title="Añadir lógica personalizada" href="/blocks/function">
-    Usa bloques de Función para procesamiento personalizado de datos
+    Escribe funciones personalizadas para procesamiento avanzado de datos
   </Card>
   <Card title="Implementar tu flujo de trabajo" href="/execution">
-    Haz que tu flujo de trabajo sea accesible a través de API REST
+    Haz que tu flujo de trabajo sea accesible a través de API REST o webhooks
   </Card>
 </Cards>
 
-## ¿Necesitas ayuda?
+## Recursos
 
-**¿Atascado en algún paso?** Consulta nuestra [documentación de Bloques](/blocks) para explicaciones detalladas de cada componente.
+**¿Necesitas explicaciones detalladas?** Visita la [documentación de Bloques](/blocks) para guías completas sobre cada componente.
 
-**¿Quieres ver más ejemplos?** Explora nuestra [documentación de Herramientas](/tools) para ver qué integraciones están disponibles.
+**¿Buscas integraciones?** Explora la [documentación de Herramientas](/tools) para ver las más de 80 integraciones disponibles.
 
-**¿Listo para implementar?** Aprende sobre [Ejecución e Implementación](/execution) para activar tus flujos de trabajo.
+**¿Listo para salir a producción?** Aprende sobre [Ejecución e Implementación](/execution) para hacer que tus flujos de trabajo estén listos para producción.

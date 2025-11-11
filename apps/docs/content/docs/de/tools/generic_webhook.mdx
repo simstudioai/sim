@@ -27,7 +27,7 @@ import { Image } from '@/components/ui/image'
 <div className="flex justify-center">
   <Image
     src="/static/blocks/webhook.png"
-    alt="Webhook Block Configuration"
+    alt="Webhook-Block-Konfiguration"
     width={500}
     height={400}
     className="my-6"
@@ -36,13 +36,13 @@ import { Image } from '@/components/ui/image'
 
 ## Übersicht
 
-Der Generic Webhook-Block ermöglicht es Ihnen, Webhooks von jedem externen Dienst zu empfangen. Dies ist ein flexibler Auslöser, der jede JSON-Nutzlast verarbeiten kann und sich daher ideal für die Integration mit Diensten eignet, die keinen dedizierten Sim-Block haben.
+Der generische Webhook-Block ermöglicht den Empfang von Webhooks von jedem externen Dienst. Dies ist ein flexibler Trigger, der jede JSON-Nutzlast verarbeiten kann und sich daher ideal für die Integration mit Diensten eignet, die keinen dedizierten Sim-Block haben.
 
 ## Grundlegende Verwendung
 
 ### Einfacher Durchleitungsmodus
 
-Ohne ein Eingabeformat zu definieren, leitet der Webhook den gesamten Anforderungstext unverändert weiter:
+Ohne ein definiertes Eingabeformat leitet der Webhook den gesamten Anforderungstext unverändert weiter:
 
 ```bash
 curl -X POST https://sim.ai/api/webhooks/trigger/{webhook-path} \
@@ -60,7 +60,7 @@ Greifen Sie in nachgelagerten Blöcken auf die Daten zu mit:
 - `<webhook1.message>` → "Test webhook trigger"
 - `<webhook1.data.key>` → "value"
 
-### Strukturiertes Eingabeformat (Optional)
+### Strukturiertes Eingabeformat (optional)
 
 Definieren Sie ein Eingabeschema, um typisierte Felder zu erhalten und erweiterte Funktionen wie Datei-Uploads zu aktivieren:
 
@@ -138,7 +138,7 @@ Zum Übergeben vorhandener Datei-URLs:
 
 ### Zugriff auf Dateien in nachgelagerten Blöcken
 
-Dateien werden in `UserFile`Objekte mit folgenden Eigenschaften verarbeitet:
+Dateien werden in `UserFile`Objekte mit den folgenden Eigenschaften verarbeitet:
 
 ```typescript
 {
@@ -159,7 +159,7 @@ Dateien werden in `UserFile`Objekte mit folgenden Eigenschaften verarbeitet:
 - `<webhook1.documents[0].size>` → 524288
 - `<webhook1.documents[0].type>` → "application/pdf"
 
-### Vollständiges Beispiel für Datei-Upload
+### Vollständiges Datei-Upload-Beispiel
 
 ```bash
 # Create a base64-encoded file
@@ -185,7 +185,7 @@ curl -X POST https://sim.ai/api/webhooks/trigger/{webhook-path} \
 
 ## Authentifizierung
 
-### Authentifizierung konfigurieren (optional)
+### Authentifizierung konfigurieren (Optional)
 
 In der Webhook-Konfiguration:
 1. Aktiviere "Authentifizierung erforderlich"
@@ -219,7 +219,7 @@ curl -X POST https://sim.ai/api/webhooks/trigger/{webhook-path} \
 
 2. **Authentifizierung**: Aktiviere immer die Authentifizierung für Produktions-Webhooks, um unbefugten Zugriff zu verhindern.
 
-3. **Dateigrößenbeschränkungen**: Halte Dateien unter 20 MB. Verwende für größere Dateien stattdessen URL-Referenzen.
+3. **Dateigrößenbeschränkungen**: Halte Dateien unter 20 MB. Verwende für größere Dateien URL-Referenzen.
 
 4. **Dateiablauf**: Heruntergeladene Dateien haben URLs mit einer Gültigkeit von 5 Minuten. Verarbeite sie umgehend oder speichere sie an anderer Stelle, wenn sie länger benötigt werden.
 

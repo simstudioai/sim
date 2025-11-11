@@ -4,9 +4,7 @@ title: Principes de base
 
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Card, Cards } from 'fumadocs-ui/components/card'
-import { Step, Steps } from 'fumadocs-ui/components/steps'
 import { Image } from '@/components/ui/image'
-import { Video } from '@/components/ui/video'
 
 Comprendre comment les workflows s'exécutent dans Sim est essentiel pour créer des automatisations efficaces et fiables. Le moteur d'exécution gère automatiquement les dépendances, la concurrence et le flux de données pour garantir que vos workflows fonctionnent de manière fluide et prévisible.
 
@@ -77,14 +75,14 @@ Sim fournit différents types de blocs qui servent à des fins spécifiques dans
 
 Tous les blocs s'exécutent automatiquement en fonction de leurs dépendances - vous n'avez pas besoin de gérer manuellement l'ordre ou le timing d'exécution.
 
-## Surveillance de l'exécution
+## Surveillance d'exécution
 
 Lorsque les workflows s'exécutent, Sim offre une visibilité en temps réel sur le processus d'exécution :
 
-- **États des blocs en direct** : visualisez quels blocs sont en cours d'exécution, terminés ou en échec
-- **Journaux d'exécution** : des journaux détaillés apparaissent en temps réel montrant les entrées, les sorties et les éventuelles erreurs
-- **Métriques de performance** : suivez le temps d'exécution et les coûts pour chaque bloc
-- **Visualisation du parcours** : comprenez quels chemins d'exécution ont été empruntés dans votre workflow
+- **États des blocs en direct** : Visualisez quels blocs sont en cours d'exécution, terminés ou en échec
+- **Journaux d'exécution** : Des journaux détaillés apparaissent en temps réel montrant les entrées, les sorties et les erreurs éventuelles
+- **Métriques de performance** : Suivez le temps d'exécution et les coûts pour chaque bloc
+- **Visualisation du chemin** : Comprenez quels chemins d'exécution ont été empruntés dans votre workflow
 
 <Callout type="info">
   Tous les détails d'exécution sont capturés et disponibles pour examen même après la fin des workflows, facilitant le débogage et l'optimisation.
@@ -94,11 +92,11 @@ Lorsque les workflows s'exécutent, Sim offre une visibilité en temps réel sur
 
 Comprendre ces principes fondamentaux vous aidera à créer de meilleurs workflows :
 
-1. **Exécution basée sur les dépendances** : les blocs ne s'exécutent que lorsque toutes leurs dépendances sont terminées
-2. **Parallélisation automatique** : les blocs indépendants s'exécutent simultanément sans configuration
-3. **Flux de données intelligent** : les sorties circulent automatiquement vers les blocs connectés
-4. **Gestion des erreurs** : les blocs en échec arrêtent leur chemin d'exécution mais n'affectent pas les chemins indépendants
-5. **Persistance d'état** : toutes les sorties de blocs et les détails d'exécution sont conservés pour le débogage
+1. **Exécution basée sur les dépendances** : Les blocs ne s'exécutent que lorsque toutes leurs dépendances sont terminées
+2. **Parallélisation automatique** : Les blocs indépendants s'exécutent simultanément sans configuration
+3. **Flux de données intelligent** : Les sorties circulent automatiquement vers les blocs connectés
+4. **Gestion des erreurs** : Les blocs en échec arrêtent leur chemin d'exécution mais n'affectent pas les chemins indépendants
+5. **Persistance d'état** : Toutes les sorties de blocs et les détails d'exécution sont conservés pour le débogage
 
 ## Prochaines étapes
 

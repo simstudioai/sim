@@ -28,9 +28,10 @@ Sim fournit des types de blocs essentiels qui gèrent les fonctions principales 
 - **[Router](/blocks/router)** - Utilisez l'IA pour acheminer intelligemment les requêtes vers différents chemins
 - **[Evaluator](/blocks/evaluator)** - Notez et évaluez la qualité du contenu à l'aide de l'IA
 
-### Blocs de flux de contrôle
-- **[Variables](/blocks/variables)** - Définir et gérer des variables à portée de flux de travail
-- **[Wait](/blocks/wait)** - Mettre en pause l'exécution du flux de travail pendant un délai spécifié
+### Blocs de contrôle de flux
+- **[Variables](/blocks/variables)** - Définir et gérer des variables à portée de workflow
+- **[Attente](/blocks/wait)** - Mettre en pause l'exécution du workflow pendant un délai spécifié
+- **[Intervention humaine](/blocks/human-in-the-loop)** - Mettre en pause pour approbation et retour humains avant de continuer
 
 ### Blocs de sortie
 - **[Response](/blocks/response)** - Formater et renvoyer les résultats finaux de votre flux de travail
@@ -119,21 +120,24 @@ Chaque type de bloc possède des options de configuration spécifiques :
 
 <Cards>
   <Card title="Bloc Agent" href="/blocks/agent">
-    Connectez-vous aux modèles d'IA et créez des réponses intelligentes
+    Se connecter aux modèles d'IA et créer des réponses intelligentes
   </Card>
   <Card title="Bloc Fonction" href="/blocks/function">
-    Exécutez du code personnalisé pour traiter et transformer des données
+    Exécuter du code personnalisé pour traiter et transformer des données
   </Card>
   <Card title="Bloc API" href="/blocks/api">
-    Intégrez des services externes et des API
+    S'intégrer avec des services externes et des API
   </Card>
   <Card title="Bloc Condition" href="/blocks/condition">
-    Créez une logique de branchement basée sur l'évaluation des données
+    Créer une logique de branchement basée sur l'évaluation des données
+  </Card>
+  <Card title="Bloc Intervention humaine" href="/blocks/human-in-the-loop">
+    Mettre en pause pour approbation et retour humains avant de continuer
   </Card>
   <Card title="Bloc Variables" href="/blocks/variables">
-    Définissez et gérez des variables à portée de workflow
+    Définir et gérer des variables à portée de workflow
   </Card>
   <Card title="Bloc Attente" href="/blocks/wait">
-    Mettez en pause l'exécution du workflow pour des délais spécifiés
+    Mettre en pause l'exécution du workflow pendant des délais spécifiés
   </Card>
 </Cards>

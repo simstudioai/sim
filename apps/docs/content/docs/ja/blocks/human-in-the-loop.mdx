@@ -1,0 +1,181 @@
+---
+title: ヒューマン・イン・ザ・ループ
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Image } from '@/components/ui/image'
+
+ヒューマン・イン・ザ・ループブロックは、ワークフローの実行を一時停止し、続行する前に人間の介入を待ちます。承認ゲート、フィードバックの収集、または重要な決断ポイントでの追加入力の収集に使用します。
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/hitl-1.png"
+    alt="ヒューマン・イン・ザ・ループブロックの設定"
+    width={500}
+    height={400}
+    className="my-6"
+  />
+</div>
+
+実行がこのブロックに到達すると、承認ポータル、API、またはウェブフックを通じて人間が入力を提供するまで、ワークフローは無期限に一時停止します。
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/hitl-2.png"
+    alt="ヒューマン・イン・ザ・ループ承認ポータル"
+    width={700}
+    height={500}
+    className="my-6"
+  />
+</div>
+
+## 設定オプション
+
+### 一時停止出力
+
+承認者に表示されるデータを定義します。これは承認ポータルに表示されるコンテキストで、情報に基づいた決定を下すのに役立ちます。
+
+ビジュアルビルダーまたはJSONエディタを使用してデータを構造化します。`<blockName.output>` 構文を使用してワークフロー変数を参照します。
+
+```json
+{
+  "customerName": "<agent1.content.name>",
+  "proposedAction": "<router1.selectedPath>",
+  "confidenceScore": "<evaluator1.score>",
+  "generatedEmail": "<agent2.content>"
+}
+```
+
+### 通知
+
+承認が必要な場合に承認者に警告する方法を設定します。サポートされているチャネルには以下が含まれます：
+
+- **Slack** - チャンネルまたはDMへのメッセージ
+- **Gmail** - 承認リンク付きのメール
+- **Microsoft Teams** - チームチャンネル通知
+- **SMS** - Twilioを介したテキストアラート
+- **Webhooks** - カスタム通知システム
+
+承認者がポータルにアクセスできるように、通知メッセージに承認URL（`<blockId.url>`）を含めてください。
+
+### 再開入力
+
+承認者が応答時に入力するフィールドを定義します。このデータは、ワークフローが再開された後、下流のブロックで利用可能になります。
+
+```json
+{
+  "approved": {
+    "type": "boolean",
+    "description": "Approve or reject this request"
+  },
+  "comments": {
+    "type": "string",
+    "description": "Optional feedback or explanation"
+  }
+}
+```
+
+下流のブロックで再開データにアクセスするには `<blockId.resumeInput.fieldName>` を使用します。
+
+## 承認方法
+
+<Tabs items={['承認ポータル', 'API', 'Webhook']}>
+  <Tab>
+    ### 承認ポータル
+    
+    各ブロックは一意のポータルURL（`<blockId.url>`）を生成し、一時停止された出力データとレジューム入力用のフォームフィールドを表示する視覚的インターフェースを提供します。モバイル対応で安全です。
+    
+    承認者が確認して応答できるよう、通知でこのURLを共有してください。
+  </Tab>
+  <Tab>
+    ### REST API
+    
+    プログラムでワークフローを再開します：
+    
+
+    ```bash
+    POST /api/workflows/{workflowId}/executions/{executionId}/resume/{blockId}
+    
+    {
+      "approved": true,
+      "comments": "Looks good to proceed"
+    }
+    ```
+
+    
+    カスタム承認UIを構築したり、既存のシステムと統合したりできます。
+  </Tab>
+  <Tab>
+    ### Webhook
+    
+    通知セクションにWebhookツールを追加して、外部システムに承認リクエストを送信します。JiraやServiceNowなどのチケットシステムと統合できます。
+  </Tab>
+</Tabs>
+
+## 一般的なユースケース
+
+**コンテンツ承認** - 公開前にAI生成コンテンツをレビュー
+
+```
+Agent → Human in the Loop → API (Publish)
+```
+
+**複数段階の承認** - 重要な決定のために複数の承認ステップを連鎖
+
+```
+Agent → Human in the Loop (Manager) → Human in the Loop (Director) → Execute
+```
+
+**データ検証** - 処理前に抽出されたデータを確認
+
+```
+Agent (Extract) → Human in the Loop (Validate) → Function (Process)
+```
+
+**品質管理** - 顧客に送信する前にAI出力をレビュー
+
+```
+Agent (Generate) → Human in the Loop (QA) → Gmail (Send)
+```
+
+## ブロック出力
+
+**`url`** - 承認ポータルの一意のURL  
+**`resumeInput.*`** - レジューム入力で定義されたすべてのフィールドは、ワークフローが再開された後に利用可能になります
+
+`<blockId.resumeInput.fieldName>`を使用してアクセスします。
+
+## 例
+
+**一時停止された出力：**
+
+```json
+{
+  "title": "<agent1.content.title>",
+  "body": "<agent1.content.body>",
+  "qualityScore": "<evaluator1.score>"
+}
+```
+
+**レジューム入力：**
+
+```json
+{
+  "approved": { "type": "boolean" },
+  "feedback": { "type": "string" }
+}
+```
+
+**下流での使用：**
+
+```javascript
+// Condition block
+<approval1.resumeInput.approved> === true
+```
+
+## 関連ブロック
+
+- **[条件](/blocks/condition)** - 承認決定に基づいて分岐
+- **[変数](/blocks/variables)** - 承認履歴とメタデータを保存
+- **[レスポンス](/blocks/response)** - ワークフロー結果をAPIコーラーに返す

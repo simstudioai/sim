@@ -2,7 +2,7 @@
 title: MCP (Model Context Protocol)
 ---
 
-import { Video } from '@/components/ui/video'
+import { Image } from '@/components/ui/image'
 import { Callout } from 'fumadocs-ui/components/callout'
 
 Le Model Context Protocol ([MCP](https://modelcontextprotocol.com/)) vous permet de connecter des outils et services externes en utilisant un protocole standardisé, vous permettant d'intégrer des API et des services directement dans vos flux de travail. Avec MCP, vous pouvez étendre les capacités de Sim en ajoutant des intégrations personnalisées qui fonctionnent parfaitement avec vos agents et flux de travail.
@@ -16,16 +16,18 @@ MCP est une norme ouverte qui permet aux assistants IA de se connecter de maniè
 - Exécuter des outils et scripts personnalisés
 - Maintenir un accès sécurisé et contrôlé aux ressources externes
 
-## Ajout de serveurs MCP
+## Configuration des serveurs MCP
 
-Les serveurs MCP fournissent des collections d'outils que vos agents peuvent utiliser. Vous pouvez ajouter des serveurs MCP de deux façons :
+Les serveurs MCP fournissent des collections d'outils que vos agents peuvent utiliser. Configurez-les dans les paramètres de l'espace de travail :
 
-### Depuis les paramètres de l'espace de travail
-
-Configurez les serveurs MCP au niveau de l'espace de travail pour que tous les membres de l'équipe puissent les utiliser :
-
-<div className="mx-auto w-full overflow-hidden rounded-lg">
-  <Video src="mcp-1.mp4" width={700} height={450} />
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/mcp-1.png"
+    alt="Configuration du serveur MCP dans les paramètres"
+    width={700}
+    height={450}
+    className="my-6"
+  />
 </div>
 
 1. Accédez aux paramètres de votre espace de travail
@@ -35,25 +37,21 @@ Configurez les serveurs MCP au niveau de l'espace de travail pour que tous les m
 5. Enregistrez la configuration
 
 <Callout type="info">
-Les serveurs MCP configurés dans les paramètres de l'espace de travail sont disponibles pour tous les membres de l'espace de travail selon leurs niveaux de permission.
+Vous pouvez également configurer les serveurs MCP directement depuis la barre d'outils d'un bloc Agent pour une configuration rapide.
 </Callout>
-
-### Depuis la configuration d'un agent
-
-Vous pouvez également ajouter et configurer des serveurs MCP directement depuis un bloc d'agent :
-
-<div className="mx-auto w-full overflow-hidden rounded-lg">
-  <Video src="mcp-2.mp4" width={700} height={450} />
-</div>
-
-C'est utile lorsque vous devez rapidement configurer une intégration spécifique pour un flux de travail particulier.
 
 ## Utilisation des outils MCP dans les agents
 
 Une fois les serveurs MCP configurés, leurs outils deviennent disponibles dans vos blocs d'agents :
 
-<div className="mx-auto w-full overflow-hidden rounded-lg">
-  <Video src="mcp-3.mp4" width={700} height={450} />
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/mcp-2.png"
+    alt="Utilisation d'un outil MCP dans un bloc Agent"
+    width={700}
+    height={450}
+    className="my-6"
+  />
 </div>
 
 1. Ouvrez un bloc **Agent**
@@ -63,10 +61,16 @@ Une fois les serveurs MCP configurés, leurs outils deviennent disponibles dans 
 
 ## Bloc d'outil MCP autonome
 
-Pour un contrôle plus précis, vous pouvez utiliser le bloc d'outil MCP dédié pour exécuter des outils MCP spécifiques :
+Pour un contrôle plus précis, vous pouvez utiliser le bloc dédié d'outil MCP pour exécuter des outils MCP spécifiques :
 
-<div className="mx-auto w-full overflow-hidden rounded-lg">
-  <Video src="mcp-4.mp4" width={700} height={450} />
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/mcp-3.png"
+    alt="Bloc d'outil MCP autonome"
+    width={700}
+    height={450}
+    className="my-6"
+  />
 </div>
 
 Le bloc d'outil MCP vous permet de :
@@ -82,29 +86,29 @@ Le bloc d'outil MCP vous permet de :
 - Vous avez besoin d'un raisonnement complexe sur quand et comment utiliser les outils
 - Vous souhaitez une interaction en langage naturel avec les outils
 
-**Utilisez le bloc d'outil MCP quand :**
-- Vous avez besoin d'une exécution déterministe des outils
-- Vous voulez exécuter un outil spécifique avec des paramètres connus
+**Utilisez le bloc Outil MCP quand :**
+- Vous avez besoin d'une exécution déterministe d'outils
+- Vous souhaitez exécuter un outil spécifique avec des paramètres connus
 - Vous construisez des flux de travail structurés avec des étapes prévisibles
 
-## Exigences en matière de permissions
+## Exigences en matière d'autorisations
 
-Les fonctionnalités MCP nécessitent des permissions spécifiques dans l'espace de travail :
+Les fonctionnalités MCP nécessitent des autorisations spécifiques pour l'espace de travail :
 
-| Action | Permission requise |
+| Action | Autorisation requise |
 |--------|-------------------|
 | Configurer les serveurs MCP dans les paramètres | **Admin** |
 | Utiliser les outils MCP dans les agents | **Écriture** ou **Admin** |
-| Voir les outils MCP disponibles | **Lecture**, **Écriture** ou **Admin** |
-| Exécuter des blocs d'outil MCP | **Écriture** ou **Admin** |
+| Voir les outils MCP disponibles | **Lecture**, **Écriture**, ou **Admin** |
+| Exécuter des blocs d'Outil MCP | **Écriture** ou **Admin** |
 
 ## Cas d'utilisation courants
 
 ### Intégration de bases de données
 Connectez-vous aux bases de données pour interroger, insérer ou mettre à jour des données dans vos flux de travail.
 
-### Intégrations d'API
-Accédez aux API externes et aux services web qui n'ont pas d'intégrations Sim intégrées.
+### Intégrations API
+Accédez à des API externes et des services web qui n'ont pas d'intégrations Sim intégrées.
 
 ### Accès au système de fichiers
 Lisez, écrivez et manipulez des fichiers sur des systèmes de fichiers locaux ou distants.
@@ -117,7 +121,7 @@ Récupérez des données en direct à partir de systèmes externes pendant l'ex�
 
 ## Considérations de sécurité
 
-- Les serveurs MCP s'exécutent avec les permissions de l'utilisateur qui les a configurés
+- Les serveurs MCP s'exécutent avec les autorisations de l'utilisateur qui les a configurés
 - Vérifiez toujours les sources des serveurs MCP avant l'installation
 - Utilisez des variables d'environnement pour les données de configuration sensibles
 - Examinez les capacités du serveur MCP avant d'accorder l'accès aux agents
@@ -126,7 +130,7 @@ Récupérez des données en direct à partir de systèmes externes pendant l'ex�
 
 ### Le serveur MCP n'apparaît pas
 - Vérifiez que la configuration du serveur est correcte
-- Vérifiez que vous disposez des permissions requises
+- Vérifiez que vous disposez des autorisations requises
 - Assurez-vous que le serveur MCP est en cours d'exécution et accessible
 
 ### Échecs d'exécution d'outils
@@ -135,6 +139,6 @@ Récupérez des données en direct à partir de systèmes externes pendant l'ex�
 - Assurez-vous que l'authentification requise est configurée
 
 ### Erreurs de permission
-- Confirmez votre niveau de permission d'espace de travail
+- Confirmez votre niveau de permission dans l'espace de travail
 - Vérifiez si le serveur MCP nécessite une authentification supplémentaire
 - Vérifiez que le serveur est correctement configuré pour votre espace de travail

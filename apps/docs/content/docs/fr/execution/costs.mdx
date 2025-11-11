@@ -2,7 +2,6 @@
 title: Calcul des coûts
 ---
 
-import { Accordion, Accordions } from 'fumadocs-ui/components/accordion'
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 import { Image } from '@/components/ui/image'
@@ -86,27 +85,11 @@ La répartition des modèles montre :
 
 ## Stratégies d'optimisation des coûts
 
-<Accordions>
-  <Accordion title="Sélection du modèle">
-    Choisissez les modèles en fonction de la complexité de la tâche. Les tâches simples peuvent utiliser GPT-4.1-nano (0,10 $/0,40 $) tandis que le raisonnement complexe pourrait nécessiter o1 ou Claude Opus.
-  </Accordion>
-  
-  <Accordion title="Ingénierie de prompt">
-    Des prompts bien structurés et concis réduisent l'utilisation de tokens sans sacrifier la qualité.
-  </Accordion>
-  
-  <Accordion title="Modèles locaux">
-    Utilisez Ollama pour les tâches non critiques afin d'éliminer complètement les coûts d'API.
-  </Accordion>
-  
-  <Accordion title="Mise en cache et réutilisation">
-    Stockez les résultats fréquemment utilisés dans des variables ou des fichiers pour éviter les appels répétés au modèle d'IA.
-  </Accordion>
-  
-  <Accordion title="Traitement par lots">
-    Traitez plusieurs éléments dans une seule requête d'IA plutôt que de faire des appels individuels.
-  </Accordion>
-</Accordions>
+- **Sélection du modèle** : choisissez les modèles en fonction de la complexité de la tâche. Les tâches simples peuvent utiliser GPT-4.1-nano tandis que le raisonnement complexe pourrait nécessiter o1 ou Claude Opus.
+- **Ingénierie de prompt** : des prompts bien structurés et concis réduisent l'utilisation de tokens sans sacrifier la qualité.
+- **Modèles locaux** : utilisez Ollama pour les tâches non critiques afin d'éliminer complètement les coûts d'API.
+- **Mise en cache et réutilisation** : stockez les résultats fréquemment utilisés dans des variables ou des fichiers pour éviter les appels répétés au modèle d'IA.
+- **Traitement par lots** : traitez plusieurs éléments dans une seule requête d'IA plutôt que de faire des appels individuels.
 
 ## Surveillance de l'utilisation
 

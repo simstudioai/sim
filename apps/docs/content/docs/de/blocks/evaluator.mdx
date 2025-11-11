@@ -3,12 +3,10 @@ title: Evaluator
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
-import { Step, Steps } from 'fumadocs-ui/components/steps'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 import { Image } from '@/components/ui/image'
-import { Video } from '@/components/ui/video'
 
-Der Evaluator-Block nutzt KI, um die Inhaltsqualität anhand anpassbarer Bewertungsmetriken zu bewerten, die du selbst definierst. Perfekt für Qualitätskontrolle, A/B-Tests und um sicherzustellen, dass deine KI-Ausgaben bestimmte Standards erfüllen.
+Der Evaluator-Block nutzt KI, um die Inhaltsqualität anhand benutzerdefinierter Metriken zu bewerten. Perfekt für Qualitätskontrolle, A/B-Tests und um sicherzustellen, dass KI-Ausgaben bestimmte Standards erfüllen.
 
 <div className="flex justify-center">
   <Image
@@ -20,42 +18,14 @@ Der Evaluator-Block nutzt KI, um die Inhaltsqualität anhand anpassbarer Bewertu
   />
 </div>
 
-## Überblick
-
-Mit dem Evaluator-Block kannst du:
-
-<Steps>
-  <Step>
-    <strong>Inhaltsqualität bewerten</strong>: Nutze KI, um Inhalte anhand benutzerdefinierter Metriken mit numerischen Werten zu bewerten
-  </Step>
-  <Step>
-    <strong>Benutzerdefinierte Metriken erstellen</strong>: Erstelle spezifische Bewertungskriterien, die auf deinen Anwendungsfall zugeschnitten sind  
-  </Step>
-  <Step>
-    <strong>Qualitätskontrolle automatisieren</strong>: Erstelle Workflows, die Inhalte automatisch bewerten und filtern
-  </Step>
-  <Step>
-    <strong>Leistung verfolgen</strong>: Überwache Verbesserungen und Konsistenz im Laufe der Zeit mit objektiver Bewertung
-  </Step>
-</Steps>
-
-## Funktionsweise
-
-Der Evaluator-Block verarbeitet Inhalte durch KI-gestützte Bewertung:
-
-1. **Inhalte empfangen** - Nimmt Eingabeinhalte von vorherigen Blöcken in deinem Workflow entgegen
-2. **Metriken anwenden** - Bewertet Inhalte anhand deiner definierten benutzerdefinierten Metriken  
-3. **Bewertungen generieren** - KI-Modell weist numerische Werte für jede Metrik zu
-4. **Zusammenfassung bereitstellen** - Liefert detaillierte Auswertung mit Bewertungen und Erklärungen
-
 ## Konfigurationsoptionen
 
 ### Bewertungsmetriken
 
-Definiere benutzerdefinierte Metriken, anhand derer Inhalte bewertet werden. Jede Metrik umfasst:
+Definieren Sie benutzerdefinierte Metriken, anhand derer Inhalte bewertet werden. Jede Metrik umfasst:
 
 - **Name**: Eine kurze Bezeichnung für die Metrik
-- **Beschreibung**: Eine detaillierte Erklärung dessen, was die Metrik misst
+- **Beschreibung**: Eine detaillierte Erklärung, was die Metrik misst
 - **Bereich**: Der numerische Bereich für die Bewertung (z.B. 1-5, 0-10)
 
 Beispielmetriken:
@@ -78,122 +48,49 @@ Der zu bewertende Inhalt. Dies kann sein:
 
 Wählen Sie ein KI-Modell für die Durchführung der Bewertung:
 
-**OpenAI**: GPT-4o, o1, o3, o4-mini, gpt-4.1
-**Anthropic**: Claude 3.7 Sonnet
-**Google**: Gemini 2.5 Pro, Gemini 2.0 Flash
-**Andere Anbieter**: Groq, Cerebras, xAI, DeepSeek
-**Lokale Modelle**: Jedes Modell, das auf Ollama läuft
+- **OpenAI**: GPT-4o, o1, o3, o4-mini, gpt-4.1
+- **Anthropic**: Claude 3.7 Sonnet
+- **Google**: Gemini 2.5 Pro, Gemini 2.0 Flash
+- **Andere Anbieter**: Groq, Cerebras, xAI, DeepSeek
+- **Lokale Modelle**: Ollama-kompatible Modelle
 
-<div className="w-full max-w-2xl mx-auto overflow-hidden rounded-lg">
-  <Video src="models.mp4" width={500} height={350} />
-</div>
-
-**Empfehlung**: Verwenden Sie Modelle mit starken Argumentationsfähigkeiten wie GPT-4o oder Claude 3.7 Sonnet für genauere Bewertungen.
+Verwenden Sie Modelle mit starken Argumentationsfähigkeiten wie GPT-4o oder Claude 3.7 Sonnet für beste Ergebnisse.
 
 ### API-Schlüssel
 
 Ihr API-Schlüssel für den ausgewählten LLM-Anbieter. Dieser wird sicher gespeichert und für die Authentifizierung verwendet.
 
-## Funktionsweise
-
-1. Der Evaluator-Block nimmt den bereitgestellten Inhalt und Ihre benutzerdefinierten Metriken
-2. Er generiert einen spezialisierten Prompt, der das LLM anweist, den Inhalt zu bewerten
-3. Der Prompt enthält klare Richtlinien zur Bewertung jeder Metrik
-4. Das LLM bewertet den Inhalt und gibt numerische Werte für jede Metrik zurück
-5. Der Evaluator-Block formatiert diese Werte als strukturierte Ausgabe zur Verwendung in Ihrem Workflow
-
 ## Beispielanwendungsfälle
 
-### Bewertung der Inhaltsqualität
+**Bewertung der Inhaltsqualität** - Inhalte vor der Veröffentlichung bewerten
 
-<div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">Szenario: Bewertung der Blogpost-Qualität vor der Veröffentlichung</h4>
-  <ol className="list-decimal pl-5 text-sm">
-    <li>Agent-Block generiert Blogpost-Inhalte</li>
-    <li>Evaluator bewertet Genauigkeit, Lesbarkeit und Engagement</li>
-    <li>Bedingungsblock prüft, ob die Werte Mindestschwellen erreichen</li>
-    <li>Hohe Werte → Veröffentlichen, Niedrige Werte → Überarbeiten und erneut versuchen</li>
-  </ol>
-</div>
+```
+Agent (Generate) → Evaluator (Score) → Condition (Check threshold) → Publish or Revise
+```
 
-### A/B-Testing von Inhalten
+**A/B-Tests von Inhalten** - Vergleich mehrerer KI-generierter Antworten
 
-<div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">Szenario: Vergleich mehrerer KI-generierter Antworten</h4>
-  <ol className="list-decimal pl-5 text-sm">
-    <li>Parallelblock generiert mehrere Antwortvarianten</li>
-    <li>Evaluator bewertet jede Variante nach Klarheit und Relevanz</li>
-    <li>Funktionsblock wählt die Antwort mit der höchsten Bewertung aus</li>
-    <li>Antwortblock gibt das beste Ergebnis zurück</li>
-  </ol>
-</div>
+```
+Parallel (Variations) → Evaluator (Score Each) → Function (Select Best) → Response
+```
 
-### Qualitätskontrolle im Kundensupport
+**Qualitätskontrolle im Kundenservice** - Sicherstellen, dass Antworten Qualitätsstandards erfüllen
 
-<div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">Szenario: Sicherstellen, dass Support-Antworten den Qualitätsstandards entsprechen</h4>
-  <ol className="list-decimal pl-5 text-sm">
-    <li>Support-Mitarbeiter generiert Antwort auf Kundenanfrage</li>
-    <li>Evaluator bewertet Hilfsbereitschaft, Einfühlungsvermögen und Genauigkeit</li>
-    <li>Bewertungen werden für Training und Leistungsüberwachung protokolliert</li>
-    <li>Niedrige Bewertungen lösen einen manuellen Überprüfungsprozess aus</li>
-  </ol>
-</div>
+```
+Agent (Support Response) → Evaluator (Score) → Function (Log) → Condition (Review if Low)
+```
 
-## Eingaben und Ausgaben
+## Ausgaben
 
-<Tabs items={['Konfiguration', 'Variablen', 'Ergebnisse']}>
-  <Tab>
-    <ul className="list-disc space-y-2 pl-6">
-      <li>
-        <strong>Inhalt</strong>: Der zu bewertende Text oder strukturierte Daten
-      </li>
-      <li>
-        <strong>Bewertungsmetriken</strong>: Benutzerdefinierte Kriterien mit Bewertungsbereichen
-      </li>
-      <li>
-        <strong>Modell</strong>: KI-Modell für die Bewertungsanalyse
-      </li>
-      <li>
-        <strong>API-Schlüssel</strong>: Authentifizierung für den ausgewählten LLM-Anbieter
-      </li>
-    </ul>
-  </Tab>
-  <Tab>
-    <ul className="list-disc space-y-2 pl-6">
-      <li>
-        <strong>evaluator.content</strong>: Zusammenfassung der Bewertung
-      </li>
-      <li>
-        <strong>evaluator.model</strong>: Für die Bewertung verwendetes Modell
-      </li>
-      <li>
-        <strong>evaluator.tokens</strong>: Token-Nutzungsstatistiken
-      </li>
-      <li>
-        <strong>evaluator.cost</strong>: Kostenübersicht für den Bewertungsaufruf
-      </li>
-    </ul>
-  </Tab>
-  <Tab>
-    <ul className="list-disc space-y-2 pl-6">
-      <li>
-        <strong>Metrik-Bewertungen</strong>: Numerische Bewertungen für jede definierte Metrik
-      </li>
-      <li>
-        <strong>Bewertungszusammenfassung</strong>: Detaillierte Beurteilung mit Erläuterungen
-      </li>
-      <li>
-        <strong>Zugriff</strong>: Verfügbar in Blöcken nach dem Evaluator
-      </li>
-    </ul>
-  </Tab>
-</Tabs>
+- **`<evaluator.content>`**: Zusammenfassung der Bewertung mit Punktzahlen
+- **`<evaluator.model>`**: Für die Bewertung verwendetes Modell
+- **`<evaluator.tokens>`**: Statistik zur Token-Nutzung
+- **`<evaluator.cost>`**: Geschätzte Bewertungskosten
 
 ## Best Practices
 
 - **Verwenden Sie spezifische Metrikbeschreibungen**: Definieren Sie klar, was jede Metrik misst, um genauere Bewertungen zu erhalten
-- **Wählen Sie geeignete Bereiche**: Wählen Sie Bewertungsbereiche, die ausreichend Granularität bieten, ohne übermäßig komplex zu sein
+- **Wählen Sie geeignete Bereiche**: Wählen Sie Bewertungsbereiche, die ausreichend Granularität bieten, ohne zu komplex zu sein
 - **Verbinden Sie mit Agent-Blöcken**: Verwenden Sie Evaluator-Blöcke, um die Ausgaben von Agent-Blöcken zu bewerten und Feedback-Schleifen zu erstellen
 - **Verwenden Sie konsistente Metriken**: Für vergleichende Analysen sollten Sie konsistente Metriken über ähnliche Bewertungen hinweg beibehalten
-- **Kombinieren Sie mehrere Metriken**: Verwenden Sie mehrere Metriken, um eine umfassende Bewertung zu erhalten
+- **Kombinieren Sie mehrere Metriken**: Verwenden Sie verschiedene Metriken, um eine umfassende Bewertung zu erhalten

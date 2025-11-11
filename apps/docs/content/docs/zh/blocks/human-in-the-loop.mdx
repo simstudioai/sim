@@ -1,0 +1,181 @@
+---
+title: 人工干预
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Image } from '@/components/ui/image'
+
+“人工干预”模块会暂停工作流的执行，等待人工干预后再继续。可用于添加审批关卡、收集反馈或在关键决策点获取额外输入。
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/hitl-1.png"
+    alt="人工干预模块配置"
+    width={500}
+    height={400}
+    className="my-6"
+  />
+</div>
+
+当执行到达此模块时，工作流会无限期暂停，直到通过审批门户、API 或 webhook 提供人工输入。
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/hitl-2.png"
+    alt="人工干预审批门户"
+    width={700}
+    height={500}
+    className="my-6"
+  />
+</div>
+
+## 配置选项
+
+### 暂停输出
+
+定义显示给审批者的数据。这是审批门户中显示的上下文信息，帮助他们做出明智的决策。
+
+使用可视化构建器或 JSON 编辑器来构建数据结构。使用 `<blockName.output>` 语法引用工作流变量。
+
+```json
+{
+  "customerName": "<agent1.content.name>",
+  "proposedAction": "<router1.selectedPath>",
+  "confidenceScore": "<evaluator1.score>",
+  "generatedEmail": "<agent2.content>"
+}
+```
+
+### 通知
+
+配置在需要审批时如何提醒审批者。支持的渠道包括：
+
+- **Slack** - 发送到频道或私信的消息
+- **Gmail** - 带有审批链接的电子邮件
+- **Microsoft Teams** - 团队频道通知
+- **SMS** - 通过 Twilio 的短信提醒
+- **Webhooks** - 自定义通知系统
+
+在通知消息中包含审批 URL (`<blockId.url>`)，以便审批者可以访问门户。
+
+### 恢复输入
+
+定义审批者在响应时填写的字段。这些数据在工作流恢复后可供下游模块使用。
+
+```json
+{
+  "approved": {
+    "type": "boolean",
+    "description": "Approve or reject this request"
+  },
+  "comments": {
+    "type": "string",
+    "description": "Optional feedback or explanation"
+  }
+}
+```
+
+在下游模块中使用 `<blockId.resumeInput.fieldName>` 访问恢复数据。
+
+## 审批方法
+
+<Tabs items={['Approval Portal', 'API', 'Webhook']}>
+  <Tab>
+    ### 审批门户
+    
+    每个模块都会生成一个唯一的门户 URL (`<blockId.url>`)，提供一个可视化界面，显示所有暂停的输出数据和用于恢复输入的表单字段。支持移动端响应且安全可靠。
+    
+    在通知中分享此 URL，供审批人查看和响应。
+  </Tab>
+  <Tab>
+    ### REST API
+    
+    以编程方式恢复工作流：
+    
+
+    ```bash
+    POST /api/workflows/{workflowId}/executions/{executionId}/resume/{blockId}
+    
+    {
+      "approved": true,
+      "comments": "Looks good to proceed"
+    }
+    ```
+
+    
+    构建自定义审批界面或与现有系统集成。
+  </Tab>
+  <Tab>
+    ### Webhook
+    
+    在通知部分添加一个 Webhook 工具，将审批请求发送到外部系统。可与 Jira 或 ServiceNow 等工单系统集成。
+  </Tab>
+</Tabs>
+
+## 常见用例
+
+**内容审批** - 在发布前审核 AI 生成的内容
+
+```
+Agent → Human in the Loop → API (Publish)
+```
+
+**多阶段审批** - 为高风险决策设置多个审批步骤
+
+```
+Agent → Human in the Loop (Manager) → Human in the Loop (Director) → Execute
+```
+
+**数据验证** - 在处理前验证提取的数据
+
+```
+Agent (Extract) → Human in the Loop (Validate) → Function (Process)
+```
+
+**质量控制** - 在发送给客户之前审核 AI 输出
+
+```
+Agent (Generate) → Human in the Loop (QA) → Gmail (Send)
+```
+
+## 模块输出
+
+**`url`** - 审批门户的唯一 URL  
+**`resumeInput.*`** - 在工作流恢复后，Resume Input 中定义的所有字段将可用
+
+通过 `<blockId.resumeInput.fieldName>` 访问。
+
+## 示例
+
+**暂停的输出：**
+
+```json
+{
+  "title": "<agent1.content.title>",
+  "body": "<agent1.content.body>",
+  "qualityScore": "<evaluator1.score>"
+}
+```
+
+**恢复输入：**
+
+```json
+{
+  "approved": { "type": "boolean" },
+  "feedback": { "type": "string" }
+}
+```
+
+**下游使用：**
+
+```javascript
+// Condition block
+<approval1.resumeInput.approved> === true
+```
+
+## 相关模块
+
+- **[条件](/blocks/condition)** - 根据审批决策进行分支
+- **[变量](/blocks/variables)** - 存储审批历史和元数据
+- **[响应](/blocks/response)** - 将工作流结果返回给 API 调用方
