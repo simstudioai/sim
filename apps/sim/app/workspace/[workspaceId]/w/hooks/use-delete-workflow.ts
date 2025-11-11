@@ -78,8 +78,18 @@ export function useDeleteWorkflow({
 
       // Find next workflow to navigate to (if active workflow is being deleted)
       const sidebarWorkflows = Object.values(workflows).filter((w) => w.workspaceId === workspaceId)
-      const firstWorkflowId = workflowIdsToDelete[0]
-      const currentIndex = sidebarWorkflows.findIndex((w) => w.id === firstWorkflowId)
+
+      // Find which specific workflow is the active one (if any in the deletion list)
+      let activeWorkflowId: string | null = null
+      if (isActiveWorkflowBeingDeleted && typeof isActive === 'function') {
+        // Check each workflow being deleted to find which one is active
+        activeWorkflowId =
+          workflowIdsToDelete.find((id) => isActive([id])) || workflowIdsToDelete[0]
+      } else {
+        activeWorkflowId = workflowIdsToDelete[0]
+      }
+
+      const currentIndex = sidebarWorkflows.findIndex((w) => w.id === activeWorkflowId)
 
       let nextWorkflowId: string | null = null
       if (isActiveWorkflowBeingDeleted && sidebarWorkflows.length > workflowIdsToDelete.length) {
