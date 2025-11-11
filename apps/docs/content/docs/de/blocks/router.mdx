@@ -21,60 +21,17 @@ Der Router-Block nutzt KI, um intelligent zu entscheiden, welchen Pfad Ihr Workf
   />
 </div>
 
-## Überblick
+## Router vs. Bedingung
 
-Der Router-Block ermöglicht Ihnen:
+**Router verwenden wenn:**
+- KI-gestützte Inhaltsanalyse erforderlich ist
+- Mit unstrukturiertem oder variierendem Inhalt gearbeitet wird
+- Absichtsbasiertes Routing erforderlich ist (z.B. "Support-Tickets an Abteilungen weiterleiten")
 
-<Steps>
-  <Step>
-    <strong>Intelligentes Content-Routing</strong>: Nutzung von KI zum Verständnis von Absicht und Kontext
-  </Step>
-  <Step>
-    <strong>Dynamische Pfadauswahl</strong>: Routing von Workflows basierend auf unstrukturierter Inhaltsanalyse
-  </Step>
-  <Step>
-    <strong>Kontextbewusste Entscheidungen</strong>: Treffen intelligenter Routing-Entscheidungen über einfache Regeln hinaus
-  </Step>
-  <Step>
-    <strong>Multi-Pfad-Management</strong>: Verwaltung komplexer Workflows mit mehreren potenziellen Zielen
-  </Step>
-</Steps>
-
-## Router vs. Bedingungsblöcke
-
-<Accordions>
-  <Accordion title="Wann Router verwenden">
-    - KI-gestützte Inhaltsanalyse erforderlich
-    - Unstrukturierte oder variierende Inhaltstypen
-    - Absichtsbasiertes Routing (z.B. "Support-Tickets an Abteilungen weiterleiten")
-    - Kontextbewusste Entscheidungsfindung erforderlich
-  </Accordion>
-  <Accordion title="Wann Bedingung verwenden">
-    - Einfache, regelbasierte Entscheidungen
-    - Strukturierte Daten oder numerische Vergleiche
-    - Schnelles, deterministisches Routing erforderlich
-    - Boolesche Logik ausreichend
-  </Accordion>
-</Accordions>
-
-## Funktionsweise
-
-Der Router-Block:
-
-<Steps>
-  <Step>
-    <strong>Analysiert Inhalte</strong>: Verwendet ein LLM, um Eingabeinhalte und Kontext zu verstehen
-  </Step>
-  <Step>
-    <strong>Bewertet Ziele</strong>: Vergleicht Inhalte mit verfügbaren Zielblöcken
-  </Step>
-  <Step>
-    <strong>Wählt Ziel aus</strong>: Identifiziert den am besten geeigneten Pfad basierend auf der Absicht
-  </Step>
-  <Step>
-    <strong>Leitet Ausführung</strong>: Dirigiert den Workflow zum ausgewählten Block
-  </Step>
-</Steps>
+**Bedingung verwenden wenn:**
+- Einfache regelbasierte Entscheidungen ausreichen
+- Mit strukturierten Daten oder numerischen Vergleichen gearbeitet wird
+- Schnelles, deterministisches Routing erforderlich ist
 
 ## Konfigurationsoptionen
 
@@ -124,58 +81,6 @@ Nachdem ein Router eine Entscheidung getroffen hat, können Sie auf seine Ausgab
 - **`<router.cost>`**: Kostenübersicht für den Routing-Aufruf (Eingabe, Ausgabe, Gesamt)
 - **`<router.model>`**: Das für die Entscheidungsfindung verwendete Modell
 
-## Erweiterte Funktionen
-
-### Benutzerdefinierte Routing-Kriterien
-
-Definieren Sie spezifische Kriterien für jeden Zielblock:
-
-```javascript
-// Example routing descriptions
-Target Block 1: "Technical support issues, API problems, integration questions"
-Target Block 2: "Billing inquiries, subscription changes, payment issues"
-Target Block 3: "General questions, feedback, feature requests"
-```
-
-## Eingaben und Ausgaben
-
-<Tabs items={['Konfiguration', 'Variablen']}>
-  <Tab>
-    <ul className="list-disc space-y-2 pl-6">
-      <li>
-        <strong>Inhalt/Prompt</strong>: Zu analysierender Text für Routing-Entscheidungen
-      </li>
-      <li>
-        <strong>Zielblöcke</strong>: Verbundene Blöcke als potenzielle Ziele
-      </li>
-      <li>
-        <strong>Modell</strong>: KI-Modell für Routing-Analyse
-      </li>
-      <li>
-        <strong>API-Schlüssel</strong>: Authentifizierung für ausgewählten LLM-Anbieter
-      </li>
-    </ul>
-  </Tab>
-  <Tab>
-    <ul className="list-disc space-y-2 pl-6">
-      <li>
-        <strong>router.prompt</strong>: Zusammenfassung des verwendeten Routing-Prompts
-      </li>
-      <li>
-        <strong>router.selected_path</strong>: Details zum gewählten Ziel
-      </li>
-      <li>
-        <strong>router.tokens</strong>: Token-Nutzungsstatistiken
-      </li>
-      <li>
-        <strong>router.cost</strong>: Kostenübersicht für den Routing-Aufruf (Eingabe, Ausgabe, Gesamt)
-      </li>
-      <li>
-        <strong>router.model</strong>: Für die Entscheidungsfindung verwendetes Modell
-      </li>
-    </ul>
-  </Tab>
-</Tabs>
 
 ## Beispielanwendungsfälle
 

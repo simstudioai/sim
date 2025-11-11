@@ -21,60 +21,17 @@ import { Video } from '@/components/ui/video'
   />
 </div>
 
-## 概要
+## ルーター vs 条件ブロック
 
-ルーターブロックでは以下のことが可能です：
+**ルーターを使用する場合：**
+- AIを活用したコンテンツ分析が必要
+- 非構造化または様々なコンテンツを扱う場合
+- 意図ベースのルーティングが必要（例：「サポートチケットを部門にルーティング」）
 
-<Steps>
-  <Step>
-    <strong>インテリジェントなコンテンツルーティング</strong>：AIを使用して意図とコンテキストを理解
-  </Step>
-  <Step>
-    <strong>動的なパス選択</strong>：非構造化コンテンツ分析に基づいたワークフローのルーティング
-  </Step>
-  <Step>
-    <strong>コンテキストを考慮した判断</strong>：単純なルールを超えたスマートなルーティング選択
-  </Step>
-  <Step>
-    <strong>マルチパス管理</strong>：複数の潜在的な宛先を持つ複雑なワークフローの処理
-  </Step>
-</Steps>
-
-## ルーターと条件ブロックの比較
-
-<Accordions>
-  <Accordion title="ルーターを使用する場合">
-    - AIを活用したコンテンツ分析が必要
-    - 非構造化または様々なコンテンツタイプ
-    - 意図ベースのルーティング（例：「サポートチケットを部門にルーティング」）
-    - コンテキストを考慮した意思決定が必要
-  </Accordion>
-  <Accordion title="条件ブロックを使用する場合">
-    - 単純なルールベースの判断
-    - 構造化データまたは数値比較
-    - 高速で決定論的なルーティングが必要
-    - ブール論理で十分
-  </Accordion>
-</Accordions>
-
-## 仕組み
-
-ルーターブロックは：
-
-<Steps>
-  <Step>
-    <strong>コンテンツを分析</strong>：LLMを使用して入力コンテンツとコンテキストを理解
-  </Step>
-  <Step>
-    <strong>ターゲットを評価</strong>：利用可能な宛先ブロックとコンテンツを比較
-  </Step>
-  <Step>
-    <strong>宛先を選択</strong>：意図に基づいて最適なパスを特定
-  </Step>
-  <Step>
-    <strong>実行をルーティング</strong>：選択されたブロックにワークフローを誘導
-  </Step>
-</Steps>
+**条件ブロックを使用する場合：**
+- 単純なルールベースの判断で十分
+- 構造化データまたは数値比較を扱う場合
+- 高速で決定論的なルーティングが必要
 
 ## 設定オプション
 
@@ -124,58 +81,6 @@ import { Video } from '@/components/ui/video'
 - **`<router.cost>`**: ルーティングコールのコスト概要（入力、出力、合計）
 - **`<router.model>`**: 意思決定に使用されたモデル
 
-## 高度な機能
-
-### カスタムルーティング基準
-
-各ターゲットブロックの特定の基準を定義します：
-
-```javascript
-// Example routing descriptions
-Target Block 1: "Technical support issues, API problems, integration questions"
-Target Block 2: "Billing inquiries, subscription changes, payment issues"
-Target Block 3: "General questions, feedback, feature requests"
-```
-
-## 入力と出力
-
-<Tabs items={['設定', '変数']}>
-  <Tab>
-    <ul className="list-disc space-y-2 pl-6">
-      <li>
-        <strong>コンテンツ/プロンプト</strong>: ルーティング判断のために分析するテキスト
-      </li>
-      <li>
-        <strong>ターゲットブロック</strong>: 潜在的な送信先として接続されたブロック
-      </li>
-      <li>
-        <strong>モデル</strong>: ルーティング分析用のAIモデル
-      </li>
-      <li>
-        <strong>APIキー</strong>: 選択したLLMプロバイダーの認証
-      </li>
-    </ul>
-  </Tab>
-  <Tab>
-    <ul className="list-disc space-y-2 pl-6">
-      <li>
-        <strong>router.prompt</strong>: 使用されたルーティングプロンプトの要約
-      </li>
-      <li>
-        <strong>router.selected_path</strong>: 選択された送信先の詳細
-      </li>
-      <li>
-        <strong>router.tokens</strong>: トークン使用統計
-      </li>
-      <li>
-        <strong>router.cost</strong>: ルーティングコールのコスト概要（入力、出力、合計）
-      </li>
-      <li>
-        <strong>router.model</strong>: 意思決定に使用されたモデル
-      </li>
-    </ul>
-  </Tab>
-</Tabs>
 
 ## 使用例
 

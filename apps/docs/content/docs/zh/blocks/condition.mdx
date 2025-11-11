@@ -20,38 +20,6 @@ import { Image } from '@/components/ui/image'
   />
 </div>
 
-<Callout>
-  条件模块支持确定性决策，无需依赖 LLM，非常适合简单的分支逻辑。
-</Callout>
-
-## 概述
-
-条件模块可以让您：
-
-<Steps>
-  <Step>
-    <strong>创建分支逻辑</strong>：基于布尔表达式引导工作流
-  </Step>
-  <Step>
-    <strong>做出数据驱动的决策</strong>：使用前一个模块的输出评估条件
-  </Step>
-  <Step>
-    <strong>处理多种场景</strong>：定义多个条件并设置不同路径
-  </Step>
-  <Step>
-    <strong>提供确定性路由</strong>：无需依赖 LLM 即可做出决策
-  </Step>
-</Steps>
-
-## 工作原理
-
-条件模块通过以下顺序评估过程运行：
-
-1. **评估表达式** - 使用当前工作流数据处理 JavaScript/TypeScript 布尔表达式
-2. **确定结果** - 根据表达式评估返回 true 或 false
-3. **引导工作流** - 根据结果将执行引导到相应的目标模块  
-4. **提供上下文** - 生成关于决策的元数据以便调试和监控
-
 ## 配置选项
 
 ### 条件

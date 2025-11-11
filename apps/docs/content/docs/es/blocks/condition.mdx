@@ -20,39 +20,6 @@ El bloque de Condición te permite ramificar la ruta de ejecución de tu flujo d
   />
 </div>
 
-<Callout>
-  Los bloques de Condición permiten una toma de decisiones determinista sin requerir un LLM, haciéndolos ideales
-  para lógica de ramificación sencilla.
-</Callout>
-
-## Descripción general
-
-El bloque de Condición te permite:
-
-<Steps>
-  <Step>
-    <strong>Crear lógica de ramificación</strong>: dirigir flujos de trabajo basados en expresiones booleanas
-  </Step>
-  <Step>
-    <strong>Tomar decisiones basadas en datos</strong>: evaluar condiciones usando salidas de bloques anteriores
-  </Step>
-  <Step>
-    <strong>Manejar múltiples escenarios</strong>: definir múltiples condiciones con diferentes rutas
-  </Step>
-  <Step>
-    <strong>Proporcionar enrutamiento determinista</strong>: tomar decisiones sin requerir un LLM
-  </Step>
-</Steps>
-
-## Cómo funciona
-
-El bloque de Condición opera a través de un proceso de evaluación secuencial:
-
-1. **Evaluar expresión** - Procesa la expresión booleana de JavaScript/TypeScript usando los datos actuales del flujo de trabajo
-2. **Determinar resultado** - Devuelve verdadero o falso basado en la evaluación de la expresión
-3. **Dirigir flujo de trabajo** - Dirige la ejecución al bloque de destino apropiado basado en el resultado  
-4. **Proporcionar contexto** - Genera metadatos sobre la decisión para depuración y monitoreo
-
 ## Opciones de configuración
 
 ### Condiciones

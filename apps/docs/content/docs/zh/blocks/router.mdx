@@ -21,60 +21,17 @@ import { Video } from '@/components/ui/video'
   />
 </div>
 
-## 概述
+## 路由器 vs 条件模块
 
-路由器模块可以让您：
+**使用路由器时：**
+- 需要 AI 驱动的内容分析
+- 处理非结构化或多样化的内容
+- 需要基于意图的路由（例如，"将支持票据路由到部门"）
 
-<Steps>
-  <Step>
-    <strong>智能内容路由</strong>：使用 AI 理解意图和上下文
-  </Step>
-  <Step>
-    <strong>动态路径选择</strong>：基于非结构化内容分析路由工作流
-  </Step>
-  <Step>
-    <strong>上下文感知决策</strong>：做出超越简单规则的智能路由选择
-  </Step>
-  <Step>
-    <strong>多路径管理</strong>：处理具有多个潜在目的地的复杂工作流
-  </Step>
-</Steps>
-
-## 路由器模块与条件模块的对比
-
-<Accordions>
-  <Accordion title="何时使用路由器">
-    - 需要 AI 驱动的内容分析
-    - 非结构化或多样化的内容类型
-    - 基于意图的路由（例如，“将支持票据路由到部门”）
-    - 需要上下文感知的决策
-  </Accordion>
-  <Accordion title="何时使用条件模块">
-    - 简单的基于规则的决策
-    - 结构化数据或数值比较
-    - 需要快速、确定性的路由
-    - 布尔逻辑足够
-  </Accordion>
-</Accordions>
-
-## 工作原理
-
-路由器模块：
-
-<Steps>
-  <Step>
-    <strong>分析内容</strong>：使用 LLM 理解输入内容和上下文
-  </Step>
-  <Step>
-    <strong>评估目标</strong>：将内容与可用的目标模块进行比较
-  </Step>
-  <Step>
-    <strong>选择目标</strong>：根据意图识别最合适的路径
-  </Step>
-  <Step>
-    <strong>执行路由</strong>：将工作流引导到选定的模块
-  </Step>
-</Steps>
+**使用条件模块时：**
+- 简单的基于规则的决策足够
+- 处理结构化数据或数值比较
+- 需要快速、确定性的路由
 
 ## 配置选项
 
@@ -124,58 +81,6 @@ Router 做出决策后，您可以访问其输出：
 - **`<router.cost>`**：路由调用的成本摘要（输入、输出、总计）
 - **`<router.model>`**：用于决策的模型
 
-## 高级功能
-
-### 自定义路由标准
-
-为每个目标模块定义特定的标准：
-
-```javascript
-// Example routing descriptions
-Target Block 1: "Technical support issues, API problems, integration questions"
-Target Block 2: "Billing inquiries, subscription changes, payment issues"
-Target Block 3: "General questions, feedback, feature requests"
-```
-
-## 输入和输出
-
-<Tabs items={['Configuration', 'Variables']}>
-  <Tab>
-    <ul className="list-disc space-y-2 pl-6">
-      <li>
-        <strong>内容/提示</strong>：用于分析路由决策的文本
-      </li>
-      <li>
-        <strong>目标块</strong>：作为潜在目的地的连接块
-      </li>
-      <li>
-        <strong>模型</strong>：用于路由分析的 AI 模型
-      </li>
-      <li>
-        <strong>API 密钥</strong>：选定 LLM 提供商的身份验证
-      </li>
-    </ul>
-  </Tab>
-  <Tab>
-    <ul className="list-disc space-y-2 pl-6">
-      <li>
-        <strong>router.prompt</strong>：使用的路由提示摘要
-      </li>
-      <li>
-        <strong>router.selected_path</strong>：选择的目的地详情
-      </li>
-      <li>
-        <strong>router.tokens</strong>：令牌使用统计
-      </li>
-      <li>
-        <strong>router.cost</strong>：路由调用的成本摘要（输入、输出、总计）
-      </li>
-      <li>
-        <strong>router.model</strong>：用于决策的模型
-      </li>
-    </ul>
-  </Tab>
-</Tabs>
 
 ## 示例用例
 

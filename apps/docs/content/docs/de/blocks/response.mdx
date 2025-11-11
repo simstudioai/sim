@@ -23,54 +23,6 @@ Der Antwort-Block ist der letzte Schritt in deinem Workflow, der eine strukturie
   Antwort-Blöcke sind terminale Blöcke - sie beenden die Workflow-Ausführung und können nicht mit anderen Blöcken verbunden werden.
 </Callout>
 
-## Überblick
-
-Der Antwort-Block ermöglicht dir:
-
-<Steps>
-  <Step>
-    <strong>API-Antworten formatieren</strong>: Strukturierung von Workflow-Ergebnissen in korrekte HTTP-Antworten
-  </Step>
-  <Step>
-    <strong>Statuscodes festlegen</strong>: Konfiguration passender HTTP-Statuscodes basierend auf Workflow-Ergebnissen
-  </Step>
-  <Step>
-    <strong>Header kontrollieren</strong>: Hinzufügen benutzerdefinierter Header für API-Antworten und Webhooks
-  </Step>
-  <Step>
-    <strong>Daten transformieren</strong>: Umwandlung von Workflow-Variablen in client-freundliche Antwortformate
-  </Step>
-</Steps>
-
-## Wie es funktioniert
-
-Der Antwort-Block schließt die Workflow-Ausführung ab:
-
-1. **Daten sammeln** - Sammelt Variablen und Ausgaben von vorherigen Blöcken
-2. **Antwort formatieren** - Strukturiert Daten gemäß deiner Konfiguration
-3. **HTTP-Details festlegen** - Wendet Statuscodes und Header an
-4. **Antwort senden** - Gibt die formatierte Antwort an den API-Aufrufer zurück
-
-## Wann du Antwort-Blöcke benötigst
-
-- **API-Endpunkte**: Wenn dein Workflow über eine API aufgerufen wird, formatieren Antwort-Blöcke die Rückgabedaten
-- **Webhooks**: Rückgabe von Bestätigungen oder Daten an das aufrufende System
-- **Testen**: Anzeige formatierter Ergebnisse beim Testen deines Workflows
-
-## Zwei Möglichkeiten zum Erstellen von Antworten
-
-### Builder-Modus (Empfohlen)
-Visuelle Oberfläche zum Erstellen der Antwortstruktur:
-- Felder per Drag-and-Drop einfügen
-- Einfache Referenzierung von Workflow-Variablen
-- Visuelle Vorschau der Antwortstruktur
-
-### Editor-Modus (Fortgeschritten)
-JSON direkt schreiben:
-- Volle Kontrolle über das Antwortformat
-- Unterstützung für komplexe verschachtelte Strukturen
-- Verwendung der `<variable.name>`Syntax für dynamische Werte
-
 ## Konfigurationsoptionen
 
 ### Antwortdaten

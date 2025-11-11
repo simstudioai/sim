@@ -19,34 +19,6 @@ APIブロックを使用すると、HTTPリクエストを通じてAPIエンド�
   />
 </div>
 
-## 概要
-
-APIブロックでは以下のことが可能です：
-
-<Steps>
-  <Step>
-    <strong>外部サービスへの接続</strong>: REST APIやWebサービスへのHTTPリクエストを行う
-  </Step>
-  <Step>
-    <strong>データの送受信</strong>: レスポンスの処理や外部ソースからのデータ変換
-  </Step>
-  <Step>
-    <strong>サードパーティプラットフォームの統合</strong>: Stripe、Slack、またはカスタムAPIなどのサービスとの連携
-  </Step>
-  <Step>
-    <strong>認証の処理</strong>: BearerトークンやAPIキーなど、様々な認証方法をサポート
-  </Step>
-</Steps>
-
-## 動作の仕組み
-
-APIブロックは構造化されたアプローチでHTTPリクエストを処理します：
-
-1. **リクエストの設定** - URL、メソッド、ヘッダー、ボディパラメータを設定
-2. **リクエストの実行** - 指定されたエンドポイントにHTTPリクエストを送信
-3. **レスポンスの処理** - レスポンスデータ、ステータスコード、ヘッダーの処理
-4. **エラー処理** - タイムアウト、リトライ、エラー状態の管理
-
 ## 設定オプション
 
 ### URL
@@ -145,58 +117,12 @@ if (<api.status> === 200) {
 }
 ```
 
-## 入力と出力
+## 出力
 
-<Tabs items={['設定', '変数', '結果']}>
-  <Tab>
-    <ul className="list-disc space-y-2 pl-6">
-      <li>
-        <strong>URL</strong>: リクエストを送信するエンドポイント
-      </li>
-      <li>
-        <strong>メソッド</strong>: HTTPメソッド（GET、POST、PUT、DELETE、PATCH）
-      </li>
-      <li>
-        <strong>クエリパラメータ</strong>: URLパラメータのキーと値のペア
-      </li>
-      <li>
-        <strong>ヘッダー</strong>: 認証とコンテンツタイプのHTTPヘッダー
-      </li>
-      <li>
-        <strong>ボディ</strong>: POST/PUT/PATCHメソッド用のリクエストペイロード
-      </li>
-    </ul>
-  </Tab>
-  <Tab>
-    <ul className="list-disc space-y-2 pl-6">
-      <li>
-        <strong>api.data</strong>: API呼び出しからのレスポンスボディデータ
-      </li>
-      <li>
-        <strong>api.status</strong>: サーバーから返されたHTTPステータスコード
-      </li>
-      <li>
-        <strong>api.headers</strong>: サーバーからのレスポンスヘッダー
-      </li>
-      <li>
-        <strong>api.error</strong>: リクエストが失敗した場合のエラー詳細
-      </li>
-    </ul>
-  </Tab>
-  <Tab>
-    <ul className="list-disc space-y-2 pl-6">
-      <li>
-        <strong>レスポンスデータ</strong>: 主要なAPIレスポンスコンテンツ
-      </li>
-      <li>
-        <strong>ステータス情報</strong>: HTTPステータスとエラー詳細
-      </li>
-      <li>
-        <strong>アクセス</strong>: API呼び出し後のブロックで利用可能
-      </li>
-    </ul>
-  </Tab>
-</Tabs>
+- **`<api.data>`**: API呼び出しからのレスポンスボディデータ
+- **`<api.status>`**: HTTPステータスコード
+- **`<api.headers>`**: レスポンスヘッダー
+- **`<api.error>`**: リクエストが失敗した場合のエラー詳細
 
 ## 使用例
 
