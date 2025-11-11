@@ -83,13 +83,12 @@ Choisissez entre quatre types de boucles :
     </div>
     
     Utilisez cette option lorsque vous devez boucler jusqu'à ce qu'une condition spécifique soit remplie. La condition est vérifiée **avant** chaque itération.
-    
 
     ```
-    Example: While <variable.i> < 10
+    Example: While {"<variable.i>"} < 10
     - Check condition → Execute if true
-    - Inside loop: Increment <variable.i>
-    - Inside loop: Variables assigns i = <variable.i> + 1
+    - Inside loop: Increment {"<variable.i>"}
+    - Inside loop: Variables assigns i = {"<variable.i>"} + 1
     - Check condition → Execute if true
     - Check condition → Exit if false
     ```
@@ -109,19 +108,14 @@ Choisissez entre quatre types de boucles :
     </div>
     
     Utilisez cette option lorsque vous devez exécuter au moins une fois, puis boucler jusqu'à ce qu'une condition soit remplie. La condition est vérifiée **après** chaque itération.
-    
 
-<Tabs items={['For', 'ForEach', 'While', 'DoWhile']}>
-  <Tab>
-    Exécute un bloc de code un nombre spécifique de fois.
-    
-    ```javascript
-    // Exemple de boucle For
-    for (let i = 0; i < 5; i++) {
-      // Code à exécuter à chaque itération
-    }
+
     ```
-  </Tab>
+    Example: Do-While Loop
+    - Execute first iteration
+    - Check condition → Continue if true
+    - Check condition → Exit if false
+    ```
 
   </Tab>
 </Tabs>

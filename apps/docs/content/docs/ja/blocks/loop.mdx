@@ -83,13 +83,12 @@ import { Image } from '@/components/ui/image'
     </div>
     
     特定の条件が満たされるまでループする必要がある場合に使用します。条件は各反復の**前に**チェックされます。
-    
 
     ```
-    Example: While <variable.i> < 10
+    Example: While {"<variable.i>"} < 10
     - Check condition → Execute if true
-    - Inside loop: Increment <variable.i>
-    - Inside loop: Variables assigns i = <variable.i> + 1
+    - Inside loop: Increment {"<variable.i>"}
+    - Inside loop: Variables assigns i = {"<variable.i>"} + 1
     - Check condition → Execute if true
     - Check condition → Exit if false
     ```
@@ -97,7 +96,7 @@ import { Image } from '@/components/ui/image'
   </Tab>
   <Tab>
     **Do-While ループ（条件ベース）** - 少なくとも1回実行し、その後条件がtrueの間継続します：
-    
+
     <div className="flex justify-center">
       <Image
         src="/static/blocks/loop-4.png"
@@ -107,19 +106,14 @@ import { Image } from '@/components/ui/image'
         className="my-6"
       />
     </div>
-    
-    少なくとも1回実行し、その後条件が満たされるまでループする必要がある場合に使用します。条件は各反復の**後に**チェックされます。
-    
 
-<Tabs items={['For', 'ForEach', 'While', 'DoWhile']}>
-  <Tab>
-    **For ループ** - 指定された回数だけ実行します
-    
-    ```javascript
-    // 5回実行
-    for (let i = 0; i < 5; i++) {
-      // 各反復でアクションを実行
-    }
+    少なくとも1回実行し、その後条件が満たされるまでループする必要がある場合に使用します。条件は各反復の**後に**チェックされます。
+
+    ```
+    Example: Do-While Loop
+    - Execute first iteration
+    - Check condition → Continue if true
+    - Check condition → Exit if false
     ```
 
   </Tab>

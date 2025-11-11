@@ -83,13 +83,12 @@ Wähle zwischen vier Arten von Schleifen:
     </div>
     
     Verwende diese, wenn du eine Schleife ausführen musst, bis eine bestimmte Bedingung erfüllt ist. Die Bedingung wird **vor** jeder Iteration überprüft.
-    
 
     ```
-    Example: While <variable.i> < 10
+    Example: While {"<variable.i>"} < 10
     - Check condition → Execute if true
-    - Inside loop: Increment <variable.i>
-    - Inside loop: Variables assigns i = <variable.i> + 1
+    - Inside loop: Increment {"<variable.i>"}
+    - Inside loop: Variables assigns i = {"<variable.i>"} + 1
     - Check condition → Execute if true
     - Check condition → Exit if false
     ```
@@ -109,10 +108,14 @@ Wähle zwischen vier Arten von Schleifen:
     </div>
     
     Verwende diese, wenn du mindestens einmal ausführen und dann eine Schleife durchlaufen musst, bis eine Bedingung erfüllt ist. Die Bedingung wird **nach** jeder Iteration überprüft.
-    
 
-<Tabs items={['For', 'ForEach', 'While', 'DoWhile']}>
-  <Tab>
+
+    ```
+    Example: Do-While Loop
+    - Execute first iteration
+    - Check condition → Continue if true
+    - Check condition → Exit if false
+    ```
 
   </Tab>
 </Tabs>
