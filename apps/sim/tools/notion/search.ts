@@ -11,7 +11,6 @@ export const notionSearchTool: ToolConfig<NotionSearchParams, NotionResponse> = 
   oauth: {
     required: true,
     provider: 'notion',
-    additionalScopes: ['workspace.content', 'page.read'],
   },
 
   params: {

@@ -13,7 +13,6 @@ export const updateTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsUpdateRe
   oauth: {
     required: true,
     provider: 'google-sheets',
-    additionalScopes: [],
   },
 
   params: {

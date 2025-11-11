@@ -10,7 +10,6 @@ export const searchTool: ToolConfig<RedditSearchParams, RedditPostsResponse> = {
   oauth: {
     required: true,
     provider: 'reddit',
-    additionalScopes: ['read'],
   },
 
   params: {

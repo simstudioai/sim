@@ -15,7 +15,6 @@ export const getTool: ToolConfig<GoogleCalendarGetParams, GoogleCalendarGetRespo
   oauth: {
     required: true,
     provider: 'google-calendar',
-    additionalScopes: ['https://www.googleapis.com/auth/calendar'],
   },
 
   params: {

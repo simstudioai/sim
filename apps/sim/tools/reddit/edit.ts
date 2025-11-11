@@ -10,7 +10,6 @@ export const editTool: ToolConfig<RedditEditParams, RedditWriteResponse> = {
   oauth: {
     required: true,
     provider: 'reddit',
-    additionalScopes: ['edit'],
   },
 
   params: {

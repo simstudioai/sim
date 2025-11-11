@@ -17,7 +17,6 @@ export const createMattersTool: ToolConfig<GoogleVaultCreateMattersParams> = {
   oauth: {
     required: true,
     provider: 'google-vault',
-    additionalScopes: ['https://www.googleapis.com/auth/ediscovery'],
   },
 
   params: {

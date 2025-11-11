@@ -10,7 +10,6 @@ export const createFolderTool: ToolConfig<OneDriveToolParams, OneDriveUploadResp
   oauth: {
     required: true,
     provider: 'onedrive',
-    additionalScopes: [],
   },
 
   params: {

@@ -28,7 +28,6 @@ export const jiraDeleteIssueLinkTool: ToolConfig<
   oauth: {
     required: true,
     provider: 'jira',
-    additionalScopes: ['delete:issue-link:jira', 'read:jira-work'],
   },
 
   params: {

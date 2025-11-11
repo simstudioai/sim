@@ -13,7 +13,6 @@ export const appendTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsAppendRe
   oauth: {
     required: true,
     provider: 'google-sheets',
-    additionalScopes: [],
   },
 
   params: {

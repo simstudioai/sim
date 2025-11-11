@@ -10,7 +10,6 @@ export const subscribeTool: ToolConfig<RedditSubscribeParams, RedditWriteRespons
   oauth: {
     required: true,
     provider: 'reddit',
-    additionalScopes: ['subscribe'],
   },
 
   params: {

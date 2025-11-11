@@ -11,7 +11,6 @@ export const trelloCreateCardTool: ToolConfig<TrelloCreateCardParams, TrelloCrea
   oauth: {
     required: true,
     provider: 'trello',
-    additionalScopes: ['read', 'write'],
   },
 
   params: {

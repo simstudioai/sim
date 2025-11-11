@@ -10,7 +10,6 @@ export const notionWriteTool: ToolConfig<NotionWriteParams, NotionResponse> = {
   oauth: {
     required: true,
     provider: 'notion',
-    additionalScopes: ['workspace.content', 'page.write'],
   },
 
   params: {

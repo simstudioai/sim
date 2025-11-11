@@ -16,7 +16,6 @@ export const hotPostsTool: ToolConfig<HotPostsParams, RedditHotPostsResponse> = 
   oauth: {
     required: true,
     provider: 'reddit',
-    additionalScopes: ['read'],
   },
 
   params: {

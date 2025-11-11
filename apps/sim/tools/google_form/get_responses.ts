@@ -15,7 +15,6 @@ export const getResponsesTool: ToolConfig<GoogleFormsGetResponsesParams> = {
   oauth: {
     required: true,
     provider: 'google-forms',
-    additionalScopes: [],
   },
 
   params: {

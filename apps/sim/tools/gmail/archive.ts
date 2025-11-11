@@ -10,7 +10,6 @@ export const gmailArchiveTool: ToolConfig<GmailMarkReadParams, GmailToolResponse
   oauth: {
     required: true,
     provider: 'google-email',
-    additionalScopes: ['https://www.googleapis.com/auth/gmail.modify'],
   },
 
   params: {

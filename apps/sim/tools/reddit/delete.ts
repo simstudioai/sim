@@ -10,7 +10,6 @@ export const deleteTool: ToolConfig<RedditDeleteParams, RedditWriteResponse> = {
   oauth: {
     required: true,
     provider: 'reddit',
-    additionalScopes: ['edit'],
   },
 
   params: {

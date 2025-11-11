@@ -19,7 +19,6 @@ export const createBucketTool: ToolConfig<
   oauth: {
     required: true,
     provider: 'microsoft-planner',
-    additionalScopes: [],
   },
 
   params: {

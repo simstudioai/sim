@@ -28,7 +28,6 @@ export const jiraDeleteCommentTool: ToolConfig<JiraDeleteCommentParams, JiraDele
     oauth: {
       required: true,
       provider: 'jira',
-      additionalScopes: ['delete:comment:jira', 'read:jira-work'],
     },
 
     params: {

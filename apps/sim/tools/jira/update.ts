@@ -10,7 +10,6 @@ export const jiraUpdateTool: ToolConfig<JiraUpdateParams, JiraUpdateResponse> = 
   oauth: {
     required: true,
     provider: 'jira',
-    additionalScopes: ['read:jira-user', 'write:jira-work', 'write:issue:jira', 'read:jira-work'],
   },
 
   params: {

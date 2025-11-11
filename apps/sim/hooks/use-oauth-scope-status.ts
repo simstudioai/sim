@@ -45,18 +45,39 @@ export function getCredentialsNeedingReauth(credentials: Credential[]): Credenti
 }
 
 /**
+ * Scopes that control token behavior but are not returned in OAuth token responses.
+ * These should be ignored when validating credential scopes.
+ */
+const IGNORED_SCOPES = new Set([
+  'offline_access', // Microsoft - requests refresh token
+  'refresh_token', // Salesforce - requests refresh token
+  'offline.access', // Airtable - requests refresh token (note: dot not underscore)
+])
+
+/**
  * Compute which of the provided requiredScopes are NOT granted by the credential.
+ * Note: Ignores special OAuth scopes that control token behavior (like offline_access)
+ * as they are not returned in the token response's scope list even when granted.
  */
 export function getMissingRequiredScopes(
   credential: Credential | undefined,
   requiredScopes: string[] = []
 ): string[] {
-  if (!credential) return [...requiredScopes]
+  if (!credential) {
+    // Filter out ignored scopes from required scopes as they're not returned by OAuth providers
+    return requiredScopes.filter((s) => !IGNORED_SCOPES.has(s))
+  }
+
   const granted = new Set((credential.scopes || []).map((s) => s))
   const missing: string[] = []
+
   for (const s of requiredScopes) {
+    // Skip ignored scopes as providers don't return them in the scope list even when granted
+    if (IGNORED_SCOPES.has(s)) continue
+
     if (!granted.has(s)) missing.push(s)
   }
+
   return missing
 }
 

@@ -10,7 +10,6 @@ export const replyTool: ToolConfig<RedditReplyParams, RedditWriteResponse> = {
   oauth: {
     required: true,
     provider: 'reddit',
-    additionalScopes: ['submit'],
   },
 
   params: {

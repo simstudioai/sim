@@ -10,7 +10,6 @@ export const asanaUpdateTaskTool: ToolConfig<AsanaUpdateTaskParams, AsanaUpdateT
   oauth: {
     required: true,
     provider: 'asana',
-    additionalScopes: [],
   },
 
   params: {

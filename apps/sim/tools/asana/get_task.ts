@@ -10,7 +10,6 @@ export const asanaGetTaskTool: ToolConfig<AsanaGetTaskParams, AsanaGetTaskRespon
   oauth: {
     required: true,
     provider: 'asana',
-    additionalScopes: [],
   },
 
   params: {

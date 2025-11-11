@@ -13,7 +13,6 @@ export const addListItemTool: ToolConfig<SharepointToolParams, SharepointAddList
   oauth: {
     required: true,
     provider: 'sharepoint',
-    additionalScopes: ['openid', 'profile', 'email', 'Sites.ReadWrite.All', 'offline_access'],
   },
 
   params: {

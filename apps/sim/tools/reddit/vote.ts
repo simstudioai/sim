@@ -10,7 +10,6 @@ export const voteTool: ToolConfig<RedditVoteParams, RedditWriteResponse> = {
   oauth: {
     required: true,
     provider: 'reddit',
-    additionalScopes: ['vote'],
   },
 
   params: {

@@ -4,7 +4,7 @@ import type { TriggerConfig } from '../types'
 export const microsoftTeamsWebhookTrigger: TriggerConfig = {
   id: 'microsoftteams_webhook',
   name: 'Microsoft Teams Channel',
-  provider: 'microsoftteams',
+  provider: 'microsoft-teams',
   description: 'Trigger workflow from Microsoft Teams channel messages via outgoing webhooks',
   version: '1.0.0',
   icon: MicrosoftTeamsIcon,

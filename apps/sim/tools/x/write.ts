@@ -10,7 +10,6 @@ export const xWriteTool: ToolConfig<XWriteParams, XWriteResponse> = {
   oauth: {
     required: true,
     provider: 'x',
-    additionalScopes: ['tweet.read', 'tweet.write', 'users.read'],
   },
 
   params: {

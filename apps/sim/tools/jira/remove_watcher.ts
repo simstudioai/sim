@@ -28,7 +28,6 @@ export const jiraRemoveWatcherTool: ToolConfig<JiraRemoveWatcherParams, JiraRemo
     oauth: {
       required: true,
       provider: 'jira',
-      additionalScopes: ['write:jira-work', 'read:jira-user'],
     },
 
     params: {

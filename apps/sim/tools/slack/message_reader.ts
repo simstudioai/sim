@@ -14,13 +14,6 @@ export const slackMessageReaderTool: ToolConfig<
   oauth: {
     required: true,
     provider: 'slack',
-    additionalScopes: [
-      'channels:read',
-      'channels:history',
-      'groups:read',
-      'groups:history',
-      'users:read',
-    ],
   },
 
   params: {

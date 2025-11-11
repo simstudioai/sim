@@ -26,7 +26,6 @@ export const jiraDeleteIssueTool: ToolConfig<JiraDeleteIssueParams, JiraDeleteIs
   oauth: {
     required: true,
     provider: 'jira',
-    additionalScopes: ['delete:issue:jira', 'read:jira-work'],
   },
 
   params: {

@@ -10,7 +10,6 @@ export const slackAddReactionTool: ToolConfig<SlackAddReactionParams, SlackAddRe
   oauth: {
     required: true,
     provider: 'slack',
-    additionalScopes: ['reactions:write'],
   },
 
   params: {

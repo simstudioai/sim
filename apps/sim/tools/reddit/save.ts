@@ -10,7 +10,6 @@ export const saveTool: ToolConfig<RedditSaveParams, RedditWriteResponse> = {
   oauth: {
     required: true,
     provider: 'reddit',
-    additionalScopes: ['save'],
   },
 
   params: {
@@ -105,7 +104,6 @@ export const unsaveTool: ToolConfig<RedditSaveParams, RedditWriteResponse> = {
   oauth: {
     required: true,
     provider: 'reddit',
-    additionalScopes: ['save'],
   },
 
   params: {

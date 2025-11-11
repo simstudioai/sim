@@ -11,7 +11,6 @@ export const trelloAddCommentTool: ToolConfig<TrelloAddCommentParams, TrelloAddC
   oauth: {
     required: true,
     provider: 'trello',
-    additionalScopes: ['read', 'write'],
   },
 
   params: {

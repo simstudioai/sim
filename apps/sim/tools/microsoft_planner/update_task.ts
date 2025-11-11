@@ -21,7 +21,6 @@ export const updateTaskTool: ToolConfig<
   oauth: {
     required: true,
     provider: 'microsoft-planner',
-    additionalScopes: [],
   },
 
   params: {

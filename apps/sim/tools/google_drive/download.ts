@@ -14,10 +14,6 @@ export const downloadTool: ToolConfig<GoogleDriveToolParams, GoogleDriveDownload
   oauth: {
     required: true,
     provider: 'google-drive',
-    additionalScopes: [
-      'https://www.googleapis.com/auth/drive.readonly',
-      'https://www.googleapis.com/auth/drive.file',
-    ],
   },
 
   params: {

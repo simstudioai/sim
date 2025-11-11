@@ -14,14 +14,6 @@ export const listTool: ToolConfig<OneDriveToolParams, OneDriveListResponse> = {
   oauth: {
     required: true,
     provider: 'onedrive',
-    additionalScopes: [
-      'openid',
-      'profile',
-      'email',
-      'Files.Read',
-      'Files.ReadWrite',
-      'offline_access',
-    ],
   },
 
   params: {

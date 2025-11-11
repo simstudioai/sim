@@ -10,7 +10,6 @@ export const gmailDraftTool: ToolConfig<GmailSendParams, GmailToolResponse> = {
   oauth: {
     required: true,
     provider: 'google-email',
-    additionalScopes: [],
   },
 
   params: {

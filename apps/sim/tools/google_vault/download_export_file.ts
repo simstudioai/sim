@@ -20,11 +20,6 @@ export const downloadExportFileTool: ToolConfig<DownloadParams> = {
   oauth: {
     required: true,
     provider: 'google-vault',
-    additionalScopes: [
-      'https://www.googleapis.com/auth/ediscovery',
-      // Required to fetch the object bytes from the Cloud Storage bucket that Vault uses
-      'https://www.googleapis.com/auth/devstorage.read_only',
-    ],
   },
 
   params: {

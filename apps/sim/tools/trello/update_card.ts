@@ -11,7 +11,6 @@ export const trelloUpdateCardTool: ToolConfig<TrelloUpdateCardParams, TrelloUpda
   oauth: {
     required: true,
     provider: 'trello',
-    additionalScopes: ['read', 'write'],
   },
 
   params: {

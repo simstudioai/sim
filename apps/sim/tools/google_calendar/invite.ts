@@ -14,7 +14,6 @@ export const inviteTool: ToolConfig<GoogleCalendarInviteParams, GoogleCalendarIn
   oauth: {
     required: true,
     provider: 'google-calendar',
-    additionalScopes: ['https://www.googleapis.com/auth/calendar'],
   },
 
   params: {

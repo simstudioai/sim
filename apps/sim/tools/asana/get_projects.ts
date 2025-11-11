@@ -10,7 +10,6 @@ export const asanaGetProjectsTool: ToolConfig<AsanaGetProjectsParams, AsanaGetPr
   oauth: {
     required: true,
     provider: 'asana',
-    additionalScopes: [],
   },
 
   params: {
