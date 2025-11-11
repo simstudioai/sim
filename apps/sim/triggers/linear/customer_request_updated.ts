@@ -42,6 +42,7 @@ export const linearCustomerRequestUpdatedTrigger: TriggerConfig = {
     {
       id: 'triggerInstructions',
       title: 'Setup Instructions',
+      hideFromPreview: true,
       type: 'text',
       defaultValue: linearSetupInstructions('CustomerNeed (update)'),
       mode: 'trigger',
@@ -54,6 +55,7 @@ export const linearCustomerRequestUpdatedTrigger: TriggerConfig = {
       id: 'triggerSave',
       title: '',
       type: 'trigger-save',
+      hideFromPreview: true,
       mode: 'trigger',
       triggerId: 'linear_customer_request_updated',
       condition: {

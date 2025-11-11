@@ -64,6 +64,7 @@ export const typeformWebhookTrigger: TriggerConfig = {
     {
       id: 'triggerInstructions',
       title: 'Setup Instructions',
+      hideFromPreview: true,
       type: 'text',
       defaultValue: [
         'Get your Typeform Personal Access Token from <a href="https://admin.typeform.com/account#/section/tokens" target="_blank" rel="noopener noreferrer">https://admin.typeform.com/account#/section/tokens</a>',
@@ -84,6 +85,7 @@ export const typeformWebhookTrigger: TriggerConfig = {
       id: 'triggerSave',
       title: '',
       type: 'trigger-save',
+      hideFromPreview: true,
       mode: 'trigger',
       triggerId: 'typeform_webhook',
     },

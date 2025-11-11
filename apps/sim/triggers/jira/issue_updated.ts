@@ -73,6 +73,7 @@ export const jiraIssueUpdatedTrigger: TriggerConfig = {
     {
       id: 'triggerInstructions',
       title: 'Setup Instructions',
+      hideFromPreview: true,
       type: 'text',
       defaultValue: jiraSetupInstructions('jira:issue_updated'),
       mode: 'trigger',
@@ -85,6 +86,7 @@ export const jiraIssueUpdatedTrigger: TriggerConfig = {
       id: 'triggerSave',
       title: '',
       type: 'trigger-save',
+      hideFromPreview: true,
       mode: 'trigger',
       triggerId: 'jira_issue_updated',
       condition: {

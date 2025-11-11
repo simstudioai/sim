@@ -42,6 +42,7 @@ export const linearWebhookTrigger: TriggerConfig = {
     {
       id: 'triggerInstructions',
       title: 'Setup Instructions',
+      hideFromPreview: true,
       type: 'text',
       defaultValue: linearSetupInstructions(
         'all events',
@@ -57,6 +58,7 @@ export const linearWebhookTrigger: TriggerConfig = {
       id: 'triggerSave',
       title: '',
       type: 'trigger-save',
+      hideFromPreview: true,
       mode: 'trigger',
       triggerId: 'linear_webhook',
       condition: {

@@ -483,6 +483,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
 
     const visibleSubBlocks = config.subBlocks.filter((block) => {
       if (block.hidden) return false
+      if (block.hideFromPreview) return false
 
       if (block.requiresFeature && !isTruthy(getEnv(block.requiresFeature))) {
         return false

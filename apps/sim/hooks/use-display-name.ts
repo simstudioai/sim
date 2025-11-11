@@ -35,7 +35,7 @@ export function useDisplayName(
 
         // Workflows
         if (subBlock.id === 'workflowId') {
-          return state.cache.workflows['global']?.[value] || null
+          return state.cache.workflows.global?.[value] || null
         }
 
         // Files

@@ -33,6 +33,7 @@ export const telegramWebhookTrigger: TriggerConfig = {
     {
       id: 'triggerInstructions',
       title: 'Setup Instructions',
+      hideFromPreview: true,
       type: 'text',
       defaultValue: [
         'Message "/newbot" to <a href="https://t.me/BotFather" target="_blank" rel="noopener noreferrer" class="text-muted-foreground underline transition-colors hover:text-muted-foreground/80">@BotFather</a> in Telegram to create a bot and copy its token.',
@@ -50,6 +51,7 @@ export const telegramWebhookTrigger: TriggerConfig = {
       id: 'triggerSave',
       title: '',
       type: 'trigger-save',
+      hideFromPreview: true,
       mode: 'trigger',
       triggerId: 'telegram_webhook',
     },

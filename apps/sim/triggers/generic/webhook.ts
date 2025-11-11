@@ -59,6 +59,7 @@ export const genericWebhookTrigger: TriggerConfig = {
     {
       id: 'triggerInstructions',
       title: 'Setup Instructions',
+      hideFromPreview: true,
       type: 'text',
       defaultValue: [
         'Copy the webhook URL and use it in your external service or API.',
@@ -79,6 +80,7 @@ export const genericWebhookTrigger: TriggerConfig = {
       id: 'triggerSave',
       title: '',
       type: 'trigger-save',
+      hideFromPreview: true,
       mode: 'trigger',
       triggerId: 'generic_webhook',
     },

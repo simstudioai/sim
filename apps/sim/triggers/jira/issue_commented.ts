@@ -59,6 +59,7 @@ export const jiraIssueCommentedTrigger: TriggerConfig = {
     {
       id: 'triggerInstructions',
       title: 'Setup Instructions',
+      hideFromPreview: true,
       type: 'text',
       defaultValue: jiraSetupInstructions('comment_created'),
       mode: 'trigger',
@@ -71,6 +72,7 @@ export const jiraIssueCommentedTrigger: TriggerConfig = {
       id: 'triggerSave',
       title: '',
       type: 'trigger-save',
+      hideFromPreview: true,
       mode: 'trigger',
       triggerId: 'jira_issue_commented',
       condition: {

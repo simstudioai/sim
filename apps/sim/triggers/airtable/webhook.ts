@@ -50,6 +50,7 @@ export const airtableWebhookTrigger: TriggerConfig = {
     {
       id: 'triggerInstructions',
       title: 'Setup Instructions',
+      hideFromPreview: true,
       type: 'text',
       defaultValue: [
         'Connect your Airtable account using the "Select Airtable credential" button above.',
@@ -70,6 +71,7 @@ export const airtableWebhookTrigger: TriggerConfig = {
       id: 'triggerSave',
       title: '',
       type: 'trigger-save',
+      hideFromPreview: true,
       mode: 'trigger',
       triggerId: 'airtable_webhook',
     },

@@ -52,6 +52,7 @@ export const twilioVoiceWebhookTrigger: TriggerConfig = {
     {
       id: 'triggerInstructions',
       title: 'Setup Instructions',
+      hideFromPreview: true,
       type: 'text',
       defaultValue: [
         'Enter a TwiML Response above - this tells Twilio what to do when a call comes in (e.g., play a message, record, gather input). Note: Use square brackets [Tag] instead of angle brackets for TwiML tags',
@@ -72,6 +73,7 @@ export const twilioVoiceWebhookTrigger: TriggerConfig = {
       id: 'triggerSave',
       title: '',
       type: 'trigger-save',
+      hideFromPreview: true,
       mode: 'trigger',
       triggerId: 'twilio_voice_webhook',
     },

@@ -42,6 +42,7 @@ export const linearIssueUpdatedTrigger: TriggerConfig = {
     {
       id: 'triggerInstructions',
       title: 'Setup Instructions',
+      hideFromPreview: true,
       type: 'text',
       defaultValue: linearSetupInstructions('Issue (update)'),
       mode: 'trigger',
@@ -54,6 +55,7 @@ export const linearIssueUpdatedTrigger: TriggerConfig = {
       id: 'triggerSave',
       title: '',
       type: 'trigger-save',
+      hideFromPreview: true,
       mode: 'trigger',
       triggerId: 'linear_issue_updated',
       condition: {

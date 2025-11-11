@@ -42,6 +42,7 @@ export const linearLabelCreatedTrigger: TriggerConfig = {
     {
       id: 'triggerInstructions',
       title: 'Setup Instructions',
+      hideFromPreview: true,
       type: 'text',
       defaultValue: linearSetupInstructions('IssueLabel (create)'),
       mode: 'trigger',
@@ -54,6 +55,7 @@ export const linearLabelCreatedTrigger: TriggerConfig = {
       id: 'triggerSave',
       title: '',
       type: 'trigger-save',
+      hideFromPreview: true,
       mode: 'trigger',
       triggerId: 'linear_label_created',
       condition: {

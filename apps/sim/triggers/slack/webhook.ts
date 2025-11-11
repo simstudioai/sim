@@ -48,12 +48,14 @@ export const slackWebhookTrigger: TriggerConfig = {
             `<div class="mb-3"><strong>${index + 1}.</strong> ${instruction}</div>`
         )
         .join(''),
+      hideFromPreview: true,
       mode: 'trigger',
     },
     {
       id: 'triggerSave',
       title: '',
       type: 'trigger-save',
+      hideFromPreview: true,
       mode: 'trigger',
       triggerId: 'slack_webhook',
     },

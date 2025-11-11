@@ -95,6 +95,7 @@ export const outlookPollingTrigger: TriggerConfig = {
     {
       id: 'triggerInstructions',
       title: 'Setup Instructions',
+      hideFromPreview: true,
       type: 'text',
       defaultValue: [
         'Connect your Microsoft account using OAuth credentials',
@@ -112,6 +113,7 @@ export const outlookPollingTrigger: TriggerConfig = {
       id: 'triggerSave',
       title: '',
       type: 'trigger-save',
+      hideFromPreview: true,
       mode: 'trigger',
       triggerId: 'outlook_poller',
     },

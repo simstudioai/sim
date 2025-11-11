@@ -32,6 +32,7 @@ export function getTrigger(triggerId: string): TriggerConfig {
         readOnly: true,
         collapsible: true,
         defaultCollapsed: true,
+        hideFromPreview: true,
         mode: 'trigger',
         condition: {
           field: 'selectedTriggerId',

@@ -56,6 +56,7 @@ export const webflowCollectionItemChangedTrigger: TriggerConfig = {
     {
       id: 'triggerInstructions',
       title: 'Setup Instructions',
+      hideFromPreview: true,
       type: 'text',
       defaultValue: [
         'Connect your Webflow account using the "Select Webflow credential" button above.',
@@ -80,6 +81,7 @@ export const webflowCollectionItemChangedTrigger: TriggerConfig = {
       id: 'triggerSave',
       title: '',
       type: 'trigger-save',
+      hideFromPreview: true,
       mode: 'trigger',
       triggerId: 'webflow_collection_item_changed',
       condition: {
