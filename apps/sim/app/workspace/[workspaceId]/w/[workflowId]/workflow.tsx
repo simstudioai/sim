@@ -38,6 +38,7 @@ import {
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
 import { getBlock } from '@/blocks'
 import { useSocket } from '@/contexts/socket-context'
+import { isAnnotationOnlyBlock } from '@/executor/consts'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { useStreamCleanup } from '@/hooks/use-stream-cleanup'
 import { useWorkspacePermissions } from '@/hooks/use-workspace-permissions'
@@ -1447,8 +1448,11 @@ const WorkflowContent = React.memo(() => {
 
         if (!sourceNode || !targetNode) return
 
-        // Prevent connections to/from note blocks (annotation-only, non-executable)
-        if (sourceNode.data?.type === 'note' || targetNode.data?.type === 'note') {
+        // Prevent connections to/from annotation-only blocks (non-executable)
+        if (
+          isAnnotationOnlyBlock(sourceNode.data?.type) ||
+          isAnnotationOnlyBlock(targetNode.data?.type)
+        ) {
           return
         }
 

@@ -253,6 +253,14 @@ export function isAgentBlockType(blockType: string | undefined): boolean {
   return blockType === BlockType.AGENT
 }
 
+export function isAnnotationOnlyBlock(blockType: string | undefined): boolean {
+  return blockType === BlockType.NOTE
+}
+
+export function supportsHandles(blockType: string | undefined): boolean {
+  return !isAnnotationOnlyBlock(blockType)
+}
+
 export function getDefaultTokens() {
   return {
     prompt: DEFAULTS.TOKENS.PROMPT,
