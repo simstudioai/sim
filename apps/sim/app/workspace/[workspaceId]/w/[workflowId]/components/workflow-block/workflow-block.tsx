@@ -236,8 +236,12 @@ const SubBlockRow = ({
     knowledgeBaseId: typeof knowledgeBaseId === 'string' ? knowledgeBaseId : undefined,
   })
 
+  // Mask password fields with dots
+  const isPasswordField = subBlock?.password === true
+  const maskedValue = isPasswordField && value && value !== '-' ? '•••' : null
+
   // Use hydrated name if available, otherwise use the provided value
-  const displayValue = credentialName || dropdownLabel || genericDisplayName || value
+  const displayValue = maskedValue || credentialName || dropdownLabel || genericDisplayName || value
 
   return (
     <div className='flex items-center gap-[8px]'>
