@@ -22,6 +22,14 @@ export function isContainerType(blockType: string): boolean {
   return blockType === 'loop' || blockType === 'parallel'
 }
 
+export function isNoteBlockType(blockType: string): boolean {
+  return blockType === 'note'
+}
+
+export function shouldSkipAutoLayout(block: BlockState): boolean {
+  return isNoteBlockType(block.type)
+}
+
 function getContainerMetrics(block: BlockState): BlockMetrics {
   const measuredWidth = block.layout?.measuredWidth
   const measuredHeight = block.layout?.measuredHeight

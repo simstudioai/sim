@@ -1,7 +1,7 @@
 import { createLogger } from '@/lib/logs/console/logger'
 import type { BlockState } from '@/stores/workflows/workflow/types'
 import type { AdjustmentOptions, Edge } from './types'
-import { boxesOverlap, createBoundingBox, getBlockMetrics } from './utils'
+import { boxesOverlap, createBoundingBox, getBlockMetrics, shouldSkipAutoLayout } from './utils'
 
 const logger = createLogger('AutoLayout:Incremental')
 
@@ -16,6 +16,14 @@ export function adjustForNewBlock(
   const newBlock = blocks[newBlockId]
   if (!newBlock) {
     logger.warn('New block not found in blocks', { newBlockId })
+    return
+  }
+
+  if (shouldSkipAutoLayout(newBlock)) {
+    logger.debug('Skipping incremental layout for block excluded from auto layout', {
+      newBlockId,
+      type: newBlock.type,
+    })
     return
   }
 
@@ -78,6 +86,7 @@ export function adjustForNewBlock(
   for (const [id, block] of Object.entries(blocks)) {
     if (id === newBlockId) continue
     if (block.data?.parentId) continue
+    if (shouldSkipAutoLayout(block)) continue
 
     if (block.position.x >= newBlock.position.x) {
       const blockMetrics = getBlockMetrics(block)
@@ -105,7 +114,9 @@ export function adjustForNewBlock(
 }
 
 export function compactHorizontally(blocks: Record<string, BlockState>, edges: Edge[]): void {
-  const blockArray = Object.values(blocks).filter((b) => !b.data?.parentId)
+  const blockArray = Object.values(blocks).filter(
+    (b) => !b.data?.parentId && !shouldSkipAutoLayout(b)
+  )
 
   blockArray.sort((a, b) => a.position.x - b.position.x)
 

@@ -15,6 +15,7 @@ import {
   prepareBlockMetrics,
   ROOT_PADDING_X,
   ROOT_PADDING_Y,
+  shouldSkipAutoLayout,
 } from './utils'
 
 const logger = createLogger('AutoLayout:Targeted')
@@ -71,17 +72,33 @@ function layoutGroup(
 
   const parentBlock = parentId ? blocks[parentId] : undefined
 
+  const layoutEligibleChildIds = childIds.filter((id) => {
+    const block = blocks[id]
+    if (!block) return false
+    if (shouldSkipAutoLayout(block)) return false
+    return true
+  })
+
+  if (layoutEligibleChildIds.length === 0) {
+    if (parentBlock) {
+      updateContainerDimensions(parentBlock, childIds, blocks)
+    }
+    return
+  }
+
   const requestedLayout = childIds.filter((id) => {
     const block = blocks[id]
     if (!block) return false
     // Never reposition containers, only update their dimensions
     if (isContainerType(block.type)) return false
+    if (shouldSkipAutoLayout(block)) return false
     return changedSet.has(id)
   })
   const missingPositions = childIds.filter((id) => {
     const block = blocks[id]
     if (!block) return false
     // Containers with missing positions should still get positioned
+    if (shouldSkipAutoLayout(block)) return false
     return !hasPosition(block)
   })
   const needsLayoutSet = new Set([...requestedLayout, ...missingPositions])
@@ -106,7 +123,7 @@ function layoutGroup(
   }
 
   const layoutPositions = computeLayoutPositions(
-    childIds,
+    layoutEligibleChildIds,
     blocks,
     edges,
     parentBlock,
@@ -125,7 +142,9 @@ function layoutGroup(
   let offsetX = 0
   let offsetY = 0
 
-  const anchorId = childIds.find((id) => !needsLayout.includes(id) && layoutPositions.has(id))
+  const anchorId = layoutEligibleChildIds.find(
+    (id) => !needsLayout.includes(id) && layoutPositions.has(id)
+  )
 
   if (anchorId) {
     const oldPos = oldPositions.get(anchorId)
@@ -272,6 +291,9 @@ function updateContainerDimensions(
   for (const id of childIds) {
     const child = blocks[id]
     if (!child) continue
+    if (shouldSkipAutoLayout(child)) {
+      continue
+    }
     const metrics = getBlockMetrics(child)
 
     minX = Math.min(minX, child.position.x)
