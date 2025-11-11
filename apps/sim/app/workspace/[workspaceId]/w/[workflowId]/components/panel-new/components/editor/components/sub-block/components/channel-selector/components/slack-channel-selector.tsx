@@ -92,7 +92,7 @@ export function SlackChannelSelector({
         if (credential) {
           const channelMap = data.channels.reduce(
             (acc: Record<string, string>, ch: SlackChannelInfo) => {
-              acc[ch.id] = `#${ch.name}`
+              acc[ch.id] = ch.name
               return acc
             },
             {}
