@@ -3,7 +3,7 @@
 import { ChevronUp } from 'lucide-react'
 import SimpleCodeEditor from 'react-simple-code-editor'
 import { Code as CodeEditor, Combobox, getCodeEditorProps, Input, Label } from '@/components/emcn'
-import { TagDropdown } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/components/sub-block/components/tag-dropdown'
+import { TagDropdown } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/components/sub-block/components/tag-dropdown/tag-dropdown'
 import type { BlockState } from '@/stores/workflows/workflow/types'
 import type { ConnectedBlock } from '../../hooks/use-block-connections'
 import { useSubflowEditor } from '../../hooks/use-subflow-editor'
