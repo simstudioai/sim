@@ -70,7 +70,6 @@ function resolveInitialSubblockValue(config: SubBlockConfig): unknown {
   }
 
   if (config.type === 'input-format') {
-    // Initialize with a default field structure instead of empty array
     return [
       {
         id: crypto.randomUUID(),
@@ -189,12 +188,10 @@ export const useWorkflowStore = create<WorkflowStore>()(
             value: normalizedValue as SubBlockState['value'],
           }
 
-          // Always initialize the subblock store value, even if it's null or empty array
-          // This ensures the editor panel can read the value correctly
           if (activeWorkflowId) {
             try {
-              // Use the initial value if available, otherwise use null
-              const valueToStore = initialValue !== undefined ? cloneInitialSubblockValue(initialValue) : null
+              const valueToStore =
+                initialValue !== undefined ? cloneInitialSubblockValue(initialValue) : null
               subBlockStore.setValue(id, subBlockId, valueToStore)
             } catch (error) {
               logger.warn('Failed to seed sub-block store value during block creation', {

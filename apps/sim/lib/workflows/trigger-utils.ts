@@ -154,17 +154,12 @@ export function getAllTriggerBlocks(): TriggerInfo[] {
  * Check if a block has trigger capability (contains trigger mode subblocks)
  */
 export function hasTriggerCapability(block: BlockConfig): boolean {
-  // Check if any subblocks have trigger mode
   const hasTriggerModeSubBlocks = block.subBlocks.some((subBlock) => subBlock.mode === 'trigger')
-  
-  // If this is a pure trigger block (category === 'triggers'), only enable trigger mode
-  // if it has subblocks with mode: 'trigger' (e.g., webhook, schedule)
-  // Pure input triggers like start_trigger don't have trigger mode subblocks
+
   if (block.category === 'triggers') {
     return hasTriggerModeSubBlocks
   }
-  
-  // Non-trigger blocks can have trigger capability
+
   return (
     (block.triggers?.enabled === true && block.triggers.available.length > 0) ||
     hasTriggerModeSubBlocks

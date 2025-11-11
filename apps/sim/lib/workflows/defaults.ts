@@ -37,9 +37,7 @@ function resolveInitialValue(subBlock: SubBlockConfig): unknown {
     return cloneDefaultValue(subBlock.defaultValue)
   }
 
-  // Ensure structured fields are initialized properly
   if (subBlock.type === 'input-format') {
-    // Initialize with a default field structure instead of empty array
     return [
       {
         id: crypto.randomUUID(),
