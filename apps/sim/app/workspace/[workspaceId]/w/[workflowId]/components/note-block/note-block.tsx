@@ -1,7 +1,7 @@
 import { memo, useCallback, useEffect, useMemo, useRef } from 'react'
 import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
 import { type NodeProps, useUpdateNodeInternals } from 'reactflow'
+import remarkGfm from 'remark-gfm'
 import { cn } from '@/lib/utils'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { usePanelEditorStore } from '@/stores/panel-new/editor/store'
@@ -38,29 +38,52 @@ const NoteMarkdown = memo(function NoteMarkdown({ content }: { content: string }
     <ReactMarkdown
       remarkPlugins={[remarkGfm]}
       components={{
-        p: ({ children }) => <p className='mb-0 text-sm text-[#E5E5E5]'>{children}</p>,
-        h1: ({ children }) => <h1 className='mt-0 mb-[-2px] text-lg font-semibold text-[#E5E5E5]'>{children}</h1>,
-        h2: ({ children }) => <h2 className='mt-0 mb-[-2px] text-base font-semibold text-[#E5E5E5]'>{children}</h2>,
-        h3: ({ children }) => <h3 className='mt-0 mb-[-2px] text-sm font-semibold text-[#E5E5E5]'>{children}</h3>,
-        h4: ({ children }) => <h4 className='mt-0 mb-[-2px] text-xs font-semibold text-[#E5E5E5]'>{children}</h4>,
-        ul: ({ children }) => <ul className='-mt-[2px] mb-0 list-disc pl-4 text-sm text-[#E5E5E5]'>{children}</ul>,
-        ol: ({ children }) => <ol className='-mt-[2px] mb-0 list-decimal pl-4 text-sm text-[#E5E5E5]'>{children}</ol>,
+        p: ({ children }) => <p className='mb-0 text-[#E5E5E5] text-sm'>{children}</p>,
+        h1: ({ children }) => (
+          <h1 className='mt-0 mb-[-2px] font-semibold text-[#E5E5E5] text-lg'>{children}</h1>
+        ),
+        h2: ({ children }) => (
+          <h2 className='mt-0 mb-[-2px] font-semibold text-[#E5E5E5] text-base'>{children}</h2>
+        ),
+        h3: ({ children }) => (
+          <h3 className='mt-0 mb-[-2px] font-semibold text-[#E5E5E5] text-sm'>{children}</h3>
+        ),
+        h4: ({ children }) => (
+          <h4 className='mt-0 mb-[-2px] font-semibold text-[#E5E5E5] text-xs'>{children}</h4>
+        ),
+        ul: ({ children }) => (
+          <ul className='-mt-[2px] mb-0 list-disc pl-4 text-[#E5E5E5] text-sm'>{children}</ul>
+        ),
+        ol: ({ children }) => (
+          <ol className='-mt-[2px] mb-0 list-decimal pl-4 text-[#E5E5E5] text-sm'>{children}</ol>
+        ),
         li: ({ children }) => <li className='mb-0'>{children}</li>,
         code: ({ inline, children }: any) =>
           inline ? (
-            <code className='rounded bg-[#393939] px-1 py-0.5 text-xs text-[#F59E0B]'>{children}</code>
+            <code className='rounded bg-[#393939] px-1 py-0.5 text-[#F59E0B] text-xs'>
+              {children}
+            </code>
           ) : (
-            <code className='block rounded bg-[#1A1A1A] p-2 text-xs text-[#E5E5E5]'>{children}</code>
+            <code className='block rounded bg-[#1A1A1A] p-2 text-[#E5E5E5] text-xs'>
+              {children}
+            </code>
           ),
         a: ({ href, children }) => (
-          <a href={href} target='_blank' rel='noopener noreferrer' className='text-[#33B4FF] underline-offset-2 hover:underline'>
+          <a
+            href={href}
+            target='_blank'
+            rel='noopener noreferrer'
+            className='text-[#33B4FF] underline-offset-2 hover:underline'
+          >
             {children}
           </a>
         ),
         strong: ({ children }) => <strong className='font-semibold text-white'>{children}</strong>,
         em: ({ children }) => <em className='text-[#B8B8B8]'>{children}</em>,
         blockquote: ({ children }) => (
-          <blockquote className='m-0 border-l-2 border-[#F59E0B] pl-3 italic text-[#B8B8B8]'>{children}</blockquote>
+          <blockquote className='m-0 border-[#F59E0B] border-l-2 pl-3 text-[#B8B8B8] italic'>
+            {children}
+          </blockquote>
         ),
       }}
     >
@@ -197,7 +220,9 @@ export const NoteBlock = memo(function NoteBlock({ id, data }: NodeProps<NoteBlo
             ) : showMarkdown ? (
               <NoteMarkdown content={content} />
             ) : (
-              <p className='whitespace-pre-wrap text-[#E5E5E5] text-sm leading-relaxed'>{content}</p>
+              <p className='whitespace-pre-wrap text-[#E5E5E5] text-sm leading-relaxed'>
+                {content}
+              </p>
             )}
           </div>
         </div>
