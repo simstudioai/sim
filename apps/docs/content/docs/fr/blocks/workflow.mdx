@@ -23,7 +23,18 @@ Déposez un bloc de flux de travail lorsque vous souhaitez appeler un flux de tr
 ## Comment le configurer
 
 1. **Choisissez un flux de travail** dans le menu déroulant (les auto-références sont bloquées pour éviter les boucles).
-2. **Mappez les entrées** : si le flux de travail enfant a un déclencheur de formulaire d'entrée, vous verrez chaque champ et pourrez connecter les variables parentes. Les valeurs mappées sont ce que l'enfant reçoit.
+2. **Mappez les entrées** : si le flux de travail enfant a un déclencheur de formulaire d'entrée, vous verrez chaque champ et pourrez connecter les variables parentes. Les valeurs mappées sont celles que l'enfant reçoit.
+
+<div className='flex justify-center my-6'>
+  <Image
+    src='/static/blocks/workflow-2.png'
+    alt='Exemple de mappage d'entrée du bloc de flux de travail'
+    width={700}
+    height={400}
+    className='rounded-xl border border-border shadow-sm'
+  />
+</div>
+
 3. **Sorties** : une fois que l'enfant a terminé, le bloc expose :
    - `result` – la réponse finale du flux de travail enfant
    - `success` – s'il s'est exécuté sans erreurs
@@ -32,7 +43,7 @@ Déposez un bloc de flux de travail lorsque vous souhaitez appeler un flux de tr
 ## Notes d'exécution
 
 - Les flux de travail enfants s'exécutent dans le même contexte d'espace de travail, donc les variables d'environnement et les outils sont conservés.
-- Le bloc utilise le versionnement des déploiements : toute exécution API, planifiée, webhook, manuelle ou par chat appelle l'instantané déployé. Redéployez l'enfant lorsque vous le modifiez.
+- Le bloc utilise le versionnement de déploiement : toute exécution par API, planification, webhook, manuelle ou par chat appelle l'instantané déployé. Redéployez l'enfant lorsque vous le modifiez.
 - Si l'enfant échoue, le bloc génère une erreur, sauf si vous la gérez en aval.
 
 <Callout>

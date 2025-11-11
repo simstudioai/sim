@@ -3,12 +3,10 @@ title: Agente
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
-import { Step, Steps } from 'fumadocs-ui/components/steps'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 import { Image } from '@/components/ui/image'
-import { Video } from '@/components/ui/video'
 
-El bloque Agente sirve como interfaz entre tu flujo de trabajo y los Modelos de Lenguaje Grandes (LLMs). Ejecuta solicitudes de inferencia contra varios proveedores de IA, procesa entradas de lenguaje natural según las instrucciones definidas y genera salidas estructuradas o no estructuradas para su consumo posterior.
+El bloque Agente conecta tu flujo de trabajo con Modelos de Lenguaje Grandes (LLMs). Procesa entradas en lenguaje natural, llama a herramientas externas y genera salidas estructuradas o no estructuradas.
 
 <div className="flex justify-center">
   <Image
@@ -18,26 +16,7 @@ El bloque Agente sirve como interfaz entre tu flujo de trabajo y los Modelos de 
     height={400}
     className="my-6"
   />
-</div>
-
-## Descripción general
-
-El bloque Agente te permite:
-
-<Steps>
-  <Step>
-    <strong>Procesar lenguaje natural</strong>: Analizar la entrada del usuario y generar respuestas contextuales
-  </Step>
-  <Step>
-    <strong>Ejecutar tareas impulsadas por IA</strong>: Realizar análisis de contenido, generación y toma de decisiones
-  </Step>
-  <Step>
-    <strong>Llamar a herramientas externas</strong>: Acceder a APIs, bases de datos y servicios durante el procesamiento
-  </Step>
-  <Step>
-    <strong>Generar salida estructurada</strong>: Devolver datos JSON que coincidan con los requisitos de tu esquema
-  </Step>
-</Steps> 
+</div> 
 
 ## Opciones de configuración
 
@@ -63,71 +42,39 @@ El prompt del usuario representa los datos de entrada principales para el proces
 
 El bloque Agente admite múltiples proveedores de LLM a través de una interfaz de inferencia unificada. Los modelos disponibles incluyen:
 
-**Modelos de OpenAI**: GPT-5, GPT-4o, o1, o3, o4-mini, gpt-4.1 (inferencia basada en API)
-**Modelos de Anthropic**: Claude 3.7 Sonnet (inferencia basada en API)
-**Modelos de Google**: Gemini 2.5 Pro, Gemini 2.0 Flash (inferencia basada en API)
-**Proveedores alternativos**: Groq, Cerebras, xAI, DeepSeek (inferencia basada en API)
-**Despliegue local**: Modelos compatibles con Ollama (inferencia autohospedada)
-
-<div className="mx-auto w-3/5 overflow-hidden rounded-lg">
-  <Video src="models.mp4" width={500} height={350} />
-</div>
+- **OpenAI**: GPT-5, GPT-4o, o1, o3, o4-mini, gpt-4.1
+- **Anthropic**: Claude 3.7 Sonnet
+- **Google**: Gemini 2.5 Pro, Gemini 2.0 Flash
+- **Otros proveedores**: Groq, Cerebras, xAI, DeepSeek
+- **Modelos locales**: Modelos compatibles con Ollama
 
 ### Temperatura
 
-Controla la creatividad y aleatoriedad de las respuestas:
+Controla la aleatoriedad y creatividad de la respuesta:
 
-<Tabs items={['Baja (0-0.3)', 'Media (0.3-0.7)', 'Alta (0.7-2.0)']}>
-  <Tab>
-    Respuestas más deterministas y enfocadas. Ideal para tareas factuales, atención al cliente y
-    situaciones donde la precisión es crítica.
-  </Tab>
-  <Tab>
-    Equilibrio entre creatividad y enfoque. Adecuado para aplicaciones de uso general que requieren
-    tanto precisión como cierta creatividad.
-  </Tab>
-  <Tab>
-    Respuestas más creativas y variadas. Ideal para escritura creativa, lluvia de ideas y generación
-    de ideas diversas.
-  </Tab>
-</Tabs>
-
-<div className="mt-4 text-sm text-gray-600 dark:text-gray-400">
-  El rango de temperatura (0-1 o 0-2) varía dependiendo del modelo seleccionado.
-</div>
+- **Baja (0-0.3)**: Determinista y enfocada. Mejor para tareas factuales y precisión.
+- **Media (0.3-0.7)**: Equilibrio entre creatividad y enfoque. Buena para uso general.
+- **Alta (0.7-2.0)**: Creativa y variada. Ideal para lluvia de ideas y generación de contenido.
 
 ### Clave API
 
-Tu clave API para el proveedor de LLM seleccionado. Se almacena de forma segura y se utiliza para la autenticación.
+Tu clave API para el proveedor LLM seleccionado. Se almacena de forma segura y se utiliza para la autenticación.
 
 ### Herramientas
 
-Las herramientas amplían las capacidades del agente mediante integraciones de API externas y conexiones de servicios. El sistema de herramientas permite la llamada a funciones, permitiendo al agente ejecutar operaciones más allá de la generación de texto.
+Amplía las capacidades del agente con integraciones externas. Selecciona entre más de 60 herramientas predefinidas o define funciones personalizadas.
 
-**Proceso de integración de herramientas**:
-1. Accede a la sección de configuración de Herramientas dentro del bloque del Agente
-2. Selecciona entre más de 60 integraciones predefinidas o define funciones personalizadas
-3. Configura los parámetros de autenticación y las restricciones operativas
-
-<div className="mx-auto w-3/5 overflow-hidden rounded-lg">
-  <Video src="tools.mp4" width={500} height={350} />
-</div>
-
-**Categorías de herramientas disponibles**:
+**Categorías disponibles:**
 - **Comunicación**: Gmail, Slack, Telegram, WhatsApp, Microsoft Teams
 - **Fuentes de datos**: Notion, Google Sheets, Airtable, Supabase, Pinecone
 - **Servicios web**: Firecrawl, Google Search, Exa AI, automatización de navegador
-- **Desarrollo**: GitHub, Jira, gestión de repositorios y problemas en Linear
+- **Desarrollo**: GitHub, Jira, Linear
 - **Servicios de IA**: OpenAI, Perplexity, Hugging Face, ElevenLabs
 
-**Control de ejecución de herramientas**:
-- **Auto**: El modelo determina la invocación de herramientas según el contexto y la necesidad
-- **Requerido**: La herramienta debe ser llamada durante cada solicitud de inferencia
-- **Ninguno**: Definición de herramienta disponible pero excluida del contexto del modelo
-
-<div className="mx-auto w-3/5 overflow-hidden rounded-lg">
-  <Video src="granular-tool-control.mp4" width={500} height={350} />
-</div>
+**Modos de ejecución:**
+- **Auto**: El modelo decide cuándo usar herramientas según el contexto
+- **Requerido**: La herramienta debe ser llamada en cada solicitud
+- **Ninguno**: Herramienta disponible pero no sugerida al modelo
 
 ### Formato de respuesta
 
@@ -160,8 +107,8 @@ Esta configuración restringe la salida del modelo para que cumpla con el esquem
 
 Después de que un agente completa su tarea, puedes acceder a sus salidas:
 
-- **`<agent.content>`**: El texto de respuesta o datos estructurados del agente
-- **`<agent.tokens>`**: Estadísticas de uso de tokens (prompt, completado, total)
+- **`<agent.content>`**: El texto de respuesta del agente o datos estructurados
+- **`<agent.tokens>`**: Estadísticas de uso de tokens (prompt, completion, total)
 - **`<agent.tool_calls>`**: Detalles de cualquier herramienta que el agente utilizó durante la ejecución
 - **`<agent.cost>`**: Costo estimado de la llamada a la API (si está disponible)
 
@@ -169,112 +116,43 @@ Después de que un agente completa su tarea, puedes acceder a sus salidas:
 
 ### Memoria + Agente: Historial de conversación
 
-Utiliza un bloque `Memory` con un `id` consistente (por ejemplo, `chat`) para persistir mensajes entre ejecuciones, e incluir ese historial en el prompt del agente.
+Utiliza un bloque `Memory` con un `id` consistente (por ejemplo, `chat`) para persistir mensajes entre ejecuciones, e incluir ese historial en el prompt del Agente.
 
-- Añade el mensaje del usuario antes del agente
+- Añade el mensaje del usuario antes del Agente
 - Lee el historial de conversación para contexto
-- Añade la respuesta del agente después de que se ejecute
+- Añade la respuesta del Agente después de que se ejecute
 
 Consulta la referencia del bloque [`Memory`](/tools/memory) para más detalles.
 
-## Entradas y salidas
+## Salidas
 
-<Tabs items={['Configuración', 'Variables', 'Resultados']}>
-  <Tab>
-    <ul className="list-disc space-y-2 pl-6">
-      <li>
-        <strong>Prompt del sistema</strong>: Instrucciones que definen el comportamiento y rol del agente
-      </li>
-      <li>
-        <strong>Prompt del usuario</strong>: Texto o datos de entrada para procesar
-      </li>
-      <li>
-        <strong>Modelo</strong>: Selección del modelo de IA (OpenAI, Anthropic, Google, etc.)
-      </li>
-      <li>
-        <strong>Temperatura</strong>: Control de aleatoriedad de respuesta (0-2)
-      </li>
-      <li>
-        <strong>Herramientas</strong>: Array de herramientas disponibles para llamadas a funciones
-      </li>
-      <li>
-        <strong>Formato de respuesta</strong>: Esquema JSON para salida estructurada
-      </li>
-    </ul>
-  </Tab>
-  <Tab>
-    <ul className="list-disc space-y-2 pl-6">
-      <li>
-        <strong>agent.content</strong>: Texto de respuesta del agente o datos estructurados
-      </li>
-      <li>
-        <strong>agent.tokens</strong>: Objeto con estadísticas de uso de tokens
-      </li>
-      <li>
-        <strong>agent.tool_calls</strong>: Array con detalles de ejecución de herramientas
-      </li>
-      <li>
-        <strong>agent.cost</strong>: Costo estimado de la llamada a la API (si está disponible)
-      </li>
-    </ul>
-  </Tab>
-  <Tab>
-    <ul className="list-disc space-y-2 pl-6">
-      <li>
-        <strong>Contenido</strong>: Salida principal de respuesta del agente
-      </li>
-      <li>
-        <strong>Metadatos</strong>: Estadísticas de uso y detalles de ejecución
-      </li>
-      <li>
-        <strong>Acceso</strong>: Disponible en bloques después del agente
-      </li>
-    </ul>
-  </Tab>
-</Tabs>
+- **`<agent.content>`**: Texto de respuesta del agente
+- **`<agent.tokens>`**: Estadísticas de uso de tokens
+- **`<agent.tool_calls>`**: Detalles de ejecución de herramientas
+- **`<agent.cost>`**: Costo estimado de la llamada a la API
 
 ## Ejemplos de casos de uso
 
-### Automatización de atención al cliente
+**Automatización de atención al cliente** - Gestiona consultas con acceso a base de datos y herramientas
 
-<div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">Escenario: Gestionar consultas de clientes con acceso a base de datos</h4>
-  <ol className="list-decimal pl-5 text-sm">
-    <li>El usuario envía un ticket de soporte a través del bloque API</li>
-    <li>El agente verifica pedidos/suscripciones en Postgres y busca en la base de conocimientos</li>
-    <li>Si se necesita escalamiento, el agente crea una incidencia en Linear con el contexto relevante</li>
-    <li>El agente redacta una respuesta clara por correo electrónico</li>
-    <li>Gmail envía la respuesta al cliente</li>
-    <li>La conversación se guarda en Memory para mantener el historial para mensajes futuros</li>
-  </ol>
-</div>
+```
+API (Ticket) → Agent (Postgres, KB, Linear) → Gmail (Reply) → Memory (Save)
+```
 
-### Análisis de contenido con múltiples modelos
+**Análisis de contenido multi-modelo** - Analiza contenido con diferentes modelos de IA
 
-<div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">Escenario: Analizar contenido con diferentes modelos de IA</h4>
-  <ol className="list-decimal pl-5 text-sm">
-    <li>El bloque de función procesa el documento cargado</li>
-    <li>El agente con GPT-4o realiza análisis técnico</li>
-    <li>El agente con Claude analiza el sentimiento y tono</li>
-    <li>El bloque de función combina los resultados para el informe final</li>
-  </ol>
-</div>
+```
+Function (Process) → Agent (GPT-4o Technical) → Agent (Claude Sentiment) → Function (Report)
+```
 
-### Asistente de investigación potenciado por herramientas
+**Asistente de investigación con herramientas** - Investiga con búsqueda web y acceso a documentos
 
-<div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">Escenario: Asistente de investigación con búsqueda web y acceso a documentos</h4>
-  <ol className="list-decimal pl-5 text-sm">
-    <li>Consulta del usuario recibida a través de entrada</li>
-    <li>El agente busca en la web utilizando la herramienta de Google Search</li>
-    <li>El agente accede a la base de datos de Notion para documentos internos</li>
-    <li>El agente compila un informe de investigación completo</li>
-  </ol>
-</div>
+```
+Input → Agent (Google Search, Notion) → Function (Compile Report)
+```
 
 ## Mejores prácticas
 
-- **Sé específico en los prompts del sistema**: Define claramente el rol del agente, el tono y las limitaciones. Cuanto más específicas sean tus instrucciones, mejor podrá el agente cumplir con su propósito previsto.
-- **Elige la configuración de temperatura adecuada**: Usa configuraciones de temperatura más bajas (0-0.3) cuando la precisión es importante, o aumenta la temperatura (0.7-2.0) para respuestas más creativas o variadas
-- **Aprovecha las herramientas de manera efectiva**: Integra herramientas que complementen el propósito del agente y mejoren sus capacidades. Sé selectivo sobre qué herramientas proporcionas para evitar sobrecargar al agente. Para tareas con poco solapamiento, usa otro bloque de Agente para obtener los mejores resultados.
+- **Sé específico en los prompts del sistema**: Define claramente el rol, tono y limitaciones del agente. Cuanto más específicas sean tus instrucciones, mejor podrá el agente cumplir con su propósito.
+- **Elige la configuración de temperatura adecuada**: Usa configuraciones de temperatura más bajas (0-0.3) cuando la precisión sea importante, o aumenta la temperatura (0.7-2.0) para respuestas más creativas o variadas.
+- **Aprovecha las herramientas eficazmente**: Integra herramientas que complementen el propósito del agente y mejoren sus capacidades. Sé selectivo con las herramientas que proporcionas para evitar sobrecargar al agente. Para tareas con poco solapamiento, usa otro bloque de Agente para obtener mejores resultados.

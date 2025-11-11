@@ -22,27 +22,11 @@ Le bloc Variables met à jour les variables du workflow pendant l'exécution. Le
   Accédez aux variables n'importe où dans votre workflow en utilisant la syntaxe `<variable.variableName>`.
 </Callout>
 
-## Aperçu
-
-Le bloc Variables vous permet de :
-
-<Steps>
-  <Step>
-    <strong>Mettre à jour les variables du workflow</strong> : modifier les valeurs des variables pendant l'exécution
-  </Step>
-  <Step>
-    <strong>Stocker des données dynamiques</strong> : capturer les sorties de blocs dans des variables
-  </Step>
-  <Step>
-    <strong>Maintenir l'état</strong> : suivre les compteurs, les indicateurs et les résultats intermédiaires
-  </Step>
-</Steps>
-
 ## Comment utiliser les variables
 
 ### 1. Initialiser dans les variables du workflow
 
-Tout d'abord, créez vos variables dans la section Variables du workflow (accessible depuis les paramètres du workflow) :
+D'abord, créez vos variables dans la section Variables du workflow (accessible depuis les paramètres du workflow) :
 
 ```
 customerEmail = ""
@@ -72,44 +56,23 @@ API body: {"status": "<variable.currentStatus>"}
 
 ## Exemples de cas d'utilisation
 
-### Compteur de boucle et état
+**Compteur de boucle et état** - Suivre la progression à travers les itérations
 
-<div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">Scénario : suivre la progression à travers les itérations de boucle</h4>
-  <ol className="list-decimal pl-5 text-sm">
-    <li>Initialisation dans le workflow : `itemsProcessed = 0`, `lastResult = ""`</li>
-    <li>La boucle itère sur les éléments</li>
-    <li>Dans la boucle : l'agent traite l'élément actuel</li>
-    <li>Dans la boucle : Variables met à jour `itemsProcessed = <variable.itemsProcessed> + 1`</li>
-    <li>Dans la boucle : Variables met à jour `lastResult = <agent.content>`</li>
-    <li>Itération suivante : accès à `<variable.lastResult>` pour comparer avec le résultat actuel</li>
-  </ol>
-</div>
+```
+Loop → Agent (Process) → Variables (itemsProcessed + 1) → Variables (Store lastResult)
+```
 
-### Logique de nouvelle tentative
+**Logique de nouvelle tentative** - Suivre les tentatives d'API
 
-<div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">Scénario : suivre les tentatives de nouvelle requête API</h4>
-  <ol className="list-decimal pl-5 text-sm">
-    <li>Initialisation dans le workflow : `retryCount = 0`</li>
-    <li>Le bloc API tente une requête</li>
-    <li>En cas d'échec, Variables incrémente : `retryCount = <variable.retryCount> + 1`</li>
-    <li>La condition vérifie si `<variable.retryCount>` \< 3 pour réessayer ou échouer</li>
-  </ol>
-</div>
+```
+API (Try) → Variables (retryCount + 1) → Condition (retryCount < 3)
+```
 
-### Configuration dynamique
+**Configuration dynamique** - Stocker le contexte utilisateur pour le workflow
 
-<div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">Scénario : stocker le contexte utilisateur pour le workflow</h4>
-  <ol className="list-decimal pl-5 text-sm">
-    <li>Initialisation dans le workflow : `userId = ""`, `userTier = ""`</li>
-    <li>L'API récupère le profil utilisateur</li>
-    <li>Les variables stockent : `userId = <api.id>`, `userTier = <api.tier>`</li>
-    <li>L'agent personnalise la réponse en utilisant `<variable.userTier>`</li>
-    <li>L'API utilise `<variable.userId>` pour la journalisation</li>
-  </ol>
-</div>
+```
+API (Fetch Profile) → Variables (userId, userTier) → Agent (Personalize)
+```
 
 ## Sorties
 
@@ -118,6 +81,6 @@ API body: {"status": "<variable.currentStatus>"}
 ## Bonnes pratiques
 
 - **Initialiser dans les paramètres du workflow** : toujours créer des variables dans la section Variables du workflow avant de les utiliser
-- **Mettre à jour dynamiquement** : utiliser les blocs Variables pour mettre à jour les valeurs en fonction des sorties de blocs ou des calculs
+- **Mettre à jour dynamiquement** : utiliser les blocs Variables pour mettre à jour les valeurs basées sur les sorties de blocs ou les calculs
 - **Utiliser dans les boucles** : parfait pour suivre l'état à travers les itérations
 - **Nommer de façon descriptive** : utiliser des noms clairs comme `currentIndex`, `totalProcessed`, ou `lastError`

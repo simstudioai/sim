@@ -28,9 +28,10 @@ Simは、AIワークフローの中核機能を処理する必須のブロック
 - **[ルーター](/blocks/router)** - AIを使用してリクエストを異なるパスにインテリジェントにルーティング
 - **[評価者](/blocks/evaluator)** - AIを使用してコンテンツの品質を評価・採点
 
-### 制御フローブロック
-- **[変数](/blocks/variables)** - ワークフロースコープの変数を設定・管理
+### コントロールフローブロック
+- **[変数](/blocks/variables)** - ワークフロースコープの変数を設定および管理
 - **[待機](/blocks/wait)** - 指定した時間だけワークフロー実行を一時停止
+- **[ヒューマンインザループ](/blocks/human-in-the-loop)** - 続行する前に人間の承認とフィードバックを待つ
 
 ### 出力ブロック
 - **[レスポンス](/blocks/response)** - ワークフローからの最終結果をフォーマットして返す
@@ -121,17 +122,20 @@ Agent → Evaluator → Condition → Response (if good)
   <Card title="エージェントブロック" href="/blocks/agent">
     AIモデルに接続し、インテリジェントな応答を作成
   </Card>
-  <Card title="関数ブロック" href="/blocks/function">
-    カスタムコードを実行してデータを処理・変換
+  <Card title="ファンクションブロック" href="/blocks/function">
+    カスタムコードを実行してデータを処理および変換
   </Card>
   <Card title="APIブロック" href="/blocks/api">
     外部サービスやAPIと統合
   </Card>
   <Card title="条件ブロック" href="/blocks/condition">
-    データ評価に基づく分岐ロジックを作成
+    データ評価に基づいた分岐ロジックを作成
+  </Card>
+  <Card title="ヒューマンインザループブロック" href="/blocks/human-in-the-loop">
+    続行する前に人間の承認とフィードバックを待つ
   </Card>
   <Card title="変数ブロック" href="/blocks/variables">
-    ワークフロースコープの変数を設定・管理
+    ワークフロースコープの変数を設定および管理
   </Card>
   <Card title="待機ブロック" href="/blocks/wait">
     指定した時間だけワークフロー実行を一時停止

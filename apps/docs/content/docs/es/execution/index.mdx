@@ -52,44 +52,6 @@ Cada flujo de trabajo mantiene un contexto enriquecido durante la ejecución que
 - Variables de entorno
 - Decisiones de enrutamiento
 
-## Disparadores de ejecución
-
-Los flujos de trabajo pueden ejecutarse a través de múltiples canales:
-
-- **Manual**: Prueba y depura directamente en el editor
-- **Desplegar como API**: Crea un punto de conexión HTTP protegido con claves API
-- **Desplegar como Chat**: Crea una interfaz conversacional en un subdominio personalizado
-- **Webhooks**: Responde a eventos externos de servicios de terceros
-- **Programado**: Ejecuta en un horario recurrente usando expresiones cron
-
-### Desplegar como API
-
-Cuando despliegas un flujo de trabajo como API, Sim:
-- Crea un punto de conexión HTTP único: `https://sim.ai/api/workflows/{workflowId}/execute`
-- Genera una clave API para autenticación
-- Acepta solicitudes POST con cargas útiles JSON
-- Devuelve los resultados de ejecución del flujo de trabajo como JSON
-
-Ejemplo de llamada API:
-
-```bash
-curl -X POST https://sim.ai/api/workflows/your-workflow-id/execute \
-  -H "X-API-Key: your-api-key" \
-  -H "Content-Type: application/json" \
-  -d '{"input": "your data here"}'
-```
-
-### Desplegar como Chat
-
-El despliegue de chat crea una interfaz conversacional para tu flujo de trabajo:
-- Alojado en un subdominio personalizado: `https://your-name.sim.ai`
-- Autenticación opcional (pública, con contraseña o basada en correo electrónico)
-- Interfaz de usuario personalizable con tu marca
-- Respuestas en streaming para interacción en tiempo real
-- Perfecto para asistentes de IA, bots de soporte o herramientas interactivas
-
-Cada método de despliegue pasa datos al bloque inicial de tu flujo de trabajo, comenzando el flujo de ejecución.
-
 ## Instantáneas de despliegue
 
 Todos los puntos de entrada públicos—API, Chat, Programación, Webhook y ejecuciones manuales—ejecutan la instantánea de despliegue activa del flujo de trabajo. Publica un nuevo despliegue cada vez que cambies el lienzo para que cada disparador utilice la versión actualizada.

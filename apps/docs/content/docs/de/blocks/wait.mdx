@@ -22,62 +22,46 @@ Der Warten-Block pausiert deinen Workflow für eine bestimmte Zeit, bevor er mit
 
 ### Wartezeit
 
-Gib die Dauer der Ausführungspause ein:
+Geben Sie die Dauer für die Ausführungspause ein:
 - **Eingabe**: Positive Zahl
 - **Maximum**: 600 Sekunden (10 Minuten) oder 10 Minuten
 
 ### Einheit
 
-Wähle die Zeiteinheit:
+Wählen Sie die Zeiteinheit:
 - **Sekunden**: Für kurze, präzise Verzögerungen
 - **Minuten**: Für längere Pausen
 
 <Callout type="info">
-  Warten-Blöcke können durch Stoppen des Workflows abgebrochen werden. Die maximale Wartezeit beträgt 10 Minuten.
+  Warteblöcke können durch Stoppen des Workflows abgebrochen werden. Die maximale Wartezeit beträgt 10 Minuten.
 </Callout>
 
 ## Ausgaben
 
 - **`<wait.waitDuration>`**: Die Wartezeit in Millisekunden
-- **`<wait.status>`**: Status des Wartens ('waiting', 'completed' oder 'cancelled')
+- **`<wait.status>`**: Status der Wartezeit ('waiting', 'completed' oder 'cancelled')
 
 ## Beispielanwendungsfälle
 
-### API-Ratenbegrenzung
+**API-Ratenbegrenzung** - Bleiben Sie zwischen Anfragen innerhalb der API-Ratenlimits
 
-<div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">Szenario: Innerhalb der API-Ratenbegrenzungen bleiben</h4>
-  <ol className="list-decimal pl-5 text-sm">
-    <li>API-Block macht erste Anfrage</li>
-    <li>Warten-Block pausiert für 2 Sekunden</li>
-    <li>API-Block macht zweite Anfrage</li>
-    <li>Prozess läuft weiter, ohne Ratenbegrenzungen zu überschreiten</li>
-  </ol>
-</div>
+```
+API (Request 1) → Wait (2s) → API (Request 2)
+```
 
-### Zeitgesteuerte Benachrichtigungen
+**Zeitgesteuerte Benachrichtigungen** - Senden Sie Folgenachrichten nach einer Verzögerung
 
-<div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">Szenario: Folgenachrichten senden</h4>
-  <ol className="list-decimal pl-5 text-sm">
-    <li>Funktion sendet erste E-Mail</li>
-    <li>Warten-Block pausiert für 5 Minuten</li>
-    <li>Funktion sendet Folge-E-Mail</li>
-  </ol>
-</div>
+```
+Function (Send Email) → Wait (5min) → Function (Follow-up)
+```
 
-### Verarbeitungsverzögerungen
+**Verarbeitungsverzögerungen** - Warten Sie, bis das externe System die Verarbeitung abgeschlossen hat
 
-<div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">Szenario: Warten auf externes System</h4>
-  <ol className="list-decimal pl-5 text-sm">
-    <li>API-Block löst Job im externen System aus</li>
-    <li>Warte-Block pausiert für 30 Sekunden</li>
-    <li>API-Block prüft den Abschlussstatus des Jobs</li>
-  </ol>
-</div>
+```
+API (Trigger Job) → Wait (30s) → API (Check Status)
+```
 
 ## Bewährte Praktiken
 
-- **Halte Wartezeiten angemessen**: Verwende Warten für Verzögerungen bis zu 10 Minuten. Für längere Verzögerungen solltest du geplante Workflows in Betracht ziehen
-- **Überwache die Ausführungszeit**: Denke daran, dass Wartezeiten die Gesamtdauer des Workflows verlängern
+- **Halten Sie Wartezeiten angemessen**: Verwenden Sie Wait für Verzögerungen bis zu 10 Minuten. Für längere Verzögerungen sollten Sie geplante Workflows in Betracht ziehen
+- **Überwachen Sie die Ausführungszeit**: Denken Sie daran, dass Wartezeiten die Gesamtdauer des Workflows verlängern

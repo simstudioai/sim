@@ -3,13 +3,10 @@ title: Router
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
-import { Step, Steps } from 'fumadocs-ui/components/steps'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
-import { Accordion, Accordions } from 'fumadocs-ui/components/accordion'
 import { Image } from '@/components/ui/image'
-import { Video } from '@/components/ui/video'
 
-El bloque Router utiliza IA para decidir de manera inteligente qué camino debe tomar tu flujo de trabajo a continuación, dirigiendo la ejecución del flujo de trabajo según condiciones o lógica específicas. A diferencia de los bloques de Condición que utilizan reglas simples, los bloques Router pueden entender el contexto y tomar decisiones inteligentes de enrutamiento basadas en el análisis de contenido.
+El bloque Router utiliza IA para dirigir flujos de trabajo de manera inteligente basándose en el análisis de contenido. A diferencia de los bloques de Condición que utilizan reglas simples, los Routers comprenden el contexto y la intención.
 
 <div className="flex justify-center">
   <Image
@@ -23,15 +20,15 @@ El bloque Router utiliza IA para decidir de manera inteligente qué camino debe 
 
 ## Router vs Condición
 
-**Usar Router cuando:**
+**Usa Router cuando:**
 - Se necesita análisis de contenido impulsado por IA
-- Se trabaja con contenido no estructurado o variable
-- Se requiere enrutamiento basado en intención (p. ej., "dirigir tickets a departamentos")
+- Trabajas con contenido no estructurado o variable
+- Se requiere enrutamiento basado en intención (p. ej., "dirigir tickets de soporte a departamentos")
 
-**Usar Condición cuando:**
-- Decisiones simples basadas en reglas son suficientes
-- Se trabaja con datos estructurados o comparaciones numéricas
-- Se necesita enrutamiento rápido y determinista
+**Usa Condición cuando:**
+- Las decisiones simples basadas en reglas son suficientes
+- Trabajas con datos estructurados o comparaciones numéricas
+- Se necesita un enrutamiento rápido y determinista
 
 ## Opciones de configuración
 
@@ -49,82 +46,57 @@ Los posibles bloques de destino entre los que el Router puede seleccionar. El Ro
 
 - Personalizar las descripciones de los bloques de destino para mejorar la precisión del enrutamiento
 - Especificar criterios de enrutamiento para cada bloque de destino
-- Excluir ciertos bloques para que no sean considerados como destinos de enrutamiento
+- Excluir ciertos bloques de ser considerados como destinos de enrutamiento
 
 ### Selección de modelo
 
-Elige un modelo de IA para potenciar la decisión de enrutamiento:
+Elige un modelo de IA para impulsar la decisión de enrutamiento:
 
-**OpenAI**: GPT-4o, o1, o3, o4-mini, gpt-4.1  \
-**Anthropic**: Claude 3.7 Sonnet \
-**Google**: Gemini 2.5 Pro, Gemini 2.0 Flash \
-**Otros proveedores**: Groq, Cerebras, xAI, DeepSeek \
-**Modelos locales**: Cualquier modelo ejecutándose en Ollama 
+- **OpenAI**: GPT-4o, o1, o3, o4-mini, gpt-4.1
+- **Anthropic**: Claude 3.7 Sonnet
+- **Google**: Gemini 2.5 Pro, Gemini 2.0 Flash
+- **Otros proveedores**: Groq, Cerebras, xAI, DeepSeek
+- **Modelos locales**: Modelos compatibles con Ollama
 
-<div className="w-full max-w-2xl mx-auto overflow-hidden rounded-lg">
-  <Video src="models.mp4" width={500} height={350} />
-</div>
-
-**Recomendación**: Utiliza modelos con fuertes capacidades de razonamiento como GPT-4o o Claude 3.7 Sonnet para decisiones de enrutamiento más precisas.
+Utiliza modelos con fuertes capacidades de razonamiento como GPT-4o o Claude 3.7 Sonnet para obtener mejores resultados.
 
 ### Clave API
 
-Tu clave API para el proveedor de LLM seleccionado. Esta se almacena de forma segura y se utiliza para la autenticación.
+Tu clave API para el proveedor LLM seleccionado. Se almacena de forma segura y se utiliza para la autenticación.
 
-### Acceso a los resultados
+## Salidas
 
-Después de que un router tome una decisión, puedes acceder a sus resultados:
-
-- **`<router.prompt>`**: Resumen del prompt de enrutamiento utilizado
-- **`<router.selected_path>`**: Detalles del bloque de destino elegido
-- **`<router.tokens>`**: Estadísticas de uso de tokens del LLM
-- **`<router.cost>`**: Resumen de costos para la llamada de enrutamiento (entrada, salida, total)
-- **`<router.model>`**: El modelo utilizado para la toma de decisiones
-
+- **`<router.prompt>`**: Resumen del prompt de enrutamiento
+- **`<router.selected_path>`**: Bloque de destino elegido
+- **`<router.tokens>`**: Estadísticas de uso de tokens
+- **`<router.cost>`**: Costo estimado de enrutamiento
+- **`<router.model>`**: Modelo utilizado para la toma de decisiones
 
 ## Ejemplos de casos de uso
 
-### Clasificación de soporte al cliente
+**Clasificación de soporte al cliente** - Enrutar tickets a departamentos especializados
 
-<div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">Escenario: Enrutar tickets de soporte a departamentos especializados</h4>
-  <ol className="list-decimal pl-5 text-sm">
-    <li>El usuario envía una solicitud de soporte mediante un formulario</li>
-    <li>El enrutador analiza el contenido y contexto del ticket</li>
-    <li>Problemas técnicos → Agente de soporte de ingeniería</li>
-    <li>Preguntas de facturación → Agente de soporte financiero</li>
-  </ol>
-</div>
+```
+Input (Ticket) → Router → Agent (Engineering) or Agent (Finance)
+```
 
-### Clasificación de contenido
+**Clasificación de contenido** - Clasificar y enrutar contenido generado por usuarios
 
-<div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">Escenario: Clasificar y enrutar contenido generado por usuarios</h4>
-  <ol className="list-decimal pl-5 text-sm">
-    <li>El usuario envía contenido o comentarios</li>
-    <li>El enrutador analiza el tipo de contenido y el sentimiento</li>
-    <li>Solicitudes de funciones → Flujo de trabajo del equipo de producto</li>
-    <li>Informes de errores → Flujo de trabajo de soporte técnico</li>
-  </ol>
-</div>
+```
+Input (Feedback) → Router → Workflow (Product) or Workflow (Technical)
+```
 
-### Calificación de leads
+**Calificación de leads** - Enrutar leads según criterios de calificación
 
-<div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">Escenario: Enrutar leads según criterios de calificación</h4>
-  <ol className="list-decimal pl-5 text-sm">
-    <li>Información del lead capturada desde un formulario</li>
-    <li>El enrutador analiza el tamaño de la empresa, la industria y las necesidades</li>
-    <li>Leads empresariales → Equipo de ventas con precios personalizados</li>
-    <li>Leads de PYMES → Flujo de incorporación autoservicio</li>
-  </ol>
-</div>
+```
+Input (Lead) → Router → Agent (Enterprise Sales) or Workflow (Self-serve)
+```
 
 ## Mejores prácticas
 
-- **Proporcionar descripciones claras de destino**: Ayuda al enrutador a entender cuándo seleccionar cada destino con descripciones específicas y detalladas
+- **Proporcionar descripciones claras de los objetivos**: Ayuda al Router a entender cuándo seleccionar cada destino con descripciones específicas y detalladas
 - **Usar criterios de enrutamiento específicos**: Define condiciones claras y ejemplos para cada ruta para mejorar la precisión
 - **Implementar rutas alternativas**: Conecta un destino predeterminado para cuando ninguna ruta específica sea apropiada
-- **Probar con entradas diversas**: Asegúrate de que el enrutador maneja varios tipos de entrada, casos extremos y contenido inesperado
+- **Probar con entradas diversas**: Asegúrate de que el Router maneja varios tipos de entrada, casos extremos y contenido inesperado
 - **Monitorear el rendimiento del enrutamiento**: Revisa las decisiones de enrutamiento regularmente y refina los criterios basándote en patrones de uso reales
-- **Elegir modelos apropiados**: Utiliza modelos con fuertes capacidades de razonamiento para decisiones de enrutamiento complejas
+- **Elegir modelos apropiados**: Usa modelos con fuertes capacidades de razonamiento para decisiones de enrutamiento complejas

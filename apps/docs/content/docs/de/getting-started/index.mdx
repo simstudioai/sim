@@ -24,20 +24,19 @@ import {
 import { Video } from '@/components/ui/video'
 import { Image } from '@/components/ui/image'
 
-Dieses Tutorial führt dich durch den Aufbau deines ersten KI-Workflows in Sim. Wir erstellen einen Personen-Recherche-Agenten, der Informationen über Personen mithilfe modernster LLM-Suchwerkzeuge finden kann.
+Erstelle deinen ersten KI-Workflow in 10 Minuten. In diesem Tutorial wirst du einen Personenrecherche-Agenten erstellen, der fortschrittliche LLM-gestützte Suchwerkzeuge nutzt, um Informationen über Personen zu extrahieren und zu strukturieren.
 
 <Callout type="info">
-  Dieses Tutorial dauert etwa 10 Minuten und behandelt die wesentlichen Konzepte zum Erstellen von Workflows in Sim.
+  Dieses Tutorial behandelt die wesentlichen Konzepte zum Erstellen von Workflows in Sim. Geschätzte Bearbeitungszeit: 10 Minuten.
 </Callout>
 
-## Was wir erstellen
+## Was du erstellen wirst
 
-Einen Personen-Recherche-Agenten, der:
-1. Den Namen einer Person über eine Chat-Schnittstelle empfängt
-2. Einen KI-Agenten mit erweiterten Suchfähigkeiten nutzt
-3. Das Web mithilfe modernster LLM-Suchwerkzeuge (Exa und Linkup) durchsucht
-4. Strukturierte Informationen mithilfe eines Antwortformats extrahiert
-5. Umfassende Daten über die Person zurückgibt
+Einen Personenrecherche-Agenten, der:
+1. Benutzereingaben über eine Chat-Schnittstelle akzeptiert
+2. Das Web mit KI-gestützten Tools durchsucht (Exa und Linkup)
+3. Informationen über Personen extrahiert und strukturiert
+4. Formatierte JSON-Daten mit Standort, Beruf und Ausbildung zurückgibt
 
 <Image
   src="/static/getting-started/started-1.png"
@@ -49,74 +48,71 @@ Einen Personen-Recherche-Agenten, der:
 ## Schritt-für-Schritt-Anleitung
 
 <Steps>
-  <Step title="Workflow erstellen und KI-Agenten hinzufügen">
-    Öffne Sim und klicke im Dashboard auf "Neuer Workflow". Benenne ihn "Erste Schritte".
+  <Step title="Workflow erstellen und einen KI-Agenten hinzufügen">
+    Klicke im Dashboard auf **Neuer Workflow** und benenne ihn "Getting Started".
     
-    Wenn du einen neuen Workflow erstellst, enthält er automatisch einen **Start-Block** - dies ist der Einstiegspunkt, der Eingaben von Benutzern empfängt. Für dieses Beispiel werden wir den Workflow über den Chat auslösen, daher müssen wir am Start-Block nichts konfigurieren.
+    Jeder neue Workflow enthält standardmäßig einen **Start-Block** – dies ist der Eingangspunkt, der Benutzereingaben empfängt. Da wir diesen Workflow über Chat auslösen werden, ist keine Konfiguration für den Start-Block erforderlich.
     
-    Ziehe nun einen **Agenten-Block** aus dem Blockbereich auf der linken Seite auf die Arbeitsfläche.
-    
-    Konfiguriere den Agenten-Block:
+    Ziehe einen **Agenten-Block** aus dem linken Bereich auf die Arbeitsfläche und konfiguriere ihn:
     - **Modell**: Wähle "OpenAI GPT-4o"
-    - **System-Prompt**: "Du bist ein Personen-Recherche-Agent. Wenn dir ein Personenname gegeben wird, nutze deine verfügbaren Suchwerkzeuge, um umfassende Informationen über diese Person zu finden, einschließlich ihres Standorts, Berufs, Bildungshintergrunds und anderer relevanter Details."
-    - **Benutzer-Prompt**: Ziehe die Verbindung vom Ausgabefeld des Start-Blocks in dieses Feld (dies verbindet `<start.input>` mit dem Benutzer-Prompt)
+    - **System-Prompt**: "Du bist ein Personenrecherche-Agent. Wenn dir ein Name einer Person gegeben wird, nutze deine verfügbaren Suchwerkzeuge, um umfassende Informationen über sie zu finden, einschließlich ihres Standorts, Berufs, Bildungshintergrunds und anderer relevanter Details."
+    - **Benutzer-Prompt**: Ziehe die Verbindung vom Ausgabefeld des Start-Blocks in dieses Feld, um `<start.input>` mit dem Benutzer-Prompt zu verbinden
     
     <div className="mx-auto w-full overflow-hidden rounded-lg">
       <Video src="getting-started/started-2.mp4" width={700} height={450} />
     </div>
   </Step>
   
-  <Step title="Werkzeuge zum Agenten hinzufügen">
-    Verbessern wir unseren Agenten mit Werkzeugen für bessere Fähigkeiten. Klicke auf den Agenten-Block, um ihn auszuwählen.
+  <Step title="Suchwerkzeuge zum Agenten hinzufügen">
+    Erweitere deinen Agenten mit Websuche-Funktionen. Klicke auf den Agenten-Block, um ihn auszuwählen.
     
-    Im Bereich **Werkzeuge**:
-    - Klicke auf **Werkzeug hinzufügen**
-    - Wähle **Exa** aus den verfügbaren Werkzeugen
-    - Wähle **Linkup** aus den verfügbaren Werkzeugen
-    - Füge deine API-Schlüssel für beide Werkzeuge hinzu (dies ermöglicht dem Agenten, das Web zu durchsuchen und auf zusätzliche Informationen zuzugreifen)
+    Im Bereich **Tools**:
+    - Klicke auf **Tool hinzufügen**
+    - Wähle **Exa** und **Linkup** aus den verfügbaren Tools
+    - Gib deine API-Schlüssel für beide Tools ein, um Websuche und Datenzugriff zu ermöglichen
     
     <div className="mx-auto w-3/5 overflow-hidden rounded-lg">
       <Video src="getting-started/started-3.mp4" width={700} height={450} />
     </div>
   </Step>
   
-  <Step title="Den grundlegenden Workflow testen">
-    Jetzt testen wir unseren Workflow. Gehe zum **Chat-Panel** auf der rechten Seite des Bildschirms.
+  <Step title="Workflow testen">
+    Teste deinen Workflow mit dem **Chat-Panel** auf der rechten Seite des Bildschirms.
     
     Im Chat-Panel:
-    - Klicke auf das Dropdown-Menü und wähle `agent1.content` (dies zeigt uns die Ausgabe unseres Agenten)
-    - Gib eine Testnachricht ein, wie: "John ist ein Softwareentwickler aus San Francisco, der Informatik an der Stanford University studiert hat."
-    - Klicke auf "Senden", um den Workflow auszuführen
+    - Klicke auf das Dropdown-Menü und wähle `agent1.content`, um die Ausgabe des Agenten anzuzeigen
+    - Gib eine Testnachricht ein: "John ist ein Softwareentwickler aus San Francisco, der Informatik an der Stanford University studiert hat."
+    - Klicke auf **Senden**, um den Workflow auszuführen
     
-    Du solltest die Antwort des Agenten sehen, der die in deinem Text beschriebene Person analysiert.
+    Der Agent wird die Person analysieren und strukturierte Informationen zurückgeben.
     
     <div className="mx-auto w-full overflow-hidden rounded-lg">
       <Video src="getting-started/started-4.mp4" width={700} height={450} />
     </div>
   </Step>
   
-  <Step title="Strukturierte Ausgabe hinzufügen">
-    Jetzt lassen wir unseren Agenten strukturierte Daten zurückgeben. Klicke auf den Agenten-Block, um ihn auszuwählen.
+  <Step title="Strukturierte Ausgabe konfigurieren">
+    Konfiguriere deinen Agenten, um strukturierte JSON-Daten zurückzugeben. Klicke auf den Agenten-Block, um ihn auszuwählen.
     
     Im Bereich **Antwortformat**:
     - Klicke auf das **Zauberstab-Symbol** (✨) neben dem Schema-Feld
-    - Gib in der erscheinenden Aufforderung ein: "Erstelle ein Schema namens Person, das Standort, Beruf und Bildung enthält"
-    - Die KI generiert automatisch ein JSON-Schema für dich
+    - Gib den Prompt ein: "Erstelle ein Schema namens person, das Standort, Beruf und Ausbildung enthält"
+    - Die KI wird automatisch das JSON-Schema generieren
     
     <div className="mx-auto w-full overflow-hidden rounded-lg">
       <Video src="getting-started/started-5.mp4" width={700} height={450} />
     </div>
   </Step>
   
-  <Step title="Die strukturierte Ausgabe testen">
-    Gehe zurück zum **Chat-Panel**.
+  <Step title="Mit strukturierter Ausgabe testen">
+    Kehre zum **Chat-Panel** zurück, um das strukturierte Antwortformat zu testen.
     
-    Da wir ein Antwortformat hinzugefügt haben, sind jetzt neue Ausgabeoptionen verfügbar:
-    - Klicke auf das Dropdown-Menü und wähle die neue Option für strukturierte Ausgabe (das Schema, das wir gerade erstellt haben)
-    - Gib eine neue Testnachricht ein, wie: "Sarah ist eine Marketing-Managerin aus New York, die einen MBA von der Harvard Business School hat."
-    - Klicke auf "Senden", um den Workflow erneut auszuführen
+    Mit dem konfigurierten Antwortformat sind jetzt neue Ausgabeoptionen verfügbar:
+    - Klicke auf das Dropdown-Menü und wähle die Option für strukturierte Ausgabe (das Schema, das du gerade erstellt hast)
+    - Gib eine Testnachricht ein: "Sarah ist eine Marketing-Managerin aus New York mit einem MBA von der Harvard Business School."
+    - Klicke auf **Senden**, um den Workflow auszuführen
     
-    Du solltest jetzt eine strukturierte JSON-Ausgabe sehen, bei der die Informationen der Person in die Felder Standort, Beruf und Bildung gegliedert sind.
+    Der Agent wird nun strukturierte JSON-Ausgabe zurückgeben, wobei die Informationen der Person in die Felder Standort, Beruf und Ausbildung organisiert sind.
     
     <div className="mx-auto w-full overflow-hidden rounded-lg">
       <Video src="getting-started/started-6.mp4" width={700} height={450} />
@@ -124,15 +120,15 @@ Einen Personen-Recherche-Agenten, der:
   </Step>
 </Steps>
 
-## Was du gerade erstellt hast
+## Was du erstellt hast
 
-Herzlichen Glückwunsch! Du hast deinen ersten KI-Workflow erstellt, der:
-- ✅ Texteingaben über eine Chat-Schnittstelle empfängt
-- ✅ KI nutzt, um Informationen aus unstrukturiertem Text zu extrahieren
-- ✅ Externe Tools (Exa und Linkup) für erweiterte Funktionen integriert
+Du hast erfolgreich einen KI-Workflow erstellt, der:
+- ✅ Benutzereingaben über eine Chat-Schnittstelle akzeptiert
+- ✅ Unstrukturierten Text mit KI verarbeitet
+- ✅ Externe Suchwerkzeuge integriert (Exa und Linkup)
 - ✅ Strukturierte JSON-Daten mit KI-generierten Schemas zurückgibt
-- ✅ Workflow-Tests und Iterationen demonstriert
-- ✅ Die Leistungsfähigkeit des visuellen Workflow-Aufbaus zeigt
+- ✅ Echtzeit-Tests und Iteration demonstriert
+- ✅ Die Leistungsfähigkeit der visuellen, codefreien Entwicklung zeigt
 
 ## Wichtige Konzepte, die du gelernt hast
 
@@ -153,41 +149,48 @@ Herzlichen Glückwunsch! Du hast deinen ersten KI-Workflow erstellt, der:
 
 ### Grundlegende Workflow-Konzepte
 
-**Datenfluss**: Variablen fließen zwischen Blöcken durch das Ziehen von Verbindungen
+**Datenfluss**  
+Verbinde Blöcke durch Ziehen von Verbindungen, um Daten zwischen Workflow-Schritten zu übertragen
 
-**Chat-Schnittstelle**: Teste Workflows in Echtzeit mit dem Chat-Panel mit verschiedenen Ausgabeoptionen
+**Chat-Schnittstelle**  
+Teste Workflows in Echtzeit mit dem Chat-Panel und wähle verschiedene Ausgabeoptionen
 
-**Tool-Integration**: Erweitere die Fähigkeiten des Agenten durch Hinzufügen externer Tools wie Exa und Linkup
+**Tool-Integration**  
+Erweitere die Fähigkeiten des Agenten durch Integration externer Dienste wie Exa und Linkup
 
-**Variablenreferenzen**: Greife auf Block-Ausgaben mit der `<blockName.output>` Syntax zu
+**Variablenreferenzen**  
+Greife auf Block-Ausgaben mit der `<blockName.output>` Syntax zu
 
-**Strukturierte Ausgabe**: Verwende JSON-Schemas, um konsistente, strukturierte Daten von der KI zu erhalten
+**Strukturierte Ausgabe**  
+Definiere JSON-Schemas, um konsistente, formatierte Antworten von der KI zu gewährleisten
 
-**KI-generierte Schemas**: Nutze den Zauberstab (✨), um Schemas mit natürlicher Sprache zu generieren
+**KI-generierte Schemas**  
+Verwende den Zauberstab (✨), um Schemas aus natürlichsprachigen Eingabeaufforderungen zu generieren
 
-**Iterative Entwicklung**: Teste, modifiziere und teste Workflows einfach erneut
+**Iterative Entwicklung**  
+Erstelle, teste und verfeinere Workflows schnell mit sofortigem Feedback
 
 ## Nächste Schritte
 
 <Cards>
-  <Card title="Weitere Blöcke hinzufügen" href="/blocks">
-    Erfahre mehr über API-, Funktions- und Bedingungsblöcke
+  <Card title="Workflow-Blöcke erkunden" href="/blocks">
+    Entdecke API-, Funktions-, Bedingungs- und andere Workflow-Blöcke
   </Card>
-  <Card title="Tools verwenden" href="/tools">
-    Integration mit externen Diensten wie Gmail, Slack und Notion
+  <Card title="Integrationen durchsuchen" href="/tools">
+    Verbinde über 80 Dienste einschließlich Gmail, Slack, Notion und mehr
   </Card>
   <Card title="Benutzerdefinierte Logik hinzufügen" href="/blocks/function">
-    Verwende Funktionsblöcke für benutzerdefinierte Datenverarbeitung
+    Schreibe benutzerdefinierte Funktionen für fortgeschrittene Datenverarbeitung
   </Card>
   <Card title="Deinen Workflow bereitstellen" href="/execution">
-    Mache deinen Workflow über REST API zugänglich
+    Mache deinen Workflow über REST API oder Webhooks zugänglich
   </Card>
 </Cards>
 
-## Brauchst du Hilfe?
+## Ressourcen
 
-**Bei einem Schritt hängengeblieben?** Schau in unserer [Blocks-Dokumentation](/blocks) nach detaillierten Erklärungen zu jeder Komponente.
+**Brauchst du detaillierte Erklärungen?** Besuche die [Blocks-Dokumentation](/blocks) für umfassende Anleitungen zu jeder Komponente.
 
-**Möchten Sie mehr Beispiele sehen?** Durchsuchen Sie unsere [Tools-Dokumentation](/tools), um zu sehen, welche Integrationen verfügbar sind.
+**Suchst du nach Integrationen?** Erkunde die [Tools-Dokumentation](/tools), um alle 80+ verfügbaren Integrationen zu sehen.
 
-**Bereit für die Bereitstellung?** Erfahren Sie mehr über [Ausführung und Bereitstellung](/execution), um Ihre Workflows zu aktivieren.
+**Bereit für den Livebetrieb?** Erfahre mehr über [Ausführung und Bereitstellung](/execution), um deine Workflows produktionsreif zu machen.

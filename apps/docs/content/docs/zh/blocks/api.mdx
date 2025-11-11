@@ -3,11 +3,10 @@ title: API
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
-import { Step, Steps } from 'fumadocs-ui/components/steps'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 import { Image } from '@/components/ui/image'
 
-API 模块使您能够通过 HTTP 请求使用 API 端点将工作流连接到外部服务。它支持多种方法，例如 GET、POST、PUT、DELETE 和 PATCH，几乎可以与任何 API 端点交互。
+API 模块通过 HTTP 请求将您的工作流连接到外部服务。支持 GET、POST、PUT、DELETE 和 PATCH 方法与 REST API 交互。
 
 <div className="flex justify-center">
   <Image
@@ -26,12 +25,12 @@ API 模块使您能够通过 HTTP 请求使用 API 端点将工作流连接到�
 API 请求的端点 URL。可以是：
 
 - 直接在模块中输入的静态 URL
-- 从其他模块的输出连接的动态 URL
-- 带有路径参数的 URL
+- 从另一个模块的输出连接的动态 URL
+- 包含路径参数的 URL
 
 ### 方法
 
-为您的请求选择 HTTP 方法：
+选择您的请求所需的 HTTP 方法：
 
 - **GET**：从服务器检索数据
 - **POST**：向服务器发送数据以创建资源
@@ -51,7 +50,7 @@ Key: limit
 Value: 10
 ```
 
-这些将被添加到 URL 中，如 `?apiKey=your_api_key_here&limit=10` 所示。
+这些将被添加到 URL 中作为 `?apiKey=your_api_key_here&limit=10`。
 
 ### 请求头
 
@@ -67,26 +66,26 @@ Value: Bearer your_token_here
 
 ### 请求体
 
-对于支持请求体的请求方法（POST、PUT、PATCH），您可以定义要发送的数据。请求体可以是：
+对于支持请求体的方法（POST、PUT、PATCH），您可以定义要发送的数据。请求体可以是：
 
 - 直接在模块中输入的 JSON 数据
-- 从其他模块的输出连接的数据
+- 从另一个模块的输出连接的数据
 - 在工作流执行期间动态生成的数据
 
 ### 访问结果
 
-在 API 请求完成后，您可以访问其输出：
+API 请求完成后，您可以访问其输出：
 
-- **`<api.data>`**：来自 API 的响应体数据
+- **`<api.data>`**：API 的响应体数据
 - **`<api.status>`**：HTTP 状态码（200、404、500 等）
-- **`<api.headers>`**：服务器返回的响应头
+- **`<api.headers>`**：服务器的响应头
 - **`<api.error>`**：如果请求失败，包含错误详情
 
 ## 高级功能
 
 ### 动态 URL 构建
 
-使用来自前置模块的变量动态构建 URL：
+使用前面模块中的变量动态构建 URL：
 
 ```javascript
 // In a Function block before the API
@@ -100,7 +99,7 @@ API 模块会自动处理：
 - 带有指数退避的网络超时
 - 速率限制响应（429 状态码）
 - 服务器错误（5xx 状态码）及重试逻辑
-- 连接失败后的重新连接尝试
+- 连接失败及重新连接尝试
 
 ### 响应验证
 
@@ -119,36 +118,24 @@ if (<api.status> === 200) {
 
 ## 输出
 
-- **`<api.data>`**: API 调用的响应体数据
-- **`<api.status>`**: HTTP 状态码
-- **`<api.headers>`**: 响应头
-- **`<api.error>`**: 如果请求失败，包含错误详情
+- **`<api.data>`**：来自 API 的响应体数据
+- **`<api.status>`**：HTTP 状态码
+- **`<api.headers>`**：响应头
+- **`<api.error>`**：如果请求失败，包含错误详情
 
 ## 示例用例
 
-### 获取用户档案数据
+**获取用户资料数据** - 从外部服务检索用户信息
 
-<div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">场景：从外部服务检索用户信息</h4>
-  <ol className="list-decimal pl-5 text-sm">
-    <li>函数模块根据输入构建用户 ID</li>
-    <li>API 模块调用 GET /users/&#123;id&#125; 端点</li>
-    <li>函数模块处理并格式化用户数据</li>
-    <li>响应模块返回格式化的档案</li>
-  </ol>
-</div>
+```
+Function (Build ID) → API (GET /users/{id}) → Function (Format) → Response
+```
 
-### 支付处理
+**支付处理** - 通过 Stripe API 处理支付
 
-<div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">场景：通过 Stripe API 处理支付</h4>
-  <ol className="list-decimal pl-5 text-sm">
-    <li>函数模块验证支付数据</li>
-    <li>API 模块通过 Stripe 创建支付意图</li>
-    <li>条件模块处理支付成功/失败</li>
-    <li>Supabase 模块更新数据库中的订单状态</li>
-  </ol>
-</div>
+```
+Function (Validate) → API (Stripe) → Condition (Success) → Supabase (Update)
+```
 
 ## 最佳实践
 
