@@ -4,6 +4,7 @@ import { devtools } from 'zustand/middleware'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getBlockOutputs } from '@/lib/workflows/block-outputs'
 import { getBlock } from '@/blocks'
+import type { SubBlockConfig } from '@/blocks/types'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import {
@@ -20,6 +21,73 @@ import type {
 import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
 
 const logger = createLogger('WorkflowStore')
+
+/**
+ * Creates a deep clone of an initial sub-block value to avoid shared references.
+ *
+ * @param value - The value to clone.
+ * @returns A cloned value suitable for initializing sub-block state.
+ */
+function cloneInitialSubblockValue(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map((item) => cloneInitialSubblockValue(item))
+  }
+
+  if (value && typeof value === 'object') {
+    return Object.entries(value as Record<string, unknown>).reduce<Record<string, unknown>>(
+      (acc, [key, entry]) => {
+        acc[key] = cloneInitialSubblockValue(entry)
+        return acc
+      },
+      {}
+    )
+  }
+
+  return value ?? null
+}
+
+/**
+ * Resolves the initial value for a sub-block based on its configuration.
+ *
+ * @param config - The sub-block configuration.
+ * @returns The resolved initial value or null when no defaults are defined.
+ */
+function resolveInitialSubblockValue(config: SubBlockConfig): unknown {
+  if (typeof config.value === 'function') {
+    try {
+      const resolved = config.value({})
+      return cloneInitialSubblockValue(resolved)
+    } catch (error) {
+      logger.warn('Failed to resolve dynamic sub-block default value', {
+        subBlockId: config.id,
+        error: error instanceof Error ? error.message : String(error),
+      })
+    }
+  }
+
+  if (config.defaultValue !== undefined) {
+    return cloneInitialSubblockValue(config.defaultValue)
+  }
+
+  if (config.type === 'input-format') {
+    // Initialize with a default field structure instead of empty array
+    return [
+      {
+        id: crypto.randomUUID(),
+        name: '',
+        type: 'string',
+        value: '',
+        collapsed: false,
+      },
+    ]
+  }
+
+  if (config.type === 'table') {
+    return []
+  }
+
+  return null
+}
 
 const initialState = {
   blocks: {},
@@ -106,12 +174,40 @@ export const useWorkflowStore = create<WorkflowStore>()(
         }
 
         const subBlocks: Record<string, SubBlockState> = {}
+        const subBlockStore = useSubBlockStore.getState()
+        const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
+
         blockConfig.subBlocks.forEach((subBlock) => {
           const subBlockId = subBlock.id
+          const initialValue = resolveInitialSubblockValue(subBlock)
+          const normalizedValue =
+            initialValue !== undefined && initialValue !== null ? initialValue : null
+
           subBlocks[subBlockId] = {
             id: subBlockId,
             type: subBlock.type,
-            value: null,
+            value: normalizedValue as SubBlockState['value'],
+          }
+
+          // Always initialize the subblock store value, even if it's null or empty array
+          // This ensures the editor panel can read the value correctly
+          if (activeWorkflowId) {
+            try {
+              // Use the initial value if available, otherwise use null
+              const valueToStore = initialValue !== undefined ? cloneInitialSubblockValue(initialValue) : null
+              subBlockStore.setValue(id, subBlockId, valueToStore)
+            } catch (error) {
+              logger.warn('Failed to seed sub-block store value during block creation', {
+                blockId: id,
+                subBlockId,
+                error: error instanceof Error ? error.message : String(error),
+              })
+            }
+          } else {
+            logger.warn('Cannot seed sub-block store value: activeWorkflowId not available', {
+              blockId: id,
+              subBlockId,
+            })
           }
         })
 

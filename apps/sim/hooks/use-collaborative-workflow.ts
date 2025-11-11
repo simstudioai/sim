@@ -765,10 +765,41 @@ export function useCollaborativeWorkflow() {
       // Create subBlocks from the block configuration
       if (blockConfig.subBlocks) {
         blockConfig.subBlocks.forEach((subBlock) => {
+          // Resolve initial value using the same logic as the store
+          let initialValue: unknown = null
+          
+          // Handle function-based values
+          if (typeof subBlock.value === 'function') {
+            try {
+              initialValue = subBlock.value({})
+            } catch (error) {
+              logger.warn('Failed to resolve dynamic sub-block default value', {
+                subBlockId: subBlock.id,
+                error: error instanceof Error ? error.message : String(error),
+              })
+            }
+          } else if (subBlock.defaultValue !== undefined) {
+            initialValue = subBlock.defaultValue
+          } else if (subBlock.type === 'input-format') {
+            // Initialize with a default field structure instead of empty array
+            initialValue = [
+              {
+                id: crypto.randomUUID(),
+                name: '',
+                type: 'string',
+                value: '',
+                collapsed: false,
+              },
+            ]
+          } else if (subBlock.type === 'table') {
+            // Special handling for table types
+            initialValue = []
+          }
+          
           subBlocks[subBlock.id] = {
             id: subBlock.id,
             type: subBlock.type,
-            value: subBlock.defaultValue ?? null,
+            value: initialValue,
           }
         })
       }
@@ -819,6 +850,17 @@ export function useCollaborativeWorkflow() {
       })
       if (autoConnectEdge) {
         workflowStore.addEdge(autoConnectEdge)
+      }
+
+      // Explicitly seed the subblock store to ensure values are available
+      // This ensures the UI can read the initial values immediately
+      if (activeWorkflowId && blockConfig.subBlocks) {
+        blockConfig.subBlocks.forEach((subBlock) => {
+          const subBlockValue = subBlocks[subBlock.id]?.value
+          if (subBlockValue !== undefined) {
+            useSubBlockStore.getState().setValue(id, subBlock.id, subBlockValue)
+          }
+        })
       }
 
       // Record for undo AFTER adding (pass the autoConnectEdge explicitly)
