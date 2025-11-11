@@ -805,28 +805,32 @@ export function Terminal() {
                 <ColumnHeader label='Run ID' width={COLUMN_WIDTHS.RUN_ID} />
               )}
               <ColumnHeader label='Duration' width={COLUMN_WIDTHS.DURATION} />
-              <div
-                className={clsx(COLUMN_WIDTHS.TIMESTAMP, COLUMN_BASE_CLASS, 'flex items-center')}
-              >
-                <Button
-                  variant='ghost'
-                  className='!h-auto !p-0 flex items-center'
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    toggleSort()
-                  }}
-                  aria-label='Sort by timestamp'
+              {allWorkflowEntries.length > 0 ? (
+                <div
+                  className={clsx(COLUMN_WIDTHS.TIMESTAMP, COLUMN_BASE_CLASS, 'flex items-center')}
                 >
-                  <span className={HEADER_TEXT_CLASS}>Timestamp</span>
-                  <div className='-mt-[0.75px] ml-[8px] flex items-center'>
-                    {sortConfig.direction === 'desc' ? (
-                      <ArrowDown className='h-[13px] w-[13px]' />
-                    ) : (
-                      <ArrowUp className='h-[13px] w-[13px]' />
-                    )}
-                  </div>
-                </Button>
-              </div>
+                  <Button
+                    variant='ghost'
+                    className='!h-auto !p-0 flex items-center'
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      toggleSort()
+                    }}
+                    aria-label='Sort by timestamp'
+                  >
+                    <span className={HEADER_TEXT_CLASS}>Timestamp</span>
+                    <div className='-mt-[0.75px] ml-[8px] flex items-center'>
+                      {sortConfig.direction === 'desc' ? (
+                        <ArrowDown className='h-[13px] w-[13px]' />
+                      ) : (
+                        <ArrowUp className='h-[13px] w-[13px]' />
+                      )}
+                    </div>
+                  </Button>
+                </div>
+              ) : (
+                <ColumnHeader label='Timestamp' width={COLUMN_WIDTHS.TIMESTAMP} />
+              )}
               {!selectedEntry && (
                 <div className='ml-auto flex items-center gap-[8px]'>
                   {hasActiveFilters && (
