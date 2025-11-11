@@ -42,10 +42,10 @@ export function FileSelectorInput({
   const params = useParams()
   const workflowIdFromUrl = (params?.workflowId as string) || activeWorkflowId || ''
   // Central dependsOn gating for this selector instance
-  const { finalDisabled } = useDependsOnGate(blockId, subBlock, { 
-    disabled, 
-    isPreview, 
-    previewContextValues 
+  const { finalDisabled, dependsOn } = useDependsOnGate(blockId, subBlock, {
+    disabled,
+    isPreview,
+    previewContextValues,
   })
 
   // Helper to coerce various preview value shapes into a string ID
@@ -73,7 +73,7 @@ export function FileSelectorInput({
   const [planIdValueFromStore] = useSubBlockValue(blockId, 'planId')
   const [teamIdValueFromStore] = useSubBlockValue(blockId, 'teamId')
   const [operationValueFromStore] = useSubBlockValue(blockId, 'operation')
-  
+
   // Use previewContextValues if provided (for tools inside agent blocks), otherwise use store values
   const connectedCredential = previewContextValues?.credential ?? connectedCredentialFromStore
   const domainValue = previewContextValues?.domain ?? domainValueFromStore
@@ -88,7 +88,7 @@ export function FileSelectorInput({
     ? getProviderIdFromServiceId(subBlock.serviceId)
     : (subBlock.provider as string) || ''
   const { isForeignCredential } = useForeignCredential(
-    foreignCheckProvider,
+    subBlock.provider || subBlock.serviceId || 'outlook',
     (connectedCredential as string) || ''
   )
 
@@ -121,6 +121,20 @@ export function FileSelectorInput({
   // Use preview value when in preview mode, otherwise use store value
   const value = isPreview ? previewValue : storeValue
 
+  const credentialDependencySatisfied = (() => {
+    if (!dependsOn.includes('credential')) return true
+    const normalizedCredential = coerceToIdString(connectedCredential)
+    if (!normalizedCredential || normalizedCredential.trim().length === 0) {
+      return false
+    }
+    if (isForeignCredential) {
+      return false
+    }
+    return true
+  })()
+
+  const shouldForceDisable = !credentialDependencySatisfied
+
   // For Google Drive
   const clientId = getEnv('NEXT_PUBLIC_GOOGLE_CLIENT_ID') || ''
   const apiKey = getEnv('NEXT_PUBLIC_GOOGLE_API_KEY') || ''
@@ -144,7 +158,7 @@ export function FileSelectorInput({
                   collaborativeSetSubblockValue(blockId, subBlock.id, val)
                 }}
                 label={subBlock.placeholder || 'Select Google Calendar'}
-                disabled={finalDisabled}
+                disabled={finalDisabled || shouldForceDisable}
                 showPreview={true}
                 credentialId={credential}
                 workflowId={workflowIdFromUrl}
@@ -178,7 +192,7 @@ export function FileSelectorInput({
                 requiredScopes={subBlock.requiredScopes || []}
                 serviceId={subBlock.serviceId}
                 label={subBlock.placeholder || 'Select Confluence page'}
-                disabled={finalDisabled}
+                disabled={finalDisabled || shouldForceDisable}
                 showPreview={true}
                 credentialId={credential}
                 workflowId={workflowIdFromUrl}
@@ -212,7 +226,7 @@ export function FileSelectorInput({
                 requiredScopes={subBlock.requiredScopes || []}
                 serviceId={subBlock.serviceId}
                 label={subBlock.placeholder || 'Select Jira issue'}
-                disabled={finalDisabled}
+                disabled={finalDisabled || shouldForceDisable}
                 showPreview={true}
                 credentialId={credential}
                 projectId={(projectIdValue as string) || ''}
@@ -242,7 +256,7 @@ export function FileSelectorInput({
                 requiredScopes={subBlock.requiredScopes || []}
                 serviceId={subBlock.serviceId}
                 label={subBlock.placeholder || 'Select Microsoft Excel file'}
-                disabled={finalDisabled}
+                disabled={finalDisabled || shouldForceDisable}
                 showPreview={true}
                 workflowId={activeWorkflowId || ''}
                 credentialId={credential}
@@ -272,7 +286,7 @@ export function FileSelectorInput({
                 requiredScopes={subBlock.requiredScopes || []}
                 serviceId={subBlock.serviceId}
                 label={subBlock.placeholder || 'Select Microsoft Word document'}
-                disabled={finalDisabled}
+                disabled={finalDisabled || shouldForceDisable}
                 showPreview={true}
               />
             </div>
@@ -300,7 +314,7 @@ export function FileSelectorInput({
                 serviceId={subBlock.serviceId}
                 mimeType={subBlock.mimeType}
                 label={subBlock.placeholder || 'Select OneDrive folder'}
-                disabled={finalDisabled}
+                disabled={finalDisabled || shouldForceDisable}
                 showPreview={true}
                 workflowId={activeWorkflowId || ''}
                 credentialId={credential}
@@ -330,7 +344,7 @@ export function FileSelectorInput({
                 requiredScopes={subBlock.requiredScopes || []}
                 serviceId={subBlock.serviceId}
                 label={subBlock.placeholder || 'Select SharePoint site'}
-                disabled={finalDisabled}
+                disabled={finalDisabled || shouldForceDisable}
                 showPreview={true}
                 workflowId={activeWorkflowId || ''}
                 credentialId={credential}
@@ -366,7 +380,7 @@ export function FileSelectorInput({
                 requiredScopes={subBlock.requiredScopes || []}
                 serviceId='microsoft-planner'
                 label={subBlock.placeholder || 'Select task'}
-                disabled={finalDisabled}
+                disabled={finalDisabled || shouldForceDisable}
                 showPreview={true}
                 planId={planId}
                 workflowId={activeWorkflowId || ''}
@@ -424,7 +438,7 @@ export function FileSelectorInput({
                 requiredScopes={subBlock.requiredScopes || []}
                 serviceId={subBlock.serviceId}
                 label={subBlock.placeholder || 'Select Teams message location'}
-                disabled={finalDisabled}
+                disabled={finalDisabled || shouldForceDisable}
                 showPreview={true}
                 credential={credential}
                 selectionType={selectionType}
@@ -467,7 +481,7 @@ export function FileSelectorInput({
                   requiredScopes={subBlock.requiredScopes || []}
                   serviceId={subBlock.serviceId}
                   label={subBlock.placeholder || `Select ${itemType}`}
-                  disabled={finalDisabled}
+                  disabled={finalDisabled || shouldForceDisable}
                   showPreview={true}
                   credentialId={credential}
                   itemType={itemType}
@@ -508,7 +522,7 @@ export function FileSelectorInput({
                 provider={provider}
                 requiredScopes={subBlock.requiredScopes || []}
                 label={subBlock.placeholder || 'Select file'}
-                disabled={finalDisabled}
+                disabled={finalDisabled || shouldForceDisable}
                 serviceId={subBlock.serviceId}
                 mimeTypeFilter={subBlock.mimeType}
                 showPreview={true}

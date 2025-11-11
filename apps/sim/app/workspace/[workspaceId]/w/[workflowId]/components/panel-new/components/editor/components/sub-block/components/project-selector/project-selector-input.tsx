@@ -48,22 +48,22 @@ export function ProjectSelectorInput({
   const [connectedCredentialFromStore] = useSubBlockValue(blockId, 'credential')
   const [linearTeamIdFromStore] = useSubBlockValue(blockId, 'teamId')
   const [jiraDomainFromStore] = useSubBlockValue(blockId, 'domain')
-  
+
   // Use previewContextValues if provided (for tools inside agent blocks), otherwise use store values
   const connectedCredential = previewContextValues?.credential ?? connectedCredentialFromStore
   const linearCredential = previewContextValues?.credential ?? connectedCredentialFromStore
   const linearTeamId = previewContextValues?.teamId ?? linearTeamIdFromStore
   const jiraDomain = previewContextValues?.domain ?? jiraDomainFromStore
-  
+
   const { isForeignCredential } = useForeignCredential(
     subBlock.provider || subBlock.serviceId || 'jira',
     (connectedCredential as string) || ''
   )
   const activeWorkflowId = useWorkflowRegistry((s) => s.activeWorkflowId) as string | null
-  const { finalDisabled } = useDependsOnGate(blockId, subBlock, { 
-    disabled, 
-    isPreview, 
-    previewContextValues 
+  const { finalDisabled } = useDependsOnGate(blockId, subBlock, {
+    disabled,
+    isPreview,
+    previewContextValues,
   })
 
   // Get provider-specific values
