@@ -4,13 +4,17 @@ import { useCallback, useRef, useState } from 'react'
 import clsx from 'clsx'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
-import { useDeleteWorkflow } from '@/app/workspace/[workspaceId]/w/hooks'
+import { ContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/components-new/workflow-list/components/context-menu/context-menu'
+import { DeleteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components-new/workflow-list/components/delete-modal/delete-modal'
+import {
+  useContextMenu,
+  useItemDrag,
+  useItemRename,
+} from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
+import { useDeleteWorkflow, useDuplicateWorkflow } from '@/app/workspace/[workspaceId]/w/hooks'
 import { useFolderStore } from '@/stores/folders/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
-import { useContextMenu, useItemDrag, useItemRename } from '../../../../hooks'
-import { ContextMenu } from '../context-menu/context-menu'
-import { DeleteModal } from '../delete-modal/delete-modal'
 
 interface WorkflowItemProps {
   workflow: WorkflowMetadata
@@ -62,6 +66,15 @@ export function WorkflowItem({ workflow, active, level, onWorkflowClick }: Workf
     getWorkflowIds: () => workflowIdsToDelete,
     isActive: (workflowIds) => workflowIds.includes(params.workflowId as string),
     onSuccess: () => setIsDeleteModalOpen(false),
+  })
+
+  // Duplicate workflow hook
+  const { handleDuplicateWorkflow } = useDuplicateWorkflow({
+    workspaceId,
+    getWorkflowIds: () => {
+      // Use the selection captured at right-click time
+      return capturedSelectionRef.current?.workflowIds || []
+    },
   })
 
   /**
@@ -253,6 +266,7 @@ export function WorkflowItem({ workflow, active, level, onWorkflowClick }: Workf
         menuRef={menuRef}
         onClose={closeMenu}
         onRename={handleStartEdit}
+        onDuplicate={handleDuplicateWorkflow}
         onDelete={handleOpenDeleteModal}
         showRename={selectedWorkflows.size <= 1}
       />
