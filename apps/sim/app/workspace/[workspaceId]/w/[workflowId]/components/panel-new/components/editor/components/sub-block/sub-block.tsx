@@ -210,6 +210,7 @@ function SubBlockComponent({
               disabled={isDisabled}
               multiSelect={config.multiSelect}
               fetchOptions={config.fetchOptions}
+              dependsOn={config.dependsOn}
             />
           </div>
         )

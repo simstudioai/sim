@@ -58,6 +58,7 @@ export const gmailPollingTrigger: TriggerConfig = {
           return []
         }
       },
+      dependsOn: ['triggerCredentials'],
       mode: 'trigger',
     },
     {

@@ -58,6 +58,7 @@ export const outlookPollingTrigger: TriggerConfig = {
           return []
         }
       },
+      dependsOn: ['triggerCredentials'],
       mode: 'trigger',
     },
     {
