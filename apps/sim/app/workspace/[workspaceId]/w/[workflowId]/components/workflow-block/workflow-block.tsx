@@ -87,7 +87,6 @@ const isPlainObject = (value: unknown): value is Record<string, unknown> => {
 const getDisplayValue = (value: unknown): string => {
   if (value == null || value === '') return '-'
 
-  // Handle table row arrays (from table component)
   if (isTableRowArray(value)) {
     const nonEmptyRows = value.filter((row) => {
       const cellValues = Object.values(row.cells)
@@ -108,7 +107,6 @@ const getDisplayValue = (value: unknown): string => {
     return `${nonEmptyRows.length} rows`
   }
 
-  // Handle field format arrays (from input-format, response-format)
   if (isFieldFormatArray(value)) {
     const namedFields = value.filter((field) => field.name && field.name.trim() !== '')
     if (namedFields.length === 0) return '-'
@@ -117,7 +115,6 @@ const getDisplayValue = (value: unknown): string => {
     return `${namedFields[0].name}, ${namedFields[1].name} +${namedFields.length - 2}`
   }
 
-  // Handle input mapping objects (from input-mapping component)
   if (isPlainObject(value)) {
     const entries = Object.entries(value).filter(
       ([, val]) => val !== null && val !== undefined && val !== ''
@@ -136,7 +133,6 @@ const getDisplayValue = (value: unknown): string => {
     return entries.length > 2 ? `${preview} +${entries.length - 2}` : preview
   }
 
-  // Handle arrays of primitives
   if (Array.isArray(value)) {
     const nonEmptyItems = value.filter((item) => item !== null && item !== undefined && item !== '')
     if (nonEmptyItems.length === 0) return '-'
@@ -145,10 +141,8 @@ const getDisplayValue = (value: unknown): string => {
     return `${nonEmptyItems[0]}, ${nonEmptyItems[1]} +${nonEmptyItems.length - 2}`
   }
 
-  // Handle primitive values
   const stringValue = String(value)
   if (stringValue === '[object Object]') {
-    // Fallback for unhandled object types - try to show something useful
     try {
       const json = JSON.stringify(value)
       if (json.length <= 40) return json
@@ -200,19 +194,14 @@ const SubBlockRow = ({
     }, {})
   }, [getStringValue, subBlock?.dependsOn])
 
-  // For oauth-input, use specialized credential hook
   const { displayName: credentialName } = useCredentialDisplay(
     subBlock?.type === 'oauth-input' && typeof rawValue === 'string' ? rawValue : undefined,
     subBlock?.provider
   )
 
-  // Get credential ID from block context if this selector depends on it
   const credentialId = dependencyValues.credential
-
-  // Get knowledge base ID from block context for document selector
   const knowledgeBaseId = dependencyValues.knowledgeBaseId
 
-  // For dropdown/combobox, look up the label from options
   const dropdownLabel = useMemo(() => {
     if (!subBlock || (subBlock.type !== 'dropdown' && subBlock.type !== 'combobox')) return null
     if (!rawValue || typeof rawValue !== 'string') return null
@@ -228,7 +217,6 @@ const SubBlockRow = ({
     return typeof option === 'string' ? option : option.label
   }, [subBlock, rawValue])
 
-  // For all other selector types, use generic display name hook
   const genericDisplayName = useDisplayName(subBlock, rawValue, {
     workspaceId,
     provider: subBlock?.provider,
@@ -240,11 +228,8 @@ const SubBlockRow = ({
     planId: getStringValue('planId'),
   })
 
-  // Mask password fields with dots
   const isPasswordField = subBlock?.password === true
   const maskedValue = isPasswordField && value && value !== '-' ? '•••' : null
-
-  // Use hydrated name if available, otherwise use the provided value
   const displayValue = maskedValue || credentialName || dropdownLabel || genericDisplayName || value
 
   return (
@@ -638,7 +623,6 @@ export const WorkflowBlock = memo(function WorkflowBlock({
       typeof currentStoreBlock?.height === 'number' ? currentStoreBlock.height : undefined
     const prevWidth = 250 // fixed across the app for workflow blocks
 
-    // Only update store if something actually changed to prevent unnecessary reflows
     if (prevHeight !== calculatedHeight || prevWidth !== FIXED_WIDTH) {
       updateBlockLayoutMetrics(id, { width: FIXED_WIDTH, height: calculatedHeight })
       updateNodeInternals(id)
