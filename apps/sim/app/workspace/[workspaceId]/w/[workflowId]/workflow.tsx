@@ -2034,6 +2034,13 @@ const WorkflowContent = React.memo(() => {
           onDragOver={effectivePermissions.canEdit ? onDragOver : undefined}
           fitView
           fitViewOptions={{ padding: 0.6 }}
+          onInit={(instance) => {
+            requestAnimationFrame(() => {
+              requestAnimationFrame(() => {
+                instance.fitView({ padding: 0.3 })
+              })
+            })
+          }}
           minZoom={0.1}
           maxZoom={1.3}
           panOnScroll

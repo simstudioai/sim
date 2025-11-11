@@ -3,10 +3,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import clsx from 'clsx'
 import {
+  ArrowDown,
+  ArrowUp,
   Check,
   ChevronDown,
   Clipboard,
-  MoreHorizontal,
+  Filter,
+  FilterX,
   RepeatIcon,
   SplitIcon,
   Trash2,
@@ -18,17 +21,21 @@ import {
   Popover,
   PopoverContent,
   PopoverItem,
-  PopoverSection,
+  PopoverScrollArea,
   PopoverTrigger,
   Tooltip,
   Wrap,
 } from '@/components/emcn'
 import { getBlock } from '@/blocks'
 import type { ConsoleEntry } from '@/stores/terminal'
-import { useTerminalConsoleStore, useTerminalStore } from '@/stores/terminal'
+import {
+  DEFAULT_TERMINAL_HEIGHT,
+  useTerminalConsoleStore,
+  useTerminalStore,
+} from '@/stores/terminal'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-import { PrettierOutput } from './components'
-import { useOutputPanelResize, useTerminalResize } from './hooks'
+// import { PrettierOutput } from './components'
+import { useOutputPanelResize, useTerminalFilters, useTerminalResize } from './hooks'
 
 /**
  * Terminal height configuration constants
@@ -119,10 +126,21 @@ const getStatusInfo = (
 }
 
 /**
- * Reusable column header component
+ * Reusable column header component with optional filter button
  */
-const ColumnHeader = ({ label, width }: { label: string; width: string }) => (
-  <span className={clsx(width, COLUMN_BASE_CLASS, HEADER_TEXT_CLASS)}>{label}</span>
+const ColumnHeader = ({
+  label,
+  width,
+  filterButton,
+}: {
+  label: string
+  width: string
+  filterButton?: React.ReactNode
+}) => (
+  <div className={clsx(width, COLUMN_BASE_CLASS, 'flex items-center')}>
+    <span className={HEADER_TEXT_CLASS}>{label}</span>
+    {filterButton && <div className='-mt-[0.75px] ml-[8px] flex items-center'>{filterButton}</div>}
+  </div>
 )
 
 /**
@@ -196,13 +214,14 @@ const getRunIdColor = (
  */
 export function Terminal() {
   const terminalRef = useRef<HTMLElement>(null)
+  const prevEntriesLengthRef = useRef(0)
   const {
     terminalHeight,
     setTerminalHeight,
     outputPanelWidth,
     setOutputPanelWidth,
-    displayMode,
-    setDisplayMode,
+    // displayMode,
+    // setDisplayMode,
     setHasHydrated,
   } = useTerminalStore()
   const entries = useTerminalConsoleStore((state) => state.entries)
@@ -210,36 +229,99 @@ export function Terminal() {
   const { activeWorkflowId } = useWorkflowRegistry()
   const [selectedEntry, setSelectedEntry] = useState<ConsoleEntry | null>(null)
   const [isToggling, setIsToggling] = useState(false)
-  const [displayPopoverOpen, setDisplayPopoverOpen] = useState(false)
+  // const [displayPopoverOpen, setDisplayPopoverOpen] = useState(false)
   const [wrapText, setWrapText] = useState(true)
   const [showCopySuccess, setShowCopySuccess] = useState(false)
   const [showInput, setShowInput] = useState(false)
+  const [autoSelectEnabled, setAutoSelectEnabled] = useState(true)
+  const [blockFilterOpen, setBlockFilterOpen] = useState(false)
+  const [statusFilterOpen, setStatusFilterOpen] = useState(false)
+  const [runIdFilterOpen, setRunIdFilterOpen] = useState(false)
 
   // Terminal resize hooks
   const { handleMouseDown } = useTerminalResize()
   const { handleMouseDown: handleOutputPanelResizeMouseDown } = useOutputPanelResize()
 
+  // Terminal filters hook
+  const {
+    filters,
+    sortConfig,
+    toggleBlock,
+    toggleStatus,
+    toggleRunId,
+    toggleSort,
+    clearFilters,
+    filterEntries,
+    hasActiveFilters,
+  } = useTerminalFilters()
+
   const isExpanded = terminalHeight > NEAR_MIN_THRESHOLD
 
   /**
-   * Filter entries for current workflow
+   * Get all entries for current workflow (before filtering) for filter options
    */
-  const filteredEntries = useMemo(() => {
+  const allWorkflowEntries = useMemo(() => {
     if (!activeWorkflowId) return []
     return entries.filter((entry) => entry.workflowId === activeWorkflowId)
   }, [entries, activeWorkflowId])
 
   /**
+   * Filter entries for current workflow and apply filters
+   */
+  const filteredEntries = useMemo(() => {
+    return filterEntries(allWorkflowEntries)
+  }, [allWorkflowEntries, filterEntries])
+
+  /**
+   * Get unique blocks (by ID) from all workflow entries
+   */
+  const uniqueBlocks = useMemo(() => {
+    const blocksMap = new Map<string, { blockId: string; blockName: string; blockType: string }>()
+    allWorkflowEntries.forEach((entry) => {
+      if (!blocksMap.has(entry.blockId)) {
+        blocksMap.set(entry.blockId, {
+          blockId: entry.blockId,
+          blockName: entry.blockName,
+          blockType: entry.blockType,
+        })
+      }
+    })
+    return Array.from(blocksMap.values()).sort((a, b) => a.blockName.localeCompare(b.blockName))
+  }, [allWorkflowEntries])
+
+  /**
+   * Get unique run IDs from all workflow entries
+   */
+  const uniqueRunIds = useMemo(() => {
+    const runIdsSet = new Set<string>()
+    allWorkflowEntries.forEach((entry) => {
+      if (entry.executionId) {
+        runIdsSet.add(entry.executionId)
+      }
+    })
+    return Array.from(runIdsSet).sort()
+  }, [allWorkflowEntries])
+
+  /**
+   * Check if there are any entries with status information (error or success)
+   */
+  const hasStatusEntries = useMemo(() => {
+    return allWorkflowEntries.some((entry) => entry.error || entry.success !== undefined)
+  }, [allWorkflowEntries])
+
+  /**
    * Create stable execution ID to color index mapping based on order of first appearance.
    * Once an execution ID is assigned a color index, it keeps that index.
+   * Uses all workflow entries to maintain consistent colors regardless of active filters.
    */
   const executionIdOrderMap = useMemo(() => {
     const orderMap = new Map<string, number>()
     let colorIndex = 0
 
     // Process entries in reverse order (oldest first) since entries array is newest-first
-    for (let i = filteredEntries.length - 1; i >= 0; i--) {
-      const entry = filteredEntries[i]
+    // Use allWorkflowEntries to ensure colors remain consistent when filters change
+    for (let i = allWorkflowEntries.length - 1; i >= 0; i--) {
+      const entry = allWorkflowEntries[i]
       if (entry.executionId && !orderMap.has(entry.executionId)) {
         orderMap.set(entry.executionId, colorIndex)
         colorIndex++
@@ -247,7 +329,7 @@ export function Terminal() {
     }
 
     return orderMap
-  }, [filteredEntries])
+  }, [allWorkflowEntries])
 
   /**
    * Check if input data exists for selected entry
@@ -273,15 +355,22 @@ export function Terminal() {
    */
   const outputData = useMemo(() => {
     if (!selectedEntry) return null
+    if (showInput) return selectedEntry.input
     if (selectedEntry.error) return selectedEntry.error
-    return showInput ? selectedEntry.input : selectedEntry.output
+    return selectedEntry.output
   }, [selectedEntry, showInput])
 
   /**
    * Handle row click - toggle if clicking same entry
+   * Disables auto-selection when user manually selects, re-enables when deselecting
    */
   const handleRowClick = useCallback((entry: ConsoleEntry) => {
-    setSelectedEntry((prev) => (prev?.id === entry.id ? null : entry))
+    setSelectedEntry((prev) => {
+      const isDeselecting = prev?.id === entry.id
+      // Re-enable auto-select when deselecting, disable when selecting
+      setAutoSelectEnabled(isDeselecting)
+      return isDeselecting ? null : entry
+    })
   }, [])
 
   /**
@@ -293,9 +382,7 @@ export function Terminal() {
     if (isExpanded) {
       setTerminalHeight(MIN_HEIGHT)
     } else {
-      const maxHeight = window.innerHeight * 0.7
-      const targetHeight = Math.min(DEFAULT_EXPANDED_HEIGHT, maxHeight)
-      setTerminalHeight(targetHeight)
+      setTerminalHeight(DEFAULT_TERMINAL_HEIGHT)
     }
   }, [isExpanded, setTerminalHeight])
 
@@ -378,7 +465,31 @@ export function Terminal() {
   }, [showCopySuccess])
 
   /**
+   * Auto-select the latest entry when new logs arrive
+   * Re-enables auto-selection when all entries are cleared
+   * Only auto-selects when NEW entries are added (length increases)
+   */
+  useEffect(() => {
+    if (filteredEntries.length === 0) {
+      // Re-enable auto-selection when console is cleared
+      setAutoSelectEnabled(true)
+      setSelectedEntry(null)
+      prevEntriesLengthRef.current = 0
+      return
+    }
+
+    // Auto-select the latest entry only when a NEW entry is added (length increased)
+    if (autoSelectEnabled && filteredEntries.length > prevEntriesLengthRef.current) {
+      const latestEntry = filteredEntries[0]
+      setSelectedEntry(latestEntry)
+    }
+
+    prevEntriesLengthRef.current = filteredEntries.length
+  }, [filteredEntries, autoSelectEnabled])
+
+  /**
    * Handle keyboard navigation through logs
+   * Disables auto-selection when user manually navigates
    */
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -394,8 +505,10 @@ export function Terminal() {
       if (currentIndex === -1) return
 
       if (e.key === 'ArrowUp' && currentIndex > 0) {
+        setAutoSelectEnabled(false)
         setSelectedEntry(filteredEntries[currentIndex - 1])
       } else if (e.key === 'ArrowDown' && currentIndex < filteredEntries.length - 1) {
+        setAutoSelectEnabled(false)
         setSelectedEntry(filteredEntries[currentIndex + 1])
       }
     }
@@ -403,6 +516,45 @@ export function Terminal() {
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [selectedEntry, filteredEntries])
+
+  /**
+   * Handle keyboard navigation for input/output toggle
+   * Left arrow shows output, right arrow shows input
+   */
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!selectedEntry) return
+
+      // Only handle left/right arrow keys
+      if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return
+
+      // Prevent default scrolling behavior
+      e.preventDefault()
+
+      // Expand terminal if collapsed
+      if (!isExpanded) {
+        setIsToggling(true)
+        const maxHeight = window.innerHeight * 0.7
+        const targetHeight = Math.min(DEFAULT_EXPANDED_HEIGHT, maxHeight)
+        setTerminalHeight(targetHeight)
+      }
+
+      if (e.key === 'ArrowLeft') {
+        // Show output
+        if (showInput) {
+          setShowInput(false)
+        }
+      } else if (e.key === 'ArrowRight') {
+        // Show input (only if input data exists)
+        if (!showInput && hasInputData) {
+          setShowInput(true)
+        }
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [selectedEntry, showInput, hasInputData, isExpanded])
 
   /**
    * Adjust output panel width when sidebar or panel width changes.
@@ -450,7 +602,7 @@ export function Terminal() {
       window.removeEventListener('resize', handleResize)
       observer.disconnect()
     }
-  }, [selectedEntry, outputPanelWidth, setOutputPanelWidth])
+  }, [selectedEntry, outputPanelWidth])
 
   return (
     <>
@@ -483,13 +635,220 @@ export function Terminal() {
               className='group flex h-[30px] flex-shrink-0 cursor-pointer items-center bg-[#1E1E1E] pr-[16px] pl-[24px]'
               onClick={handleHeaderClick}
             >
-              <ColumnHeader label='Block' width={COLUMN_WIDTHS.BLOCK} />
-              <ColumnHeader label='Status' width={COLUMN_WIDTHS.STATUS} />
-              <ColumnHeader label='Run ID' width={COLUMN_WIDTHS.RUN_ID} />
+              {uniqueBlocks.length > 0 ? (
+                <div className={clsx(COLUMN_WIDTHS.BLOCK, COLUMN_BASE_CLASS, 'flex items-center')}>
+                  <Popover open={blockFilterOpen} onOpenChange={setBlockFilterOpen}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant='ghost'
+                        className='!h-auto !p-0 flex items-center'
+                        onClick={(e) => e.stopPropagation()}
+                        aria-label='Filter by block'
+                      >
+                        <span className={HEADER_TEXT_CLASS}>Block</span>
+                        <div className='-mt-[0.75px] ml-[8px] flex items-center'>
+                          <Filter
+                            className={clsx(
+                              'h-[11px] w-[11px]',
+                              filters.blockIds.size > 0 && 'text-[#33B4FF]'
+                            )}
+                          />
+                        </div>
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent
+                      side='bottom'
+                      align='start'
+                      sideOffset={4}
+                      onClick={(e) => e.stopPropagation()}
+                      style={{ minWidth: '120px', maxWidth: '120px' }}
+                    >
+                      <PopoverScrollArea style={{ maxHeight: '140px' }}>
+                        {uniqueBlocks.map((block, index) => {
+                          const BlockIcon = getBlockIcon(block.blockType)
+                          const isSelected = filters.blockIds.has(block.blockId)
+
+                          return (
+                            <PopoverItem
+                              key={block.blockId}
+                              active={isSelected}
+                              onClick={() => toggleBlock(block.blockId)}
+                              className={index > 0 ? 'mt-[2px]' : ''}
+                            >
+                              {BlockIcon && <BlockIcon className='h-3 w-3' />}
+                              <span className='flex-1'>{block.blockName}</span>
+                              {isSelected && <Check className='h-3 w-3' />}
+                            </PopoverItem>
+                          )
+                        })}
+                      </PopoverScrollArea>
+                    </PopoverContent>
+                  </Popover>
+                </div>
+              ) : (
+                <ColumnHeader label='Block' width={COLUMN_WIDTHS.BLOCK} />
+              )}
+              {hasStatusEntries ? (
+                <div className={clsx(COLUMN_WIDTHS.STATUS, COLUMN_BASE_CLASS, 'flex items-center')}>
+                  <Popover open={statusFilterOpen} onOpenChange={setStatusFilterOpen}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant='ghost'
+                        className='!h-auto !p-0 flex items-center'
+                        onClick={(e) => e.stopPropagation()}
+                        aria-label='Filter by status'
+                      >
+                        <span className={HEADER_TEXT_CLASS}>Status</span>
+                        <div className='-mt-[0.75px] ml-[8px] flex items-center'>
+                          <Filter
+                            className={clsx(
+                              'h-[11px] w-[11px]',
+                              filters.statuses.size > 0 && 'text-[#33B4FF]'
+                            )}
+                          />
+                        </div>
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent
+                      side='bottom'
+                      align='start'
+                      sideOffset={4}
+                      onClick={(e) => e.stopPropagation()}
+                      style={{ minWidth: '120px', maxWidth: '120px' }}
+                    >
+                      <PopoverScrollArea style={{ maxHeight: '140px' }}>
+                        <PopoverItem
+                          active={filters.statuses.has('error')}
+                          onClick={() => toggleStatus('error')}
+                        >
+                          <div
+                            className='h-[6px] w-[6px] rounded-[2px]'
+                            style={{ backgroundColor: '#EF4444' }}
+                          />
+                          <span className='flex-1'>Error</span>
+                          {filters.statuses.has('error') && <Check className='h-3 w-3' />}
+                        </PopoverItem>
+                        <PopoverItem
+                          active={filters.statuses.has('info')}
+                          onClick={() => toggleStatus('info')}
+                          className='mt-[2px]'
+                        >
+                          <div
+                            className='h-[6px] w-[6px] rounded-[2px]'
+                            style={{ backgroundColor: '#B7B7B7' }}
+                          />
+                          <span className='flex-1'>Info</span>
+                          {filters.statuses.has('info') && <Check className='h-3 w-3' />}
+                        </PopoverItem>
+                      </PopoverScrollArea>
+                    </PopoverContent>
+                  </Popover>
+                </div>
+              ) : (
+                <ColumnHeader label='Status' width={COLUMN_WIDTHS.STATUS} />
+              )}
+              {uniqueRunIds.length > 0 ? (
+                <div className={clsx(COLUMN_WIDTHS.RUN_ID, COLUMN_BASE_CLASS, 'flex items-center')}>
+                  <Popover open={runIdFilterOpen} onOpenChange={setRunIdFilterOpen}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant='ghost'
+                        className='!h-auto !p-0 flex items-center'
+                        onClick={(e) => e.stopPropagation()}
+                        aria-label='Filter by run ID'
+                      >
+                        <span className={HEADER_TEXT_CLASS}>Run ID</span>
+                        <div className='-mt-[0.75px] ml-[8px] flex items-center'>
+                          <Filter
+                            className={clsx(
+                              'h-[11px] w-[11px]',
+                              filters.runIds.size > 0 && 'text-[#33B4FF]'
+                            )}
+                          />
+                        </div>
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent
+                      side='bottom'
+                      align='start'
+                      sideOffset={4}
+                      onClick={(e) => e.stopPropagation()}
+                      style={{ minWidth: '90px', maxWidth: '90px' }}
+                    >
+                      <PopoverScrollArea style={{ maxHeight: '140px' }}>
+                        {uniqueRunIds.map((runId, index) => {
+                          const isSelected = filters.runIds.has(runId)
+                          const runIdColor = getRunIdColor(runId, executionIdOrderMap)
+
+                          return (
+                            <PopoverItem
+                              key={runId}
+                              active={isSelected}
+                              onClick={() => toggleRunId(runId)}
+                              className={index > 0 ? 'mt-[2px]' : ''}
+                            >
+                              <span
+                                className='flex-1 font-mono text-[12px]'
+                                style={{ color: runIdColor?.text || '#D2D2D2' }}
+                              >
+                                {formatRunId(runId)}
+                              </span>
+                              {isSelected && <Check className='h-3 w-3' />}
+                            </PopoverItem>
+                          )
+                        })}
+                      </PopoverScrollArea>
+                    </PopoverContent>
+                  </Popover>
+                </div>
+              ) : (
+                <ColumnHeader label='Run ID' width={COLUMN_WIDTHS.RUN_ID} />
+              )}
               <ColumnHeader label='Duration' width={COLUMN_WIDTHS.DURATION} />
-              <ColumnHeader label='Timestamp' width={COLUMN_WIDTHS.TIMESTAMP} />
+              <div
+                className={clsx(COLUMN_WIDTHS.TIMESTAMP, COLUMN_BASE_CLASS, 'flex items-center')}
+              >
+                <Button
+                  variant='ghost'
+                  className='!h-auto !p-0 flex items-center'
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    toggleSort()
+                  }}
+                  aria-label='Sort by timestamp'
+                >
+                  <span className={HEADER_TEXT_CLASS}>Timestamp</span>
+                  <div className='-mt-[0.75px] ml-[8px] flex items-center'>
+                    {sortConfig.direction === 'desc' ? (
+                      <ArrowDown className='h-[13px] w-[13px]' />
+                    ) : (
+                      <ArrowUp className='h-[13px] w-[13px]' />
+                    )}
+                  </div>
+                </Button>
+              </div>
               {!selectedEntry && (
                 <div className='ml-auto flex items-center gap-[8px]'>
+                  {hasActiveFilters && (
+                    <Tooltip.Root>
+                      <Tooltip.Trigger asChild>
+                        <Button
+                          variant='ghost'
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            clearFilters()
+                          }}
+                          aria-label='Clear filters'
+                          className='!p-1.5 -m-1.5'
+                        >
+                          <FilterX className='h-3 w-3' />
+                        </Button>
+                      </Tooltip.Trigger>
+                      <Tooltip.Content>
+                        <span>Clear filters</span>
+                      </Tooltip.Content>
+                    </Tooltip.Root>
+                  )}
                   {filteredEntries.length > 0 && (
                     <Tooltip.Root>
                       <Tooltip.Trigger asChild>
@@ -743,7 +1102,7 @@ export function Terminal() {
                       <span>{wrapText ? 'Wrap text' : 'No wrap'}</span>
                     </Tooltip.Content>
                   </Tooltip.Root>
-                  <Popover open={displayPopoverOpen} onOpenChange={setDisplayPopoverOpen}>
+                  {/* <Popover open={displayPopoverOpen} onOpenChange={setDisplayPopoverOpen}>
                     <PopoverTrigger asChild>
                       <Button
                         variant='ghost'
@@ -756,7 +1115,13 @@ export function Terminal() {
                         <MoreHorizontal className='h-3.5 w-3.5' />
                       </Button>
                     </PopoverTrigger>
-                    <PopoverContent side='bottom' align='end' sideOffset={4} collisionPadding={0}>
+                    <PopoverContent
+                      side='bottom'
+                      align='end'
+                      sideOffset={4}
+                      collisionPadding={0}
+                      onClick={(e) => e.stopPropagation()}
+                    >
                       <PopoverSection>Display</PopoverSection>
                       <PopoverItem
                         active={displayMode === 'prettier'}
@@ -780,7 +1145,27 @@ export function Terminal() {
                         <span>Raw</span>
                       </PopoverItem>
                     </PopoverContent>
-                  </Popover>
+                  </Popover> */}
+                  {hasActiveFilters && (
+                    <Tooltip.Root>
+                      <Tooltip.Trigger asChild>
+                        <Button
+                          variant='ghost'
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            clearFilters()
+                          }}
+                          aria-label='Clear filters'
+                          className='!p-1.5 -m-1.5'
+                        >
+                          <FilterX className='h-3 w-3' />
+                        </Button>
+                      </Tooltip.Trigger>
+                      <Tooltip.Content>
+                        <span>Clear filters</span>
+                      </Tooltip.Content>
+                    </Tooltip.Root>
+                  )}
                   {filteredEntries.length > 0 && (
                     <Tooltip.Root>
                       <Tooltip.Trigger asChild>
@@ -810,10 +1195,11 @@ export function Terminal() {
 
               {/* Content */}
               <div
-                className={clsx(
-                  'flex-1 overflow-x-auto overflow-y-auto',
-                  displayMode === 'prettier' && 'px-[8px] pb-[8px]'
-                )}
+                className='flex-1 overflow-x-auto overflow-y-auto'
+                // className={clsx(
+                //   'flex-1 overflow-x-auto overflow-y-auto',
+                //   displayMode === 'prettier' && 'px-[8px] pb-[8px]'
+                // )}
               >
                 {shouldShowCodeDisplay ? (
                   <Code.Viewer
@@ -827,7 +1213,18 @@ export function Terminal() {
                     gutterStyle={{ backgroundColor: 'transparent' }}
                     wrapText={wrapText}
                   />
-                ) : displayMode === 'raw' ? (
+                ) : (
+                  <Code.Viewer
+                    code={JSON.stringify(outputData, null, 2)}
+                    showGutter
+                    language='json'
+                    className='m-0 min-h-full rounded-none border-0 bg-[#1E1E1E]'
+                    paddingLeft={8}
+                    gutterStyle={{ backgroundColor: 'transparent' }}
+                    wrapText={wrapText}
+                  />
+                )}
+                {/* ) : displayMode === 'raw' ? (
                   <Code.Viewer
                     code={JSON.stringify(outputData, null, 2)}
                     showGutter
@@ -839,7 +1236,7 @@ export function Terminal() {
                   />
                 ) : (
                   <PrettierOutput output={outputData} wrapText={wrapText} />
-                )}
+                )} */}
               </div>
             </div>
           )}

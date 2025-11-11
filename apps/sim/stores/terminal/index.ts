@@ -1,3 +1,3 @@
 export type { ConsoleEntry, ConsoleStore, ConsoleUpdate } from './console'
 export { useTerminalConsoleStore } from './console'
-export { useTerminalStore } from './store'
+export { DEFAULT_TERMINAL_HEIGHT, useTerminalStore } from './store'
