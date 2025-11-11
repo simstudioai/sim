@@ -128,14 +128,36 @@ export function CredentialSelector({
             .setDisplayNames('credentials', effectiveProviderId, credentialMap)
         }
 
-        // Do not auto-select or reset. We only show what's persisted.
+        // Check if the currently selected credential still exists
+        const selectedCredentialStillExists = (creds || []).some(
+          (cred: Credential) => cred.id === selectedId
+        )
+        const shouldClearPersistedSelection =
+          !isPreview && selectedId && !selectedCredentialStillExists && !foreignMetaFound
+
+        if (shouldClearPersistedSelection) {
+          logger.info('Clearing invalid credential selection - credential was disconnected', {
+            selectedId,
+            provider: effectiveProviderId,
+          })
+
+          // Clear via setStoreValue to trigger cascade
+          setStoreValue('')
+          setSelectedId('')
+
+          if (effectiveProviderId) {
+            useDisplayNamesStore
+              .getState()
+              .removeDisplayName('credentials', effectiveProviderId, selectedId)
+          }
+        }
       }
     } catch (error) {
       logger.error('Error fetching credentials:', { error })
     } finally {
       setIsLoading(false)
     }
-  }, [effectiveProviderId, selectedId, activeWorkflowId])
+  }, [effectiveProviderId, selectedId, activeWorkflowId, isPreview, setStoreValue])
 
   // Fetch credentials on initial mount and whenever the subblock value changes externally
   useEffect(() => {
@@ -203,6 +225,24 @@ export function CredentialSelector({
       window.removeEventListener('pageshow', handlePageShow)
     }
   }, [fetchCredentials])
+
+  // Listen for credential disconnection events from settings modal
+  useEffect(() => {
+    const handleCredentialDisconnected = (event: Event) => {
+      const customEvent = event as CustomEvent
+      const { providerId } = customEvent.detail
+      // Re-fetch if this disconnection affects our provider
+      if (providerId && (providerId === effectiveProviderId || providerId.startsWith(provider))) {
+        fetchCredentials()
+      }
+    }
+
+    window.addEventListener('credential-disconnected', handleCredentialDisconnected)
+
+    return () => {
+      window.removeEventListener('credential-disconnected', handleCredentialDisconnected)
+    }
+  }, [fetchCredentials, effectiveProviderId, provider])
 
   // Handle popover open to fetch fresh credentials
   const handleOpenChange = (isOpen: boolean) => {

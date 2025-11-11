@@ -38,7 +38,7 @@ export const outlookPollingTrigger: TriggerConfig = {
           | string
           | null
         if (!credentialId) {
-          return []
+          throw new Error('No Outlook credential selected')
         }
         try {
           const response = await fetch(`/api/tools/outlook/folders?credentialId=${credentialId}`)
@@ -55,7 +55,7 @@ export const outlookPollingTrigger: TriggerConfig = {
           return []
         } catch (error) {
           logger.error('Error fetching Outlook folders:', error)
-          return []
+          throw error
         }
       },
       dependsOn: ['triggerCredentials'],

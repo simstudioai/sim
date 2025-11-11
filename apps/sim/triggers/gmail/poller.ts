@@ -38,7 +38,8 @@ export const gmailPollingTrigger: TriggerConfig = {
           | string
           | null
         if (!credentialId) {
-          return []
+          // Return a sentinel to prevent infinite retry loops when credential is missing
+          throw new Error('No Gmail credential selected')
         }
         try {
           const response = await fetch(`/api/tools/gmail/labels?credentialId=${credentialId}`)
@@ -55,7 +56,7 @@ export const gmailPollingTrigger: TriggerConfig = {
           return []
         } catch (error) {
           logger.error('Error fetching Gmail labels:', error)
-          return []
+          throw error
         }
       },
       dependsOn: ['triggerCredentials'],

@@ -12,7 +12,7 @@ import {
   BLOCK_DIMENSIONS,
   useBlockDimensions,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-block-dimensions'
-import type { SubBlockConfig } from '@/blocks/types'
+import { SELECTOR_TYPES_HYDRATION_REQUIRED, type SubBlockConfig } from '@/blocks/types'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { useCredentialDisplay } from '@/hooks/use-credential-display'
 import { useDisplayName } from '@/hooks/use-display-name'
@@ -237,7 +237,10 @@ const SubBlockRow = ({
 
   const isPasswordField = subBlock?.password === true
   const maskedValue = isPasswordField && value && value !== '-' ? '•••' : null
-  const displayValue = maskedValue || credentialName || dropdownLabel || genericDisplayName || value
+
+  const isSelectorType = subBlock?.type && SELECTOR_TYPES_HYDRATION_REQUIRED.includes(subBlock.type)
+  const hydratedName = credentialName || dropdownLabel || genericDisplayName
+  const displayValue = maskedValue || hydratedName || (isSelectorType && value ? '-' : value)
 
   return (
     <div className='flex items-center gap-[8px]'>
