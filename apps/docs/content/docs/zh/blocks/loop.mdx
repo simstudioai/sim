@@ -82,14 +82,13 @@ import { Image } from '@/components/ui/image'
       />
     </div>
     
-    当需要循环直到满足特定条件时使用此方法。条件在每次迭代**之前**检查。
-    
+    当需要循环直到满足特定条件时使用此方法。条件在每次迭代的**之前**进行检查。
 
     ```
-    Example: While <variable.i> < 10
+    Example: While {"<variable.i>"} < 10
     - Check condition → Execute if true
-    - Inside loop: Increment <variable.i>
-    - Inside loop: Variables assigns i = <variable.i> + 1
+    - Inside loop: Increment {"<variable.i>"}
+    - Inside loop: Variables assigns i = {"<variable.i>"} + 1
     - Check condition → Execute if true
     - Check condition → Exit if false
     ```
@@ -108,14 +107,13 @@ import { Image } from '@/components/ui/image'
       />
     </div>
     
-    当需要至少执行一次，然后循环直到满足条件时使用此方法。条件在每次迭代**之后**检查。
-    
+    当需要至少执行一次，然后循环直到满足条件时使用此方法。条件在每次迭代的**之后**进行检查。
 
     ```
-    Example: Do-while <variable.i> < 10
+    Example: Do-while {"<variable.i>"} < 10
     - Execute blocks
-    - Inside loop: Increment <variable.i>
-    - Inside loop: Variables assigns i = <variable.i> + 1
+    - Inside loop: Increment {"<variable.i>"}
+    - Inside loop: Variables assigns i = {"<variable.i>"} + 1
     - Check condition → Continue if true
     - Check condition → Exit if false
     ```
