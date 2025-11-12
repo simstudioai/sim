@@ -1,6 +1,6 @@
 'use client'
 
-import { type CSSProperties, useEffect, useMemo } from 'react'
+import { type CSSProperties, useEffect, useMemo, useState } from 'react'
 import Image from 'next/image'
 import { Tooltip } from '@/components/emcn'
 import { useSession } from '@/lib/auth-client'
@@ -17,9 +17,76 @@ interface AvatarsProps {
   onPresenceChange?: (hasAvatars: boolean) => void
 }
 
+interface PresenceUser {
+  socketId: string
+  userId: string
+  userName?: string
+  avatarUrl?: string | null
+}
+
+interface UserAvatarProps {
+  user: PresenceUser
+  index: number
+}
+
+/**
+ * Individual user avatar with error handling for image loading.
+ * Falls back to colored circle with initials if image fails to load.
+ */
+function UserAvatar({ user, index }: UserAvatarProps) {
+  const [imageError, setImageError] = useState(false)
+  const color = getUserColor(user.userId)
+  const initials = user.userName ? user.userName.charAt(0).toUpperCase() : '?'
+  const hasAvatar = Boolean(user.avatarUrl) && !imageError
+
+  // Reset error state when avatar URL changes
+  useEffect(() => {
+    setImageError(false)
+  }, [user.avatarUrl])
+
+  const avatarElement = (
+    <div
+      className='relative flex h-[14px] w-[14px] flex-shrink-0 cursor-default items-center justify-center overflow-hidden rounded-full font-semibold text-[7px] text-white'
+      style={
+        {
+          background: hasAvatar ? undefined : color,
+          zIndex: 10 - index,
+        } as CSSProperties
+      }
+    >
+      {hasAvatar && user.avatarUrl ? (
+        <Image
+          src={user.avatarUrl}
+          alt={user.userName ? `${user.userName}'s avatar` : 'User avatar'}
+          fill
+          sizes='14px'
+          className='object-cover'
+          referrerPolicy='no-referrer'
+          unoptimized={user.avatarUrl.startsWith('http')}
+          onError={() => setImageError(true)}
+        />
+      ) : (
+        initials
+      )}
+    </div>
+  )
+
+  if (user.userName) {
+    return (
+      <Tooltip.Root>
+        <Tooltip.Trigger asChild>{avatarElement}</Tooltip.Trigger>
+        <Tooltip.Content side='bottom'>
+          <span>{user.userName}</span>
+        </Tooltip.Content>
+      </Tooltip.Root>
+    )
+  }
+
+  return avatarElement
+}
+
 /**
  * Displays user avatars for presence in a workflow item.
- * Consolidated logic from user-avatar-stack and user-avatar components.
  * Only shows avatars for the currently active workflow.
  *
  * @param props - Component props
@@ -69,51 +136,9 @@ export function Avatars({ workflowId, maxVisible = 3, onPresenceChange }: Avatar
 
   return (
     <div className='-space-x-1 ml-[-8px] flex items-center'>
-      {visibleUsers.map((user, index) => {
-        const color = getUserColor(user.userId)
-        const initials = user.userName ? user.userName.charAt(0).toUpperCase() : '?'
-        const hasAvatar = Boolean(user.avatarUrl)
-
-        const avatarElement = (
-          <div
-            key={user.socketId}
-            className='relative flex h-[14px] w-[14px] flex-shrink-0 cursor-default items-center justify-center overflow-hidden rounded-full font-semibold text-[7px] text-white'
-            style={
-              {
-                background: hasAvatar ? undefined : color,
-                zIndex: 10 - index,
-              } as CSSProperties
-            }
-          >
-            {hasAvatar && user.avatarUrl ? (
-              <Image
-                src={user.avatarUrl}
-                alt={user.userName ? `${user.userName}'s avatar` : 'User avatar'}
-                fill
-                sizes='14px'
-                className='object-cover'
-                referrerPolicy='no-referrer'
-                unoptimized={user.avatarUrl.startsWith('http')}
-              />
-            ) : (
-              initials
-            )}
-          </div>
-        )
-
-        if (user.userName) {
-          return (
-            <Tooltip.Root key={user.socketId}>
-              <Tooltip.Trigger asChild>{avatarElement}</Tooltip.Trigger>
-              <Tooltip.Content side='bottom'>
-                <span>{user.userName}</span>
-              </Tooltip.Content>
-            </Tooltip.Root>
-          )
-        }
-
-        return avatarElement
-      })}
+      {visibleUsers.map((user, index) => (
+        <UserAvatar key={user.socketId} user={user} index={index} />
+      ))}
 
       {overflowCount > 0 && (
         <Tooltip.Root>
