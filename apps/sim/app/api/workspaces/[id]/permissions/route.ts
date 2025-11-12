@@ -13,7 +13,7 @@ const logger = createLogger('WorkspacesPermissionsAPI')
 const updatePermissionsSchema = z.object({
   updates: z.array(
     z.object({
-      userId: z.string().uuid(),
+      userId: z.string(),
       permissions: z.enum(['admin', 'write', 'read']),
     })
   ),
