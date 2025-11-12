@@ -837,14 +837,18 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
       {/* Workflow preview */}
       <div className='flex-1 p-6'>
         <div className='mx-auto max-w-7xl'>
-          <h2 className='mb-4 font-semibold text-xl'>Workflow Preview</h2>
+          <h2 className='mb-4 font-semibold text-lg text-[#0D0D0D] dark:text-[#F0F0F0]'>
+            Workflow Preview
+          </h2>
           <div className='h-[600px] w-full'>{renderWorkflowPreview()}</div>
 
           {Array.isArray(template.requiredCredentials) &&
             template.requiredCredentials.length > 0 && (
-              <div className='mt-8'>
-                <h3 className='mb-3 font-semibold text-lg'>Credentials Needed</h3>
-                <ul className='list-disc space-y-1 pl-6 text-muted-foreground text-sm'>
+              <div className='mt-8 border-t pt-8'>
+                <h3 className='mb-4 font-semibold text-base text-[#0D0D0D] dark:text-[#F0F0F0]'>
+                  Credentials Needed
+                </h3>
+                <ul className='ml-5 list-disc space-y-1.5 text-[#707070] text-sm leading-[1.4rem] dark:text-[#E8E8E8]'>
                   {template.requiredCredentials.map((cred: CredentialRequirement, idx: number) => {
                     // Get block name from registry or format blockType
                     const blockName =
@@ -862,97 +866,170 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
 
           {/* About this Workflow */}
           {template.details?.about && (
-            <div className='mt-8'>
-              <h3 className='mb-3 font-semibold text-lg'>About this Workflow</h3>
-              <div className='prose prose-sm dark:prose-invert max-w-none'>
-                <ReactMarkdown>{template.details.about}</ReactMarkdown>
+            <div className='mt-8 border-t pt-8'>
+              <h3 className='mb-4 font-semibold text-base text-[#0D0D0D] dark:text-[#F0F0F0]'>
+                About this Workflow
+              </h3>
+              <div className='max-w-none space-y-2'>
+                <ReactMarkdown
+                  components={{
+                    p: ({ children }) => (
+                      <p className='mb-2 text-[#707070] text-sm leading-[1.4rem] last:mb-0 dark:text-[#E8E8E8]'>
+                        {children}
+                      </p>
+                    ),
+                    h1: ({ children }) => (
+                      <h1 className='mt-6 mb-3 font-semibold text-[#0D0D0D] text-xl first:mt-0 dark:text-[#F0F0F0]'>
+                        {children}
+                      </h1>
+                    ),
+                    h2: ({ children }) => (
+                      <h2 className='mt-5 mb-2.5 font-semibold text-[#0D0D0D] text-lg first:mt-0 dark:text-[#F0F0F0]'>
+                        {children}
+                      </h2>
+                    ),
+                    h3: ({ children }) => (
+                      <h3 className='mt-4 mb-2 font-semibold text-[#0D0D0D] text-base first:mt-0 dark:text-[#F0F0F0]'>
+                        {children}
+                      </h3>
+                    ),
+                    h4: ({ children }) => (
+                      <h4 className='mt-3 mb-2 font-semibold text-[#0D0D0D] text-sm first:mt-0 dark:text-[#F0F0F0]'>
+                        {children}
+                      </h4>
+                    ),
+                    ul: ({ children }) => (
+                      <ul className='my-2 ml-5 list-disc space-y-1.5 text-[#707070] text-sm dark:text-[#E8E8E8]'>
+                        {children}
+                      </ul>
+                    ),
+                    ol: ({ children }) => (
+                      <ol className='my-2 ml-5 list-decimal space-y-1.5 text-[#707070] text-sm dark:text-[#E8E8E8]'>
+                        {children}
+                      </ol>
+                    ),
+                    li: ({ children }) => <li className='leading-[1.4rem]'>{children}</li>,
+                    code: ({ inline, children }: any) =>
+                      inline ? (
+                        <code className='rounded bg-[#F5F5F5] px-1.5 py-0.5 font-mono text-[#F59E0B] text-xs dark:bg-[#2A2A2A]'>
+                          {children}
+                        </code>
+                      ) : (
+                        <code className='my-2 block overflow-x-auto rounded-md bg-[#F5F5F5] p-3 font-mono text-xs text-[#0D0D0D] dark:bg-[#1A1A1A] dark:text-[#E5E5E5]'>
+                          {children}
+                        </code>
+                      ),
+                    a: ({ href, children }) => (
+                      <a
+                        href={href}
+                        target='_blank'
+                        rel='noopener noreferrer'
+                        className='text-[#3B82F6] underline-offset-2 transition-colors hover:text-[#60A5FA] hover:underline dark:text-[#60A5FA] dark:hover:text-[#93C5FD]'
+                      >
+                        {children}
+                      </a>
+                    ),
+                    strong: ({ children }) => (
+                      <strong className='font-semibold text-[#0D0D0D] dark:text-white'>
+                        {children}
+                      </strong>
+                    ),
+                    em: ({ children }) => (
+                      <em className='text-[#888888] dark:text-[#B8B8B8]'>{children}</em>
+                    ),
+                  }}
+                >
+                  {template.details.about}
+                </ReactMarkdown>
               </div>
             </div>
           )}
 
           {/* Creator Profile */}
           {template.creator && (
-            <div className='mt-8'>
-              <h3 className='mb-4 font-semibold text-lg'>About the Creator</h3>
-              <div className='rounded-lg border bg-card p-6'>
-                <div className='flex items-start gap-4'>
-                  {/* Profile Picture */}
-                  <div className='flex-shrink-0'>
-                    {template.creator.profileImageUrl ? (
-                      <div className='relative h-20 w-20 overflow-hidden rounded-full'>
-                        <img
-                          src={template.creator.profileImageUrl}
-                          alt={template.creator.name}
-                          className='h-full w-full object-cover'
-                        />
-                      </div>
-                    ) : (
-                      <div className='flex h-20 w-20 items-center justify-center rounded-full bg-[#802FFF]'>
-                        <User className='h-10 w-10 text-white' />
-                      </div>
-                    )}
-                  </div>
+            <div className='mt-8 border-t pt-8'>
+              <h3 className='mb-4 font-semibold text-base text-[#0D0D0D] dark:text-[#F0F0F0]'>
+                About the Creator
+              </h3>
+              <div className='flex items-start gap-4'>
+                {/* Profile Picture */}
+                <div className='flex-shrink-0'>
+                  {template.creator.profileImageUrl ? (
+                    <div className='relative h-16 w-16 overflow-hidden rounded-full ring-1 ring-border'>
+                      <img
+                        src={template.creator.profileImageUrl}
+                        alt={template.creator.name}
+                        className='h-full w-full object-cover'
+                      />
+                    </div>
+                  ) : (
+                    <div className='flex h-16 w-16 items-center justify-center rounded-full bg-purple-600 ring-1 ring-border'>
+                      <User className='h-8 w-8 text-white' />
+                    </div>
+                  )}
+                </div>
 
-                  {/* Creator Info */}
-                  <div className='flex-1'>
-                    <h4 className='font-semibold text-lg'>{template.creator.name}</h4>
-                    {template.creator.details?.about && (
-                      <p className='mt-2 text-muted-foreground text-sm leading-relaxed'>
-                        {template.creator.details.about}
-                      </p>
-                    )}
+                {/* Creator Info */}
+                <div className='flex-1 min-w-0'>
+                  <h4 className='font-semibold text-[#0D0D0D] dark:text-[#F0F0F0]'>
+                    {template.creator.name}
+                  </h4>
+                  {template.creator.details?.about && (
+                    <p className='mt-1.5 text-[#707070] text-sm leading-[1.4rem] dark:text-[#E8E8E8]'>
+                      {template.creator.details.about}
+                    </p>
+                  )}
 
-                    {/* Social Links */}
-                    {(template.creator.details?.xUrl ||
-                      template.creator.details?.linkedinUrl ||
-                      template.creator.details?.websiteUrl ||
-                      template.creator.details?.contactEmail) && (
-                      <div className='mt-4 flex flex-wrap gap-3'>
-                        {template.creator.details.xUrl && (
-                          <a
-                            href={template.creator.details.xUrl}
-                            target='_blank'
-                            rel='noopener noreferrer'
-                            className='inline-flex items-center gap-1.5 text-muted-foreground text-sm transition-colors hover:text-foreground'
-                          >
-                            <Twitter className='h-4 w-4' />
-                            <span>X</span>
-                          </a>
-                        )}
-                        {template.creator.details.linkedinUrl && (
-                          <a
-                            href={template.creator.details.linkedinUrl}
-                            target='_blank'
-                            rel='noopener noreferrer'
-                            className='inline-flex items-center gap-1.5 text-muted-foreground text-sm transition-colors hover:text-foreground'
-                          >
-                            <Linkedin className='h-4 w-4' />
-                            <span>LinkedIn</span>
-                          </a>
-                        )}
-                        {template.creator.details.websiteUrl && (
-                          <a
-                            href={template.creator.details.websiteUrl}
-                            target='_blank'
-                            rel='noopener noreferrer'
-                            className='inline-flex items-center gap-1.5 text-muted-foreground text-sm transition-colors hover:text-foreground'
-                          >
-                            <Globe className='h-4 w-4' />
-                            <span>Website</span>
-                          </a>
-                        )}
-                        {template.creator.details.contactEmail && (
-                          <a
-                            href={`mailto:${template.creator.details.contactEmail}`}
-                            className='inline-flex items-center gap-1.5 text-muted-foreground text-sm transition-colors hover:text-foreground'
-                          >
-                            <Mail className='h-4 w-4' />
-                            <span>Contact</span>
-                          </a>
-                        )}
-                      </div>
-                    )}
-                  </div>
+                  {/* Social Links */}
+                  {(template.creator.details?.xUrl ||
+                    template.creator.details?.linkedinUrl ||
+                    template.creator.details?.websiteUrl ||
+                    template.creator.details?.contactEmail) && (
+                    <div className='mt-3 flex flex-wrap gap-4'>
+                      {template.creator.details.xUrl && (
+                        <a
+                          href={template.creator.details.xUrl}
+                          target='_blank'
+                          rel='noopener noreferrer'
+                          className='inline-flex items-center gap-1.5 text-[#707070] text-sm transition-colors hover:text-[#0D0D0D] dark:text-[#E8E8E8] dark:hover:text-[#F0F0F0]'
+                        >
+                          <Twitter className='h-3.5 w-3.5' />
+                          <span>X</span>
+                        </a>
+                      )}
+                      {template.creator.details.linkedinUrl && (
+                        <a
+                          href={template.creator.details.linkedinUrl}
+                          target='_blank'
+                          rel='noopener noreferrer'
+                          className='inline-flex items-center gap-1.5 text-[#707070] text-sm transition-colors hover:text-[#0D0D0D] dark:text-[#E8E8E8] dark:hover:text-[#F0F0F0]'
+                        >
+                          <Linkedin className='h-3.5 w-3.5' />
+                          <span>LinkedIn</span>
+                        </a>
+                      )}
+                      {template.creator.details.websiteUrl && (
+                        <a
+                          href={template.creator.details.websiteUrl}
+                          target='_blank'
+                          rel='noopener noreferrer'
+                          className='inline-flex items-center gap-1.5 text-[#707070] text-sm transition-colors hover:text-[#0D0D0D] dark:text-[#E8E8E8] dark:hover:text-[#F0F0F0]'
+                        >
+                          <Globe className='h-3.5 w-3.5' />
+                          <span>Website</span>
+                        </a>
+                      )}
+                      {template.creator.details.contactEmail && (
+                        <a
+                          href={`mailto:${template.creator.details.contactEmail}`}
+                          className='inline-flex items-center gap-1.5 text-[#707070] text-sm transition-colors hover:text-[#0D0D0D] dark:text-[#E8E8E8] dark:hover:text-[#F0F0F0]'
+                        >
+                          <Mail className='h-3.5 w-3.5' />
+                          <span>Contact</span>
+                        </a>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
