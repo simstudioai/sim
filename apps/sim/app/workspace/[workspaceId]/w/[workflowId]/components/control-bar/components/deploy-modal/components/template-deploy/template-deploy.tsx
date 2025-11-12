@@ -107,25 +107,22 @@ export function TemplateDeploy({ workflowId, onDeploymentComplete }: TemplateDep
     fetchCreatorOptions()
   }, [session?.user?.id])
 
+  // Auto-select creator profile when there's only one option and no selection yet
+  useEffect(() => {
+    const currentCreatorId = form.getValues('creatorId')
+    if (creatorOptions.length === 1 && !currentCreatorId) {
+      form.setValue('creatorId', creatorOptions[0].id)
+      logger.info('Auto-selected single creator profile:', creatorOptions[0].name)
+    }
+  }, [creatorOptions, form])
+
   // Listen for creator profile saved event
   useEffect(() => {
-    const handleCreatorProfileSaved = async (event: Event) => {
-      const customEvent = event as CustomEvent<{ profileId: string }>
-      logger.info('Creator profile saved, refreshing profiles...', customEvent.detail)
+    const handleCreatorProfileSaved = async () => {
+      logger.info('Creator profile saved, refreshing profiles...')
 
-      // Refetch creator profiles
-      const profiles = await fetchCreatorOptions()
-
-      // Auto-select the newly created profile
-      if (customEvent.detail.profileId && profiles.length > 0) {
-        const newProfile = profiles.find(
-          (p: CreatorOption) => p.id === customEvent.detail.profileId
-        )
-        if (newProfile) {
-          form.setValue('creatorId', newProfile.id)
-          logger.info('Auto-selected newly created creator profile:', newProfile.name)
-        }
-      }
+      // Refetch creator profiles (autoselection will happen via the effect above)
+      await fetchCreatorOptions()
 
       // Close settings modal and reopen deploy modal to template tab
       window.dispatchEvent(new CustomEvent('close-settings'))
@@ -139,7 +136,7 @@ export function TemplateDeploy({ workflowId, onDeploymentComplete }: TemplateDep
     return () => {
       window.removeEventListener('creator-profile-saved', handleCreatorProfileSaved)
     }
-  }, [session?.user?.id, form])
+  }, [])
 
   // Check for existing template
   useEffect(() => {

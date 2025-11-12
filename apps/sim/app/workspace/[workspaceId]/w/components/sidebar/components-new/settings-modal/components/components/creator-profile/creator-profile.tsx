@@ -196,11 +196,8 @@ export function CreatorProfile() {
         logger.info('Creator profile saved successfully')
         setSaveStatus('saved')
 
-        window.dispatchEvent(
-          new CustomEvent('creator-profile-saved', {
-            detail: { profileId: result.data?.id },
-          })
-        )
+        // Dispatch event to notify that a creator profile was saved
+        window.dispatchEvent(new CustomEvent('creator-profile-saved'))
 
         setTimeout(() => {
           setSaveStatus('idle')
