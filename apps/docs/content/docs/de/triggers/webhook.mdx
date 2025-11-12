@@ -17,8 +17,8 @@ Der generische Webhook-Block erstellt einen flexiblen Endpunkt, der beliebige Pa
   <Image
     src="/static/blocks/webhook.png"
     alt="Generische Webhook-Konfiguration"
-    width={700}
-    height={450}
+    width={500}
+    height={400}
     className="my-6"
   />
 </div>
@@ -75,40 +75,56 @@ Alternativ können Sie spezifische Service-Blöcke (wie Slack, GitHub usw.) im "
 
 ## Unterstützte Dienste für den Trigger-Modus
 
-Die folgenden Service-Blöcke unterstützen den Trigger-Modus:
+**Entwicklung & Projektmanagement**
+- GitHub - Issues, PRs, Pushes, Releases, Workflow-Ausführungen
+- Jira - Issue-Events, Arbeitsprotokolle
+- Linear - Issues, Kommentare, Projekte, Zyklen, Labels
 
-- **Slack** - Nachrichten, Erwähnungen, Reaktionen
-- **GitHub** - Push, PR, Issue-Events  
-- **Airtable** - Datensatzänderungen
-- **Telegram** - Bot-Nachrichten und Befehle
-- **Gmail** - E-Mail-Benachrichtigungen
-- **WhatsApp** - Messaging-Events
-- **Jira** - Issue-Updates, Kommentare
-- **Linear** - Issue-Statusänderungen
-- **Notion** - Seitenaktualisierungen
+**Kommunikation**
+- Slack - Nachrichten, Erwähnungen, Reaktionen
+- Microsoft Teams - Chat-Nachrichten, Kanal-Benachrichtigungen
+- Telegram - Bot-Nachrichten, Befehle
+- WhatsApp - Messaging-Events
+
+**E-Mail**
+- Gmail - Neue E-Mails (Polling), Label-Änderungen
+- Outlook - Neue E-Mails (Polling), Ordner-Events
+
+**CRM & Vertrieb**
+- HubSpot - Kontakte, Unternehmen, Deals, Tickets, Konversationen
+- Stripe - Zahlungen, Abonnements, Kunden
+
+**Formulare & Umfragen**
+- Typeform - Formularübermittlungen
+- Google Forms - Formularantworten
+- Webflow - Sammlungselemente, Formularübermittlungen
+
+**Sonstiges**
+- Airtable - Datensatzänderungen
+- Twilio Voice - Eingehende Anrufe, Anrufstatus
 
 ## Sicherheit und Best Practices
 
 ### Authentifizierungsoptionen
 
 - **Bearer Tokens**: `Authorization: Bearer <token>` Header einfügen
-- **Benutzerdefinierte Header**: Definiere benutzerdefinierte Authentifizierungs-Header
+- **Benutzerdefinierte Header**: Benutzerdefinierte Authentifizierungs-Header definieren
 
 ### Payload-Verarbeitung
 
-- **Validierung**: Validiere eingehende Payloads, um fehlerhafte Daten zu vermeiden
+- **Validierung**: Eingehende Payloads validieren, um fehlerhafte Daten zu vermeiden
 - **Größenbeschränkungen**: Webhooks haben Payload-Größenbeschränkungen aus Sicherheitsgründen
-- **Fehlerbehandlung**: Konfiguriere Fehlerantworten für ungültige Anfragen
+- **Fehlerbehandlung**: Fehlermeldungen für ungültige Anfragen konfigurieren
 
 ### Webhooks testen
 
-1. Verwende Tools wie Postman oder curl, um deine Webhook-Endpunkte zu testen
-2. Überprüfe die Ausführungsprotokolle des Workflows zur Fehlerbehebung
-3. Stelle sicher, dass die Payload-Struktur deinen Erwartungen entspricht
-4. Teste Authentifizierungs- und Fehlerszenarien
+1. Tools wie Postman oder curl verwenden, um Webhook-Endpunkte zu testen
+2. Workflow-Ausführungsprotokolle zur Fehlerbehebung überprüfen
+3. Sicherstellen, dass die Payload-Struktur den Erwartungen entspricht
+4. Authentifizierungs- und Fehlerszenarien testen
 
 <Callout type="warning">
-Validiere und bereinige immer eingehende Webhook-Daten, bevor du sie in deinen Workflows verarbeitest.
+Validieren und bereinigen Sie immer eingehende Webhook-Daten, bevor Sie sie in Ihren Workflows verarbeiten.
 </Callout>
 
 ## Häufige Anwendungsfälle
@@ -119,10 +135,10 @@ Validiere und bereinige immer eingehende Webhook-Daten, bevor du sie in deinen W
 
 ### CI/CD-Integration  
 - GitHub-Pushes, die Deployment-Workflows auslösen
-- Build-Status-Updates
+- Build-Status-Aktualisierungen
 - Automatisierte Test-Pipelines
 
-### Datensynchronisation
+### Datensynchronisierung
 - Airtable-Änderungen, die andere Systeme aktualisieren
 - Formularübermittlungen, die Folgemaßnahmen auslösen
 - E-Commerce-Auftragsverarbeitung
@@ -130,4 +146,4 @@ Validiere und bereinige immer eingehende Webhook-Daten, bevor du sie in deinen W
 ### Kundensupport
 - Workflows zur Erstellung von Support-Tickets
 - Automatisierte Eskalationsprozesse
-- Multi-Kanal-Kommunikationsweiterleitung
+- Multi-Channel-Kommunikationsrouting
