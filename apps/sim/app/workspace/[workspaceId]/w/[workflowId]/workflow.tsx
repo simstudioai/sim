@@ -642,8 +642,7 @@ const WorkflowContent = React.memo(() => {
         if (closestBlock) {
           // Don't create edges into trigger blocks
           const targetBlockConfig = blockConfig
-          const isTargetTrigger =
-            targetBlockConfig?.category === 'triggers' || targetBlockConfig?.triggers?.enabled
+          const isTargetTrigger = enableTriggerMode || targetBlockConfig?.category === 'triggers'
 
           if (!isTargetTrigger) {
             const sourceHandle = determineSourceHandle(closestBlock)
@@ -923,7 +922,7 @@ const WorkflowContent = React.memo(() => {
                 // Don't create edges into trigger blocks
                 const targetBlockConfig = getBlock(data.type)
                 const isTargetTrigger =
-                  targetBlockConfig?.category === 'triggers' || targetBlockConfig?.triggers?.enabled
+                  data.enableTriggerMode === true || targetBlockConfig?.category === 'triggers'
 
                 if (!isTargetTrigger) {
                   const sourceHandle = determineSourceHandle({
@@ -1001,7 +1000,7 @@ const WorkflowContent = React.memo(() => {
               // Don't create edges into trigger blocks
               const targetBlockConfig = getBlock(data.type)
               const isTargetTrigger =
-                targetBlockConfig?.category === 'triggers' || targetBlockConfig?.triggers?.enabled
+                data.enableTriggerMode === true || targetBlockConfig?.category === 'triggers'
 
               if (!isTargetTrigger) {
                 const sourceHandle = determineSourceHandle(closestBlock)
