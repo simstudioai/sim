@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 
 import { execSync, spawn } from 'child_process'
-import { existsSync, mkdirSync } from 'fs'
+import { existsSync, mkdirSync, writeFileSync } from 'fs'
 import { homedir } from 'os'
-import { join } from 'path'
+import { join, resolve } from 'path'
 import { createInterface } from 'readline'
 import chalk from 'chalk'
 import { Command } from 'commander'
@@ -23,6 +23,23 @@ program
   .option('-p, --port <port>', 'Port to run Sim on', DEFAULT_PORT)
   .option('-y, --yes', 'Skip interactive prompts and use defaults')
   .option('--no-pull', 'Skip pulling the latest Docker images')
+
+const mcp = program.command('mcp').description('MCP server utilities')
+
+mcp
+  .command('init [name]')
+  .description('Scaffold a starter MCP server project')
+  .option('-d, --dir <dir>', 'Target directory (defaults to current working directory)', process.cwd())
+  .option('-f, --force', 'Overwrite existing files', false)
+  .option('-t, --template <template>', 'Reserved for future templates', 'web-scraper')
+  .action(async (name: string | undefined, cmdOptions: { dir?: string; force?: boolean }) => {
+    try {
+      await scaffoldMcpProject(name || 'sim-hosted-server', cmdOptions)
+    } catch (error) {
+      console.error(chalk.red('�?O Failed to scaffold MCP server:'), error)
+      process.exit(1)
+    }
+  })
 
 function isDockerRunning(): Promise<boolean> {
   return new Promise((resolve) => {
@@ -82,8 +99,177 @@ async function cleanupExistingContainers(): Promise<void> {
   await stopAndRemoveContainer(REALTIME_CONTAINER)
 }
 
-async function main() {
-  const options = program.parse().opts()
+function slugifyProjectName(name: string) {
+  const normalized = name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+  return normalized.length > 0 ? normalized : 'sim-hosted-server'
+}
+
+function createFile(filePath: string, contents: string) {
+  writeFileSync(filePath, contents, { encoding: 'utf8' })
+}
+
+async function scaffoldMcpProject(
+  name: string,
+  options: { dir?: string; template?: string; force?: boolean }
+) {
+  const slug = slugifyProjectName(name)
+  const targetRoot = resolve(options.dir || process.cwd())
+  const projectDir = join(targetRoot, slug)
+
+  if (existsSync(projectDir) && !options.force) {
+    throw new Error(
+      `Directory ${projectDir} already exists. Re-run with --force to overwrite its contents.`
+    )
+  }
+
+  mkdirSync(projectDir, { recursive: true })
+  mkdirSync(join(projectDir, 'src'), { recursive: true })
+
+  const packageJson = {
+    name: slug,
+    version: '0.1.0',
+    private: true,
+    type: 'module',
+    scripts: {
+      dev: 'tsx watch src/server.ts',
+      build: 'tsc -p tsconfig.json',
+      start: 'node dist/server.js',
+    },
+    dependencies: {
+      '@modelcontextprotocol/sdk': '^0.3.2',
+      'cross-fetch': '^4.0.0',
+    },
+    devDependencies: {
+      tsx: '^4.7.0',
+      typescript: '^5.7.3',
+    },
+  }
+
+  const tsconfig = {
+    compilerOptions: {
+      target: 'ES2021',
+      module: 'ESNext',
+      moduleResolution: 'Node',
+      esModuleInterop: true,
+      strict: true,
+      skipLibCheck: true,
+      outDir: 'dist',
+    },
+    include: ['src'],
+  }
+
+  const serverSource = `import { Server } from '@modelcontextprotocol/sdk/server'
+import fetch from 'cross-fetch'
+
+type SearchResult = {
+  title: string
+  url: string
+  summary?: string
+  score?: number
+}
+
+const server = new Server({
+  name: '${name}',
+  version: '0.1.0',
+})
+
+server.tool('reddit.search', {
+  description: 'Search public Reddit posts and comments without authentication.',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      query: { type: 'string', description: 'Search keywords' },
+      limit: { type: 'number', minimum: 1, maximum: 25, default: 5 },
+    },
+    required: ['query'],
+  },
+  handler: async (input): Promise<{ results: SearchResult[] }> => {
+    const target = \`https://www.reddit.com/search.json?q=\${encodeURIComponent(
+      input.query
+    )}&limit=\${input.limit ?? 5}&sort=new\`
+    const response = await fetch(target, { headers: { 'User-Agent': 'sim-hosted-mcp' } })
+    const data = (await response.json()) as any
+
+    const results =
+      data?.data?.children?.map((item: any) => ({
+        title: item.data?.title,
+        url: \`https://reddit.com\${item.data?.permalink}\`,
+        score: item.data?.score,
+        summary: item.data?.selftext?.slice(0, 280),
+      })) ?? []
+
+    return { results }
+  },
+})
+
+server.tool('arxiv.search', {
+  description: 'Search arXiv papers and return lightweight summaries.',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      query: { type: 'string', description: 'Terms to search for' },
+      maxResults: { type: 'number', minimum: 1, maximum: 10, default: 3 },
+    },
+    required: ['query'],
+  },
+  handler: async (input): Promise<{ results: SearchResult[] }> => {
+    const maxResults = input.maxResults ?? 3
+    const apiUrl = \`https://export.arxiv.org/api/query?search_query=all:\${encodeURIComponent(
+      input.query
+    )}&start=0&max_results=\${maxResults}\`
+    const response = await fetch(apiUrl)
+    const xml = await response.text()
+    const entries = xml.split('<entry>').slice(1)
+
+    const results = entries.map((entry) => {
+      const title = entry.split('<title>')[1]?.split('</title>')[0]?.trim()
+      const summary = entry.split('<summary>')[1]?.split('</summary>')[0]?.trim()
+      const link = entry.split('<link href="')[1]?.split('"')[0]
+      return {
+        title,
+        summary,
+        url: link,
+      }
+    })
+
+    return { results }
+  },
+})
+
+server.listen()`
+
+  const readme = `# ${name}
+
+This project was created with \`simstudio mcp init\` and contains a ready-to-deploy MCP server that can
+scrape Reddit, summarise arXiv preprints, or be extended with YouTube transcripts and Substack ingestion.
+
+## Quickstart
+
+\`\`\`bash
+npm install
+npm run dev
+\`\`\`
+
+Update \`src/server.ts\` with your own tools, then run \`npm run build && npm start\` to host it locally
+or push it to the Sim hosted MCP platform.\n`
+
+  createFile(join(projectDir, 'package.json'), `${JSON.stringify(packageJson, null, 2)}\n`)
+  createFile(join(projectDir, 'tsconfig.json'), `${JSON.stringify(tsconfig, null, 2)}\n`)
+  createFile(join(projectDir, 'README.md'), readme)
+  createFile(join(projectDir, 'src', 'server.ts'), `${serverSource}\n`)
+
+  console.log(chalk.green(`�o. Created MCP project at ${projectDir}`))
+  console.log(
+    chalk.blue(
+      `Next steps:\n  cd ${projectDir}\n  npm install\n  npm run dev\n\nDeploy with the workspace UI or the new hosted deployments tab.`
+    )
+  )
+}
+
+async function startSim(options: { port?: string; pull?: boolean }) {
 
   console.log(chalk.blue('🚀 Starting Sim...'))
 
@@ -97,7 +283,7 @@ async function main() {
   }
 
   // Use port from options, with 3000 as default
-  const port = options.port
+  const port = options.port || DEFAULT_PORT
 
   // Pull latest images if not skipped
   if (options.pull) {
@@ -280,7 +466,14 @@ async function main() {
   })
 }
 
-main().catch((error) => {
-  console.error(chalk.red('❌ An error occurred:'), error)
-  process.exit(1)
+
+program.action(async () => {
+  try {
+    await startSim(program.opts())
+  } catch (error) {
+    console.error(chalk.red('??O An error occurred:'), error)
+    process.exit(1)
+  }
 })
+
+program.parseAsync(process.argv)
