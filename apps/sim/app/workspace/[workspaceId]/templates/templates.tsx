@@ -193,6 +193,15 @@ export default function Templates({
               >
                 Your Templates
               </Button>
+              {isSuperUser && (
+                <Button
+                  variant={activeTab === 'pending' ? 'active' : 'default'}
+                  className='h-[32px] rounded-[6px]'
+                  onClick={() => setActiveTab('pending')}
+                >
+                  Pending
+                </Button>
+              )}
             </div>
           </div>
 
