@@ -20,6 +20,7 @@ import { type ConsoleEntry, useTerminalConsoleStore } from '@/stores/terminal'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { mergeSubblockState } from '@/stores/workflows/utils'
+import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import { useCurrentWorkflow } from './use-current-workflow'
 
 const logger = createLogger('useWorkflowExecution')
@@ -671,10 +672,14 @@ export function useWorkflowExecution() {
     const executionWorkflowState =
       hasActiveDiffWorkflow && executionDiffWorkflow ? executionDiffWorkflow : null
     const usingDiffForExecution = executionWorkflowState !== null
+
+    // Read blocks and edges directly from store to ensure we get the latest state,
+    // even if React hasn't re-rendered yet after adding blocks/edges
+    const latestWorkflowState = useWorkflowStore.getState().getWorkflowState()
     const workflowBlocks = (executionWorkflowState?.blocks ??
-      currentWorkflow.blocks) as typeof currentWorkflow.blocks
+      latestWorkflowState.blocks) as typeof currentWorkflow.blocks
     const workflowEdges = (executionWorkflowState?.edges ??
-      currentWorkflow.edges) as typeof currentWorkflow.edges
+      latestWorkflowState.edges) as typeof currentWorkflow.edges
 
     // Filter out blocks without type (these are layout-only blocks)
     const validBlocks = Object.entries(workflowBlocks).reduce(
