@@ -16,7 +16,7 @@ import { WorkflowValidationError } from '@/serializer'
 import { useExecutionStore } from '@/stores/execution/store'
 import { useVariablesStore } from '@/stores/panel/variables/store'
 import { useEnvironmentStore } from '@/stores/settings/environment/store'
-import { useTerminalConsoleStore, type ConsoleEntry } from '@/stores/terminal'
+import { type ConsoleEntry, useTerminalConsoleStore } from '@/stores/terminal'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { mergeSubblockState } from '@/stores/workflows/utils'
@@ -1012,7 +1012,7 @@ export function useWorkflowExecution() {
               const existingLogs = entries.filter(
                 (log: ConsoleEntry) => log.executionId === executionId
               )
-              
+
               if (existingLogs.length === 0) {
                 // No blocks executed yet - this is a pre-execution error
                 addConsole({

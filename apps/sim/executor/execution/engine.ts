@@ -72,7 +72,7 @@ export class ExecutionEngine {
         logs: this.context.blockLogs,
         metadata: this.context.metadata,
       }
-      
+
       // Attach executionResult to the original error instead of creating a new one
       // This preserves block error metadata (blockId, blockName, blockType, etc.)
       if (error && typeof error === 'object') {
