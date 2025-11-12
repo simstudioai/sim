@@ -103,17 +103,8 @@ const getDisplayValue = (value: unknown): string => {
   if (value == null || value === '') return '-'
 
   if (isVariableAssignmentsArray(value)) {
-    const assignments = value.filter((a) => {
-      // Check if we have either a non-empty variableName or a variableId
-      const hasName = a.variableName && a.variableName.trim() !== ''
-      const hasId = a.variableId && a.variableId.trim() !== ''
-      return hasName || hasId
-    })
-    if (assignments.length === 0) return '-'
-
-    // Get display names for assignments
-    const names = assignments.map((a) => a.variableName || a.variableId || 'Unknown')
-
+    const names = value.map((a) => a.variableName).filter((name): name is string => !!name)
+    if (names.length === 0) return '-'
     if (names.length === 1) return names[0]
     if (names.length === 2) return `${names[0]}, ${names[1]}`
     return `${names[0]}, ${names[1]} +${names.length - 2}`
@@ -273,42 +264,36 @@ const SubBlockRow = ({
     planId: getStringValue('planId'),
   })
 
+  // Subscribe to variables store to reactively update when variables change
+  const allVariables = useVariablesStore((state) => state.variables)
+
   // Special handling for variables-input to hydrate variable IDs to names from variables store
   const variablesDisplayValue = useMemo(() => {
     if (subBlock?.type !== 'variables-input' || !isVariableAssignmentsArray(rawValue)) {
       return null
     }
 
-    const assignments = rawValue.filter((a) => {
-      const hasName = a.variableName && a.variableName.trim() !== ''
-      const hasId = a.variableId && a.variableId.trim() !== ''
-      return hasName || hasId
-    })
-
-    if (assignments.length === 0) return null
-
-    // Get variables from the variables store
-    const allVariables = useVariablesStore.getState().variables
     const workflowVariables = Object.values(allVariables).filter(
       (v: any) => v.workflowId === workflowId
     )
 
-    const names = assignments.map((a) => {
-      // Prefer variableName, then try to look up variableId in variables store
-      if (a.variableName && a.variableName.trim()) {
-        return a.variableName
-      }
-      if (a.variableId) {
-        const variable = workflowVariables.find((v: any) => v.id === a.variableId)
-        return variable?.name || a.variableId
-      }
-      return 'Unknown'
-    })
+    const names = rawValue
+      .map((a) => {
+        // Prioritize ID lookup (source of truth) over stored name
+        if (a.variableId) {
+          const variable = workflowVariables.find((v: any) => v.id === a.variableId)
+          return variable?.name
+        }
+        if (a.variableName) return a.variableName
+        return null
+      })
+      .filter((name): name is string => !!name)
 
+    if (names.length === 0) return null
     if (names.length === 1) return names[0]
     if (names.length === 2) return `${names[0]}, ${names[1]}`
     return `${names[0]}, ${names[1]} +${names.length - 2}`
-  }, [subBlock?.type, rawValue, workflowId])
+  }, [subBlock?.type, rawValue, workflowId, allVariables])
 
   const isPasswordField = subBlock?.password === true
   const maskedValue = isPasswordField && value && value !== '-' ? '•••' : null

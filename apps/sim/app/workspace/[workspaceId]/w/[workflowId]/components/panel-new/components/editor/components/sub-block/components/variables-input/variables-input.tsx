@@ -89,18 +89,21 @@ export function VariablesInput({
 
   /**
    * Get the display name for a variable assignment
+   * Prioritizes store lookup to ensure we always show the latest name
    */
   const getVariableDisplayName = (assignment: VariableAssignment): string => {
+    // Look up by ID first (source of truth)
+    if (assignment.variableId) {
+      const variable = currentWorkflowVariables.find((v) => v.id === assignment.variableId)
+      return variable?.name || ''
+    }
+
+    // Fallback to stored name (for backwards compatibility)
     if (assignment.variableName) {
       return assignment.variableName
     }
 
-    if (assignment.variableId) {
-      const variable = currentWorkflowVariables.find((v) => v.id === assignment.variableId)
-      return variable?.name || `Variable ${assignment.variableId.slice(0, 8)}...`
-    }
-
-    return 'Select a variable...'
+    return ''
   }
 
   const hasNoWorkflowVariables = currentWorkflowVariables.length === 0
