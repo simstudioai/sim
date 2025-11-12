@@ -13,9 +13,16 @@ const rootDir = path.resolve(__dirname, '..')
 const BLOCKS_PATH = path.join(rootDir, 'apps/sim/blocks/blocks')
 const DOCS_OUTPUT_PATH = path.join(rootDir, 'apps/docs/content/docs/en/tools')
 const ICONS_PATH = path.join(rootDir, 'apps/sim/components/icons.tsx')
+const DOCS_ICONS_PATH = path.join(rootDir, 'apps/docs/components/icons.tsx')
 
 if (!fs.existsSync(DOCS_OUTPUT_PATH)) {
   fs.mkdirSync(DOCS_OUTPUT_PATH, { recursive: true })
+}
+
+// Ensure docs components directory exists
+const docsComponentsDir = path.dirname(DOCS_ICONS_PATH)
+if (!fs.existsSync(docsComponentsDir)) {
+  fs.mkdirSync(docsComponentsDir, { recursive: true })
 }
 
 interface BlockConfig {
@@ -32,52 +39,25 @@ interface BlockConfig {
   [key: string]: any
 }
 
-function extractIcons(): Record<string, string> {
+/**
+ * Copy the icons.tsx file from the main sim app to the docs app
+ * This ensures icons are rendered consistently across both apps
+ */
+function copyIconsFile(): void {
   try {
+    console.log('Copying icons from sim app to docs app...')
+
+    if (!fs.existsSync(ICONS_PATH)) {
+      console.error(`Source icons file not found: ${ICONS_PATH}`)
+      return
+    }
+
     const iconsContent = fs.readFileSync(ICONS_PATH, 'utf-8')
-    const icons: Record<string, string> = {}
+    fs.writeFileSync(DOCS_ICONS_PATH, iconsContent)
 
-    const functionDeclarationRegex =
-      /export\s+function\s+(\w+Icon)\s*\([^)]*\)\s*{[\s\S]*?return\s*\(\s*<svg[\s\S]*?<\/svg>\s*\)/g
-    const arrowFunctionRegex =
-      /export\s+const\s+(\w+Icon)\s*=\s*\([^)]*\)\s*=>\s*(\(?\s*<svg[\s\S]*?<\/svg>\s*\)?)/g
-
-    const functionMatches = Array.from(iconsContent.matchAll(functionDeclarationRegex))
-    for (const match of functionMatches) {
-      const iconName = match[1]
-      const svgMatch = match[0].match(/<svg[\s\S]*?<\/svg>/)
-
-      if (iconName && svgMatch) {
-        let svgContent = svgMatch[0]
-        svgContent = svgContent.replace(/{\.\.\.props}/g, '')
-        svgContent = svgContent.replace(/{\.\.\.(props|rest)}/g, '')
-        svgContent = svgContent.replace(/width=["'][^"']*["']/g, '')
-        svgContent = svgContent.replace(/height=["'][^"']*["']/g, '')
-        svgContent = svgContent.replace(/<svg/, '<svg className="block-icon"')
-        icons[iconName] = svgContent
-      }
-    }
-
-    const arrowMatches = Array.from(iconsContent.matchAll(arrowFunctionRegex))
-    for (const match of arrowMatches) {
-      const iconName = match[1]
-      const svgContent = match[2]
-      const svgMatch = svgContent.match(/<svg[\s\S]*?<\/svg>/)
-
-      if (iconName && svgMatch) {
-        let cleanedSvg = svgMatch[0]
-        cleanedSvg = cleanedSvg.replace(/{\.\.\.props}/g, '')
-        cleanedSvg = cleanedSvg.replace(/{\.\.\.(props|rest)}/g, '')
-        cleanedSvg = cleanedSvg.replace(/width=["'][^"']*["']/g, '')
-        cleanedSvg = cleanedSvg.replace(/height=["'][^"']*["']/g, '')
-        cleanedSvg = cleanedSvg.replace(/<svg/, '<svg className="block-icon"')
-        icons[iconName] = cleanedSvg
-      }
-    }
-    return icons
+    console.log('✓ Icons successfully copied to docs app')
   } catch (error) {
-    console.error('Error extracting icons:', error)
-    return {}
+    console.error('Error copying icons file:', error)
   }
 }
 
@@ -787,7 +767,7 @@ function mergeWithManualContent(
   Object.entries(manualSections).forEach(([sectionName, content]) => {
     const insertionPoints: Record<string, { regex: RegExp }> = {
       intro: {
-        regex: /<BlockInfoCard[\s\S]*?<\/svg>`}\s*\/>/,
+        regex: /<BlockInfoCard[\s\S]*?(\/>|<\/svg>`}\s*\/>)/,
       },
       usage: {
         regex: /## Usage Instructions/,
@@ -822,7 +802,7 @@ function mergeWithManualContent(
   return mergedContent
 }
 
-async function generateBlockDoc(blockPath: string, icons: Record<string, string>) {
+async function generateBlockDoc(blockPath: string) {
   try {
     const blockFileName = path.basename(blockPath, '.ts')
     if (blockFileName.endsWith('.test')) {
@@ -848,7 +828,11 @@ async function generateBlockDoc(blockPath: string, icons: Record<string, string>
         blockConfig.type !== 'memory' &&
         blockConfig.type !== 'knowledge') ||
       blockConfig.type === 'evaluator' ||
-      blockConfig.type === 'number'
+      blockConfig.type === 'number' ||
+      blockConfig.type === 'webhook' ||
+      blockConfig.type === 'schedule' ||
+      blockConfig.type === 'mcp' ||
+      blockConfig.type === 'generic_webhook'
     ) {
       return
     }
@@ -863,7 +847,7 @@ async function generateBlockDoc(blockPath: string, icons: Record<string, string>
 
     const manualSections = existingContent ? extractManualContent(existingContent) : {}
 
-    const markdown = await generateMarkdownForBlock(blockConfig, icons)
+    const markdown = await generateMarkdownForBlock(blockConfig)
 
     let finalContent = markdown
     if (Object.keys(manualSections).length > 0) {
@@ -880,10 +864,7 @@ async function generateBlockDoc(blockPath: string, icons: Record<string, string>
   }
 }
 
-async function generateMarkdownForBlock(
-  blockConfig: BlockConfig,
-  icons: Record<string, string>
-): Promise<string> {
+async function generateMarkdownForBlock(blockConfig: BlockConfig): Promise<string> {
   const {
     type,
     name,
@@ -891,12 +872,9 @@ async function generateMarkdownForBlock(
     longDescription,
     category,
     bgColor,
-    iconName,
     outputs = {},
     tools = { access: [] },
   } = blockConfig
-
-  const iconSvg = iconName && icons[iconName] ? icons[iconName] : null
 
   let outputsSection = ''
 
@@ -1063,8 +1041,6 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 <BlockInfoCard 
   type="${type}"
   color="${bgColor || '#F5F5F5'}"
-  icon={${iconSvg ? 'true' : 'false'}}
-  iconSvg={\`${iconSvg || ''}\`}
 />
 
 ${usageInstructions}
@@ -1080,12 +1056,13 @@ ${toolsSection}
 
 async function generateAllBlockDocs() {
   try {
-    const icons = extractIcons()
+    // Copy icons from sim app to docs app
+    copyIconsFile()
 
     const blockFiles = await glob(`${BLOCKS_PATH}/*.ts`)
 
     for (const blockFile of blockFiles) {
-      await generateBlockDoc(blockFile, icons)
+      await generateBlockDoc(blockFile)
     }
 
     updateMetaJson()
