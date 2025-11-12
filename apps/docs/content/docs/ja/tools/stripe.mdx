@@ -50,7 +50,7 @@ eコマース自動化、サブスクリプションサービスの構築、レ�
 | `description` | string | いいえ | 支払いの説明 |
 | `receipt_email` | string | いいえ | 領収書を送信するメールアドレス |
 | `metadata` | json | いいえ | 追加情報を保存するためのキーと値のペアのセット |
-| `automatic_payment_methods` | json | いいえ | 自動支払い方法を有効にする（例：{"enabled": true}） |
+| `automatic_payment_methods` | json | いいえ | 自動支払い方法を有効にする（例：`{"enabled": true}`) |
 
 #### 出力
 
@@ -168,7 +168,7 @@ Payment Intentをキャンセルする
 | `apiKey` | string | はい | Stripe APIキー（シークレットキー） |
 | `limit` | number | いいえ | 返す結果の数（デフォルト10、最大100） |
 | `customer` | string | いいえ | 顧客IDでフィルタリング |
-| `created` | json | いいえ | 作成日でフィルタリング（例：{"gt": 1633024800}） |
+| `created` | json | いいえ | 作成日でフィルタリング（例：`{"gt": 1633024800}`) |
 
 #### 出力
 
@@ -330,7 +330,7 @@ IDで既存の顧客を取得する
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | はい | Stripe APIキー（シークレットキー） |
 | `customer` | string | はい | サブスクリプションを作成する顧客ID |
-| `items` | json | はい | 価格IDを含むアイテムの配列（例：[{"price": "price_xxx", "quantity": 1}]） |
+| `items` | json | はい | 価格IDを含むアイテムの配列（例：`[{"price": "price_xxx", "quantity": 1}]`） |
 | `trial_period_days` | number | いいえ | トライアル日数 |
 | `default_payment_method` | string | いいえ | 支払い方法ID |
 | `cancel_at_period_end` | boolean | いいえ | 期間終了時にサブスクリプションをキャンセルするかどうか |
@@ -745,7 +745,7 @@ IDで既存のチャージを取得する
 | `apiKey` | string | はい | Stripe APIキー（シークレットキー） |
 | `limit` | number | いいえ | 返す結果の数（デフォルト10、最大100） |
 | `customer` | string | いいえ | 顧客IDでフィルタリング |
-| `created` | json | いいえ | 作成日でフィルタリング（例：{"gt": 1633024800}） |
+| `created` | json | いいえ | 作成日でフィルタリング（例：`{"gt": 1633024800}`) |
 
 #### 出力
 
@@ -1022,7 +1022,7 @@ IDで既存のイベントを取得する
 | `apiKey` | string | はい | Stripe APIキー（シークレットキー） |
 | `limit` | number | いいえ | 返す結果の数（デフォルト10、最大100） |
 | `type` | string | いいえ | イベントタイプでフィルタリング（例：payment_intent.created） |
-| `created` | json | いいえ | 作成日でフィルタリング（例：{"gt": 1633024800}） |
+| `created` | json | いいえ | 作成日でフィルタリング（例：`{"gt": 1633024800}`) |
 
 #### 出力
 

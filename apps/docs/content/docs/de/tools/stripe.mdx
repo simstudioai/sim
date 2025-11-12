@@ -50,7 +50,7 @@ Eine neue Zahlungsabsicht (Payment Intent) erstellen, um eine Zahlung zu verarbe
 | `description` | string | Nein | Beschreibung der Zahlung |
 | `receipt_email` | string | Nein | E-Mail-Adresse für den Quittungsversand |
 | `metadata` | json | Nein | Satz von Schlüssel-Wert-Paaren zur Speicherung zusätzlicher Informationen |
-| `automatic_payment_methods` | json | Nein | Automatische Zahlungsmethoden aktivieren (z.B. {"enabled": true}) |
+| `automatic_payment_methods` | json | Nein | Automatische Zahlungsmethoden aktivieren (z.B. `{"enabled": true}`) |
 
 #### Ausgabe
 
@@ -168,7 +168,7 @@ Alle Payment Intents auflisten
 | `apiKey` | string | Ja | Stripe API-Schlüssel (Secret Key) |
 | `limit` | number | Nein | Anzahl der zurückzugebenden Ergebnisse (Standard 10, max. 100) |
 | `customer` | string | Nein | Nach Kunden-ID filtern |
-| `created` | json | Nein | Nach Erstellungsdatum filtern (z.B., {"gt": 1633024800}) |
+| `created` | json | Nein | Nach Erstellungsdatum filtern (z.B., `{"gt": 1633024800}`) |
 
 #### Ausgabe
 
@@ -745,7 +745,7 @@ Alle Belastungen auflisten
 | `apiKey` | string | Ja | Stripe API-Schlüssel (Secret Key) |
 | `limit` | number | Nein | Anzahl der zurückzugebenden Ergebnisse (Standard 10, max. 100) |
 | `customer` | string | Nein | Nach Kunden-ID filtern |
-| `created` | json | Nein | Nach Erstellungsdatum filtern (z.B., {"gt": 1633024800}) |
+| `created` | json | Nein | Nach Erstellungsdatum filtern (z.B., `{"gt": 1633024800}`) |
 
 #### Ausgabe
 
