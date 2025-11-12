@@ -1068,7 +1068,7 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
             <label htmlFor='emails' className='font-medium text-sm'>
               Email Addresses
             </label>
-            <div className='scrollbar-hide flex max-h-32 min-h-9 flex-wrap items-center gap-x-2 gap-y-1 overflow-y-auto rounded-[8px] border px-2 py-1 focus-within:outline-none focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 focus-within:ring-offset-background'>
+            <div className='scrollbar-hide flex max-h-32 min-h-9 flex-wrap items-center gap-x-2 gap-y-1 overflow-y-auto rounded-[8px] border border-input bg-background px-2 py-1 focus-within:outline-none focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2'>
               {invalidEmails.map((email, index) => (
                 <EmailTag
                   key={`invalid-${index}`}
@@ -1102,7 +1102,7 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
                       : 'Enter emails'
                 }
                 className={cn(
-                  'h-6 min-w-[180px] flex-1 border-none focus-visible:ring-0 focus-visible:ring-offset-0',
+                  'h-6 min-w-[180px] flex-1 border-none bg-transparent p-0 focus-visible:ring-0 focus-visible:ring-offset-0',
                   emails.length > 0 || invalidEmails.length > 0 ? 'pl-1' : 'pl-1'
                 )}
                 autoFocus={userPerms.canAdmin}

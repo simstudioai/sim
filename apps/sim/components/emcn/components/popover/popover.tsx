@@ -139,7 +139,7 @@ const Popover: React.FC<PopoverProps> = ({ children, variant = 'default', ...pro
     (id: string, title: string, onLoad?: () => void | Promise<void>, onSelect?: () => void) => {
       setCurrentFolder(id)
       setFolderTitle(title)
-      setOnFolderSelect(onSelect ?? null)
+      setOnFolderSelect(() => onSelect ?? null)
       if (onLoad) {
         void Promise.resolve(onLoad())
       }
