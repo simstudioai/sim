@@ -90,10 +90,16 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
       onOpenChange(true)
     }
 
+    const handleCloseSettings = () => {
+      onOpenChange(false)
+    }
+
     window.addEventListener('open-settings', handleOpenSettings as EventListener)
+    window.addEventListener('close-settings', handleCloseSettings as EventListener)
 
     return () => {
       window.removeEventListener('open-settings', handleOpenSettings as EventListener)
+      window.removeEventListener('close-settings', handleCloseSettings as EventListener)
     }
   }, [onOpenChange])
 

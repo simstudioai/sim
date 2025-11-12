@@ -445,6 +445,23 @@ export function DeployModal({
     }
   }, [open, selectedStreamingOutputs, setSelectedStreamingOutputs])
 
+  // Listen for event to reopen deploy modal
+  useEffect(() => {
+    const handleOpenDeployModal = (event: Event) => {
+      const customEvent = event as CustomEvent<{ tab?: TabView }>
+      onOpenChange(true)
+      if (customEvent.detail?.tab) {
+        setActiveTab(customEvent.detail.tab)
+      }
+    }
+
+    window.addEventListener('open-deploy-modal', handleOpenDeployModal)
+
+    return () => {
+      window.removeEventListener('open-deploy-modal', handleOpenDeployModal)
+    }
+  }, [onOpenChange])
+
   const handleActivateVersion = (version: number) => {
     setVersionToActivate(version)
     setActiveTab('api')
