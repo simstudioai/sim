@@ -12,8 +12,8 @@ The Start block is the default trigger for workflows built in Sim. It collects s
   <Image
     src="/static/start.png"
     alt="Start block with Input Format fields"
-    width={360}
-    height={380}
+    width={500}
+    height={400}
     className="my-6"
   />
 </div>
@@ -46,38 +46,23 @@ Reference structured values downstream with expressions such as <code>&lt;start.
 
 <Tabs items={['Editor run', 'Deploy to API', 'Deploy to chat']}>
   <Tab>
-    <div className="space-y-3">
-      <p>
-        When you click <strong>Run</strong> in the editor, the Start block renders the Input Format as a form. Default values make it easy to retest without retyping data. Submitting the form triggers the workflow immediately and the values become available on <code>&lt;start.fieldName&gt;</code> (for example <code>&lt;start.sampleField&gt;</code>).
-      </p>
-      <p>
-        File fields in the form upload directly into the corresponding{' '}
-        <code>&lt;start.fieldName&gt;</code>; use those values to feed downstream
-        tools or storage steps.
-      </p>
-    </div>
+    When you click <strong>Run</strong> in the editor, the Start block renders the Input Format as a form. Default values make it easy to retest without retyping data. Submitting the form triggers the workflow immediately and the values become available on <code>&lt;start.fieldName&gt;</code> (for example <code>&lt;start.sampleField&gt;</code>).
+
+    File fields in the form upload directly into the corresponding{' '}
+    <code>&lt;start.fieldName&gt;</code>; use those values to feed downstream
+    tools or storage steps.
   </Tab>
   <Tab>
-    <div className="space-y-3">
-      <p>
-        Deploying to API turns the Input Format into a JSON contract for clients. Each field becomes part of the request body, and Sim coerces primitive types on ingestion. File fields expect objects that reference uploaded files; use the execution file upload endpoint before invoking the workflow.
-      </p>
-      <p>
-        API callers can include additional optional properties. They are preserved
-        inside <code>&lt;start.fieldName&gt;</code> outputs so you can experiment
-        without redeploying immediately.
-      </p>
-    </div>
+    Deploying to API turns the Input Format into a JSON contract for clients. Each field becomes part of the request body, and Sim coerces primitive types on ingestion. File fields expect objects that reference uploaded files; use the execution file upload endpoint before invoking the workflow.
+
+    API callers can include additional optional properties. They are preserved
+    inside <code>&lt;start.fieldName&gt;</code> outputs so you can experiment
+    without redeploying immediately.
   </Tab>
   <Tab>
-    <div className="space-y-3">
-      <p>
-        In chat deployments the Start block binds to the active conversation. The latest message fills <code>&lt;start.input&gt;</code>, the session identifier is available at <code>&lt;start.conversationId&gt;</code>, and user attachments appear on <code>&lt;start.files&gt;</code>, alongside any Input Format fields scoped as <code>&lt;start.fieldName&gt;</code>.
-      </p>
-      <p>
-        If you launch chat with additional structured context (for example from an embed), it merges into the corresponding <code>&lt;start.fieldName&gt;</code> outputs, keeping downstream blocks consistent with API and manual runs.
-      </p>
-    </div>
+    In chat deployments the Start block binds to the active conversation. The latest message fills <code>&lt;start.input&gt;</code>, the session identifier is available at <code>&lt;start.conversationId&gt;</code>, and user attachments appear on <code>&lt;start.files&gt;</code>, alongside any Input Format fields scoped as <code>&lt;start.fieldName&gt;</code>.
+
+    If you launch chat with additional structured context (for example from an embed), it merges into the corresponding <code>&lt;start.fieldName&gt;</code> outputs, keeping downstream blocks consistent with API and manual runs.
   </Tab>
 </Tabs>
 
