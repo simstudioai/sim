@@ -724,12 +724,22 @@ export function TeamsMessageSelector({
   // Restore selection whenever the canonical value changes
   useEffect(() => {
     if (value && selectedCredentialId) {
-      if (selectionType === 'team') {
-        restoreTeamSelection(value)
-      } else if (selectionType === 'chat') {
-        restoreChatSelection(value)
-      } else if (selectionType === 'channel') {
-        restoreChannelSelection(value)
+      // Only restore if we don't already have the selection populated
+      const needsRestore =
+        !selectedMessage ||
+        selectedMessage.id !== value ||
+        (selectionType === 'chat' && selectedMessage.chatId !== value) ||
+        (selectionType === 'channel' && selectedMessage.channelId !== value) ||
+        (selectionType === 'team' && selectedMessage.teamId !== value)
+
+      if (needsRestore) {
+        if (selectionType === 'team') {
+          restoreTeamSelection(value)
+        } else if (selectionType === 'chat') {
+          restoreChatSelection(value)
+        } else if (selectionType === 'channel') {
+          restoreChannelSelection(value)
+        }
       }
     } else {
       setSelectedMessage(null)
@@ -738,6 +748,7 @@ export function TeamsMessageSelector({
     value,
     selectedCredentialId,
     selectionType,
+    selectedMessage,
     restoreTeamSelection,
     restoreChatSelection,
     restoreChannelSelection,
