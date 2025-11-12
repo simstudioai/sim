@@ -6,6 +6,7 @@ import {
 } from '@/lib/copilot/tools/client/base-tool'
 import { ExecuteResponseSuccessSchema } from '@/lib/copilot/tools/shared/schemas'
 import { createLogger } from '@/lib/logs/console/logger'
+import { sanitizeForCopilot } from '@/lib/workflows/json-sanitizer'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { mergeSubblockState } from '@/stores/workflows/utils'
@@ -28,9 +29,66 @@ export class EditWorkflowClientTool extends BaseClientTool {
   private lastResult: any | undefined
   private hasExecuted = false
   private hasAppliedDiff = false
+  private workflowId: string | undefined
 
   constructor(toolCallId: string) {
     super(toolCallId, EditWorkflowClientTool.id, EditWorkflowClientTool.metadata)
+  }
+
+  /**
+   * Get sanitized workflow JSON from a workflow state, merge subblocks, and sanitize for copilot
+   * This matches what get_user_workflow returns
+   */
+  private getSanitizedWorkflowJson(workflowState: any): string | undefined {
+    const logger = createLogger('EditWorkflowClientTool')
+    
+    if (!this.workflowId) {
+      logger.warn('No workflowId available for getting sanitized workflow JSON')
+      return undefined
+    }
+
+    if (!workflowState) {
+      logger.warn('No workflow state provided')
+      return undefined
+    }
+
+    try {
+      // Normalize required properties
+      if (!workflowState.loops) workflowState.loops = {}
+      if (!workflowState.parallels) workflowState.parallels = {}
+      if (!workflowState.edges) workflowState.edges = []
+      if (!workflowState.blocks) workflowState.blocks = {}
+
+      // Merge latest subblock values so edits are reflected
+      let mergedState = workflowState
+      if (workflowState.blocks) {
+        mergedState = {
+          ...workflowState,
+          blocks: mergeSubblockState(workflowState.blocks, this.workflowId as any),
+        }
+        logger.info('Merged subblock values into workflow state', {
+          workflowId: this.workflowId,
+          blockCount: Object.keys(mergedState.blocks || {}).length,
+        })
+      }
+
+      // Sanitize workflow state for copilot (remove UI-specific data)
+      const sanitizedState = sanitizeForCopilot(mergedState)
+
+      // Convert to JSON string for transport
+      const workflowJson = JSON.stringify(sanitizedState, null, 2)
+      logger.info('Successfully created sanitized workflow JSON', {
+        workflowId: this.workflowId,
+        jsonLength: workflowJson.length,
+      })
+
+      return workflowJson
+    } catch (error) {
+      logger.error('Failed to get sanitized workflow JSON', {
+        error: error instanceof Error ? error.message : String(error),
+      })
+      return undefined
+    }
   }
 
   static readonly metadata: BaseClientToolMetadata = {
@@ -54,7 +112,15 @@ export class EditWorkflowClientTool extends BaseClientTool {
       hasResult: this.lastResult !== undefined,
     })
     this.setState(ClientToolCallState.success)
-    await this.markToolComplete(200, 'Workflow edits accepted', this.lastResult)
+
+    // Get the workflow state that was applied, merge subblocks, and sanitize
+    // This matches what get_user_workflow would return
+    const workflowJson = this.lastResult?.workflowState
+      ? this.getSanitizedWorkflowJson(this.lastResult.workflowState)
+      : undefined
+    const sanitizedData = workflowJson ? { workflowJson } : undefined
+
+    await this.markToolComplete(200, 'Workflow edits accepted', sanitizedData)
     this.setState(ClientToolCallState.success)
   }
 
@@ -87,6 +153,9 @@ export class EditWorkflowClientTool extends BaseClientTool {
         await this.markToolComplete(400, 'No active workflow found')
         return
       }
+
+      // Store workflowId for later use
+      this.workflowId = workflowId
 
       // Validate operations
       const operations = args?.operations || []
@@ -201,8 +270,15 @@ export class EditWorkflowClientTool extends BaseClientTool {
         throw new Error('No workflow state returned from server')
       }
 
+      // Get the workflow state that was just applied, merge subblocks, and sanitize
+      // This matches what get_user_workflow would return (the true state after edits were applied)
+      const workflowJson = result.workflowState
+        ? this.getSanitizedWorkflowJson(result.workflowState)
+        : undefined
+      const sanitizedData = workflowJson ? { workflowJson } : undefined
+
       // Mark complete early to unblock LLM stream
-      await this.markToolComplete(200, 'Workflow diff ready for review', result)
+      await this.markToolComplete(200, 'Workflow diff ready for review', sanitizedData)
 
       // Move into review state
       this.setState(ClientToolCallState.review, { result })
