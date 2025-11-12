@@ -201,6 +201,39 @@ const getRunIdColor = (
 }
 
 /**
+ * Determines if a keyboard event originated from a text-editable element.
+ *
+ * Treats native inputs, textareas, contenteditable elements, and elements with
+ * textbox-like roles as editable. If the event target or any of its ancestors
+ * match these criteria, we consider it editable and skip global key handlers.
+ *
+ * @param e - Keyboard event to inspect
+ * @returns True if the event is from an editable context, false otherwise
+ */
+const isEventFromEditableElement = (e: KeyboardEvent): boolean => {
+  const target = e.target as HTMLElement | null
+  if (!target) return false
+
+  const isEditable = (el: HTMLElement | null): boolean => {
+    if (!el) return false
+    if (el instanceof HTMLInputElement) return true
+    if (el instanceof HTMLTextAreaElement) return true
+    if ((el as HTMLElement).isContentEditable) return true
+    const role = el.getAttribute('role')
+    if (role === 'textbox' || role === 'combobox') return true
+    return false
+  }
+
+  // Check target and walk up ancestors in case editors render nested elements
+  let el: HTMLElement | null = target
+  while (el) {
+    if (isEditable(el)) return true
+    el = el.parentElement
+  }
+  return false
+}
+
+/**
  * Terminal component with resizable height that persists across page refreshes.
  *
  * Uses a CSS-based approach to prevent hydration mismatches:
@@ -493,6 +526,9 @@ export function Terminal() {
    */
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Ignore when typing/navigating inside editable inputs/editors
+      if (isEventFromEditableElement(e)) return
+
       if (!selectedEntry || filteredEntries.length === 0) return
 
       // Only handle arrow keys
@@ -523,6 +559,9 @@ export function Terminal() {
    */
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Ignore when typing/navigating inside editable inputs/editors
+      if (isEventFromEditableElement(e)) return
+
       if (!selectedEntry) return
 
       // Only handle left/right arrow keys
