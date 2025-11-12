@@ -837,7 +837,7 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
       {/* Workflow preview */}
       <div className='flex-1 p-6'>
         <div className='mx-auto max-w-7xl'>
-          <h2 className='mb-4 font-semibold text-lg text-[#0D0D0D] dark:text-[#F0F0F0]'>
+          <h2 className='mb-4 font-semibold text-[#0D0D0D] text-lg dark:text-[#F0F0F0]'>
             Workflow Preview
           </h2>
           <div className='h-[600px] w-full'>{renderWorkflowPreview()}</div>
@@ -845,7 +845,7 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
           {Array.isArray(template.requiredCredentials) &&
             template.requiredCredentials.length > 0 && (
               <div className='mt-8 border-t pt-8'>
-                <h3 className='mb-4 font-semibold text-base text-[#0D0D0D] dark:text-[#F0F0F0]'>
+                <h3 className='mb-4 font-semibold text-[#0D0D0D] text-base dark:text-[#F0F0F0]'>
                   Credentials Needed
                 </h3>
                 <ul className='ml-5 list-disc space-y-1.5 text-[#707070] text-sm leading-[1.4rem] dark:text-[#E8E8E8]'>
@@ -867,7 +867,7 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
           {/* About this Workflow */}
           {template.details?.about && (
             <div className='mt-8 border-t pt-8'>
-              <h3 className='mb-4 font-semibold text-base text-[#0D0D0D] dark:text-[#F0F0F0]'>
+              <h3 className='mb-4 font-semibold text-[#0D0D0D] text-base dark:text-[#F0F0F0]'>
                 About this Workflow
               </h3>
               <div className='max-w-none space-y-2'>
@@ -915,7 +915,7 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
                           {children}
                         </code>
                       ) : (
-                        <code className='my-2 block overflow-x-auto rounded-md bg-[#F5F5F5] p-3 font-mono text-xs text-[#0D0D0D] dark:bg-[#1A1A1A] dark:text-[#E5E5E5]'>
+                        <code className='my-2 block overflow-x-auto rounded-md bg-[#F5F5F5] p-3 font-mono text-[#0D0D0D] text-xs dark:bg-[#1A1A1A] dark:text-[#E5E5E5]'>
                           {children}
                         </code>
                       ),
@@ -948,7 +948,7 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
           {/* Creator Profile */}
           {template.creator && (
             <div className='mt-8 border-t pt-8'>
-              <h3 className='mb-4 font-semibold text-base text-[#0D0D0D] dark:text-[#F0F0F0]'>
+              <h3 className='mb-4 font-semibold text-[#0D0D0D] text-base dark:text-[#F0F0F0]'>
                 About the Creator
               </h3>
               <div className='flex items-start gap-4'>
@@ -970,7 +970,7 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
                 </div>
 
                 {/* Creator Info */}
-                <div className='flex-1 min-w-0'>
+                <div className='min-w-0 flex-1'>
                   <h4 className='font-semibold text-[#0D0D0D] dark:text-[#F0F0F0]'>
                     {template.creator.name}
                   </h4>
