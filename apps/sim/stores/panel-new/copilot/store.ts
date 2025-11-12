@@ -328,6 +328,12 @@ function normalizeMessagesForUI(messages: CopilotMessage[]): CopilotMessage[] {
                 },
               }
             }
+            if (b?.type === TEXT_BLOCK_TYPE && typeof b.content === 'string') {
+              return {
+                ...b,
+                content: stripTodoTags(b.content),
+              }
+            }
             return b
           })
         : []
@@ -366,13 +372,20 @@ function normalizeMessagesForUI(messages: CopilotMessage[]): CopilotMessage[] {
           })
         : (message as any).toolCalls
 
+      const sanitizedContent = stripTodoTags(message.content || '')
+
       return {
         ...message,
+        content: sanitizedContent,
         ...(updatedToolCalls && { toolCalls: updatedToolCalls }),
         ...(blocks.length > 0
           ? { contentBlocks: blocks }
-          : message.content?.trim()
-            ? { contentBlocks: [{ type: 'text', content: message.content, timestamp: Date.now() }] }
+          : sanitizedContent.trim()
+            ? {
+                contentBlocks: [
+                  { type: TEXT_BLOCK_TYPE, content: sanitizedContent, timestamp: Date.now() },
+                ],
+              }
             : {}),
       }
     })
@@ -487,6 +500,15 @@ function createErrorMessage(messageId: string, content: string): CopilotMessage 
   }
 }
 
+function stripTodoTags(text: string): string {
+  if (!text) return text
+  return text
+    .replace(/<marktodo>[\s\S]*?<\/marktodo>/g, '')
+    .replace(/<checkofftodo>[\s\S]*?<\/checkofftodo>/g, '')
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/\n{2,}/g, '\n')
+}
+
 function validateMessagesForLLM(messages: CopilotMessage[]): any[] {
   return messages
     .map((msg) => {
@@ -502,11 +524,7 @@ function validateMessagesForLLM(messages: CopilotMessage[]): any[] {
 
       // Strip thinking tags and todo tags from content
       if (content) {
-        content = content
-          .replace(/<thinking>[\s\S]*?<\/thinking>/g, '')
-          .replace(/<marktodo>[\s\S]*?<\/marktodo>/g, '')
-          .replace(/<checkofftodo>[\s\S]*?<\/checkofftodo>/g, '')
-          .trim()
+        content = stripTodoTags(content.replace(/<thinking>[\s\S]*?<\/thinking>/g, '')).trim()
       }
 
       return {
@@ -1051,25 +1069,17 @@ const sseHandlers: Record<string, SSEHandler> = {
             : -1
 
         if (nextTagIndex >= 0) {
-          if (nextTagIndex > 0) {
-            const textBeforeTag = contentToProcess.substring(0, nextTagIndex)
-            appendTextToContent(textBeforeTag)
-            contentToProcess = contentToProcess.substring(nextTagIndex)
-            hasProcessedContent = true
-            continue
-          }
-
-          const isMarkTodo = hasMark && nextMarkIndex === 0
+          const isMarkTodo = hasMark && (nextMarkIndex === nextTagIndex)
           const tagStart = isMarkTodo ? '<marktodo>' : '<checkofftodo>'
           const tagEnd = isMarkTodo ? '</marktodo>' : '</checkofftodo>'
-          const closingIndex = contentToProcess.indexOf(tagEnd, tagStart.length)
+          const closingIndex = contentToProcess.indexOf(tagEnd, nextTagIndex + tagStart.length)
 
           if (closingIndex === -1) {
             // Partial tag; wait for additional content
             break
           }
 
-          const todoId = contentToProcess.substring(tagStart.length, closingIndex).trim()
+          const todoId = contentToProcess.substring(nextTagIndex + tagStart.length, closingIndex).trim()
           logger.info(
             isMarkTodo ? '[TODO] Detected marktodo tag' : '[TODO] Detected checkofftodo tag',
             { todoId }
@@ -1096,7 +1106,20 @@ const sseHandlers: Record<string, SSEHandler> = {
             logger.warn('[TODO] Empty todoId extracted from todo tag', { tagType: tagStart })
           }
 
-          contentToProcess = contentToProcess.substring(closingIndex + tagEnd.length)
+          // Remove the tag AND newlines around it, but preserve ONE newline if both sides had them
+          let beforeTag = contentToProcess.substring(0, nextTagIndex)
+          let afterTag = contentToProcess.substring(closingIndex + tagEnd.length)
+          
+          const hadNewlineBefore = /(\r?\n)+$/.test(beforeTag)
+          const hadNewlineAfter = /^(\r?\n)+/.test(afterTag)
+          
+          // Strip trailing newlines before the tag
+          beforeTag = beforeTag.replace(/(\r?\n)+$/, '')
+          // Strip leading newlines after the tag
+          afterTag = afterTag.replace(/^(\r?\n)+/, '')
+          
+          // If there were newlines on both sides, add back ONE to preserve paragraph breaks
+          contentToProcess = beforeTag + (hadNewlineBefore && hadNewlineAfter ? '\n' : '') + afterTag
           context.currentTextBlock = null
           hasProcessedContent = true
           continue
@@ -2271,6 +2294,16 @@ export const useCopilotStore = create<CopilotStore>()(
         }
         streamingUpdateQueue.clear()
 
+        let sanitizedContentBlocks: any[] = []
+        if (context.contentBlocks && context.contentBlocks.length > 0) {
+          const optimizedBlocks = createOptimizedContentBlocks(context.contentBlocks)
+          sanitizedContentBlocks = optimizedBlocks.map((block: any) =>
+            block.type === TEXT_BLOCK_TYPE && typeof block.content === 'string'
+              ? { ...block, content: stripTodoTags(block.content) }
+              : block
+          )
+        }
+
         if (context.contentBlocks) {
           context.contentBlocks.forEach((block) => {
             if (block.type === TEXT_BLOCK_TYPE || block.type === THINKING_BLOCK_TYPE) {
@@ -2279,14 +2312,14 @@ export const useCopilotStore = create<CopilotStore>()(
           })
         }
 
-        const finalContent = context.accumulatedContent.toString()
+        const finalContent = stripTodoTags(context.accumulatedContent.toString())
         set((state) => ({
           messages: state.messages.map((msg) =>
             msg.id === assistantMessageId
               ? {
                   ...msg,
                   content: finalContent,
-                  contentBlocks: context.contentBlocks,
+                  contentBlocks: sanitizedContentBlocks,
                 }
               : msg
           ),
