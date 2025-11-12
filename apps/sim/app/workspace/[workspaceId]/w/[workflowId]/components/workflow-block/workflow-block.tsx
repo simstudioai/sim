@@ -16,6 +16,7 @@ import { SELECTOR_TYPES_HYDRATION_REQUIRED, type SubBlockConfig } from '@/blocks
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { useCredentialDisplay } from '@/hooks/use-credential-display'
 import { useDisplayName } from '@/hooks/use-display-name'
+import { useVariablesStore } from '@/stores/panel/variables/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { ActionBar, Connections } from './components'
@@ -78,10 +79,45 @@ const isPlainObject = (value: unknown): value is Record<string, unknown> => {
 }
 
 /**
+ * Type guard for variable assignments array
+ */
+const isVariableAssignmentsArray = (
+  value: unknown
+): value is Array<{ id?: string; variableId?: string; variableName?: string; value: any }> => {
+  return (
+    Array.isArray(value) &&
+    value.length > 0 &&
+    value.every(
+      (item) =>
+        typeof item === 'object' &&
+        item !== null &&
+        ('variableName' in item || 'variableId' in item)
+    )
+  )
+}
+
+/**
  * Formats a subblock value for display, intelligently handling nested objects and arrays.
  */
 const getDisplayValue = (value: unknown): string => {
   if (value == null || value === '') return '-'
+
+  if (isVariableAssignmentsArray(value)) {
+    const assignments = value.filter((a) => {
+      // Check if we have either a non-empty variableName or a variableId
+      const hasName = a.variableName && a.variableName.trim() !== ''
+      const hasId = a.variableId && a.variableId.trim() !== ''
+      return hasName || hasId
+    })
+    if (assignments.length === 0) return '-'
+
+    // Get display names for assignments
+    const names = assignments.map((a) => a.variableName || a.variableId || 'Unknown')
+
+    if (names.length === 1) return names[0]
+    if (names.length === 2) return `${names[0]}, ${names[1]}`
+    return `${names[0]}, ${names[1]} +${names.length - 2}`
+  }
 
   if (isTableRowArray(value)) {
     const nonEmptyRows = value.filter((row) => {
@@ -172,6 +208,7 @@ const SubBlockRow = ({
   subBlock,
   rawValue,
   workspaceId,
+  workflowId,
   allSubBlockValues,
 }: {
   title: string
@@ -179,6 +216,7 @@ const SubBlockRow = ({
   subBlock?: SubBlockConfig
   rawValue?: unknown
   workspaceId?: string
+  workflowId?: string
   allSubBlockValues?: Record<string, { value: unknown }>
 }) => {
   const getStringValue = useCallback(
@@ -235,11 +273,49 @@ const SubBlockRow = ({
     planId: getStringValue('planId'),
   })
 
+  // Special handling for variables-input to hydrate variable IDs to names from variables store
+  const variablesDisplayValue = useMemo(() => {
+    if (subBlock?.type !== 'variables-input' || !isVariableAssignmentsArray(rawValue)) {
+      return null
+    }
+
+    const assignments = rawValue.filter((a) => {
+      const hasName = a.variableName && a.variableName.trim() !== ''
+      const hasId = a.variableId && a.variableId.trim() !== ''
+      return hasName || hasId
+    })
+
+    if (assignments.length === 0) return null
+
+    // Get variables from the variables store
+    const allVariables = useVariablesStore.getState().variables
+    const workflowVariables = Object.values(allVariables).filter(
+      (v: any) => v.workflowId === workflowId
+    )
+
+    const names = assignments.map((a) => {
+      // Prefer variableName, then try to look up variableId in variables store
+      if (a.variableName && a.variableName.trim()) {
+        return a.variableName
+      }
+      if (a.variableId) {
+        const variable = workflowVariables.find((v: any) => v.id === a.variableId)
+        return variable?.name || a.variableId
+      }
+      return 'Unknown'
+    })
+
+    if (names.length === 1) return names[0]
+    if (names.length === 2) return `${names[0]}, ${names[1]}`
+    return `${names[0]}, ${names[1]} +${names.length - 2}`
+  }, [subBlock?.type, rawValue, workflowId])
+
   const isPasswordField = subBlock?.password === true
   const maskedValue = isPasswordField && value && value !== '-' ? '•••' : null
 
   const isSelectorType = subBlock?.type && SELECTOR_TYPES_HYDRATION_REQUIRED.includes(subBlock.type)
-  const hydratedName = credentialName || dropdownLabel || genericDisplayName
+  const hydratedName =
+    credentialName || dropdownLabel || variablesDisplayValue || genericDisplayName
   const displayValue = maskedValue || hydratedName || (isSelectorType && value ? '-' : value)
 
   return (
@@ -840,6 +916,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
                         subBlock={subBlock}
                         rawValue={rawValue}
                         workspaceId={workspaceId}
+                        workflowId={currentWorkflowId}
                         allSubBlockValues={subBlockState}
                       />
                     )
