@@ -13,8 +13,8 @@
   <a href="https://docs.sim.ai" target="_blank" rel="noopener noreferrer"><img src="https://img.shields.io/badge/Docs-6F3DFA.svg" alt="Documentation"></a>
 </p>
 
-### Build Workflows With Ease
-Design agent workflows visually in on a canvas—connect agents, tools, and blocks, then run them instantly.
+### Build Workflows with Ease
+Design agent workflows visually on a canvas—connect agents, tools, and blocks, then run them instantly.
 
 <p align="center">
   <img src="apps/sim/public/static/workflow.gif" alt="Workflow Builder Demo" width="800"/>
