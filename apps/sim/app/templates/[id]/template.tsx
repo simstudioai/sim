@@ -249,7 +249,7 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
         router.replace(`/templates/${template.id}`)
       }
     }
-  }, [searchParams, currentUserId, template, isWorkspaceContext, workspaceId])
+  }, [searchParams, currentUserId, template, isWorkspaceContext, workspaceId, router])
 
   // Check if user can edit template
   const canEditTemplate = (() => {
