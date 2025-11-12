@@ -1,9 +1,9 @@
 'use client'
 
 import { useState } from 'react'
-import { Download, Loader2 } from 'lucide-react'
+import { ArrowDown, Loader2 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
-import { Button } from '@/components/ui/button'
+import { Button } from '@/components/emcn'
 import { createLogger } from '@/lib/logs/console/logger'
 import { extractWorkspaceIdFromExecutionKey, getViewerUrl } from '@/lib/uploads/utils/file-utils'
 
@@ -96,7 +96,6 @@ export function FileDownload({
   return (
     <Button
       variant='ghost'
-      size='sm'
       className={`h-7 px-2 text-xs ${className}`}
       onClick={handleDownload}
       disabled={isDownloading}
@@ -104,7 +103,7 @@ export function FileDownload({
       {isDownloading ? (
         <Loader2 className='h-3 w-3 animate-spin' />
       ) : (
-        <Download className='h-3 w-3' />
+        <ArrowDown className='h-[14px] w-[14px]' />
       )}
       {isDownloading ? 'Downloading...' : 'Download'}
     </Button>

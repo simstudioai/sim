@@ -3,8 +3,7 @@
 import { useMemo, useState } from 'react'
 import { Check, ChevronDown, LibraryBig, Plus } from 'lucide-react'
 import { useParams } from 'next/navigation'
-import { Tooltip } from '@/components/emcn'
-import { Button } from '@/components/ui/button'
+import { Button, Tooltip } from '@/components/emcn'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -111,7 +110,7 @@ export function Knowledge() {
                     {/* Sort Dropdown */}
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button variant='outline' size='sm' className={filterButtonClass}>
+                        <Button variant='outline' className={filterButtonClass}>
                           {currentSortLabel}
                           <ChevronDown className='ml-2 h-4 w-4 text-muted-foreground' />
                         </Button>

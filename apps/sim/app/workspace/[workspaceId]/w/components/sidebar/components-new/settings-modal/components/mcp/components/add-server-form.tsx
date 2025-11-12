@@ -1,7 +1,7 @@
 'use client'
 
 import { Plus, X } from 'lucide-react'
-import { Button, Input, Label } from '@/components/ui'
+import { Button, Input, Label } from '@/components/emcn'
 import { EnvVarDropdown } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/components/sub-block/components/env-var-dropdown'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/components/sub-block/components/formatted-text'
 import type { McpServerFormData, McpServerTestResult } from '../types'
@@ -181,7 +181,6 @@ export function AddServerForm({
               <Button
                 type='button'
                 variant='ghost'
-                size='sm'
                 onClick={() => onRemoveHeader(key)}
                 className='h-9 w-9 p-0 text-muted-foreground hover:text-foreground'
               >
@@ -241,7 +240,6 @@ export function AddServerForm({
             <Button
               type='button'
               variant='outline'
-              size='sm'
               onClick={onAddHeader}
               className='h-9 text-muted-foreground hover:text-foreground'
             >
@@ -255,7 +253,9 @@ export function AddServerForm({
           <div className='space-y-1.5'>
             {/* Error message above buttons */}
             {testResult && !testResult.success && (
-              <p className='text-red-600 text-sm'>{testResult.error || testResult.message}</p>
+              <div className='text-[#DC2626] text-[12px] leading-tight dark:text-[#F87171]'>
+                {testResult.error || testResult.message}
+              </div>
             )}
 
             {/* Buttons row */}
@@ -263,26 +263,25 @@ export function AddServerForm({
               <div className='flex items-center gap-2'>
                 <Button
                   variant='ghost'
-                  size='sm'
                   onClick={onTestConnection}
                   disabled={isTestingConnection || !formData.name.trim() || !formData.url?.trim()}
-                  className='text-muted-foreground hover:text-foreground'
+                  className='h-9 text-muted-foreground hover:text-foreground'
                 >
                   {isTestingConnection ? 'Testing...' : 'Test Connection'}
                 </Button>
-                {testResult?.success && <span className='text-green-600 text-xs'>✓ Connected</span>}
+                {testResult?.success && (
+                  <span className='text-muted-foreground text-xs'>✓ Connected</span>
+                )}
               </div>
               <div className='flex items-center gap-2'>
                 <Button
                   variant='ghost'
-                  size='sm'
                   onClick={onCancel}
-                  className='text-muted-foreground hover:text-foreground'
+                  className='h-9 text-muted-foreground hover:text-foreground'
                 >
                   Cancel
                 </Button>
                 <Button
-                  size='sm'
                   onClick={onAddServer}
                   disabled={
                     serversLoading ||

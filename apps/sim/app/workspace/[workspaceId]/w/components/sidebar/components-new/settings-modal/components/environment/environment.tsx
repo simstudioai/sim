@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Plus, Search, Share2 } from 'lucide-react'
 import { useParams } from 'next/navigation'
-import { Tooltip } from '@/components/emcn'
+import { Button, Tooltip } from '@/components/emcn'
+import { Input, Skeleton } from '@/components/ui'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -14,9 +15,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Skeleton } from '@/components/ui/skeleton'
 import { createLogger } from '@/lib/logs/console/logger'
 import { useEnvironmentStore } from '@/stores/settings/environment/store'
 import type { EnvironmentVariable as StoreEnvironmentVariable } from '@/stores/settings/environment/types'
@@ -437,7 +435,6 @@ export function EnvironmentVariables({
               <Tooltip.Trigger asChild>
                 <Button
                   variant='ghost'
-                  size='icon'
                   disabled={!envVar.key || !envVar.value || isConflict || !workspaceId}
                   onClick={() => {
                     if (!envVar.key || !envVar.value || !workspaceId) return
@@ -458,7 +455,6 @@ export function EnvironmentVariables({
               <Tooltip.Trigger asChild>
                 <Button
                   variant='ghost'
-                  size='icon'
                   onClick={() => removeEnvVar(originalIndex)}
                   className='h-9 w-9 rounded-[8px] bg-muted p-0 text-muted-foreground hover:bg-muted/70'
                 >
@@ -532,7 +528,7 @@ export function EnvironmentVariables({
 
       {/* Scrollable Content */}
       <div ref={scrollContainerRef} className='min-h-0 flex-1 overflow-y-auto px-6'>
-        <div className='h-full space-y-2 py-2'>
+        <div className='space-y-2 pt-2 pb-6'>
           {isLoading || isWorkspaceLoading ? (
             <>
               {/* Show 3 skeleton rows */}
@@ -584,7 +580,6 @@ export function EnvironmentVariables({
                             <Tooltip.Trigger asChild>
                               <Button
                                 variant='ghost'
-                                size='icon'
                                 onClick={() => {
                                   setWorkspaceVars((prev) => {
                                     const next = { ...prev }
@@ -638,7 +633,6 @@ export function EnvironmentVariables({
                           <Tooltip.Trigger asChild>
                             <Button
                               variant='ghost'
-                              size='icon'
                               onClick={() => {
                                 setWorkspaceVars((prev) => {
                                   const next = { ...prev }

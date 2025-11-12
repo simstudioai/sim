@@ -1,7 +1,6 @@
 import type { ReactNode } from 'react'
 import { Loader2, RefreshCw, Search } from 'lucide-react'
-import { Tooltip } from '@/components/emcn'
-import { Button } from '@/components/ui/button'
+import { Button, Tooltip } from '@/components/emcn'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
 import { soehne } from '@/app/fonts/soehne/soehne'
@@ -49,7 +48,7 @@ export function Controls({
             placeholder='Search workflows...'
             value={searchQuery}
             onChange={(e) => setSearchQuery?.(e.target.value)}
-            className='h-9 w-full rounded-[11px] border-[#E5E5E5] bg-[var(--white)] pr-10 pl-9 dark:border-[#414141] dark:bg-[var(--surface-elevated)]'
+            className='h-9 w-full border-[#E5E5E5] bg-[var(--white)] pr-10 pl-9 dark:border-[#414141] dark:bg-[var(--surface-elevated)]'
           />
           {searchQuery && (
             <button
@@ -77,9 +76,8 @@ export function Controls({
           <Tooltip.Trigger asChild>
             <Button
               variant='ghost'
-              size='icon'
               onClick={resetToNow}
-              className='h-9 rounded-[11px] hover:bg-secondary'
+              className='h-9 w-9 p-0 hover:bg-secondary'
               disabled={isRefetching}
             >
               {isRefetching ? (
@@ -97,9 +95,8 @@ export function Controls({
           <Tooltip.Trigger asChild>
             <Button
               variant='ghost'
-              size='icon'
               onClick={onExport}
-              className='h-9 rounded-[11px] hover:bg-secondary'
+              className='h-9 w-9 p-0 hover:bg-secondary'
               aria-label='Export CSV'
             >
               <svg
@@ -123,7 +120,6 @@ export function Controls({
         <div className='inline-flex h-9 items-center rounded-[11px] border bg-card p-1 shadow-sm'>
           <Button
             variant='ghost'
-            size='sm'
             onClick={() => setLive((v) => !v)}
             className={cn(
               'h-7 rounded-[8px] px-3 font-normal text-xs',
@@ -140,7 +136,6 @@ export function Controls({
         <div className='inline-flex h-9 items-center rounded-[11px] border bg-card p-1 shadow-sm'>
           <Button
             variant='ghost'
-            size='sm'
             onClick={() => setViewMode('logs')}
             className={cn(
               'h-7 rounded-[8px] px-3 font-normal text-xs',
@@ -154,7 +149,6 @@ export function Controls({
           </Button>
           <Button
             variant='ghost'
-            size='sm'
             onClick={() => setViewMode('dashboard')}
             className={cn(
               'h-7 rounded-[8px] px-3 font-normal text-xs',

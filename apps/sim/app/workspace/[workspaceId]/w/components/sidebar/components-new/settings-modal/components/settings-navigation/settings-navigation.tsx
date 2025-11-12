@@ -114,7 +114,7 @@ const allNavigationItems: NavigationItem[] = [
   },
   {
     id: 'files',
-    label: 'File Uploads',
+    label: 'Files',
     icon: Files,
   },
   // {

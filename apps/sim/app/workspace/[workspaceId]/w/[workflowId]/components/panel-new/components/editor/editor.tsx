@@ -210,8 +210,9 @@ export function Editor() {
             />
           ) : (
             <h2
-              className='min-w-0 flex-1 truncate pr-[8px] font-medium text-[14px] text-[var(--white)] dark:text-[var(--white)]'
+              className='min-w-0 flex-1 cursor-pointer truncate pr-[8px] font-medium text-[14px] text-[var(--white)] dark:text-[var(--white)]'
               title={title}
+              onDoubleClick={handleStartRename}
             >
               {title}
             </h2>

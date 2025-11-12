@@ -7,7 +7,7 @@ import { Loader2, X } from 'lucide-react'
 import Image from 'next/image'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
-import { Button, Input, Modal, ModalContent } from '@/components/emcn'
+import { Button, Input, Modal, ModalContent, ModalTitle } from '@/components/emcn'
 import { Label } from '@/components/ui/label'
 import {
   Select,
@@ -355,9 +355,9 @@ export function HelpModal({ open, onOpenChange }: HelpModalProps) {
       <ModalContent className='flex h-[75vh] max-h-[75vh] w-full max-w-[700px] flex-col gap-0 p-0'>
         {/* Modal Header */}
         <div className='flex-shrink-0 px-6 py-5'>
-          <h2 className='font-medium text-[14px] text-[var(--text-primary)] dark:text-[var(--text-primary)]'>
+          <ModalTitle className='font-medium text-[14px] text-[var(--text-primary)] dark:text-[var(--text-primary)]'>
             Help & Support
-          </h2>
+          </ModalTitle>
         </div>
 
         {/* Modal Body */}

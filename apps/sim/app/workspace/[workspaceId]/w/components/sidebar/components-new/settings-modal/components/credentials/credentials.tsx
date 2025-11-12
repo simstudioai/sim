@@ -3,10 +3,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { Check, ChevronDown, ExternalLink, Search } from 'lucide-react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Skeleton } from '@/components/ui/skeleton'
+import { Button } from '@/components/emcn'
+import { Input, Label, Skeleton } from '@/components/ui'
 import { client, useSession } from '@/lib/auth-client'
 import { createLogger } from '@/lib/logs/console/logger'
 import { OAUTH_PROVIDERS, type OAuthServiceConfig } from '@/lib/oauth/oauth'
@@ -386,7 +384,6 @@ export function Credentials({ onOpenChange, registerCloseHandler }: CredentialsP
                 </p>
                 <Button
                   variant='outline'
-                  size='sm'
                   onClick={scrollToHighlightedService}
                   className='mt-3 flex h-8 items-center gap-1.5 self-start border-primary/20 px-3 font-medium text-muted-foreground text-sm transition-colors hover:border-primary hover:bg-primary/10 hover:text-muted-foreground'
                 >
@@ -462,7 +459,6 @@ export function Credentials({ onOpenChange, registerCloseHandler }: CredentialsP
                       {service.accounts && service.accounts.length > 0 ? (
                         <Button
                           variant='ghost'
-                          size='sm'
                           onClick={() => handleDisconnect(service, service.accounts![0].id)}
                           disabled={isConnecting === `${service.id}-${service.accounts![0].id}`}
                           className={cn(
@@ -476,7 +472,6 @@ export function Credentials({ onOpenChange, registerCloseHandler }: CredentialsP
                       ) : (
                         <Button
                           variant='outline'
-                          size='sm'
                           onClick={() => handleConnect(service)}
                           disabled={isConnecting === service.id}
                           className={cn('h-8', isConnecting === service.id && 'cursor-not-allowed')}
