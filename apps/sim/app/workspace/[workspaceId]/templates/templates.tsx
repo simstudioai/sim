@@ -1,8 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Layout, Search } from 'lucide-react'
-import { Button, Input } from '@/components/emcn'
+import { Button } from '@/components/emcn'
+import { Input } from '@/components/ui/input'
 import { createLogger } from '@/lib/logs/console/logger'
 import {
   TemplateCard,
@@ -86,8 +87,9 @@ export default function Templates({
 
   /**
    * Filter templates based on active tab and search query
+   * Memoized to prevent unnecessary recalculations on render
    */
-  const getFilteredTemplates = () => {
+  const filteredTemplates = useMemo(() => {
     const query = searchQuery.toLowerCase()
 
     return templates.filter((template) => {
@@ -117,14 +119,13 @@ export default function Templates({
 
       return searchableText.includes(query)
     })
-  }
-
-  const filteredTemplates = getFilteredTemplates()
+  }, [templates, activeTab, searchQuery, currentUserId])
 
   /**
    * Get empty state message based on current filters
+   * Memoized to prevent unnecessary recalculations on render
    */
-  const getEmptyStateMessage = () => {
+  const emptyState = useMemo(() => {
     if (searchQuery) {
       return {
         title: 'No templates found',
@@ -148,9 +149,7 @@ export default function Templates({
     }
 
     return messages[activeTab as keyof typeof messages] || messages.gallery
-  }
-
-  const emptyState = getEmptyStateMessage()
+  }, [searchQuery, activeTab])
 
   return (
     <div className='flex h-[100vh] flex-col pl-64'>
@@ -158,12 +157,12 @@ export default function Templates({
         <div className='flex flex-1 flex-col overflow-auto px-[24px] pt-[24px] pb-[24px]'>
           <div>
             <div className='flex items-start gap-[12px]'>
-              <div className='flex h-[26px] w-[26px] items-center justify-center rounded-[6px] border border-[var(--brand-warning-border)] bg-[var(--brand-warning-bg)]'>
-                <Layout className='h-[14px] w-[14px] text-[var(--brand-warning)]' />
+              <div className='flex h-[26px] w-[26px] items-center justify-center rounded-[6px] border border-[#7A5F11] bg-[#514215]'>
+                <Layout className='h-[14px] w-[14px] text-[#FBBC04]' />
               </div>
               <h1 className='font-medium text-[18px]'>Templates</h1>
             </div>
-            <p className='mt-[10px] font-base text-[14px] text-[var(--text-tertiary)]'>
+            <p className='mt-[10px] font-base text-[#888888] text-[14px]'>
               Grab a template and start building, or make one from scratch.
             </p>
           </div>
@@ -213,19 +212,16 @@ export default function Templates({
                 <TemplateCardSkeleton key={`skeleton-${index}`} />
               ))
             ) : filteredTemplates.length === 0 ? (
-              <div className='col-span-full flex h-64 items-center justify-center rounded-lg border border-[var(--border)] border-dashed bg-[var(--surface-3)]'>
+              <div className='col-span-full flex h-64 items-center justify-center rounded-lg border border-muted-foreground/25 border-dashed bg-muted/20'>
                 <div className='text-center'>
-                  <p className='font-medium text-[var(--text-secondary)] text-sm'>
-                    {emptyState.title}
-                  </p>
-                  <p className='mt-1 text-[var(--text-tertiary)] text-xs'>
-                    {emptyState.description}
-                  </p>
+                  <p className='font-medium text-muted-foreground text-sm'>{emptyState.title}</p>
+                  <p className='mt-1 text-muted-foreground/70 text-xs'>{emptyState.description}</p>
                 </div>
               </div>
             ) : (
               filteredTemplates.map((template) => {
                 const author = template.author || template.creator?.name || 'Unknown'
+                const authorImageUrl = template.creator?.profileImageUrl || null
 
                 return (
                   <TemplateCard
@@ -234,6 +230,7 @@ export default function Templates({
                     title={template.name}
                     description={template.description || template.details?.tagline || ''}
                     author={author}
+                    authorImageUrl={authorImageUrl}
                     usageCount={template.views.toString()}
                     stars={template.stars}
                     icon={template.icon}

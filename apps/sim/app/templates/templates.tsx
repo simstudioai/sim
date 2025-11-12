@@ -120,6 +120,7 @@ export default function Templates({
       title={template.name}
       description={template.details?.tagline || ''}
       author={template.creator?.name || 'Unknown'}
+      authorImageUrl={template.creator?.profileImageUrl || null}
       usageCount={template.views.toString()}
       stars={template.stars}
       tags={template.tags}
