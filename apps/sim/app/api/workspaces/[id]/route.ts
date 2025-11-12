@@ -13,7 +13,7 @@ import { getUserEntityPermissions } from '@/lib/permissions/utils'
 
 const patchWorkspaceSchema = z.object({
   name: z.string().trim().min(1).optional(),
-  billedAccountUserId: z.string().uuid().optional(),
+  billedAccountUserId: z.string().optional(),
   allowPersonalApiKeys: z.boolean().optional(),
 })
 
