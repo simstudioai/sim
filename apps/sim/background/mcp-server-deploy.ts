@@ -168,17 +168,26 @@ async function runDeployment(payload: McpServerDeployPayload) {
   } catch (error) {
     logger.error(`Hosted MCP deployment ${deployment.id} failed`, error)
 
+    const errorMessage =
+      error instanceof Error ? error.message : 'Deployment failed unexpectedly'
+
     await db
       .update(mcpServerVersion)
-      .set({ status: 'failed', updatedAt: new Date() })
+      .set({
+        status: 'failed',
+        runtimeMetadata: {
+          ...((version.runtimeMetadata as Record<string, any>) ?? {}),
+          lastError: errorMessage,
+        },
+        updatedAt: new Date(),
+      })
       .where(eq(mcpServerVersion.id, version.id))
 
     await db
       .update(mcpServerDeployment)
       .set({
         status: 'failed',
-        logsUrl:
-          error instanceof Error ? error.message.slice(0, 500) : 'Deployment failed unexpectedly',
+        logsUrl: deployment.logsUrl ?? null,
         updatedAt: new Date(),
       })
       .where(eq(mcpServerDeployment.id, deployment.id))
