@@ -55,6 +55,8 @@ export const ActionBar = memo(
     const userPermissions = useUserPermissionsContext()
 
     const isStarterBlock = blockType === 'starter'
+    // Check for start_trigger (unified start block) - prevent duplication but allow deletion
+    const isStartBlock = blockType === 'starter' || blockType === 'start_trigger'
 
     /**
      * Get appropriate tooltip message based on disabled state
@@ -103,7 +105,7 @@ export const ActionBar = memo(
           </Tooltip.Content>
         </Tooltip.Root>
 
-        {!isStarterBlock && (
+        {!isStartBlock && (
           <Tooltip.Root>
             <Tooltip.Trigger asChild>
               <Button
@@ -124,7 +126,7 @@ export const ActionBar = memo(
           </Tooltip.Root>
         )}
 
-        {!isStarterBlock && parentId && (parentType === 'loop' || parentType === 'parallel') && (
+        {!isStartBlock && parentId && (parentType === 'loop' || parentType === 'parallel') && (
           <Tooltip.Root>
             <Tooltip.Trigger asChild>
               <Button
@@ -174,26 +176,24 @@ export const ActionBar = memo(
           </Tooltip.Content>
         </Tooltip.Root>
 
-        {!isStarterBlock && (
-          <Tooltip.Root>
-            <Tooltip.Trigger asChild>
-              <Button
-                variant='ghost'
-                onClick={(e) => {
-                  e.stopPropagation()
-                  if (!disabled) {
-                    collaborativeRemoveBlock(blockId)
-                  }
-                }}
-                className='h-[30px] w-[30px] rounded-[8px] bg-[#363636] p-0 text-[#868686] hover:bg-[#33B4FF] hover:text-[#1B1B1B] dark:text-[#868686] dark:hover:bg-[#33B4FF] dark:hover:text-[#1B1B1B]'
-                disabled={disabled}
-              >
-                <Trash2 className='h-[14px] w-[14px]' />
-              </Button>
-            </Tooltip.Trigger>
-            <Tooltip.Content side='right'>{getTooltipMessage('Delete Block')}</Tooltip.Content>
-          </Tooltip.Root>
-        )}
+        <Tooltip.Root>
+          <Tooltip.Trigger asChild>
+            <Button
+              variant='ghost'
+              onClick={(e) => {
+                e.stopPropagation()
+                if (!disabled) {
+                  collaborativeRemoveBlock(blockId)
+                }
+              }}
+              className='h-[30px] w-[30px] rounded-[8px] bg-[#363636] p-0 text-[#868686] hover:bg-[#33B4FF] hover:text-[#1B1B1B] dark:text-[#868686] dark:hover:bg-[#33B4FF] dark:hover:text-[#1B1B1B]'
+              disabled={disabled}
+            >
+              <Trash2 className='h-[14px] w-[14px]' />
+            </Button>
+          </Tooltip.Trigger>
+          <Tooltip.Content side='right'>{getTooltipMessage('Delete Block')}</Tooltip.Content>
+        </Tooltip.Root>
       </div>
     )
   },

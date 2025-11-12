@@ -1193,6 +1193,15 @@ export function useCollaborativeWorkflow() {
       const sourceBlock = workflowStore.blocks[sourceId]
       if (!sourceBlock) return
 
+      // Prevent duplication of start blocks (both legacy starter and unified start_trigger)
+      if (sourceBlock.type === 'starter' || sourceBlock.type === 'start_trigger') {
+        logger.warn('Cannot duplicate start block - only one start block allowed per workflow', {
+          blockId: sourceId,
+          blockType: sourceBlock.type,
+        })
+        return
+      }
+
       // Generate new ID and calculate position
       const newId = crypto.randomUUID()
       const offsetPosition = {

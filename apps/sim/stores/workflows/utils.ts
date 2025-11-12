@@ -18,6 +18,13 @@ export function normalizeBlockName(name: string): string {
  * @returns A unique block name with an appropriate number suffix
  */
 export function getUniqueBlockName(baseName: string, existingBlocks: Record<string, any>): string {
+  // Special case: Start blocks should always be named "Start" without numbers
+  // This applies to both "Start" and "Starter" base names
+  const normalizedBaseName = normalizeBlockName(baseName)
+  if (normalizedBaseName === 'start' || normalizedBaseName === 'starter') {
+    return 'Start'
+  }
+
   const baseNameMatch = baseName.match(/^(.*?)(\s+\d+)?$/)
   const namePrefix = baseNameMatch ? baseNameMatch[1].trim() : baseName
 

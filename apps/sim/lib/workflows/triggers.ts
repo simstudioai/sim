@@ -59,6 +59,7 @@ const START_CONFLICT_TYPES: TriggerType[] = [
   TRIGGER_TYPES.INPUT,
   TRIGGER_TYPES.MANUAL,
   TRIGGER_TYPES.CHAT,
+  TRIGGER_TYPES.STARTER, // Legacy starter also conflicts with start_trigger
 ]
 
 type BlockWithType = { type: string; subBlocks?: Record<string, unknown> | undefined }
