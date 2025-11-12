@@ -529,7 +529,7 @@ export function SidebarNew() {
                           </Button>
                         </Tooltip.Trigger>
                         <Tooltip.Content className='py-[2.5px]'>
-                          <p>{isImporting ? 'Importing workflow...' : 'Import from JSON'}</p>
+                          <p>{isImporting ? 'Importing workflow...' : 'Import workflow'}</p>
                         </Tooltip.Content>
                       </Tooltip.Root>
                       <Tooltip.Root>

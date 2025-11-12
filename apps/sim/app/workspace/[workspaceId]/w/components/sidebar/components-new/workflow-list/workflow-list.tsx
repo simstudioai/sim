@@ -370,7 +370,8 @@ export function WorkflowList({
       <input
         ref={fileInputRef}
         type='file'
-        accept='.json'
+        accept='.json,.zip'
+        multiple
         style={{ display: 'none' }}
         onChange={handleFileChange}
       />

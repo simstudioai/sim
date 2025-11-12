@@ -86,6 +86,8 @@ export function MentionMenu({
     getActiveMentionQueryAtPosition,
     getCaretPos,
     submenuActiveIndex,
+    mentionActiveIndex,
+    openSubmenuFor,
   } = mentionMenu
 
   const {
@@ -282,6 +284,21 @@ export function MentionMenu({
   // Show filtered aggregated view when there's a query
   const showAggregatedView = currentQuery.length > 0
 
+  // Folder order for keyboard navigation - matches render order
+  const FOLDER_ORDER = [
+    'Chats', // 0
+    'Workflows', // 1
+    'Knowledge', // 2
+    'Blocks', // 3
+    'Workflow Blocks', // 4
+    'Templates', // 5
+    'Logs', // 6
+    'Docs', // 7
+  ] as const
+
+  // Get active folder based on navigation when not in submenu and no query
+  const isInFolderNavigationMode = !openSubmenuFor && !showAggregatedView
+
   // Compute caret viewport position via mirror technique for precise anchoring
   const textareaEl = mentionMenu.textareaRef.current
   if (!textareaEl) return null
@@ -372,7 +389,184 @@ export function MentionMenu({
       >
         <PopoverBackButton />
         <PopoverScrollArea ref={menuListRef} className='space-y-[2px]'>
-          {showAggregatedView ? (
+          {openSubmenuFor ? (
+            // Submenu view - showing contents of a specific folder
+            <>
+              {openSubmenuFor === 'Chats' && (
+                <>
+                  {mentionData.isLoadingPastChats ? (
+                    <LoadingState />
+                  ) : mentionData.pastChats.length === 0 ? (
+                    <EmptyState message='No past chats' />
+                  ) : (
+                    mentionData.pastChats.map((chat, index) => (
+                      <PopoverItem
+                        key={chat.id}
+                        onClick={() => insertPastChatMention(chat)}
+                        data-idx={index}
+                        active={index === submenuActiveIndex}
+                      >
+                        <span className='truncate'>{chat.title || 'New Chat'}</span>
+                      </PopoverItem>
+                    ))
+                  )}
+                </>
+              )}
+              {openSubmenuFor === 'Workflows' && (
+                <>
+                  {mentionData.isLoadingWorkflows ? (
+                    <LoadingState />
+                  ) : mentionData.workflows.length === 0 ? (
+                    <EmptyState message='No workflows' />
+                  ) : (
+                    mentionData.workflows.map((wf, index) => (
+                      <PopoverItem
+                        key={wf.id}
+                        onClick={() => insertWorkflowMention(wf)}
+                        data-idx={index}
+                        active={index === submenuActiveIndex}
+                      >
+                        <div
+                          className='relative flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center overflow-hidden rounded-[4px]'
+                          style={{ backgroundColor: wf.color || '#3972F6' }}
+                        />
+                        <span className='truncate'>{wf.name || 'Untitled Workflow'}</span>
+                      </PopoverItem>
+                    ))
+                  )}
+                </>
+              )}
+              {openSubmenuFor === 'Knowledge' && (
+                <>
+                  {mentionData.isLoadingKnowledge ? (
+                    <LoadingState />
+                  ) : mentionData.knowledgeBases.length === 0 ? (
+                    <EmptyState message='No knowledge bases' />
+                  ) : (
+                    mentionData.knowledgeBases.map((kb, index) => (
+                      <PopoverItem
+                        key={kb.id}
+                        onClick={() => insertKnowledgeMention(kb)}
+                        data-idx={index}
+                        active={index === submenuActiveIndex}
+                      >
+                        <span className='truncate'>{kb.name || 'Untitled'}</span>
+                      </PopoverItem>
+                    ))
+                  )}
+                </>
+              )}
+              {openSubmenuFor === 'Blocks' && (
+                <>
+                  {mentionData.isLoadingBlocks ? (
+                    <LoadingState />
+                  ) : mentionData.blocksList.length === 0 ? (
+                    <EmptyState message='No blocks found' />
+                  ) : (
+                    mentionData.blocksList.map((blk, index) => {
+                      const Icon = blk.iconComponent
+                      return (
+                        <PopoverItem
+                          key={blk.id}
+                          onClick={() => insertBlockMention(blk)}
+                          data-idx={index}
+                          active={index === submenuActiveIndex}
+                        >
+                          <div
+                            className='relative flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center overflow-hidden rounded-[4px]'
+                            style={{ backgroundColor: blk.bgColor || '#6B7280' }}
+                          >
+                            {Icon && <Icon className='!h-[10px] !w-[10px] text-white' />}
+                          </div>
+                          <span className='truncate'>{blk.name || blk.id}</span>
+                        </PopoverItem>
+                      )
+                    })
+                  )}
+                </>
+              )}
+              {openSubmenuFor === 'Workflow Blocks' && (
+                <>
+                  {mentionData.isLoadingWorkflowBlocks ? (
+                    <LoadingState />
+                  ) : mentionData.workflowBlocks.length === 0 ? (
+                    <EmptyState message='No blocks in this workflow' />
+                  ) : (
+                    mentionData.workflowBlocks.map((blk, index) => {
+                      const Icon = blk.iconComponent
+                      return (
+                        <PopoverItem
+                          key={blk.id}
+                          onClick={() => insertWorkflowBlockMention(blk)}
+                          data-idx={index}
+                          active={index === submenuActiveIndex}
+                        >
+                          <div
+                            className='relative flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center overflow-hidden rounded-[4px]'
+                            style={{ backgroundColor: blk.bgColor || '#6B7280' }}
+                          >
+                            {Icon && <Icon className='!h-[10px] !w-[10px] text-white' />}
+                          </div>
+                          <span className='truncate'>{blk.name || blk.id}</span>
+                        </PopoverItem>
+                      )
+                    })
+                  )}
+                </>
+              )}
+              {openSubmenuFor === 'Templates' && (
+                <>
+                  {mentionData.isLoadingTemplates ? (
+                    <LoadingState />
+                  ) : mentionData.templatesList.length === 0 ? (
+                    <EmptyState message='No templates found' />
+                  ) : (
+                    mentionData.templatesList.map((tpl, index) => (
+                      <PopoverItem
+                        key={tpl.id}
+                        onClick={() => insertTemplateMention(tpl)}
+                        data-idx={index}
+                        active={index === submenuActiveIndex}
+                      >
+                        <span className='flex-1 truncate'>{tpl.name}</span>
+                        <span className='text-[#868686] text-[10px] dark:text-[#868686]'>
+                          {tpl.stars}
+                        </span>
+                      </PopoverItem>
+                    ))
+                  )}
+                </>
+              )}
+              {openSubmenuFor === 'Logs' && (
+                <>
+                  {mentionData.isLoadingLogs ? (
+                    <LoadingState />
+                  ) : mentionData.logsList.length === 0 ? (
+                    <EmptyState message='No executions found' />
+                  ) : (
+                    mentionData.logsList.map((log, index) => (
+                      <PopoverItem
+                        key={log.id}
+                        onClick={() => insertLogMention(log)}
+                        data-idx={index}
+                        active={index === submenuActiveIndex}
+                      >
+                        <span className='min-w-0 flex-1 truncate'>{log.workflowName}</span>
+                        <span className='text-[#AEAEAE] text-[10px] dark:text-[#AEAEAE]'>·</span>
+                        <span className='whitespace-nowrap text-[10px]'>
+                          {formatTimestamp(log.createdAt)}
+                        </span>
+                        <span className='text-[#AEAEAE] text-[10px] dark:text-[#AEAEAE]'>·</span>
+                        <span className='text-[10px] capitalize'>
+                          {(log.trigger || 'manual').toLowerCase()}
+                        </span>
+                      </PopoverItem>
+                    ))
+                  )}
+                </>
+              )}
+            </>
+          ) : showAggregatedView ? (
             // Aggregated filtered view
             <>
               {filteredAggregatedItems.length === 0 ? (
@@ -406,6 +600,8 @@ export function MentionMenu({
                 id='chats'
                 title='Chats'
                 onOpen={() => mentionData.ensurePastChatsLoaded()}
+                active={isInFolderNavigationMode && mentionActiveIndex === 0}
+                data-idx={0}
               >
                 {mentionData.isLoadingPastChats ? (
                   <LoadingState />
@@ -424,6 +620,8 @@ export function MentionMenu({
                 id='workflows'
                 title='All workflows'
                 onOpen={() => mentionData.ensureWorkflowsLoaded()}
+                active={isInFolderNavigationMode && mentionActiveIndex === 1}
+                data-idx={1}
               >
                 {mentionData.isLoadingWorkflows ? (
                   <LoadingState />
@@ -446,6 +644,8 @@ export function MentionMenu({
                 id='knowledge'
                 title='Knowledge Bases'
                 onOpen={() => mentionData.ensureKnowledgeLoaded()}
+                active={isInFolderNavigationMode && mentionActiveIndex === 2}
+                data-idx={2}
               >
                 {mentionData.isLoadingKnowledge ? (
                   <LoadingState />
@@ -464,6 +664,8 @@ export function MentionMenu({
                 id='blocks'
                 title='Blocks'
                 onOpen={() => mentionData.ensureBlocksLoaded()}
+                active={isInFolderNavigationMode && mentionActiveIndex === 3}
+                data-idx={3}
               >
                 {mentionData.isLoadingBlocks ? (
                   <LoadingState />
@@ -491,6 +693,8 @@ export function MentionMenu({
                 id='workflow-blocks'
                 title='Workflow Blocks'
                 onOpen={() => mentionData.ensureWorkflowBlocksLoaded()}
+                active={isInFolderNavigationMode && mentionActiveIndex === 4}
+                data-idx={4}
               >
                 {mentionData.isLoadingWorkflowBlocks ? (
                   <LoadingState />
@@ -518,6 +722,8 @@ export function MentionMenu({
                 id='templates'
                 title='Templates'
                 onOpen={() => mentionData.ensureTemplatesLoaded()}
+                active={isInFolderNavigationMode && mentionActiveIndex === 5}
+                data-idx={5}
               >
                 {mentionData.isLoadingTemplates ? (
                   <LoadingState />
@@ -535,7 +741,13 @@ export function MentionMenu({
                 )}
               </PopoverFolder>
 
-              <PopoverFolder id='logs' title='Logs' onOpen={() => mentionData.ensureLogsLoaded()}>
+              <PopoverFolder
+                id='logs'
+                title='Logs'
+                onOpen={() => mentionData.ensureLogsLoaded()}
+                active={isInFolderNavigationMode && mentionActiveIndex === 6}
+                data-idx={6}
+              >
                 {mentionData.isLoadingLogs ? (
                   <LoadingState />
                 ) : mentionData.logsList.length === 0 ? (
@@ -557,7 +769,12 @@ export function MentionMenu({
                 )}
               </PopoverFolder>
 
-              <PopoverItem rootOnly onClick={() => insertDocsMention()}>
+              <PopoverItem
+                rootOnly
+                onClick={() => insertDocsMention()}
+                active={isInFolderNavigationMode && mentionActiveIndex === 7}
+                data-idx={7}
+              >
                 <span>Docs</span>
               </PopoverItem>
             </>

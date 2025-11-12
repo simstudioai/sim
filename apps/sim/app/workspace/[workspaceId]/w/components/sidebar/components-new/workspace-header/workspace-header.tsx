@@ -346,7 +346,9 @@ export function WorkspaceHeader({
                         </Button>
                       </Tooltip.Trigger>
                       <Tooltip.Content className='py-[2.5px]'>
-                        <p>{isImportingWorkspace ? 'Importing workspace...' : 'Import from ZIP'}</p>
+                        <p>
+                          {isImportingWorkspace ? 'Importing workspace...' : 'Import workspace'}
+                        </p>
                       </Tooltip.Content>
                     </Tooltip.Root>
                     <Tooltip.Root>

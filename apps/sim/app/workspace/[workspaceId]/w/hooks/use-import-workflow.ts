@@ -1,12 +1,15 @@
 import { useCallback, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createLogger } from '@/lib/logs/console/logger'
+import {
+  extractWorkflowName,
+  extractWorkflowsFromFiles,
+  extractWorkflowsFromZip,
+} from '@/lib/workflows/import-export'
+import { useFolderStore } from '@/stores/folders/store'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 import { parseWorkflowJson } from '@/stores/workflows/json/importer'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-import { useSubBlockStore } from '@/stores/workflows/subblock/store'
-import { useWorkflowStore } from '@/stores/workflows/workflow/store'
-import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('useImportWorkflow')
 
@@ -15,121 +18,84 @@ interface UseImportWorkflowProps {
 }
 
 /**
- * Custom hook to handle workflow JSON import functionality.
- * Manages file reading, JSON parsing, workflow creation, and state initialization.
+ * Custom hook to handle workflow import functionality.
+ * Supports importing from:
+ * - Single JSON file
+ * - Multiple JSON files
+ * - ZIP file containing multiple workflows with folder structure
  *
  * @param props - Configuration object containing workspaceId
  * @returns Import state and handlers
  */
 export function useImportWorkflow({ workspaceId }: UseImportWorkflowProps) {
   const router = useRouter()
-  const { createWorkflow } = useWorkflowRegistry()
+  const { createWorkflow, loadWorkflows } = useWorkflowRegistry()
   const [isImporting, setIsImporting] = useState(false)
 
   /**
-   * Handle direct import of workflow JSON
+   * Import a single workflow
    */
-  const handleDirectImport = useCallback(
-    async (content: string, filename?: string) => {
-      if (!content.trim()) {
-        logger.error('JSON content is required')
-        return
+  const importSingleWorkflow = useCallback(
+    async (content: string, filename: string, folderId?: string) => {
+      const { data: workflowData, errors: parseErrors } = parseWorkflowJson(content)
+
+      if (!workflowData || parseErrors.length > 0) {
+        logger.warn(`Failed to parse ${filename}:`, parseErrors)
+        return null
       }
 
-      setIsImporting(true)
+      const workflowName = extractWorkflowName(content, filename)
+      useWorkflowDiffStore.getState().clearDiff()
 
-      try {
-        // First validate the JSON without importing
-        const { data: workflowData, errors: parseErrors } = parseWorkflowJson(content)
+      // Extract color from metadata
+      const parsedContent = JSON.parse(content)
+      const workflowColor =
+        parsedContent.state?.metadata?.color || parsedContent.metadata?.color || '#3972F6'
 
-        if (!workflowData || parseErrors.length > 0) {
-          logger.error('Failed to parse JSON:', { errors: parseErrors })
-          return
-        }
+      const newWorkflowId = await createWorkflow({
+        name: workflowName,
+        description: workflowData.metadata?.description || 'Imported from JSON',
+        workspaceId,
+        folderId: folderId || undefined,
+      })
 
-        // Generate workflow name from filename or fallback to time-based name
-        const getWorkflowName = () => {
-          if (filename) {
-            // Remove file extension and use the filename
-            const nameWithoutExtension = filename.replace(/\.json$/i, '')
-            return (
-              nameWithoutExtension.trim() || `Imported Workflow - ${new Date().toLocaleString()}`
-            )
-          }
-          return `Imported Workflow - ${new Date().toLocaleString()}`
-        }
-
-        // Clear workflow diff store when creating a new workflow from import
-        const { clearDiff } = useWorkflowDiffStore.getState()
-        clearDiff()
-
-        // Create a new workflow
-        const newWorkflowId = await createWorkflow({
-          name: getWorkflowName(),
-          description: 'Workflow imported from JSON',
-          workspaceId,
+      // Update workflow color if we extracted one
+      if (workflowColor !== '#3972F6') {
+        await fetch(`/api/workflows/${newWorkflowId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ color: workflowColor }),
         })
-
-        // Set the workflow as active in the registry to prevent reload
-        useWorkflowRegistry.setState({ activeWorkflowId: newWorkflowId })
-
-        // Cast the workflow data to WorkflowState type
-        const typedWorkflowData = workflowData as unknown as WorkflowState
-
-        // Set the workflow state immediately (optimistic update)
-        useWorkflowStore.setState({
-          blocks: typedWorkflowData.blocks,
-          edges: typedWorkflowData.edges,
-          loops: typedWorkflowData.loops,
-          parallels: typedWorkflowData.parallels,
-          lastSaved: Date.now(),
-        })
-
-        // Initialize subblock store with the imported blocks
-        useSubBlockStore.getState().initializeFromWorkflow(newWorkflowId, typedWorkflowData.blocks)
-
-        // Set subblock values if they exist in the imported data
-        const subBlockStore = useSubBlockStore.getState()
-        for (const [blockId, block] of Object.entries(typedWorkflowData.blocks)) {
-          if (block.subBlocks) {
-            for (const [subBlockId, subBlock] of Object.entries(block.subBlocks)) {
-              if (subBlock.value !== null && subBlock.value !== undefined) {
-                subBlockStore.setValue(blockId, subBlockId, subBlock.value)
-              }
-            }
-          }
-        }
-
-        // Navigate to the new workflow after setting state
-        router.push(`/workspace/${workspaceId}/w/${newWorkflowId}`)
-
-        logger.info('Workflow imported successfully from JSON')
-
-        // Persist to database in the background
-        fetch(`/api/workflows/${newWorkflowId}/state`, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(workflowData),
-        })
-          .then((response) => {
-            if (!response.ok) {
-              logger.error('Failed to persist imported workflow to database')
-            } else {
-              logger.info('Imported workflow persisted to database')
-            }
-          })
-          .catch((error) => {
-            logger.error('Failed to persist imported workflow:', error)
-          })
-      } catch (error) {
-        logger.error('Failed to import workflow:', { error })
-      } finally {
-        setIsImporting(false)
       }
+
+      // Save workflow state
+      await fetch(`/api/workflows/${newWorkflowId}/state`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(workflowData),
+      })
+
+      // Save variables if any
+      if (workflowData.variables && workflowData.variables.length > 0) {
+        const variablesPayload = workflowData.variables.map((v: any) => ({
+          id: typeof v.id === 'string' && v.id.trim() ? v.id : crypto.randomUUID(),
+          workflowId: newWorkflowId,
+          name: v.name,
+          type: v.type,
+          value: v.value,
+        }))
+
+        await fetch(`/api/workflows/${newWorkflowId}/variables`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ variables: variablesPayload }),
+        })
+      }
+
+      logger.info(`Imported workflow: ${workflowName}`)
+      return newWorkflowId
     },
-    [createWorkflow, workspaceId, router]
+    [createWorkflow, workspaceId]
   )
 
   /**
@@ -137,30 +103,108 @@ export function useImportWorkflow({ workspaceId }: UseImportWorkflowProps) {
    */
   const handleFileChange = useCallback(
     async (event: React.ChangeEvent<HTMLInputElement>) => {
-      const file = event.target.files?.[0]
-      if (!file) return
+      const files = event.target.files
+      if (!files || files.length === 0) return
 
+      setIsImporting(true)
       try {
-        const content = await file.text()
+        const fileArray = Array.from(files)
+        const hasZip = fileArray.some((f) => f.name.toLowerCase().endsWith('.zip'))
+        const jsonFiles = fileArray.filter((f) => f.name.toLowerCase().endsWith('.json'))
 
-        // Import directly with filename
-        await handleDirectImport(content, file.name)
+        const importedWorkflowIds: string[] = []
+
+        if (hasZip && fileArray.length === 1) {
+          // Import from ZIP - preserves folder structure
+          const zipFile = fileArray[0]
+          const { workflows: extractedWorkflows, metadata } = await extractWorkflowsFromZip(zipFile)
+
+          const { createFolder } = useFolderStore.getState()
+          const folderName = metadata?.workspaceName || zipFile.name.replace(/\.zip$/i, '')
+          const importFolder = await createFolder({ name: folderName, workspaceId })
+          const folderMap = new Map<string, string>()
+
+          for (const workflow of extractedWorkflows) {
+            try {
+              let targetFolderId = importFolder.id
+
+              // Recreate nested folder structure
+              if (workflow.folderPath.length > 0) {
+                const folderPathKey = workflow.folderPath.join('/')
+
+                if (!folderMap.has(folderPathKey)) {
+                  let parentId = importFolder.id
+
+                  for (let i = 0; i < workflow.folderPath.length; i++) {
+                    const pathSegment = workflow.folderPath.slice(0, i + 1).join('/')
+
+                    if (!folderMap.has(pathSegment)) {
+                      const subFolder = await createFolder({
+                        name: workflow.folderPath[i],
+                        workspaceId,
+                        parentId,
+                      })
+                      folderMap.set(pathSegment, subFolder.id)
+                      parentId = subFolder.id
+                    } else {
+                      parentId = folderMap.get(pathSegment)!
+                    }
+                  }
+                }
+
+                targetFolderId = folderMap.get(folderPathKey)!
+              }
+
+              const workflowId = await importSingleWorkflow(
+                workflow.content,
+                workflow.name,
+                targetFolderId
+              )
+              if (workflowId) importedWorkflowIds.push(workflowId)
+            } catch (error) {
+              logger.error(`Failed to import ${workflow.name}:`, error)
+            }
+          }
+        } else if (jsonFiles.length > 0) {
+          // Import multiple JSON files or single JSON
+          const extractedWorkflows = await extractWorkflowsFromFiles(jsonFiles)
+
+          for (const workflow of extractedWorkflows) {
+            try {
+              const workflowId = await importSingleWorkflow(workflow.content, workflow.name)
+              if (workflowId) importedWorkflowIds.push(workflowId)
+            } catch (error) {
+              logger.error(`Failed to import ${workflow.name}:`, error)
+            }
+          }
+        }
+
+        // Reload workflows to show newly imported ones
+        await loadWorkflows(workspaceId)
+        await useFolderStore.getState().fetchFolders(workspaceId)
+
+        logger.info(`Import complete. Imported ${importedWorkflowIds.length} workflow(s)`)
+
+        // Navigate to first imported workflow if any
+        if (importedWorkflowIds.length > 0) {
+          router.push(`/workspace/${workspaceId}/w/${importedWorkflowIds[0]}`)
+        }
       } catch (error) {
-        logger.error('Failed to read file:', { error })
-      }
+        logger.error('Failed to import workflows:', error)
+      } finally {
+        setIsImporting(false)
 
-      // Reset file input
-      const input = event.target
-      if (input) {
-        input.value = ''
+        // Reset file input
+        if (event.target) {
+          event.target.value = ''
+        }
       }
     },
-    [handleDirectImport]
+    [importSingleWorkflow, workspaceId, loadWorkflows, router]
   )
 
   return {
     isImporting,
-    handleDirectImport,
     handleFileChange,
   }
 }

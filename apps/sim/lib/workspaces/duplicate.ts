@@ -152,7 +152,7 @@ export async function duplicateWorkspace(
       })
       workflowsCount++
     } catch (error) {
-      logger.info(`Failed to duplicate workflow ${sourceWorkflow.id}:`, error)
+      logger.error(`Failed to duplicate workflow ${sourceWorkflow.id}:`, error)
       // Continue with other workflows even if one fails
     }
   }
