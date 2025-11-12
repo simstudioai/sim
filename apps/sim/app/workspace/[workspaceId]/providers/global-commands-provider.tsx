@@ -189,7 +189,7 @@ export function GlobalCommandsProvider({ children }: { children: ReactNode }) {
     }
 
     window.addEventListener('keydown', onKeyDown, { capture: true })
-    return () => window.removeEventListener('keydown', onKeyDown, { capture: true } as any)
+    return () => window.removeEventListener('keydown', onKeyDown, { capture: true })
   }, [isMac, router])
 
   const value = useMemo<GlobalCommandsContextValue>(() => ({ register }), [register])
