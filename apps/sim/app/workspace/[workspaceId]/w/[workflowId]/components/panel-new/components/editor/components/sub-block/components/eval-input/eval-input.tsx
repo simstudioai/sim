@@ -130,8 +130,10 @@ export function EvalInput({
   }
 
   const renderMetricHeader = (metric: EvalMetric, index: number) => (
-    <div className='flex items-center justify-between overflow-hidden rounded-t-[4px] border-[#303030] border-b bg-transparent px-[10px] py-[5px]'>
-      <span className='font-medium text-[#AEAEAE] text-[14px]'>Metric {index + 1}</span>
+    <div className='flex items-center justify-between overflow-hidden rounded-t-[4px] border-[var(--border-strong)] border-b bg-transparent px-[10px] py-[5px]'>
+      <span className='font-medium text-[14px] text-[var(--text-tertiary)]'>
+        Metric {index + 1}
+      </span>
       <div className='flex items-center gap-[8px]'>
         <Tooltip.Root key={`add-${metric.id}`}>
           <Tooltip.Trigger asChild>
@@ -154,7 +156,7 @@ export function EvalInput({
               variant='ghost'
               onClick={() => removeMetric(metric.id)}
               disabled={isPreview || disabled || metrics.length === 1}
-              className='h-auto p-0 text-[#EF4444] hover:text-[#EF4444]'
+              className='h-auto p-0 text-[var(--text-error)] hover:text-[var(--text-error)]'
             >
               <Trash className='h-[14px] w-[14px]' />
               <span className='sr-only'>Delete Metric</span>
@@ -172,11 +174,11 @@ export function EvalInput({
         <div
           key={metric.id}
           data-metric-id={metric.id}
-          className='group relative overflow-visible rounded-[4px] border border-[#303030] bg-[#1F1F1F]'
+          className='group relative overflow-visible rounded-[4px] border border-[var(--border-strong)] bg-[#1F1F1F]'
         >
           {renderMetricHeader(metric, index)}
 
-          <div className='flex flex-col gap-[6px] border-[#303030] px-[10px] pt-[6px] pb-[10px]'>
+          <div className='flex flex-col gap-[6px] border-[var(--border-strong)] px-[10px] pt-[6px] pb-[10px]'>
             <div key={`name-${metric.id}`} className='space-y-[4px]'>
               <Label className='text-[13px]'>Name</Label>
               <Input

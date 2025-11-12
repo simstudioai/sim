@@ -305,12 +305,12 @@ const SubBlockRow = ({
 
   return (
     <div className='flex items-center gap-[8px]'>
-      <span className='min-w-0 truncate text-[#AEAEAE] text-[14px]' title={title}>
+      <span className='min-w-0 truncate text-[14px] text-[var(--text-tertiary)]' title={title}>
         {title}
       </span>
       {displayValue !== undefined && (
         <span
-          className='flex-1 truncate text-right text-[#FFFFFF] text-[14px]'
+          className='flex-1 truncate text-right text-[14px] text-[var(--white)]'
           title={displayValue}
         >
           {displayValue}
@@ -590,7 +590,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
    */
   const getHandleClasses = (position: 'left' | 'right' | 'top' | 'bottom', isError = false) => {
     const baseClasses = '!z-[10] !cursor-crosshair !border-none !transition-[colors] !duration-150'
-    const colorClasses = isError ? '!bg-red-400 dark:!bg-red-500' : '!bg-[#434343]'
+    const colorClasses = isError ? '!bg-red-400 dark:!bg-red-500' : '!bg-[var(--surface-12)]'
 
     const positionClasses = {
       left: '!left-[-7px] !h-5 !w-[7px] !rounded-l-[2px] !rounded-r-none hover:!left-[-10px] hover:!w-[10px] hover:!rounded-l-full',
@@ -701,7 +701,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
         ref={contentRef}
         onClick={handleClick}
         className={cn(
-          'relative z-[20] w-[250px] cursor-default select-none rounded-[8px] bg-[#232323]'
+          'relative z-[20] w-[250px] cursor-default select-none rounded-[8px] bg-[var(--surface-2)]'
         )}
       >
         {isPending && (
@@ -734,7 +734,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
         <div
           className={cn(
             'workflow-drag-handle flex cursor-grab items-center justify-between p-[8px] [&:active]:cursor-grabbing',
-            hasContentBelowHeader && 'border-[#393939] border-b'
+            hasContentBelowHeader && 'border-[var(--divider)] border-b'
           )}
           onMouseDown={(e) => {
             e.stopPropagation()
@@ -855,10 +855,13 @@ export const WorkflowBlock = memo(function WorkflowBlock({
             {showWebhookIndicator && (
               <Tooltip.Root>
                 <Tooltip.Trigger asChild>
-                  <Badge variant='outline' className='bg-[#22C55E] text-[#22C55E]'>
+                  <Badge
+                    variant='outline'
+                    className='bg-[var(--brand-tertiary)] text-[var(--brand-tertiary)]'
+                  >
                     <div className='relative flex items-center justify-center'>
                       <div className='197, 94, 0.2)] absolute h-3 w-3 rounded-full bg-[rgba(34,' />
-                      <div className='relative h-2 w-2 rounded-full bg-[#22C55E]' />
+                      <div className='relative h-2 w-2 rounded-full bg-[var(--brand-tertiary)]' />
                     </div>
                     Webhook
                   </Badge>

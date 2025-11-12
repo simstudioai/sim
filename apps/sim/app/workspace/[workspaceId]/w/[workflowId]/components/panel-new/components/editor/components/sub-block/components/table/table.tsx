@@ -134,13 +134,13 @@ export function Table({
 
   const renderHeader = () => (
     <thead className='bg-transparent'>
-      <tr className='border-[#303030] border-b bg-transparent'>
+      <tr className='border-[var(--border-strong)] border-b bg-transparent'>
         {columns.map((column, index) => (
           <th
             key={column}
             className={cn(
-              'bg-transparent px-[10px] py-[5px] text-left font-medium text-[#AEAEAE] text-[14px]',
-              index < columns.length - 1 && 'border-[#303030] border-r'
+              'bg-transparent px-[10px] py-[5px] text-left font-medium text-[14px] text-[var(--text-tertiary)]',
+              index < columns.length - 1 && 'border-[var(--border-strong)] border-r'
             )}
           >
             {column}
@@ -187,7 +187,7 @@ export function Table({
         key={`${row.id}-${column}`}
         className={cn(
           'relative bg-transparent p-0',
-          cellIndex < columns.length - 1 && 'border-[#303030] border-r'
+          cellIndex < columns.length - 1 && 'border-[var(--border-strong)] border-r'
         )}
       >
         <div className='relative w-full'>
@@ -203,7 +203,7 @@ export function Table({
             onDragOver={handlers.onDragOver}
             disabled={isPreview || disabled}
             autoComplete='off'
-            className='w-full border-0 bg-transparent px-[10px] py-[8px] text-transparent caret-white placeholder:text-[#787878] focus-visible:ring-0 focus-visible:ring-offset-0'
+            className='w-full border-0 bg-transparent px-[10px] py-[8px] text-transparent caret-white placeholder:text-[var(--text-muted)] focus-visible:ring-0 focus-visible:ring-offset-0'
           />
           <div
             data-overlay={cellKey}
@@ -270,12 +270,15 @@ export function Table({
 
   return (
     <div className='relative'>
-      <div className='overflow-visible rounded-[4px] border border-[#303030] bg-[#1F1F1F]'>
+      <div className='overflow-visible rounded-[4px] border border-[var(--border-strong)] bg-[#1F1F1F]'>
         <table className='w-full bg-transparent'>
           {renderHeader()}
           <tbody className='bg-transparent'>
             {rows.map((row, rowIndex) => (
-              <tr key={row.id} className='group relative border-[#303030] border-t bg-transparent'>
+              <tr
+                key={row.id}
+                className='group relative border-[var(--border-strong)] border-t bg-transparent'
+              >
                 {columns.map((column, cellIndex) => renderCell(row, rowIndex, column, cellIndex))}
                 {renderDeleteButton(rowIndex)}
               </tr>

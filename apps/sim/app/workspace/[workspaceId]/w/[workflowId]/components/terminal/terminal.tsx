@@ -77,7 +77,8 @@ const RUN_ID_COLORS = [
 /**
  * Shared styling constants
  */
-const HEADER_TEXT_CLASS = 'font-medium text-[#AEAEAE] text-[12px] dark:text-[#AEAEAE]'
+const HEADER_TEXT_CLASS =
+  'font-medium text-[var(--text-tertiary)] text-[12px] dark:text-[var(--text-tertiary)]'
 const ROW_TEXT_CLASS = 'font-medium text-[#D2D2D2] text-[12px] dark:text-[#D2D2D2]'
 const COLUMN_BASE_CLASS = 'flex-shrink-0'
 
@@ -674,13 +675,13 @@ export function Terminal() {
       <aside
         ref={terminalRef}
         className={clsx(
-          'terminal-container fixed right-[var(--panel-width)] bottom-0 left-[var(--sidebar-width)] z-10 overflow-hidden dark:bg-[#1E1E1E]',
+          'terminal-container fixed right-[var(--panel-width)] bottom-0 left-[var(--sidebar-width)] z-10 overflow-hidden dark:bg-[var(--surface-1)]',
           isToggling && 'transition-[height] duration-100 ease-out'
         )}
         onTransitionEnd={handleTransitionEnd}
         aria-label='Terminal'
       >
-        <div className='relative flex h-full border-t dark:border-[#2C2C2C]'>
+        <div className='relative flex h-full border-t dark:border-[var(--border)]'>
           {/* Left Section - Logs Table */}
           <div
             className={clsx('flex flex-col', !selectedEntry && 'flex-1')}
@@ -688,7 +689,7 @@ export function Terminal() {
           >
             {/* Header */}
             <div
-              className='group flex h-[30px] flex-shrink-0 cursor-pointer items-center bg-[#1E1E1E] pr-[16px] pl-[24px]'
+              className='group flex h-[30px] flex-shrink-0 cursor-pointer items-center bg-[var(--surface-1)] pr-[16px] pl-[24px]'
               onClick={handleHeaderClick}
             >
               {uniqueBlocks.length > 0 ? (
@@ -706,7 +707,7 @@ export function Terminal() {
                           <Filter
                             className={clsx(
                               'h-[11px] w-[11px]',
-                              filters.blockIds.size > 0 && 'text-[#33B4FF]'
+                              filters.blockIds.size > 0 && 'text-[var(--brand-secondary)]'
                             )}
                           />
                         </div>
@@ -759,7 +760,7 @@ export function Terminal() {
                           <Filter
                             className={clsx(
                               'h-[11px] w-[11px]',
-                              filters.statuses.size > 0 && 'text-[#33B4FF]'
+                              filters.statuses.size > 0 && 'text-[var(--brand-secondary)]'
                             )}
                           />
                         </div>
@@ -818,7 +819,7 @@ export function Terminal() {
                           <Filter
                             className={clsx(
                               'h-[11px] w-[11px]',
-                              filters.runIds.size > 0 && 'text-[#33B4FF]'
+                              filters.runIds.size > 0 && 'text-[var(--brand-secondary)]'
                             )}
                           />
                         </div>
@@ -954,8 +955,8 @@ export function Terminal() {
                     <div
                       key={entry.id}
                       className={clsx(
-                        'flex h-[36px] cursor-pointer items-center px-[24px] hover:bg-[#2C2C2C]',
-                        isSelected && 'bg-[#2C2C2C]'
+                        'flex h-[36px] cursor-pointer items-center px-[24px] hover:bg-[var(--border)]',
+                        isSelected && 'bg-[var(--border)]'
                       )}
                       onClick={() => handleRowClick(entry)}
                     >
@@ -1056,7 +1057,7 @@ export function Terminal() {
           {/* Right Section - Block Output (Overlay) */}
           {selectedEntry && (
             <div
-              className='absolute top-0 right-0 bottom-0 flex flex-col border-l dark:border-[#2C2C2C] dark:bg-[#1E1E1E]'
+              className='absolute top-0 right-0 bottom-0 flex flex-col border-l dark:border-[var(--border)] dark:bg-[var(--surface-1)]'
               style={{ width: `${outputPanelWidth}px` }}
             >
               {/* Horizontal Resize Handle */}
@@ -1070,7 +1071,7 @@ export function Terminal() {
 
               {/* Header */}
               <div
-                className='group flex h-[30px] flex-shrink-0 cursor-pointer items-center justify-between bg-[#1E1E1E] px-[16px]'
+                className='group flex h-[30px] flex-shrink-0 cursor-pointer items-center justify-between bg-[var(--surface-1)] px-[16px]'
                 onClick={handleHeaderClick}
               >
                 <div className='flex items-center'>
@@ -1078,7 +1079,9 @@ export function Terminal() {
                     variant='ghost'
                     className={clsx(
                       'px-[8px] py-[6px] text-[12px]',
-                      !showInput && hasInputData && '!text-[#E6E6E6] dark:!text-[#E6E6E6]'
+                      !showInput &&
+                        hasInputData &&
+                        '!text-[var(--text-primary)] dark:!text-[var(--text-primary)]'
                     )}
                     onClick={(e) => {
                       e.stopPropagation()
@@ -1099,7 +1102,7 @@ export function Terminal() {
                       variant='ghost'
                       className={clsx(
                         'px-[8px] py-[6px] text-[12px]',
-                        showInput && '!text-[#E6E6E6] dark:!text-[#E6E6E6] '
+                        showInput && '!text-[var(--text-primary)] dark:!text-[var(--text-primary)] '
                       )}
                       onClick={(e) => {
                         e.stopPropagation()
@@ -1268,7 +1271,7 @@ export function Terminal() {
                     language={
                       (selectedEntry.input.language as 'javascript' | 'json') || 'javascript'
                     }
-                    className='m-0 min-h-full rounded-none border-0 bg-[#1E1E1E]'
+                    className='m-0 min-h-full rounded-none border-0 bg-[var(--surface-1)]'
                     paddingLeft={8}
                     gutterStyle={{ backgroundColor: 'transparent' }}
                     wrapText={wrapText}
@@ -1278,7 +1281,7 @@ export function Terminal() {
                     code={JSON.stringify(outputData, null, 2)}
                     showGutter
                     language='json'
-                    className='m-0 min-h-full rounded-none border-0 bg-[#1E1E1E]'
+                    className='m-0 min-h-full rounded-none border-0 bg-[var(--surface-1)]'
                     paddingLeft={8}
                     gutterStyle={{ backgroundColor: 'transparent' }}
                     wrapText={wrapText}
@@ -1289,7 +1292,7 @@ export function Terminal() {
                     code={JSON.stringify(outputData, null, 2)}
                     showGutter
                     language='json'
-                    className='m-0 min-h-full rounded-none border-0 bg-[#1E1E1E]'
+                    className='m-0 min-h-full rounded-none border-0 bg-[var(--surface-1)]'
                     paddingLeft={8}
                     gutterStyle={{ backgroundColor: 'transparent' }}
                     wrapText={wrapText}

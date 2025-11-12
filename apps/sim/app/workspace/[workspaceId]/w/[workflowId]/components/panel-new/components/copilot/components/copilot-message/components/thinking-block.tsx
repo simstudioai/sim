@@ -176,7 +176,7 @@ export function ThinkingBlock({
             return next
           })
         }}
-        className='mb-1 inline-flex items-center gap-1 text-left font-[470] font-season text-[#B1B1B1] text-sm transition-colors hover:text-[#E6E6E6]'
+        className='mb-1 inline-flex items-center gap-1 text-left font-[470] font-season text-[var(--text-secondary)] text-sm transition-colors hover:text-[var(--text-primary)]'
         type='button'
         disabled={!hasContent}
       >
@@ -194,7 +194,7 @@ export function ThinkingBlock({
       </button>
 
       {isExpanded && (
-        <div className='ml-1 border-[#303030] border-l-2 pl-2'>
+        <div className='ml-1 border-[var(--border-strong)] border-l-2 pl-2'>
           <pre
             className='whitespace-pre-wrap font-[470] font-season text-[12px] leading-[1.15rem]'
             style={{ color: '#B8B8B8' }}

@@ -334,7 +334,7 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
       >
         {/* Header */}
         <div className='flex flex-shrink-0 items-center justify-between rounded-[4px] bg-[#2A2A2A] px-[12px] py-[8px] dark:bg-[#2A2A2A]'>
-          <h2 className='font-medium text-[#FFFFFF] text-[14px] dark:text-[#FFFFFF]'>
+          <h2 className='font-medium text-[14px] text-[var(--white)] dark:text-[var(--white)]'>
             {currentChat?.title || 'New Chat'}
           </h2>
           <div className='flex items-center gap-[8px]'>
@@ -353,7 +353,7 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
                     <ChatHistorySkeleton />
                   </PopoverScrollArea>
                 ) : groupedChats.length === 0 ? (
-                  <div className='px-[6px] py-[16px] text-center text-[#FFFFFF] text-[12px] dark:text-[#FFFFFF]'>
+                  <div className='px-[6px] py-[16px] text-center text-[12px] text-[var(--white)] dark:text-[var(--white)]'>
                     No chats yet
                   </div>
                 ) : (

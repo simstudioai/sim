@@ -439,7 +439,7 @@ export function ConsoleEntry({ entry, consoleWidth }: ConsoleEntryProps) {
               onClick={() => setShowInput(false)}
               className={`flex h-5 items-center rounded-lg px-2 transition-colors ${
                 !showInput
-                  ? 'border-[#e5e5e5] bg-[#f5f5f5] text-[#1a1a1a] dark:border-[#424242] dark:bg-[#1f1f1f] dark:text-[#ffffff]'
+                  ? 'border-[#e5e5e5] bg-[#f5f5f5] text-[#1a1a1a] dark:border-[var(--border-muted)] dark:bg-[#1f1f1f] dark:text-[var(--white)]'
                   : 'bg-secondary text-muted-foreground hover:bg-secondary hover:text-card-foreground'
               }`}
             >
@@ -449,7 +449,7 @@ export function ConsoleEntry({ entry, consoleWidth }: ConsoleEntryProps) {
               onClick={() => setShowInput(true)}
               className={`flex h-5 items-center rounded-lg px-2 transition-colors ${
                 showInput
-                  ? 'border-[#e5e5e5] bg-[#f5f5f5] text-[#1a1a1a] dark:border-[#424242] dark:bg-[#1f1f1f] dark:text-[#ffffff]'
+                  ? 'border-[#e5e5e5] bg-[#f5f5f5] text-[#1a1a1a] dark:border-[var(--border-muted)] dark:bg-[#1f1f1f] dark:text-[var(--white)]'
                   : 'bg-secondary text-muted-foreground hover:bg-secondary hover:text-card-foreground'
               }`}
             >

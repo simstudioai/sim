@@ -9,7 +9,7 @@ import { usePanelStore } from '../store'
  */
 const DEFAULT_CONNECTIONS_HEIGHT = 115
 const MIN_CONNECTIONS_HEIGHT = 30
-const MAX_CONNECTIONS_HEIGHT = 200
+const MAX_CONNECTIONS_HEIGHT = 300
 
 /**
  * State for the Editor panel.

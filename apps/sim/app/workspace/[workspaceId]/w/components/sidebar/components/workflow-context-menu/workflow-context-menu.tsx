@@ -40,7 +40,7 @@ export function WorkflowContextMenu({ onStartEdit }: WorkflowContextMenuProps) {
       <DropdownMenuContent
         align='end'
         onClick={(e) => e.stopPropagation()}
-        className='min-w-32 rounded-lg border-[#E5E5E5] bg-[#FFFFFF] shadow-xs dark:border-[#414141] dark:bg-[var(--surface-elevated)]'
+        className='min-w-32 rounded-lg border-[#E5E5E5] bg-[var(--white)] shadow-xs dark:border-[#414141] dark:bg-[var(--surface-elevated)]'
       >
         {userPermissions.canEdit && (
           <DropdownMenuItem

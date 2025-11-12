@@ -569,7 +569,7 @@ export function Chat() {
 
   return (
     <div
-      className='fixed z-30 flex flex-col overflow-hidden rounded-[6px] bg-[#1E1E1E] px-[10px] pt-[2px] pb-[8px]'
+      className='fixed z-30 flex flex-col overflow-hidden rounded-[6px] bg-[var(--surface-1)] px-[10px] pt-[2px] pb-[8px]'
       style={{
         left: `${actualPosition.x}px`,
         top: `${actualPosition.y}px`,
@@ -583,11 +583,13 @@ export function Chat() {
     >
       {/* Header with drag handle */}
       <div
-        className='flex h-[32px] flex-shrink-0 cursor-grab items-center justify-between bg-[#1E1E1E] p-0 active:cursor-grabbing'
+        className='flex h-[32px] flex-shrink-0 cursor-grab items-center justify-between bg-[var(--surface-1)] p-0 active:cursor-grabbing'
         onMouseDown={handleMouseDown}
       >
         <div className='flex items-center'>
-          <span className='flex-shrink-0 font-medium text-[#E6E6E6] text-[14px]'>Chat</span>
+          <span className='flex-shrink-0 font-medium text-[14px] text-[var(--text-primary)]'>
+            Chat
+          </span>
         </div>
 
         {/* Output selector - centered with mx-auto */}
@@ -683,14 +685,14 @@ export function Chat() {
             <div>
               <div className='rounded-lg border border-[#883827] bg-[#491515]'>
                 <div className='flex items-start gap-2'>
-                  <AlertCircle className='mt-0.5 h-3 w-3 shrink-0 text-[#EF4444]' />
+                  <AlertCircle className='mt-0.5 h-3 w-3 shrink-0 text-[var(--text-error)]' />
                   <div className='flex-1'>
-                    <div className='mb-1 font-medium text-[#EF4444] text-[11px]'>
+                    <div className='mb-1 font-medium text-[11px] text-[var(--text-error)]'>
                       File upload error
                     </div>
                     <div className='space-y-1'>
                       {uploadErrors.map((err, idx) => (
-                        <div key={idx} className='text-[#EF4444] text-[10px]'>
+                        <div key={idx} className='text-[10px] text-[var(--text-error)]'>
                           {err}
                         </div>
                       ))}
@@ -703,10 +705,8 @@ export function Chat() {
 
           {/* Combined input container */}
           <div
-            className={`rounded-[4px] border bg-[#282828] py-0 pr-[6px] pl-[4px] transition-colors dark:bg-[#363636] ${
-              isDragOver
-                ? 'border-[var(--brand-primary-hover-hex)] bg-purple-50/50 dark:border-[var(--brand-primary-hover-hex)] dark:bg-purple-950/20'
-                : 'border-[#3D3D3D]'
+            className={`rounded-[4px] border bg-[var(--surface-9)] py-0 pr-[6px] pl-[4px] transition-colors ${
+              isDragOver ? 'border-[var(--brand-secondary)]' : 'border-[var(--surface-11)]'
             }`}
           >
             {/* File thumbnails */}
@@ -720,7 +720,7 @@ export function Chat() {
                     <div
                       key={file.id}
                       className={cn(
-                        'group relative flex-shrink-0 overflow-hidden rounded-[6px] bg-[#232323]',
+                        'group relative flex-shrink-0 overflow-hidden rounded-[6px] bg-[var(--surface-2)]',
                         previewUrl
                           ? 'h-[40px] w-[40px]'
                           : 'flex min-w-[80px] max-w-[120px] items-center justify-center px-[8px] py-[2px]'
@@ -735,10 +735,10 @@ export function Chat() {
                         />
                       ) : (
                         <div className='min-w-0 flex-1'>
-                          <div className='truncate font-medium text-[#FFFFFF] text-[10px]'>
+                          <div className='truncate font-medium text-[10px] text-[var(--white)]'>
                             {file.name}
                           </div>
-                          <div className='text-[#AEAEAE] text-[9px]'>
+                          <div className='text-[9px] text-[var(--text-tertiary)]'>
                             {formatFileSize(file.size)}
                           </div>
                         </div>
@@ -781,7 +781,7 @@ export function Chat() {
                   onClick={() => document.getElementById('floating-chat-file-input')?.click()}
                   title='Attach file'
                   className={cn(
-                    'cursor-pointer rounded-[6px] bg-transparent p-[0px] dark:bg-transparent',
+                    '!bg-transparent cursor-pointer rounded-[6px] p-[0px]',
                     (!activeWorkflowId || isExecuting || chatFiles.length >= 15) &&
                       'cursor-not-allowed opacity-50'
                   )}
@@ -799,8 +799,8 @@ export function Chat() {
                   className={cn(
                     'h-[22px] w-[22px] rounded-full p-0 transition-colors',
                     chatMessage.trim() || chatFiles.length > 0
-                      ? 'bg-[#C0C0C0] hover:bg-[#D0D0D0] dark:bg-[#C0C0C0] dark:hover:bg-[#D0D0D0]'
-                      : 'bg-[#C0C0C0] dark:bg-[#C0C0C0]'
+                      ? '!bg-[var(--c-C0C0C0)] hover:!bg-[var(--c-D0D0D0)]'
+                      : '!bg-[var(--c-C0C0C0)]'
                   )}
                 >
                   <ArrowUp className='h-3.5 w-3.5 text-black' strokeWidth={2.25} />

@@ -53,16 +53,22 @@ export function Connections({ blockId, horizontalHandles }: ConnectionsProps) {
       {visibleConnections.map((connection: ConnectedBlock) => {
         const Icon = getConnectionIcon(connection)
         if (!Icon) return null
-        return <Icon key={connection.id} className='h-[14px] w-[14px] text-[#AEAEAE]' />
+        return (
+          <Icon key={connection.id} className='h-[14px] w-[14px] text-[var(--text-tertiary)]' />
+        )
       })}
-      {remainingCount > 0 && <span className='text-[#AEAEAE] text-[14px]'>+{remainingCount}</span>}
+      {remainingCount > 0 && (
+        <span className='text-[14px] text-[var(--text-tertiary)]'>+{remainingCount}</span>
+      )}
     </>
   )
 
   if (!horizontalHandles) {
     return (
       <div className='-translate-x-full -translate-y-1/2 pointer-events-none absolute top-1/2 left-0 flex flex-col items-end gap-[8px] pr-[8px] opacity-0 transition-opacity group-hover:opacity-100'>
-        <span className='text-[#AEAEAE] text-[14px] leading-[14px]'>{connectionText}</span>
+        <span className='text-[14px] text-[var(--text-tertiary)] leading-[14px]'>
+          {connectionText}
+        </span>
         <div className='flex items-center justify-end gap-[4px]'>{connectionIcons}</div>
       </div>
     )
@@ -70,8 +76,8 @@ export function Connections({ blockId, horizontalHandles }: ConnectionsProps) {
 
   return (
     <div className='pointer-events-none absolute bottom-full left-0 ml-[8px] flex items-center gap-[8px] pb-[8px] opacity-0 transition-opacity group-hover:opacity-100'>
-      <span className='text-[#AEAEAE] text-[14px]'>{connectionText}</span>
-      <div className='h-[14px] w-[1px] bg-[#AEAEAE]' />
+      <span className='text-[14px] text-[var(--text-tertiary)]'>{connectionText}</span>
+      <div className='h-[14px] w-[1px] bg-[var(--text-tertiary)]' />
       <div className='flex items-center gap-[4px]'>{connectionIcons}</div>
     </div>
   )

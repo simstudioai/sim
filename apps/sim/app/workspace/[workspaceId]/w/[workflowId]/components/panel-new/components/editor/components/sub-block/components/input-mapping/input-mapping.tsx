@@ -247,9 +247,9 @@ export function InputMapping({
 
   if (!selectedWorkflowId) {
     return (
-      <div className='flex flex-col items-center justify-center rounded-[4px] border border-[#303030] bg-[#1F1F1F] p-8 text-center'>
+      <div className='flex flex-col items-center justify-center rounded-[4px] border border-[var(--border-strong)] bg-[#1F1F1F] p-8 text-center'>
         <svg
-          className='mb-3 h-10 w-10 text-[#AEAEAE]'
+          className='mb-3 h-10 w-10 text-[var(--text-tertiary)]'
           fill='none'
           viewBox='0 0 24 24'
           stroke='currentColor'
@@ -261,8 +261,8 @@ export function InputMapping({
             d='M13 10V3L4 14h7v7l9-11h-7z'
           />
         </svg>
-        <p className='font-medium text-[#AEAEAE] text-sm'>No workflow selected</p>
-        <p className='mt-1 text-[#AEAEAE]/80 text-xs'>
+        <p className='font-medium text-[var(--text-tertiary)] text-sm'>No workflow selected</p>
+        <p className='mt-1 text-[var(--text-tertiary)]/80 text-xs'>
           Select a workflow above to configure inputs
         </p>
       </div>
@@ -290,7 +290,7 @@ export function InputMapping({
   }
 
   if (!childInputFields || childInputFields.length === 0) {
-    return <p className='text-[#787878] text-sm'>No inputs available</p>
+    return <p className='text-[var(--text-muted)] text-sm'>No inputs available</p>
   }
 
   return (
@@ -354,22 +354,22 @@ function InputMappingField({
   }
 
   return (
-    <div className='group relative overflow-visible rounded-[4px] border border-[#303030] bg-[#1F1F1F]'>
+    <div className='group relative overflow-visible rounded-[4px] border border-[var(--border-strong)] bg-[#1F1F1F]'>
       <div className='flex items-center justify-between bg-transparent px-[10px] py-[5px]'>
-        <Label className='font-medium text-[#AEAEAE] text-[14px]'>{fieldName}</Label>
+        <Label className='font-medium text-[14px] text-[var(--text-tertiary)]'>{fieldName}</Label>
         {fieldType && (
-          <span className='rounded-md bg-[#2A2A2A] px-1.5 py-0.5 font-mono text-[#AEAEAE] text-[10px]'>
+          <span className='rounded-md bg-[#2A2A2A] px-1.5 py-0.5 font-mono text-[10px] text-[var(--text-tertiary)]'>
             {fieldType}
           </span>
         )}
       </div>
-      <div className='relative w-full border-[#303030] border-t bg-transparent'>
+      <div className='relative w-full border-[var(--border-strong)] border-t bg-transparent'>
         <Input
           ref={(el) => {
             if (el) inputRefs.current.set(fieldId, el)
           }}
           className={cn(
-            'allow-scroll !bg-transparent w-full overflow-auto rounded-none border-0 px-[10px] py-[8px] text-transparent caret-white [-ms-overflow-style:none] [scrollbar-width:none] placeholder:text-[#787878] focus-visible:ring-0 focus-visible:ring-offset-0 [&::-webkit-scrollbar]:hidden'
+            'allow-scroll !bg-transparent w-full overflow-auto rounded-none border-0 px-[10px] py-[8px] text-transparent caret-white [-ms-overflow-style:none] [scrollbar-width:none] placeholder:text-[var(--text-muted)] focus-visible:ring-0 focus-visible:ring-offset-0 [&::-webkit-scrollbar]:hidden'
           )}
           type='text'
           value={value}

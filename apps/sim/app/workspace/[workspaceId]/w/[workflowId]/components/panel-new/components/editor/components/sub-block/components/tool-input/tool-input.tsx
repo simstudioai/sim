@@ -1095,13 +1095,13 @@ export function ToolInput({
       case 'dropdown':
         return (
           <Select value={value} onValueChange={onChange}>
-            <SelectTrigger className='w-full rounded-[4px] border border-[#303030] bg-[#1F1F1F] px-[10px] py-[8px] text-left font-medium text-sm'>
+            <SelectTrigger className='w-full rounded-[4px] border border-[var(--border-strong)] bg-[#1F1F1F] px-[10px] py-[8px] text-left font-medium text-sm'>
               <SelectValue
                 placeholder={uiComponent.placeholder || 'Select option'}
                 className='truncate'
               />
             </SelectTrigger>
-            <SelectContent className='border-[#303030] bg-[#1F1F1F]'>
+            <SelectContent className='border-[var(--border-strong)] bg-[#1F1F1F]'>
               {uiComponent.options
                 ?.filter((option: any) => option.id !== '')
                 .map((option: any) => (
@@ -1321,8 +1321,8 @@ export function ToolInput({
       {selectedTools.length === 0 ? (
         <Popover open={open} onOpenChange={setOpen}>
           <PopoverTrigger asChild>
-            <div className='flex w-full cursor-pointer items-center justify-center rounded-[4px] border border-[#303030] bg-[#1F1F1F] px-[10px] py-[6px] font-medium text-sm transition-colors hover:bg-[#252525]'>
-              <div className='flex items-center text-[#787878] text-[13px]'>
+            <div className='flex w-full cursor-pointer items-center justify-center rounded-[4px] border border-[var(--border-strong)] bg-[#1F1F1F] px-[10px] py-[6px] font-medium text-sm transition-colors hover:bg-[var(--surface-4)]'>
+              <div className='flex items-center text-[13px] text-[var(--text-muted)]'>
                 <PlusIcon className='mr-2 h-4 w-4' />
                 Add Tool
               </div>
@@ -1540,7 +1540,7 @@ export function ToolInput({
               <div
                 key={`${tool.toolId}-${toolIndex}`}
                 className={cn(
-                  'group relative flex flex-col overflow-visible rounded-[4px] border border-[#303030] bg-[#1F1F1F] transition-all duration-200 ease-in-out',
+                  'group relative flex flex-col overflow-visible rounded-[4px] border border-[var(--border-strong)] bg-[#1F1F1F] transition-all duration-200 ease-in-out',
                   draggedIndex === toolIndex ? 'scale-95 opacity-40' : '',
                   dragOverIndex === toolIndex && draggedIndex !== toolIndex && draggedIndex !== null
                     ? 'translate-y-1 transform border-t-2 border-t-muted-foreground/40'
@@ -1558,7 +1558,9 @@ export function ToolInput({
                 <div
                   className={cn(
                     'flex items-center justify-between px-[10px] py-[8px]',
-                    isExpandedForDisplay && !isCustomTool && 'border-[#303030] border-b',
+                    isExpandedForDisplay &&
+                      !isCustomTool &&
+                      'border-[var(--border-strong)] border-b',
                     'cursor-pointer'
                   )}
                   onClick={() => {
@@ -1617,21 +1619,21 @@ export function ToolInput({
                             aria-label='Toggle tool usage control'
                           >
                             <span
-                              className={`font-medium text-[#AEAEAE] text-xs ${
+                              className={`font-medium text-[var(--text-tertiary)] text-xs ${
                                 tool.usageControl === 'auto' ? 'block' : 'hidden'
                               }`}
                             >
                               Auto
                             </span>
                             <span
-                              className={`font-medium text-[#AEAEAE] text-xs ${
+                              className={`font-medium text-[var(--text-tertiary)] text-xs ${
                                 tool.usageControl === 'force' ? 'block' : 'hidden'
                               }`}
                             >
                               Force
                             </span>
                             <span
-                              className={`font-medium text-[#AEAEAE] text-xs ${
+                              className={`font-medium text-[var(--text-tertiary)] text-xs ${
                                 tool.usageControl === 'none' ? 'block' : 'hidden'
                               }`}
                             >
@@ -1667,7 +1669,7 @@ export function ToolInput({
                         e.stopPropagation()
                         handleRemoveTool(toolIndex)
                       }}
-                      className='text-[#AEAEAE] transition-colors hover:text-[#EEEEEE]'
+                      className='text-[var(--text-tertiary)] transition-colors hover:text-[#EEEEEE]'
                       aria-label='Remove tool'
                     >
                       <XIcon className='h-[14px] w-[14px]' />
@@ -1684,16 +1686,18 @@ export function ToolInput({
 
                       return hasOperations && operationOptions.length > 0 ? (
                         <div className='relative min-w-0 space-y-[6px]'>
-                          <div className='font-medium text-[#AEAEAE] text-[13px]'>Operation</div>
+                          <div className='font-medium text-[13px] text-[var(--text-tertiary)]'>
+                            Operation
+                          </div>
                           <div className='w-full min-w-0'>
                             <Select
                               value={tool.operation || operationOptions[0].id}
                               onValueChange={(value) => handleOperationChange(toolIndex, value)}
                             >
-                              <SelectTrigger className='w-full min-w-0 rounded-[4px] border border-[#303030] bg-[#1F1F1F] px-[10px] py-[8px] text-left font-medium text-sm'>
+                              <SelectTrigger className='w-full min-w-0 rounded-[4px] border border-[var(--border-strong)] bg-[#1F1F1F] px-[10px] py-[8px] text-left font-medium text-sm'>
                                 <SelectValue placeholder='Select operation' className='truncate' />
                               </SelectTrigger>
-                              <SelectContent className='border-[#303030] bg-[#1F1F1F]'>
+                              <SelectContent className='border-[var(--border-strong)] bg-[#1F1F1F]'>
                                 {operationOptions
                                   .filter((option) => option.id !== '')
                                   .map((option) => (
@@ -1711,7 +1715,9 @@ export function ToolInput({
                     {/* OAuth credential selector if required */}
                     {requiresOAuth && oauthConfig && (
                       <div className='relative min-w-0 space-y-[6px]'>
-                        <div className='font-medium text-[#AEAEAE] text-[13px]'>Account</div>
+                        <div className='font-medium text-[13px] text-[var(--text-tertiary)]'>
+                          Account
+                        </div>
                         <div className='w-full min-w-0'>
                           <ToolCredentialSelector
                             value={tool.params.credential || ''}
@@ -1768,7 +1774,7 @@ export function ToolInput({
                             key={`group-${groupTitle}`}
                             className='relative min-w-0 space-y-[6px]'
                           >
-                            <div className='flex items-center font-medium text-[#AEAEAE] text-[13px]'>
+                            <div className='flex items-center font-medium text-[13px] text-[var(--text-tertiary)]'>
                               {groupTitle}
                             </div>
                             <div className='relative w-full min-w-0'>
@@ -1802,13 +1808,15 @@ export function ToolInput({
                       standaloneParams.forEach((param) => {
                         renderedElements.push(
                           <div key={param.id} className='relative min-w-0 space-y-[6px]'>
-                            <div className='flex items-center font-medium text-[#AEAEAE] text-[13px]'>
+                            <div className='flex items-center font-medium text-[13px] text-[var(--text-tertiary)]'>
                               {param.uiComponent?.title || formatParameterLabel(param.id)}
                               {param.required && param.visibility === 'user-only' && (
                                 <span className='ml-1 text-red-500'>*</span>
                               )}
                               {(!param.required || param.visibility !== 'user-only') && (
-                                <span className='ml-1 text-[#787878] text-xs'>(Optional)</span>
+                                <span className='ml-1 text-[var(--text-muted)] text-xs'>
+                                  (Optional)
+                                </span>
                               )}
                             </div>
                             <div className='relative w-full min-w-0'>
@@ -1853,8 +1861,8 @@ export function ToolInput({
           {/* Add Tool Button */}
           <Popover open={open} onOpenChange={setOpen}>
             <PopoverTrigger asChild>
-              <div className='flex w-full cursor-pointer items-center justify-center rounded-[4px] border border-[#303030] bg-[#1F1F1F] px-[10px] py-[6px] font-medium text-sm transition-colors hover:bg-[#252525]'>
-                <div className='flex items-center text-[#787878] text-[13px]'>
+              <div className='flex w-full cursor-pointer items-center justify-center rounded-[4px] border border-[var(--border-strong)] bg-[#1F1F1F] px-[10px] py-[6px] font-medium text-sm transition-colors hover:bg-[var(--surface-4)]'>
+                <div className='flex items-center text-[13px] text-[var(--text-muted)]'>
                   <PlusIcon className='mr-2 h-4 w-4' />
                   Add Tool
                 </div>

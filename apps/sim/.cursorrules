@@ -428,7 +428,7 @@ setSidebarWidth: (width) => {
 ### Tailwind Classes
 
 1. **No Inline Styles**: Use Tailwind utility classes exclusively
-2. **Dark Mode**: Always include dark mode variants (`dark:bg-[#1E1E1E]`)
+2. **Dark Mode**: Always include dark mode variants (`dark:bg-[var(--surface-1)]`)
 3. **Exact Values**: Use exact values from design system (`text-[14px]`, `h-[25px]`)
 4. **clsx for Conditionals**: Use clsx() for conditional classes
 5. **Consistent Spacing**: Use spacing tokens (`gap-[8px]`, `px-[14px]`)
@@ -441,7 +441,7 @@ setSidebarWidth: (width) => {
     'base-classes that-always-apply',
     isActive && 'active-state-classes',
     disabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer hover:bg-accent',
-    'dark:bg-[#1E1E1E] dark:border-[#2C2C2C]' // Dark mode variants
+    'dark:bg-[var(--surface-1)] dark:border-[var(--border)]' // Dark mode variants
   )}
 >
 ```

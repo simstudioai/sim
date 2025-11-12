@@ -91,7 +91,7 @@ export function FieldItem({
       onDragStart={handleDragStart}
       onClick={handleClick}
       className={clsx(
-        'group flex h-[25px] cursor-grab items-center gap-[8px] rounded-[8px] px-[8px] text-[14px] hover:bg-[#2C2C2C] active:cursor-grabbing dark:hover:bg-[#2C2C2C]',
+        'group flex h-[25px] cursor-grab items-center gap-[8px] rounded-[8px] px-[8px] text-[14px] hover:bg-[var(--border)] active:cursor-grabbing dark:hover:bg-[var(--border)]',
         hasChildren && 'cursor-pointer'
       )}
       style={{ marginLeft: `${indent}px` }}
@@ -99,7 +99,7 @@ export function FieldItem({
       <span
         className={clsx(
           'flex-1 truncate font-medium',
-          'text-[#AEAEAE] group-hover:text-[#E6E6E6] dark:text-[#AEAEAE] dark:group-hover:text-[#E6E6E6]'
+          'text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)] dark:text-[var(--text-tertiary)] dark:group-hover:text-[var(--text-primary)]'
         )}
       >
         {field.name}
@@ -109,7 +109,7 @@ export function FieldItem({
         <ChevronDown
           className={clsx(
             'h-3.5 w-3.5 flex-shrink-0 transition-transform',
-            'text-[#AEAEAE] group-hover:text-[#E6E6E6] dark:text-[#AEAEAE] dark:group-hover:text-[#E6E6E6]',
+            'text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)] dark:text-[var(--text-tertiary)] dark:group-hover:text-[var(--text-primary)]',
             isExpanded && 'rotate-180'
           )}
         />

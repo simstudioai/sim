@@ -303,12 +303,12 @@ export const DiffControls = memo(function DiffControls() {
 
   return (
     <div className='-translate-x-1/2 fixed bottom-20 left-1/2 z-30'>
-      <div className='flex items-center gap-[6px] rounded-[10px] bg-[#242424] p-[6px]'>
+      <div className='flex items-center gap-[6px] rounded-[10px] bg-[var(--surface-3)] p-[6px]'>
         {/* Toggle (left, icon-only) */}
         <Button
           variant='ghost'
           onClick={handleToggleDiff}
-          className='h-[30px] w-[30px] rounded-[8px] bg-[#363636] p-0 text-[#868686] hover:bg-[#8E4CFB] hover:text-[#E6E6E6]'
+          className='h-[30px] w-[30px] rounded-[8px] bg-[var(--surface-9)] p-0 text-[#868686] hover:bg-[var(--brand-400)] hover:text-[var(--text-primary)]'
           title={isShowingDiff ? 'View original' : 'Preview changes'}
         >
           {isShowingDiff ? (
@@ -322,7 +322,7 @@ export const DiffControls = memo(function DiffControls() {
         <Button
           variant='ghost'
           onClick={handleReject}
-          className='h-[30px] rounded-[8px] bg-[#363636] px-3 text-[#868686] hover:bg-[#8E4CFB] hover:text-[#E6E6E6]'
+          className='h-[30px] rounded-[8px] bg-[var(--surface-9)] px-3 text-[#868686] hover:bg-[var(--brand-400)] hover:text-[var(--text-primary)]'
           title='Reject changes'
         >
           Reject

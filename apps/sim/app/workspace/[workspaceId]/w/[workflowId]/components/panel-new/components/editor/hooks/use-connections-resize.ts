@@ -6,9 +6,9 @@ import { usePanelEditorStore } from '@/stores/panel-new/editor/store'
  */
 const MIN_CONNECTIONS_HEIGHT = 30
 /**
- * Maximum height for the connections section (same as default fixed height)
+ * Maximum height for the connections section
  */
-const MAX_CONNECTIONS_HEIGHT = 200
+const MAX_CONNECTIONS_HEIGHT = 300
 
 /**
  * Props for the useConnectionsResize hook

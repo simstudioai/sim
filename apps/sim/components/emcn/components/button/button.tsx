@@ -3,19 +3,21 @@ import { cva, type VariantProps } from 'class-variance-authority'
 import { cn } from '@/lib/utils'
 
 const buttonVariants = cva(
-  'inline-flex items-center text-[#B1B1B1] hover:text-[#E6E6E6] dark:hover:text-[#E6E6E6] dark:text-[#B1B1B1] justify-center font-medium transition-colors disabled:pointer-events-none disabled:opacity-50 outline-none focus:outline-none focus-visible:outline-none rounded-[4px] px-[8px] py-[6px] text-[12px]',
+  'inline-flex items-center text-[var(--text-secondary)] hover:text-[var(--text-primary)] dark:hover:text-[var(--text-primary)] dark:text-[var(--text-secondary)] justify-center font-medium transition-colors disabled:pointer-events-none disabled:opacity-50 outline-none focus:outline-none focus-visible:outline-none rounded-[4px] px-[8px] py-[6px] text-[12px]',
   {
     variants: {
       variant: {
-        default: 'bg-[#272727] dark:bg-[#272727] hover:bg-[#363636] dark:hover:bg-[#363636]',
-        active: 'bg-[#363636] dark:bg-[#363636] dark:text-[#E6E6E6] text-[#E6E6E6]',
-        '3d': 'dark:text-[#AEAEAE] border-t border-l border-r dark:border-[#303030] shadow-[0_2px_0_0] dark:shadow-[#303030] hover:shadow-[0_4px_0_0] transition-all hover:-translate-y-0.5 hover:dark:text-[#E6E6E6]',
+        default:
+          'bg-[var(--surface-5)] dark:bg-[var(--surface-5)] hover:bg-[var(--surface-9)] dark:hover:bg-[var(--surface-9)]',
+        active:
+          'bg-[var(--surface-9)] dark:bg-[var(--surface-9)] dark:text-[var(--text-primary)] text-[var(--text-primary)]',
+        '3d': 'dark:text-[var(--text-tertiary)] border-t border-l border-r dark:border-[var(--border-strong)] shadow-[0_2px_0_0] dark:shadow-[var(--border-strong)] hover:shadow-[0_4px_0_0] transition-all hover:-translate-y-0.5 hover:dark:text-[var(--text-primary)]',
         outline:
-          'border border-[#727272] bg-[#303030] hover:bg-[#3D3D3D] dark:border-[#727272] dark:bg-[#303030] dark:hover:bg-[#3D3D3D]',
+          'border border-[#727272] bg-[var(--border-strong)] hover:bg-[var(--surface-11)] dark:border-[#727272] dark:bg-[var(--border-strong)] dark:hover:bg-[var(--surface-11)]',
         primary:
-          'bg-[#8E4CFB] dark:bg-[#8E4CFB] dark:text-[#E6E6E6] text-[#E6E6E6] hover:bg-[#8E4CFB] hover:dark:bg-[#8E4CFB] hover:text-[#E6E6E6] hover:dark:text-[#E6E6E6]',
+          'bg-[var(--brand-400)] dark:bg-[var(--brand-400)] dark:text-[var(--text-primary)] text-[var(--text-primary)] hover:bg-[var(--brand-400)] hover:dark:bg-[var(--brand-400)] hover:text-[var(--text-primary)] hover:dark:text-[var(--text-primary)]',
         ghost: '',
-        'ghost-secondary': 'text-[#787878] dark:text-[#787878]',
+        'ghost-secondary': 'text-[var(--text-muted)] dark:text-[var(--text-muted)]',
       },
     },
     defaultVariants: {

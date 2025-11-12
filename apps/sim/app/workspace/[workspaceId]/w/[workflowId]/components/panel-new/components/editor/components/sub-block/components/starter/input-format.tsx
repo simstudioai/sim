@@ -165,7 +165,7 @@ export function FieldFormat({
       onClick={() => toggleCollapse(field.id)}
     >
       <div className='flex min-w-0 flex-1 items-center gap-[8px]'>
-        <span className='block truncate font-medium text-[#AEAEAE] text-[14px]'>
+        <span className='block truncate font-medium text-[14px] text-[var(--text-tertiary)]'>
           {field.name || `${title} ${index + 1}`}
         </span>
         {field.name && showType && <Badge className='h-[20px] text-[13px]'>{field.type}</Badge>}
@@ -179,7 +179,7 @@ export function FieldFormat({
           variant='ghost'
           onClick={() => removeField(field.id)}
           disabled={isReadOnly || fields.length === 1}
-          className='h-auto p-0 text-[#EF4444] hover:text-[#EF4444]'
+          className='h-auto p-0 text-[var(--text-error)] hover:text-[var(--text-error)]'
         >
           <Trash className='h-[14px] w-[14px]' />
           <span className='sr-only'>Delete Field</span>
@@ -240,7 +240,7 @@ export function FieldFormat({
         return Array.from({ length: lineCount }, (_, i) => (
           <div
             key={i}
-            className='font-medium font-mono text-[#787878] text-xs'
+            className='font-medium font-mono text-[var(--text-muted)] text-xs'
             style={{ height: `${21}px`, lineHeight: `${21}px` }}
           >
             {i + 1}
@@ -279,7 +279,7 @@ export function FieldFormat({
         return Array.from({ length: lineCount }, (_, i) => (
           <div
             key={i}
-            className='font-medium font-mono text-[#787878] text-xs'
+            className='font-medium font-mono text-[var(--text-muted)] text-xs'
             style={{ height: `${21}px`, lineHeight: `${21}px` }}
           >
             {i + 1}
@@ -364,14 +364,14 @@ export function FieldFormat({
           key={field.id}
           data-field-id={field.id}
           className={cn(
-            'rounded-[4px] border border-[#303030] bg-[#1F1F1F]',
+            'rounded-[4px] border border-[var(--border-strong)] bg-[#1F1F1F]',
             field.collapsed ? 'overflow-hidden' : 'overflow-visible'
           )}
         >
           {renderFieldHeader(field, index)}
 
           {!field.collapsed && (
-            <div className='flex flex-col gap-[6px] border-[#303030] border-t px-[10px] pt-[6px] pb-[10px]'>
+            <div className='flex flex-col gap-[6px] border-[var(--border-strong)] border-t px-[10px] pt-[6px] pb-[10px]'>
               <div className='flex flex-col gap-[4px]'>
                 <Label className='text-[13px]'>Name</Label>
                 <Input

@@ -59,16 +59,16 @@ import { cn } from '@/lib/utils'
  * Ensures consistent height and styling across items, folders, and back button.
  */
 const POPOVER_ITEM_BASE_CLASSES =
-  'flex h-[25px] min-w-0 cursor-pointer items-center gap-[8px] rounded-[6px] px-[6px] font-base text-[#E6E6E6] text-[12px] transition-colors dark:text-[#E6E6E6] [&_svg]:transition-colors disabled:pointer-events-none disabled:opacity-50 disabled:cursor-not-allowed'
+  'flex h-[25px] min-w-0 cursor-pointer items-center gap-[8px] rounded-[6px] px-[6px] font-base text-[var(--text-primary)] text-[12px] transition-colors dark:text-[var(--text-primary)] [&_svg]:transition-colors disabled:pointer-events-none disabled:opacity-50 disabled:cursor-not-allowed'
 
 /**
  * Variant-specific active state styles for popover items.
  */
 const POPOVER_ITEM_ACTIVE_CLASSES = {
   primary:
-    'bg-[#33B4FF] text-[#1B1B1B] dark:bg-[#33B4FF] dark:text-[#1B1B1B] [&_svg]:text-[#1B1B1B] dark:[&_svg]:text-[#1B1B1B]',
+    'bg-[var(--brand-secondary)] text-[var(--bg)] dark:bg-[var(--brand-secondary)] dark:text-[var(--bg)] [&_svg]:text-[var(--bg)] dark:[&_svg]:text-[var(--bg)]',
   default:
-    'bg-[#363636] text-[#E6E6E6] dark:bg-[#363636] dark:text-[#E6E6E6] [&_svg]:text-[#E6E6E6] dark:[&_svg]:text-[#E6E6E6]',
+    'bg-[var(--surface-9)] text-[var(--text-primary)] dark:bg-[var(--surface-9)] dark:text-[var(--text-primary)] [&_svg]:text-[var(--text-primary)] dark:[&_svg]:text-[var(--text-primary)]',
 }
 
 /**
@@ -76,9 +76,9 @@ const POPOVER_ITEM_ACTIVE_CLASSES = {
  */
 const POPOVER_ITEM_HOVER_CLASSES = {
   primary:
-    'hover:bg-[#33B4FF] hover:text-[#1B1B1B] dark:hover:bg-[#33B4FF] dark:hover:text-[#1B1B1B] hover:[&_svg]:text-[#1B1B1B] dark:hover:[&_svg]:text-[#1B1B1B]',
+    'hover:bg-[var(--brand-secondary)] hover:text-[var(--bg)] dark:hover:bg-[var(--brand-secondary)] dark:hover:text-[var(--bg)] hover:[&_svg]:text-[var(--bg)] dark:hover:[&_svg]:text-[var(--bg)]',
   default:
-    'hover:bg-[#363636] hover:text-[#E6E6E6] dark:hover:bg-[#363636] dark:hover:text-[#E6E6E6] hover:[&_svg]:text-[#E6E6E6] dark:hover:[&_svg]:text-[#E6E6E6]',
+    'hover:bg-[var(--surface-9)] hover:text-[var(--text-primary)] dark:hover:bg-[var(--surface-9)] dark:hover:text-[var(--text-primary)] hover:[&_svg]:text-[var(--text-primary)] dark:hover:[&_svg]:text-[var(--text-primary)]',
 }
 
 type PopoverVariant = 'default' | 'primary'
@@ -260,6 +260,12 @@ const PopoverContent = React.forwardRef<
     // Smart default offset: larger offset when rendering above to avoid covering cursor
     const effectiveSideOffset = sideOffset ?? (side === 'top' ? 20 : 14)
 
+    // Detect explicit width constraints provided by the consumer.
+    // When present, we enable default text truncation behavior for inner flexible items,
+    // so callers don't need to manually pass 'truncate' to every label.
+    const hasUserWidthConstraint =
+      style?.minWidth !== undefined || style?.maxWidth !== undefined || style?.width !== undefined
+
     return (
       <PopoverPrimitive.Portal>
         <PopoverPrimitive.Content
@@ -272,7 +278,9 @@ const PopoverContent = React.forwardRef<
           sticky='partial'
           {...restProps}
           className={cn(
-            'z-[9999999] flex flex-col overflow-hidden rounded-[8px] bg-[#242424] px-[5.5px] py-[5px] text-foreground outline-none dark:bg-[#242424]',
+            'z-[9999999] flex flex-col overflow-hidden rounded-[8px] bg-[var(--surface-3)] px-[5.5px] py-[5px] text-foreground outline-none dark:bg-[var(--surface-3)]',
+            // If width is constrained by the caller, ensure inner flexible text truncates by default.
+            hasUserWidthConstraint && '[&_.flex-1]:truncate',
             className
           )}
           style={{
@@ -407,7 +415,7 @@ const PopoverSection = React.forwardRef<HTMLDivElement, PopoverSectionProps>(
     return (
       <div
         className={cn(
-          'px-[6px] py-[4px] font-base text-[#AEAEAE] text-[12px] dark:text-[#AEAEAE]',
+          'px-[6px] py-[4px] font-base text-[12px] text-[var(--text-tertiary)] dark:text-[var(--text-tertiary)]',
           className
         )}
         ref={ref}
@@ -576,7 +584,7 @@ const PopoverBackButton = React.forwardRef<HTMLDivElement, PopoverBackButtonProp
           </div>
         )}
         {folderTitle && !onFolderSelect && (
-          <div className='px-[6px] py-[4px] font-base text-[#AEAEAE] text-[12px] dark:text-[#AEAEAE]'>
+          <div className='px-[6px] py-[4px] font-base text-[12px] text-[var(--text-tertiary)] dark:text-[var(--text-tertiary)]'>
             {folderTitle}
           </div>
         )}
@@ -631,10 +639,10 @@ const PopoverSearch = React.forwardRef<HTMLDivElement, PopoverSearchProps>(
 
     return (
       <div ref={ref} className={cn('flex items-center px-[8px] py-[6px]', className)} {...props}>
-        <Search className='mr-2 h-[12px] w-[12px] shrink-0 text-[#787878]' />
+        <Search className='mr-2 h-[12px] w-[12px] shrink-0 text-[var(--text-muted)]' />
         <input
           ref={inputRef}
-          className='w-full bg-transparent font-base text-[#E6E6E6] text-[12px] placeholder:text-[#787878] focus:outline-none'
+          className='w-full bg-transparent font-base text-[12px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none'
           placeholder={placeholder}
           value={searchQuery}
           onChange={handleChange}

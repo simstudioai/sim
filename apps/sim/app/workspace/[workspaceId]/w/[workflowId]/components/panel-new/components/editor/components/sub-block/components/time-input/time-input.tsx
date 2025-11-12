@@ -125,7 +125,7 @@ export function TimeInput({
             type='text'
             autoComplete='off'
           />
-          <span className='text-[#E6E6E6]'>:</span>
+          <span className='text-[var(--text-primary)]'>:</span>
           <Input
             className='w-[4rem]'
             value={minute}

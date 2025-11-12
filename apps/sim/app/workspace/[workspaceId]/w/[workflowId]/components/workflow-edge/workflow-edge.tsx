@@ -79,10 +79,10 @@ export const WorkflowEdge = ({
   const isErrorEdge = (sourceHandle ?? dataSourceHandle) === 'error'
 
   const getEdgeColor = () => {
-    if (edgeDiffStatus === 'deleted') return '#ef4444' // Red for deleted edges
-    if (isErrorEdge) return '#EF4444' // Red for error paths (matches error handle)
-    if (edgeDiffStatus === 'new') return '#22C55E' // Green for new edges
-    return '#434343' // Matches workflow-block handle color
+    if (edgeDiffStatus === 'deleted') return 'var(--text-error)'
+    if (isErrorEdge) return 'var(--text-error)'
+    if (edgeDiffStatus === 'new') return 'var(--brand-tertiary)'
+    return 'var(--surface-12)'
   }
 
   const edgeStyle = {
@@ -133,7 +133,7 @@ export const WorkflowEdge = ({
               }
             }}
           >
-            <X className='h-4 w-4 text-[#EF4444] transition-colors group-hover:text-[#EF4444]/80 dark:text-[#EF4444] dark:group-hover:text-[#EF4444]/80' />
+            <X className='h-4 w-4 text-[var(--text-error)] transition-colors group-hover:text-[var(--text-error)]/80 dark:text-[var(--text-error)] dark:group-hover:text-[var(--text-error)]/80' />
           </div>
         </EdgeLabelRenderer>
       )}
