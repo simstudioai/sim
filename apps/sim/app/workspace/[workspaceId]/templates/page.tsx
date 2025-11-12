@@ -34,13 +34,13 @@ export default async function TemplatesPage() {
     effectiveSuperUser = isSuperUser && superUserModeEnabled
   }
 
-  // Load templates (same logic as global page)
+  // Load templates from database
   let rows:
     | Array<{
         id: string
         workflowId: string | null
         name: string
-        details?: any
+        details?: unknown
         creatorId: string | null
         creator: {
           id: string
@@ -124,24 +124,46 @@ export default async function TemplatesPage() {
         row.creator?.referenceType === 'user' ? row.creator.referenceId : '' /* no owner context */
 
       return {
+        // New structure fields
         id: row.id,
         workflowId: row.workflowId,
-        userId,
         name: row.name,
-        description: row.details?.tagline ?? null,
-        author: row.creator?.name ?? 'Unknown',
-        authorType,
-        organizationId,
+        details: row.details as { tagline?: string; about?: string } | null,
+        creatorId: row.creatorId,
+        creator: row.creator
+          ? {
+              id: row.creator.id,
+              name: row.creator.name,
+              profileImageUrl: row.creator.profileImageUrl,
+              details: row.creator.details as {
+                about?: string
+                xUrl?: string
+                linkedinUrl?: string
+                websiteUrl?: string
+                contactEmail?: string
+              } | null,
+              referenceType: row.creator.referenceType,
+              referenceId: row.creator.referenceId,
+            }
+          : null,
         views: row.views,
         stars: row.stars,
-        color: '#3972F6', // default color for workspace cards
-        icon: 'Workflow', // default icon for workspace cards
         status: row.status,
+        tags: row.tags,
+        requiredCredentials: row.requiredCredentials,
         state: row.state as WorkspaceTemplate['state'],
         createdAt: row.createdAt,
         updatedAt: row.updatedAt,
         isStarred: row.isStarred ?? false,
         isSuperUser: effectiveSuperUser,
+        // Legacy fields for backward compatibility
+        userId,
+        description: (row.details as any)?.tagline ?? null,
+        author: row.creator?.name ?? 'Unknown',
+        authorType,
+        organizationId,
+        color: '#3972F6', // default color for workspace cards
+        icon: 'Workflow', // default icon for workspace cards
       }
     }) ?? []
 
