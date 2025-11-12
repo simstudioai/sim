@@ -51,7 +51,6 @@ import {
 } from 'lucide-react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import ReactMarkdown from 'react-markdown'
-import { Tooltip } from '@/components/emcn'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -60,6 +59,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { useSession } from '@/lib/auth-client'
 import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
 import type { CredentialRequirement } from '@/lib/workflows/credential-extractor'
@@ -110,14 +110,19 @@ const iconMap = {
   Award,
 }
 
-export default function TemplateDetails() {
+interface TemplateDetailsProps {
+  isWorkspaceContext?: boolean
+}
+
+export default function TemplateDetails({ isWorkspaceContext = false }: TemplateDetailsProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const params = useParams()
   const templateId = params?.id as string
+  const workspaceId = isWorkspaceContext ? (params?.workspaceId as string) : null
+  const { data: session } = useSession()
 
   const [template, setTemplate] = useState<Template | null>(null)
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const [currentUserOrgs, setCurrentUserOrgs] = useState<string[]>([])
   const [currentUserOrgRoles, setCurrentUserOrgRoles] = useState<
     Array<{ organizationId: string; role: string }>
@@ -139,6 +144,8 @@ export default function TemplateDetails() {
   const [showWorkspaceSelectorForEdit, setShowWorkspaceSelectorForEdit] = useState(false)
   const [showWorkspaceSelectorForUse, setShowWorkspaceSelectorForUse] = useState(false)
 
+  const currentUserId = session?.user?.id || null
+
   // Fetch template data on client side
   useEffect(() => {
     if (!templateId) {
@@ -156,28 +163,15 @@ export default function TemplateDetails() {
           setStarCount(data.data.stars || 0)
         }
       } catch (error) {
-        console.error('Error fetching template:', error)
+        logger.error('Error fetching template:', error)
       } finally {
         setLoading(false)
       }
     }
 
-    const fetchCurrentUser = async () => {
-      try {
-        const response = await fetch('/api/auth/get-session')
-        if (response.ok) {
-          const data = await response.json()
-          setCurrentUserId(data?.user?.id || null)
-        } else {
-          setCurrentUserId(null)
-        }
-      } catch (error) {
-        console.error('Error fetching session:', error)
-        setCurrentUserId(null)
-      }
-    }
-
     const fetchUserOrganizations = async () => {
+      if (!currentUserId) return
+
       try {
         const response = await fetch('/api/organizations')
         if (response.ok) {
@@ -192,11 +186,13 @@ export default function TemplateDetails() {
           setCurrentUserOrgRoles(orgRoles)
         }
       } catch (error) {
-        console.error('Error fetching organizations:', error)
+        logger.error('Error fetching organizations:', error)
       }
     }
 
     const fetchSuperUserStatus = async () => {
+      if (!currentUserId) return
+
       try {
         const response = await fetch('/api/user/super-user')
         if (response.ok) {
@@ -204,15 +200,14 @@ export default function TemplateDetails() {
           setIsSuperUser(data.isSuperUser || false)
         }
       } catch (error) {
-        console.error('Error fetching super user status:', error)
+        logger.error('Error fetching super user status:', error)
       }
     }
 
     fetchTemplate()
-    fetchCurrentUser()
     fetchSuperUserStatus()
     fetchUserOrganizations()
-  }, [templateId])
+  }, [templateId, currentUserId])
 
   // Fetch workspaces when user is logged in
   useEffect(() => {
@@ -235,7 +230,7 @@ export default function TemplateDetails() {
           setWorkspaces(availableWorkspaces)
         }
       } catch (error) {
-        console.error('Error fetching workspaces:', error)
+        logger.error('Error fetching workspaces:', error)
       } finally {
         setIsLoadingWorkspaces(false)
       }
@@ -247,9 +242,14 @@ export default function TemplateDetails() {
   // Clean up URL when returning from login
   useEffect(() => {
     if (template && searchParams?.get('use') === 'true' && currentUserId) {
-      router.replace(`/templates/${template.id}`)
+      if (isWorkspaceContext && workspaceId) {
+        handleWorkspaceSelectForUse(workspaceId)
+        router.replace(`/workspace/${workspaceId}/templates/${template.id}`)
+      } else {
+        router.replace(`/templates/${template.id}`)
+      }
     }
-  }, [searchParams, currentUserId, template, router])
+  }, [searchParams, currentUserId, template, isWorkspaceContext, workspaceId, router])
 
   // Check if user can edit template
   const canEditTemplate = (() => {
@@ -355,7 +355,7 @@ export default function TemplateDetails() {
         />
       )
     } catch (error) {
-      console.error('Error rendering workflow preview:', error)
+      logger.error('Error rendering workflow preview:', error)
       return (
         <div className='flex h-full items-center justify-center text-center'>
           <div className='text-muted-foreground'>
@@ -368,7 +368,11 @@ export default function TemplateDetails() {
   }
 
   const handleBack = () => {
-    router.push('/templates')
+    if (isWorkspaceContext) {
+      router.back()
+    } else {
+      router.push('/templates')
+    }
   }
 
   const handleStarToggle = async () => {
@@ -392,37 +396,59 @@ export default function TemplateDetails() {
 
   const handleUseTemplate = () => {
     if (!currentUserId) {
-      const callbackUrl = encodeURIComponent(`/templates/${template.id}`)
+      const callbackUrl =
+        isWorkspaceContext && workspaceId
+          ? encodeURIComponent(`/workspace/${workspaceId}/templates/${template.id}?use=true`)
+          : encodeURIComponent(`/templates/${template.id}`)
       router.push(`/login?callbackUrl=${callbackUrl}`)
       return
     }
-    setShowWorkspaceSelectorForUse(true)
+
+    // In workspace context, use current workspace directly
+    if (isWorkspaceContext && workspaceId) {
+      handleWorkspaceSelectForUse(workspaceId)
+    } else {
+      setShowWorkspaceSelectorForUse(true)
+    }
   }
 
   const handleEditTemplate = async () => {
     if (!currentUserId || !template) return
 
-    // Check if workflow exists and user has access
-    if (template.workflowId) {
+    // In workspace context with existing workflow, navigate directly
+    if (isWorkspaceContext && workspaceId && template.workflowId) {
+      setIsEditing(true)
+      try {
+        const checkResponse = await fetch(`/api/workflows/${template.workflowId}`)
+
+        if (checkResponse.ok) {
+          router.push(`/workspace/${workspaceId}/w/${template.workflowId}`)
+          return
+        }
+      } catch (error) {
+        logger.error('Error checking workflow:', error)
+      } finally {
+        setIsEditing(false)
+      }
+      // If workflow doesn't exist, fall through to workspace selector
+    }
+
+    // Check if workflow exists and user has access (global context)
+    if (template.workflowId && !isWorkspaceContext) {
       setIsEditing(true)
       try {
         const checkResponse = await fetch(`/api/workflows/${template.workflowId}`)
 
         if (checkResponse.status === 403) {
-          // User doesn't have access to the workspace
-          // This shouldn't happen if button is properly disabled, but handle it gracefully
           alert("You don't have access to the workspace containing this template")
           return
         }
 
         if (checkResponse.ok) {
-          // Workflow exists and user has access, get its workspace and navigate to it
           const result = await checkResponse.json()
-          const workspaceId = result.data?.workspaceId
-          if (workspaceId) {
-            // Use window.location to ensure a full page load with fresh data
-            // This avoids race conditions with client-side navigation
-            window.location.href = `/workspace/${workspaceId}/w/${template.workflowId}`
+          const templateWorkspaceId = result.data?.workspaceId
+          if (templateWorkspaceId) {
+            window.location.href = `/workspace/${templateWorkspaceId}/w/${template.workflowId}`
             return
           }
         }
@@ -433,8 +459,12 @@ export default function TemplateDetails() {
       }
     }
 
-    // Workflow doesn't exist or was deleted - show workspace selector
-    setShowWorkspaceSelectorForEdit(true)
+    // Workflow doesn't exist - show workspace selector or use current workspace
+    if (isWorkspaceContext && workspaceId) {
+      handleWorkspaceSelectForEdit(workspaceId)
+    } else {
+      setShowWorkspaceSelectorForEdit(true)
+    }
   }
 
   const handleWorkspaceSelectForUse = async (workspaceId: string) => {
@@ -505,7 +535,11 @@ export default function TemplateDetails() {
         // Update template status optimistically
         setTemplate({ ...template, status: 'approved' })
         // Redirect back to templates page after approval
-        router.push('/templates')
+        if (isWorkspaceContext && workspaceId) {
+          router.push(`/workspace/${workspaceId}/templates`)
+        } else {
+          router.push('/templates')
+        }
       }
     } catch (error) {
       logger.error('Error approving template:', error)
@@ -527,7 +561,11 @@ export default function TemplateDetails() {
         // Update template status optimistically
         setTemplate({ ...template, status: 'rejected' })
         // Redirect back to templates page after rejection
-        router.push('/templates')
+        if (isWorkspaceContext && workspaceId) {
+          router.push(`/workspace/${workspaceId}/templates`)
+        } else {
+          router.push('/templates')
+        }
       }
     } catch (error) {
       logger.error('Error rejecting template:', error)
@@ -537,7 +575,7 @@ export default function TemplateDetails() {
   }
 
   return (
-    <div className='flex min-h-screen flex-col'>
+    <div className={cn('flex min-h-screen flex-col', isWorkspaceContext && 'pl-64')}>
       {/* Header */}
       <div className='border-b bg-background p-6'>
         <div className='mx-auto max-w-7xl'>
@@ -621,32 +659,17 @@ export default function TemplateDetails() {
                 </Button>
               )}
 
-              {/* Edit button - for template owners (approved or pending) */}
+              {/* Edit button - for template owners */}
               {canEditTemplate && currentUserId && (
                 <>
-                  {template.workflowId && !showWorkspaceSelectorForEdit ? (
-                    <Tooltip.Root>
-                      <Tooltip.Trigger asChild>
-                        <span>
-                          <Button
-                            onClick={handleEditTemplate}
-                            disabled={isEditing || hasWorkspaceAccess === false}
-                            className={
-                              hasWorkspaceAccess === false
-                                ? 'cursor-not-allowed opacity-50'
-                                : 'bg-blue-600 text-white hover:bg-blue-700'
-                            }
-                          >
-                            {isEditing ? 'Opening...' : 'Edit Template'}
-                          </Button>
-                        </span>
-                      </Tooltip.Trigger>
-                      {hasWorkspaceAccess === false && (
-                        <Tooltip.Content>
-                          <p>Don't have access to workspace to edit template</p>
-                        </Tooltip.Content>
-                      )}
-                    </Tooltip.Root>
+                  {(isWorkspaceContext || template.workflowId) && !showWorkspaceSelectorForEdit ? (
+                    <Button
+                      onClick={handleEditTemplate}
+                      disabled={isEditing || (!isWorkspaceContext && hasWorkspaceAccess === false)}
+                      className='bg-blue-600 text-white hover:bg-blue-700'
+                    >
+                      {isEditing ? 'Opening...' : 'Edit Template'}
+                    </Button>
                   ) : (
                     <DropdownMenu
                       open={showWorkspaceSelectorForEdit}
@@ -654,9 +677,7 @@ export default function TemplateDetails() {
                     >
                       <DropdownMenuTrigger asChild>
                         <Button
-                          onClick={() =>
-                            !template.workflowId && setShowWorkspaceSelectorForEdit(true)
-                          }
+                          onClick={() => setShowWorkspaceSelectorForEdit(true)}
                           disabled={isUsing || isLoadingWorkspaces}
                           className='bg-blue-600 text-white hover:bg-blue-700'
                         >
@@ -701,12 +722,25 @@ export default function TemplateDetails() {
                   {!currentUserId ? (
                     <Button
                       onClick={() => {
-                        const callbackUrl = encodeURIComponent(`/templates/${template.id}`)
+                        const callbackUrl =
+                          isWorkspaceContext && workspaceId
+                            ? encodeURIComponent(
+                                `/workspace/${workspaceId}/templates/${template.id}?use=true`
+                              )
+                            : encodeURIComponent(`/templates/${template.id}`)
                         router.push(`/login?callbackUrl=${callbackUrl}`)
                       }}
                       className='bg-purple-600 text-white hover:bg-purple-700'
                     >
                       Sign in to use
+                    </Button>
+                  ) : isWorkspaceContext ? (
+                    <Button
+                      onClick={handleUseTemplate}
+                      disabled={isUsing}
+                      className='bg-purple-600 text-white hover:bg-purple-700'
+                    >
+                      {isUsing ? 'Creating...' : 'Use this template'}
                     </Button>
                   ) : (
                     <DropdownMenu
