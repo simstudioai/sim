@@ -16,6 +16,7 @@ import { SELECTOR_TYPES_HYDRATION_REQUIRED, type SubBlockConfig } from '@/blocks
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { useCredentialDisplay } from '@/hooks/use-credential-display'
 import { useDisplayName } from '@/hooks/use-display-name'
+import { useVariablesStore } from '@/stores/panel/variables/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { ActionBar, Connections } from './components'
@@ -78,10 +79,36 @@ const isPlainObject = (value: unknown): value is Record<string, unknown> => {
 }
 
 /**
+ * Type guard for variable assignments array
+ */
+const isVariableAssignmentsArray = (
+  value: unknown
+): value is Array<{ id?: string; variableId?: string; variableName?: string; value: any }> => {
+  return (
+    Array.isArray(value) &&
+    value.length > 0 &&
+    value.every(
+      (item) =>
+        typeof item === 'object' &&
+        item !== null &&
+        ('variableName' in item || 'variableId' in item)
+    )
+  )
+}
+
+/**
  * Formats a subblock value for display, intelligently handling nested objects and arrays.
  */
 const getDisplayValue = (value: unknown): string => {
   if (value == null || value === '') return '-'
+
+  if (isVariableAssignmentsArray(value)) {
+    const names = value.map((a) => a.variableName).filter((name): name is string => !!name)
+    if (names.length === 0) return '-'
+    if (names.length === 1) return names[0]
+    if (names.length === 2) return `${names[0]}, ${names[1]}`
+    return `${names[0]}, ${names[1]} +${names.length - 2}`
+  }
 
   if (isTableRowArray(value)) {
     const nonEmptyRows = value.filter((row) => {
@@ -172,6 +199,7 @@ const SubBlockRow = ({
   subBlock,
   rawValue,
   workspaceId,
+  workflowId,
   allSubBlockValues,
 }: {
   title: string
@@ -179,6 +207,7 @@ const SubBlockRow = ({
   subBlock?: SubBlockConfig
   rawValue?: unknown
   workspaceId?: string
+  workflowId?: string
   allSubBlockValues?: Record<string, { value: unknown }>
 }) => {
   const getStringValue = useCallback(
@@ -235,11 +264,43 @@ const SubBlockRow = ({
     planId: getStringValue('planId'),
   })
 
+  // Subscribe to variables store to reactively update when variables change
+  const allVariables = useVariablesStore((state) => state.variables)
+
+  // Special handling for variables-input to hydrate variable IDs to names from variables store
+  const variablesDisplayValue = useMemo(() => {
+    if (subBlock?.type !== 'variables-input' || !isVariableAssignmentsArray(rawValue)) {
+      return null
+    }
+
+    const workflowVariables = Object.values(allVariables).filter(
+      (v: any) => v.workflowId === workflowId
+    )
+
+    const names = rawValue
+      .map((a) => {
+        // Prioritize ID lookup (source of truth) over stored name
+        if (a.variableId) {
+          const variable = workflowVariables.find((v: any) => v.id === a.variableId)
+          return variable?.name
+        }
+        if (a.variableName) return a.variableName
+        return null
+      })
+      .filter((name): name is string => !!name)
+
+    if (names.length === 0) return null
+    if (names.length === 1) return names[0]
+    if (names.length === 2) return `${names[0]}, ${names[1]}`
+    return `${names[0]}, ${names[1]} +${names.length - 2}`
+  }, [subBlock?.type, rawValue, workflowId, allVariables])
+
   const isPasswordField = subBlock?.password === true
   const maskedValue = isPasswordField && value && value !== '-' ? '•••' : null
 
   const isSelectorType = subBlock?.type && SELECTOR_TYPES_HYDRATION_REQUIRED.includes(subBlock.type)
-  const hydratedName = credentialName || dropdownLabel || genericDisplayName
+  const hydratedName =
+    credentialName || dropdownLabel || variablesDisplayValue || genericDisplayName
   const displayValue = maskedValue || hydratedName || (isSelectorType && value ? '-' : value)
 
   return (
@@ -840,6 +901,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
                         subBlock={subBlock}
                         rawValue={rawValue}
                         workspaceId={workspaceId}
+                        workflowId={currentWorkflowId}
                         allSubBlockValues={subBlockState}
                       />
                     )

@@ -85,6 +85,7 @@ export const SELECTOR_TYPES_HYDRATION_REQUIRED: SubBlockType[] = [
   'project-selector',
   'knowledge-base-selector',
   'document-selector',
+  'variables-input',
 ] as const
 
 export type ExtractToolOutput<T> = T extends ToolResponse ? T['output'] : never
