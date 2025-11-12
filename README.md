@@ -13,23 +13,21 @@
   <a href="https://docs.sim.ai" target="_blank" rel="noopener noreferrer"><img src="https://img.shields.io/badge/Docs-6F3DFA.svg" alt="Documentation"></a>
 </p>
 
-## Demos
-
-### Workflow Builder
-Design agent workflows visually in a chat-first canvas—connect agents, tools, and blocks, then run them instantly.
+### Construct Workflows Instantly
+Design agent workflows visually in on a canvas—connect agents, tools, and blocks, then run them instantly.
 
 <p align="center">
   <img src="apps/sim/public/static/workflow.gif" alt="Workflow Builder Demo" width="800"/>
 </p>
 
-### Copilot
+### Supercharge with Copilot
 Leverage Copilot to scaffold nodes, fix errors, and iterate on flows directly from natural language.
 
 <p align="center">
   <img src="apps/sim/public/static/copilot.gif" alt="Copilot Demo" width="800"/>
 </p>
 
-### Knowledge
+### Integrate Vector Databases
 Upload documents to a vector store and let agents answer questions grounded in your specific content.
 
 <p align="center">
