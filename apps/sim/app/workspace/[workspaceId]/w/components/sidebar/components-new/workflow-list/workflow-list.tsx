@@ -3,11 +3,15 @@
 import { useCallback, useEffect, useMemo } from 'react'
 import clsx from 'clsx'
 import { useParams, usePathname } from 'next/navigation'
+import { FolderItem } from '@/app/workspace/[workspaceId]/w/components/sidebar/components-new/workflow-list/components/folder-item/folder-item'
+import { WorkflowItem } from '@/app/workspace/[workspaceId]/w/components/sidebar/components-new/workflow-list/components/workflow-item/workflow-item'
+import {
+  useDragDrop,
+  useWorkflowSelection,
+} from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
+import { useImportWorkflow } from '@/app/workspace/[workspaceId]/w/hooks/use-import-workflow'
 import { type FolderTreeNode, useFolderStore } from '@/stores/folders/store'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
-import { useDragDrop, useWorkflowImport, useWorkflowSelection } from '../../hooks'
-import { FolderItem } from './components/folder-item/folder-item'
-import { WorkflowItem } from './components/workflow-item/workflow-item'
 
 /**
  * Constants for tree layout and styling
@@ -72,7 +76,7 @@ export function WorkflowList({
   } = useDragDrop()
 
   // Workflow import hook
-  const { handleFileChange } = useWorkflowImport({ workspaceId })
+  const { handleFileChange } = useImportWorkflow({ workspaceId })
 
   // Set scroll container when ref changes
   useEffect(() => {

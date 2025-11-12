@@ -19,6 +19,11 @@ import {
   useWorkflowOperations,
   useWorkspaceManagement,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
+import {
+  useDuplicateWorkspace,
+  useExportWorkspace,
+  useImportWorkspace,
+} from '@/app/workspace/[workspaceId]/w/hooks'
 import { useFolderStore } from '@/stores/folders/store'
 import { useSidebarStore } from '@/stores/sidebar/store'
 
@@ -55,6 +60,17 @@ export function SidebarNew() {
 
   // Import state
   const [isImporting, setIsImporting] = useState(false)
+
+  // Workspace import input ref
+  const workspaceFileInputRef = useRef<HTMLInputElement>(null)
+
+  // Workspace import hook
+  const { isImporting: isImportingWorkspace, handleImportWorkspace: importWorkspace } =
+    useImportWorkspace()
+
+  // Workspace export hook
+  const { isExporting: isExportingWorkspace, handleExportWorkspace: exportWorkspace } =
+    useExportWorkspace()
 
   // Workspace popover state
   const [isWorkspaceMenuOpen, setIsWorkspaceMenuOpen] = useState(false)
@@ -97,6 +113,11 @@ export function SidebarNew() {
   // Folder operations hook
   const { isCreatingFolder, handleCreateFolder: createFolder } = useFolderOperations({
     workspaceId,
+  })
+
+  // Duplicate workspace hook
+  const { handleDuplicateWorkspace: duplicateWorkspace } = useDuplicateWorkspace({
+    getWorkspaceId: () => workspaceId,
   })
 
   // Prepare data for search modal
@@ -280,6 +301,54 @@ export function SidebarNew() {
   )
 
   /**
+   * Handle workspace duplicate
+   */
+  const handleDuplicateWorkspace = useCallback(
+    async (_workspaceIdToDuplicate: string, workspaceName: string) => {
+      await duplicateWorkspace(workspaceName)
+    },
+    [duplicateWorkspace]
+  )
+
+  /**
+   * Handle workspace export
+   */
+  const handleExportWorkspace = useCallback(
+    async (workspaceIdToExport: string, workspaceName: string) => {
+      await exportWorkspace(workspaceIdToExport, workspaceName)
+    },
+    [exportWorkspace]
+  )
+
+  /**
+   * Handle workspace import button click
+   */
+  const handleImportWorkspace = useCallback(() => {
+    if (workspaceFileInputRef.current) {
+      workspaceFileInputRef.current.click()
+    }
+  }, [])
+
+  /**
+   * Handle workspace import file change
+   */
+  const handleWorkspaceFileChange = useCallback(
+    async (event: React.ChangeEvent<HTMLInputElement>) => {
+      const files = event.target.files
+      if (!files || files.length === 0) return
+
+      const zipFile = files[0]
+      await importWorkspace(zipFile)
+
+      // Reset file input
+      if (event.target) {
+        event.target.value = ''
+      }
+    },
+    [importWorkspace]
+  )
+
+  /**
    * Register global commands:
    * - Mod+Shift+A: Add an Agent block to the canvas
    * - Mod+Y: Navigate to Templates (attempts to override browser history)
@@ -386,6 +455,10 @@ export function SidebarNew() {
             isCollapsed={isCollapsed}
             onRenameWorkspace={handleRenameWorkspace}
             onDeleteWorkspace={handleDeleteWorkspace}
+            onDuplicateWorkspace={handleDuplicateWorkspace}
+            onExportWorkspace={handleExportWorkspace}
+            onImportWorkspace={handleImportWorkspace}
+            isImportingWorkspace={isImportingWorkspace}
           />
         </div>
       ) : (
@@ -414,6 +487,10 @@ export function SidebarNew() {
                   isCollapsed={isCollapsed}
                   onRenameWorkspace={handleRenameWorkspace}
                   onDeleteWorkspace={handleDeleteWorkspace}
+                  onDuplicateWorkspace={handleDuplicateWorkspace}
+                  onExportWorkspace={handleExportWorkspace}
+                  onImportWorkspace={handleImportWorkspace}
+                  isImportingWorkspace={isImportingWorkspace}
                 />
               </div>
 
@@ -528,6 +605,15 @@ export function SidebarNew() {
         workflows={searchModalWorkflows}
         workspaces={searchModalWorkspaces}
         isOnWorkflowPage={!!workflowId}
+      />
+
+      {/* Hidden file input for workspace import */}
+      <input
+        ref={workspaceFileInputRef}
+        type='file'
+        accept='.zip'
+        style={{ display: 'none' }}
+        onChange={handleWorkspaceFileChange}
       />
     </>
   )

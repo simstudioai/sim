@@ -8,9 +8,9 @@ import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
-const logger = createLogger('useWorkflowImport')
+const logger = createLogger('useImportWorkflow')
 
-interface UseWorkflowImportProps {
+interface UseImportWorkflowProps {
   workspaceId: string
 }
 
@@ -21,7 +21,7 @@ interface UseWorkflowImportProps {
  * @param props - Configuration object containing workspaceId
  * @returns Import state and handlers
  */
-export function useWorkflowImport({ workspaceId }: UseWorkflowImportProps) {
+export function useImportWorkflow({ workspaceId }: UseImportWorkflowProps) {
   const router = useRouter()
   const { createWorkflow } = useWorkflowRegistry()
   const [isImporting, setIsImporting] = useState(false)

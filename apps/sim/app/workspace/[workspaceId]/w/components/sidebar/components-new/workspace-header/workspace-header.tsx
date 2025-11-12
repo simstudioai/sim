@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { Pencil, Plus, RefreshCw, Settings } from 'lucide-react'
+import { ArrowDown, Plus, RefreshCw } from 'lucide-react'
 import {
   Badge,
   Button,
@@ -13,10 +13,10 @@ import {
   PopoverSection,
   PopoverTrigger,
   Tooltip,
-  Trash,
 } from '@/components/emcn'
 import { createLogger } from '@/lib/logs/console/logger'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
+import { ContextMenu } from '../workflow-list/components/context-menu/context-menu'
 import { DeleteModal } from '../workflow-list/components/delete-modal/delete-modal'
 import { InviteModal } from './components'
 
@@ -82,6 +82,22 @@ interface WorkspaceHeaderProps {
    * Callback to delete the workspace
    */
   onDeleteWorkspace: (workspaceId: string) => Promise<void>
+  /**
+   * Callback to duplicate the workspace
+   */
+  onDuplicateWorkspace: (workspaceId: string, workspaceName: string) => Promise<void>
+  /**
+   * Callback to export the workspace
+   */
+  onExportWorkspace: (workspaceId: string, workspaceName: string) => Promise<void>
+  /**
+   * Callback to import workspace
+   */
+  onImportWorkspace: () => void
+  /**
+   * Whether workspace import is in progress
+   */
+  isImportingWorkspace: boolean
 }
 
 /**
@@ -102,17 +118,26 @@ export function WorkspaceHeader({
   isCollapsed,
   onRenameWorkspace,
   onDeleteWorkspace,
+  onDuplicateWorkspace,
+  onExportWorkspace,
+  onImportWorkspace,
+  isImportingWorkspace,
 }: WorkspaceHeaderProps) {
   const userPermissions = useUserPermissionsContext()
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false)
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<Workspace | null>(null)
-  const [settingsWorkspaceId, setSettingsWorkspaceId] = useState<string | null>(null)
   const [editingWorkspaceId, setEditingWorkspaceId] = useState<string | null>(null)
   const [editingName, setEditingName] = useState('')
   const [isListRenaming, setIsListRenaming] = useState(false)
   const listRenameInputRef = useRef<HTMLInputElement | null>(null)
+
+  // Context menu state
+  const [contextMenuPosition, setContextMenuPosition] = useState({ x: 0, y: 0 })
+  const [isContextMenuOpen, setIsContextMenuOpen] = useState(false)
+  const contextMenuRef = useRef<HTMLDivElement | null>(null)
+  const capturedWorkspaceRef = useRef<{ id: string; name: string } | null>(null)
 
   /**
    * Focus the inline list rename input when it becomes active
@@ -151,21 +176,65 @@ export function WorkspaceHeader({
   }
 
   /**
-   * Handles rename action from settings menu
+   * Handle right-click context menu
    */
-  const handleRenameAction = (workspace: Workspace) => {
-    setSettingsWorkspaceId(null)
-    setEditingWorkspaceId(workspace.id)
-    setEditingName(workspace.name)
+  const handleContextMenu = (e: React.MouseEvent, workspace: Workspace) => {
+    e.preventDefault()
+    e.stopPropagation()
+
+    capturedWorkspaceRef.current = { id: workspace.id, name: workspace.name }
+    setContextMenuPosition({ x: e.clientX, y: e.clientY })
+    setIsContextMenuOpen(true)
   }
 
   /**
-   * Handles delete action from settings menu
+   * Close context menu
    */
-  const handleDeleteAction = (workspace: Workspace) => {
-    setSettingsWorkspaceId(null)
-    setDeleteTarget(workspace)
-    setIsDeleteModalOpen(true)
+  const closeContextMenu = () => {
+    setIsContextMenuOpen(false)
+  }
+
+  /**
+   * Handles rename action from context menu
+   */
+  const handleRenameAction = () => {
+    if (!capturedWorkspaceRef.current) return
+
+    setEditingWorkspaceId(capturedWorkspaceRef.current.id)
+    setEditingName(capturedWorkspaceRef.current.name)
+  }
+
+  /**
+   * Handles duplicate action from context menu
+   */
+  const handleDuplicateAction = async () => {
+    if (!capturedWorkspaceRef.current) return
+
+    await onDuplicateWorkspace(capturedWorkspaceRef.current.id, capturedWorkspaceRef.current.name)
+    setIsWorkspaceMenuOpen(false)
+  }
+
+  /**
+   * Handles export action from context menu
+   */
+  const handleExportAction = async () => {
+    if (!capturedWorkspaceRef.current) return
+
+    await onExportWorkspace(capturedWorkspaceRef.current.id, capturedWorkspaceRef.current.name)
+  }
+
+  /**
+   * Handles delete action from context menu
+   */
+  const handleDeleteAction = () => {
+    if (!capturedWorkspaceRef.current) return
+
+    const workspace = workspaces.find((w) => w.id === capturedWorkspaceRef.current?.id)
+    if (workspace) {
+      setDeleteTarget(workspace)
+      setIsDeleteModalOpen(true)
+      setIsWorkspaceMenuOpen(false)
+    }
   }
 
   /**
@@ -220,7 +289,16 @@ export function WorkspaceHeader({
           Invite
         </Badge>
         {/* Workspace Switcher Popover */}
-        <Popover open={isWorkspaceMenuOpen} onOpenChange={setIsWorkspaceMenuOpen}>
+        <Popover
+          open={isWorkspaceMenuOpen}
+          onOpenChange={(open) => {
+            // Don't close if context menu is opening
+            if (!open && isContextMenuOpen) {
+              return
+            }
+            setIsWorkspaceMenuOpen(open)
+          }}
+        >
           <PopoverTrigger asChild>
             <Button
               variant='ghost-secondary'
@@ -240,6 +318,7 @@ export function WorkspaceHeader({
             side='bottom'
             sideOffset={8}
             style={{ maxWidth: '160px', minWidth: '160px' }}
+            onOpenAutoFocus={(e) => e.preventDefault()}
           >
             {isWorkspacesLoading ? (
               <PopoverItem disabled>
@@ -249,20 +328,49 @@ export function WorkspaceHeader({
               <>
                 <div className='relative flex items-center justify-between'>
                   <PopoverSection>Workspaces</PopoverSection>
-                  <Button
-                    variant='ghost'
-                    type='button'
-                    aria-label='Create workspace'
-                    className='!p-[3px] absolute top-[3px] right-[5.5px]'
-                    onClick={async (e) => {
-                      e.stopPropagation()
-                      await onCreateWorkspace()
-                      setIsWorkspaceMenuOpen(false)
-                    }}
-                    disabled={isCreatingWorkspace}
-                  >
-                    <Plus className='h-[14px] w-[14px]' />
-                  </Button>
+                  <div className='flex items-center gap-[6px]'>
+                    <Tooltip.Root>
+                      <Tooltip.Trigger asChild>
+                        <Button
+                          variant='ghost'
+                          type='button'
+                          aria-label='Import workspace'
+                          className='!p-[3px]'
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            onImportWorkspace()
+                          }}
+                          disabled={isImportingWorkspace}
+                        >
+                          <ArrowDown className='h-[14px] w-[14px]' />
+                        </Button>
+                      </Tooltip.Trigger>
+                      <Tooltip.Content className='py-[2.5px]'>
+                        <p>{isImportingWorkspace ? 'Importing workspace...' : 'Import from ZIP'}</p>
+                      </Tooltip.Content>
+                    </Tooltip.Root>
+                    <Tooltip.Root>
+                      <Tooltip.Trigger asChild>
+                        <Button
+                          variant='ghost'
+                          type='button'
+                          aria-label='Create workspace'
+                          className='!p-[3px]'
+                          onClick={async (e) => {
+                            e.stopPropagation()
+                            await onCreateWorkspace()
+                            setIsWorkspaceMenuOpen(false)
+                          }}
+                          disabled={isCreatingWorkspace}
+                        >
+                          <Plus className='h-[14px] w-[14px]' />
+                        </Button>
+                      </Tooltip.Trigger>
+                      <Tooltip.Content className='py-[2.5px]'>
+                        <p>{isCreatingWorkspace ? 'Creating workspace...' : 'Create workspace'}</p>
+                      </Tooltip.Content>
+                    </Tooltip.Root>
+                  </div>
                 </div>
                 <div className='max-h-[200px] overflow-y-auto'>
                   {workspaces.map((workspace, index) => (
@@ -312,48 +420,13 @@ export function WorkspaceHeader({
                           />
                         </div>
                       ) : (
-                        <div className='group relative flex items-center'>
-                          <PopoverItem
-                            active={workspace.id === workspaceId}
-                            onClick={() => onWorkspaceSwitch(workspace)}
-                            className='flex-1 pr-[28px]'
-                          >
-                            <span className='min-w-0 flex-1 truncate'>{workspace.name}</span>
-                          </PopoverItem>
-                          <Popover
-                            open={settingsWorkspaceId === workspace.id}
-                            onOpenChange={(open) =>
-                              setSettingsWorkspaceId(open ? workspace.id : null)
-                            }
-                          >
-                            <PopoverTrigger asChild>
-                              <Button
-                                variant='ghost'
-                                type='button'
-                                aria-label='Workspace settings'
-                                className='!p-[4px] absolute right-[4px]'
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                }}
-                              >
-                                <Settings className='h-[14px] w-[14px]' />
-                              </Button>
-                            </PopoverTrigger>
-                            <PopoverContent align='end' side='right' sideOffset={10}>
-                              <PopoverItem onClick={() => handleRenameAction(workspace)}>
-                                <Pencil className='h-3 w-3' />
-                                <span>Rename</span>
-                              </PopoverItem>
-                              <PopoverItem
-                                onClick={() => handleDeleteAction(workspace)}
-                                className='mt-[2px]'
-                              >
-                                <Trash className='h-3 w-3' />
-                                <span>Delete</span>
-                              </PopoverItem>
-                            </PopoverContent>
-                          </Popover>
-                        </div>
+                        <PopoverItem
+                          active={workspace.id === workspaceId}
+                          onClick={() => onWorkspaceSwitch(workspace)}
+                          onContextMenu={(e) => handleContextMenu(e, workspace)}
+                        >
+                          <span className='min-w-0 flex-1 truncate'>{workspace.name}</span>
+                        </PopoverItem>
                       )}
                     </div>
                   ))}
@@ -373,6 +446,22 @@ export function WorkspaceHeader({
           <PanelLeft className='h-[17.5px] w-[17.5px]' />
         </Button>
       </div>
+
+      {/* Context Menu */}
+      <ContextMenu
+        isOpen={isContextMenuOpen}
+        position={contextMenuPosition}
+        menuRef={contextMenuRef}
+        onClose={closeContextMenu}
+        onRename={handleRenameAction}
+        onDuplicate={handleDuplicateAction}
+        onExport={handleExportAction}
+        onDelete={handleDeleteAction}
+        showRename={true}
+        showDuplicate={true}
+        showExport={true}
+      />
+
       {/* Invite Modal */}
       <InviteModal
         open={isInviteModalOpen}

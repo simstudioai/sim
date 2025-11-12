@@ -12,7 +12,11 @@ import {
   useItemDrag,
   useItemRename,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
-import { useDeleteWorkflow, useDuplicateWorkflow } from '@/app/workspace/[workspaceId]/w/hooks'
+import {
+  useDeleteWorkflow,
+  useDuplicateWorkflow,
+  useExportWorkflow,
+} from '@/app/workspace/[workspaceId]/w/hooks'
 import { useFolderStore } from '@/stores/folders/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
@@ -74,6 +78,15 @@ export function WorkflowItem({ workflow, active, level, onWorkflowClick }: Workf
 
   // Duplicate workflow hook
   const { handleDuplicateWorkflow } = useDuplicateWorkflow({
+    workspaceId,
+    getWorkflowIds: () => {
+      // Use the selection captured at right-click time
+      return capturedSelectionRef.current?.workflowIds || []
+    },
+  })
+
+  // Export workflow hook
+  const { handleExportWorkflow } = useExportWorkflow({
     workspaceId,
     getWorkflowIds: () => {
       // Use the selection captured at right-click time
@@ -276,8 +289,11 @@ export function WorkflowItem({ workflow, active, level, onWorkflowClick }: Workf
         onClose={closeMenu}
         onRename={handleStartEdit}
         onDuplicate={handleDuplicateWorkflow}
+        onExport={handleExportWorkflow}
         onDelete={handleOpenDeleteModal}
         showRename={selectedWorkflows.size <= 1}
+        showDuplicate={true}
+        showExport={true}
       />
 
       {/* Delete Confirmation Modal */}

@@ -24,7 +24,7 @@ import {
   WorkspaceSelector,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/components'
 import { InviteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components-new/workspace-header/components/invite-modal/invite-modal'
-import { useAutoScroll } from '@/app/workspace/[workspaceId]/w/hooks/use-auto-scroll'
+import { useAutoScroll } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks/use-auto-scroll'
 import { useKnowledgeBasesList } from '@/hooks/use-knowledge'
 import { useSubscriptionStore } from '@/stores/subscription/store'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'

@@ -1,6 +1,6 @@
 'use client'
 
-import { Pencil } from 'lucide-react'
+import { ArrowUp, Pencil } from 'lucide-react'
 import { Popover, PopoverAnchor, PopoverContent, PopoverItem } from '@/components/emcn'
 import { Copy, Trash } from '@/components/emcn/icons'
 
@@ -30,6 +30,10 @@ interface ContextMenuProps {
    */
   onDuplicate?: () => void
   /**
+   * Callback when export is clicked
+   */
+  onExport?: () => void
+  /**
    * Callback when delete is clicked
    */
   onDelete: () => void
@@ -43,11 +47,16 @@ interface ContextMenuProps {
    * Set to false for items that cannot be duplicated (like folders)
    */
   showDuplicate?: boolean
+  /**
+   * Whether to show the export option (default: false)
+   * Set to true for items that can be exported (like workspaces)
+   */
+  showExport?: boolean
 }
 
 /**
- * Context menu component for workflow and folder items.
- * Displays rename and delete options in a popover at the right-click position.
+ * Context menu component for workflow, folder, and workspace items.
+ * Displays context-appropriate options (rename, duplicate, export, delete) in a popover at the right-click position.
  *
  * @param props - Component props
  * @returns Context menu popover
@@ -59,9 +68,11 @@ export function ContextMenu({
   onClose,
   onRename,
   onDuplicate,
+  onExport,
   onDelete,
   showRename = true,
   showDuplicate = true,
+  showExport = false,
 }: ContextMenuProps) {
   return (
     <Popover open={isOpen} onOpenChange={onClose}>
@@ -95,6 +106,17 @@ export function ContextMenu({
           >
             <Copy className='h-3 w-3' />
             <span>Duplicate</span>
+          </PopoverItem>
+        )}
+        {showExport && onExport && (
+          <PopoverItem
+            onClick={() => {
+              onExport()
+              onClose()
+            }}
+          >
+            <ArrowUp className='h-3 w-3' />
+            <span>Export</span>
           </PopoverItem>
         )}
         <PopoverItem

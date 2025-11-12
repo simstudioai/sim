@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { createLogger } from '@/lib/logs/console/logger'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 const logger = createLogger('useMentionData')
@@ -93,9 +94,6 @@ export function useMentionData(props: UseMentionDataProps) {
   const [pastChats, setPastChats] = useState<PastChat[]>([])
   const [isLoadingPastChats, setIsLoadingPastChats] = useState(false)
 
-  const [workflows, setWorkflows] = useState<WorkflowItem[]>([])
-  const [isLoadingWorkflows, setIsLoadingWorkflows] = useState(false)
-
   const [knowledgeBases, setKnowledgeBases] = useState<KnowledgeItem[]>([])
   const [isLoadingKnowledge, setIsLoadingKnowledge] = useState(false)
 
@@ -113,21 +111,30 @@ export function useMentionData(props: UseMentionDataProps) {
 
   const workflowStoreBlocks = useWorkflowStore((state) => state.blocks)
 
+  // Use workflow registry as source of truth for workflows
+  const registryWorkflows = useWorkflowRegistry((state) => state.workflows)
+  const isLoadingWorkflows = useWorkflowRegistry((state) => state.isLoading)
+
+  // Convert registry workflows to mention format, filtered by workspace and sorted
+  const workflows: WorkflowItem[] = Object.values(registryWorkflows)
+    .filter((w) => w.workspaceId === workspaceId)
+    .sort((a, b) => {
+      const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0
+      const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0
+      return dateB - dateA
+    })
+    .map((w) => ({
+      id: w.id,
+      name: w.name || 'Untitled Workflow',
+      color: w.color,
+    }))
+
   /**
    * Resets past chats when workflow changes
    */
   useEffect(() => {
     setPastChats([])
     setIsLoadingPastChats(false)
-  }, [workflowId])
-
-  /**
-   * Loads workflows on mount if needed
-   */
-  useEffect(() => {
-    if (workflowId && workflows.length === 0) {
-      ensureWorkflowsLoaded()
-    }
   }, [workflowId])
 
   /**
@@ -193,36 +200,12 @@ export function useMentionData(props: UseMentionDataProps) {
   }, [isLoadingPastChats, pastChats.length, workflowId])
 
   /**
-   * Ensures workflows are loaded
+   * Ensures workflows are loaded (now using registry store)
    */
-  const ensureWorkflowsLoaded = useCallback(async () => {
-    if (isLoadingWorkflows || workflows.length > 0) return
-    try {
-      setIsLoadingWorkflows(true)
-      const resp = await fetch('/api/workflows')
-      if (!resp.ok) throw new Error(`Failed to load workflows: ${resp.status}`)
-      const data = await resp.json()
-      const items = Array.isArray(data?.data) ? data.data : []
-      const workspaceFiltered = items.filter(
-        (w: any) => w.workspaceId === workspaceId || !w.workspaceId
-      )
-      const sorted = [...workspaceFiltered].sort((a: any, b: any) => {
-        const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0
-        const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0
-        return dateB - dateA
-      })
-      setWorkflows(
-        sorted.map((w: any) => ({
-          id: w.id,
-          name: w.name || 'Untitled Workflow',
-          color: w.color,
-        }))
-      )
-    } catch {
-    } finally {
-      setIsLoadingWorkflows(false)
-    }
-  }, [isLoadingWorkflows, workflows.length, workspaceId])
+  const ensureWorkflowsLoaded = useCallback(() => {
+    // Workflows are now automatically loaded from the registry store
+    // No manual fetching needed
+  }, [])
 
   /**
    * Ensures knowledge bases are loaded
