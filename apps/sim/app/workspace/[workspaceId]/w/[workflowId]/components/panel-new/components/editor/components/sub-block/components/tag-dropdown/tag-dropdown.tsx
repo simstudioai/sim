@@ -639,7 +639,8 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
       }
 
       blockTags = ensureRootTag(blockTags, normalizedBlockName)
-      const shouldShowRootTag = sourceBlock.type === TRIGGER_TYPES.GENERIC_WEBHOOK
+      const shouldShowRootTag =
+        sourceBlock.type === TRIGGER_TYPES.GENERIC_WEBHOOK || sourceBlock.type === 'start_trigger'
       if (!shouldShowRootTag) {
         blockTags = blockTags.filter((tag) => tag !== normalizedBlockName)
       }
@@ -951,7 +952,9 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
       }
 
       blockTags = ensureRootTag(blockTags, normalizedBlockName)
-      const shouldShowRootTag = accessibleBlock.type === TRIGGER_TYPES.GENERIC_WEBHOOK
+      const shouldShowRootTag =
+        accessibleBlock.type === TRIGGER_TYPES.GENERIC_WEBHOOK ||
+        accessibleBlock.type === 'start_trigger'
       if (!shouldShowRootTag) {
         blockTags = blockTags.filter((tag) => tag !== normalizedBlockName)
       }
