@@ -202,7 +202,7 @@ export function SidebarNew() {
         }
       }
 
-      // Start the scroll attempt after a small delay to ensure rendering
+      // Start the scroll attempt after a small delay to ensure rendering.
       scrollTimeoutRef.current = window.setTimeout(tryScroll, 50)
     },
     [scrollContainerRef]
