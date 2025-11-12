@@ -9,10 +9,13 @@ import {
   TemplateCardSkeleton,
 } from '@/app/workspace/[workspaceId]/templates/components/template-card'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
+import type { CreatorProfileDetails } from '@/types/creator-profile'
 
 const logger = createLogger('TemplatesPage')
 
-// Template data structure
+/**
+ * Template data structure with support for both new and legacy fields
+ */
 export interface Template {
   id: string
   workflowId: string | null
@@ -26,7 +29,7 @@ export interface Template {
     id: string
     name: string
     profileImageUrl?: string | null
-    details?: unknown
+    details?: CreatorProfileDetails | null
     referenceType: 'user' | 'organization'
     referenceId: string
   } | null
@@ -86,7 +89,7 @@ export default function Templates({
    */
   const getFilteredTemplates = () => {
     const query = searchQuery.toLowerCase()
-    
+
     return templates.filter((template) => {
       // Filter by tab
       const tabMatch =
@@ -160,7 +163,7 @@ export default function Templates({
               </div>
               <h1 className='font-medium text-[18px]'>Templates</h1>
             </div>
-            <p className='mt-[10px] font-base text-[var(--text-tertiary)] text-[14px]'>
+            <p className='mt-[10px] font-base text-[14px] text-[var(--text-tertiary)]'>
               Grab a template and start building, or make one from scratch.
             </p>
           </div>
@@ -214,7 +217,7 @@ export default function Templates({
             ) : (
               filteredTemplates.map((template) => {
                 const author = template.author || template.creator?.name || 'Unknown'
-                
+
                 return (
                   <TemplateCard
                     key={template.id}

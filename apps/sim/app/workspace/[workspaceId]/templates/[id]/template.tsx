@@ -26,6 +26,7 @@ import {
   Layers,
   Lightbulb,
   LineChart,
+  Linkedin,
   Mail,
   Megaphone,
   MessageSquare,
@@ -39,6 +40,7 @@ import {
   Star,
   Target,
   TrendingUp,
+  Twitter,
   User,
   Users,
   Workflow,
@@ -46,11 +48,14 @@ import {
   Zap,
 } from 'lucide-react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
+import ReactMarkdown from 'react-markdown'
 import { Button } from '@/components/emcn'
 import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
+import type { CredentialRequirement } from '@/lib/workflows/credential-extractor'
 import type { Template } from '@/app/workspace/[workspaceId]/templates/templates'
 import { WorkflowPreview } from '@/app/workspace/[workspaceId]/w/components/workflow-preview/workflow-preview'
+import { getBlock } from '@/blocks/registry'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('TemplateDetails')
@@ -188,7 +193,7 @@ export default function TemplateDetails() {
       <div className='flex h-[100vh] items-center justify-center pl-64'>
         <div className='text-center'>
           <div className='mb-[14px] font-medium text-[18px]'>Loading...</div>
-          <p className='text-[var(--text-tertiary)] text-[14px]'>Fetching template details</p>
+          <p className='text-[14px] text-[var(--text-tertiary)]'>Fetching template details</p>
         </div>
       </div>
     )
@@ -199,7 +204,7 @@ export default function TemplateDetails() {
       <div className='flex h-[100vh] items-center justify-center pl-64'>
         <div className='text-center'>
           <h1 className='mb-[14px] font-medium text-[18px]'>Template Not Found</h1>
-          <p className='text-[var(--text-tertiary)] text-[14px]'>
+          <p className='text-[14px] text-[var(--text-tertiary)]'>
             The template you're looking for doesn't exist.
           </p>
         </div>
@@ -364,13 +369,13 @@ export default function TemplateDetails() {
             </div>
             <h1 className='font-medium text-[18px]'>{template.name}</h1>
           </div>
-          <p className='mt-[10px] font-base text-[var(--text-tertiary)] text-[14px]'>
+          <p className='mt-[10px] font-base text-[14px] text-[var(--text-tertiary)]'>
             {templateDescription}
           </p>
         </div>
 
         <div className='mt-[14px] flex items-center justify-between'>
-          <div className='flex items-center gap-[12px] font-medium text-[var(--text-tertiary)] text-[12px]'>
+          <div className='flex items-center gap-[12px] font-medium text-[12px] text-[var(--text-tertiary)]'>
             <div className='flex items-center gap-[6px]'>
               <Eye className='h-[12px] w-[12px]' />
               <span>{template.views} views</span>
@@ -435,12 +440,126 @@ export default function TemplateDetails() {
 
         <div className='mt-[24px] h-[1px] w-full border-[var(--border)] border-t' />
 
-        <div className='mt-[24px] flex-1'>
+        {/* Creator Profile */}
+        {template.creator && (
+          <div className='mt-[24px]'>
+            <h3 className='mb-[12px] font-medium text-[14px]'>Creator</h3>
+            <div className='rounded-[8px] border border-[var(--border)] bg-[var(--surface-3)] p-[16px]'>
+              <div className='flex items-start gap-[16px]'>
+                <div className='flex-shrink-0'>
+                  {template.creator.profileImageUrl ? (
+                    <div className='relative h-[56px] w-[56px] overflow-hidden rounded-full'>
+                      <img
+                        src={template.creator.profileImageUrl}
+                        alt={template.creator.name}
+                        className='h-full w-full object-cover'
+                      />
+                    </div>
+                  ) : (
+                    <div className='flex h-[56px] w-[56px] items-center justify-center rounded-full bg-[var(--brand-primary)]'>
+                      <User className='h-[28px] w-[28px] text-white' />
+                    </div>
+                  )}
+                </div>
+
+                <div className='flex-1'>
+                  <h4 className='font-medium text-[14px]'>{template.creator.name}</h4>
+                  {template.creator.details?.about && (
+                    <p className='mt-[8px] text-[13px] text-[var(--text-tertiary)] leading-relaxed'>
+                      {template.creator.details.about}
+                    </p>
+                  )}
+
+                  {(template.creator.details?.xUrl ||
+                    template.creator.details?.linkedinUrl ||
+                    template.creator.details?.websiteUrl ||
+                    template.creator.details?.contactEmail) && (
+                    <div className='mt-[12px] flex flex-wrap gap-[12px]'>
+                      {template.creator.details.xUrl && (
+                        <a
+                          href={template.creator.details.xUrl}
+                          target='_blank'
+                          rel='noopener noreferrer'
+                          className='inline-flex items-center gap-[6px] text-[13px] text-[var(--text-tertiary)] transition-colors hover:text-[var(--text-primary)]'
+                        >
+                          <Twitter className='h-[14px] w-[14px]' />
+                          <span>X</span>
+                        </a>
+                      )}
+                      {template.creator.details.linkedinUrl && (
+                        <a
+                          href={template.creator.details.linkedinUrl}
+                          target='_blank'
+                          rel='noopener noreferrer'
+                          className='inline-flex items-center gap-[6px] text-[13px] text-[var(--text-tertiary)] transition-colors hover:text-[var(--text-primary)]'
+                        >
+                          <Linkedin className='h-[14px] w-[14px]' />
+                          <span>LinkedIn</span>
+                        </a>
+                      )}
+                      {template.creator.details.websiteUrl && (
+                        <a
+                          href={template.creator.details.websiteUrl}
+                          target='_blank'
+                          rel='noopener noreferrer'
+                          className='inline-flex items-center gap-[6px] text-[13px] text-[var(--text-tertiary)] transition-colors hover:text-[var(--text-primary)]'
+                        >
+                          <Globe className='h-[14px] w-[14px]' />
+                          <span>Website</span>
+                        </a>
+                      )}
+                      {template.creator.details.contactEmail && (
+                        <a
+                          href={`mailto:${template.creator.details.contactEmail}`}
+                          className='inline-flex items-center gap-[6px] text-[13px] text-[var(--text-tertiary)] transition-colors hover:text-[var(--text-primary)]'
+                        >
+                          <Mail className='h-[14px] w-[14px]' />
+                          <span>Contact</span>
+                        </a>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Description */}
+        {template.details?.about && (
+          <div className='mt-[24px]'>
+            <h3 className='mb-[12px] font-medium text-[14px]'>Description</h3>
+            <div className='prose prose-sm dark:prose-invert max-w-none text-[13px] text-[var(--text-secondary)]'>
+              <ReactMarkdown>{template.details.about}</ReactMarkdown>
+            </div>
+          </div>
+        )}
+
+        <div className='mt-[24px]'>
           <h2 className='mb-[14px] font-medium text-[14px]'>Workflow Preview</h2>
-          <div className='h-[calc(100vh-280px)] w-full overflow-hidden rounded-[8px] bg-[var(--surface-3)]'>
+          <div className='h-[600px] w-full overflow-hidden rounded-[8px] bg-[var(--surface-3)]'>
             {renderWorkflowPreview()}
           </div>
         </div>
+
+        {/* Required Credentials */}
+        {Array.isArray(template.requiredCredentials) && template.requiredCredentials.length > 0 && (
+          <div className='mt-[24px]'>
+            <h3 className='mb-[12px] font-medium text-[14px]'>Credentials Needed</h3>
+            <ul className='list-disc space-y-[4px] pl-[20px] text-[13px] text-[var(--text-tertiary)]'>
+              {template.requiredCredentials.map((cred: CredentialRequirement, idx: number) => {
+                const blockName =
+                  getBlock(cred.blockType)?.name ||
+                  cred.blockType.charAt(0).toUpperCase() + cred.blockType.slice(1)
+                const alreadyHasBlock = cred.label
+                  .toLowerCase()
+                  .includes(` for ${blockName.toLowerCase()}`)
+                const text = alreadyHasBlock ? cred.label : `${cred.label} for ${blockName}`
+                return <li key={idx}>{text}</li>
+              })}
+            </ul>
+          </div>
+        )}
       </div>
     </div>
   )

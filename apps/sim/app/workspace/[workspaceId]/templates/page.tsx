@@ -34,13 +34,13 @@ export default async function TemplatesPage() {
     effectiveSuperUser = isSuperUser && superUserModeEnabled
   }
 
-  // Load templates (same logic as global page)
+  // Load templates from database
   let rows:
     | Array<{
         id: string
         workflowId: string | null
         name: string
-        details?: any
+        details?: unknown
         creatorId: string | null
         creator: {
           id: string
@@ -128,9 +128,24 @@ export default async function TemplatesPage() {
         id: row.id,
         workflowId: row.workflowId,
         name: row.name,
-        details: row.details,
+        details: row.details as { tagline?: string; about?: string } | null,
         creatorId: row.creatorId,
-        creator: row.creator,
+        creator: row.creator
+          ? {
+              id: row.creator.id,
+              name: row.creator.name,
+              profileImageUrl: row.creator.profileImageUrl,
+              details: row.creator.details as {
+                about?: string
+                xUrl?: string
+                linkedinUrl?: string
+                websiteUrl?: string
+                contactEmail?: string
+              } | null,
+              referenceType: row.creator.referenceType,
+              referenceId: row.creator.referenceId,
+            }
+          : null,
         views: row.views,
         stars: row.stars,
         status: row.status,
@@ -143,7 +158,7 @@ export default async function TemplatesPage() {
         isSuperUser: effectiveSuperUser,
         // Legacy fields for backward compatibility
         userId,
-        description: row.details?.tagline ?? null,
+        description: (row.details as any)?.tagline ?? null,
         author: row.creator?.name ?? 'Unknown',
         authorType,
         organizationId,
