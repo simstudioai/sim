@@ -1,8 +1,7 @@
 'use client'
 
 import { Plus, X } from 'lucide-react'
-import { Button } from '@/components/emcn'
-import { Input, Label } from '@/components/ui'
+import { Button, Input, Label } from '@/components/emcn'
 import { EnvVarDropdown } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/components/sub-block/components/env-var-dropdown'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/components/sub-block/components/formatted-text'
 import type { McpServerFormData, McpServerTestResult } from '../types'
@@ -266,17 +265,19 @@ export function AddServerForm({
                   variant='ghost'
                   onClick={onTestConnection}
                   disabled={isTestingConnection || !formData.name.trim() || !formData.url?.trim()}
-                  className='text-muted-foreground hover:text-foreground'
+                  className='h-9 text-muted-foreground hover:text-foreground'
                 >
                   {isTestingConnection ? 'Testing...' : 'Test Connection'}
                 </Button>
-                {testResult?.success && <span className='text-green-600 text-xs'>✓ Connected</span>}
+                {testResult?.success && (
+                  <span className='text-muted-foreground text-xs'>✓ Connected</span>
+                )}
               </div>
               <div className='flex items-center gap-2'>
                 <Button
                   variant='ghost'
                   onClick={onCancel}
-                  className='text-muted-foreground hover:text-foreground'
+                  className='h-9 text-muted-foreground hover:text-foreground'
                 >
                   Cancel
                 </Button>
