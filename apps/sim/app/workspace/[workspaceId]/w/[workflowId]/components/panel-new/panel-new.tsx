@@ -26,6 +26,7 @@ import { createLogger } from '@/lib/logs/console/logger'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { Variables } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/variables/variables'
+import { useWorkflowExecution } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-workflow-execution'
 import { useDeleteWorkflow } from '@/app/workspace/[workspaceId]/w/hooks'
 import { useChatStore } from '@/stores/chat/store'
 import { usePanelStore } from '@/stores/panel-new/store'
@@ -35,7 +36,7 @@ import { useWorkflowJsonStore } from '@/stores/workflows/json/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import { Copilot, Deploy, Editor, Toolbar } from './components'
-import { usePanelResize, useRunWorkflow, useUsageLimits } from './hooks'
+import { usePanelResize, useUsageLimits } from './hooks'
 
 const logger = createLogger('Panel')
 /**
@@ -99,11 +100,42 @@ export function Panel() {
     autoRefresh: !isRegistryLoading,
   })
 
-  // Run workflow hook
-  const { runWorkflow, cancelWorkflow, isExecuting } = useRunWorkflow({ usageExceeded })
+  // Workflow execution hook
+  const { handleRunWorkflow, handleCancelExecution, isExecuting } = useWorkflowExecution()
 
   // Panel resize hook
   const { handleMouseDown } = usePanelResize()
+
+  /**
+   * Opens subscription settings modal
+   */
+  const openSubscriptionSettings = () => {
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(
+        new CustomEvent('open-settings', {
+          detail: { tab: 'subscription' },
+        })
+      )
+    }
+  }
+
+  /**
+   * Runs the workflow with usage limit check
+   */
+  const runWorkflow = useCallback(async () => {
+    if (usageExceeded) {
+      openSubscriptionSettings()
+      return
+    }
+    await handleRunWorkflow()
+  }, [usageExceeded, handleRunWorkflow])
+
+  /**
+   * Cancels the currently executing workflow
+   */
+  const cancelWorkflow = useCallback(async () => {
+    await handleCancelExecution()
+  }, [handleCancelExecution])
 
   // Chat state
   const { isChatOpen, setIsChatOpen } = useChatStore()
