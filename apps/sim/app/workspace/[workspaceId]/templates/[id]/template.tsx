@@ -45,7 +45,7 @@ import {
   Wrench,
   Zap,
 } from 'lucide-react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { Button } from '@/components/emcn'
 import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
@@ -54,12 +54,6 @@ import { WorkflowPreview } from '@/app/workspace/[workspaceId]/w/components/work
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('TemplateDetails')
-
-interface TemplateDetailsProps {
-  template: Template
-  workspaceId: string
-  currentUserId: string | null
-}
 
 // Icon mapping - reuse from template-card
 const iconMap = {
@@ -115,22 +109,69 @@ const getIconComponent = (icon: string): React.ReactNode => {
   )
 }
 
-export default function TemplateDetails({
-  template,
-  workspaceId,
-  currentUserId,
-}: TemplateDetailsProps) {
+/**
+ * Template detail page component
+ * Fetches and displays detailed information about a specific template
+ */
+export default function TemplateDetails() {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const params = useParams()
 
-  // Initialize all state hooks first (hooks must be called unconditionally)
-  const [isStarred, setIsStarred] = useState(template?.isStarred || false)
-  const [starCount, setStarCount] = useState(template?.stars || 0)
+  const workspaceId = params?.workspaceId as string
+  const templateId = params?.id as string
+
+  // State for template data
+  const [template, setTemplate] = useState<Template | null>(null)
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [isStarred, setIsStarred] = useState(false)
+  const [starCount, setStarCount] = useState(0)
   const [isStarring, setIsStarring] = useState(false)
   const [isUsing, setIsUsing] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
 
-  const isOwner = currentUserId && template?.userId === currentUserId
+  // Fetch template data on client side
+  useEffect(() => {
+    if (!templateId || !workspaceId) {
+      setLoading(false)
+      return
+    }
+
+    const fetchTemplate = async () => {
+      try {
+        const response = await fetch(`/api/templates/${templateId}`)
+        if (response.ok) {
+          const data = await response.json()
+          setTemplate(data.data)
+          setIsStarred(data.data.isStarred || false)
+          setStarCount(data.data.stars || 0)
+        }
+      } catch (error) {
+        logger.error('Error fetching template:', error)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    const fetchCurrentUser = async () => {
+      try {
+        const response = await fetch('/api/auth/get-session')
+        if (response.ok) {
+          const data = await response.json()
+          setCurrentUserId(data?.user?.id || null)
+        } else {
+          setCurrentUserId(null)
+        }
+      } catch (error) {
+        logger.error('Error fetching session:', error)
+        setCurrentUserId(null)
+      }
+    }
+
+    fetchTemplate()
+    fetchCurrentUser()
+  }, [templateId, workspaceId])
 
   // Auto-use template after login if use=true query param is present
   useEffect(() => {
@@ -138,58 +179,56 @@ export default function TemplateDetails({
     const shouldAutoUse = searchParams?.get('use') === 'true'
     if (shouldAutoUse && currentUserId && !isUsing) {
       handleUseTemplate()
-      // Clean up URL
       router.replace(`/workspace/${workspaceId}/templates/${template.id}`)
     }
   }, [searchParams, currentUserId, template?.id])
 
-  // Defensive check for template AFTER initializing hooks
-  if (!template) {
-    logger.error('Template prop is undefined or null in TemplateDetails component', {
-      template,
-      workspaceId,
-      currentUserId,
-    })
+  if (loading) {
     return (
       <div className='flex h-[100vh] items-center justify-center pl-64'>
         <div className='text-center'>
-          <h1 className='mb-[14px] font-medium text-[18px]'>Template Not Found</h1>
-          <p className='text-[#888888] text-[14px]'>
-            The template you're looking for doesn't exist.
-          </p>
-          <p className='mt-[10px] text-[#888888] text-[12px]'>Template data failed to load</p>
+          <div className='mb-[14px] font-medium text-[18px]'>Loading...</div>
+          <p className='text-[var(--text-tertiary)] text-[14px]'>Fetching template details</p>
         </div>
       </div>
     )
   }
 
-  logger.info('Template loaded in TemplateDetails', {
-    id: template.id,
-    name: template.name,
-    hasState: !!template.state,
-  })
+  if (!template) {
+    return (
+      <div className='flex h-[100vh] items-center justify-center pl-64'>
+        <div className='text-center'>
+          <h1 className='mb-[14px] font-medium text-[18px]'>Template Not Found</h1>
+          <p className='text-[var(--text-tertiary)] text-[14px]'>
+            The template you're looking for doesn't exist.
+          </p>
+        </div>
+      </div>
+    )
+  }
 
-  /**
-   * Render workflow preview with consistent error handling
-   */
+  const templateAuthor = template.author || template.creator?.name || 'Unknown'
+  const templateAuthorType = template.authorType || template.creator?.referenceType || 'user'
+  const templateDescription = template.description || template.details?.tagline || null
+  const templateColor = template.color || 'var(--brand-primary)'
+  const templateIcon = template.icon || 'Workflow'
+
+  const templateOwnerId =
+    template.userId ||
+    (template.creator?.referenceType === 'user' ? template.creator.referenceId : null)
+  const isOwner = currentUserId && templateOwnerId === currentUserId
+
   const renderWorkflowPreview = () => {
-    // Follow the same pattern as deployed-workflow-card.tsx
     if (!template?.state) {
-      logger.info('Template has no state:', template)
       return (
         <div className='flex h-full items-center justify-center text-center'>
-          <div className='text-[#888888]'>
+          <div className='text-[var(--text-tertiary)]'>
             <div className='mb-[10px] font-medium text-[14px]'>⚠️ No Workflow Data</div>
             <div className='text-[12px]'>This template doesn't contain workflow state data.</div>
           </div>
         </div>
       )
     }
-
-    logger.info('Template state:', template.state)
-    logger.info('Template state type:', typeof template.state)
-    logger.info('Template state blocks:', template.state.blocks)
-    logger.info('Template state edges:', template.state.edges)
 
     try {
       return (
@@ -207,7 +246,7 @@ export default function TemplateDetails({
       logger.error('Error rendering workflow preview:', error)
       return (
         <div className='flex h-full items-center justify-center text-center'>
-          <div className='text-[#888888]'>
+          <div className='text-[var(--text-tertiary)]'>
             <div className='mb-[10px] font-medium text-[14px]'>⚠️ Preview Error</div>
             <div className='text-[12px]'>Unable to render workflow preview</div>
           </div>
@@ -242,9 +281,7 @@ export default function TemplateDetails({
   const handleUseTemplate = async () => {
     if (isUsing) return
 
-    // Check if user is logged in
     if (!currentUserId) {
-      // Redirect to login with callback URL to use template after login
       const callbackUrl = encodeURIComponent(
         `/workspace/${workspaceId}/templates/${template.id}?use=true`
       )
@@ -265,8 +302,6 @@ export default function TemplateDetails({
       }
 
       const { workflowId } = await response.json()
-
-      // Navigate to the new workflow
       router.push(`/workspace/${workspaceId}/w/${workflowId}`)
     } catch (error) {
       logger.error('Error using template:', error)
@@ -280,19 +315,15 @@ export default function TemplateDetails({
 
     setIsEditing(true)
     try {
-      // If template already has a connected workflowId, check if it exists in user's workspace
       if (template.workflowId) {
-        // Try to fetch the workflow to see if it still exists
         const checkResponse = await fetch(`/api/workflows/${template.workflowId}`)
 
         if (checkResponse.ok) {
-          // Workflow exists, redirect to it
           router.push(`/workspace/${workspaceId}/w/${template.workflowId}`)
           return
         }
       }
 
-      // No connected workflow or it was deleted - create a new one
       const response = await fetch(`/api/templates/${template.id}/edit`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -304,8 +335,6 @@ export default function TemplateDetails({
       }
 
       const { workflowId } = await response.json()
-
-      // Navigate to the workflow
       router.push(`/workspace/${workspaceId}/w/${workflowId}`)
     } catch (error) {
       logger.error('Error editing template:', error)
@@ -317,34 +346,31 @@ export default function TemplateDetails({
   return (
     <div className='flex h-[100vh] flex-col pl-64'>
       <div className='flex flex-1 flex-col overflow-auto px-[24px] pt-[24px] pb-[24px]'>
-        {/* Back button */}
         <button
           onClick={handleBack}
-          className='mb-[14px] flex items-center gap-[8px] text-[#888888] transition-colors hover:text-white'
+          className='mb-[14px] flex items-center gap-[8px] text-[var(--text-tertiary)] transition-colors hover:text-[var(--text-primary)]'
         >
           <ArrowLeft className='h-[14px] w-[14px]' />
           <span className='font-medium text-[12px]'>Go back</span>
         </button>
 
-        {/* Header */}
         <div>
           <div className='flex items-start gap-[12px]'>
-            {/* Icon */}
             <div
               className='flex h-[26px] w-[26px] items-center justify-center rounded-[6px]'
-              style={{ backgroundColor: template.color }}
+              style={{ backgroundColor: templateColor }}
             >
-              {getIconComponent(template.icon)}
+              {getIconComponent(templateIcon)}
             </div>
             <h1 className='font-medium text-[18px]'>{template.name}</h1>
           </div>
-          <p className='mt-[10px] font-base text-[#888888] text-[14px]'>{template.description}</p>
+          <p className='mt-[10px] font-base text-[var(--text-tertiary)] text-[14px]'>
+            {templateDescription}
+          </p>
         </div>
 
-        {/* Stats and Actions */}
         <div className='mt-[14px] flex items-center justify-between'>
-          {/* Stats */}
-          <div className='flex items-center gap-[12px] font-medium text-[#888888] text-[12px]'>
+          <div className='flex items-center gap-[12px] font-medium text-[var(--text-tertiary)] text-[12px]'>
             <div className='flex items-center gap-[6px]'>
               <Eye className='h-[12px] w-[12px]' />
               <span>{template.views} views</span>
@@ -355,9 +381,9 @@ export default function TemplateDetails({
             </div>
             <div className='flex items-center gap-[6px]'>
               <User className='h-[12px] w-[12px]' />
-              <span>by {template.author}</span>
+              <span>by {templateAuthor}</span>
             </div>
-            {template.authorType === 'organization' && (
+            {templateAuthorType === 'organization' && (
               <div className='flex items-center gap-[6px]'>
                 <Users className='h-[12px] w-[12px]' />
                 <span>Organization</span>
@@ -407,13 +433,11 @@ export default function TemplateDetails({
           </div>
         </div>
 
-        {/* Divider */}
         <div className='mt-[24px] h-[1px] w-full border-[var(--border)] border-t' />
 
-        {/* Workflow preview */}
         <div className='mt-[24px] flex-1'>
           <h2 className='mb-[14px] font-medium text-[14px]'>Workflow Preview</h2>
-          <div className='h-[calc(100vh-280px)] w-full overflow-hidden rounded-[8px] bg-[#202020]'>
+          <div className='h-[calc(100vh-280px)] w-full overflow-hidden rounded-[8px] bg-[var(--surface-3)]'>
             {renderWorkflowPreview()}
           </div>
         </div>

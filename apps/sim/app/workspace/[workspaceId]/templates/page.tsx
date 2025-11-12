@@ -124,24 +124,31 @@ export default async function TemplatesPage() {
         row.creator?.referenceType === 'user' ? row.creator.referenceId : '' /* no owner context */
 
       return {
+        // New structure fields
         id: row.id,
         workflowId: row.workflowId,
-        userId,
         name: row.name,
-        description: row.details?.tagline ?? null,
-        author: row.creator?.name ?? 'Unknown',
-        authorType,
-        organizationId,
+        details: row.details,
+        creatorId: row.creatorId,
+        creator: row.creator,
         views: row.views,
         stars: row.stars,
-        color: '#3972F6', // default color for workspace cards
-        icon: 'Workflow', // default icon for workspace cards
         status: row.status,
+        tags: row.tags,
+        requiredCredentials: row.requiredCredentials,
         state: row.state as WorkspaceTemplate['state'],
         createdAt: row.createdAt,
         updatedAt: row.updatedAt,
         isStarred: row.isStarred ?? false,
         isSuperUser: effectiveSuperUser,
+        // Legacy fields for backward compatibility
+        userId,
+        description: row.details?.tagline ?? null,
+        author: row.creator?.name ?? 'Unknown',
+        authorType,
+        organizationId,
+        color: '#3972F6', // default color for workspace cards
+        icon: 'Workflow', // default icon for workspace cards
       }
     }) ?? []
 

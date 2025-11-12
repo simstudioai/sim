@@ -2,8 +2,7 @@
 
 import { useState } from 'react'
 import { Layout, Search } from 'lucide-react'
-import { Button } from '@/components/emcn'
-import { Input } from '@/components/ui/input'
+import { Button, Input } from '@/components/emcn'
 import { createLogger } from '@/lib/logs/console/logger'
 import {
   TemplateCard,
@@ -17,22 +16,38 @@ const logger = createLogger('TemplatesPage')
 export interface Template {
   id: string
   workflowId: string | null
-  userId: string
   name: string
-  description: string | null
-  author: string
-  authorType: 'user' | 'organization'
-  organizationId: string | null
+  details?: {
+    tagline?: string
+    about?: string
+  } | null
+  creatorId: string | null
+  creator?: {
+    id: string
+    name: string
+    profileImageUrl?: string | null
+    details?: unknown
+    referenceType: 'user' | 'organization'
+    referenceId: string
+  } | null
   views: number
   stars: number
-  color: string
-  icon: string
   status: 'pending' | 'approved' | 'rejected'
+  tags: string[]
+  requiredCredentials: unknown
   state: WorkflowState
   createdAt: Date | string
   updatedAt: Date | string
   isStarred: boolean
   isSuperUser?: boolean
+  // Legacy fields for backward compatibility with existing UI
+  userId?: string
+  description?: string | null
+  author?: string
+  authorType?: 'user' | 'organization'
+  organizationId?: string | null
+  color?: string
+  icon?: string
 }
 
 interface TemplatesProps {
@@ -41,21 +56,23 @@ interface TemplatesProps {
   isSuperUser: boolean
 }
 
+/**
+ * Templates list component displaying workflow templates
+ * Supports filtering by tab (gallery/your/pending) and search
+ */
 export default function Templates({
   initialTemplates,
   currentUserId,
   isSuperUser,
 }: TemplatesProps) {
   const [searchQuery, setSearchQuery] = useState('')
-  const [activeTab, setActiveTab] = useState('your')
+  const [activeTab, setActiveTab] = useState('gallery')
   const [templates, setTemplates] = useState<Template[]>(initialTemplates)
   const [loading, setLoading] = useState(false)
 
-  const handleTabClick = (tabId: string) => {
-    setActiveTab(tabId)
-  }
-
-  // Handle star change callback from template card
+  /**
+   * Update star status for a template
+   */
   const handleStarChange = (templateId: string, isStarred: boolean, newStarCount: number) => {
     setTemplates((prevTemplates) =>
       prevTemplates.map((template) =>
@@ -64,111 +81,90 @@ export default function Templates({
     )
   }
 
-  // Get templates for the active tab with search filtering
-  const getActiveTabTemplates = () => {
-    let filtered = templates
+  /**
+   * Filter templates based on active tab and search query
+   */
+  const getFilteredTemplates = () => {
+    const query = searchQuery.toLowerCase()
+    
+    return templates.filter((template) => {
+      // Filter by tab
+      const tabMatch =
+        activeTab === 'your'
+          ? template.userId === currentUserId || template.isStarred
+          : activeTab === 'gallery'
+            ? template.status === 'approved'
+            : template.status === 'pending'
 
-    // Filter by active tab
-    if (activeTab === 'your') {
-      filtered = filtered.filter(
-        (template) => template.userId === currentUserId || template.isStarred === true
-      )
-    } else if (activeTab === 'gallery') {
-      // Show all approved templates
-      filtered = filtered.filter((template) => template.status === 'approved')
-    } else if (activeTab === 'pending') {
-      // Show pending templates for super users
-      filtered = filtered.filter((template) => template.status === 'pending')
-    }
+      if (!tabMatch) return false
 
-    // Apply search filter
+      // Filter by search query
+      if (!query) return true
+
+      const searchableText = [
+        template.name,
+        template.description,
+        template.details?.tagline,
+        template.author,
+        template.creator?.name,
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase()
+
+      return searchableText.includes(query)
+    })
+  }
+
+  const filteredTemplates = getFilteredTemplates()
+
+  /**
+   * Get empty state message based on current filters
+   */
+  const getEmptyStateMessage = () => {
     if (searchQuery) {
-      filtered = filtered.filter(
-        (template) =>
-          template.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          template.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          template.author.toLowerCase().includes(searchQuery.toLowerCase())
-      )
+      return {
+        title: 'No templates found',
+        description: 'Try a different search term',
+      }
     }
 
-    return filtered
+    const messages = {
+      pending: {
+        title: 'No pending templates',
+        description: 'New submissions will appear here',
+      },
+      your: {
+        title: 'No templates yet',
+        description: 'Create or star templates to see them here',
+      },
+      gallery: {
+        title: 'No templates available',
+        description: 'Templates will appear once approved',
+      },
+    }
+
+    return messages[activeTab as keyof typeof messages] || messages.gallery
   }
 
-  const activeTemplates = getActiveTabTemplates()
-
-  // Helper function to render template cards
-  const renderTemplateCard = (template: Template) => (
-    <TemplateCard
-      key={template.id}
-      id={template.id}
-      title={template.name}
-      description={template.description || ''}
-      author={template.author}
-      usageCount={template.views.toString()}
-      stars={template.stars}
-      icon={template.icon}
-      iconColor={template.color}
-      state={template.state}
-      isStarred={template.isStarred}
-      onStarChange={handleStarChange}
-      isAuthenticated={true}
-    />
-  )
-
-  // Render skeleton cards for loading state
-  const renderSkeletonCards = () => {
-    return Array.from({ length: 8 }).map((_, index) => (
-      <TemplateCardSkeleton key={`skeleton-${index}`} />
-    ))
-  }
-
-  // Calculate counts for tabs
-  const yourTemplatesCount = templates.filter(
-    (template) => template.userId === currentUserId || template.isStarred === true
-  ).length
-  const galleryCount = templates.filter((template) => template.status === 'approved').length
-  const pendingCount = templates.filter((template) => template.status === 'pending').length
-
-  const navigationTabs = [
-    {
-      id: 'gallery',
-      label: 'Gallery',
-      count: galleryCount,
-    },
-    {
-      id: 'your',
-      label: 'Your Templates',
-      count: yourTemplatesCount,
-    },
-    ...(isSuperUser
-      ? [
-          {
-            id: 'pending',
-            label: 'Pending',
-            count: pendingCount,
-          },
-        ]
-      : []),
-  ]
+  const emptyState = getEmptyStateMessage()
 
   return (
     <div className='flex h-[100vh] flex-col pl-64'>
       <div className='flex flex-1 overflow-hidden'>
         <div className='flex flex-1 flex-col overflow-auto px-[24px] pt-[24px] pb-[24px]'>
-          {/* Header */}
           <div>
             <div className='flex items-start gap-[12px]'>
-              <div className='flex h-[26px] w-[26px] items-center justify-center rounded-[6px] border border-[#7A5F11] bg-[#514215]'>
-                <Layout className='h-[14px] w-[14px] text-[#FBBC04]' />
+              <div className='flex h-[26px] w-[26px] items-center justify-center rounded-[6px] border border-[var(--brand-warning-border)] bg-[var(--brand-warning-bg)]'>
+                <Layout className='h-[14px] w-[14px] text-[var(--brand-warning)]' />
               </div>
               <h1 className='font-medium text-[18px]'>Templates</h1>
             </div>
-            <p className='mt-[10px] font-base text-[#888888] text-[14px]'>
+            <p className='mt-[10px] font-base text-[var(--text-tertiary)] text-[14px]'>
               Grab a template and start building, or make one from scratch.
             </p>
           </div>
 
-          {/* Search and Badges */}
           <div className='mt-[14px] flex items-center justify-between'>
             <div className='flex h-[32px] w-[400px] items-center gap-[6px] rounded-[8px] bg-[var(--surface-5)] px-[8px]'>
               <Search className='h-[14px] w-[14px] text-[var(--text-subtle)]' />
@@ -183,52 +179,60 @@ export default function Templates({
               <Button
                 variant={activeTab === 'gallery' ? 'active' : 'default'}
                 className='h-[32px] rounded-[6px]'
-                onClick={() => handleTabClick('gallery')}
+                onClick={() => setActiveTab('gallery')}
               >
                 Gallery
               </Button>
               <Button
                 variant={activeTab === 'your' ? 'active' : 'default'}
                 className='h-[32px] rounded-[6px]'
-                onClick={() => handleTabClick('your')}
+                onClick={() => setActiveTab('your')}
               >
                 Your Templates
               </Button>
             </div>
           </div>
 
-          {/* Divider */}
           <div className='mt-[24px] h-[1px] w-full border-[var(--border)] border-t' />
 
-          {/* Templates Grid - Based on Active Tab */}
           <div className='mt-[24px] grid grid-cols-1 gap-x-[20px] gap-y-[40px] md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'>
             {loading ? (
-              renderSkeletonCards()
-            ) : activeTemplates.length === 0 ? (
-              <div className='col-span-full flex h-64 items-center justify-center rounded-lg border border-muted-foreground/25 border-dashed bg-muted/20'>
+              Array.from({ length: 8 }).map((_, index) => (
+                <TemplateCardSkeleton key={`skeleton-${index}`} />
+              ))
+            ) : filteredTemplates.length === 0 ? (
+              <div className='col-span-full flex h-64 items-center justify-center rounded-lg border border-[var(--border)] border-dashed bg-[var(--surface-3)]'>
                 <div className='text-center'>
-                  <p className='font-medium text-muted-foreground text-sm'>
-                    {searchQuery
-                      ? 'No templates found'
-                      : activeTab === 'pending'
-                        ? 'No pending templates'
-                        : activeTab === 'your'
-                          ? 'No templates yet'
-                          : 'No templates available'}
+                  <p className='font-medium text-[var(--text-secondary)] text-sm'>
+                    {emptyState.title}
                   </p>
-                  <p className='mt-1 text-muted-foreground/70 text-xs'>
-                    {searchQuery
-                      ? 'Try a different search term'
-                      : activeTab === 'pending'
-                        ? 'New submissions will appear here'
-                        : activeTab === 'your'
-                          ? 'Create or star templates to see them here'
-                          : 'Templates will appear once approved'}
+                  <p className='mt-1 text-[var(--text-tertiary)] text-xs'>
+                    {emptyState.description}
                   </p>
                 </div>
               </div>
             ) : (
-              activeTemplates.map((template) => renderTemplateCard(template))
+              filteredTemplates.map((template) => {
+                const author = template.author || template.creator?.name || 'Unknown'
+                
+                return (
+                  <TemplateCard
+                    key={template.id}
+                    id={template.id}
+                    title={template.name}
+                    description={template.description || template.details?.tagline || ''}
+                    author={author}
+                    usageCount={template.views.toString()}
+                    stars={template.stars}
+                    icon={template.icon}
+                    iconColor={template.color}
+                    state={template.state}
+                    isStarred={template.isStarred}
+                    onStarChange={handleStarChange}
+                    isAuthenticated={true}
+                  />
+                )
+              })
             )}
           </div>
         </div>
