@@ -469,8 +469,8 @@ export function SearchModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogPortal>
         <DialogOverlay
-          className='bg-white/80 dark:bg-transparent'
-          style={{ backdropFilter: 'blur(3px)' }}
+          className='bg-white/80 dark:bg-[#1b1b1b]/90'
+          style={{ backdropFilter: 'blur(4px)' }}
         />
         <DialogPrimitive.Content className='fixed top-[15%] left-[50%] z-50 flex w-[500px] translate-x-[-50%] flex-col gap-[12px] p-0 focus:outline-none focus-visible:outline-none'>
           <VisuallyHidden.Root>
@@ -478,28 +478,28 @@ export function SearchModal({
           </VisuallyHidden.Root>
 
           {/* Search input container */}
-          <div className='flex items-center gap-[6px] rounded-[10px] border border-[var(--border)] bg-[var(--surface-5)] px-[10px] py-[8px] shadow-sm dark:border-[var(--border)] dark:bg-[var(--surface-5)]'>
+          <div className='flex items-center gap-[8px] rounded-[10px] border border-[var(--border)] bg-[var(--surface-5)] px-[12px] py-[8px] shadow-sm dark:border-[var(--border)] dark:bg-[var(--surface-5)]'>
             <Search className='h-[16px] w-[16px] flex-shrink-0 text-[var(--text-subtle)] dark:text-[var(--text-subtle)]' />
             <input
               type='text'
               placeholder='Search anything...'
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className='w-full border-0 bg-transparent font-base text-[16px] text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] focus:outline-none dark:text-[var(--text-primary)] dark:placeholder:text-[var(--text-secondary)]'
+              className='w-full border-0 bg-transparent font-base text-[18px] text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] focus:outline-none dark:text-[var(--text-primary)] dark:placeholder:text-[var(--text-secondary)]'
               autoFocus
             />
           </div>
 
           {/* Floating results container */}
           {filteredItems.length > 0 ? (
-            <div className='scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent max-h-[400px] overflow-y-auto rounded-[10px] py-[8px] shadow-sm backdrop-blur-lg'>
+            <div className='scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent max-h-[400px] overflow-y-auto rounded-[10px] py-[10px] shadow-sm'>
               {Object.entries(groupedItems).map(([type, items]) => {
                 if (items.length === 0) return null
 
                 return (
                   <div key={type} className='mb-[10px] last:mb-0'>
                     {/* Section header */}
-                    <div className='pt-[2px] pb-[4px] font-medium text-[11px] text-[var(--text-subtle)] uppercase tracking-wide dark:text-[var(--text-subtle)]'>
+                    <div className='pt-[2px] pb-[4px] font-medium text-[13px] text-[var(--text-subtle)] uppercase tracking-wide dark:text-[var(--text-subtle)]'>
                       {sectionTitles[type]}
                     </div>
 
@@ -520,7 +520,7 @@ export function SearchModal({
                             data-search-item-index={globalIndex}
                             onClick={() => handleItemClick(item)}
                             className={cn(
-                              'group flex h-[28px] w-full items-center gap-[8px] rounded-[6px] bg-[var(--surface-4)]/60 px-[8px] text-left text-[13px] transition-all focus:outline-none dark:bg-[var(--surface-4)]/60',
+                              'group flex h-[28px] w-full items-center gap-[8px] rounded-[6px] bg-[var(--surface-4)]/60 px-[10px] text-left text-[15px] transition-all focus:outline-none dark:bg-[var(--surface-4)]/60',
                               isSelected
                                 ? 'bg-[var(--border)] shadow-sm dark:bg-[var(--border)]'
                                 : 'hover:bg-[var(--border)] dark:hover:bg-[var(--border)]'
@@ -573,7 +573,7 @@ export function SearchModal({
 
                             {/* Shortcut */}
                             {item.shortcut && (
-                              <span className='ml-auto flex-shrink-0 font-medium text-[11px] text-[var(--text-subtle)] dark:text-[var(--text-subtle)]'>
+                              <span className='ml-auto flex-shrink-0 font-medium text-[13px] text-[var(--text-subtle)] dark:text-[var(--text-subtle)]'>
                                 {item.shortcut}
                               </span>
                             )}
@@ -587,7 +587,7 @@ export function SearchModal({
             </div>
           ) : searchQuery ? (
             <div className='flex items-center justify-center rounded-[10px] bg-[var(--surface-5)] px-[16px] py-[24px] shadow-sm dark:bg-[var(--surface-5)]'>
-              <p className='text-[13px] text-[var(--text-subtle)] dark:text-[var(--text-subtle)]'>
+              <p className='text-[15px] text-[var(--text-subtle)] dark:text-[var(--text-subtle)]'>
                 No results found for "{searchQuery}"
               </p>
             </div>

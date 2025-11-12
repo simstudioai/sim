@@ -1,10 +1,10 @@
 'use client'
 
 import { useState } from 'react'
-import { Search } from 'lucide-react'
+import { Layout, Search } from 'lucide-react'
+import { Button } from '@/components/emcn'
 import { Input } from '@/components/ui/input'
 import { createLogger } from '@/lib/logs/console/logger'
-import { NavigationTabs } from '@/app/workspace/[workspaceId]/templates/components/navigation-tabs'
 import {
   TemplateCard,
   TemplateCardSkeleton,
@@ -108,7 +108,7 @@ export default function Templates({
       stars={template.stars}
       icon={template.icon}
       iconColor={template.color}
-      state={template.state as { blocks?: Record<string, { type: string; name?: string }> }}
+      state={template.state}
       isStarred={template.isStarred}
       onStarChange={handleStarChange}
       isAuthenticated={true}
@@ -154,50 +154,54 @@ export default function Templates({
   return (
     <div className='flex h-[100vh] flex-col pl-64'>
       <div className='flex flex-1 overflow-hidden'>
-        <div className='flex flex-1 flex-col overflow-auto p-6'>
+        <div className='flex flex-1 flex-col overflow-auto px-[24px] pt-[24px] pb-[24px]'>
           {/* Header */}
-          <div className='mb-6'>
-            <h1 className='mb-2 font-sans font-semibold text-3xl text-foreground tracking-[0.01em]'>
-              Templates
-            </h1>
-            <p className='font-[350] font-sans text-muted-foreground text-sm leading-[1.5] tracking-[0.01em]'>
-              Grab a template and start building, or make
-              <br />
-              one from scratch.
+          <div>
+            <div className='flex items-start gap-[12px]'>
+              <div className='flex h-[26px] w-[26px] items-center justify-center rounded-[6px] border border-[#7A5F11] bg-[#514215]'>
+                <Layout className='h-[14px] w-[14px] text-[#FBBC04]' />
+              </div>
+              <h1 className='font-medium text-[18px]'>Templates</h1>
+            </div>
+            <p className='mt-[10px] font-base text-[#888888] text-[14px]'>
+              Grab a template and start building, or make one from scratch.
             </p>
           </div>
 
-          {/* Search and Create New */}
-          <div className='mb-6 flex items-center justify-between'>
-            <div className='flex h-9 w-[460px] items-center gap-2 rounded-lg border bg-transparent pr-2 pl-3'>
-              <Search className='h-4 w-4 text-muted-foreground' strokeWidth={2} />
+          {/* Search and Badges */}
+          <div className='mt-[14px] flex items-center justify-between'>
+            <div className='flex h-[32px] w-[400px] items-center gap-[6px] rounded-[8px] bg-[var(--surface-5)] px-[8px]'>
+              <Search className='h-[14px] w-[14px] text-[var(--text-subtle)]' />
               <Input
-                placeholder='Search templates...'
+                placeholder='Search'
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className='flex-1 border-0 bg-transparent px-0 font-normal font-sans text-base text-foreground leading-none placeholder:text-muted-foreground focus-visible:ring-0 focus-visible:ring-offset-0'
+                className='flex-1 border-0 bg-transparent px-0 font-medium text-[var(--text-secondary)] text-small leading-none placeholder:text-[var(--text-subtle)] focus-visible:ring-0 focus-visible:ring-offset-0'
               />
             </div>
-            {/* <Button
-              onClick={handleCreateNew}
-              className='flex h-9 items-center gap-2 rounded-lg bg-[var(--brand-primary-hex)] px-4 py-2 font-normal font-sans text-sm text-white hover:bg-[#601EE0]'
-            >
-              <Plus className='h-4 w-4' />
-              Create New
-            </Button> */}
+            <div className='flex items-center gap-[8px]'>
+              <Button
+                variant={activeTab === 'gallery' ? 'active' : 'default'}
+                className='h-[32px] rounded-[6px]'
+                onClick={() => handleTabClick('gallery')}
+              >
+                Gallery
+              </Button>
+              <Button
+                variant={activeTab === 'your' ? 'active' : 'default'}
+                className='h-[32px] rounded-[6px]'
+                onClick={() => handleTabClick('your')}
+              >
+                Your Templates
+              </Button>
+            </div>
           </div>
 
-          {/* Navigation */}
-          <div className='mb-6'>
-            <NavigationTabs
-              tabs={navigationTabs}
-              activeTab={activeTab}
-              onTabClick={handleTabClick}
-            />
-          </div>
+          {/* Divider */}
+          <div className='mt-[24px] h-[1px] w-full border-[var(--border)] border-t' />
 
           {/* Templates Grid - Based on Active Tab */}
-          <div className='grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'>
+          <div className='mt-[24px] grid grid-cols-1 gap-x-[20px] gap-y-[40px] md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'>
             {loading ? (
               renderSkeletonCards()
             ) : activeTemplates.length === 0 ? (

@@ -98,6 +98,10 @@ interface WorkspaceHeaderProps {
    * Whether workspace import is in progress
    */
   isImportingWorkspace: boolean
+  /**
+   * Whether to show the collapse button
+   */
+  showCollapseButton?: boolean
 }
 
 /**
@@ -122,6 +126,7 @@ export function WorkspaceHeader({
   onExportWorkspace,
   onImportWorkspace,
   isImportingWorkspace,
+  showCollapseButton = true,
 }: WorkspaceHeaderProps) {
   const userPermissions = useUserPermissionsContext()
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false)
@@ -438,15 +443,17 @@ export function WorkspaceHeader({
           </PopoverContent>
         </Popover>
         {/* Sidebar Collapse Toggle */}
-        <Button
-          variant='ghost-secondary'
-          type='button'
-          aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-          className='group !p-[3px] -m-[3px]'
-          onClick={onToggleCollapse}
-        >
-          <PanelLeft className='h-[17.5px] w-[17.5px]' />
-        </Button>
+        {showCollapseButton && (
+          <Button
+            variant='ghost-secondary'
+            type='button'
+            aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            className='group !p-[3px] -m-[3px]'
+            onClick={onToggleCollapse}
+          >
+            <PanelLeft className='h-[17.5px] w-[17.5px]' />
+          </Button>
+        )}
       </div>
 
       {/* Context Menu */}

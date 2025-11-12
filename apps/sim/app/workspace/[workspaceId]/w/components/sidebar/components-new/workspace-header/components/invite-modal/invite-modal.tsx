@@ -3,19 +3,7 @@
 import React, { type KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Loader2, RotateCw, X } from 'lucide-react'
 import { useParams } from 'next/navigation'
-import { Tooltip } from '@/components/emcn'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
+import { Badge, Button, Input, Modal, ModalContent, Tooltip } from '@/components/emcn'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useSession } from '@/lib/auth-client'
 import { quickValidateEmail } from '@/lib/email/validation'
@@ -85,14 +73,18 @@ interface PendingInvitation {
 const EmailTag = React.memo<EmailTagProps>(({ email, onRemove, disabled, isInvalid, isSent }) => (
   <div
     className={cn(
-      'flex w-auto items-center gap-1 rounded-[8px] border px-2 py-0.5 text-sm',
+      'flex w-auto items-center gap-[4px] rounded-[4px] border px-[8px] py-[4px] text-[12px]',
       isInvalid
         ? 'border-red-200 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-900/30 dark:text-red-400'
-        : 'border bg-muted text-muted-foreground'
+        : 'border-[var(--surface-11)] bg-[var(--surface-5)] text-[var(--text-secondary)] dark:bg-[var(--surface-5)] dark:text-[var(--text-secondary)]'
     )}
   >
     <span className='max-w-[200px] truncate'>{email}</span>
-    {isSent && <span className='text-muted-foreground text-xs'>sent</span>}
+    {isSent && (
+      <span className='text-[11px] text-[var(--text-tertiary)] dark:text-[var(--text-tertiary)]'>
+        sent
+      </span>
+    )}
     {!disabled && !isSent && (
       <button
         type='button'
@@ -101,7 +93,7 @@ const EmailTag = React.memo<EmailTagProps>(({ email, onRemove, disabled, isInval
           'flex-shrink-0 transition-colors focus:outline-none',
           isInvalid
             ? 'text-red-400 hover:text-red-600 dark:text-red-400 dark:hover:text-red-300'
-            : 'text-muted-foreground hover:text-foreground'
+            : 'text-[var(--text-tertiary)] hover:text-[var(--text-primary)] dark:text-[var(--text-tertiary)] dark:hover:text-[var(--text-primary)]'
         )}
         aria-label={`Remove ${email}`}
       >
@@ -133,7 +125,10 @@ const PermissionSelector = React.memo<PermissionSelectorProps>(
 
     return (
       <div
-        className={cn('inline-flex rounded-[12px] border border-input bg-background', className)}
+        className={cn(
+          'inline-flex rounded-[4px] border border-[var(--surface-11)] bg-[var(--surface-6)] dark:bg-[var(--surface-9)]',
+          className
+        )}
       >
         {permissionOptions.map((option, index) => (
           <button
@@ -142,13 +137,13 @@ const PermissionSelector = React.memo<PermissionSelectorProps>(
             onClick={() => !disabled && onChange(option.value)}
             disabled={disabled}
             className={cn(
-              'px-2.5 py-1.5 font-medium text-xs transition-colors focus:outline-none',
-              'first:rounded-l-[11px] last:rounded-r-[11px]',
+              'px-[8px] py-[4px] font-medium text-[12px] transition-colors focus:outline-none',
+              'first:rounded-l-[4px] last:rounded-r-[4px]',
               disabled && 'cursor-not-allowed opacity-50',
               value === option.value
-                ? 'bg-foreground text-background'
-                : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground',
-              index > 0 && 'border-input border-l'
+                ? 'bg-[var(--surface-9)] text-[var(--text-primary)] dark:bg-[var(--surface-5)] dark:text-[var(--text-primary)]'
+                : 'text-[var(--text-secondary)] hover:bg-[var(--surface-8)] hover:text-[var(--text-primary)] dark:text-[var(--text-secondary)] dark:hover:bg-[var(--surface-8)] dark:hover:text-[var(--text-primary)]',
+              index > 0 && 'border-[var(--surface-11)] border-l'
             )}
           >
             {option.label}
@@ -164,13 +159,13 @@ PermissionSelector.displayName = 'PermissionSelector'
 const PermissionsTableSkeleton = React.memo(() => (
   <div className='scrollbar-hide max-h-[300px] overflow-y-auto'>
     {Array.from({ length: 5 }).map((_, idx) => (
-      <div key={idx} className='flex items-center justify-between gap-2 py-2'>
-        <Skeleton className='h-5 w-40' />
-        <div className='flex items-center gap-2'>
-          <Skeleton className='h-[30px] w-32 flex-shrink-0 rounded-[12px]' />
-          <div className='flex w-10 items-center gap-1 sm:w-12'>
-            <Skeleton className='h-4 w-4 rounded' />
-            <Skeleton className='h-4 w-4 rounded' />
+      <div key={idx} className='flex items-center justify-between gap-[8px] py-[8px]'>
+        <Skeleton className='h-[14px] w-40 rounded-[4px]' />
+        <div className='flex items-center gap-[8px]'>
+          <Skeleton className='h-[28px] w-32 flex-shrink-0 rounded-[4px]' />
+          <div className='flex w-10 items-center gap-[4px] sm:w-12'>
+            <Skeleton className='h-4 w-4 rounded-[4px]' />
+            <Skeleton className='h-4 w-4 rounded-[4px]' />
           </div>
         </div>
       </div>
@@ -263,17 +258,19 @@ const PermissionsTable = ({
 
   if (isSaving) {
     return (
-      <div className='space-y-4'>
-        <h3 className='font-medium text-sm'>Member Permissions</h3>
-        <div className='rounded-[8px] border bg-card'>
-          <div className='flex items-center justify-center py-12'>
-            <div className='flex items-center space-x-2 text-muted-foreground'>
+      <div className='space-y-[12px]'>
+        <h3 className='font-medium text-[14px] text-[var(--text-primary)] dark:text-[var(--text-primary)]'>
+          Member Permissions
+        </h3>
+        <div className='rounded-[8px] border border-[var(--surface-11)] bg-[var(--surface-3)] dark:bg-[var(--surface-3)]'>
+          <div className='flex items-center justify-center py-[48px]'>
+            <div className='flex items-center gap-[8px] text-[var(--text-secondary)] dark:text-[var(--text-secondary)]'>
               <Loader2 className='h-5 w-5 animate-spin' />
-              <span className='font-medium text-sm'>Saving permission changes...</span>
+              <span className='font-medium text-[13px]'>Saving permission changes...</span>
             </div>
           </div>
         </div>
-        <p className='flex min-h-[2rem] items-start text-muted-foreground text-xs'>
+        <p className='flex min-h-[2rem] items-start text-[12px] text-[var(--text-tertiary)] dark:text-[var(--text-tertiary)]'>
           Please wait while we update the permissions.
         </p>
       </div>
@@ -316,13 +313,15 @@ const PermissionsTable = ({
                 : `new-${user.email}`
 
             return (
-              <div key={uniqueKey} className='flex items-center justify-between gap-2 py-2'>
+              <div key={uniqueKey} className='flex items-center justify-between gap-[8px] py-[8px]'>
                 {/* Email and status badges */}
                 <div className='min-w-0 flex-1'>
-                  <div className='flex items-center gap-2'>
-                    <span className='font-medium text-card-foreground text-sm'>{user.email}</span>
+                  <div className='flex items-center gap-[8px]'>
+                    <span className='font-medium text-[13px] text-[var(--text-primary)] dark:text-[var(--text-primary)]'>
+                      {user.email}
+                    </span>
                     {isPendingInvitation && (
-                      <span className='inline-flex items-center gap-1 rounded-[8px] bg-gray-100 px-2 py-1 font-medium text-gray-700 text-xs dark:bg-gray-800 dark:text-gray-300'>
+                      <Badge variant='default' className='gap-[4px]'>
                         {resendingInvitationIds &&
                         user.invitationId &&
                         resendingInvitationIds[user.invitationId] ? (
@@ -337,18 +336,14 @@ const PermissionsTable = ({
                         ) : (
                           <span>Sent</span>
                         )}
-                      </span>
+                      </Badge>
                     )}
-                    {hasChanges && (
-                      <span className='inline-flex items-center rounded-[8px] bg-gray-100 px-2 py-1 font-medium text-gray-700 text-xs dark:bg-gray-800 dark:text-gray-300'>
-                        Modified
-                      </span>
-                    )}
+                    {hasChanges && <Badge variant='default'>Modified</Badge>}
                   </div>
                 </div>
 
                 {/* Permission selector and fixed-width action area to keep rows aligned */}
-                <div className='flex flex-shrink-0 items-center gap-2'>
+                <div className='flex flex-shrink-0 items-center gap-[8px]'>
                   <PermissionSelector
                     value={user.permissionType}
                     onChange={(newPermission) => onPermissionChange(userIdentifier, newPermission)}
@@ -362,7 +357,7 @@ const PermissionsTable = ({
                   />
 
                   {/* Fixed-width action area so selector stays inline across rows */}
-                  <div className='flex h-4 w-10 items-center justify-center gap-1 sm:w-12'>
+                  <div className='flex h-4 w-10 items-center justify-center gap-[4px] sm:w-12'>
                     {isPendingInvitation &&
                       currentUserIsAdmin &&
                       user.invitationId &&
@@ -372,7 +367,6 @@ const PermissionsTable = ({
                             <span className='inline-flex'>
                               <Button
                                 variant='ghost'
-                                size='icon'
                                 onClick={() => onResendInvitation(user.invitationId!, user.email)}
                                 disabled={
                                   disabled ||
@@ -380,7 +374,7 @@ const PermissionsTable = ({
                                   resendingInvitationIds?.[user.invitationId!] ||
                                   (resendCooldowns && resendCooldowns[user.invitationId!] > 0)
                                 }
-                                className='h-4 w-4 p-0 text-muted-foreground transition-colors hover:bg-transparent hover:text-foreground'
+                                className='h-4 w-4 p-0'
                               >
                                 {resendingInvitationIds?.[user.invitationId!] ? (
                                   <Loader2 className='h-3.5 w-3.5 animate-spin' />
@@ -409,7 +403,6 @@ const PermissionsTable = ({
                         <Tooltip.Trigger asChild>
                           <Button
                             variant='ghost'
-                            size='icon'
                             onClick={() => {
                               if (canShowRemoveButton && onRemoveMember) {
                                 onRemoveMember(user.userId!, user.email)
@@ -422,7 +415,7 @@ const PermissionsTable = ({
                               }
                             }}
                             disabled={disabled || isSaving}
-                            className='h-4 w-4 p-0 text-muted-foreground transition-colors hover:bg-transparent hover:text-foreground'
+                            className='h-4 w-4 p-0'
                           >
                             <X className='h-3.5 w-3.5' />
                             <span className='sr-only'>
@@ -1049,26 +1042,31 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
   }, [])
 
   return (
-    <AlertDialog
+    <Modal
       open={open}
-      onOpenChange={(newOpen) => {
+      onOpenChange={(newOpen: boolean) => {
         if (!newOpen) {
           resetState()
         }
         onOpenChange(newOpen)
       }}
     >
-      <AlertDialogContent className='flex max-h-[80vh] flex-col gap-0 sm:max-w-[560px]'>
-        <AlertDialogHeader>
-          <AlertDialogTitle>Invite members to {workspaceName || 'Workspace'}</AlertDialogTitle>
-        </AlertDialogHeader>
+      <ModalContent className='flex max-h-[80vh] w-full max-w-[560px] flex-col gap-[12px]'>
+        <div className='flex flex-col gap-[8px]'>
+          <h2 className='font-medium text-[14px] text-[var(--text-primary)] dark:text-[var(--text-primary)]'>
+            Invite members to {workspaceName || 'Workspace'}
+          </h2>
+        </div>
 
-        <form ref={formRef} onSubmit={handleSubmit} className='mt-5'>
-          <div className='space-y-2'>
-            <label htmlFor='emails' className='font-medium text-sm'>
+        <form ref={formRef} onSubmit={handleSubmit} className='mt-[8px]'>
+          <div className='space-y-[8px]'>
+            <label
+              htmlFor='emails'
+              className='font-medium text-[13px] text-[var(--text-primary)] dark:text-[var(--text-primary)]'
+            >
               Email Addresses
             </label>
-            <div className='scrollbar-hide flex max-h-32 min-h-9 flex-wrap items-center gap-x-2 gap-y-1 overflow-y-auto rounded-[8px] border border-input bg-background px-2 py-1 focus-within:outline-none focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2'>
+            <div className='scrollbar-hide flex max-h-32 min-h-9 flex-wrap items-center gap-x-[8px] gap-y-[4px] overflow-y-auto rounded-[4px] border border-[var(--surface-11)] bg-[var(--surface-6)] px-[8px] py-[6px] focus-within:outline-none dark:bg-[var(--surface-9)]'>
               {invalidEmails.map((email, index) => (
                 <EmailTag
                   key={`invalid-${index}`}
@@ -1102,18 +1100,22 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
                       : 'Enter emails'
                 }
                 className={cn(
-                  'h-6 min-w-[180px] flex-1 border-none bg-transparent p-0 focus-visible:ring-0 focus-visible:ring-offset-0',
-                  emails.length > 0 || invalidEmails.length > 0 ? 'pl-1' : 'pl-1'
+                  'h-6 min-w-[180px] flex-1 border-none bg-transparent p-0 text-[13px] focus-visible:ring-0 focus-visible:ring-offset-0',
+                  emails.length > 0 || invalidEmails.length > 0 ? 'pl-[4px]' : 'pl-[4px]'
                 )}
                 autoFocus={userPerms.canAdmin}
                 disabled={isSubmitting || !userPerms.canAdmin}
               />
             </div>
-            {errorMessage && <p className='mt-1 text-destructive text-xs'>{errorMessage}</p>}
+            {errorMessage && (
+              <p className='mt-[4px] text-[12px] text-[var(--text-error)] dark:text-[var(--text-error)]'>
+                {errorMessage}
+              </p>
+            )}
           </div>
 
           {/* Line separator */}
-          <div className='mt-6 mb-4 border-t' />
+          <div className='mt-[16px] mb-[12px] border-[var(--surface-11)] border-t' />
 
           <PermissionsTable
             userPermissions={userPermissions}
@@ -1135,26 +1137,26 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
         </form>
 
         {/* Consistent spacing below user list to match spacing above */}
-        <div className='mb-4' />
+        <div className='mb-[12px]' />
 
-        <AlertDialogFooter className='flex justify-between'>
+        <div className='flex justify-between gap-[8px]'>
           {hasPendingChanges && userPerms.canAdmin && (
             <>
               <Button
                 type='button'
-                variant='outline'
+                variant='default'
                 disabled={isSaving || isSubmitting}
                 onClick={handleRestoreChanges}
-                className='h-9 gap-2 rounded-[8px] font-medium'
+                className='h-[32px] gap-[8px] px-[12px] font-medium'
               >
                 Restore Changes
               </Button>
               <Button
                 type='button'
-                variant='outline'
+                variant='default'
                 disabled={isSaving || isSubmitting}
                 onClick={handleSaveChanges}
-                className='h-9 gap-2 rounded-[8px] font-medium'
+                className='h-[32px] gap-[8px] px-[12px] font-medium'
               >
                 {isSaving && <Loader2 className='h-4 w-4 animate-spin' />}
                 Save Changes
@@ -1162,85 +1164,101 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
             </>
           )}
 
-          <Button
+          <button
             type='button'
             onClick={() => formRef.current?.requestSubmit()}
             disabled={
               !userPerms.canAdmin || isSubmitting || isSaving || !workspaceId || !hasNewInvites
             }
             className={cn(
-              'ml-auto flex h-9 items-center justify-center gap-2 rounded-[8px] px-4 py-2 font-medium transition-all duration-200',
-              'bg-[var(--brand-primary-hex)] text-white shadow-[0_0_0_0_var(--brand-primary-hex)] hover:bg-[var(--brand-primary-hover-hex)] hover:shadow-[0_0_0_4px_rgba(112,31,252,0.15)] disabled:opacity-50 disabled:hover:bg-[var(--brand-primary-hex)] disabled:hover:shadow-none'
+              'ml-auto flex h-[32px] items-center justify-center gap-[8px] rounded-[8px] px-[12px] font-medium text-[13px] transition-all duration-200',
+              'bg-[var(--brand-primary-hex)] text-white shadow-[0_0_0_0_var(--brand-primary-hex)] hover:bg-[var(--brand-primary-hover-hex)] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)]',
+              'disabled:opacity-50 disabled:hover:bg-[var(--brand-primary-hex)] disabled:hover:shadow-none'
             )}
           >
             {isSubmitting && <Loader2 className='h-4 w-4 animate-spin' />}
             {!userPerms.canAdmin ? 'Admin Access Required' : 'Send Invite'}
-          </Button>
-        </AlertDialogFooter>
-      </AlertDialogContent>
+          </button>
+        </div>
+      </ModalContent>
 
       {/* Remove Member Confirmation Dialog */}
-      <AlertDialog open={!!memberToRemove} onOpenChange={handleRemoveMemberCancel}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Remove Member</AlertDialogTitle>
-            <AlertDialogDescription>
+      <Modal open={!!memberToRemove} onOpenChange={handleRemoveMemberCancel}>
+        <ModalContent>
+          <div className='flex flex-col gap-[8px]'>
+            <h2 className='font-medium text-[14px] text-[var(--text-primary)] dark:text-[var(--text-primary)]'>
+              Remove Member
+            </h2>
+            <p className='text-[12px] text-[var(--text-tertiary)] dark:text-[var(--text-tertiary)]'>
               Are you sure you want to remove{' '}
-              <span className='font-medium text-foreground'>{memberToRemove?.email}</span> from this
-              workspace?{' '}
-              <span className='text-red-500 dark:text-red-500'>This action cannot be undone.</span>
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter className='flex'>
-            <AlertDialogCancel
-              className='h-9 w-full rounded-[8px]'
+              <span className='font-medium text-[var(--text-primary)] dark:text-[var(--text-primary)]'>
+                {memberToRemove?.email}
+              </span>{' '}
+              from this workspace?{' '}
+              <span className='text-[var(--text-error)] dark:text-[var(--text-error)]'>
+                This action cannot be undone.
+              </span>
+            </p>
+          </div>
+          <div className='flex justify-between gap-[8px]'>
+            <Button
+              variant='default'
+              className='h-[32px] w-full px-[12px]'
               onClick={handleRemoveMemberCancel}
               disabled={isRemovingMember}
             >
               Cancel
-            </AlertDialogCancel>
-            <AlertDialogAction
+            </Button>
+            <button
               onClick={handleRemoveMemberConfirm}
               disabled={isRemovingMember}
-              className='h-9 w-full gap-2 rounded-[8px] bg-red-500 text-white transition-all duration-200 hover:bg-red-600 dark:bg-red-500 dark:hover:bg-red-600'
+              className='h-[32px] w-full gap-[8px] rounded-[8px] bg-[var(--text-error)] px-[12px] font-medium text-[13px] text-white transition-all duration-200 hover:bg-[var(--text-error)] disabled:opacity-50 dark:bg-[var(--text-error)] dark:hover:bg-[var(--text-error)]'
             >
-              {isRemovingMember && <Loader2 className='h-4 w-4 animate-spin' />}
+              {isRemovingMember && <Loader2 className='mr-1 h-4 w-4 animate-spin' />}
               Remove Member
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+            </button>
+          </div>
+        </ModalContent>
+      </Modal>
 
       {/* Remove Invitation Confirmation Dialog */}
-      <AlertDialog open={!!invitationToRemove} onOpenChange={handleRemoveInvitationCancel}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Cancel Invitation</AlertDialogTitle>
-            <AlertDialogDescription>
+      <Modal open={!!invitationToRemove} onOpenChange={handleRemoveInvitationCancel}>
+        <ModalContent>
+          <div className='flex flex-col gap-[8px]'>
+            <h2 className='font-medium text-[14px] text-[var(--text-primary)] dark:text-[var(--text-primary)]'>
+              Cancel Invitation
+            </h2>
+            <p className='text-[12px] text-[var(--text-tertiary)] dark:text-[var(--text-tertiary)]'>
               Are you sure you want to cancel the invitation for{' '}
-              <span className='font-medium text-foreground'>{invitationToRemove?.email}</span>?{' '}
-              <span className='text-red-500 dark:text-red-500'>This action cannot be undone.</span>
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter className='flex'>
-            <AlertDialogCancel
-              className='h-9 w-full rounded-[8px]'
+              <span className='font-medium text-[var(--text-primary)] dark:text-[var(--text-primary)]'>
+                {invitationToRemove?.email}
+              </span>
+              ?{' '}
+              <span className='text-[var(--text-error)] dark:text-[var(--text-error)]'>
+                This action cannot be undone.
+              </span>
+            </p>
+          </div>
+          <div className='flex justify-between gap-[8px]'>
+            <Button
+              variant='default'
+              className='h-[32px] w-full px-[12px]'
               onClick={handleRemoveInvitationCancel}
               disabled={isRemovingInvitation}
             >
               Cancel
-            </AlertDialogCancel>
-            <AlertDialogAction
+            </Button>
+            <button
               onClick={handleRemoveInvitationConfirm}
               disabled={isRemovingInvitation}
-              className='h-9 w-full gap-2 rounded-[8px] bg-red-500 text-white transition-all duration-200 hover:bg-red-600 dark:bg-red-500 dark:hover:bg-red-600'
+              className='h-[32px] w-full gap-[8px] rounded-[8px] bg-[var(--text-error)] px-[12px] font-medium text-[13px] text-white transition-all duration-200 hover:bg-[var(--text-error)] disabled:opacity-50 dark:bg-[var(--text-error)] dark:hover:bg-[var(--text-error)]'
             >
-              {isRemovingInvitation && <Loader2 className='h-4 w-4 animate-spin' />}
+              {isRemovingInvitation && <Loader2 className='mr-1 h-4 w-4 animate-spin' />}
               Cancel Invitation
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </AlertDialog>
+            </button>
+          </div>
+        </ModalContent>
+      </Modal>
+    </Modal>
   )
 }

@@ -90,12 +90,12 @@ export default async function TemplatePage({ params }: TemplatePageProps) {
   } catch (error) {
     logger.error('Error loading template:', error)
     return (
-      <div className='flex h-screen items-center justify-center'>
+      <div className='flex h-[100vh] items-center justify-center pl-64'>
         <div className='text-center'>
-          <h1 className='mb-4 font-bold text-2xl'>Error Loading Template</h1>
-          <p className='text-muted-foreground'>There was an error loading this template.</p>
-          <p className='mt-2 text-muted-foreground text-sm'>Template ID: {id}</p>
-          <p className='mt-2 text-red-500 text-xs'>
+          <h1 className='mb-[14px] font-medium text-[18px]'>Error Loading Template</h1>
+          <p className='text-[#888888] text-[14px]'>There was an error loading this template.</p>
+          <p className='mt-[10px] text-[#888888] text-[12px]'>Template ID: {id}</p>
+          <p className='mt-[10px] text-[12px] text-red-500'>
             {error instanceof Error ? error.message : 'Unknown error'}
           </p>
         </div>

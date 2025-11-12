@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui'
+import { Modal, ModalContent } from '@/components/emcn'
 import { getEnv, isTruthy } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
 import {
@@ -118,15 +118,17 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
   }
 
   return (
-    <Dialog open={open} onOpenChange={handleDialogOpenChange}>
-      <DialogContent className='flex h-[70vh] flex-col gap-0 p-0 sm:max-w-[840px]'>
-        <DialogHeader className='border-b px-6 py-4'>
-          <DialogTitle className='font-medium text-lg'>Settings</DialogTitle>
-        </DialogHeader>
+    <Modal open={open} onOpenChange={handleDialogOpenChange}>
+      <ModalContent className='flex h-[70vh] w-full max-w-[840px] flex-col gap-0 p-0'>
+        <div className='flex flex-col border-[var(--surface-11)] border-b px-[16px] py-[12px]'>
+          <h2 className='font-medium text-[14px] text-[var(--text-primary)] dark:text-[var(--text-primary)]'>
+            Settings
+          </h2>
+        </div>
 
         <div className='flex min-h-0 flex-1'>
           {/* Navigation Sidebar */}
-          <div className='w-[180px]'>
+          <div className='w-[180px] border-[var(--surface-11)] border-r'>
             <SettingsNavigation
               activeSection={activeSection}
               onSectionChange={setActiveSection}
@@ -218,7 +220,7 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
             )}
           </div>
         </div>
-      </DialogContent>
-    </Dialog>
+      </ModalContent>
+    </Modal>
   )
 }

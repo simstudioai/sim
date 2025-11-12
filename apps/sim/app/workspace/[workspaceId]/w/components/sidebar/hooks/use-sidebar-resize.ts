@@ -1,10 +1,9 @@
 import { useCallback, useEffect, useState } from 'react'
-import { useSidebarStore } from '@/stores/sidebar/store'
+import { MIN_SIDEBAR_WIDTH, useSidebarStore } from '@/stores/sidebar/store'
 
 /**
  * Constants for sidebar sizing
  */
-const MIN_WIDTH = 232
 const MAX_WIDTH_PERCENTAGE = 0.3 // 30% of viewport width
 
 /**
@@ -36,7 +35,7 @@ export function useSidebarResize() {
       const newWidth = e.clientX
       const maxWidth = window.innerWidth * MAX_WIDTH_PERCENTAGE
 
-      if (newWidth >= MIN_WIDTH && newWidth <= maxWidth) {
+      if (newWidth >= MIN_SIDEBAR_WIDTH && newWidth <= maxWidth) {
         setSidebarWidth(newWidth)
       }
     }

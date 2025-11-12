@@ -332,20 +332,16 @@ export function TemplateDeploy({ workflowId, onDeploymentComplete }: TemplateDep
                       size='sm'
                       className='gap-2'
                       onClick={() => {
-                        // Open settings modal to creator profile tab
-                        const settingsButton = document.querySelector(
-                          '[data-settings-button]'
-                        ) as HTMLButtonElement
-                        if (settingsButton) {
-                          settingsButton.click()
-                          setTimeout(() => {
-                            const creatorProfileTab = document.querySelector(
-                              '[data-section="creator-profile"]'
-                            ) as HTMLButtonElement
-                            if (creatorProfileTab) {
-                              creatorProfileTab.click()
-                            }
-                          }, 100)
+                        try {
+                          const event = new CustomEvent('open-settings', {
+                            detail: { tab: 'creator-profile' },
+                          })
+                          window.dispatchEvent(event)
+                          logger.info('Opened Settings modal at creator-profile section')
+                        } catch (error) {
+                          logger.error('Failed to open Settings modal for creator profile', {
+                            error,
+                          })
                         }
                       }}
                     >

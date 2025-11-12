@@ -17,8 +17,8 @@ interface SidebarState {
  * Sidebar width constraints
  * Note: Maximum width is enforced dynamically at 30% of viewport width in the resize hook
  */
-const DEFAULT_SIDEBAR_WIDTH = 232
-const MIN_SIDEBAR_WIDTH = 232
+export const DEFAULT_SIDEBAR_WIDTH = 232
+export const MIN_SIDEBAR_WIDTH = 232
 
 export const useSidebarStore = create<SidebarState>()(
   persist(
