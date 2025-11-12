@@ -295,8 +295,6 @@ export function useDisplayName(
     context?.provider,
     context?.domain,
     context?.teamId,
-    cachedDisplayName,
-    isFetching,
   ])
 
   // Auto-fetch files if needed (provider-specific)
@@ -385,11 +383,9 @@ export function useDisplayName(
         .then((res) => res.json())
         .then((data) => {
           if (data.page?.title) {
-            useDisplayNamesStore
-              .getState()
-              .setDisplayNames('files', context.credentialId!, {
-                [value as string]: data.page.title,
-              })
+            useDisplayNamesStore.getState().setDisplayNames('files', context.credentialId!, {
+              [value as string]: data.page.title,
+            })
           }
         })
         .catch(() => {})
@@ -572,8 +568,6 @@ export function useDisplayName(
     context?.projectId,
     context?.teamId,
     context?.planId,
-    cachedDisplayName,
-    isFetching,
   ])
 
   if (!subBlock || !value || typeof value !== 'string') {

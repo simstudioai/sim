@@ -394,6 +394,13 @@ export function ConfluenceFileSelector({
     }
   }, [value, onFileInfoChange])
 
+  // Fetch page info on mount if we have a value but no selectedFile state
+  useEffect(() => {
+    if (value && selectedCredentialId && domain && !selectedFile) {
+      fetchPageInfo(value)
+    }
+  }, [value, selectedCredentialId, domain, selectedFile, fetchPageInfo])
+
   // Handle file selection
   const handleSelectFile = (file: ConfluenceFileInfo) => {
     setSelectedFileId(file.id)

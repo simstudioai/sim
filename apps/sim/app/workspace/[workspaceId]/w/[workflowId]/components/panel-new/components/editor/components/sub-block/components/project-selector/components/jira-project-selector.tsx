@@ -379,6 +379,13 @@ export function JiraProjectSelector({
     }
   }, [value, onProjectInfoChange])
 
+  // Fetch project info on mount if we have a value but no selectedProject state
+  useEffect(() => {
+    if (value && selectedCredentialId && domain && !selectedProject) {
+      fetchProjectInfo(value)
+    }
+  }, [value, selectedCredentialId, domain, selectedProject, fetchProjectInfo])
+
   // Handle open change
   const handleOpenChange = (isOpen: boolean) => {
     setOpen(isOpen)
