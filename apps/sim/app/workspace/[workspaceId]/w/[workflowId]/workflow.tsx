@@ -23,7 +23,6 @@ import {
   TrainingControls,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components'
 import { Chat } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/chat/chat'
-import { UserAvatarStack } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/control-bar/components/user-avatar-stack/user-avatar-stack'
 import { Cursors } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/cursors/cursors'
 import { ErrorBoundary } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/error/index'
 import { NoteBlock } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/note-block/note-block'
@@ -2006,7 +2005,6 @@ const WorkflowContent = React.memo(() => {
       <div className='flex h-screen w-full flex-col overflow-hidden'>
         <div className='relative h-full w-full flex-1 transition-all duration-200'>
           <div className='workflow-container h-full' />
-          <UserAvatarStack className='pointer-events-auto w-fit max-w-xs' />
         </div>
         <Panel />
         <Terminal />
@@ -2019,8 +2017,6 @@ const WorkflowContent = React.memo(() => {
       <div className='relative h-full w-full flex-1 transition-all duration-200'>
         {/* Training Controls - for recording workflow edits */}
         <TrainingControls />
-
-        <UserAvatarStack className='pointer-events-auto w-fit max-w-xs' />
 
         <ReactFlow
           nodes={nodes}
