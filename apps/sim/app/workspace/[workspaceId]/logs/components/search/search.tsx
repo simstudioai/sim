@@ -294,7 +294,6 @@ export function AutocompleteSearch({
             <Button
               type='button'
               variant='ghost'
-              size='sm'
               className='h-6 text-muted-foreground text-xs hover:text-foreground'
               onMouseDown={(e) => {
                 e.preventDefault()

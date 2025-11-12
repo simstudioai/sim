@@ -182,7 +182,6 @@ export function AddServerForm({
               <Button
                 type='button'
                 variant='ghost'
-                size='sm'
                 onClick={() => onRemoveHeader(key)}
                 className='h-9 w-9 p-0 text-muted-foreground hover:text-foreground'
               >
@@ -242,7 +241,6 @@ export function AddServerForm({
             <Button
               type='button'
               variant='outline'
-              size='sm'
               onClick={onAddHeader}
               className='h-9 text-muted-foreground hover:text-foreground'
             >
@@ -266,7 +264,6 @@ export function AddServerForm({
               <div className='flex items-center gap-2'>
                 <Button
                   variant='ghost'
-                  size='sm'
                   onClick={onTestConnection}
                   disabled={isTestingConnection || !formData.name.trim() || !formData.url?.trim()}
                   className='text-muted-foreground hover:text-foreground'
@@ -278,14 +275,12 @@ export function AddServerForm({
               <div className='flex items-center gap-2'>
                 <Button
                   variant='ghost'
-                  size='sm'
                   onClick={onCancel}
                   className='text-muted-foreground hover:text-foreground'
                 >
                   Cancel
                 </Button>
                 <Button
-                  size='sm'
                   onClick={onAddServer}
                   disabled={
                     serversLoading ||

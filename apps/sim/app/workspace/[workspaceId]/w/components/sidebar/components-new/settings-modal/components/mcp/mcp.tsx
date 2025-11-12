@@ -368,7 +368,6 @@ export function MCP() {
                       </div>
                       <Button
                         variant='ghost'
-                        size='sm'
                         onClick={() => handleRemoveServer(server.id)}
                         disabled={deletingServers.has(server.id)}
                         className='h-8 text-muted-foreground hover:text-foreground'
