@@ -36,7 +36,9 @@ function normalizeInputFormatValue(inputFormatValue: any): InputFormatField[] {
     return []
   }
 
-  return inputFormatValue.filter((field) => field && typeof field === 'object')
+  return inputFormatValue.filter(
+    (field) => field && typeof field === 'object' && field.name && field.name.trim() !== ''
+  )
 }
 
 function applyInputFormatFields(
