@@ -53,14 +53,14 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
           </Link>
         </div>
         <div className='flex flex-col gap-8 md:flex-row md:gap-12'>
-          <div className='h-[180px] w-full flex-shrink-0 sm:h-[200px] md:h-auto md:w-[300px]'>
-            <div className='relative h-full w-full overflow-hidden rounded-lg md:aspect-[5/4]'>
+          <div className='w-full flex-shrink-0 md:w-[450px]'>
+            <div className='relative w-full overflow-hidden rounded-lg'>
               <Image
                 src={post.ogImage}
                 alt={post.title}
-                width={300}
-                height={240}
-                className='h-full w-full object-cover'
+                width={450}
+                height={360}
+                className='h-auto w-full'
                 priority
                 itemProp='image'
               />
