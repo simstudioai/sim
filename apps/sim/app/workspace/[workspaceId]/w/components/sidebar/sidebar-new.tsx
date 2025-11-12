@@ -33,7 +33,6 @@ const logger = createLogger('SidebarNew')
 
 // Feature flag: Billing usage indicator visibility (matches legacy sidebar behavior)
 const isBillingEnabled = isTruthy(getEnv('NEXT_PUBLIC_BILLING_ENABLED'))
-// const isBillingEnabled = true
 
 /**
  * Sidebar component with resizable width that persists across page refreshes.
@@ -610,11 +609,7 @@ export function SidebarNew() {
               </div>
 
               {/* Usage Indicator */}
-              {isBillingEnabled && (
-                <div className='flex flex-shrink-0 flex-col gap-[2px] border-t px-[7.75px] pt-[8px] pb-[8px] dark:border-[var(--border)]'>
-                  <UsageIndicator />
-                </div>
-              )}
+              {isBillingEnabled && <UsageIndicator />}
 
               {/* Footer Navigation */}
               <FooterNavigation />
