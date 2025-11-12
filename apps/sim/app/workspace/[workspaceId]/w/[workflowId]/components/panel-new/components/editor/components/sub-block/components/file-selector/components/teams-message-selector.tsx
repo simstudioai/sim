@@ -84,6 +84,7 @@ export function TeamsMessageSelector({
   const initialFetchRef = useRef(false)
   const [error, setError] = useState<string | null>(null)
   const [selectionStage, setSelectionStage] = useState<'team' | 'channel' | 'chat'>(selectionType)
+  const lastRestoredValueRef = useRef<string | null>(null)
 
   // Get cached display name
   const cachedMessageName = useDisplayNamesStore(
@@ -240,6 +241,18 @@ export function TeamsMessageSelector({
 
         setChannels(channelsData)
 
+        // Cache channel names in display names store
+        if (selectedCredentialId && channelsData.length > 0) {
+          const channelMap = channelsData.reduce(
+            (acc: Record<string, string>, channel: TeamsMessageInfo) => {
+              acc[channel.channelId!] = channel.displayName
+              return acc
+            },
+            {}
+          )
+          useDisplayNamesStore.getState().setDisplayNames('files', selectedCredentialId, channelMap)
+        }
+
         // If we have a selected channel ID, find it in the list
         if (selectedChannelId) {
           const channel = channelsData.find(
@@ -303,6 +316,14 @@ export function TeamsMessageSelector({
       }))
 
       setChats(chatsData)
+
+      if (selectedCredentialId && chatsData.length > 0) {
+        const chatMap = chatsData.reduce((acc: Record<string, string>, chat: TeamsMessageInfo) => {
+          acc[chat.id] = chat.displayName
+          return acc
+        }, {})
+        useDisplayNamesStore.getState().setDisplayNames('files', selectedCredentialId, chatMap)
+      }
 
       // If we have a selected chat ID, find it in the list
       if (selectedChatId) {
@@ -547,6 +568,19 @@ export function TeamsMessageSelector({
 
         if (response.ok) {
           const data = await response.json()
+
+          // Cache all chat names
+          if (data.chats && selectedCredentialId) {
+            const chatMap = data.chats.reduce(
+              (acc: Record<string, string>, c: { id: string; displayName: string }) => {
+                acc[c.id] = c.displayName
+                return acc
+              },
+              {}
+            )
+            useDisplayNamesStore.getState().setDisplayNames('files', selectedCredentialId, chatMap)
+          }
+
           const chat = data.chats.find((c: { id: string; displayName: string }) => c.id === chatId)
           if (chat) {
             const chatInfo: TeamsMessageInfo = {
@@ -691,14 +725,20 @@ export function TeamsMessageSelector({
   // Restore selection whenever the canonical value changes
   useEffect(() => {
     if (value && selectedCredentialId) {
-      if (selectionType === 'team') {
-        restoreTeamSelection(value)
-      } else if (selectionType === 'chat') {
-        restoreChatSelection(value)
-      } else if (selectionType === 'channel') {
-        restoreChannelSelection(value)
+      // Only restore if we haven't already restored this value
+      if (lastRestoredValueRef.current !== value) {
+        lastRestoredValueRef.current = value
+
+        if (selectionType === 'team') {
+          restoreTeamSelection(value)
+        } else if (selectionType === 'chat') {
+          restoreChatSelection(value)
+        } else if (selectionType === 'channel') {
+          restoreChannelSelection(value)
+        }
       }
     } else {
+      lastRestoredValueRef.current = null
       setSelectedMessage(null)
     }
   }, [

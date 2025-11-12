@@ -435,6 +435,13 @@ export function JiraIssueSelector({
     }
   }, [value, onIssueInfoChange])
 
+  // Fetch issue info on mount if we have a value but no selectedIssue state
+  useEffect(() => {
+    if (value && selectedCredentialId && domain && projectId && !selectedIssue) {
+      fetchIssueInfo(value)
+    }
+  }, [value, selectedCredentialId, domain, projectId, selectedIssue, fetchIssueInfo])
+
   // Handle issue selection
   const handleSelectIssue = (issue: JiraIssueInfo) => {
     setSelectedIssueId(issue.id)

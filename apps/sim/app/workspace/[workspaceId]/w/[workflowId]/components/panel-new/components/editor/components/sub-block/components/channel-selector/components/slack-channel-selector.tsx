@@ -147,10 +147,7 @@ export function SlackChannelSelector({
           <div className='flex max-w-[calc(100%-20px)] items-center gap-2 overflow-hidden'>
             <SlackIcon className='h-4 w-4 text-[#611f69]' />
             {cachedChannelName ? (
-              <>
-                <Hash className='h-1.5 w-1.5' />
-                <span className='truncate font-normal'>{cachedChannelName}</span>
-              </>
+              <span className='truncate font-normal'>{cachedChannelName}</span>
             ) : (
               <span className='truncate text-muted-foreground'>{label}</span>
             )}

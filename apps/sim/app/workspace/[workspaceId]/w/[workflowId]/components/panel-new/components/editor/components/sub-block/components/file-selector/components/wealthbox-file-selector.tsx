@@ -194,6 +194,14 @@ export function WealthboxFileSelector({
           if (data.item) {
             setSelectedItem(data.item)
             onFileInfoChange?.(data.item)
+
+            // Cache the item name in display names store
+            if (selectedCredentialId) {
+              useDisplayNamesStore
+                .getState()
+                .setDisplayNames('files', selectedCredentialId, { [data.item.id]: data.item.name })
+            }
+
             return data.item
           }
         } else {
@@ -233,7 +241,20 @@ export function WealthboxFileSelector({
     }
   }, [selectedCredentialId, open, fetchAvailableItems])
 
-  // Fetch the selected item metadata only once when needed
+  // Fetch item info on mount if we have a value but no selectedItem state
+  useEffect(() => {
+    if (value && selectedCredentialId && !selectedItem) {
+      fetchItemById(value)
+    }
+  }, [value, selectedCredentialId, selectedItem, fetchItemById])
+
+  // Clear selectedItem when value is cleared
+  useEffect(() => {
+    if (!value) {
+      setSelectedItem(null)
+      onFileInfoChange?.(null)
+    }
+  }, [value, onFileInfoChange])
 
   // Handle search input changes with debouncing
   const handleSearchChange = useCallback(
