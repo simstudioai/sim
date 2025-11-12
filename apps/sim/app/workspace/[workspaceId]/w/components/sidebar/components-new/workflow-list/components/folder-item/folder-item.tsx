@@ -132,6 +132,18 @@ export function FolderItem({ folder, level, hoverHandlers }: FolderItemProps) {
   })
 
   /**
+   * Handle double-click on folder name to enter rename mode
+   */
+  const handleDoubleClick = useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault()
+      e.stopPropagation()
+      handleStartEdit()
+    },
+    [handleStartEdit]
+  )
+
+  /**
    * Handle click - toggles folder expansion
    *
    * @param e - React mouse event
@@ -223,7 +235,10 @@ export function FolderItem({ folder, level, hoverHandlers }: FolderItemProps) {
             spellCheck='false'
           />
         ) : (
-          <span className='truncate font-medium text-[#AEAEAE] dark:text-[#AEAEAE]'>
+          <span
+            className='truncate font-medium text-[#AEAEAE] dark:text-[#AEAEAE]'
+            onDoubleClick={handleDoubleClick}
+          >
             {folder.name}
           </span>
         )}

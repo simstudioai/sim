@@ -189,6 +189,18 @@ export function WorkflowItem({ workflow, active, level, onWorkflowClick }: Workf
   })
 
   /**
+   * Handle double-click on workflow name to enter rename mode
+   */
+  const handleDoubleClick = useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault()
+      e.stopPropagation()
+      handleStartEdit()
+    },
+    [handleStartEdit]
+  )
+
+  /**
    * Handle click - manages workflow selection with shift-key and cmd/ctrl-key support
    *
    * @param e - React mouse event
@@ -271,6 +283,7 @@ export function WorkflowItem({ workflow, active, level, onWorkflowClick }: Workf
                   ? 'text-[#E6E6E6] dark:text-[#E6E6E6]'
                   : 'text-[#AEAEAE] group-hover:text-[#E6E6E6] dark:text-[#AEAEAE] dark:group-hover:text-[#E6E6E6]'
               )}
+              onDoubleClick={handleDoubleClick}
             >
               {workflow.name}
             </div>
