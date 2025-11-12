@@ -78,32 +78,65 @@ export function TemplateDeploy({ workflowId, onDeploymentComplete }: TemplateDep
   })
 
   // Fetch creator profiles
-  useEffect(() => {
-    const fetchCreatorOptions = async () => {
-      if (!session?.user?.id) return
+  const fetchCreatorOptions = async () => {
+    if (!session?.user?.id) return
 
-      setLoadingCreators(true)
-      try {
-        const response = await fetch('/api/creator-profiles')
-        if (response.ok) {
-          const data = await response.json()
-          const profiles = (data.profiles || []).map((profile: any) => ({
-            id: profile.id,
-            name: profile.name,
-            referenceType: profile.referenceType,
-            referenceId: profile.referenceId,
-          }))
-          setCreatorOptions(profiles)
-        }
-      } catch (error) {
-        logger.error('Error fetching creator profiles:', error)
-      } finally {
-        setLoadingCreators(false)
+    setLoadingCreators(true)
+    try {
+      const response = await fetch('/api/creator-profiles')
+      if (response.ok) {
+        const data = await response.json()
+        const profiles = (data.profiles || []).map((profile: any) => ({
+          id: profile.id,
+          name: profile.name,
+          referenceType: profile.referenceType,
+          referenceId: profile.referenceId,
+        }))
+        setCreatorOptions(profiles)
+        return profiles
       }
+    } catch (error) {
+      logger.error('Error fetching creator profiles:', error)
+    } finally {
+      setLoadingCreators(false)
     }
+    return []
+  }
 
+  useEffect(() => {
     fetchCreatorOptions()
   }, [session?.user?.id])
+
+  // Auto-select creator profile when there's only one option and no selection yet
+  useEffect(() => {
+    const currentCreatorId = form.getValues('creatorId')
+    if (creatorOptions.length === 1 && !currentCreatorId) {
+      form.setValue('creatorId', creatorOptions[0].id)
+      logger.info('Auto-selected single creator profile:', creatorOptions[0].name)
+    }
+  }, [creatorOptions, form])
+
+  // Listen for creator profile saved event
+  useEffect(() => {
+    const handleCreatorProfileSaved = async () => {
+      logger.info('Creator profile saved, refreshing profiles...')
+
+      // Refetch creator profiles (autoselection will happen via the effect above)
+      await fetchCreatorOptions()
+
+      // Close settings modal and reopen deploy modal to template tab
+      window.dispatchEvent(new CustomEvent('close-settings'))
+      setTimeout(() => {
+        window.dispatchEvent(new CustomEvent('open-deploy-modal', { detail: { tab: 'template' } }))
+      }, 100)
+    }
+
+    window.addEventListener('creator-profile-saved', handleCreatorProfileSaved)
+
+    return () => {
+      window.removeEventListener('creator-profile-saved', handleCreatorProfileSaved)
+    }
+  }, [])
 
   // Check for existing template
   useEffect(() => {
@@ -454,12 +487,12 @@ export function TemplateDeploy({ workflowId, onDeploymentComplete }: TemplateDep
       )}
 
       {/* Template State Preview Dialog */}
-      {showPreviewDialog && (
-        <Dialog open={showPreviewDialog} onOpenChange={setShowPreviewDialog}>
-          <DialogContent className='max-h-[80vh] max-w-5xl overflow-auto'>
-            <DialogHeader>
-              <DialogTitle>Template State Preview</DialogTitle>
-            </DialogHeader>
+      <Dialog open={showPreviewDialog} onOpenChange={setShowPreviewDialog}>
+        <DialogContent className='max-h-[80vh] max-w-5xl overflow-auto'>
+          <DialogHeader>
+            <DialogTitle>Published Template Preview</DialogTitle>
+          </DialogHeader>
+          {showPreviewDialog && (
             <div className='mt-4'>
               {(() => {
                 if (!existingTemplate?.state || !existingTemplate.state.blocks) {
@@ -487,7 +520,7 @@ export function TemplateDeploy({ workflowId, onDeploymentComplete }: TemplateDep
                 return (
                   <div className='h-[500px] w-full'>
                     <WorkflowPreview
-                      key={`template-preview-${existingTemplate.id}-${Date.now()}`}
+                      key={`template-preview-${existingTemplate.id}`}
                       workflowState={workflowState}
                       showSubBlocks={true}
                       height='100%'
@@ -497,9 +530,9 @@ export function TemplateDeploy({ workflowId, onDeploymentComplete }: TemplateDep
                 )
               })()}
             </div>
-          </DialogContent>
-        </Dialog>
-      )}
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
