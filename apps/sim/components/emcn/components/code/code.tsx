@@ -80,6 +80,10 @@ function Container({
         'group relative min-h-[100px] rounded-[4px] border border-[var(--border-strong)]',
         'bg-[#1F1F1F] font-medium font-mono text-sm transition-colors',
         'dark:border-[var(--border-strong)]',
+        // Overflow handling for long content
+        'overflow-x-auto',
+        // Vertical resize handle
+        'resize-y overflow-y-auto',
         // Streaming state
         isStreaming && 'streaming-effect',
         className
