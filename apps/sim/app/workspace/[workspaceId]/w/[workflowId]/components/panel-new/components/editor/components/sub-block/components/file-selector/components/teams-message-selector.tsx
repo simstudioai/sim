@@ -84,6 +84,7 @@ export function TeamsMessageSelector({
   const initialFetchRef = useRef(false)
   const [error, setError] = useState<string | null>(null)
   const [selectionStage, setSelectionStage] = useState<'team' | 'channel' | 'chat'>(selectionType)
+  const lastRestoredValueRef = useRef<string | null>(null)
 
   // Get cached display name
   const cachedMessageName = useDisplayNamesStore(
@@ -724,15 +725,10 @@ export function TeamsMessageSelector({
   // Restore selection whenever the canonical value changes
   useEffect(() => {
     if (value && selectedCredentialId) {
-      // Only restore if we don't already have the selection populated
-      const needsRestore =
-        !selectedMessage ||
-        selectedMessage.id !== value ||
-        (selectionType === 'chat' && selectedMessage.chatId !== value) ||
-        (selectionType === 'channel' && selectedMessage.channelId !== value) ||
-        (selectionType === 'team' && selectedMessage.teamId !== value)
+      // Only restore if we haven't already restored this value
+      if (lastRestoredValueRef.current !== value) {
+        lastRestoredValueRef.current = value
 
-      if (needsRestore) {
         if (selectionType === 'team') {
           restoreTeamSelection(value)
         } else if (selectionType === 'chat') {
@@ -742,13 +738,13 @@ export function TeamsMessageSelector({
         }
       }
     } else {
+      lastRestoredValueRef.current = null
       setSelectedMessage(null)
     }
   }, [
     value,
     selectedCredentialId,
     selectionType,
-    selectedMessage,
     restoreTeamSelection,
     restoreChatSelection,
     restoreChannelSelection,
