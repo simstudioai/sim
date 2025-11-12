@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from 'react'
 import { Check, ChevronDown } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { Button } from '@/components/emcn'
 import {
   Command,
   CommandEmpty,
@@ -58,7 +58,7 @@ export default function Trigger() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button ref={triggerRef} variant='outline' size='sm' className={filterButtonClass}>
+        <Button ref={triggerRef} variant='outline' className={filterButtonClass}>
           {getSelectedTriggersText()}
           <ChevronDown className='ml-2 h-4 w-4 text-muted-foreground' />
         </Button>

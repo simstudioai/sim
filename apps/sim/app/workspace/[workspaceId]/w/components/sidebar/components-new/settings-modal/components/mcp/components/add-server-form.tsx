@@ -1,7 +1,8 @@
 'use client'
 
 import { Plus, X } from 'lucide-react'
-import { Button, Input, Label } from '@/components/ui'
+import { Button } from '@/components/emcn'
+import { Input, Label } from '@/components/ui'
 import { EnvVarDropdown } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/components/sub-block/components/env-var-dropdown'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/components/sub-block/components/formatted-text'
 import type { McpServerFormData, McpServerTestResult } from '../types'
@@ -255,7 +256,9 @@ export function AddServerForm({
           <div className='space-y-1.5'>
             {/* Error message above buttons */}
             {testResult && !testResult.success && (
-              <p className='text-red-600 text-sm'>{testResult.error || testResult.message}</p>
+              <div className='text-[#DC2626] text-[12px] leading-tight dark:text-[#F87171]'>
+                {testResult.error || testResult.message}
+              </div>
             )}
 
             {/* Buttons row */}

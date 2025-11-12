@@ -71,6 +71,12 @@ export function WorkflowDetails({
 }) {
   const router = useRouter()
   const { workflows } = useWorkflowRegistry()
+
+  // Check if any logs have pending status to show Resume column
+  const hasPendingExecutions = useMemo(() => {
+    return details?.logs?.some((log) => log.hasPendingPause === true) || false
+  }, [details])
+
   const workflowColor = useMemo(
     () => workflows[expandedWorkflowId]?.color || '#3972F6',
     [workflows, expandedWorkflowId]
@@ -136,15 +142,15 @@ export function WorkflowDetails({
             </button>
           </div>
           <div className='flex items-center gap-2'>
-            <div className='inline-flex h-7 items-center gap-2 rounded-[10px] border px-2.5'>
+            <div className='inline-flex h-7 items-center gap-2 border px-2.5'>
               <span className='text-[11px] text-muted-foreground'>Executions</span>
               <span className='font-[500] text-sm leading-none'>{overview.total}</span>
             </div>
-            <div className='inline-flex h-7 items-center gap-2 rounded-[10px] border px-2.5'>
+            <div className='inline-flex h-7 items-center gap-2 border px-2.5'>
               <span className='text-[11px] text-muted-foreground'>Success</span>
               <span className='font-[500] text-sm leading-none'>{overview.rate.toFixed(1)}%</span>
             </div>
-            <div className='inline-flex h-7 items-center gap-2 rounded-[10px] border px-2.5'>
+            <div className='inline-flex h-7 items-center gap-2 border px-2.5'>
               <span className='text-[11px] text-muted-foreground'>Failures</span>
               <span className='font-[500] text-sm leading-none'>{overview.failures}</span>
             </div>
@@ -172,7 +178,7 @@ export function WorkflowDetails({
                       })
                     : 'Selected segment'
                 return (
-                  <div className='mb-4 flex items-center justify-between rounded-[10px] border bg-muted/30 px-3 py-2 text-[13px] text-foreground'>
+                  <div className='mb-4 flex items-center justify-between border bg-muted/30 px-3 py-2 text-[13px] text-foreground'>
                     <div className='flex items-center gap-2'>
                       <div className='h-1.5 w-1.5 rounded-full bg-primary ring-2 ring-primary/30' />
                       <span className='font-medium'>
@@ -264,8 +270,15 @@ export function WorkflowDetails({
             <div className='flex flex-1 flex-col overflow-hidden'>
               <div className='w-full overflow-x-auto'>
                 <div>
-                  <div className='border-border border-b'>
-                    <div className='grid min-w-[980px] grid-cols-[140px_90px_90px_90px_180px_1fr_100px_40px] gap-2 px-2 pb-3 md:gap-3 lg:min-w-0 lg:gap-4'>
+                  <div className='border-b-0'>
+                    <div
+                      className={cn(
+                        'grid min-w-[980px] gap-2 px-2 pb-3 md:gap-3 lg:min-w-0 lg:gap-4',
+                        hasPendingExecutions
+                          ? 'grid-cols-[140px_90px_90px_90px_180px_1fr_100px_40px]'
+                          : 'grid-cols-[140px_90px_90px_90px_180px_1fr_100px]'
+                      )}
+                    >
                       <div className='font-[460] font-sans text-[13px] text-muted-foreground leading-normal'>
                         Time
                       </div>
@@ -287,9 +300,11 @@ export function WorkflowDetails({
                       <div className='text-right font-[480] font-sans text-[13px] text-muted-foreground leading-normal'>
                         Duration
                       </div>
-                      <div className='text-right font-[480] font-sans text-[13px] text-muted-foreground leading-normal'>
-                        Resume
-                      </div>
+                      {hasPendingExecutions && (
+                        <div className='text-right font-[480] font-sans text-[13px] text-muted-foreground leading-normal'>
+                          Resume
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -333,14 +348,21 @@ export function WorkflowDetails({
                         <div
                           key={log.id}
                           className={cn(
-                            'cursor-pointer border-border border-b transition-all duration-200',
+                            'cursor-pointer transition-all duration-200',
                             isExpanded ? 'bg-accent/30' : 'hover:bg-accent/20'
                           )}
                           onClick={() =>
                             setExpandedRowId((prev) => (prev === log.id ? null : log.id))
                           }
                         >
-                          <div className='grid min-w-[980px] grid-cols-[140px_90px_90px_90px_180px_1fr_100px_40px] items-center gap-2 px-2 py-3 md:gap-3 lg:min-w-0 lg:gap-4'>
+                          <div
+                            className={cn(
+                              'grid min-w-[980px] items-center gap-2 px-2 py-3 md:gap-3 lg:min-w-0 lg:gap-4',
+                              hasPendingExecutions
+                                ? 'grid-cols-[140px_90px_90px_90px_180px_1fr_100px_40px]'
+                                : 'grid-cols-[140px_90px_90px_90px_180px_1fr_100px]'
+                            )}
+                          >
                             <div>
                               <div className='text-[13px]'>
                                 <span className='font-sm text-muted-foreground'>
@@ -356,34 +378,40 @@ export function WorkflowDetails({
                             </div>
 
                             <div>
-                              <div
-                                className={cn(
-                                  'inline-flex items-center rounded-[8px] px-[6px] py-[2px] font-[400] text-xs transition-all duration-200 lg:px-[8px]',
-                                  isError
-                                    ? 'bg-red-500 text-white'
-                                    : isPending
-                                      ? 'bg-amber-300 text-amber-900 dark:bg-amber-500/90 dark:text-black'
-                                      : 'bg-secondary text-card-foreground'
-                                )}
-                              >
-                                {statusLabel}
-                              </div>
+                              {isError || !isPending ? (
+                                <div
+                                  className={cn(
+                                    'flex h-[24px] w-[56px] items-center justify-start rounded-[6px] border pl-[9px]',
+                                    isError
+                                      ? 'gap-[5px] border-[#883827] bg-[#491515]'
+                                      : 'gap-[8px] border-[#686868] bg-[#383838]'
+                                  )}
+                                >
+                                  <div
+                                    className='h-[6px] w-[6px] rounded-[2px]'
+                                    style={{
+                                      backgroundColor: isError ? '#EF4444' : '#B7B7B7',
+                                    }}
+                                  />
+                                  <span
+                                    className='font-medium text-[11.5px]'
+                                    style={{ color: isError ? '#EF4444' : '#B7B7B7' }}
+                                  >
+                                    {statusLabel}
+                                  </span>
+                                </div>
+                              ) : (
+                                <div className='inline-flex items-center bg-amber-300 px-[6px] py-[2px] font-[400] text-amber-900 text-xs dark:bg-amber-500/90 dark:text-black'>
+                                  {statusLabel}
+                                </div>
+                              )}
                             </div>
 
                             <div>
                               {log.trigger ? (
                                 <div
-                                  className={cn(
-                                    'inline-flex items-center rounded-[8px] px-[6px] py-[2px] font-[400] text-xs transition-all duration-200 lg:px-[8px]',
-                                    log.trigger.toLowerCase() === 'manual'
-                                      ? 'bg-secondary text-card-foreground'
-                                      : 'text-white'
-                                  )}
-                                  style={
-                                    log.trigger.toLowerCase() === 'manual'
-                                      ? undefined
-                                      : { backgroundColor: getTriggerColor(log.trigger) }
-                                  }
+                                  className='inline-flex items-center rounded-[6px] px-[6px] py-[2px] font-[400] text-white text-xs lg:px-[8px]'
+                                  style={{ backgroundColor: getTriggerColor(log.trigger) }}
                                 >
                                   {log.trigger}
                                 </div>
@@ -403,7 +431,7 @@ export function WorkflowDetails({
                               {log.workflowName ? (
                                 <div className='inline-flex items-center gap-2'>
                                   <span
-                                    className='h-3.5 w-3.5 rounded'
+                                    className='h-3.5 w-3.5'
                                     style={{ backgroundColor: log.workflowColor || '#64748b' }}
                                   />
                                   <span
@@ -437,23 +465,25 @@ export function WorkflowDetails({
                               </div>
                             </div>
 
-                            <div className='flex justify-end'>
-                              {isPending && log.executionId ? (
-                                <Link
-                                  href={`/resume/${expandedWorkflowId}/${log.executionId}`}
-                                  className='inline-flex h-7 w-7 items-center justify-center rounded-md border border-primary/60 border-dashed text-primary hover:bg-primary/10'
-                                  aria-label='Open resume console'
-                                >
-                                  <ArrowUpRight className='h-4 w-4' />
-                                </Link>
-                              ) : (
-                                <span className='h-7 w-7' />
-                              )}
-                            </div>
+                            {hasPendingExecutions && (
+                              <div className='flex justify-end'>
+                                {isPending && log.executionId ? (
+                                  <Link
+                                    href={`/resume/${expandedWorkflowId}/${log.executionId}`}
+                                    className='inline-flex h-7 w-7 items-center justify-center border border-primary/60 border-dashed text-primary hover:bg-primary/10'
+                                    aria-label='Open resume console'
+                                  >
+                                    <ArrowUpRight className='h-4 w-4' />
+                                  </Link>
+                                ) : (
+                                  <span className='h-7 w-7' />
+                                )}
+                              </div>
+                            )}
                           </div>
                           {isExpanded && (
                             <div className='px-2 pt-0 pb-4'>
-                              <div className='rounded-md border bg-muted/30 p-2'>
+                              <div className='border bg-muted/30 p-2'>
                                 <pre className='max-h-60 overflow-auto whitespace-pre-wrap break-words text-xs'>
                                   {log.level === 'error' && errorStr ? errorStr : outputsStr}
                                 </pre>

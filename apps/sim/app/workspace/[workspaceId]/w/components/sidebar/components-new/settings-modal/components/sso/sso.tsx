@@ -680,7 +680,7 @@ export function SSO() {
                     ))}
                   </select>
                   {showErrors && errors.providerId.length > 0 && (
-                    <div className='mt-1 text-red-400 text-xs'>
+                    <div className='mt-1 text-[#DC2626] text-[12px] leading-tight dark:text-[#F87171]'>
                       <p>{errors.providerId.join(' ')}</p>
                     </div>
                   )}
@@ -711,7 +711,7 @@ export function SSO() {
                     )}
                   />
                   {showErrors && errors.issuerUrl.length > 0 && (
-                    <div className='mt-1 text-red-400 text-xs'>
+                    <div className='mt-1 text-[#DC2626] text-[12px] leading-tight dark:text-[#F87171]'>
                       <p>{errors.issuerUrl.join(' ')}</p>
                     </div>
                   )}
@@ -740,7 +740,7 @@ export function SSO() {
                     )}
                   />
                   {showErrors && errors.domain.length > 0 && (
-                    <div className='mt-1 text-red-400 text-xs'>
+                    <div className='mt-1 text-[#DC2626] text-[12px] leading-tight dark:text-[#F87171]'>
                       <p>{errors.domain.join(' ')}</p>
                     </div>
                   )}
@@ -771,7 +771,7 @@ export function SSO() {
                         )}
                       />
                       {showErrors && errors.clientId.length > 0 && (
-                        <div className='mt-1 text-red-400 text-xs'>
+                        <div className='mt-1 text-[#DC2626] text-[12px] leading-tight dark:text-[#F87171]'>
                           <p>{errors.clientId.join(' ')}</p>
                         </div>
                       )}
@@ -820,7 +820,7 @@ export function SSO() {
                         </button>
                       </div>
                       {showErrors && errors.clientSecret.length > 0 && (
-                        <div className='mt-1 text-red-400 text-xs'>
+                        <div className='mt-1 text-[#DC2626] text-[12px] leading-tight dark:text-[#F87171]'>
                           <p>{errors.clientSecret.join(' ')}</p>
                         </div>
                       )}
@@ -845,7 +845,7 @@ export function SSO() {
                         )}
                       />
                       {showErrors && errors.scopes.length > 0 && (
-                        <div className='mt-1 text-red-400 text-xs'>
+                        <div className='mt-1 text-[#DC2626] text-[12px] leading-tight dark:text-[#F87171]'>
                           <p>{errors.scopes.join(' ')}</p>
                         </div>
                       )}
@@ -875,7 +875,7 @@ export function SSO() {
                         )}
                       />
                       {showErrors && errors.entryPoint.length > 0 && (
-                        <div className='mt-1 text-red-400 text-xs'>
+                        <div className='mt-1 text-[#DC2626] text-[12px] leading-tight dark:text-[#F87171]'>
                           <p>{errors.entryPoint.join(' ')}</p>
                         </div>
                       )}
@@ -901,7 +901,7 @@ export function SSO() {
                         rows={4}
                       />
                       {showErrors && errors.cert.length > 0 && (
-                        <div className='mt-1 text-red-400 text-xs'>
+                        <div className='mt-1 text-[#DC2626] text-[12px] leading-tight dark:text-[#F87171]'>
                           <p>{errors.cert.join(' ')}</p>
                         </div>
                       )}

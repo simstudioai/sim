@@ -817,11 +817,38 @@ try {
     },
   ]
 
+  // Ensure modal overlay appears above Settings modal (z-index: 9999999)
+  useEffect(() => {
+    if (!open) return
+
+    const styleId = 'custom-tool-modal-z-index'
+    let styleEl = document.getElementById(styleId) as HTMLStyleElement
+
+    if (!styleEl) {
+      styleEl = document.createElement('style')
+      styleEl.id = styleId
+      styleEl.textContent = `
+        [data-radix-portal] [data-radix-dialog-overlay] {
+          z-index: 99999998 !important;
+        }
+      `
+      document.head.appendChild(styleEl)
+    }
+
+    return () => {
+      const el = document.getElementById(styleId)
+      if (el) {
+        el.remove()
+      }
+    }
+  }, [open])
+
   return (
     <>
       <Dialog open={open} onOpenChange={handleClose}>
         <DialogContent
           className='flex h-[80vh] flex-col gap-0 p-0 sm:max-w-[700px]'
+          style={{ zIndex: 99999999 }}
           hideCloseButton
           onKeyDown={(e) => {
             // Intercept Escape key when dropdowns are open

@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { AlertCircle, Plus, Search } from 'lucide-react'
 import { useParams } from 'next/navigation'
-import { Alert, AlertDescription, Button, Input, Skeleton } from '@/components/ui'
+import { Button } from '@/components/emcn'
+import { Alert, AlertDescription, Input, Skeleton } from '@/components/ui'
 import { createLogger } from '@/lib/logs/console/logger'
 import { checkEnvVarTrigger } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/components/sub-block/components/env-var-dropdown'
 import { useMcpServerTest } from '@/hooks/use-mcp-server-test'
@@ -254,7 +255,7 @@ export function MCP() {
   return (
     <div className='relative flex h-full flex-col'>
       {/* Fixed Header with Search */}
-      <div className='px-6 pt-2 pb-2'>
+      <div className='px-6 pt-4 pb-2'>
         {/* Search Input */}
         {serversLoading ? (
           <Skeleton className='h-9 w-56 rounded-[8px]' />
@@ -281,7 +282,7 @@ export function MCP() {
 
       {/* Scrollable Content */}
       <div className='min-h-0 flex-1 overflow-y-auto px-6'>
-        <div className='h-full space-y-2 py-2'>
+        <div className='space-y-2 pt-2 pb-6'>
           {/* Server List */}
           {serversLoading ? (
             <div className='space-y-2'>

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Check, ChevronDown } from 'lucide-react'
 import { useParams } from 'next/navigation'
-import { Button } from '@/components/ui/button'
+import { Button } from '@/components/emcn'
 import {
   Command,
   CommandEmpty,
@@ -111,7 +111,7 @@ export default function FolderFilter() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button ref={triggerRef} variant='outline' size='sm' className={filterButtonClass}>
+        <Button ref={triggerRef} variant='outline' className={filterButtonClass}>
           {loading ? 'Loading folders...' : getSelectedFoldersText()}
           <ChevronDown className='ml-2 h-4 w-4 text-muted-foreground' />
         </Button>

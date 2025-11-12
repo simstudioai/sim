@@ -2,8 +2,11 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { ChevronDown, ChevronUp, Eye, Loader2, X } from 'lucide-react'
-import { Tooltip } from '@/components/emcn'
-import { Button } from '@/components/ui/button'
+import { highlight, languages } from 'prismjs'
+import 'prismjs/components/prism-javascript'
+import 'prismjs/components/prism-python'
+import 'prismjs/components/prism-json'
+import { Button, Tooltip } from '@/components/emcn'
 import { CopyButton } from '@/components/ui/copy-button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { BASE_EXECUTION_CHARGE } from '@/lib/billing/constants'
@@ -15,6 +18,7 @@ import { TraceSpans } from '@/app/workspace/[workspaceId]/logs/components/trace-
 import { formatDate } from '@/app/workspace/[workspaceId]/logs/utils'
 import { formatCost } from '@/providers/utils'
 import type { WorkflowLog } from '@/stores/logs/filters/types'
+import '@/components/emcn/components/code/code.css'
 
 interface LogSidebarProps {
   log: WorkflowLog | null
@@ -72,12 +76,17 @@ const formatJsonContent = (content: string, blockInput?: Record<string, any>): R
   const { isJson, formatted } = tryPrettifyJson(content)
 
   return (
-    <div className='group relative w-full rounded-md bg-secondary/30 p-3'>
+    <div className='group relative w-full rounded-[4px] border border-[var(--border-strong)] bg-[#1F1F1F] p-3'>
       <CopyButton text={formatted} className='z-10 h-7 w-7' />
       {isJson ? (
-        <pre className='max-h-[500px] w-full overflow-y-auto overflow-x-hidden whitespace-pre-wrap break-all text-sm'>
-          {formatted}
-        </pre>
+        <div className='code-editor-theme'>
+          <pre
+            className='max-h-[500px] w-full overflow-y-auto overflow-x-hidden whitespace-pre-wrap break-all font-mono text-[#eeeeee] text-[11px] leading-[16px]'
+            dangerouslySetInnerHTML={{
+              __html: highlight(formatted, languages.json, 'json'),
+            }}
+          />
+        </div>
       ) : (
         <LogMarkdownRenderer content={formatted} />
       )}
@@ -123,7 +132,7 @@ const BlockContentDisplay = ({
         <div className='mb-2 flex space-x-1'>
           <button
             onClick={() => setActiveTab('output')}
-            className={`rounded-md px-3 py-1 text-xs transition-colors ${
+            className={`px-3 py-1 text-xs transition-colors ${
               activeTab === 'output'
                 ? 'bg-secondary text-foreground'
                 : 'text-muted-foreground hover:bg-secondary/50'
@@ -133,7 +142,7 @@ const BlockContentDisplay = ({
           </button>
           <button
             onClick={() => setActiveTab('input')}
-            className={`rounded-md px-3 py-1 text-xs transition-colors ${
+            className={`px-3 py-1 text-xs transition-colors ${
               activeTab === 'input'
                 ? 'bg-secondary text-foreground'
                 : 'text-muted-foreground hover:bg-secondary/50'
@@ -145,14 +154,19 @@ const BlockContentDisplay = ({
       )}
 
       {/* Content based on active tab */}
-      <div className='group relative rounded-md bg-secondary/30 p-3'>
+      <div className='group relative rounded-[4px] border border-[var(--border-strong)] bg-[#1F1F1F] p-3'>
         {activeTab === 'output' ? (
           <>
             <CopyButton text={outputString} className='z-10 h-7 w-7' />
             {isJson ? (
-              <pre className='w-full overflow-y-auto overflow-x-hidden whitespace-pre-wrap break-all text-sm'>
-                {outputString}
-              </pre>
+              <div className='code-editor-theme'>
+                <pre
+                  className='w-full overflow-y-auto overflow-x-hidden whitespace-pre-wrap break-all font-mono text-[#eeeeee] text-[11px] leading-[16px]'
+                  dangerouslySetInnerHTML={{
+                    __html: highlight(outputString, languages.json, 'json'),
+                  }}
+                />
+              </div>
             ) : (
               <LogMarkdownRenderer content={outputString} />
             )}
@@ -160,9 +174,14 @@ const BlockContentDisplay = ({
         ) : blockInputString ? (
           <>
             <CopyButton text={blockInputString} className='z-10 h-7 w-7' />
-            <pre className='w-full overflow-y-auto overflow-x-hidden whitespace-pre-wrap break-all text-sm'>
-              {blockInputString}
-            </pre>
+            <div className='code-editor-theme'>
+              <pre
+                className='w-full overflow-y-auto overflow-x-hidden whitespace-pre-wrap break-all font-mono text-[#eeeeee] text-[11px] leading-[16px]'
+                dangerouslySetInnerHTML={{
+                  __html: highlight(blockInputString, languages.json, 'json'),
+                }}
+              />
+            </div>
           </>
         ) : null}
       </div>
@@ -323,8 +342,8 @@ export function Sidebar({
 
   return (
     <div
-      className={`fixed top-[96px] right-[16px] bottom-[16px] z-50 flex transform flex-col rounded-[14px] border bg-[var(--surface-1)] shadow-lg dark:border-[var(--border)] dark:bg-[var(--surface-1)] ${
-        isOpen ? 'translate-x-0' : 'translate-x-[calc(100%+1rem)]'
+      className={`fixed top-[94px] right-0 bottom-0 z-50 flex transform flex-col overflow-hidden border-l bg-[var(--surface-1)] dark:border-[var(--border)] dark:bg-[var(--surface-1)] ${
+        isOpen ? 'translate-x-0' : 'translate-x-full'
       } ${isDragging ? '' : 'transition-all duration-300 ease-in-out'}`}
       style={{ width: `${width}px`, minWidth: `${MIN_WIDTH}px` }}
       aria-label='Log details sidebar'
@@ -340,16 +359,15 @@ export function Sidebar({
       {log && (
         <>
           {/* Header */}
-          <div className='flex items-center justify-between px-[12px] pt-[12px] pb-[4px]'>
+          <div className='flex items-center justify-between px-[8px] pt-[14px] pb-[14px]'>
             <h2 className='font-medium text-[15px] text-[var(--text-primary)] dark:text-[var(--text-primary)]'>
               Log Details
             </h2>
-            <div className='flex items-center gap-[8px]'>
+            <div className='flex items-center gap-[4px]'>
               <Tooltip.Root>
                 <Tooltip.Trigger asChild>
                   <Button
                     variant='ghost'
-                    size='icon'
                     className='h-[32px] w-[32px] p-0'
                     onClick={() => hasPrev && handleNavigate(onNavigatePrev!)}
                     disabled={!hasPrev}
@@ -364,7 +382,6 @@ export function Sidebar({
                 <Tooltip.Trigger asChild>
                   <Button
                     variant='ghost'
-                    size='icon'
                     className='h-[32px] w-[32px] p-0'
                     onClick={() => hasNext && handleNavigate(onNavigateNext!)}
                     disabled={!hasNext}
@@ -378,7 +395,6 @@ export function Sidebar({
 
               <Button
                 variant='ghost'
-                size='icon'
                 className='h-[32px] w-[32px] p-0'
                 onClick={onClose}
                 aria-label='Close'
@@ -389,7 +405,7 @@ export function Sidebar({
           </div>
 
           {/* Content */}
-          <div className='flex-1 overflow-hidden px-[12px]'>
+          <div className='flex-1 overflow-hidden px-[8px]'>
             <ScrollArea className='h-full w-full overflow-y-auto' ref={scrollAreaRef}>
               <div className='w-full space-y-[16px] pr-[12px] pb-[16px]'>
                 {/* Timestamp */}
@@ -409,22 +425,15 @@ export function Sidebar({
                     <h3 className='mb-[4px] font-medium text-[12px] text-[var(--text-tertiary)] dark:text-[var(--text-tertiary)]'>
                       Workflow
                     </h3>
-                    <div
-                      className='group relative text-[13px]'
-                      style={{
-                        color: log.workflow.color,
-                      }}
-                    >
+                    <div className='group relative text-[13px]'>
                       <CopyButton text={log.workflow.name} />
-                      <div
-                        className='inline-flex items-center rounded-[8px] px-[8px] py-[4px] text-[12px]'
+                      <span
                         style={{
-                          backgroundColor: `${log.workflow.color}20`,
                           color: log.workflow.color,
                         }}
                       >
                         {log.workflow.name}
-                      </div>
+                      </span>
                     </div>
                   </div>
                 )}
@@ -506,7 +515,7 @@ export function Sidebar({
                       {log.files.map((file, index) => (
                         <div
                           key={file.id || index}
-                          className='flex items-center justify-between rounded-[8px] border bg-muted/30 p-[8px] dark:border-[var(--border)]'
+                          className='flex items-center justify-between border bg-muted/30 p-[8px] dark:border-[var(--border)]'
                         >
                           <div className='min-w-0 flex-1'>
                             <div className='truncate font-medium text-[13px]' title={file.name}>
@@ -534,9 +543,8 @@ export function Sidebar({
                     </h3>
                     <Button
                       variant='ghost'
-                      size='sm'
                       onClick={() => setIsFrozenCanvasOpen(true)}
-                      className='w-full justify-start gap-[8px] rounded-[8px] border bg-muted/30 hover:bg-muted/50 dark:border-[var(--border)]'
+                      className='h-8 w-full justify-start gap-[8px] border bg-muted/30 hover:bg-muted/50 dark:border-[var(--border)]'
                     >
                       <Eye className='h-[14px] w-[14px]' />
                       View Snapshot
@@ -568,7 +576,7 @@ export function Sidebar({
                     <h3 className='mb-[4px] font-medium text-[12px] text-[var(--text-tertiary)] dark:text-[var(--text-tertiary)]'>
                       Tool Calls
                     </h3>
-                    <div className='w-full overflow-x-hidden rounded-[8px] bg-secondary/30 p-[12px]'>
+                    <div className='w-full overflow-x-hidden bg-secondary/30 p-[12px]'>
                       <ToolCallsDisplay metadata={log.executionData} />
                     </div>
                   </div>
@@ -580,7 +588,7 @@ export function Sidebar({
                     <h3 className='mb-[4px] font-medium text-[12px] text-[var(--text-tertiary)] dark:text-[var(--text-tertiary)]'>
                       Cost Breakdown
                     </h3>
-                    <div className='overflow-hidden rounded-[8px] border dark:border-[var(--border)]'>
+                    <div className='overflow-hidden border dark:border-[var(--border)]'>
                       <div className='space-y-[8px] p-[12px]'>
                         <div className='flex items-center justify-between'>
                           <span className='text-[13px] text-[var(--text-secondary)] dark:text-[var(--text-secondary)]'>
