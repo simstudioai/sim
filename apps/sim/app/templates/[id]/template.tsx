@@ -4,55 +4,17 @@ import { useEffect, useState } from 'react'
 import { formatDistanceToNow } from 'date-fns'
 import {
   ArrowLeft,
-  Award,
-  BarChart3,
-  Bell,
-  BookOpen,
-  Bot,
-  Brain,
-  Briefcase,
-  Calculator,
+  ChartNoAxesColumn,
   ChevronDown,
-  Clock,
-  Cloud,
-  Code,
-  Cpu,
-  CreditCard,
-  Database,
-  DollarSign,
-  Eye,
-  FileText,
-  Folder,
   Globe,
-  HeadphonesIcon,
-  Layers,
-  Lightbulb,
-  LineChart,
   Linkedin,
   Mail,
-  Megaphone,
-  MessageSquare,
-  NotebookPen,
-  Phone,
-  Play,
-  Search,
-  Server,
-  Settings,
-  ShoppingCart,
   Star,
-  Target,
-  TrendingUp,
-  Twitter,
   User,
-  Users,
-  Workflow,
-  Wrench,
-  Zap,
 } from 'lucide-react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import ReactMarkdown from 'react-markdown'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
+import { Button } from '@/components/emcn'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -68,47 +30,6 @@ import { WorkflowPreview } from '@/app/workspace/[workspaceId]/w/components/work
 import { getBlock } from '@/blocks/registry'
 
 const logger = createLogger('TemplateDetails')
-
-// Icon mapping
-const iconMap = {
-  FileText,
-  NotebookPen,
-  BookOpen,
-  BarChart3,
-  LineChart,
-  TrendingUp,
-  Target,
-  Database,
-  Server,
-  Cloud,
-  Folder,
-  Megaphone,
-  Mail,
-  MessageSquare,
-  Phone,
-  Bell,
-  DollarSign,
-  CreditCard,
-  Calculator,
-  ShoppingCart,
-  Briefcase,
-  HeadphonesIcon,
-  Users,
-  Settings,
-  Wrench,
-  Bot,
-  Brain,
-  Cpu,
-  Code,
-  Zap,
-  Workflow,
-  Search,
-  Play,
-  Layers,
-  Lightbulb,
-  Globe,
-  Award,
-}
 
 interface TemplateDetailsProps {
   isWorkspaceContext?: boolean
@@ -313,7 +234,7 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
     return (
       <div className='flex h-screen items-center justify-center'>
         <div className='text-center'>
-          <p className='text-muted-foreground'>Loading template...</p>
+          <p className='font-sans text-muted-foreground text-sm'>Loading template...</p>
         </div>
       </div>
     )
@@ -323,8 +244,10 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
     return (
       <div className='flex h-screen items-center justify-center'>
         <div className='text-center'>
-          <h1 className='mb-4 font-bold text-2xl'>Template Not Found</h1>
-          <p className='text-muted-foreground'>The template you're looking for doesn't exist.</p>
+          <h1 className='mb-4 font-sans font-semibold text-2xl'>Template Not Found</h1>
+          <p className='font-sans text-muted-foreground text-sm'>
+            The template you're looking for doesn't exist.
+          </p>
         </div>
       </div>
     )
@@ -335,8 +258,10 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
       return (
         <div className='flex h-full items-center justify-center text-center'>
           <div className='text-muted-foreground'>
-            <div className='mb-2 font-medium text-lg'>⚠️ No Workflow Data</div>
-            <div className='text-sm'>This template doesn't contain workflow state data.</div>
+            <div className='mb-2 font-medium font-sans text-lg'>⚠️ No Workflow Data</div>
+            <div className='font-sans text-sm'>
+              This template doesn't contain workflow state data.
+            </div>
           </div>
         </div>
       )
@@ -359,8 +284,8 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
       return (
         <div className='flex h-full items-center justify-center text-center'>
           <div className='text-muted-foreground'>
-            <div className='mb-2 font-medium text-lg'>⚠️ Preview Error</div>
-            <div className='text-sm'>Unable to render workflow preview</div>
+            <div className='mb-2 font-medium font-sans text-lg'>⚠️ Preview Error</div>
+            <div className='font-sans text-sm'>Unable to render workflow preview</div>
           </div>
         </div>
       )
@@ -373,6 +298,25 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
     } else {
       router.push('/templates')
     }
+  }
+  /**
+   * Intercepts wheel events over the workflow preview so that the page handles scrolling
+   * instead of the underlying canvas. We stop propagation in the capture phase to prevent
+   * React Flow from consuming the event, but intentionally avoid preventDefault so the
+   * browser can perform its normal scroll behavior.
+   *
+   * We allow zoom gestures (Ctrl/Cmd + wheel) to pass through unmodified.
+   *
+   * @param event - The wheel event fired when the user scrolls over the preview area.
+   */
+  const handleCanvasWheelCapture = (event: React.WheelEvent<HTMLDivElement>) => {
+    // Allow pinch/zoom gestures (e.g., ctrl/cmd + wheel) to continue to the canvas.
+    if (event.ctrlKey || event.metaKey) {
+      return
+    }
+
+    // Prevent React Flow from handling the wheel; let the page scroll naturally.
+    event.stopPropagation()
   }
 
   const handleStarToggle = async () => {
@@ -576,87 +520,41 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
 
   return (
     <div className={cn('flex min-h-screen flex-col', isWorkspaceContext && 'pl-64')}>
-      {/* Header */}
-      <div className='border-b bg-background p-6'>
-        <div className='mx-auto max-w-7xl'>
-          {/* Back button */}
-          <button
-            onClick={handleBack}
-            className='mb-6 flex items-center gap-2 text-muted-foreground transition-colors hover:text-foreground'
-          >
-            <ArrowLeft className='h-4 w-4' />
-            <span className='text-sm'>Back to templates</span>
-          </button>
-
-          {/* Template header */}
-          <div className='flex items-start justify-between'>
-            <div className='flex items-start gap-4'>
-              {/* Icon */}
-
-              {/* Title and description */}
-              <div>
-                <h1 className='font-bold text-3xl text-foreground'>{template.name}</h1>
-                {template.details?.tagline && (
-                  <p className='mt-2 max-w-3xl text-lg text-muted-foreground'>
-                    {template.details.tagline}
-                  </p>
-                )}
-                {/* Tags */}
-                {template.tags && template.tags.length > 0 && (
-                  <div className='mt-3 flex flex-wrap gap-2'>
-                    {template.tags.map((tag, index) => (
-                      <Badge
-                        key={index}
-                        variant='secondary'
-                        className='border-0 bg-muted/60 px-2.5 py-0.5 text-sm hover:bg-muted/80'
-                      >
-                        {tag}
-                      </Badge>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
+      <div className='flex flex-1 overflow-hidden'>
+        <div className='flex flex-1 flex-col overflow-auto px-[24px] pt-[24px] pb-[24px]'>
+          {/* Top bar with back button and action buttons */}
+          <div className='flex items-center justify-between'>
+            {/* Back button */}
+            <button
+              onClick={handleBack}
+              className='flex items-center gap-[6px] font-medium text-[#ADADAD] text-[14px] transition-colors hover:text-white'
+            >
+              <ArrowLeft className='h-[14px] w-[14px]' />
+              <span>Back</span>
+            </button>
 
             {/* Action buttons */}
-            <div className='flex items-center gap-3'>
-              {/* Super user approve/reject buttons for pending templates */}
+            <div className='flex items-center gap-[8px]'>
+              {/* Approve/Reject buttons for super users */}
               {isSuperUser && template.status === 'pending' && (
                 <>
                   <Button
+                    variant='active'
                     onClick={handleApprove}
                     disabled={isApproving}
-                    className='bg-green-600 text-white hover:bg-green-700'
+                    className='h-[32px] rounded-[6px]'
                   >
                     {isApproving ? 'Approving...' : 'Approve'}
                   </Button>
                   <Button
+                    variant='active'
                     onClick={handleReject}
                     disabled={isRejecting}
-                    variant='outline'
-                    className='border-red-600 text-red-600 hover:bg-red-50'
+                    className='h-[32px] rounded-[6px]'
                   >
                     {isRejecting ? 'Rejecting...' : 'Reject'}
                   </Button>
                 </>
-              )}
-
-              {/* Star button - only for logged-in non-owners and non-pending templates */}
-              {currentUserId && !canEditTemplate && template.status !== 'pending' && (
-                <Button
-                  variant='outline'
-                  size='sm'
-                  onClick={handleStarToggle}
-                  disabled={isStarring}
-                  className={cn(
-                    'transition-colors',
-                    isStarred &&
-                      'border-yellow-500/50 bg-yellow-500/10 text-yellow-500 hover:bg-yellow-500/20'
-                  )}
-                >
-                  <Star className={cn('mr-2 h-4 w-4', isStarred && 'fill-yellow-500')} />
-                  {starCount}
-                </Button>
               )}
 
               {/* Edit button - for template owners */}
@@ -664,11 +562,12 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
                 <>
                   {(isWorkspaceContext || template.workflowId) && !showWorkspaceSelectorForEdit ? (
                     <Button
+                      variant='active'
                       onClick={handleEditTemplate}
                       disabled={isEditing || (!isWorkspaceContext && hasWorkspaceAccess === false)}
-                      className='bg-blue-600 text-white hover:bg-blue-700'
+                      className='h-[32px] rounded-[6px]'
                     >
-                      {isEditing ? 'Opening...' : 'Edit Template'}
+                      {isEditing ? 'Opening...' : 'Edit'}
                     </Button>
                   ) : (
                     <DropdownMenu
@@ -677,15 +576,12 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
                     >
                       <DropdownMenuTrigger asChild>
                         <Button
+                          variant='active'
                           onClick={() => setShowWorkspaceSelectorForEdit(true)}
                           disabled={isUsing || isLoadingWorkspaces}
-                          className='bg-blue-600 text-white hover:bg-blue-700'
+                          className='h-[32px] rounded-[6px]'
                         >
-                          {isUsing
-                            ? 'Importing...'
-                            : isLoadingWorkspaces
-                              ? 'Loading...'
-                              : 'Edit Template'}
+                          {isUsing ? 'Importing...' : isLoadingWorkspaces ? 'Loading...' : 'Edit'}
                           <ChevronDown className='ml-2 h-4 w-4' />
                         </Button>
                       </DropdownMenuTrigger>
@@ -721,6 +617,7 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
                 <>
                   {!currentUserId ? (
                     <Button
+                      variant='active'
                       onClick={() => {
                         const callbackUrl =
                           isWorkspaceContext && workspaceId
@@ -730,17 +627,18 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
                             : encodeURIComponent(`/templates/${template.id}`)
                         router.push(`/login?callbackUrl=${callbackUrl}`)
                       }}
-                      className='bg-purple-600 text-white hover:bg-purple-700'
+                      className='h-[32px] rounded-[6px]'
                     >
                       Sign in to use
                     </Button>
                   ) : isWorkspaceContext ? (
                     <Button
+                      variant='primary'
                       onClick={handleUseTemplate}
                       disabled={isUsing}
-                      className='bg-purple-600 text-white hover:bg-purple-700'
+                      className='h-[32px] rounded-[6px]'
                     >
-                      {isUsing ? 'Creating...' : 'Use this template'}
+                      {isUsing ? 'Creating...' : 'Use'}
                     </Button>
                   ) : (
                     <DropdownMenu
@@ -749,15 +647,12 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
                     >
                       <DropdownMenuTrigger asChild>
                         <Button
+                          variant='primary'
                           onClick={() => setShowWorkspaceSelectorForUse(true)}
                           disabled={isUsing || isLoadingWorkspaces}
-                          className='bg-purple-600 text-white hover:bg-purple-700'
+                          className='h-[32px] rounded-[6px]'
                         >
-                          {isUsing
-                            ? 'Creating...'
-                            : isLoadingWorkspaces
-                              ? 'Loading...'
-                              : 'Use this template'}
+                          {isUsing ? 'Creating...' : isLoadingWorkspaces ? 'Loading...' : 'Use'}
                           <ChevronDown className='ml-2 h-4 w-4' />
                         </Button>
                       </DropdownMenuTrigger>
@@ -790,39 +685,86 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
             </div>
           </div>
 
-          {/* Tags */}
-          <div className='mt-6 flex items-center gap-3 text-muted-foreground text-sm'>
-            {/* Views */}
-            <div className='flex items-center gap-1 rounded-full bg-secondary px-3 py-1'>
-              <Eye className='h-3 w-3' />
-              <span>{template.views} views</span>
-            </div>
+          {/* Template name */}
+          <h1 className='mt-[24px] font-medium text-[18px]'>{template.name}</h1>
 
-            {/* Stars */}
-            <div className='flex items-center gap-1 rounded-full bg-secondary px-3 py-1'>
-              <Star className='h-3 w-3' />
-              <span>{starCount} stars</span>
-            </div>
+          {/* Template tagline */}
+          {template.details?.tagline && (
+            <p className='mt-[8px] font-medium text-[#888888] text-[14px]'>
+              {template.details.tagline}
+            </p>
+          )}
 
-            {/* Author */}
-            <div className='flex items-center gap-1 rounded-full bg-secondary px-3 py-1'>
-              <User className='h-3 w-3' />
-              <span>by {template.creator?.name || 'Unknown'}</span>
-            </div>
+          {/* Creator and stats row */}
+          <div className='mt-[16px] flex items-center gap-[8px]'>
+            {/* Star icon and count */}
+            <Star
+              onClick={handleStarToggle}
+              className={cn(
+                'h-[14px] w-[14px] cursor-pointer transition-colors',
+                isStarred ? 'fill-yellow-500 text-yellow-500' : 'text-[#888888]',
+                isStarring && 'opacity-50'
+              )}
+            />
+            <span className='font-medium text-[#888888] text-[14px]'>{starCount}</span>
 
-            {/* Author Type - show if organization */}
-            {template.creator?.referenceType === 'organization' && (
-              <div className='flex items-center gap-1 rounded-full bg-secondary px-3 py-1'>
-                <Users className='h-3 w-3' />
-                <span>Organization</span>
+            {/* Users icon and count */}
+            <ChartNoAxesColumn className='h-[16px] w-[16px] text-[#888888]' />
+            <span className='font-medium text-[#888888] text-[14px]'>{template.views}</span>
+
+            {/* Vertical divider */}
+            <div className='mx-[4px] mb-[-1.5px] h-[18px] w-[1.25px] rounded-full bg-[#3A3A3A]' />
+
+            {/* Creator profile pic */}
+            {template.creator?.profileImageUrl ? (
+              <div className='h-[16px] w-[16px] flex-shrink-0 overflow-hidden rounded-full'>
+                <img
+                  src={template.creator.profileImageUrl}
+                  alt={template.creator.name}
+                  className='h-full w-full object-cover'
+                />
+              </div>
+            ) : (
+              <div className='flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center rounded-full bg-[#4A4A4A]'>
+                <User className='h-[14px] w-[14px] text-[#888888]' />
               </div>
             )}
+            {/* Creator name */}
+            <span className='font-medium text-[#8B8B8B] text-[14px]'>
+              {template.creator?.name || 'Unknown'}
+            </span>
+          </div>
 
-            {/* Last Updated */}
+          {/* Credentials needed */}
+          {Array.isArray(template.requiredCredentials) &&
+            template.requiredCredentials.length > 0 && (
+              <p className='mt-[12px] font-medium text-[#888888] text-[12px]'>
+                Credentials needed:{' '}
+                {template.requiredCredentials
+                  .map((cred: CredentialRequirement) => {
+                    const blockName =
+                      getBlock(cred.blockType)?.name ||
+                      cred.blockType.charAt(0).toUpperCase() + cred.blockType.slice(1)
+                    const alreadyHasBlock = cred.label
+                      .toLowerCase()
+                      .includes(` for ${blockName.toLowerCase()}`)
+                    return alreadyHasBlock ? cred.label : `${cred.label} for ${blockName}`
+                  })
+                  .join(', ')}
+              </p>
+            )}
+
+          {/* Canvas preview */}
+          <div
+            className='relative mt-[24px] h-[450px] w-full overflow-hidden rounded-[8px] border border-[var(--border)]'
+            onWheelCapture={handleCanvasWheelCapture}
+          >
+            {renderWorkflowPreview()}
+
+            {/* Last updated overlay */}
             {template.updatedAt && (
-              <div className='flex items-center gap-1 rounded-full bg-secondary px-3 py-1'>
-                <Clock className='h-3 w-3' />
-                <span>
+              <div className='pointer-events-none absolute right-[12px] bottom-[12px] rounded-[4px] bg-[var(--bg)]/80 px-[8px] py-[4px] backdrop-blur-sm'>
+                <span className='font-medium text-[#8B8B8B] text-[12px]'>
                   Last updated{' '}
                   {formatDistanceToNow(new Date(template.updatedAt), {
                     addSuffix: true,
@@ -831,91 +773,59 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
               </div>
             )}
           </div>
-        </div>
-      </div>
-
-      {/* Workflow preview */}
-      <div className='flex-1 p-6'>
-        <div className='mx-auto max-w-7xl'>
-          <h2 className='mb-4 font-semibold text-[#0D0D0D] text-lg dark:text-[#F0F0F0]'>
-            Workflow Preview
-          </h2>
-          <div className='h-[600px] w-full'>{renderWorkflowPreview()}</div>
-
-          {Array.isArray(template.requiredCredentials) &&
-            template.requiredCredentials.length > 0 && (
-              <div className='mt-8 border-t pt-8'>
-                <h3 className='mb-4 font-semibold text-[#0D0D0D] text-base dark:text-[#F0F0F0]'>
-                  Credentials Needed
-                </h3>
-                <ul className='ml-5 list-disc space-y-1.5 text-[#707070] text-sm leading-[1.4rem] dark:text-[#E8E8E8]'>
-                  {template.requiredCredentials.map((cred: CredentialRequirement, idx: number) => {
-                    // Get block name from registry or format blockType
-                    const blockName =
-                      getBlock(cred.blockType)?.name ||
-                      cred.blockType.charAt(0).toUpperCase() + cred.blockType.slice(1)
-                    const alreadyHasBlock = cred.label
-                      .toLowerCase()
-                      .includes(` for ${blockName.toLowerCase()}`)
-                    const text = alreadyHasBlock ? cred.label : `${cred.label} for ${blockName}`
-                    return <li key={idx}>{text}</li>
-                  })}
-                </ul>
-              </div>
-            )}
 
           {/* About this Workflow */}
           {template.details?.about && (
-            <div className='mt-8 border-t pt-8'>
-              <h3 className='mb-4 font-semibold text-[#0D0D0D] text-base dark:text-[#F0F0F0]'>
+            <div className='mt-8'>
+              <h3 className='mb-4 font-sans font-semibold text-base text-foreground'>
                 About this Workflow
               </h3>
               <div className='max-w-none space-y-2'>
                 <ReactMarkdown
                   components={{
                     p: ({ children }) => (
-                      <p className='mb-2 text-[#707070] text-sm leading-[1.4rem] last:mb-0 dark:text-[#E8E8E8]'>
+                      <p className='mb-2 font-sans text-muted-foreground text-sm leading-[1.4rem] last:mb-0'>
                         {children}
                       </p>
                     ),
                     h1: ({ children }) => (
-                      <h1 className='mt-6 mb-3 font-semibold text-[#0D0D0D] text-xl first:mt-0 dark:text-[#F0F0F0]'>
+                      <h1 className='mt-6 mb-3 font-sans font-semibold text-foreground text-xl first:mt-0'>
                         {children}
                       </h1>
                     ),
                     h2: ({ children }) => (
-                      <h2 className='mt-5 mb-2.5 font-semibold text-[#0D0D0D] text-lg first:mt-0 dark:text-[#F0F0F0]'>
+                      <h2 className='mt-5 mb-2.5 font-sans font-semibold text-foreground text-lg first:mt-0'>
                         {children}
                       </h2>
                     ),
                     h3: ({ children }) => (
-                      <h3 className='mt-4 mb-2 font-semibold text-[#0D0D0D] text-base first:mt-0 dark:text-[#F0F0F0]'>
+                      <h3 className='mt-4 mb-2 font-sans font-semibold text-base text-foreground first:mt-0'>
                         {children}
                       </h3>
                     ),
                     h4: ({ children }) => (
-                      <h4 className='mt-3 mb-2 font-semibold text-[#0D0D0D] text-sm first:mt-0 dark:text-[#F0F0F0]'>
+                      <h4 className='mt-3 mb-2 font-sans font-semibold text-foreground text-sm first:mt-0'>
                         {children}
                       </h4>
                     ),
                     ul: ({ children }) => (
-                      <ul className='my-2 ml-5 list-disc space-y-1.5 text-[#707070] text-sm dark:text-[#E8E8E8]'>
+                      <ul className='my-2 ml-5 list-disc space-y-1.5 font-sans text-muted-foreground text-sm'>
                         {children}
                       </ul>
                     ),
                     ol: ({ children }) => (
-                      <ol className='my-2 ml-5 list-decimal space-y-1.5 text-[#707070] text-sm dark:text-[#E8E8E8]'>
+                      <ol className='my-2 ml-5 list-decimal space-y-1.5 font-sans text-muted-foreground text-sm'>
                         {children}
                       </ol>
                     ),
                     li: ({ children }) => <li className='leading-[1.4rem]'>{children}</li>,
                     code: ({ inline, children }: any) =>
                       inline ? (
-                        <code className='rounded bg-[#F5F5F5] px-1.5 py-0.5 font-mono text-[#F59E0B] text-xs dark:bg-[#2A2A2A]'>
+                        <code className='rounded bg-muted px-1.5 py-0.5 font-mono text-[#F59E0B] text-xs'>
                           {children}
                         </code>
                       ) : (
-                        <code className='my-2 block overflow-x-auto rounded-md bg-[#F5F5F5] p-3 font-mono text-[#0D0D0D] text-xs dark:bg-[#1A1A1A] dark:text-[#E5E5E5]'>
+                        <code className='my-2 block overflow-x-auto rounded-md bg-muted p-3 font-mono text-foreground text-xs'>
                           {children}
                         </code>
                       ),
@@ -924,19 +834,17 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
                         href={href}
                         target='_blank'
                         rel='noopener noreferrer'
-                        className='text-[#3B82F6] underline-offset-2 transition-colors hover:text-[#60A5FA] hover:underline dark:text-[#60A5FA] dark:hover:text-[#93C5FD]'
+                        className='text-blue-600 underline-offset-2 transition-colors hover:text-blue-500 hover:underline dark:text-blue-400 dark:hover:text-blue-300'
                       >
                         {children}
                       </a>
                     ),
                     strong: ({ children }) => (
-                      <strong className='font-semibold text-[#0D0D0D] dark:text-white'>
+                      <strong className='font-sans font-semibold text-foreground'>
                         {children}
                       </strong>
                     ),
-                    em: ({ children }) => (
-                      <em className='text-[#888888] dark:text-[#B8B8B8]'>{children}</em>
-                    ),
+                    em: ({ children }) => <em className='text-muted-foreground'>{children}</em>,
                   }}
                 >
                   {template.details.about}
@@ -945,17 +853,21 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
             </div>
           )}
 
-          {/* Creator Profile */}
-          {template.creator && (
-            <div className='mt-8 border-t pt-8'>
-              <h3 className='mb-4 font-semibold text-[#0D0D0D] text-base dark:text-[#F0F0F0]'>
-                About the Creator
-              </h3>
-              <div className='flex items-start gap-4'>
-                {/* Profile Picture */}
-                <div className='flex-shrink-0'>
+          {/* About the Creator */}
+          {template.creator &&
+            (template.creator.details?.about ||
+              template.creator.details?.xUrl ||
+              template.creator.details?.linkedinUrl ||
+              template.creator.details?.websiteUrl ||
+              template.creator.details?.contactEmail) && (
+              <div className='mt-8'>
+                <h3 className='mb-4 font-sans font-semibold text-base text-foreground'>
+                  About the Creator
+                </h3>
+                <div className='flex items-start gap-4'>
+                  {/* Creator profile image */}
                   {template.creator.profileImageUrl ? (
-                    <div className='relative h-16 w-16 overflow-hidden rounded-full ring-1 ring-border'>
+                    <div className='h-[48px] w-[48px] flex-shrink-0 overflow-hidden rounded-full'>
                       <img
                         src={template.creator.profileImageUrl}
                         alt={template.creator.name}
@@ -963,77 +875,106 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
                       />
                     </div>
                   ) : (
-                    <div className='flex h-16 w-16 items-center justify-center rounded-full bg-purple-600 ring-1 ring-border'>
-                      <User className='h-8 w-8 text-white' />
+                    <div className='flex h-[48px] w-[48px] flex-shrink-0 items-center justify-center rounded-full bg-[#4A4A4A]'>
+                      <User className='h-[24px] w-[24px] text-[#888888]' />
                     </div>
                   )}
-                </div>
 
-                {/* Creator Info */}
-                <div className='min-w-0 flex-1'>
-                  <h4 className='font-semibold text-[#0D0D0D] dark:text-[#F0F0F0]'>
-                    {template.creator.name}
-                  </h4>
-                  {template.creator.details?.about && (
-                    <p className='mt-1.5 text-[#707070] text-sm leading-[1.4rem] dark:text-[#E8E8E8]'>
-                      {template.creator.details.about}
-                    </p>
-                  )}
+                  {/* Creator details */}
+                  <div className='flex-1'>
+                    <div className='mb-[5px] flex items-center gap-3'>
+                      <h4 className='font-sans font-semibold text-base text-foreground'>
+                        {template.creator.name}
+                      </h4>
 
-                  {/* Social Links */}
-                  {(template.creator.details?.xUrl ||
-                    template.creator.details?.linkedinUrl ||
-                    template.creator.details?.websiteUrl ||
-                    template.creator.details?.contactEmail) && (
-                    <div className='mt-3 flex flex-wrap gap-4'>
-                      {template.creator.details.xUrl && (
-                        <a
-                          href={template.creator.details.xUrl}
-                          target='_blank'
-                          rel='noopener noreferrer'
-                          className='inline-flex items-center gap-1.5 text-[#707070] text-sm transition-colors hover:text-[#0D0D0D] dark:text-[#E8E8E8] dark:hover:text-[#F0F0F0]'
-                        >
-                          <Twitter className='h-3.5 w-3.5' />
-                          <span>X</span>
-                        </a>
-                      )}
-                      {template.creator.details.linkedinUrl && (
-                        <a
-                          href={template.creator.details.linkedinUrl}
-                          target='_blank'
-                          rel='noopener noreferrer'
-                          className='inline-flex items-center gap-1.5 text-[#707070] text-sm transition-colors hover:text-[#0D0D0D] dark:text-[#E8E8E8] dark:hover:text-[#F0F0F0]'
-                        >
-                          <Linkedin className='h-3.5 w-3.5' />
-                          <span>LinkedIn</span>
-                        </a>
-                      )}
-                      {template.creator.details.websiteUrl && (
-                        <a
-                          href={template.creator.details.websiteUrl}
-                          target='_blank'
-                          rel='noopener noreferrer'
-                          className='inline-flex items-center gap-1.5 text-[#707070] text-sm transition-colors hover:text-[#0D0D0D] dark:text-[#E8E8E8] dark:hover:text-[#F0F0F0]'
-                        >
-                          <Globe className='h-3.5 w-3.5' />
-                          <span>Website</span>
-                        </a>
-                      )}
-                      {template.creator.details.contactEmail && (
-                        <a
-                          href={`mailto:${template.creator.details.contactEmail}`}
-                          className='inline-flex items-center gap-1.5 text-[#707070] text-sm transition-colors hover:text-[#0D0D0D] dark:text-[#E8E8E8] dark:hover:text-[#F0F0F0]'
-                        >
-                          <Mail className='h-3.5 w-3.5' />
-                          <span>Contact</span>
-                        </a>
-                      )}
+                      {/* Social links */}
+                      <div className='flex items-center gap-[12px]'>
+                        {template.creator.details?.websiteUrl && (
+                          <a
+                            href={template.creator.details.websiteUrl}
+                            target='_blank'
+                            rel='noopener noreferrer'
+                            className='flex items-center text-[#888888] transition-colors hover:text-[var(--text-primary)]'
+                            aria-label='Website'
+                          >
+                            <Globe className='h-[14px] w-[14px]' />
+                          </a>
+                        )}
+                        {template.creator.details?.xUrl && (
+                          <a
+                            href={template.creator.details.xUrl}
+                            target='_blank'
+                            rel='noopener noreferrer'
+                            className='flex items-center text-[#888888] transition-colors hover:text-[var(--text-primary)]'
+                            aria-label='X (Twitter)'
+                          >
+                            <svg
+                              className='h-[14px] w-[14px]'
+                              viewBox='0 0 24 24'
+                              fill='currentColor'
+                            >
+                              <path d='M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z' />
+                            </svg>
+                          </a>
+                        )}
+                        {template.creator.details?.linkedinUrl && (
+                          <a
+                            href={template.creator.details.linkedinUrl}
+                            target='_blank'
+                            rel='noopener noreferrer'
+                            className='flex items-center text-[#888888] transition-colors hover:text-[var(--text-primary)]'
+                            aria-label='LinkedIn'
+                          >
+                            <Linkedin className='h-[14px] w-[14px]' />
+                          </a>
+                        )}
+                        {template.creator.details?.contactEmail && (
+                          <a
+                            href={`mailto:${template.creator.details.contactEmail}`}
+                            className='flex items-center text-[#888888] transition-colors hover:text-[var(--text-primary)]'
+                            aria-label='Email'
+                          >
+                            <Mail className='h-[14px] w-[14px]' />
+                          </a>
+                        )}
+                      </div>
                     </div>
-                  )}
+
+                    {/* Creator bio */}
+                    {template.creator.details?.about && (
+                      <div className='max-w-none'>
+                        <ReactMarkdown
+                          components={{
+                            p: ({ children }) => (
+                              <p className='mb-2 font-sans text-muted-foreground text-sm leading-[1.4rem] last:mb-0'>
+                                {children}
+                              </p>
+                            ),
+                            a: ({ href, children }) => (
+                              <a
+                                href={href}
+                                target='_blank'
+                                rel='noopener noreferrer'
+                                className='text-blue-600 underline-offset-2 transition-colors hover:text-blue-500 hover:underline dark:text-blue-400 dark:hover:text-blue-300'
+                              >
+                                {children}
+                              </a>
+                            ),
+                            strong: ({ children }) => (
+                              <strong className='font-sans font-semibold text-foreground'>
+                                {children}
+                              </strong>
+                            ),
+                          }}
+                        >
+                          {template.creator.details.about}
+                        </ReactMarkdown>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
-          )}
+            )}
         </div>
       </div>
     </div>
