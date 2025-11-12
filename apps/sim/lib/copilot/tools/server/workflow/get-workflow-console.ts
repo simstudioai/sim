@@ -220,8 +220,8 @@ export const getWorkflowConsoleServerTool: BaseServerTool<GetWorkflowConsoleArgs
     const logger = createLogger('GetWorkflowConsoleServerTool')
     const {
       workflowId,
-      limit = 3,
-      includeDetails = true,
+      limit = 2,
+      includeDetails = false,
     } = rawArgs || ({} as GetWorkflowConsoleArgs)
 
     if (!workflowId || typeof workflowId !== 'string') {
