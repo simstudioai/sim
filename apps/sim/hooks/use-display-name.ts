@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import type { SubBlockConfig } from '@/blocks/types'
 import { useDisplayNamesStore } from '@/stores/display-names/store'
 import { useKnowledgeStore } from '@/stores/knowledge/store'
+import { useVariablesStore } from '@/stores/panel/variables/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 /**
@@ -20,11 +21,13 @@ export function useDisplayName(
     teamId?: string
     projectId?: string
     planId?: string
+    workflowId?: string
   }
 ): string | null {
   const getCachedKnowledgeBase = useKnowledgeStore((state) => state.getCachedKnowledgeBase)
   const getKnowledgeBase = useKnowledgeStore((state) => state.getKnowledgeBase)
   const getDocuments = useKnowledgeStore((state) => state.getDocuments)
+  const { variables } = useVariablesStore()
   const [isFetching, setIsFetching] = useState(false)
 
   const cachedDisplayName = useDisplayNamesStore(
@@ -63,9 +66,21 @@ export function useDisplayName(
           return state.cache.documents[context.knowledgeBaseId]?.[value] || null
         }
 
+        // Variables
+        if (subBlock.type === 'variables-input' && context?.workflowId) {
+          return state.cache.variables[context.workflowId]?.[value] || null
+        }
+
         return null
       },
-      [subBlock, value, context?.credentialId, context?.provider, context?.knowledgeBaseId]
+      [
+        subBlock,
+        value,
+        context?.credentialId,
+        context?.provider,
+        context?.knowledgeBaseId,
+        context?.workflowId,
+      ]
     )
   )
 
@@ -569,6 +584,26 @@ export function useDisplayName(
     context?.teamId,
     context?.planId,
   ])
+
+  // Auto-populate variables cache if needed
+  useEffect(() => {
+    if (subBlock?.type !== 'variables-input' || !context?.workflowId || !value) return
+    if (cachedDisplayName || isFetching) return
+
+    // Get all variables for this workflow from the store
+    const workflowVariables = Object.values(variables).filter(
+      (variable: any) => variable.workflowId === context.workflowId
+    )
+
+    if (workflowVariables.length > 0) {
+      const variableMap = workflowVariables.reduce<Record<string, string>>((acc, variable: any) => {
+        acc[variable.id] = variable.name
+        return acc
+      }, {})
+
+      useDisplayNamesStore.getState().setDisplayNames('variables', context.workflowId, variableMap)
+    }
+  }, [subBlock?.type, value, context?.workflowId, cachedDisplayName, isFetching, variables])
 
   if (!subBlock || !value || typeof value !== 'string') {
     return null

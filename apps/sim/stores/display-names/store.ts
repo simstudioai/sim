@@ -17,6 +17,7 @@ interface DisplayNamesCache {
   folders: Record<string, Record<string, string>> // credentialContext -> id -> name
   projects: Record<string, Record<string, string>> // provider-credential -> id -> name
   documents: Record<string, Record<string, string>> // knowledgeBaseId -> id -> name
+  variables: Record<string, Record<string, string>> // workflowId -> id -> name
 }
 
 interface DisplayNamesStore {
@@ -66,6 +67,7 @@ const initialCache: DisplayNamesCache = {
   folders: {},
   projects: {},
   documents: {},
+  variables: {},
 }
 
 export const useDisplayNamesStore = create<DisplayNamesStore>((set, get) => ({

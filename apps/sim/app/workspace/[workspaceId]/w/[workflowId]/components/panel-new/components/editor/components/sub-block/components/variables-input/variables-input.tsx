@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Plus } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { Trash } from '@/components/emcn/icons/trash'
@@ -21,6 +21,7 @@ import {
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/components/sub-block/components/tag-dropdown/tag-dropdown'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/components/sub-block/hooks/use-sub-block-value'
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
+import { useDisplayNamesStore } from '@/stores/display-names/store'
 import { useVariablesStore } from '@/stores/panel/variables/store'
 import type { Variable } from '@/stores/panel/variables/types'
 
@@ -76,6 +77,20 @@ export function VariablesInput({
   const value = isPreview ? previewValue : storeValue
   const assignments: VariableAssignment[] = value || []
 
+  // Populate display names cache for variables
+  useEffect(() => {
+    if (currentWorkflowVariables.length > 0) {
+      const variableMap = currentWorkflowVariables.reduce<Record<string, string>>(
+        (acc, variable) => {
+          acc[variable.id] = variable.name
+          return acc
+        },
+        {}
+      )
+      useDisplayNamesStore.getState().setDisplayNames('variables', workflowId, variableMap)
+    }
+  }, [currentWorkflowVariables, workflowId])
+
   const getAvailableVariablesFor = (currentAssignmentId: string) => {
     const otherSelectedIds = new Set(
       assignments
@@ -85,6 +100,34 @@ export function VariablesInput({
     )
 
     return currentWorkflowVariables.filter((variable) => !otherSelectedIds.has(variable.id))
+  }
+
+  const getVariableDisplayName = (assignment: VariableAssignment): string => {
+    // First try to use variableName if it's available
+    if (assignment.variableName) {
+      return assignment.variableName
+    }
+
+    // If we have a variableId, look it up in the store or cache
+    if (assignment.variableId) {
+      const variable = currentWorkflowVariables.find((v) => v.id === assignment.variableId)
+      if (variable) {
+        return variable.name
+      }
+
+      // Try getting from display names cache
+      const displayName = useDisplayNamesStore
+        .getState()
+        .getDisplayName('variables', workflowId, assignment.variableId)
+      if (displayName) {
+        return displayName
+      }
+
+      // Fallback to showing the ID (truncated)
+      return `Variable ${assignment.variableId.slice(0, 8)}...`
+    }
+
+    return 'Select a variable...'
   }
 
   const hasNoWorkflowVariables = currentWorkflowVariables.length === 0
@@ -309,7 +352,9 @@ export function VariablesInput({
                       disabled={isPreview || disabled}
                     >
                       <SelectTrigger className='h-9 border border-input bg-white dark:border-input/60 dark:bg-background'>
-                        <SelectValue placeholder='Select a variable...' />
+                        <SelectValue placeholder='Select a variable...'>
+                          {getVariableDisplayName(assignment)}
+                        </SelectValue>
                       </SelectTrigger>
                       <SelectContent>
                         {(() => {
