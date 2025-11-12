@@ -78,32 +78,68 @@ export function TemplateDeploy({ workflowId, onDeploymentComplete }: TemplateDep
   })
 
   // Fetch creator profiles
-  useEffect(() => {
-    const fetchCreatorOptions = async () => {
-      if (!session?.user?.id) return
+  const fetchCreatorOptions = async () => {
+    if (!session?.user?.id) return
 
-      setLoadingCreators(true)
-      try {
-        const response = await fetch('/api/creator-profiles')
-        if (response.ok) {
-          const data = await response.json()
-          const profiles = (data.profiles || []).map((profile: any) => ({
-            id: profile.id,
-            name: profile.name,
-            referenceType: profile.referenceType,
-            referenceId: profile.referenceId,
-          }))
-          setCreatorOptions(profiles)
-        }
-      } catch (error) {
-        logger.error('Error fetching creator profiles:', error)
-      } finally {
-        setLoadingCreators(false)
+    setLoadingCreators(true)
+    try {
+      const response = await fetch('/api/creator-profiles')
+      if (response.ok) {
+        const data = await response.json()
+        const profiles = (data.profiles || []).map((profile: any) => ({
+          id: profile.id,
+          name: profile.name,
+          referenceType: profile.referenceType,
+          referenceId: profile.referenceId,
+        }))
+        setCreatorOptions(profiles)
+        return profiles
       }
+    } catch (error) {
+      logger.error('Error fetching creator profiles:', error)
+    } finally {
+      setLoadingCreators(false)
     }
+    return []
+  }
 
+  useEffect(() => {
     fetchCreatorOptions()
   }, [session?.user?.id])
+
+  // Listen for creator profile saved event
+  useEffect(() => {
+    const handleCreatorProfileSaved = async (event: Event) => {
+      const customEvent = event as CustomEvent<{ profileId: string }>
+      logger.info('Creator profile saved, refreshing profiles...', customEvent.detail)
+
+      // Refetch creator profiles
+      const profiles = await fetchCreatorOptions()
+
+      // Auto-select the newly created profile
+      if (customEvent.detail.profileId && profiles.length > 0) {
+        const newProfile = profiles.find(
+          (p: CreatorOption) => p.id === customEvent.detail.profileId
+        )
+        if (newProfile) {
+          form.setValue('creatorId', newProfile.id)
+          logger.info('Auto-selected newly created creator profile:', newProfile.name)
+        }
+      }
+
+      // Close settings modal and reopen deploy modal to template tab
+      window.dispatchEvent(new CustomEvent('close-settings'))
+      setTimeout(() => {
+        window.dispatchEvent(new CustomEvent('open-deploy-modal', { detail: { tab: 'template' } }))
+      }, 100)
+    }
+
+    window.addEventListener('creator-profile-saved', handleCreatorProfileSaved)
+
+    return () => {
+      window.removeEventListener('creator-profile-saved', handleCreatorProfileSaved)
+    }
+  }, [session?.user?.id, form])
 
   // Check for existing template
   useEffect(() => {

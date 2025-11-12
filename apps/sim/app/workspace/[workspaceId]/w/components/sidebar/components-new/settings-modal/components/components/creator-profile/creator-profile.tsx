@@ -196,7 +196,12 @@ export function CreatorProfile() {
         logger.info('Creator profile saved successfully')
         setSaveStatus('saved')
 
-        // Reset to idle after 2 seconds
+        window.dispatchEvent(
+          new CustomEvent('creator-profile-saved', {
+            detail: { profileId: result.data?.id },
+          })
+        )
+
         setTimeout(() => {
           setSaveStatus('idle')
         }, 2000)
