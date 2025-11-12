@@ -46,7 +46,7 @@ import {
   Zap,
 } from 'lucide-react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Button } from '@/components/ui/button'
+import { Button } from '@/components/emcn'
 import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
 import type { Template } from '@/app/workspace/[workspaceId]/templates/templates'
@@ -103,10 +103,16 @@ const iconMap = {
   Award,
 }
 
-// Get icon component from template-card logic
+/**
+ * Get icon component from template icon name
+ */
 const getIconComponent = (icon: string): React.ReactNode => {
   const IconComponent = iconMap[icon as keyof typeof iconMap]
-  return IconComponent ? <IconComponent className='h-6 w-6' /> : <FileText className='h-6 w-6' />
+  return IconComponent ? (
+    <IconComponent className='h-[14px] w-[14px]' />
+  ) : (
+    <FileText className='h-[14px] w-[14px]' />
+  )
 }
 
 export default function TemplateDetails({
@@ -117,7 +123,27 @@ export default function TemplateDetails({
   const router = useRouter()
   const searchParams = useSearchParams()
 
-  // Defensive check for template BEFORE initializing state hooks
+  // Initialize all state hooks first (hooks must be called unconditionally)
+  const [isStarred, setIsStarred] = useState(template?.isStarred || false)
+  const [starCount, setStarCount] = useState(template?.stars || 0)
+  const [isStarring, setIsStarring] = useState(false)
+  const [isUsing, setIsUsing] = useState(false)
+  const [isEditing, setIsEditing] = useState(false)
+
+  const isOwner = currentUserId && template?.userId === currentUserId
+
+  // Auto-use template after login if use=true query param is present
+  useEffect(() => {
+    if (!template?.id) return
+    const shouldAutoUse = searchParams?.get('use') === 'true'
+    if (shouldAutoUse && currentUserId && !isUsing) {
+      handleUseTemplate()
+      // Clean up URL
+      router.replace(`/workspace/${workspaceId}/templates/${template.id}`)
+    }
+  }, [searchParams, currentUserId, template?.id])
+
+  // Defensive check for template AFTER initializing hooks
   if (!template) {
     logger.error('Template prop is undefined or null in TemplateDetails component', {
       template,
@@ -125,11 +151,13 @@ export default function TemplateDetails({
       currentUserId,
     })
     return (
-      <div className='flex h-screen items-center justify-center'>
+      <div className='flex h-[100vh] items-center justify-center pl-64'>
         <div className='text-center'>
-          <h1 className='mb-4 font-bold text-2xl'>Template Not Found</h1>
-          <p className='text-muted-foreground'>The template you're looking for doesn't exist.</p>
-          <p className='mt-2 text-muted-foreground text-xs'>Template data failed to load</p>
+          <h1 className='mb-[14px] font-medium text-[18px]'>Template Not Found</h1>
+          <p className='text-[#888888] text-[14px]'>
+            The template you're looking for doesn't exist.
+          </p>
+          <p className='mt-[10px] text-[#888888] text-[12px]'>Template data failed to load</p>
         </div>
       </div>
     )
@@ -141,34 +169,18 @@ export default function TemplateDetails({
     hasState: !!template.state,
   })
 
-  const [isStarred, setIsStarred] = useState(template.isStarred || false)
-  const [starCount, setStarCount] = useState(template.stars || 0)
-  const [isStarring, setIsStarring] = useState(false)
-  const [isUsing, setIsUsing] = useState(false)
-  const [isEditing, setIsEditing] = useState(false)
-
-  const isOwner = currentUserId && template.userId === currentUserId
-
-  // Auto-use template after login if use=true query param is present
-  useEffect(() => {
-    const shouldAutoUse = searchParams?.get('use') === 'true'
-    if (shouldAutoUse && currentUserId && !isUsing) {
-      handleUseTemplate()
-      // Clean up URL
-      router.replace(`/workspace/${workspaceId}/templates/${template.id}`)
-    }
-  }, [searchParams, currentUserId])
-
-  // Render workflow preview exactly like deploy-modal.tsx
+  /**
+   * Render workflow preview with consistent error handling
+   */
   const renderWorkflowPreview = () => {
     // Follow the same pattern as deployed-workflow-card.tsx
     if (!template?.state) {
       logger.info('Template has no state:', template)
       return (
         <div className='flex h-full items-center justify-center text-center'>
-          <div className='text-muted-foreground'>
-            <div className='mb-2 font-medium text-lg'>⚠️ No Workflow Data</div>
-            <div className='text-sm'>This template doesn't contain workflow state data.</div>
+          <div className='text-[#888888]'>
+            <div className='mb-[10px] font-medium text-[14px]'>⚠️ No Workflow Data</div>
+            <div className='text-[12px]'>This template doesn't contain workflow state data.</div>
           </div>
         </div>
       )
@@ -192,12 +204,12 @@ export default function TemplateDetails({
         />
       )
     } catch (error) {
-      console.error('Error rendering workflow preview:', error)
+      logger.error('Error rendering workflow preview:', error)
       return (
         <div className='flex h-full items-center justify-center text-center'>
-          <div className='text-muted-foreground'>
-            <div className='mb-2 font-medium text-lg'>⚠️ Preview Error</div>
-            <div className='text-sm'>Unable to render workflow preview</div>
+          <div className='text-[#888888]'>
+            <div className='mb-[10px] font-medium text-[14px]'>⚠️ Preview Error</div>
+            <div className='text-[12px]'>Unable to render workflow preview</div>
           </div>
         </div>
       )
@@ -303,119 +315,107 @@ export default function TemplateDetails({
   }
 
   return (
-    <div className='flex min-h-screen flex-col'>
-      {/* Header */}
-      <div className='border-b bg-background p-6'>
-        <div className='mx-auto max-w-7xl'>
-          {/* Back button */}
-          <button
-            onClick={handleBack}
-            className='mb-6 flex items-center gap-2 text-muted-foreground transition-colors hover:text-foreground'
-          >
-            <ArrowLeft className='h-4 w-4' />
-            <span className='text-sm'>Go back</span>
-          </button>
+    <div className='flex h-[100vh] flex-col pl-64'>
+      <div className='flex flex-1 flex-col overflow-auto px-[24px] pt-[24px] pb-[24px]'>
+        {/* Back button */}
+        <button
+          onClick={handleBack}
+          className='mb-[14px] flex items-center gap-[8px] text-[#888888] transition-colors hover:text-white'
+        >
+          <ArrowLeft className='h-[14px] w-[14px]' />
+          <span className='font-medium text-[12px]'>Go back</span>
+        </button>
 
-          {/* Template header */}
-          <div className='flex items-start justify-between'>
-            <div className='flex items-start gap-4'>
-              {/* Icon */}
-              <div
-                className='flex h-12 w-12 items-center justify-center rounded-lg'
-                style={{ backgroundColor: template.color }}
-              >
-                {getIconComponent(template.icon)}
-              </div>
-
-              {/* Title and description */}
-              <div>
-                <h1 className='font-bold text-3xl text-foreground'>{template.name}</h1>
-                <p className='mt-2 max-w-3xl text-lg text-muted-foreground'>
-                  {template.description}
-                </p>
-              </div>
+        {/* Header */}
+        <div>
+          <div className='flex items-start gap-[12px]'>
+            {/* Icon */}
+            <div
+              className='flex h-[26px] w-[26px] items-center justify-center rounded-[6px]'
+              style={{ backgroundColor: template.color }}
+            >
+              {getIconComponent(template.icon)}
             </div>
-
-            {/* Action buttons */}
-            <div className='flex items-center gap-3'>
-              {/* Star button - only for logged-in users */}
-              {currentUserId && (
-                <Button
-                  variant='outline'
-                  size='sm'
-                  onClick={handleStarToggle}
-                  disabled={isStarring}
-                  className={cn(
-                    'transition-colors',
-                    isStarred &&
-                      'border-yellow-200 bg-yellow-50 text-yellow-700 hover:bg-yellow-100'
-                  )}
-                >
-                  <Star className={cn('mr-2 h-4 w-4', isStarred && 'fill-current')} />
-                  {starCount}
-                </Button>
-              )}
-
-              {/* Edit button - only for template owner when logged in */}
-              {isOwner && currentUserId && (
-                <Button
-                  variant='outline'
-                  onClick={handleEditTemplate}
-                  disabled={isEditing}
-                  className='border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100'
-                >
-                  <Edit className='mr-2 h-4 w-4' />
-                  {isEditing ? 'Opening...' : 'Edit'}
-                </Button>
-              )}
-
-              {/* Use template button */}
-              <Button
-                onClick={handleUseTemplate}
-                disabled={isUsing}
-                className='bg-purple-600 text-white hover:bg-purple-700'
-              >
-                {isUsing ? 'Creating...' : currentUserId ? 'Use this template' : 'Sign in to use'}
-              </Button>
-            </div>
+            <h1 className='font-medium text-[18px]'>{template.name}</h1>
           </div>
+          <p className='mt-[10px] font-base text-[#888888] text-[14px]'>{template.description}</p>
+        </div>
 
-          {/* Tags */}
-          <div className='mt-6 flex items-center gap-3 text-muted-foreground text-sm'>
-            {/* Views */}
-            <div className='flex items-center gap-1 rounded-full bg-secondary px-3 py-1'>
-              <Eye className='h-3 w-3' />
+        {/* Stats and Actions */}
+        <div className='mt-[14px] flex items-center justify-between'>
+          {/* Stats */}
+          <div className='flex items-center gap-[12px] font-medium text-[#888888] text-[12px]'>
+            <div className='flex items-center gap-[6px]'>
+              <Eye className='h-[12px] w-[12px]' />
               <span>{template.views} views</span>
             </div>
-
-            {/* Stars */}
-            <div className='flex items-center gap-1 rounded-full bg-secondary px-3 py-1'>
-              <Star className='h-3 w-3' />
+            <div className='flex items-center gap-[6px]'>
+              <Star className='h-[12px] w-[12px]' />
               <span>{starCount} stars</span>
             </div>
-
-            {/* Author */}
-            <div className='flex items-center gap-1 rounded-full bg-secondary px-3 py-1'>
-              <User className='h-3 w-3' />
+            <div className='flex items-center gap-[6px]'>
+              <User className='h-[12px] w-[12px]' />
               <span>by {template.author}</span>
             </div>
-
-            {/* Author Type - show if organization */}
             {template.authorType === 'organization' && (
-              <div className='flex items-center gap-1 rounded-full bg-secondary px-3 py-1'>
-                <Users className='h-3 w-3' />
+              <div className='flex items-center gap-[6px]'>
+                <Users className='h-[12px] w-[12px]' />
                 <span>Organization</span>
               </div>
             )}
           </div>
-        </div>
-      </div>
 
-      {/* Workflow preview */}
-      <div className='flex-1 p-6'>
-        <div className='mx-auto max-w-7xl'>
-          <h2 className='mb-4 font-semibold text-xl'>Workflow Preview</h2>
-          <div className='h-[600px] w-full'>{renderWorkflowPreview()}</div>
+          {/* Action buttons */}
+          <div className='flex items-center gap-[8px]'>
+            {/* Star button - only for logged-in users */}
+            {currentUserId && (
+              <Button
+                variant={isStarred ? 'active' : 'default'}
+                className='h-[32px] rounded-[6px]'
+                onClick={handleStarToggle}
+                disabled={isStarring}
+              >
+                <Star className={cn('mr-[6px] h-[14px] w-[14px]', isStarred && 'fill-current')} />
+                <span className='font-medium text-[12px]'>{starCount}</span>
+              </Button>
+            )}
+
+            {/* Edit button - only for template owner when logged in */}
+            {isOwner && currentUserId && (
+              <Button
+                variant='default'
+                className='h-[32px] rounded-[6px]'
+                onClick={handleEditTemplate}
+                disabled={isEditing}
+              >
+                <Edit className='mr-[6px] h-[14px] w-[14px]' />
+                <span className='font-medium text-[12px]'>{isEditing ? 'Opening...' : 'Edit'}</span>
+              </Button>
+            )}
+
+            {/* Use template button */}
+            <Button
+              variant='active'
+              className='h-[32px] rounded-[6px]'
+              onClick={handleUseTemplate}
+              disabled={isUsing}
+            >
+              <span className='font-medium text-[12px]'>
+                {isUsing ? 'Creating...' : currentUserId ? 'Use this template' : 'Sign in to use'}
+              </span>
+            </Button>
+          </div>
+        </div>
+
+        {/* Divider */}
+        <div className='mt-[24px] h-[1px] w-full border-[var(--border)] border-t' />
+
+        {/* Workflow preview */}
+        <div className='mt-[24px] flex-1'>
+          <h2 className='mb-[14px] font-medium text-[14px]'>Workflow Preview</h2>
+          <div className='h-[calc(100vh-280px)] w-full overflow-hidden rounded-[8px] bg-[#202020]'>
+            {renderWorkflowPreview()}
+          </div>
         </div>
       </div>
     </div>

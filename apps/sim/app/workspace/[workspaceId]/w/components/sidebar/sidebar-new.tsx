@@ -10,6 +10,7 @@ import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/provide
 import {
   FooterNavigation,
   SearchModal,
+  UsageIndicator,
   WorkflowList,
   WorkspaceHeader,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/components-new'
@@ -25,9 +26,13 @@ import {
   useImportWorkspace,
 } from '@/app/workspace/[workspaceId]/w/hooks'
 import { useFolderStore } from '@/stores/folders/store'
-import { useSidebarStore } from '@/stores/sidebar/store'
+import { MIN_SIDEBAR_WIDTH, useSidebarStore } from '@/stores/sidebar/store'
 
 const logger = createLogger('SidebarNew')
+
+// Feature flag: Billing usage indicator visibility (matches legacy sidebar behavior)
+const isBillingEnabled = isTruthy(getEnv('NEXT_PUBLIC_BILLING_ENABLED'))
+// const isBillingEnabled = true
 
 /**
  * Sidebar component with resizable width that persists across page refreshes.
@@ -57,6 +62,10 @@ export function SidebarNew() {
   // Sidebar state
   const isCollapsed = useSidebarStore((state) => state.isCollapsed)
   const setIsCollapsed = useSidebarStore((state) => state.setIsCollapsed)
+  const setSidebarWidth = useSidebarStore((state) => state.setSidebarWidth)
+
+  // Determine if we're on a workflow page (only workflow pages allow collapse and resize)
+  const isOnWorkflowPage = !!workflowId
 
   // Import state
   const [isImporting, setIsImporting] = useState(false)
@@ -206,6 +215,20 @@ export function SidebarNew() {
       }
     }
   }, [])
+
+  /**
+   * Force sidebar to minimum width and ensure it's expanded when not on a workflow page
+   */
+  useEffect(() => {
+    if (!isOnWorkflowPage) {
+      // Ensure sidebar is always expanded on non-workflow pages
+      if (isCollapsed) {
+        setIsCollapsed(false)
+      }
+      // Force sidebar to minimum width
+      setSidebarWidth(MIN_SIDEBAR_WIDTH)
+    }
+  }, [isOnWorkflowPage, isCollapsed, setIsCollapsed, setSidebarWidth])
 
   /**
    * Handle create workflow - creates workflow and scrolls to it
@@ -391,8 +414,7 @@ export function SidebarNew() {
             router.push(`/workspace/${pathWorkspaceId}/templates`)
             logger.info('Navigated to templates', { workspaceId: pathWorkspaceId })
           } else {
-            router.push('/templates')
-            logger.info('Navigated to global templates (no workspace in path)')
+            logger.warn('No workspace ID found, cannot navigate to templates')
           }
         } catch (err) {
           logger.error('Failed to navigate to templates', { err })
@@ -459,6 +481,7 @@ export function SidebarNew() {
             onExportWorkspace={handleExportWorkspace}
             onImportWorkspace={handleImportWorkspace}
             isImportingWorkspace={isImportingWorkspace}
+            showCollapseButton={isOnWorkflowPage}
           />
         </div>
       ) : (
@@ -491,6 +514,7 @@ export function SidebarNew() {
                   onExportWorkspace={handleExportWorkspace}
                   onImportWorkspace={handleImportWorkspace}
                   isImportingWorkspace={isImportingWorkspace}
+                  showCollapseButton={isOnWorkflowPage}
                 />
               </div>
 
@@ -584,19 +608,28 @@ export function SidebarNew() {
                 </div>
               </div>
 
+              {/* Usage Indicator */}
+              {isBillingEnabled && (
+                <div className='flex flex-shrink-0 flex-col gap-[2px] border-t px-[7.75px] pt-[8px] pb-[8px] dark:border-[var(--border)]'>
+                  <UsageIndicator />
+                </div>
+              )}
+
               {/* Footer Navigation */}
               <FooterNavigation />
             </div>
           </aside>
 
-          {/* Resize Handle */}
-          <div
-            className='fixed top-0 bottom-0 left-[calc(var(--sidebar-width)-4px)] z-20 w-[8px] cursor-ew-resize'
-            onMouseDown={handleMouseDown}
-            role='separator'
-            aria-orientation='vertical'
-            aria-label='Resize sidebar'
-          />
+          {/* Resize Handle - Only visible on workflow pages */}
+          {isOnWorkflowPage && (
+            <div
+              className='fixed top-0 bottom-0 left-[calc(var(--sidebar-width)-4px)] z-20 w-[8px] cursor-ew-resize'
+              onMouseDown={handleMouseDown}
+              role='separator'
+              aria-orientation='vertical'
+              aria-label='Resize sidebar'
+            />
+          )}
         </>
       )}
 

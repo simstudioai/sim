@@ -10,7 +10,7 @@ const buttonVariants = cva(
         default:
           'bg-[var(--surface-5)] dark:bg-[var(--surface-5)] hover:bg-[var(--surface-9)] dark:hover:bg-[var(--surface-9)]',
         active:
-          'bg-[var(--surface-9)] dark:bg-[var(--surface-9)] dark:text-[var(--text-primary)] text-[var(--text-primary)]',
+          'bg-[var(--surface-9)] dark:bg-[var(--surface-9)] hover:bg-[var(--surface-11)] dark:hover:bg-[var(--surface-11)] dark:text-[var(--text-primary)] text-[var(--text-primary)]',
         '3d': 'dark:text-[var(--text-tertiary)] border-t border-l border-r dark:border-[var(--border-strong)] shadow-[0_2px_0_0] dark:shadow-[var(--border-strong)] hover:shadow-[0_4px_0_0] transition-all hover:-translate-y-0.5 hover:dark:text-[var(--text-primary)]',
         outline:
           'border border-[#727272] bg-[var(--border-strong)] hover:bg-[var(--surface-11)] dark:border-[#727272] dark:bg-[var(--border-strong)] dark:hover:bg-[var(--surface-11)]',

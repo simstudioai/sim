@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
 import {
-  Bot,
   CreditCard,
   FileCode,
   Files,
@@ -118,11 +117,11 @@ const allNavigationItems: NavigationItem[] = [
     label: 'File Uploads',
     icon: Files,
   },
-  {
-    id: 'copilot',
-    label: 'Copilot',
-    icon: Bot,
-  },
+  // {
+  //   id: 'copilot',
+  //   label: 'Copilot',
+  //   icon: Bot,
+  // },
   {
     id: 'privacy',
     label: 'Privacy',

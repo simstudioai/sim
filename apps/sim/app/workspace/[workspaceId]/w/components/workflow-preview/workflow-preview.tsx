@@ -3,7 +3,6 @@
 import { useMemo } from 'react'
 import { cloneDeep } from 'lodash'
 import ReactFlow, {
-  Background,
   ConnectionLineType,
   type Edge,
   type EdgeTypes,
@@ -276,7 +275,7 @@ export function WorkflowPreview({
 
   return (
     <ReactFlowProvider>
-      <div style={{ height, width }} className={cn('preview-mode')}>
+      <div style={{ height, width, backgroundColor: '#1B1B1B' }} className={cn('preview-mode')}>
         <ReactFlow
           nodes={nodes}
           edges={edges}
@@ -308,14 +307,7 @@ export function WorkflowPreview({
                 }
               : undefined
           }
-        >
-          <Background
-            color='hsl(var(--workflow-dots))'
-            size={4}
-            gap={40}
-            style={{ backgroundColor: 'hsl(var(--workflow-background))' }}
-          />
-        </ReactFlow>
+        />
       </div>
     </ReactFlowProvider>
   )

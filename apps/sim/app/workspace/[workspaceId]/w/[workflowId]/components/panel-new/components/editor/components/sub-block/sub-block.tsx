@@ -1,6 +1,7 @@
-import { type JSX, type MouseEvent, memo, useState } from 'react'
-import { AlertTriangle } from 'lucide-react'
+import { type JSX, type MouseEvent, memo, useRef, useState } from 'react'
+import { AlertTriangle, Wand2 } from 'lucide-react'
 import { Label, Tooltip } from '@/components/emcn/components'
+import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import type { FieldDiffStatus } from '@/lib/workflows/diff/types'
 import { useDependsOnGate } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/components/sub-block/hooks/use-depends-on-gate'
@@ -44,6 +45,15 @@ import {
 } from './components'
 
 /**
+ * Interface for wand control handlers exposed by sub-block inputs
+ */
+export interface WandControlHandlers {
+  onWandTrigger: (prompt: string) => void
+  isWandActive: boolean
+  isWandStreaming: boolean
+}
+
+/**
  * Props for the `SubBlock` UI element. Renders a single configurable input within a workflow block.
  */
 interface SubBlockProps {
@@ -82,32 +92,102 @@ const getPreviewValue = (
 }
 
 /**
- * Renders the label with optional validation and description tooltips.
+ * Renders the label with optional validation, description tooltips, and inline wand control.
  * @param config - The sub-block configuration
  * @param isValidJson - Whether the JSON is valid
+ * @param wandState - Wand interaction state
  * @returns The label JSX element or null if no title or for switch types
  */
-const renderLabel = (config: SubBlockConfig, isValidJson: boolean): JSX.Element | null => {
+const renderLabel = (
+  config: SubBlockConfig,
+  isValidJson: boolean,
+  wandState: {
+    isSearchActive: boolean
+    searchQuery: string
+    isWandEnabled: boolean
+    isPreview: boolean
+    isStreaming: boolean
+    onSearchClick: () => void
+    onSearchBlur: () => void
+    onSearchChange: (value: string) => void
+    onSearchSubmit: () => void
+    onSearchCancel: () => void
+    searchInputRef: React.RefObject<HTMLInputElement | null>
+  }
+): JSX.Element | null => {
   if (config.type === 'switch') return null
   if (!config.title) return null
 
+  const {
+    isSearchActive,
+    searchQuery,
+    isWandEnabled,
+    isPreview,
+    isStreaming,
+    onSearchClick,
+    onSearchBlur,
+    onSearchChange,
+    onSearchSubmit,
+    onSearchCancel,
+    searchInputRef,
+  } = wandState
+
   return (
-    <Label className='flex items-center gap-[6px] pl-[2px]'>
-      {config.title}
-      {config.id === 'responseFormat' && (
-        <Tooltip.Root>
-          <Tooltip.Trigger asChild>
-            <AlertTriangle
+    <Label className='flex items-center justify-between gap-[6px] pl-[2px]'>
+      <div className='flex items-center gap-[6px] whitespace-nowrap'>
+        {config.title}
+        {config.id === 'responseFormat' && (
+          <Tooltip.Root>
+            <Tooltip.Trigger asChild>
+              <AlertTriangle
+                className={cn(
+                  'h-4 w-4 cursor-pointer text-destructive',
+                  !isValidJson ? 'opacity-100' : 'opacity-0'
+                )}
+              />
+            </Tooltip.Trigger>
+            <Tooltip.Content side='top'>
+              <p>Invalid JSON</p>
+            </Tooltip.Content>
+          </Tooltip.Root>
+        )}
+      </div>
+
+      {/* Wand inline prompt */}
+      {isWandEnabled && !isPreview && (
+        <div className='flex items-center pr-[4px]'>
+          {!isSearchActive ? (
+            <Button
+              variant='ghost'
+              className='h-[12px] w-[12px] p-0 hover:bg-transparent'
+              aria-label='Generate with AI'
+              onClick={onSearchClick}
+            >
+              <Wand2 className='!h-[12px] !w-[12px] bg-transparent text-[var(--text-secondary)]' />
+            </Button>
+          ) : (
+            <input
+              ref={searchInputRef}
+              type='text'
+              value={isStreaming ? 'Generating...' : searchQuery}
+              onChange={(e) => onSearchChange(e.target.value)}
+              onBlur={onSearchBlur}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && searchQuery.trim() && !isStreaming) {
+                  onSearchSubmit()
+                } else if (e.key === 'Escape') {
+                  onSearchCancel()
+                }
+              }}
+              disabled={isStreaming}
               className={cn(
-                'h-4 w-4 cursor-pointer text-destructive',
-                !isValidJson ? 'opacity-100' : 'opacity-0'
+                'h-[12px] w-full max-w-[200px] border-none bg-transparent py-0 pr-[2px] text-right font-medium text-[12px] text-[var(--text-primary)] leading-[14px] placeholder:text-[#737373] focus:outline-none dark:text-[var(--text-primary)]',
+                isStreaming && 'text-muted-foreground'
               )}
+              placeholder='Describe...'
             />
-          </Tooltip.Trigger>
-          <Tooltip.Content side='top'>
-            <p>Invalid JSON</p>
-          </Tooltip.Content>
-        </Tooltip.Root>
+          )}
+        </div>
       )}
     </Label>
   )
@@ -144,6 +224,10 @@ function SubBlockComponent({
   allowExpandInPreview,
 }: SubBlockProps): JSX.Element {
   const [isValidJson, setIsValidJson] = useState(true)
+  const [isSearchActive, setIsSearchActive] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
+  const searchInputRef = useRef<HTMLInputElement>(null)
+  const wandControlRef = useRef<WandControlHandlers | null>(null)
 
   const handleMouseDown = (e: MouseEvent<HTMLDivElement>): void => {
     e.stopPropagation()
@@ -151,6 +235,54 @@ function SubBlockComponent({
 
   const handleValidationChange = (isValid: boolean): void => {
     setIsValidJson(isValid)
+  }
+
+  // Check if wand is enabled for this sub-block
+  const isWandEnabled = config.wandConfig?.enabled ?? false
+
+  /**
+   * Handle wand icon click to activate inline prompt mode
+   */
+  const handleSearchClick = (): void => {
+    setIsSearchActive(true)
+    setTimeout(() => {
+      searchInputRef.current?.focus()
+    }, 0)
+  }
+
+  /**
+   * Handle search input blur - deactivate if empty and not streaming
+   */
+  const handleSearchBlur = (): void => {
+    if (!searchQuery.trim() && !wandControlRef.current?.isWandStreaming) {
+      setIsSearchActive(false)
+    }
+  }
+
+  /**
+   * Handle search query change
+   */
+  const handleSearchChange = (value: string): void => {
+    setSearchQuery(value)
+  }
+
+  /**
+   * Handle search submit - trigger generation
+   */
+  const handleSearchSubmit = (): void => {
+    if (searchQuery.trim() && wandControlRef.current) {
+      wandControlRef.current.onWandTrigger(searchQuery)
+      setSearchQuery('')
+      setIsSearchActive(false)
+    }
+  }
+
+  /**
+   * Handle search cancel
+   */
+  const handleSearchCancel = (): void => {
+    setSearchQuery('')
+    setIsSearchActive(false)
   }
 
   const previewValue = getPreviewValue(config, isPreview, subBlockValues) as
@@ -187,6 +319,8 @@ function SubBlockComponent({
             isPreview={isPreview}
             previewValue={previewValue as string | null | undefined}
             disabled={isDisabled}
+            wandControlRef={wandControlRef}
+            hideInternalWand={true}
           />
         )
 
@@ -201,6 +335,8 @@ function SubBlockComponent({
             isPreview={isPreview}
             previewValue={previewValue as any}
             disabled={isDisabled}
+            wandControlRef={wandControlRef}
+            hideInternalWand={true}
           />
         )
 
@@ -295,6 +431,8 @@ function SubBlockComponent({
                 placeholder: '',
               }
             }
+            wandControlRef={wandControlRef}
+            hideInternalWand={true}
           />
         )
 
@@ -631,7 +769,19 @@ function SubBlockComponent({
 
   return (
     <div onMouseDown={handleMouseDown} className='flex flex-col gap-[10px]'>
-      {renderLabel(config, isValidJson)}
+      {renderLabel(config, isValidJson, {
+        isSearchActive,
+        searchQuery,
+        isWandEnabled,
+        isPreview,
+        isStreaming: wandControlRef.current?.isWandStreaming ?? false,
+        onSearchClick: handleSearchClick,
+        onSearchBlur: handleSearchBlur,
+        onSearchChange: handleSearchChange,
+        onSearchSubmit: handleSearchSubmit,
+        onSearchCancel: handleSearchCancel,
+        searchInputRef,
+      })}
       {renderInput()}
     </div>
   )

@@ -1,4 +1,12 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import { ChevronsUpDown, Wand2 } from 'lucide-react'
 import { Textarea } from '@/components/emcn'
 import { Button } from '@/components/ui/button'
@@ -7,6 +15,7 @@ import { cn } from '@/lib/utils'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/components/sub-block/components/formatted-text'
 import { SubBlockInputController } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/components/sub-block/components/sub-block-input-controller'
 import { useSubBlockInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/components/sub-block/hooks/use-sub-block-input'
+import type { WandControlHandlers } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/components/sub-block/sub-block'
 import { WandPromptBar } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/wand-prompt-bar/wand-prompt-bar'
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
 import { useWand } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-wand'
@@ -53,6 +62,10 @@ interface LongInputProps {
   onChange?: (value: string) => void
   /** Whether the input is disabled */
   disabled?: boolean
+  /** Ref to expose wand control handlers to parent */
+  wandControlRef?: React.MutableRefObject<WandControlHandlers | null>
+  /** Whether to hide the internal wand button (controlled by parent) */
+  hideInternalWand?: boolean
 }
 
 /**
@@ -76,6 +89,8 @@ export function LongInput({
   value: propValue,
   onChange,
   disabled,
+  wandControlRef,
+  hideInternalWand = false,
 }: LongInputProps) {
   // Local state for immediate UI updates during streaming
   const [localContent, setLocalContent] = useState<string>('')
@@ -225,10 +240,23 @@ export function LongInput({
     [height]
   )
 
+  // Expose wand control handlers to parent via ref
+  useImperativeHandle(
+    wandControlRef,
+    () => ({
+      onWandTrigger: (prompt: string) => {
+        wandHook.generateStream({ prompt })
+      },
+      isWandActive: wandHook.isPromptVisible,
+      isWandStreaming: wandHook.isStreaming,
+    }),
+    [wandHook]
+  )
+
   return (
     <>
       {/* Wand Prompt Bar - positioned above the textarea */}
-      {isWandEnabled && (
+      {isWandEnabled && !hideInternalWand && (
         <WandPromptBar
           isVisible={wandHook.isPromptVisible}
           isLoading={wandHook.isLoading}
@@ -303,8 +331,8 @@ export function LongInput({
                 })}
               </div>
 
-              {/* Wand Button */}
-              {isWandEnabled && !isPreview && !wandHook.isStreaming && (
+              {/* Wand Button - only show if not hidden by parent */}
+              {isWandEnabled && !isPreview && !wandHook.isStreaming && !hideInternalWand && (
                 <div className='absolute top-2 right-3 z-10 flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100'>
                   <Button
                     variant='ghost'

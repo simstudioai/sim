@@ -3,18 +3,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { zodResolver } from '@hookform/resolvers/zod'
 import imageCompression from 'browser-image-compression'
-import { X } from 'lucide-react'
+import { Loader2, X } from 'lucide-react'
 import Image from 'next/image'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
-import { Button } from '@/components/emcn/components/button/button'
-import {
-  AlertDialog,
-  AlertDialogContent,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
-import { Input } from '@/components/ui/input'
+import { Button, Input, Modal, ModalContent } from '@/components/emcn'
 import { Label } from '@/components/ui/label'
 import {
   Select,
@@ -358,12 +351,14 @@ export function HelpModal({ open, onOpenChange }: HelpModalProps) {
   }, [onOpenChange])
 
   return (
-    <AlertDialog open={open} onOpenChange={onOpenChange}>
-      <AlertDialogContent className='flex h-[75vh] max-h-[75vh] flex-col gap-0 p-0 sm:max-w-[700px]'>
+    <Modal open={open} onOpenChange={onOpenChange}>
+      <ModalContent className='flex h-[75vh] max-h-[75vh] w-full max-w-[700px] flex-col gap-0 p-0'>
         {/* Modal Header */}
-        <AlertDialogHeader className='flex-shrink-0 px-6 py-5'>
-          <AlertDialogTitle className='font-medium text-lg'>Help & Support</AlertDialogTitle>
-        </AlertDialogHeader>
+        <div className='flex-shrink-0 px-6 py-5'>
+          <h2 className='font-medium text-[14px] text-[var(--text-primary)] dark:text-[var(--text-primary)]'>
+            Help & Support
+          </h2>
+        </div>
 
         {/* Modal Body */}
         <div className='relative flex min-h-0 flex-1 flex-col overflow-hidden'>
@@ -374,21 +369,30 @@ export function HelpModal({ open, onOpenChange }: HelpModalProps) {
               className='scrollbar-hide min-h-0 flex-1 overflow-y-auto pb-20'
             >
               <div className='px-6'>
-                <div className='space-y-4'>
+                <div className='space-y-[12px]'>
                   {/* Request Type Field */}
-                  <div className='space-y-1'>
-                    <Label htmlFor='type'>Request</Label>
+                  <div className='space-y-[8px]'>
+                    <Label
+                      htmlFor='type'
+                      className='font-medium text-[13px] text-[var(--text-primary)] dark:text-[var(--text-primary)]'
+                    >
+                      Request
+                    </Label>
                     <Select
                       defaultValue={DEFAULT_REQUEST_TYPE}
                       onValueChange={(value) => setValue('type', value as FormValues['type'])}
                     >
                       <SelectTrigger
                         id='type'
-                        className={cn('h-9 rounded-[8px]', errors.type && 'border-red-500')}
+                        className={cn(
+                          'h-9 rounded-[4px] border-[var(--surface-11)] bg-[var(--surface-6)] text-[13px] dark:bg-[var(--surface-9)]',
+                          errors.type &&
+                            'border-[var(--text-error)] dark:border-[var(--text-error)]'
+                        )}
                       >
                         <SelectValue placeholder='Select a request type' />
                       </SelectTrigger>
-                      <SelectContent>
+                      <SelectContent className='z-[10000000]'>
                         <SelectItem value='bug'>Bug Report</SelectItem>
                         <SelectItem value='feedback'>Feedback</SelectItem>
                         <SelectItem value='feature_request'>Feature Request</SelectItem>
@@ -396,42 +400,68 @@ export function HelpModal({ open, onOpenChange }: HelpModalProps) {
                       </SelectContent>
                     </Select>
                     {errors.type && (
-                      <p className='mt-1 text-red-500 text-sm'>{errors.type.message}</p>
+                      <p className='mt-[4px] text-[12px] text-[var(--text-error)] dark:text-[var(--text-error)]'>
+                        {errors.type.message}
+                      </p>
                     )}
                   </div>
 
                   {/* Subject Field */}
-                  <div className='space-y-1'>
-                    <Label htmlFor='subject'>Subject</Label>
+                  <div className='space-y-[8px]'>
+                    <Label
+                      htmlFor='subject'
+                      className='font-medium text-[13px] text-[var(--text-primary)] dark:text-[var(--text-primary)]'
+                    >
+                      Subject
+                    </Label>
                     <Input
                       id='subject'
                       placeholder='Brief description of your request'
                       {...register('subject')}
-                      className={cn('h-9 rounded-[8px]', errors.subject && 'border-red-500')}
+                      className={cn(
+                        'h-9 rounded-[4px] border-[var(--surface-11)] bg-[var(--surface-6)] text-[13px] dark:bg-[var(--surface-9)]',
+                        errors.subject &&
+                          'border-[var(--text-error)] dark:border-[var(--text-error)]'
+                      )}
                     />
                     {errors.subject && (
-                      <p className='mt-1 text-red-500 text-sm'>{errors.subject.message}</p>
+                      <p className='mt-[4px] text-[12px] text-[var(--text-error)] dark:text-[var(--text-error)]'>
+                        {errors.subject.message}
+                      </p>
                     )}
                   </div>
 
                   {/* Message Field */}
-                  <div className='space-y-1'>
-                    <Label htmlFor='message'>Message</Label>
+                  <div className='space-y-[8px]'>
+                    <Label
+                      htmlFor='message'
+                      className='font-medium text-[13px] text-[var(--text-primary)] dark:text-[var(--text-primary)]'
+                    >
+                      Message
+                    </Label>
                     <Textarea
                       id='message'
                       placeholder='Please provide details about your request...'
                       rows={6}
                       {...register('message')}
-                      className={cn('rounded-[8px]', errors.message && 'border-red-500')}
+                      className={cn(
+                        'rounded-[4px] border-[var(--surface-11)] bg-[var(--surface-6)] text-[13px] dark:bg-[var(--surface-9)]',
+                        errors.message &&
+                          'border-[var(--text-error)] dark:border-[var(--text-error)]'
+                      )}
                     />
                     {errors.message && (
-                      <p className='mt-1 text-red-500 text-sm'>{errors.message.message}</p>
+                      <p className='mt-[4px] text-[12px] text-[var(--text-error)] dark:text-[var(--text-error)]'>
+                        {errors.message.message}
+                      </p>
                     )}
                   </div>
 
                   {/* Image Upload Section */}
-                  <div className='mt-6 space-y-1'>
-                    <Label>Attach Images (Optional)</Label>
+                  <div className='space-y-[8px]'>
+                    <Label className='font-medium text-[13px] text-[var(--text-primary)] dark:text-[var(--text-primary)]'>
+                      Attach Images (Optional)
+                    </Label>
                     <div
                       ref={dropZoneRef}
                       onDragEnter={handleDragEnter}
@@ -439,8 +469,9 @@ export function HelpModal({ open, onOpenChange }: HelpModalProps) {
                       onDragLeave={handleDragLeave}
                       onDrop={handleDrop}
                       className={cn(
-                        'cursor-pointer rounded-lg border-[1.5px] border-muted-foreground/25 border-dashed p-6 text-center transition-colors hover:bg-muted/50',
-                        isDragging && 'border-primary bg-primary/5'
+                        'cursor-pointer rounded-[4px] border-[1.5px] border-[var(--surface-11)] border-dashed bg-[var(--surface-3)] p-6 text-center transition-colors hover:bg-[var(--surface-5)] dark:bg-[var(--surface-3)] dark:hover:bg-[var(--surface-5)]',
+                        isDragging &&
+                          'border-[var(--brand-primary-hex)] bg-[var(--surface-5)] dark:bg-[var(--surface-5)]'
                       )}
                       onClick={() => fileInputRef.current?.click()}
                     >
@@ -452,28 +483,37 @@ export function HelpModal({ open, onOpenChange }: HelpModalProps) {
                         className='hidden'
                         multiple
                       />
-                      <p className='text-sm'>
+                      <p className='text-[13px] text-[var(--text-secondary)] dark:text-[var(--text-secondary)]'>
                         {isDragging ? 'Drop images here!' : 'Drop images here or click to browse'}
                       </p>
-                      <p className='mt-1 text-muted-foreground text-xs'>
+                      <p className='mt-[4px] text-[12px] text-[var(--text-tertiary)] dark:text-[var(--text-tertiary)]'>
                         JPEG, PNG, WebP, GIF (max 20MB each)
                       </p>
                     </div>
-                    {imageError && <p className='mt-1 text-red-500 text-sm'>{imageError}</p>}
+                    {imageError && (
+                      <p className='mt-[4px] text-[12px] text-[var(--text-error)] dark:text-[var(--text-error)]'>
+                        {imageError}
+                      </p>
+                    )}
                     {isProcessing && (
-                      <p className='text-muted-foreground text-sm'>Processing images...</p>
+                      <div className='flex items-center gap-[8px] text-[var(--text-secondary)] dark:text-[var(--text-secondary)]'>
+                        <Loader2 className='h-4 w-4 animate-spin' />
+                        <p className='text-[12px]'>Processing images...</p>
+                      </div>
                     )}
                   </div>
 
                   {/* Image Preview Grid */}
                   {images.length > 0 && (
-                    <div className='space-y-1'>
-                      <Label>Uploaded Images</Label>
+                    <div className='space-y-[8px]'>
+                      <Label className='font-medium text-[13px] text-[var(--text-primary)] dark:text-[var(--text-primary)]'>
+                        Uploaded Images
+                      </Label>
                       <div className='grid grid-cols-2 gap-4'>
                         {images.map((image, index) => (
                           <div
                             key={index}
-                            className='group relative overflow-hidden rounded-md border'
+                            className='group relative overflow-hidden rounded-[4px] border border-[var(--surface-11)]'
                           >
                             <div className='relative aspect-video'>
                               <Image
@@ -482,14 +522,17 @@ export function HelpModal({ open, onOpenChange }: HelpModalProps) {
                                 fill
                                 className='object-cover'
                               />
-                              <div
+                              <button
+                                type='button'
                                 className='absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 transition-opacity group-hover:opacity-100'
                                 onClick={() => removeImage(index)}
                               >
                                 <X className='h-6 w-6 text-white' />
-                              </div>
+                              </button>
                             </div>
-                            <div className='truncate bg-muted/50 p-2 text-xs'>{image.name}</div>
+                            <div className='truncate bg-[var(--surface-5)] p-2 text-[12px] text-[var(--text-secondary)] dark:bg-[var(--surface-5)] dark:text-[var(--text-secondary)]'>
+                              {image.name}
+                            </div>
                           </div>
                         ))}
                       </div>
@@ -500,31 +543,31 @@ export function HelpModal({ open, onOpenChange }: HelpModalProps) {
             </div>
 
             {/* Fixed Footer with Actions */}
-            <div className='absolute inset-x-0 bottom-0 bg-background'>
-              <div className='flex w-full items-center justify-between px-6 py-4'>
+            <div className='absolute inset-x-0 bottom-0 bg-[var(--surface-1)] dark:bg-[var(--surface-1)]'>
+              <div className='flex w-full items-center justify-between gap-[8px] px-6 py-4'>
                 <Button
                   variant='default'
                   onClick={handleClose}
                   type='button'
-                  className='min-w-[80px] px-[10px] py-[8px] text-[13px]'
+                  className='h-[32px] px-[12px] font-medium text-[13px]'
+                  disabled={isSubmitting}
                 >
                   Cancel
                 </Button>
-                <Button
+                <button
                   type='submit'
                   disabled={isSubmitting || isProcessing}
-                  variant={
-                    submitStatus === 'error' || submitStatus === 'success' ? 'outline' : 'primary'
-                  }
                   className={cn(
-                    'min-w-[80px] px-[10px] py-[8px] text-[13px] transition-all duration-200',
+                    'flex h-[32px] items-center justify-center gap-[8px] rounded-[8px] px-[12px] font-medium text-[13px] text-white transition-all duration-200',
                     submitStatus === 'error'
-                      ? 'border border-red-500 bg-transparent text-red-500 hover:bg-red-500 hover:text-white dark:border-red-500 dark:text-red-500 dark:hover:bg-red-500'
+                      ? 'bg-[var(--text-error)] hover:opacity-90 dark:bg-[var(--text-error)]'
                       : submitStatus === 'success'
-                        ? 'border border-green-500 bg-transparent text-green-500 hover:bg-green-500 hover:text-white dark:border-green-500 dark:text-green-500 dark:hover:bg-green-500'
-                        : ''
+                        ? 'bg-green-500 hover:opacity-90'
+                        : 'bg-[var(--brand-primary-hex)] shadow-[0_0_0_0_var(--brand-primary-hex)] hover:bg-[var(--brand-primary-hover-hex)] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)]',
+                    'disabled:opacity-50 disabled:hover:bg-[var(--brand-primary-hex)] disabled:hover:shadow-none'
                   )}
                 >
+                  {isSubmitting && <Loader2 className='h-4 w-4 animate-spin' />}
                   {isSubmitting
                     ? 'Submitting...'
                     : submitStatus === 'error'
@@ -532,12 +575,12 @@ export function HelpModal({ open, onOpenChange }: HelpModalProps) {
                       : submitStatus === 'success'
                         ? 'Success'
                         : 'Submit'}
-                </Button>
+                </button>
               </div>
             </div>
           </form>
         </div>
-      </AlertDialogContent>
-    </AlertDialog>
+      </ModalContent>
+    </Modal>
   )
 }

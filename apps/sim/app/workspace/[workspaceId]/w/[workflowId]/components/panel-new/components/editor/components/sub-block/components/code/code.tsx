@@ -1,5 +1,5 @@
 import type { ReactElement } from 'react'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
 import { Check, Copy, Wand2 } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import 'prismjs/components/prism-python'
@@ -30,6 +30,7 @@ import {
   TagDropdown,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/components/sub-block/components/tag-dropdown/tag-dropdown'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/components/sub-block/hooks/use-sub-block-value'
+import type { WandControlHandlers } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/components/sub-block/sub-block'
 import { WandPromptBar } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/wand-prompt-bar/wand-prompt-bar'
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
 import { useWand } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-wand'
@@ -167,6 +168,10 @@ interface CodeProps {
     placeholder?: string
     maintainHistory?: boolean
   }
+  /** Ref to expose wand control handlers to parent */
+  wandControlRef?: React.MutableRefObject<WandControlHandlers | null>
+  /** Whether to hide the internal wand button (controlled by parent) */
+  hideInternalWand?: boolean
 }
 
 export function Code({
@@ -184,6 +189,8 @@ export function Code({
   showCopyButton = false,
   onValidationChange,
   wandConfig,
+  wandControlRef,
+  hideInternalWand = false,
 }: CodeProps) {
   // Route params
   const params = useParams()
@@ -574,6 +581,19 @@ export function Code({
     return accessiblePrefixes.has(normalizedPrefix)
   }
 
+  // Expose wand control handlers to parent via ref
+  useImperativeHandle(
+    wandControlRef,
+    () => ({
+      onWandTrigger: (prompt: string) => {
+        generateCodeStream({ prompt })
+      },
+      isWandActive: isPromptVisible,
+      isWandStreaming: isAiStreaming,
+    }),
+    [generateCodeStream, isPromptVisible, isAiStreaming]
+  )
+
   /**
    * Renders the line numbers, aligned with wrapped visual lines and highlighting the active line.
    * @returns Array of React elements representing the line numbers
@@ -641,16 +661,18 @@ export function Code({
           {copied ? <Check className='h-3.5 w-3.5' /> : <Copy className='h-3.5 w-3.5' />}
         </Button>
       )}
-      <WandPromptBar
-        isVisible={isPromptVisible}
-        isLoading={isAiLoading}
-        isStreaming={isAiStreaming}
-        promptValue={promptInputValue}
-        onSubmit={(prompt: string) => generateCodeStream({ prompt })}
-        onCancel={isAiStreaming ? cancelGeneration : hidePromptInline}
-        onChange={updatePromptValue}
-        placeholder={dynamicWandConfig?.placeholder || aiPromptPlaceholder}
-      />
+      {!hideInternalWand && (
+        <WandPromptBar
+          isVisible={isPromptVisible}
+          isLoading={isAiLoading}
+          isStreaming={isAiStreaming}
+          promptValue={promptInputValue}
+          onSubmit={(prompt: string) => generateCodeStream({ prompt })}
+          onCancel={isAiStreaming ? cancelGeneration : hidePromptInline}
+          onChange={updatePromptValue}
+          placeholder={dynamicWandConfig?.placeholder || aiPromptPlaceholder}
+        />
+      )}
 
       <CodeEditor.Container
         onDragOver={(e) => e.preventDefault()}
@@ -658,18 +680,22 @@ export function Code({
         isStreaming={isAiStreaming}
       >
         <div className='absolute top-2 right-3 z-10 flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100'>
-          {wandConfig?.enabled && !isAiStreaming && !isPreview && !readOnly && (
-            <Button
-              variant='ghost'
-              size='icon'
-              onClick={isPromptVisible ? hidePromptInline : showPromptInline}
-              disabled={isAiLoading || isAiStreaming}
-              aria-label='Generate code with AI'
-              className='h-8 w-8 rounded-full border border-transparent bg-muted/80 text-muted-foreground shadow-sm transition-all duration-200 hover:border-primary/20 hover:bg-muted hover:text-foreground hover:shadow'
-            >
-              <Wand2 className='h-4 w-4' />
-            </Button>
-          )}
+          {wandConfig?.enabled &&
+            !isAiStreaming &&
+            !isPreview &&
+            !readOnly &&
+            !hideInternalWand && (
+              <Button
+                variant='ghost'
+                size='icon'
+                onClick={isPromptVisible ? hidePromptInline : showPromptInline}
+                disabled={isAiLoading || isAiStreaming}
+                aria-label='Generate code with AI'
+                className='h-8 w-8 rounded-full border border-transparent bg-muted/80 text-muted-foreground shadow-sm transition-all duration-200 hover:border-primary/20 hover:bg-muted hover:text-foreground hover:shadow'
+              >
+                <Wand2 className='h-4 w-4' />
+              </Button>
+            )}
         </div>
 
         <CodeEditor.Gutter width={gutterWidthPx}>{renderLineNumbers()}</CodeEditor.Gutter>

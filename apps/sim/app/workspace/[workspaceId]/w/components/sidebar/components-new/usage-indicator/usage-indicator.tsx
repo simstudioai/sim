@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react'
 import { Badge, Progress, Skeleton } from '@/components/ui'
+import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
 import { useSubscriptionStore } from '@/stores/subscription/store'
 
@@ -12,6 +13,8 @@ const GRADIENT_TEXT_STYLES =
   'gradient-text bg-gradient-to-b from-gradient-primary via-gradient-secondary to-gradient-primary'
 const CONTAINER_STYLES =
   'pointer-events-auto flex-shrink-0 rounded-[10px] border bg-background px-3 py-2.5 shadow-xs cursor-pointer transition-colors hover:bg-muted/50'
+
+const logger = createLogger('UsageIndicator')
 
 // Plan name mapping
 const PLAN_NAMES = {
@@ -66,8 +69,29 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
   const isBlocked = billingStatus === 'blocked'
   const badgeText = isBlocked ? 'Payment Failed' : planType === 'free' ? 'Upgrade' : undefined
 
+  const handleClick = () => {
+    try {
+      if (onClick) {
+        onClick()
+        return
+      }
+
+      const subscriptionStore = useSubscriptionStore.getState()
+      const blocked = subscriptionStore.getBillingStatus() === 'blocked'
+      const canUpgrade = subscriptionStore.canUpgrade()
+
+      // Open Settings modal to the subscription tab (upgrade UI lives there)
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('open-settings', { detail: { tab: 'subscription' } }))
+        logger.info('Opened settings to subscription tab', { blocked, canUpgrade })
+      }
+    } catch (error) {
+      logger.error('Failed to handle usage indicator click', { error })
+    }
+  }
+
   return (
-    <div className={CONTAINER_STYLES} onClick={() => onClick?.()}>
+    <div className={CONTAINER_STYLES} onClick={handleClick}>
       <div className='space-y-2'>
         {/* Plan and usage info */}
         <div className='flex items-center justify-between'>

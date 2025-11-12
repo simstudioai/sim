@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
 import { Check, Copy, Wand2 } from 'lucide-react'
 import { useReactFlow } from 'reactflow'
 import { Input } from '@/components/emcn/components/input/input'
@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/components/sub-block/components/formatted-text'
 import { SubBlockInputController } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/components/sub-block/components/sub-block-input-controller'
+import type { WandControlHandlers } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/components/sub-block/sub-block'
 import { WandPromptBar } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/wand-prompt-bar/wand-prompt-bar'
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
 import { useWand } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-wand'
@@ -42,6 +43,10 @@ interface ShortInputProps {
   showCopyButton?: boolean
   /** Whether to use webhook URL as value */
   useWebhookUrl?: boolean
+  /** Ref to expose wand control handlers to parent */
+  wandControlRef?: React.MutableRefObject<WandControlHandlers | null>
+  /** Whether to hide the internal wand button (controlled by parent) */
+  hideInternalWand?: boolean
 }
 
 /**
@@ -70,6 +75,8 @@ export function ShortInput({
   readOnly = false,
   showCopyButton = false,
   useWebhookUrl = false,
+  wandControlRef,
+  hideInternalWand = false,
 }: ShortInputProps) {
   // Local state for immediate UI updates during streaming
   const [localContent, setLocalContent] = useState<string>('')
@@ -350,9 +357,22 @@ export function ShortInput({
     setIsFocused(false)
   }, [])
 
+  // Expose wand control handlers to parent via ref
+  useImperativeHandle(
+    wandControlRef,
+    () => ({
+      onWandTrigger: (prompt: string) => {
+        wandHook.generateStream({ prompt })
+      },
+      isWandActive: wandHook.isPromptVisible,
+      isWandStreaming: wandHook.isStreaming,
+    }),
+    [wandHook]
+  )
+
   return (
     <>
-      {isWandEnabled && (
+      {isWandEnabled && !hideInternalWand && (
         <WandPromptBar
           isVisible={wandHook.isPromptVisible}
           isLoading={wandHook.isLoading}
@@ -467,8 +487,8 @@ export function ShortInput({
           </div>
         )}
 
-        {/* Wand Button */}
-        {isWandEnabled && !isPreview && !wandHook.isStreaming && (
+        {/* Wand Button - only show if not hidden by parent */}
+        {isWandEnabled && !isPreview && !wandHook.isStreaming && !hideInternalWand && (
           <div className='-translate-y-1/2 absolute top-1/2 right-3 z-10 flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100'>
             <Button
               variant='ghost'
