@@ -11,9 +11,9 @@ Der Start-Block ist der Standard-Auslöser für Workflows, die in Sim erstellt w
 <div className="flex justify-center">
   <Image
     src="/static/start.png"
-    alt="Start-Block mit Eingabeformat-Feldern"
-    width={360}
-    height={380}
+    alt="Startblock mit Eingabeformat-Feldern"
+    width={500}
+    height={400}
     className="my-6"
   />
 </div>
@@ -44,54 +44,36 @@ Referenzieren Sie strukturierte Werte nachgelagert mit Ausdrücken wie <code>&lt
 
 ## Wie es sich je nach Einstiegspunkt verhält
 
-<Tabs items={['Editor-Ausführung', 'Bereitstellung als API', 'Bereitstellung für Chat']}>
+<Tabs items={['Editor-Ausführung', 'API-Bereitstellung', 'Chat-Bereitstellung']}>
   <Tab>
-    <div className="space-y-3">
-      <p>
-        Wenn Sie im Editor auf <strong>Ausführen</strong> klicken, rendert der Start-Block das Eingabeformat als Formular. Standardwerte erleichtern das erneute Testen ohne erneute Dateneingabe. Durch das Absenden des Formulars wird der Workflow sofort ausgelöst und die Werte werden unter <code>&lt;start.feldName&gt;</code> (zum Beispiel <code>&lt;start.sampleField&gt;</code>) verfügbar.
-      </p>
-      <p>
-        Dateifelder im Formular werden direkt in die entsprechenden{' '}
-        <code>&lt;start.fieldName&gt;</code> hochgeladen; verwenden Sie diese Werte,
-        um nachgelagerte Tools oder Speicherschritte zu versorgen.
-      </p>
-    </div>
+    Wenn Sie im Editor auf <strong>Ausführen</strong> klicken, rendert der Startblock das Eingabeformat als Formular. Standardwerte erleichtern das erneute Testen ohne erneute Dateneingabe. Durch das Absenden des Formulars wird der Workflow sofort ausgelöst, und die Werte werden unter <code>&lt;start.feldName&gt;</code> verfügbar (zum Beispiel <code>&lt;start.sampleField&gt;</code>).
+
+    Dateifelder im Formular werden direkt in das entsprechende{' '}
+    <code>&lt;start.feldName&gt;</code> hochgeladen; verwenden Sie diese Werte, um nachgelagerte
+    Tools oder Speicherschritte zu versorgen.
   </Tab>
   <Tab>
-    <div className="space-y-3">
-      <p>
-        Die Bereitstellung als API verwandelt das Eingabeformat in einen JSON-Vertrag für Clients. Jedes Feld wird Teil des Anforderungskörpers, und Sim erzwingt primitive Typen bei der Aufnahme. Dateifelder erwarten Objekte, die auf hochgeladene Dateien verweisen; verwenden Sie den Ausführungs-Datei-Upload-Endpunkt, bevor Sie den Workflow aufrufen.
-      </p>
-      <p>
-        API-Aufrufer können zusätzliche optionale Eigenschaften einbeziehen. Diese
-        werden in den <code>&lt;start.fieldName&gt;</code>Ausgaben beibehalten, sodass
-        Sie experimentieren können, ohne sofort neu bereitzustellen.
-      </p>
-    </div>
+    Die Bereitstellung für die API verwandelt das Eingabeformat in einen JSON-Vertrag für Clients. Jedes Feld wird Teil des Anforderungskörpers, und Sim erzwingt primitive Typen bei der Aufnahme. Dateifelder erwarten Objekte, die auf hochgeladene Dateien verweisen; verwenden Sie den Ausführungsdatei-Upload-Endpunkt, bevor Sie den Workflow aufrufen.
+
+    API-Aufrufer können zusätzliche optionale Eigenschaften einbeziehen. Diese werden
+    in den <code>&lt;start.feldName&gt;</code>-Ausgaben beibehalten, sodass Sie experimentieren
+    können, ohne sofort neu bereitzustellen.
   </Tab>
   <Tab>
-    <div className="space-y-3">
-      <p>
-        Bei Chat-Bereitstellungen bindet sich der Start-Block an die aktive Konversation. Die neueste Nachricht füllt <code>&lt;start.input&gt;</code>, die Sitzungskennung ist unter <code>&lt;start.conversationId&gt;</code> verfügbar, und Benutzeranhänge erscheinen unter <code>&lt;start.files&gt;</code>, zusammen mit allen Eingabeformatfeldern, die als <code>&lt;start.fieldName&gt;</code> definiert sind.
-      </p>
-      <p>
-        Wenn Sie den Chat mit zusätzlichem strukturiertem Kontext starten (zum
-        Beispiel aus einer Einbettung), wird dieser mit den entsprechenden{' '}
-        <code>&lt;start.fieldName&gt;</code>Ausgaben zusammengeführt, wodurch
-        nachgelagerte Blöcke konsistent mit API- und manuellen Ausführungen bleiben.
-      </p>
-    </div>
+    Bei Chat-Bereitstellungen bindet sich der Startblock an die aktive Konversation. Die neueste Nachricht füllt <code>&lt;start.input&gt;</code>, die Sitzungskennung ist unter <code>&lt;start.conversationId&gt;</code> verfügbar, und Benutzeranhänge erscheinen unter <code>&lt;start.files&gt;</code>, zusammen mit allen Eingabeformat-Feldern, die als <code>&lt;start.feldName&gt;</code> definiert sind.
+
+    Wenn Sie den Chat mit zusätzlichem strukturiertem Kontext starten (zum Beispiel aus einer Einbettung), wird dieser mit den entsprechenden <code>&lt;start.feldName&gt;</code>-Ausgaben zusammengeführt, wodurch nachgelagerte Blöcke konsistent mit API- und manuellen Ausführungen bleiben.
   </Tab>
 </Tabs>
 
-## Referenzierung von Start-Daten in nachgelagerten Komponenten
+## Referenzierung von Startdaten in nachgelagerten Prozessen
 
-- Verbinde <code>&lt;start.fieldName&gt;</code> direkt mit Agenten, Tools oder Funktionen, die strukturierte Daten erwarten.
-- Verwende Template-Syntax wie <code>&lt;start.sampleField&gt;</code> oder <code>&lt;start.files[0].url&gt;</code> (nur für Chat) in Prompt-Feldern.
-- Halte <code>&lt;start.conversationId&gt;</code> bereit, wenn du Ausgaben gruppieren, den Gesprächsverlauf aktualisieren oder die Chat-API erneut aufrufen musst.
+- Verbinden Sie <code>&lt;start.feldName&gt;</code> direkt mit Agenten, Tools oder Funktionen, die strukturierte Nutzlasten erwarten.
+- Verwenden Sie Vorlagensyntax wie <code>&lt;start.sampleField&gt;</code> oder <code>&lt;start.files[0].url&gt;</code> (nur Chat) in Prompt-Feldern.
+- Halten Sie <code>&lt;start.conversationId&gt;</code> bereit, wenn Sie Ausgaben gruppieren, den Konversationsverlauf aktualisieren oder die Chat-API aufrufen müssen.
 
-## Best Practices
+## Bewährte Praktiken
 
-- Behandle den Start-Block als einzigen Einstiegspunkt, wenn du sowohl API- als auch Chat-Aufrufer unterstützen möchtest.
-- Bevorzuge benannte Eingabeformat-Felder gegenüber dem Parsen von rohem JSON in nachgelagerten Knoten; Typumwandlung erfolgt automatisch.
-- Füge unmittelbar nach dem Start Validierung oder Routing hinzu, wenn bestimmte Felder für den Erfolg deines Workflows erforderlich sind.
+- Behandeln Sie den Start-Block als einzigen Einstiegspunkt, wenn Sie sowohl API- als auch Chat-Aufrufer unterstützen möchten.
+- Bevorzugen Sie benannte Eingabeformat-Felder gegenüber dem Parsen von rohem JSON in nachgelagerten Knoten; Typumwandlung erfolgt automatisch.
+- Fügen Sie unmittelbar nach dem Start Validierung oder Routing hinzu, wenn bestimmte Felder für den Erfolg Ihres Workflows erforderlich sind.
