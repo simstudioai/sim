@@ -9,13 +9,11 @@ import { getEnv, isTruthy } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
 import { generateWorkspaceName } from '@/lib/naming'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
-import { SearchModal } from '@/app/workspace/[workspaceId]/w/components/search-modal/search-modal'
 import {
   CreateMenu,
   FloatingNavigation,
   FolderTree,
   HelpModal,
-  KeyboardShortcut,
   KnowledgeBaseTags,
   KnowledgeTags,
   LogsFilters,
@@ -27,10 +25,6 @@ import {
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/components'
 import { InviteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components-new/workspace-header/components/invite-modal/invite-modal'
 import { useAutoScroll } from '@/app/workspace/[workspaceId]/w/hooks/use-auto-scroll'
-import {
-  getKeyboardShortcutText,
-  useGlobalShortcuts,
-} from '@/app/workspace/[workspaceId]/w/hooks/use-keyboard-shortcuts'
 import { useKnowledgeBasesList } from '@/hooks/use-knowledge'
 import { useSubscriptionStore } from '@/stores/subscription/store'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
@@ -85,7 +79,7 @@ interface TemplateData {
 }
 
 export function Sidebar() {
-  useGlobalShortcuts()
+  // useGlobalShortcuts()
 
   const {
     workflows,
@@ -914,7 +908,7 @@ export function Sidebar() {
               <span className='flex h-8 flex-1 items-center px-0 text-muted-foreground text-sm leading-none'>
                 Search anything
               </span>
-              <KeyboardShortcut shortcut={getKeyboardShortcutText('K', true)} />
+              {/* <KeyboardShortcut shortcut={getKeyboardShortcutText('K', true)} /> */}
             </button>
           </div>
 
@@ -1027,15 +1021,6 @@ export function Sidebar() {
       <HelpModal open={showHelp} onOpenChange={setShowHelp} />
       <InviteModal open={showInviteMembers} onOpenChange={setShowInviteMembers} />
       <SubscriptionModal open={showSubscriptionModal} onOpenChange={setShowSubscriptionModal} />
-
-      <SearchModal
-        open={showSearchModal}
-        onOpenChange={setShowSearchModal}
-        workflows={searchWorkflows}
-        workspaces={searchWorkspaces}
-        knowledgeBases={searchKnowledgeBases}
-        isOnWorkflowPage={isOnWorkflowPage}
-      />
     </>
   )
 }

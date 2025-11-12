@@ -1,6 +1,5 @@
 import { HelpCircle, LibraryBig, ScrollText, Settings, Shapes } from 'lucide-react'
 import { NavigationItem } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/navigation-item/navigation-item'
-import { getKeyboardShortcutText } from '@/app/workspace/[workspaceId]/w/hooks/use-keyboard-shortcuts'
 
 interface FloatingNavigationProps {
   workspaceId: string
@@ -36,7 +35,6 @@ export const FloatingNavigation = ({
       icon: ScrollText,
       href: `/workspace/${workspaceId}/logs`,
       tooltip: 'Logs',
-      shortcut: getKeyboardShortcutText('L', true, true),
       active: pathname === `/workspace/${workspaceId}/logs`,
     },
     {

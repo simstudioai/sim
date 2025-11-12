@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { ContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/components-new/workflow-list/components/context-menu/context-menu'
 import { DeleteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components-new/workflow-list/components/delete-modal/delete-modal'
+import { Avatars } from '@/app/workspace/[workspaceId]/w/components/sidebar/components-new/workflow-list/components/workflow-item/avatars/avatars'
 import {
   useContextMenu,
   useItemDrag,
@@ -15,7 +16,6 @@ import { useDeleteWorkflow, useDuplicateWorkflow } from '@/app/workspace/[worksp
 import { useFolderStore } from '@/stores/folders/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
-import { Avatars } from '@/app/workspace/[workspaceId]/w/components/sidebar/components-new/workflow-list/components/workflow-item/avatars/avatars'
 
 interface WorkflowItemProps {
   workflow: WorkflowMetadata

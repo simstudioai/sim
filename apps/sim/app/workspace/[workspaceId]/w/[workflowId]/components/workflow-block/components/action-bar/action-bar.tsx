@@ -3,7 +3,6 @@ import { ArrowLeftRight, ArrowUpDown, Circle, CircleOff, LogOut } from 'lucide-r
 import { Button, Duplicate, Tooltip, Trash2 } from '@/components/emcn'
 import { cn } from '@/lib/utils'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
-import { supportsHandles } from '@/executor/consts'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 

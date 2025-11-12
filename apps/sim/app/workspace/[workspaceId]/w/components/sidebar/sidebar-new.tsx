@@ -7,15 +7,20 @@ import { Button, FolderPlus, Tooltip } from '@/components/emcn'
 import { useSession } from '@/lib/auth-client'
 import { createLogger } from '@/lib/logs/console/logger'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
-import { useFolderStore } from '@/stores/folders/store'
-import { useSidebarStore } from '@/stores/sidebar/store'
-import { FooterNavigation, SearchModal, WorkflowList, WorkspaceHeader } from './components-new'
+import {
+  FooterNavigation,
+  SearchModal,
+  WorkflowList,
+  WorkspaceHeader,
+} from '@/app/workspace/[workspaceId]/w/components/sidebar/components-new'
 import {
   useFolderOperations,
   useSidebarResize,
   useWorkflowOperations,
   useWorkspaceManagement,
-} from './hooks'
+} from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
+import { useFolderStore } from '@/stores/folders/store'
+import { useSidebarStore } from '@/stores/sidebar/store'
 
 const logger = createLogger('SidebarNew')
 
