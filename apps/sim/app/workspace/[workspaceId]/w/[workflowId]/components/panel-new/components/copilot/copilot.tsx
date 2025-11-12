@@ -25,7 +25,12 @@ import type { UserInputRef } from '@/app/workspace/[workspaceId]/w/[workflowId]/
 import { useScrollManagement } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
 import { useCopilotStore } from '@/stores/panel-new/copilot/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-import { useChatHistory, useCopilotInitialization, useTodoManagement } from './hooks'
+import {
+  useChatHistory,
+  useCopilotInitialization,
+  useLandingPrompt,
+  useTodoManagement,
+} from './hooks'
 
 const logger = createLogger('Copilot')
 
@@ -123,6 +128,22 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
     showPlanTodos,
     planTodos,
     setPlanTodos,
+  })
+
+  /**
+   * Helper function to focus the copilot input
+   */
+  const focusInput = useCallback(() => {
+    userInputRef.current?.focus()
+  }, [])
+
+  // Handle landing page prompt retrieval and population
+  useLandingPrompt({
+    isInitialized,
+    setInputValue,
+    focusInput,
+    isSendingMessage,
+    currentInputValue: inputValue,
   })
 
   /**
