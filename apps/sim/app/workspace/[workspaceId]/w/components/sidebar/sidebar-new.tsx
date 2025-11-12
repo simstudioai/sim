@@ -5,6 +5,7 @@ import { ArrowDown, Plus, Search } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import { Button, FolderPlus, Tooltip } from '@/components/emcn'
 import { useSession } from '@/lib/auth-client'
+import { getEnv, isTruthy } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import {
