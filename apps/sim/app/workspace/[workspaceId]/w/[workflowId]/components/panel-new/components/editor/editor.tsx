@@ -75,7 +75,10 @@ export function Editor() {
   const focusOnBlock = useFocusOnBlock()
 
   // Get block properties (advanced/trigger modes)
-  const { advancedMode, triggerMode } = useEditorBlockProperties(currentBlockId)
+  const { advancedMode, triggerMode } = useEditorBlockProperties(
+    currentBlockId,
+    currentWorkflow.isDiffMode
+  )
 
   // Subscribe to block's subblock values
   const blockSubBlockValues = useSubBlockStore(
@@ -95,7 +98,8 @@ export function Editor() {
     advancedMode,
     triggerMode,
     activeWorkflowId,
-    blockSubBlockValues
+    blockSubBlockValues,
+    currentWorkflow.isDiffMode
   )
 
   // Get block connections

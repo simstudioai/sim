@@ -131,6 +131,10 @@ function createBlockFromParams(blockId: string, params: any, parentId?: string):
     const subBlocks: Record<string, any> = {}
     if (params.inputs) {
       Object.entries(params.inputs).forEach(([key, value]) => {
+        // Skip runtime subblock IDs when computing outputs
+        if (TRIGGER_RUNTIME_SUBBLOCK_IDS.includes(key)) {
+          return
+        }
         subBlocks[key] = { id: key, type: 'short-input', value: value }
       })
     }
@@ -157,6 +161,10 @@ function createBlockFromParams(blockId: string, params: any, parentId?: string):
   // Add inputs as subBlocks
   if (params.inputs) {
     Object.entries(params.inputs).forEach(([key, value]) => {
+      if (TRIGGER_RUNTIME_SUBBLOCK_IDS.includes(key)) {
+        return
+      }
+
       let sanitizedValue = value
 
       // Special handling for inputFormat - ensure it's an array
@@ -729,6 +737,11 @@ function applyOperationsToWorkflowState(
           // Update inputs if provided
           if (params.inputs) {
             Object.entries(params.inputs).forEach(([key, value]) => {
+              // Skip runtime subblock IDs (webhookId, triggerPath, testUrl, testUrlExpiresAt, scheduleId)
+              if (TRIGGER_RUNTIME_SUBBLOCK_IDS.includes(key)) {
+                return
+              }
+
               let sanitizedValue = value
 
               if (key === 'inputFormat' && value !== null && value !== undefined) {
