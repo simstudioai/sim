@@ -500,9 +500,13 @@ function validateMessagesForLLM(messages: CopilotMessage[]): any[] {
           .trim()
       }
 
-      // Strip thinking tags from content
+      // Strip thinking tags and todo tags from content
       if (content) {
-        content = content.replace(/<thinking>[\s\S]*?<\/thinking>/g, '').trim()
+        content = content
+          .replace(/<thinking>[\s\S]*?<\/thinking>/g, '')
+          .replace(/<marktodo>[\s\S]*?<\/marktodo>/g, '')
+          .replace(/<checkofftodo>[\s\S]*?<\/checkofftodo>/g, '')
+          .trim()
       }
 
       return {
@@ -1003,7 +1007,7 @@ const sseHandlers: Record<string, SSEHandler> = {
     context.currentTextBlock = null
     updateStreamingMessage(set, context)
   },
-  content: (data, context, _get, set) => {
+  content: (data, context, get, set) => {
     if (!data.data) return
     context.pendingContent += data.data
 
@@ -1013,7 +1017,92 @@ const sseHandlers: Record<string, SSEHandler> = {
     const thinkingStartRegex = /<thinking>/
     const thinkingEndRegex = /<\/thinking>/
 
+    const appendTextToContent = (text: string) => {
+      if (!text) return
+      context.accumulatedContent.append(text)
+      if (context.currentTextBlock && context.contentBlocks.length > 0) {
+        const lastBlock = context.contentBlocks[context.contentBlocks.length - 1]
+        if (lastBlock.type === TEXT_BLOCK_TYPE && lastBlock === context.currentTextBlock) {
+          lastBlock.content += text
+          return
+        }
+      }
+      context.currentTextBlock = contentBlockPool.get()
+      context.currentTextBlock.type = TEXT_BLOCK_TYPE
+      context.currentTextBlock.content = text
+      context.currentTextBlock.timestamp = Date.now()
+      context.contentBlocks.push(context.currentTextBlock)
+    }
+
     while (contentToProcess.length > 0) {
+      if (!context.isInThinkingBlock) {
+        const nextMarkIndex = contentToProcess.indexOf('<marktodo>')
+        const nextCheckIndex = contentToProcess.indexOf('<checkofftodo>')
+        const hasMark = nextMarkIndex >= 0
+        const hasCheck = nextCheckIndex >= 0
+
+        const nextTagIndex =
+          hasMark && hasCheck
+            ? Math.min(nextMarkIndex, nextCheckIndex)
+            : hasMark
+            ? nextMarkIndex
+            : hasCheck
+            ? nextCheckIndex
+            : -1
+
+        if (nextTagIndex >= 0) {
+          if (nextTagIndex > 0) {
+            const textBeforeTag = contentToProcess.substring(0, nextTagIndex)
+            appendTextToContent(textBeforeTag)
+            contentToProcess = contentToProcess.substring(nextTagIndex)
+            hasProcessedContent = true
+            continue
+          }
+
+          const isMarkTodo = hasMark && nextMarkIndex === 0
+          const tagStart = isMarkTodo ? '<marktodo>' : '<checkofftodo>'
+          const tagEnd = isMarkTodo ? '</marktodo>' : '</checkofftodo>'
+          const closingIndex = contentToProcess.indexOf(tagEnd, tagStart.length)
+
+          if (closingIndex === -1) {
+            // Partial tag; wait for additional content
+            break
+          }
+
+          const todoId = contentToProcess.substring(tagStart.length, closingIndex).trim()
+          logger.info(
+            isMarkTodo ? '[TODO] Detected marktodo tag' : '[TODO] Detected checkofftodo tag',
+            { todoId }
+          )
+
+          if (todoId) {
+            try {
+              get().updatePlanTodoStatus(todoId, isMarkTodo ? 'executing' : 'completed')
+              logger.info(
+                isMarkTodo
+                  ? '[TODO] Successfully marked todo in progress'
+                  : '[TODO] Successfully checked off todo',
+                { todoId }
+              )
+            } catch (e) {
+              logger.error(
+                isMarkTodo
+                  ? '[TODO] Failed to mark todo in progress'
+                  : '[TODO] Failed to checkoff todo',
+                { todoId, error: e }
+              )
+            }
+          } else {
+            logger.warn('[TODO] Empty todoId extracted from todo tag', { tagType: tagStart })
+          }
+
+          contentToProcess = contentToProcess.substring(closingIndex + tagEnd.length)
+          context.currentTextBlock = null
+          hasProcessedContent = true
+          continue
+        }
+      }
+
       if (context.isInThinkingBlock) {
         const endMatch = thinkingEndRegex.exec(contentToProcess)
         if (endMatch) {
@@ -1081,14 +1170,27 @@ const sseHandlers: Record<string, SSEHandler> = {
           context.currentTextBlock = null
           contentToProcess = contentToProcess.substring(startMatch.index + startMatch[0].length)
           hasProcessedContent = true
-        } else {
-          const partialTagIndex = contentToProcess.lastIndexOf('<')
-          let textToAdd = contentToProcess
-          let remaining = ''
-          if (partialTagIndex >= 0 && partialTagIndex > contentToProcess.length - 10) {
-            textToAdd = contentToProcess.substring(0, partialTagIndex)
-            remaining = contentToProcess.substring(partialTagIndex)
-          }
+          } else {
+            // Check if content might contain partial todo tags and hold them back
+            let partialTagIndex = contentToProcess.lastIndexOf('<')
+            
+            // Also check for partial marktodo or checkofftodo tags
+            const partialMarkTodo = contentToProcess.lastIndexOf('<marktodo')
+            const partialCheckoffTodo = contentToProcess.lastIndexOf('<checkofftodo')
+            
+            if (partialMarkTodo > partialTagIndex) {
+              partialTagIndex = partialMarkTodo
+            }
+            if (partialCheckoffTodo > partialTagIndex) {
+              partialTagIndex = partialCheckoffTodo
+            }
+            
+            let textToAdd = contentToProcess
+            let remaining = ''
+            if (partialTagIndex >= 0 && partialTagIndex > contentToProcess.length - 50) {
+              textToAdd = contentToProcess.substring(0, partialTagIndex)
+              remaining = contentToProcess.substring(partialTagIndex)
+            }
           if (textToAdd) {
             context.accumulatedContent.append(textToAdd)
             if (context.currentTextBlock && context.contentBlocks.length > 0) {
