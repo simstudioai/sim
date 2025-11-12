@@ -50,11 +50,11 @@ export function useBlockCore({ blockId, data, isPending = false }: UseBlockCoreO
     const ringStyles = cn(
       hasRing && 'ring-[1.75px]',
       isActive && 'ring-[#8C10FF] animate-pulse-ring',
-      isPending && 'ring-[#FF6600]',
-      isFocused && 'ring-[#33B4FF]',
+      isPending && 'ring-[var(--warning)]',
+      isFocused && 'ring-[var(--brand-secondary)]',
       diffStatus === 'new' && 'ring-[#22C55F]',
-      diffStatus === 'edited' && 'ring-[#FF6600]',
-      isDeletedBlock && 'ring-[#EF4444]'
+      diffStatus === 'edited' && 'ring-[var(--warning)]',
+      isDeletedBlock && 'ring-[var(--text-error)]'
     )
 
     return { hasRing, ringStyles }

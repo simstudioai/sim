@@ -1,5 +1,4 @@
 import { useMemo } from 'react'
-import { File, FileText, Image as ImageIcon } from 'lucide-react'
 import { StreamingIndicator } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/copilot/components/copilot-message/components/smooth-streaming'
 
 interface ChatAttachment {
@@ -31,17 +30,6 @@ const formatFileSize = (bytes?: number): string => {
   const sizes = ['B', 'KB', 'MB', 'GB']
   const i = Math.floor(Math.log(bytes) / Math.log(1024))
   return `${Math.round((bytes / 1024 ** i) * 10) / 10} ${sizes[i]}`
-}
-
-/**
- * Returns appropriate icon for file type
- */
-const getFileIcon = (type: string) => {
-  if (type.includes('pdf')) return <FileText className='h-5 w-5 text-muted-foreground' />
-  if (type.startsWith('image/')) return <ImageIcon className='h-5 w-5 text-muted-foreground' />
-  if (type.includes('text') || type.includes('json'))
-    return <FileText className='h-5 w-5 text-muted-foreground' />
-  return <File className='h-5 w-5 text-muted-foreground' />
 }
 
 /**
@@ -123,7 +111,7 @@ export function ChatMessage({ message }: ChatMessageProps) {
     return (
       <div className='w-full max-w-full overflow-hidden opacity-100 transition-opacity duration-200'>
         {message.attachments && message.attachments.length > 0 && (
-          <div className='mb-2 flex flex-wrap gap-1.5'>
+          <div className='mb-2 flex flex-wrap gap-[6px]'>
             {message.attachments.map((attachment) => {
               const isImage = attachment.type.startsWith('image/')
               const hasValidDataUrl =
@@ -132,9 +120,9 @@ export function ChatMessage({ message }: ChatMessageProps) {
               return (
                 <div
                   key={attachment.id}
-                  className={`relative overflow-hidden rounded-md border border-border/50 bg-muted/20 ${
+                  className={`group relative flex-shrink-0 overflow-hidden rounded-[6px] bg-[var(--surface-2)] ${
                     hasValidDataUrl ? 'cursor-pointer' : ''
-                  } ${isImage ? 'h-16 w-16' : 'flex h-16 min-w-[120px] max-w-[200px] items-center gap-2 px-2'}`}
+                  } ${isImage ? 'h-[40px] w-[40px]' : 'flex min-w-[80px] max-w-[120px] items-center justify-center px-[8px] py-[2px]'}`}
                   onClick={(e) => {
                     if (hasValidDataUrl) {
                       e.preventDefault()
@@ -150,21 +138,16 @@ export function ChatMessage({ message }: ChatMessageProps) {
                       className='h-full w-full object-cover'
                     />
                   ) : (
-                    <>
-                      <div className='flex h-8 w-8 flex-shrink-0 items-center justify-center rounded bg-background/50'>
-                        {getFileIcon(attachment.type)}
+                    <div className='min-w-0 flex-1'>
+                      <div className='truncate font-medium text-[10px] text-[var(--white)]'>
+                        {attachment.name}
                       </div>
-                      <div className='min-w-0 flex-1'>
-                        <div className='truncate font-medium text-foreground text-xs'>
-                          {attachment.name}
+                      {attachment.size && (
+                        <div className='text-[9px] text-[var(--text-tertiary)]'>
+                          {formatFileSize(attachment.size)}
                         </div>
-                        {attachment.size && (
-                          <div className='text-[10px] text-muted-foreground'>
-                            {formatFileSize(attachment.size)}
-                          </div>
-                        )}
-                      </div>
-                    </>
+                      )}
+                    </div>
                   )}
                 </div>
               )
@@ -173,8 +156,8 @@ export function ChatMessage({ message }: ChatMessageProps) {
         )}
 
         {formattedContent && !formattedContent.startsWith('Uploaded') && (
-          <div className='rounded-[4px] border border-[#3D3D3D] bg-[#282828] px-[8px] py-[6px] transition-all duration-200 dark:border-[#3D3D3D] dark:bg-[#363636]'>
-            <div className='whitespace-pre-wrap break-words font-medium font-sans text-[#0D0D0D] text-sm leading-[1.25rem] dark:text-gray-100'>
+          <div className='rounded-[4px] border border-[var(--surface-11)] bg-[var(--surface-9)] px-[8px] py-[6px] transition-all duration-200'>
+            <div className='whitespace-pre-wrap break-words font-medium font-sans text-gray-100 text-sm leading-[1.25rem]'>
               <WordWrap text={formattedContent} />
             </div>
           </div>
@@ -185,7 +168,7 @@ export function ChatMessage({ message }: ChatMessageProps) {
 
   return (
     <div className='w-full max-w-full overflow-hidden pl-[2px] opacity-100 transition-opacity duration-200'>
-      <div className='whitespace-pre-wrap break-words font-[470] font-season text-[#707070] text-sm leading-[1.25rem] dark:text-[#E8E8E8]'>
+      <div className='whitespace-pre-wrap break-words font-[470] font-season text-[#E8E8E8] text-sm leading-[1.25rem]'>
         <WordWrap text={formattedContent} />
         {message.isStreaming && <StreamingIndicator />}
       </div>

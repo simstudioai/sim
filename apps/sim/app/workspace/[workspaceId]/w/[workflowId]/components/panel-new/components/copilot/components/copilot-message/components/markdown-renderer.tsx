@@ -307,7 +307,7 @@ export default function CopilotMarkdownRenderer({ content }: CopilotMarkdownRend
         if (inline) {
           return (
             <code
-              className='whitespace-normal break-all rounded bg-gray-300 px-1 py-0.5 font-mono text-[#707070] text-[0.9em] dark:bg-[#3D3D3D] dark:text-[#E8E8E8]'
+              className='whitespace-normal break-all rounded bg-gray-300 px-1 py-0.5 font-mono text-[#707070] text-[0.9em] dark:bg-[var(--surface-11)] dark:text-[#E8E8E8]'
               {...props}
             >
               {children}

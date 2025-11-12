@@ -221,7 +221,7 @@ export function General() {
                 <SelectTrigger id='theme-select' className='h-9 w-[180px]'>
                   <SelectValue placeholder='Select theme' />
                 </SelectTrigger>
-                <SelectContent className='min-w-32 rounded-[10px] border-[#E5E5E5] bg-[#FFFFFF] shadow-xs dark:border-[#414141] dark:bg-[#202020]'>
+                <SelectContent className='min-w-32 rounded-[10px] border-[#E5E5E5] bg-[var(--white)] shadow-xs dark:border-[#414141] dark:bg-[var(--surface-elevated)]'>
                   <SelectItem
                     value='system'
                     className='rounded-[8px] text-card-foreground text-sm hover:bg-muted focus:bg-muted'

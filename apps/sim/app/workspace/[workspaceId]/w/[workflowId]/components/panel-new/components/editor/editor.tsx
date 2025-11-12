@@ -1,16 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import {
-  BookOpen,
-  Check,
-  ChevronUp,
-  Crosshair,
-  Pencil,
-  RepeatIcon,
-  Settings,
-  SplitIcon,
-} from 'lucide-react'
+import { BookOpen, Check, ChevronUp, Pencil, RepeatIcon, Settings, SplitIcon } from 'lucide-react'
 import { Button, Tooltip } from '@/components/emcn'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { getSubBlockStableKey } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/utils'
@@ -197,7 +188,7 @@ export function Editor() {
             >
               <IconComponent
                 icon={isSubflow ? subflowIcon : blockConfig?.icon}
-                className='h-[12px] w-[12px] text-[#FFFFFF]'
+                className='h-[12px] w-[12px] text-[var(--white)]'
               />
             </div>
           )}
@@ -215,11 +206,11 @@ export function Editor() {
                   handleCancelRename()
                 }
               }}
-              className='min-w-0 flex-1 truncate bg-transparent pr-[8px] font-medium text-[#FFFFFF] text-[14px] outline-none dark:text-[#FFFFFF]'
+              className='min-w-0 flex-1 truncate bg-transparent pr-[8px] font-medium text-[14px] text-[var(--white)] outline-none dark:text-[var(--white)]'
             />
           ) : (
             <h2
-              className='min-w-0 flex-1 truncate pr-[8px] font-medium text-[#FFFFFF] text-[14px] dark:text-[#FFFFFF]'
+              className='min-w-0 flex-1 truncate pr-[8px] font-medium text-[14px] text-[var(--white)] dark:text-[var(--white)]'
               title={title}
             >
               {title}
@@ -251,7 +242,7 @@ export function Editor() {
             </Tooltip.Root>
           )}
           {/* Focus on block button */}
-          {currentBlock && (
+          {/* {currentBlock && (
             <Tooltip.Root>
               <Tooltip.Trigger asChild>
                 <Button
@@ -267,7 +258,7 @@ export function Editor() {
                 <p>Focus on block</p>
               </Tooltip.Content>
             </Tooltip.Root>
-          )}
+          )} */}
           {/* Mode toggles - Only show for regular blocks, not subflows */}
           {currentBlock && !isSubflow && hasAdvancedMode && (
             <Tooltip.Root>
@@ -380,7 +371,7 @@ export function Editor() {
           {hasIncomingConnections && (
             <div
               className={
-                'connections-section flex flex-shrink-0 flex-col overflow-hidden border-[#2C2C2C] border-t dark:border-[#2C2C2C]' +
+                'connections-section flex flex-shrink-0 flex-col overflow-hidden border-[var(--border)] border-t dark:border-[var(--border)]' +
                 (!isResizing ? ' transition-[height] duration-100 ease-out' : '')
               }
               style={{ height: `${connectionsHeight}px` }}
@@ -415,7 +406,7 @@ export function Editor() {
                     (!isConnectionsAtMinHeight ? ' rotate-180' : '')
                   }
                 />
-                <div className='font-medium text-[#E6E6E6] text-[13px] dark:text-[#E6E6E6]'>
+                <div className='font-medium text-[13px] text-[var(--text-primary)] dark:text-[var(--text-primary)]'>
                   Connections
                 </div>
               </div>

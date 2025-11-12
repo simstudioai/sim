@@ -181,7 +181,7 @@ export function CommandEmpty({ children, className }: CommandEmptyProps) {
   if (filteredItems.length > 0) return null
 
   return (
-    <div className={cn('px-[6px] py-[8px] text-[#FFFFFF]/60 text-[12px]', className)}>
+    <div className={cn('px-[6px] py-[8px] text-[12px] text-[var(--white)]/60', className)}>
       {children}
     </div>
   )
@@ -213,8 +213,8 @@ export function CommandItem({
     <button
       id={value}
       className={cn(
-        'flex h-[25px] w-full cursor-pointer select-none items-center gap-[8px] rounded-[6px] px-[6px] font-base text-[#E6E6E6] text-[12px] outline-none transition-colors hover:bg-[#363636] hover:text-[#E6E6E6] disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 data-[disabled=true]:pointer-events-none data-[selected=true]:bg-[#363636] data-[selected=true]:text-[#E6E6E6] data-[disabled=true]:opacity-50',
-        (isActive || isHovered) && 'bg-[#363636] text-[#E6E6E6]',
+        'flex h-[25px] w-full cursor-pointer select-none items-center gap-[8px] rounded-[6px] px-[6px] font-base text-[12px] text-[var(--text-primary)] outline-none transition-colors hover:bg-[var(--surface-9)] hover:text-[var(--text-primary)] disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 data-[disabled=true]:pointer-events-none data-[selected=true]:bg-[var(--surface-9)] data-[selected=true]:text-[var(--text-primary)] data-[disabled=true]:opacity-50',
+        (isActive || isHovered) && 'bg-[var(--surface-9)] text-[var(--text-primary)]',
         className
       )}
       onClick={() => !disabled && onSelect?.()}

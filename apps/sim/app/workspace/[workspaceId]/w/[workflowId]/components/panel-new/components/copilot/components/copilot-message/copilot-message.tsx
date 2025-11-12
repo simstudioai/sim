@@ -267,8 +267,8 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
 
               {/* Inline Checkpoint Discard Confirmation - shown below input in edit mode */}
               {showCheckpointDiscardModal && (
-                <div className='mt-[8px] rounded-[4px] border border-[#3D3D3D] bg-[#282828] p-[10px] dark:border-[#3D3D3D] dark:bg-[#363636]'>
-                  <p className='mb-[8px] text-[#E6E6E6] text-sm'>
+                <div className='mt-[8px] rounded-[4px] border border-[var(--surface-11)] bg-[var(--surface-6)] p-[10px] dark:border-[var(--surface-11)] dark:bg-[var(--surface-9)]'>
+                  <p className='mb-[8px] text-[var(--text-primary)] text-sm'>
                     Continue from a previous message?
                   </p>
                   <div className='flex gap-[6px]'>
@@ -278,7 +278,7 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
                       className='flex flex-1 items-center justify-center gap-[6px] px-[8px] py-[4px] text-xs'
                     >
                       <span>Cancel</span>
-                      <span className='text-[#787878] text-[10px]'>(Esc)</span>
+                      <span className='text-[10px] text-[var(--text-muted)]'>(Esc)</span>
                     </Button>
                     <Button
                       onClick={handleContinueAndRevert}
@@ -314,7 +314,7 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
                 onClick={handleMessageClick}
                 onMouseEnter={() => setIsHoveringMessage(true)}
                 onMouseLeave={() => setIsHoveringMessage(false)}
-                className='group relative w-full cursor-pointer rounded-[4px] border border-[#3D3D3D] bg-[#282828] px-[6px] py-[6px] transition-all duration-200 hover:border-[#4A4A4A] hover:bg-[#363636] dark:border-[#3D3D3D] dark:bg-[#363636] dark:hover:border-[#454545] dark:hover:bg-[#3D3D3D]'
+                className='group relative w-full cursor-pointer rounded-[4px] border border-[var(--surface-11)] bg-[var(--surface-6)] px-[6px] py-[6px] transition-all duration-200 hover:border-[var(--surface-14)] hover:bg-[var(--surface-9)] dark:border-[var(--surface-11)] dark:bg-[var(--surface-9)] dark:hover:border-[var(--surface-13)] dark:hover:bg-[var(--surface-11)]'
               >
                 <div
                   ref={messageContentRef}
@@ -360,7 +360,7 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
 
                 {/* Gradient fade when truncated - applies to entire message box */}
                 {!isExpanded && needsExpansion && (
-                  <div className='pointer-events-none absolute right-0 bottom-0 left-0 h-6 bg-gradient-to-t from-0% from-[#282828] via-40% via-[#282828]/70 to-100% to-transparent group-hover:from-[#363636] group-hover:via-[#363636]/70 dark:from-[#363636] dark:via-[#363636]/70 dark:group-hover:from-[#3D3D3D] dark:group-hover:via-[#3D3D3D]/70' />
+                  <div className='pointer-events-none absolute right-0 bottom-0 left-0 h-6 bg-gradient-to-t from-0% from-[var(--surface-6)] via-40% via-[var(--surface-6)]/70 to-100% to-transparent group-hover:from-[var(--surface-9)] group-hover:via-[var(--surface-9)]/70 dark:from-[var(--surface-9)] dark:via-[var(--surface-9)]/70 dark:group-hover:from-[var(--surface-11)] dark:group-hover:via-[var(--surface-11)]/70' />
                 )}
 
                 {/* Abort button when hovering and response is generating (only on last user message) */}
@@ -408,11 +408,13 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
 
           {/* Inline Restore Checkpoint Confirmation */}
           {showRestoreConfirmation && (
-            <div className='mt-[8px] rounded-[4px] border border-[#3D3D3D] bg-[#282828] p-[10px] dark:border-[#3D3D3D] dark:bg-[#363636]'>
-              <p className='mb-[8px] text-[#E6E6E6] text-sm'>
+            <div className='mt-[8px] rounded-[4px] border border-[var(--surface-11)] bg-[var(--surface-6)] p-[10px] dark:border-[var(--surface-11)] dark:bg-[var(--surface-9)]'>
+              <p className='mb-[8px] text-[var(--text-primary)] text-sm'>
                 Revert to checkpoint? This will restore your workflow to the state saved at this
                 checkpoint.{' '}
-                <span className='font-medium text-[#EF4444]'>This action cannot be undone.</span>
+                <span className='font-medium text-[var(--text-error)]'>
+                  This action cannot be undone.
+                </span>
               </p>
               <div className='flex gap-[6px]'>
                 <Button
@@ -421,7 +423,7 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
                   className='flex flex-1 items-center justify-center gap-[6px] px-[8px] py-[4px] text-xs'
                 >
                   <span>Cancel</span>
-                  <span className='text-[#787878] text-[10px]'>(Esc)</span>
+                  <span className='text-[10px] text-[var(--text-muted)]'>(Esc)</span>
                 </Button>
                 <Button
                   onClick={handleConfirmRevert}

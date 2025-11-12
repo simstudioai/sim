@@ -284,7 +284,7 @@ export const EnvVarDropdown: React.FC<EnvVarDropdownProps> = ({
         onCloseAutoFocus={(e) => e.preventDefault()}
       >
         {filteredEnvVars.length === 0 ? (
-          <div className='px-[6px] py-[8px] text-[#FFFFFF]/60 text-[12px]'>
+          <div className='px-[6px] py-[8px] text-[12px] text-[var(--white)]/60'>
             No matching environment variables
           </div>
         ) : (

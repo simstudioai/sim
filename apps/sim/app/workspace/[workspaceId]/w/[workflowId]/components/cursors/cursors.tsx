@@ -76,7 +76,7 @@ const CursorsComponent = () => {
 
               {/* Name tag underneath and to the right */}
               <div
-                className='absolute top-[18px] left-[4px] h-[21px] w-[140px] truncate whitespace-nowrap rounded-[2px] p-[6px] font-medium text-[#1E1E1E] text-[11px]'
+                className='absolute top-[18px] left-[4px] h-[21px] w-[140px] truncate whitespace-nowrap rounded-[2px] p-[6px] font-medium text-[11px] text-[var(--surface-1)]'
                 style={{ backgroundColor: color }}
               >
                 {name}

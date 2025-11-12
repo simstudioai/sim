@@ -77,9 +77,9 @@ function Container({
     <div
       className={cn(
         // Base container styling
-        'group relative min-h-[100px] rounded-[4px] border border-[#303030]',
+        'group relative min-h-[100px] rounded-[4px] border border-[var(--border-strong)]',
         'bg-[#1F1F1F] font-medium font-mono text-sm transition-colors',
-        'dark:border-[#303030]',
+        'dark:border-[var(--border-strong)]',
         // Streaming state
         isStreaming && 'streaming-effect',
         className

@@ -326,13 +326,13 @@ export function LongInput({
               {/* Custom resize handle */}
               {!wandHook.isStreaming && (
                 <div
-                  className='absolute right-1 bottom-1 flex h-4 w-4 cursor-ns-resize items-center justify-center rounded-[4px] border border-[#3D3D3D] bg-[#282828] dark:bg-[#363636]'
+                  className='absolute right-1 bottom-1 flex h-4 w-4 cursor-ns-resize items-center justify-center rounded-[4px] border border-[var(--surface-11)] bg-[var(--surface-6)] dark:bg-[var(--surface-9)]'
                   onMouseDown={startResize}
                   onDragStart={(e) => {
                     e.preventDefault()
                   }}
                 >
-                  <ChevronsUpDown className='h-3 w-3 text-[#787878]' />
+                  <ChevronsUpDown className='h-3 w-3 text-[var(--text-muted)]' />
                 </div>
               )}
             </div>

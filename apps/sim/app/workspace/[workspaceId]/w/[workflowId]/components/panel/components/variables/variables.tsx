@@ -255,7 +255,7 @@ export function Variables() {
         <div className='flex h-full items-center justify-center'>
           <Button
             onClick={handleAddVariable}
-            className='h-9 rounded-lg border border-[#E5E5E5] bg-[#FFFFFF] px-3 py-1.5 font-normal text-muted-foreground text-sm shadow-xs transition-colors hover:text-muted-foreground dark:border-[#414141] dark:bg-[var(--surface-elevated)] dark:hover:text-muted-foreground'
+            className='h-9 rounded-lg border border-[#E5E5E5] bg-[var(--white)] px-3 py-1.5 font-normal text-muted-foreground text-sm shadow-xs transition-colors hover:text-muted-foreground dark:border-[#414141] dark:bg-[var(--surface-elevated)] dark:hover:text-muted-foreground'
             variant='outline'
           >
             <Plus className='h-4 w-4' />
@@ -294,7 +294,7 @@ export function Variables() {
                       </DropdownMenuTrigger>
                       <DropdownMenuContent
                         align='end'
-                        className='min-w-32 rounded-lg border-[#E5E5E5] bg-[#FFFFFF] shadow-xs dark:border-[#414141] dark:bg-[var(--surface-elevated)]'
+                        className='min-w-32 rounded-lg border-[#E5E5E5] bg-[var(--white)] shadow-xs dark:border-[#414141] dark:bg-[var(--surface-elevated)]'
                       >
                         {VARIABLE_TYPES.map((type) => (
                           <DropdownMenuItem
@@ -324,7 +324,7 @@ export function Variables() {
                       </DropdownMenuTrigger>
                       <DropdownMenuContent
                         align='end'
-                        className='min-w-32 rounded-lg border-[#E5E5E5] bg-[#FFFFFF] shadow-xs dark:border-[#414141] dark:bg-[var(--surface-elevated)]'
+                        className='min-w-32 rounded-lg border-[#E5E5E5] bg-[var(--white)] shadow-xs dark:border-[#414141] dark:bg-[var(--surface-elevated)]'
                       >
                         <DropdownMenuItem
                           onClick={() => toggleCollapsed(variable.id)}
@@ -429,7 +429,7 @@ export function Variables() {
             {/* Add Variable Button */}
             <Button
               onClick={handleAddVariable}
-              className='mt-2 h-9 w-full rounded-lg border border-[#E5E5E5] bg-[#FFFFFF] px-3 py-1.5 font-[380] text-muted-foreground text-sm shadow-xs transition-colors hover:text-muted-foreground dark:border-[#414141] dark:bg-[var(--surface-elevated)] dark:hover:text-muted-foreground'
+              className='mt-2 h-9 w-full rounded-lg border border-[#E5E5E5] bg-[var(--white)] px-3 py-1.5 font-[380] text-muted-foreground text-sm shadow-xs transition-colors hover:text-muted-foreground dark:border-[#414141] dark:bg-[var(--surface-elevated)] dark:hover:text-muted-foreground'
               variant='outline'
             >
               <Plus className='h-4 w-4' />

@@ -274,7 +274,7 @@ export function Variables() {
           aria-controls={`variable-content-${variable.id}`}
         >
           <div className='flex min-w-0 flex-1 items-center gap-[8px]'>
-            <span className='block truncate font-medium text-[#AEAEAE] text-[14px]'>
+            <span className='block truncate font-medium text-[14px] text-[var(--text-tertiary)]'>
               {variable.name || `Variable ${index + 1}`}
             </span>
             {variable.name && (
@@ -289,7 +289,7 @@ export function Variables() {
               e.stopPropagation()
               handleRemoveVariable(variable.id)
             }}
-            className='h-auto p-0 text-[#EF4444] hover:text-[#EF4444]'
+            className='h-auto p-0 text-[var(--text-error)] hover:text-[var(--text-error)]'
             aria-label={`Delete ${variable.name || `variable ${index + 1}`}`}
           >
             <Trash style={{ width: `${ICON_SIZE}px`, height: `${ICON_SIZE}px` }} />
@@ -324,7 +324,7 @@ export function Variables() {
           return Array.from({ length: lineCount }, (_, i) => (
             <div
               key={i}
-              className='font-medium font-mono text-[#787878] text-xs'
+              className='font-medium font-mono text-[var(--text-muted)] text-xs'
               style={{ height: `${LINE_HEIGHT}px`, lineHeight: `${LINE_HEIGHT}px` }}
             >
               {i + 1}
@@ -373,7 +373,7 @@ export function Variables() {
 
   return (
     <div
-      className='fixed z-30 flex flex-col overflow-hidden rounded-[6px] bg-[#1E1E1E] px-[10px] pt-[2px] pb-[8px]'
+      className='fixed z-30 flex flex-col overflow-hidden rounded-[6px] bg-[var(--surface-1)] px-[10px] pt-[2px] pb-[8px]'
       style={{
         left: `${actualPosition.x}px`,
         top: `${actualPosition.y}px`,
@@ -387,11 +387,13 @@ export function Variables() {
     >
       {/* Header (drag handle) */}
       <div
-        className='flex h-[32px] flex-shrink-0 cursor-grab items-center justify-between bg-[#1E1E1E] p-0 active:cursor-grabbing'
+        className='flex h-[32px] flex-shrink-0 cursor-grab items-center justify-between bg-[var(--surface-1)] p-0 active:cursor-grabbing'
         onMouseDown={handleMouseDown}
       >
         <div className='flex items-center'>
-          <span className='flex-shrink-0 font-medium text-[#E6E6E6] text-[14px]'>Variables</span>
+          <span className='flex-shrink-0 font-medium text-[14px] text-[var(--text-primary)]'>
+            Variables
+          </span>
         </div>
         <div className='flex items-center gap-[8px]'>
           <Button
@@ -419,7 +421,7 @@ export function Variables() {
       {/* Content */}
       <div className='flex flex-1 flex-col overflow-hidden pt-[8px]'>
         {workflowVariables.length === 0 ? (
-          <div className='flex flex-1 items-center justify-center text-[#8D8D8D] text-[13px]'>
+          <div className='flex flex-1 items-center justify-center text-[13px] text-[var(--text-tertiary)]'>
             {STRINGS.emptyState}
           </div>
         ) : (
@@ -429,7 +431,7 @@ export function Variables() {
                 <div
                   key={variable.id}
                   className={cn(
-                    'rounded-[4px] border border-[#303030] bg-[#1F1F1F]',
+                    'rounded-[4px] border border-[var(--border-strong)] bg-[var(--surface-1)]',
                     (collapsedById[variable.id] ?? false) ? 'overflow-hidden' : 'overflow-visible'
                   )}
                 >
@@ -438,7 +440,7 @@ export function Variables() {
                   {!(collapsedById[variable.id] ?? false) && (
                     <div
                       id={`variable-content-${variable.id}`}
-                      className='flex flex-col gap-[6px] border-[#303030] border-t px-[10px] pt-[6px] pb-[10px]'
+                      className='flex flex-col gap-[6px] border-[var(--border-strong)] border-t px-[10px] pt-[6px] pb-[10px]'
                     >
                       <div className='flex flex-col gap-[4px]'>
                         <Label className='text-[13px]'>{STRINGS.labels.name}</Label>
@@ -452,7 +454,7 @@ export function Variables() {
                           placeholder={STRINGS.placeholders.name}
                         />
                         {nameErrors[variable.id] && (
-                          <p className='text-[#EF4444] text-xs' role='alert'>
+                          <p className='text-[var(--text-error)] text-xs' role='alert'>
                             {nameErrors[variable.id]}
                           </p>
                         )}

@@ -1324,7 +1324,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
         />
         <PopoverScrollArea>
           {flatTagList.length === 0 ? (
-            <div className='px-[6px] py-[8px] text-[#FFFFFF]/60 text-[12px]'>
+            <div className='px-[6px] py-[8px] text-[12px] text-[var(--white)]/60'>
               No matching tags found
             </div>
           ) : (
@@ -1362,7 +1362,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
                             : tag}
                         </span>
                         {variableInfo && (
-                          <span className='ml-auto text-[#FFFFFF]/60 text-[10px]'>
+                          <span className='ml-auto text-[10px] text-[var(--white)]/60'>
                             {variableInfo.type}
                           </span>
                         )}
@@ -1468,7 +1468,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
                                   <TagIcon icon={tagIcon} color={blockColor} />
                                   <span className='flex-1 truncate'>{child.display}</span>
                                   {childType && childType !== 'any' && (
-                                    <span className='ml-auto text-[#FFFFFF]/60 text-[10px]'>
+                                    <span className='ml-auto text-[10px] text-[var(--white)]/60'>
                                       {childType}
                                     </span>
                                   )}
@@ -1547,7 +1547,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
                           <TagIcon icon={displayIcon} color={blockColor} />
                           <span className='flex-1 truncate'>{nestedTag.display}</span>
                           {tagDescription && tagDescription !== 'any' && (
-                            <span className='ml-auto text-[#FFFFFF]/60 text-[10px]'>
+                            <span className='ml-auto text-[10px] text-[var(--white)]/60'>
                               {tagDescription}
                             </span>
                           )}

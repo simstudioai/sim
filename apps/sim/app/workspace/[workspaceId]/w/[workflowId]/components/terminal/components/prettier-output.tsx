@@ -87,7 +87,7 @@ function ValueRow({ name, value, level, path, expandedPaths, onToggle, wrapText 
         onClick={handleClick}
         className={clsx(
           'flex items-center gap-2 rounded-md px-2 py-1',
-          isExpandable && 'cursor-pointer hover:bg-[#2C2C2C]'
+          isExpandable && 'cursor-pointer hover:bg-[var(--border)]'
         )}
         style={{
           paddingLeft: `${indent + 8}px`,
@@ -105,11 +105,14 @@ function ValueRow({ name, value, level, path, expandedPaths, onToggle, wrapText 
           <div className='h-3 w-3 flex-shrink-0' />
         )}
 
-        <span className='font-medium text-[#AEAEAE] text-[13px]'>{name}:</span>
+        <span className='font-medium text-[13px] text-[var(--text-tertiary)]'>{name}:</span>
 
         {!isExpandable ? (
           <span
-            className={clsx('flex-1 text-[#E6E6E6] text-[13px]', !wrapText && 'truncate')}
+            className={clsx(
+              'flex-1 text-[13px] text-[var(--text-primary)]',
+              !wrapText && 'truncate'
+            )}
             style={wrapText ? { wordBreak: 'break-word' } : undefined}
           >
             {formatValue(value, type)}
@@ -195,7 +198,9 @@ export function PrettierOutput({ output, wrapText }: PrettierOutputProps) {
     return (
       <div className='p-2'>
         <div className='flex items-center gap-2 py-1'>
-          <span className='text-[#E6E6E6] text-[13px]'>{formatValue(output, type)}</span>
+          <span className='text-[13px] text-[var(--text-primary)]'>
+            {formatValue(output, type)}
+          </span>
           <Badge className='rounded-[4px] px-2 py-0.5 font-mono text-[10px]'>{type}</Badge>
         </div>
       </div>

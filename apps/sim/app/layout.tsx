@@ -129,7 +129,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                     var editorParsed = JSON.parse(editorStored);
                     var editorState = editorParsed?.state;
                     var connectionsHeight = editorState?.connectionsHeight;
-                    if (connectionsHeight !== undefined && connectionsHeight >= 30 && connectionsHeight <= 200) {
+                    if (connectionsHeight !== undefined && connectionsHeight >= 30 && connectionsHeight <= 300) {
                       document.documentElement.style.setProperty('--editor-connections-height', connectionsHeight + 'px');
                     }
                   }

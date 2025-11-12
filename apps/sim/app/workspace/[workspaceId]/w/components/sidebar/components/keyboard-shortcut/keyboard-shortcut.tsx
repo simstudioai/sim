@@ -16,7 +16,7 @@ export const KeyboardShortcut = ({ shortcut, className }: KeyboardShortcutProps)
   return (
     <kbd
       className={cn(
-        'flex h-6 w-8 items-center justify-center rounded-[5px] border border-border bg-background font-mono text-[#CDCDCD] text-xs dark:text-[#454545]',
+        'flex h-6 w-8 items-center justify-center rounded-[5px] border border-border bg-background font-mono text-[#CDCDCD] text-xs dark:text-[var(--surface-13)]',
         className
       )}
     >

@@ -69,10 +69,10 @@ const MODAL_SPACING = {
  */
 const MODAL_COLORS = {
   OVERLAY_BG: 'bg-black/80',
-  CONTENT_BG: 'bg-[#242424] dark:bg-[#242424]',
-  TITLE_TEXT: 'text-[#E6E6E6] dark:text-[#E6E6E6]',
-  DESCRIPTION_TEXT: 'text-[#AEAEAE] dark:text-[#AEAEAE]',
-  CLOSE_BUTTON_TEXT: 'text-[#B1B1B1] dark:text-[#B1B1B1]',
+  CONTENT_BG: 'bg-[var(--surface-3)] dark:bg-[var(--surface-3)]',
+  TITLE_TEXT: 'text-[var(--text-primary)] dark:text-[var(--text-primary)]',
+  DESCRIPTION_TEXT: 'text-[var(--text-tertiary)] dark:text-[var(--text-tertiary)]',
+  CLOSE_BUTTON_TEXT: 'text-[var(--text-secondary)] dark:text-[var(--text-secondary)]',
 } as const
 
 /**

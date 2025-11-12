@@ -12,7 +12,7 @@ const Checkbox = React.forwardRef<
   <CheckboxPrimitive.Root
     ref={ref}
     className={cn(
-      'peer h-4 w-4 shrink-0 rounded-sm border border-[#3D3D3D] bg-[#272727] ring-offset-background transition-colors hover:border-[#4A4A4A] hover:bg-[#282828] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 data-[state=checked]:border-[#4A4A4A] data-[state=checked]:bg-[#3D3D3D] data-[state=checked]:text-[#E6E6E6] dark:border-[#3D3D3D] dark:bg-[#363636] dark:data-[state=checked]:border-[#5A5A5A] dark:data-[state=checked]:bg-[#454545] dark:hover:border-[#454545] dark:hover:bg-[#3D3D3D]',
+      'peer h-4 w-4 shrink-0 rounded-sm border border-[var(--surface-11)] bg-[var(--surface-5)] ring-offset-background transition-colors hover:border-[var(--surface-14)] hover:bg-[var(--surface-6)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 data-[state=checked]:border-[var(--surface-14)] data-[state=checked]:bg-[var(--surface-11)] data-[state=checked]:text-[var(--text-primary)] dark:border-[var(--surface-11)] dark:bg-[var(--surface-9)] dark:data-[state=checked]:border-[var(--surface-15)] dark:data-[state=checked]:bg-[var(--surface-13)] dark:hover:border-[var(--surface-13)] dark:hover:bg-[var(--surface-11)]',
       className
     )}
     {...props}

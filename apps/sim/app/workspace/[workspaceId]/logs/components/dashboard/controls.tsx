@@ -49,7 +49,7 @@ export function Controls({
             placeholder='Search workflows...'
             value={searchQuery}
             onChange={(e) => setSearchQuery?.(e.target.value)}
-            className='h-9 w-full rounded-[11px] border-[#E5E5E5] bg-[#FFFFFF] pr-10 pl-9 dark:border-[#414141] dark:bg-[var(--surface-elevated)]'
+            className='h-9 w-full rounded-[11px] border-[#E5E5E5] bg-[var(--white)] pr-10 pl-9 dark:border-[#414141] dark:bg-[var(--surface-elevated)]'
           />
           {searchQuery && (
             <button

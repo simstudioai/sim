@@ -97,7 +97,7 @@ export function DeleteModal({
           <ModalTitle>{title}</ModalTitle>
           <ModalDescription>
             {description}{' '}
-            <span className='text-[#EF4444] dark:text-[#EF4444]'>
+            <span className='text-[var(--text-error)] dark:text-[var(--text-error)]'>
               This action cannot be undone.
             </span>
           </ModalDescription>
@@ -112,7 +112,7 @@ export function DeleteModal({
             Cancel
           </Button>
           <Button
-            className='h-[32px] bg-[#EF4444] px-[12px] text-[#FFFFFF] hover:bg-[#EF4444] hover:text-[#FFFFFF] dark:bg-[#EF4444] dark:text-[#FFFFFF] hover:dark:bg-[#EF4444] dark:hover:text-[#FFFFFF]'
+            className='h-[32px] bg-[var(--text-error)] px-[12px] text-[var(--white)] hover:bg-[var(--text-error)] hover:text-[var(--white)] dark:bg-[var(--text-error)] dark:text-[var(--white)] hover:dark:bg-[var(--text-error)] dark:hover:text-[var(--white)]'
             onClick={onConfirm}
             disabled={isDeleting}
           >

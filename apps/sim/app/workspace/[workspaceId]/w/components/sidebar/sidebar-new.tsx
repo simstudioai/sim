@@ -440,7 +440,7 @@ export function SidebarNew() {
     <>
       {isCollapsed ? (
         /* Floating collapsed header */
-        <div className='fixed top-[14px] left-[10px] z-10 max-w-[232px] rounded-[8px] border bg-white px-[12px] py-[8px] dark:border-[#2C2C2C] dark:bg-[#1E1E1E]'>
+        <div className='fixed top-[14px] left-[10px] z-10 max-w-[232px] rounded-[8px] border border-[var(--border)] bg-[var(--surface-1)] px-[12px] py-[8px]'>
           <WorkspaceHeader
             activeWorkspace={activeWorkspace}
             workspaceId={workspaceId}
@@ -466,11 +466,11 @@ export function SidebarNew() {
         <>
           <aside
             ref={sidebarRef}
-            className='sidebar-container fixed inset-y-0 left-0 z-10 overflow-hidden dark:bg-[#1E1E1E]'
+            className='sidebar-container fixed inset-y-0 left-0 z-10 overflow-hidden bg-[var(--surface-1)]'
             aria-label='Workspace sidebar'
             onClick={handleSidebarClick}
           >
-            <div className='flex h-full flex-col border-r pt-[14px] dark:border-[#2C2C2C]'>
+            <div className='flex h-full flex-col border-r pt-[14px] dark:border-[var(--border)]'>
               {/* Header */}
               <div className='flex-shrink-0 px-[14px]'>
                 <WorkspaceHeader
@@ -496,16 +496,18 @@ export function SidebarNew() {
 
               {/* Search */}
               <div
-                className='mx-[8px] mt-[12px] flex flex-shrink-0 cursor-pointer items-center justify-between rounded-[8px] bg-[#272727] px-[8px] py-[7px] dark:bg-[#272727]'
+                className='mx-[8px] mt-[12px] flex flex-shrink-0 cursor-pointer items-center justify-between rounded-[8px] bg-[var(--surface-5)] px-[8px] py-[7px]'
                 onClick={() => setIsSearchModalOpen(true)}
               >
                 <div className='flex items-center gap-[6px]'>
-                  <Search className='h-[14px] w-[14px] text-[#7D7D7D] dark:text-[#7D7D7D]' />
-                  <p className='translate-y-[0.25px] font-medium text-[#B1B1B1] text-small dark:text-[#B1B1B1]'>
+                  <Search className='h-[14px] w-[14px] text-[var(--text-subtle)] dark:text-[var(--text-subtle)]' />
+                  <p className='translate-y-[0.25px] font-medium text-[var(--text-secondary)] text-small dark:text-[var(--text-secondary)]'>
                     Search
                   </p>
                 </div>
-                <p className='font-medium text-[#7D7D7D] text-small dark:text-[#7D7D7D]'>⌘K</p>
+                <p className='font-medium text-[var(--text-subtle)] text-small dark:text-[var(--text-subtle)]'>
+                  ⌘K
+                </p>
               </div>
 
               {/* Workflows */}
@@ -513,7 +515,7 @@ export function SidebarNew() {
                 {/* Header - Always visible */}
                 <div className='flex flex-shrink-0 flex-col space-y-[4px] px-[14px]'>
                   <div className='flex items-center justify-between'>
-                    <div className='font-medium text-[#AEAEAE] text-small dark:text-[#AEAEAE]'>
+                    <div className='font-medium text-[var(--text-tertiary)] text-small dark:text-[var(--text-tertiary)]'>
                       Workflows
                     </div>
                     <div className='flex items-center justify-center gap-[10px]'>

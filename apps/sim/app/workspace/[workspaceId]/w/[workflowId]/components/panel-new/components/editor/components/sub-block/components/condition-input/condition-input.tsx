@@ -708,17 +708,19 @@ export function ConditionInput({
       {conditionalBlocks.map((block, index) => (
         <div
           key={block.id}
-          className='group relative overflow-visible rounded-[4px] border border-[#303030] bg-[#1F1F1F]'
+          className='group relative overflow-visible rounded-[4px] border border-[var(--border-strong)] bg-[#1F1F1F]'
         >
           <div
             className={cn(
               'flex items-center justify-between overflow-hidden bg-transparent px-[10px] py-[5px]',
               block.title === 'else'
                 ? 'rounded-[4px] border-0'
-                : 'rounded-t-[4px] border-[#303030] border-b'
+                : 'rounded-t-[4px] border-[var(--border-strong)] border-b'
             )}
           >
-            <span className='font-medium text-[#AEAEAE] text-[14px]'>{block.title}</span>
+            <span className='font-medium text-[14px] text-[var(--text-tertiary)]'>
+              {block.title}
+            </span>
             <div className='flex items-center gap-[8px]'>
               <Tooltip.Root>
                 <Tooltip.Trigger asChild>
@@ -777,7 +779,7 @@ export function ConditionInput({
                     variant='ghost'
                     onClick={() => removeBlock(block.id)}
                     disabled={isPreview || conditionalBlocks.length === 1 || disabled}
-                    className='h-auto p-0 text-[#EF4444] hover:text-[#EF4444]'
+                    className='h-auto p-0 text-[var(--text-error)] hover:text-[var(--text-error)]'
                   >
                     <Trash className='h-[14px] w-[14px]' />
                     <span className='sr-only'>Delete Block</span>

@@ -259,7 +259,7 @@ export function WorkspaceHeader({
       {/* Workspace Name */}
       <div className='flex min-w-0 flex-1 items-center gap-[8px]'>
         <h2
-          className='max-w-full truncate font-base text-[14px] dark:text-[#FFFFFF]'
+          className='max-w-full truncate font-base text-[14px] dark:text-[var(--white)]'
           title={activeWorkspace?.name || 'Loading...'}
         >
           {activeWorkspace?.name || 'Loading...'}
@@ -278,7 +278,7 @@ export function WorkspaceHeader({
                 className='group !p-[3px] -m-[3px]'
                 onClick={handleRefresh}
               >
-                <RefreshCw className='h-[14px] w-[14px] text-[#EF4444] dark:text-[#EF4444]' />
+                <RefreshCw className='h-[14px] w-[14px] text-[var(--text-error)] dark:text-[var(--text-error)]' />
               </Button>
             </Tooltip.Trigger>
             <Tooltip.Content>Connection lost - refresh</Tooltip.Content>
@@ -378,7 +378,7 @@ export function WorkspaceHeader({
                   {workspaces.map((workspace, index) => (
                     <div key={workspace.id} className={index > 0 ? 'mt-[2px]' : ''}>
                       {editingWorkspaceId === workspace.id ? (
-                        <div className='flex h-[25px] items-center gap-[8px] rounded-[6px] bg-[#363636] px-[6px] dark:bg-[#363636]'>
+                        <div className='flex h-[25px] items-center gap-[8px] rounded-[6px] bg-[var(--surface-9)] px-[6px] dark:bg-[var(--surface-9)]'>
                           <input
                             ref={listRenameInputRef}
                             value={editingName}
@@ -408,7 +408,7 @@ export function WorkspaceHeader({
                                 setIsListRenaming(false)
                               }
                             }}
-                            className='w-full border-0 bg-transparent p-0 font-base text-[#E6E6E6] text-[12px] outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 dark:text-[#E6E6E6]'
+                            className='w-full border-0 bg-transparent p-0 font-base text-[12px] text-[var(--text-primary)] outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 dark:text-[var(--text-primary)]'
                             maxLength={100}
                             autoComplete='off'
                             autoCorrect='off'

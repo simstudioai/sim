@@ -258,10 +258,10 @@ export function Panel() {
     <>
       <aside
         ref={panelRef}
-        className='panel-container fixed inset-y-0 right-0 z-10 overflow-hidden dark:bg-[#1E1E1E]'
+        className='panel-container fixed inset-y-0 right-0 z-10 overflow-hidden dark:bg-[var(--surface-1)]'
         aria-label='Workflow panel'
       >
-        <div className='flex h-full flex-col border-l pt-[14px] dark:border-[#2C2C2C]'>
+        <div className='flex h-full flex-col border-l pt-[14px] dark:border-[var(--border)]'>
           {/* Header */}
           <div className='flex flex-shrink-0 items-center justify-between px-[8px]'>
             {/* More and Chat */}
@@ -352,7 +352,7 @@ export function Panel() {
           <div className='flex flex-shrink-0 items-center justify-between px-[8px] pt-[14px]'>
             <div className='flex gap-[4px]'>
               <Button
-                className='h-[28px] px-[8px] py-[5px] text-[12.5px] hover:bg-[#363636] hover:text-[#E6E6E6] dark:hover:bg-[#363636] dark:hover:text-[#E6E6E6]'
+                className='h-[28px] px-[8px] py-[5px] text-[12.5px] hover:bg-[var(--surface-9)] hover:text-[var(--text-primary)] dark:hover:bg-[var(--surface-9)] dark:hover:text-[var(--text-primary)]'
                 variant={_hasHydrated && activeTab === 'copilot' ? 'active' : 'ghost'}
                 onClick={() => handleTabClick('copilot')}
                 data-tab-button='copilot'
@@ -360,7 +360,7 @@ export function Panel() {
                 Copilot
               </Button>
               <Button
-                className='h-[28px] px-[8px] py-[5px] text-[12.5px] hover:bg-[#363636] hover:text-[#E6E6E6] dark:hover:bg-[#363636] dark:hover:text-[#E6E6E6]'
+                className='h-[28px] px-[8px] py-[5px] text-[12.5px] hover:bg-[var(--surface-9)] hover:text-[var(--text-primary)] dark:hover:bg-[var(--surface-9)] dark:hover:text-[var(--text-primary)]'
                 variant={_hasHydrated && activeTab === 'toolbar' ? 'active' : 'ghost'}
                 onClick={() => handleTabClick('toolbar')}
                 data-tab-button='toolbar'
@@ -368,7 +368,7 @@ export function Panel() {
                 Toolbar
               </Button>
               <Button
-                className='h-[28px] px-[8px] py-[5px] text-[12.5px] hover:bg-[#363636] hover:text-[#E6E6E6] dark:hover:bg-[#363636] dark:hover:text-[#E6E6E6]'
+                className='h-[28px] px-[8px] py-[5px] text-[12.5px] hover:bg-[var(--surface-9)] hover:text-[var(--text-primary)] dark:hover:bg-[var(--surface-9)] dark:hover:text-[var(--text-primary)]'
                 variant={_hasHydrated && activeTab === 'editor' ? 'active' : 'ghost'}
                 onClick={() => handleTabClick('editor')}
                 data-tab-button='editor'
@@ -440,7 +440,7 @@ export function Panel() {
             <ModalDescription>
               Deleting this workflow will permanently remove all associated blocks, executions, and
               configuration.{' '}
-              <span className='text-[#EF4444] dark:text-[#EF4444]'>
+              <span className='text-[var(--text-error)] dark:text-[var(--text-error)]'>
                 This action cannot be undone.
               </span>
             </ModalDescription>
@@ -455,7 +455,7 @@ export function Panel() {
               Cancel
             </Button>
             <Button
-              className='h-[32px] bg-[#EF4444] px-[12px] text-[#FFFFFF] hover:bg-[#EF4444] hover:text-[#FFFFFF] dark:bg-[#EF4444] dark:text-[#FFFFFF] hover:dark:bg-[#EF4444] dark:hover:text-[#FFFFFF]'
+              className='h-[32px] bg-[var(--text-error)] px-[12px] text-[var(--white)] hover:bg-[var(--text-error)] hover:text-[var(--white)] dark:bg-[var(--text-error)] dark:text-[var(--white)] hover:dark:bg-[var(--text-error)] dark:hover:text-[var(--white)]'
               onClick={handleDeleteWorkflow}
               disabled={isDeleting}
             >

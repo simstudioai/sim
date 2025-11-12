@@ -17,7 +17,7 @@ import { Input } from '../input/input'
 import { Popover, PopoverAnchor, PopoverContent, PopoverScrollArea } from '../popover/popover'
 
 const comboboxVariants = cva(
-  'flex w-full rounded-[4px] border border-[#3D3D3D] bg-[#282828] dark:bg-[#363636] px-[8px] py-[6px] font-sans font-medium text-sm text-[#E6E6E6] placeholder:text-[#787878] dark:placeholder:text-[#787878] outline-none focus:outline-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 disabled:cursor-not-allowed disabled:opacity-50 hover:border-[#4A4A4A] hover:bg-[#363636] dark:hover:border-[#454545] dark:hover:bg-[#3D3D3D]',
+  'flex w-full rounded-[4px] border border-[var(--surface-11)] bg-[var(--surface-6)] dark:bg-[var(--surface-9)] px-[8px] py-[6px] font-sans font-medium text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] dark:placeholder:text-[var(--text-muted)] outline-none focus:outline-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 disabled:cursor-not-allowed disabled:opacity-50 hover:border-[var(--surface-14)] hover:bg-[var(--surface-9)] dark:hover:border-[var(--surface-13)] dark:hover:bg-[var(--surface-11)]',
   {
     variants: {
       variant: {
@@ -338,7 +338,7 @@ const Combobox = forwardRef<HTMLDivElement, ComboboxProps>(
                   <Input
                     ref={inputRef}
                     className={cn(
-                      'w-full pr-[40px] font-medium transition-colors hover:border-[#4A4A4A] hover:bg-[#363636] dark:hover:border-[#454545] dark:hover:bg-[#3D3D3D]',
+                      'w-full pr-[40px] font-medium transition-colors hover:border-[var(--surface-14)] hover:bg-[var(--surface-9)] dark:hover:border-[var(--surface-13)] dark:hover:bg-[var(--surface-11)]',
                       (overlayContent || SelectedIcon) && 'text-transparent caret-foreground',
                       SelectedIcon && !overlayContent && 'pl-[28px]',
                       className
@@ -361,7 +361,9 @@ const Combobox = forwardRef<HTMLDivElement, ComboboxProps>(
                           {SelectedIcon && (
                             <SelectedIcon className='mr-[8px] h-3 w-3 flex-shrink-0 opacity-60' />
                           )}
-                          <span className='truncate text-[#E6E6E6]'>{selectedOption?.label}</span>
+                          <span className='truncate text-[var(--text-primary)]'>
+                            {selectedOption?.label}
+                          </span>
                         </>
                       )}
                     </div>
@@ -397,7 +399,7 @@ const Combobox = forwardRef<HTMLDivElement, ComboboxProps>(
                   <span
                     className={cn(
                       'flex-1 truncate',
-                      !selectedOption && 'text-[#787878]',
+                      !selectedOption && 'text-[var(--text-muted)]',
                       overlayContent && 'text-transparent'
                     )}
                   >
@@ -441,8 +443,8 @@ const Combobox = forwardRef<HTMLDivElement, ComboboxProps>(
               <div ref={dropdownRef} role='listbox'>
                 {isLoading ? (
                   <div className='flex items-center justify-center py-[14px]'>
-                    <Loader2 className='h-[16px] w-[16px] animate-spin text-[#787878]' />
-                    <span className='ml-[8px] font-medium font-sans text-[#787878] text-sm'>
+                    <Loader2 className='h-[16px] w-[16px] animate-spin text-[var(--text-muted)]' />
+                    <span className='ml-[8px] font-medium font-sans text-[var(--text-muted)] text-sm'>
                       Loading options...
                     </span>
                   </div>
@@ -451,7 +453,7 @@ const Combobox = forwardRef<HTMLDivElement, ComboboxProps>(
                     {error}
                   </div>
                 ) : filteredOptions.length === 0 ? (
-                  <div className='py-[14px] text-center font-medium font-sans text-[#787878] text-sm'>
+                  <div className='py-[14px] text-center font-medium font-sans text-[var(--text-muted)] text-sm'>
                     {editable && value ? 'No matching options found' : 'No options available'}
                   </div>
                 ) : (
@@ -476,12 +478,14 @@ const Combobox = forwardRef<HTMLDivElement, ComboboxProps>(
                         onMouseEnter={() => setHighlightedIndex(index)}
                         className={cn(
                           'relative flex cursor-pointer select-none items-center rounded-[4px] px-[8px] py-[6px] font-medium font-sans text-sm',
-                          isHighlighted && 'bg-[#3D3D3D]',
-                          !isHighlighted && 'hover:bg-[#3D3D3D]'
+                          isHighlighted && 'bg-[var(--surface-11)]',
+                          !isHighlighted && 'hover:bg-[var(--surface-11)]'
                         )}
                       >
                         {OptionIcon && <OptionIcon className='mr-[8px] h-3 w-3 opacity-60' />}
-                        <span className='flex-1 truncate text-[#E6E6E6]'>{option.label}</span>
+                        <span className='flex-1 truncate text-[var(--text-primary)]'>
+                          {option.label}
+                        </span>
                         {isSelected && <Check className='ml-[8px] h-4 w-4 flex-shrink-0' />}
                       </div>
                     )

@@ -57,7 +57,7 @@ const NoteMarkdown = memo(function NoteMarkdown({ content }: { content: string }
         li: ({ children }) => <li className='mb-0'>{children}</li>,
         code: ({ inline, children }: any) =>
           inline ? (
-            <code className='rounded bg-[#393939] px-1 py-0.5 text-[#F59E0B] text-xs'>
+            <code className='rounded bg-[var(--divider)] px-1 py-0.5 text-[#F59E0B] text-xs'>
               {children}
             </code>
           ) : (
@@ -70,7 +70,7 @@ const NoteMarkdown = memo(function NoteMarkdown({ content }: { content: string }
             href={href}
             target='_blank'
             rel='noopener noreferrer'
-            className='text-[#33B4FF] underline-offset-2 hover:underline'
+            className='text-[var(--brand-secondary)] underline-offset-2 hover:underline'
           >
             {children}
           </a>
@@ -152,14 +152,14 @@ export const NoteBlock = memo(function NoteBlock({ id, data }: NodeProps<NoteBlo
     <div className='group relative'>
       <div
         className={cn(
-          'relative z-[20] w-[250px] cursor-default select-none rounded-[8px] bg-[#232323]'
+          'relative z-[20] w-[250px] cursor-default select-none rounded-[8px] bg-[var(--surface-2)]'
         )}
         onClick={handleClick}
       >
         <ActionBar blockId={id} blockType={type} disabled={!userPermissions.canEdit} />
 
         <div
-          className='note-drag-handle flex cursor-grab items-center justify-between border-[#393939] border-b p-[8px] [&:active]:cursor-grabbing'
+          className='note-drag-handle flex cursor-grab items-center justify-between border-[var(--divider)] border-b p-[8px] [&:active]:cursor-grabbing'
           onMouseDown={(event) => {
             event.stopPropagation()
           }}

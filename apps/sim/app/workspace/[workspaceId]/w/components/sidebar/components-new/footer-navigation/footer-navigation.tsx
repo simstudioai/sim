@@ -79,28 +79,30 @@ export function FooterNavigation() {
 
   return (
     <>
-      <div className='flex flex-shrink-0 flex-col gap-[2px] border-t px-[7.75px] pt-[8px] pb-[8px] dark:border-[#2C2C2C]'>
+      <div className='flex flex-shrink-0 flex-col gap-[2px] border-t px-[7.75px] pt-[8px] pb-[8px] dark:border-[var(--border)]'>
         {navigationItems.map((item) => {
           const Icon = item.icon
           const active = item.href ? isActive(item.href) : false
 
           const itemClasses = clsx(
             'group flex h-[24px] items-center gap-[8px] rounded-[8px] px-[7px] text-[14px]',
-            active ? 'bg-[#2C2C2C] dark:bg-[#2C2C2C]' : 'hover:bg-[#2C2C2C] dark:hover:bg-[#2C2C2C]'
+            active
+              ? 'bg-[var(--border)] dark:bg-[var(--border)]'
+              : 'hover:bg-[var(--border)] dark:hover:bg-[var(--border)]'
           )
 
           const iconClasses = clsx(
             'h-[14px] w-[14px] flex-shrink-0',
             active
-              ? 'text-[#E6E6E6] dark:text-[#E6E6E6]'
-              : 'text-[#AEAEAE] group-hover:text-[#E6E6E6] dark:text-[#AEAEAE] dark:group-hover:text-[#E6E6E6]'
+              ? 'text-[var(--text-primary)] dark:text-[var(--text-primary)]'
+              : 'text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)] dark:text-[var(--text-tertiary)] dark:group-hover:text-[var(--text-primary)]'
           )
 
           const labelClasses = clsx(
             'truncate font-base text-[13px]',
             active
-              ? 'text-[#E6E6E6] dark:text-[#E6E6E6]'
-              : 'text-[#AEAEAE] group-hover:text-[#E6E6E6] dark:text-[#AEAEAE] dark:group-hover:text-[#E6E6E6]'
+              ? 'text-[var(--text-primary)] dark:text-[var(--text-primary)]'
+              : 'text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)] dark:text-[var(--text-tertiary)] dark:group-hover:text-[var(--text-primary)]'
           )
 
           const content = (
