@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Star, User } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import { createLogger } from '@/lib/logs/console/logger'
@@ -14,6 +14,7 @@ interface TemplateCardProps {
   title: string
   description: string
   author: string
+  authorImageUrl?: string | null
   usageCount: string
   stars?: number
   icon?: React.ReactNode | string
@@ -138,11 +139,12 @@ function normalizeWorkflowState(input?: any): WorkflowState | null {
   return normalized
 }
 
-export function TemplateCard({
+function TemplateCardInner({
   id,
   title,
   description,
   author,
+  authorImageUrl,
   usageCount,
   stars = 0,
   icon,
@@ -164,11 +166,38 @@ export function TemplateCard({
   const [localStarCount, setLocalStarCount] = useState(stars)
   const [isStarLoading, setIsStarLoading] = useState(false)
 
+  // Memoize normalized workflow state to avoid recalculation on every render
+  const normalizedState = useMemo(() => normalizeWorkflowState(state), [state])
+
+  // Use IntersectionObserver to defer rendering the heavy WorkflowPreview until in viewport
+  const previewRef = useRef<HTMLDivElement | null>(null)
+  const [isInView, setIsInView] = useState(false)
+
+  useEffect(() => {
+    if (!previewRef.current) return
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setIsInView(true)
+          observer.disconnect()
+        }
+      },
+      { root: null, rootMargin: '200px', threshold: 0 }
+    )
+    observer.observe(previewRef.current)
+    return () => observer.disconnect()
+  }, [])
+
   // Extract block types from state if provided, otherwise use the blocks prop
   // Filter out starter blocks in both cases and sort for consistent rendering
-  const blockTypes = state
-    ? extractBlockTypesFromState(state)
-    : blocks.filter((blockType) => blockType !== 'starter').sort()
+  // Memoized to prevent recalculation on every render
+  const blockTypes = useMemo(
+    () =>
+      state
+        ? extractBlockTypesFromState(state)
+        : blocks.filter((blockType) => blockType !== 'starter').sort(),
+    [state, blocks]
+  )
 
   // Handle star toggle with optimistic updates
   const handleStarClick = async (e: React.MouseEvent) => {
@@ -227,35 +256,42 @@ export function TemplateCard({
    * Get the appropriate template detail page URL based on context.
    * If we're in a workspace context, navigate to the workspace template page.
    * Otherwise, navigate to the global template page.
+   * Memoized to avoid recalculation on every render.
    */
-  const getTemplateUrl = () => {
+  const templateUrl = useMemo(() => {
     const workspaceId = params?.workspaceId as string | undefined
     if (workspaceId) {
       return `/workspace/${workspaceId}/templates/${id}`
     }
     return `/templates/${id}`
-  }
+  }, [params?.workspaceId, id])
 
   /**
    * Handle use button click - navigate to template detail page
    */
-  const handleUseClick = async (e: React.MouseEvent) => {
-    e.stopPropagation()
-    router.push(getTemplateUrl())
-  }
+  const handleUseClick = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation()
+      router.push(templateUrl)
+    },
+    [router, templateUrl]
+  )
 
   /**
    * Handle card click - navigate to template detail page
    */
-  const handleCardClick = (e: React.MouseEvent) => {
-    // Don't navigate if clicking on action buttons
-    const target = e.target as HTMLElement
-    if (target.closest('button') || target.closest('[data-action]')) {
-      return
-    }
+  const handleCardClick = useCallback(
+    (e: React.MouseEvent) => {
+      // Don't navigate if clicking on action buttons
+      const target = e.target as HTMLElement
+      if (target.closest('button') || target.closest('[data-action]')) {
+        return
+      }
 
-    router.push(getTemplateUrl())
-  }
+      router.push(templateUrl)
+    },
+    [router, templateUrl]
+  )
 
   return (
     <div
@@ -263,10 +299,13 @@ export function TemplateCard({
       className={cn('w-full cursor-pointer rounded-[8px] bg-[#202020] p-[8px]', className)}
     >
       {/* Workflow Preview */}
-      <div className='h-[180px] w-full overflow-hidden rounded-[6px]'>
-        {normalizeWorkflowState(state) ? (
+      <div
+        ref={previewRef}
+        className='pointer-events-none h-[180px] w-full overflow-hidden rounded-[6px]'
+      >
+        {normalizedState && isInView ? (
           <WorkflowPreview
-            workflowState={normalizeWorkflowState(state)!}
+            workflowState={normalizedState}
             showSubBlocks={false}
             height={180}
             width='100%'
@@ -341,7 +380,15 @@ export function TemplateCard({
       <div className='mt-[10px] flex items-center justify-between'>
         {/* Creator Info */}
         <div className='flex items-center gap-[8px]'>
-          <div className='h-[14px] w-[14px] flex-shrink-0 rounded-full bg-[#4A4A4A]' />
+          {authorImageUrl ? (
+            <div className='h-[26px] w-[26px] flex-shrink-0 overflow-hidden rounded-full'>
+              <img src={authorImageUrl} alt={author} className='h-full w-full object-cover' />
+            </div>
+          ) : (
+            <div className='flex h-[26px] w-[26px] flex-shrink-0 items-center justify-center rounded-full bg-[#4A4A4A]'>
+              <User className='h-[18px] w-[18px] text-[#888888]' />
+            </div>
+          )}
           <span className='truncate font-medium text-[#888888] text-[12px]'>{author}</span>
         </div>
 
@@ -363,3 +410,5 @@ export function TemplateCard({
     </div>
   )
 }
+
+export const TemplateCard = memo(TemplateCardInner)
