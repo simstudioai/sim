@@ -3,17 +3,17 @@
  */
 
 /**
- * Mention menu options in order
+ * Mention menu options in order (matches visual render order)
  */
 export const MENTION_OPTIONS = [
   'Chats',
   'Workflows',
-  'Workflow Blocks',
-  'Blocks',
   'Knowledge',
-  'Docs',
+  'Blocks',
+  'Workflow Blocks',
   'Templates',
   'Logs',
+  'Docs',
 ] as const
 
 /**

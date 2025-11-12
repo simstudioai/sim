@@ -3,7 +3,7 @@
 import { useCallback, useState } from 'react'
 import clsx from 'clsx'
 import { ChevronRight, Folder, FolderOpen } from 'lucide-react'
-import { useParams } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 import { ContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/components-new/workflow-list/components/context-menu/context-menu'
 import { DeleteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components-new/workflow-list/components/delete-modal/delete-modal'
 import {
@@ -14,6 +14,7 @@ import {
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import { useDeleteFolder, useDuplicateFolder } from '@/app/workspace/[workspaceId]/w/hooks'
 import { type FolderTreeNode, useFolderStore } from '@/stores/folders/store'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 interface FolderItemProps {
   folder: FolderTreeNode
@@ -34,8 +35,10 @@ interface FolderItemProps {
  */
 export function FolderItem({ folder, level, hoverHandlers }: FolderItemProps) {
   const params = useParams()
+  const router = useRouter()
   const workspaceId = params.workspaceId as string
   const { updateFolderAPI } = useFolderStore()
+  const { createWorkflow } = useWorkflowRegistry()
 
   // Delete modal state
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
@@ -52,6 +55,20 @@ export function FolderItem({ folder, level, hoverHandlers }: FolderItemProps) {
     workspaceId,
     getFolderIds: () => folder.id,
   })
+
+  /**
+   * Handle create workflow in folder
+   */
+  const handleCreateWorkflowInFolder = useCallback(async () => {
+    const workflowId = await createWorkflow({
+      workspaceId,
+      folderId: folder.id,
+    })
+
+    if (workflowId) {
+      router.push(`/workspace/${workspaceId}/w/${workflowId}`)
+    }
+  }, [createWorkflow, workspaceId, folder.id, router])
 
   // Folder expand hook
   const {
@@ -219,8 +236,10 @@ export function FolderItem({ folder, level, hoverHandlers }: FolderItemProps) {
         menuRef={menuRef}
         onClose={closeMenu}
         onRename={handleStartEdit}
+        onCreate={handleCreateWorkflowInFolder}
         onDuplicate={handleDuplicateFolder}
         onDelete={() => setIsDeleteModalOpen(true)}
+        showCreate={true}
       />
 
       {/* Delete Modal */}

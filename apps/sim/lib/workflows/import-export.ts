@@ -10,6 +10,7 @@ export interface WorkflowExportData {
     id: string
     name: string
     description?: string
+    color?: string
     folderId?: string | null
   }
   state: WorkflowState
@@ -83,6 +84,7 @@ export async function exportWorkspaceToZip(
         metadata: {
           name: workflow.workflow.name,
           description: workflow.workflow.description,
+          color: workflow.workflow.color,
           exportedAt: new Date().toISOString(),
         },
         variables: workflow.variables,
