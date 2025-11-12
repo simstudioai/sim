@@ -1,38 +1,52 @@
 import { db } from '@sim/db'
 import { settings, templateCreators, templateStars, templates, user } from '@sim/db/schema'
 import { and, desc, eq, sql } from 'drizzle-orm'
+import { redirect } from 'next/navigation'
 import { getSession } from '@/lib/auth'
+import { verifyWorkspaceMembership } from '@/app/api/workflows/utils'
 import type { Template as WorkspaceTemplate } from '@/app/workspace/[workspaceId]/templates/templates'
 import Templates from '@/app/workspace/[workspaceId]/templates/templates'
 
+interface TemplatesPageProps {
+  params: Promise<{
+    workspaceId: string
+  }>
+}
+
 /**
  * Workspace-scoped Templates page.
- *
- * Mirrors the global templates data loading while rendering the workspace
- * templates UI (which accounts for the sidebar layout). This avoids redirecting
- * to the global /templates route and keeps users within their workspace context.
+ * Requires authentication and workspace membership to access.
  */
-export default async function TemplatesPage() {
+export default async function TemplatesPage({ params }: TemplatesPageProps) {
+  const { workspaceId } = await params
   const session = await getSession()
 
-  // Determine effective super user (DB flag AND UI mode enabled)
-  let effectiveSuperUser = false
-  if (session?.user?.id) {
-    const currentUser = await db
-      .select({ isSuperUser: user.isSuperUser })
-      .from(user)
-      .where(eq(user.id, session.user.id))
-      .limit(1)
-    const userSettings = await db
-      .select({ superUserModeEnabled: settings.superUserModeEnabled })
-      .from(settings)
-      .where(eq(settings.userId, session.user.id))
-      .limit(1)
-
-    const isSuperUser = currentUser[0]?.isSuperUser || false
-    const superUserModeEnabled = userSettings[0]?.superUserModeEnabled ?? true
-    effectiveSuperUser = isSuperUser && superUserModeEnabled
+  // Require authentication
+  if (!session?.user?.id) {
+    redirect('/login')
   }
+
+  // Verify workspace membership
+  const hasPermission = await verifyWorkspaceMembership(session.user.id, workspaceId)
+  if (!hasPermission) {
+    redirect('/')
+  }
+
+  // Determine effective super user (DB flag AND UI mode enabled)
+  const currentUser = await db
+    .select({ isSuperUser: user.isSuperUser })
+    .from(user)
+    .where(eq(user.id, session.user.id))
+    .limit(1)
+  const userSettings = await db
+    .select({ superUserModeEnabled: settings.superUserModeEnabled })
+    .from(settings)
+    .where(eq(settings.userId, session.user.id))
+    .limit(1)
+
+  const isSuperUser = currentUser[0]?.isSuperUser || false
+  const superUserModeEnabled = userSettings[0]?.superUserModeEnabled ?? true
+  const effectiveSuperUser = isSuperUser && superUserModeEnabled
 
   // Load templates from database
   let rows:
