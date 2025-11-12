@@ -94,6 +94,7 @@ export function TimeInput({
             disabled={isPreview || disabled}
             value={value ? formatDisplayTime(value) : ''}
             placeholder={placeholder || 'Select time'}
+            autoComplete='off'
             className={cn('cursor-pointer', !value && 'text-muted-foreground', className)}
           />
         </div>
@@ -122,6 +123,7 @@ export function TimeInput({
               updateTime(numVal.toString())
             }}
             type='text'
+            autoComplete='off'
           />
           <span className='text-[#E6E6E6]'>:</span>
           <Input
@@ -146,6 +148,7 @@ export function TimeInput({
               updateTime(undefined, numVal.toString())
             }}
             type='text'
+            autoComplete='off'
           />
           <Button
             variant='outline'

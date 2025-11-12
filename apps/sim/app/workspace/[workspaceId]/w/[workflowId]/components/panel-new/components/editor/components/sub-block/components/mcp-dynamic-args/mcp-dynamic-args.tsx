@@ -113,6 +113,7 @@ function McpInputWithTags({
           onDragOver={handleDragOver}
           placeholder={placeholder}
           disabled={disabled}
+          autoComplete='off'
           className={cn(!isPassword && 'text-transparent caret-foreground')}
         />
         {!isPassword && (

@@ -202,6 +202,7 @@ export function Table({
             onDrop={handlers.onDrop}
             onDragOver={handlers.onDragOver}
             disabled={isPreview || disabled}
+            autoComplete='off'
             className='w-full border-0 bg-transparent px-[10px] py-[8px] text-transparent caret-white placeholder:text-[#787878] focus-visible:ring-0 focus-visible:ring-offset-0'
           />
           <div

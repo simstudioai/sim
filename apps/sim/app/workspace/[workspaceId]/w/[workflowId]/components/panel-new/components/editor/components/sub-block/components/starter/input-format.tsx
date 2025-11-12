@@ -331,6 +331,7 @@ export function FieldFormat({
           }
           placeholder={valuePlaceholder}
           disabled={isReadOnly}
+          autoComplete='off'
           className={cn('allow-scroll w-full overflow-auto', inputClassName)}
           style={{ overflowX: 'auto' }}
         />
@@ -379,6 +380,7 @@ export function FieldFormat({
                   onChange={(e) => updateField(field.id, 'name', e.target.value)}
                   placeholder={placeholder}
                   disabled={isReadOnly}
+                  autoComplete='off'
                 />
               </div>
 

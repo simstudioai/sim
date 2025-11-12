@@ -302,6 +302,7 @@ export function DocumentTagEntry({
             onFocus={handleFocus}
             onBlur={handleBlur}
             disabled={disabled}
+            autoComplete='off'
             className={cn(
               'w-full border-0 text-transparent caret-foreground placeholder:text-muted-foreground/50 focus-visible:ring-0 focus-visible:ring-offset-0',
               isDuplicate && 'border-red-500 bg-red-50'
@@ -394,6 +395,7 @@ export function DocumentTagEntry({
             value={cellValue}
             readOnly
             disabled={disabled || isReadOnly}
+            autoComplete='off'
             className='w-full cursor-pointer border-0 text-transparent caret-foreground placeholder:text-muted-foreground/50 focus-visible:ring-0 focus-visible:ring-offset-0'
             onClick={handleTypeDropdownClick}
             onFocus={handleTypeFocus}
@@ -465,6 +467,7 @@ export function DocumentTagEntry({
             onDrop={handlers.onDrop}
             onDragOver={handlers.onDragOver}
             disabled={disabled}
+            autoComplete='off'
             className='w-full border-0 text-transparent caret-foreground placeholder:text-muted-foreground/50 focus-visible:ring-0 focus-visible:ring-offset-0'
           />
           <div className='pointer-events-none absolute inset-0 flex items-center overflow-hidden bg-transparent px-3 text-sm'>

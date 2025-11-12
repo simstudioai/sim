@@ -408,6 +408,7 @@ export function VariablesInput({
                           }
                           placeholder={`${assignment.type} value`}
                           disabled={isPreview || disabled}
+                          autoComplete='off'
                           className={cn(
                             'h-9 border border-input bg-white text-transparent caret-foreground placeholder:text-muted-foreground/50 dark:border-input/60 dark:bg-background',
                             dragHighlight[assignment.id] && 'ring-2 ring-blue-500 ring-offset-2'

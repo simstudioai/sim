@@ -235,6 +235,7 @@ export function KnowledgeTagFilters({
             value={cellValue}
             readOnly
             disabled={disabled || isLoading}
+            autoComplete='off'
             className='w-full cursor-pointer border-0 text-transparent caret-foreground placeholder:text-muted-foreground/50 focus-visible:ring-0 focus-visible:ring-offset-0'
             onClick={handleDropdownClick}
             onFocus={handleFocus}
@@ -322,6 +323,7 @@ export function KnowledgeTagFilters({
               }
             }}
             disabled={disabled}
+            autoComplete='off'
             className='w-full border-0 text-transparent caret-foreground placeholder:text-muted-foreground/50 focus-visible:ring-0 focus-visible:ring-offset-0'
           />
           <div className='pointer-events-none absolute inset-0 flex items-center overflow-hidden bg-transparent px-3 text-sm'>
