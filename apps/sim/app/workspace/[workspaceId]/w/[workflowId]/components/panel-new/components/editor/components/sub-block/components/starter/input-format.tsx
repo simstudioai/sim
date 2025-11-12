@@ -1,5 +1,6 @@
 import { useRef } from 'react'
-import { Plus, Trash } from 'lucide-react'
+import { Plus } from 'lucide-react'
+import { Trash } from '@/components/emcn/icons/trash'
 import 'prismjs/components/prism-json'
 import Editor from 'react-simple-code-editor'
 import { Badge, Button, Combobox, Input } from '@/components/emcn'

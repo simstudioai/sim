@@ -1,7 +1,8 @@
 'use client'
 
 import { useMemo, useRef, useState } from 'react'
-import { Plus, Trash2 } from 'lucide-react'
+import { Plus } from 'lucide-react'
+import { Trash } from '@/components/emcn/icons/trash'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { MAX_TAG_SLOTS } from '@/lib/knowledge/consts'
@@ -507,7 +508,7 @@ export function DocumentTagEntry({
           className='-translate-y-1/2 absolute top-1/2 right-2 h-8 w-8 opacity-0 group-hover:opacity-100'
           onClick={() => handleDeleteRow(rowIndex)}
         >
-          <Trash2 className='h-4 w-4 text-muted-foreground' />
+          <Trash className='h-4 w-4 text-muted-foreground' />
         </Button>
       </td>
     ) : null

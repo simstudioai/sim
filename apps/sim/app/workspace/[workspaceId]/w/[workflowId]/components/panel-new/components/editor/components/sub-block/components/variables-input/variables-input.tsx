@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react'
-import { Plus, Trash } from 'lucide-react'
+import { Plus } from 'lucide-react'
 import { useParams } from 'next/navigation'
+import { Trash } from '@/components/emcn/icons/trash'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'

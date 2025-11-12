@@ -1,7 +1,7 @@
 import { useMemo, useRef } from 'react'
-import { Trash2 } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { Button } from '@/components/emcn/components/button/button'
+import { Trash } from '@/components/emcn/icons/trash'
 import { Input } from '@/components/ui/input'
 import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
@@ -262,7 +262,7 @@ export function Table({
           className='-translate-y-1/2 absolute top-1/2 right-[8px] opacity-0 transition-opacity group-hover:opacity-100'
           onClick={() => handleDeleteRow(rowIndex)}
         >
-          <Trash2 className='h-[14px] w-[14px]' />
+          <Trash className='h-[14px] w-[14px]' />
         </Button>
       </td>
     )

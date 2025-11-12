@@ -1,9 +1,10 @@
 'use client'
 
 import { Suspense, startTransition, useCallback, useEffect, useState } from 'react'
-import { ChevronLeft, ChevronRight, Circle, CircleOff, FileText, Plus, Trash2 } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Circle, CircleOff, FileText, Plus } from 'lucide-react'
 import { useParams, useSearchParams } from 'next/navigation'
 import { Tooltip } from '@/components/emcn'
+import { Trash } from '@/components/emcn/icons/trash'
 import { Button, Checkbox, SearchHighlight } from '@/components/ui'
 import { createLogger } from '@/lib/logs/console/logger'
 import {
@@ -369,7 +370,7 @@ export function Document({
                   disabled={!userPermissions.canEdit}
                   className='h-8 w-8 p-0 text-gray-500 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-50'
                 >
-                  <Trash2 className='h-4 w-4' />
+                  <Trash className='h-4 w-4' />
                 </Button>
               </Tooltip.Trigger>
               <Tooltip.Content side='top'>Delete Chunk</Tooltip.Content>

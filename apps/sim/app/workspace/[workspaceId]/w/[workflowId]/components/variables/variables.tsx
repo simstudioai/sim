@@ -1,8 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Plus, Trash, X } from 'lucide-react'
-import { useParams } from 'next/navigation'
+import { Plus, X } from 'lucide-react'
 import Editor from 'react-simple-code-editor'
 import type { ComboboxOption } from '@/components/emcn'
 import {
@@ -16,15 +15,15 @@ import {
   Input,
   languages,
 } from '@/components/emcn'
-import { Label } from '@/components/ui/label'
-import { createLogger } from '@/lib/logs/console/logger'
+import { Label } from '@/components/emcn/components/label/label'
+import { Trash } from '@/components/emcn/icons/trash'
 import { cn, validateName } from '@/lib/utils'
+import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
+import { useVariablesStore as usePanelVariablesStore } from '@/stores/panel/variables/store'
 import { getVariablesPosition, useVariablesStore } from '@/stores/variables/store'
 import type { Variable } from '@/stores/variables/types'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useChatBoundarySync, useChatDrag, useChatResize } from '../chat/hooks'
-
-const logger = createLogger('FloatingVariables')
 
 /**
  * Type options for variable type selection
@@ -38,6 +37,40 @@ const TYPE_OPTIONS: ComboboxOption[] = [
 ]
 
 /**
+ * UI constants for consistent styling and sizing
+ */
+const BADGE_HEIGHT = 20
+const BADGE_TEXT_SIZE = 13
+const ICON_SIZE = 14
+const HEADER_ICON_SIZE = 16
+const LINE_HEIGHT = 21
+const MIN_EDITOR_HEIGHT = 120
+
+/**
+ * User-facing strings for errors, labels, and placeholders
+ */
+const STRINGS = {
+  errors: {
+    emptyName: 'Variable name cannot be empty',
+    duplicateName: 'Two variables cannot have the same name',
+  },
+  labels: {
+    name: 'Name',
+    type: 'Type',
+    value: 'Value',
+  },
+  placeholders: {
+    name: 'variableName',
+    number: '42',
+    boolean: 'true',
+    plain: 'Plain text value',
+    object: '{\n  "key": "value"\n}',
+    array: '[\n  1, 2, 3\n]',
+  },
+  emptyState: 'No variables yet',
+}
+
+/**
  * Floating Variables modal component
  *
  * Matches the visual and interaction style of the Chat modal:
@@ -46,29 +79,18 @@ const TYPE_OPTIONS: ComboboxOption[] = [
  * - Uses emcn Input/Code/Combobox components for a consistent UI
  */
 export function Variables() {
-  const params = useParams()
-  const workspaceId = params.workspaceId as string
   const { activeWorkflowId } = useWorkflowRegistry()
 
-  // UI store
-  const {
-    isOpen,
-    position,
-    width,
-    height,
-    setIsOpen,
-    setPosition,
-    setDimensions,
-    // Data
-    variables,
-    loadForWorkflow,
-    addVariable,
-    updateVariable,
-    deleteVariable,
-    getVariablesByWorkflowId,
-  } = useVariablesStore()
+  const { isOpen, position, width, height, setIsOpen, setPosition, setDimensions } =
+    useVariablesStore()
 
-  // Local UI helpers
+  const { getVariablesByWorkflowId } = usePanelVariablesStore()
+
+  const { collaborativeUpdateVariable, collaborativeAddVariable, collaborativeDeleteVariable } =
+    useCollaborativeWorkflow()
+
+  const workflowVariables = activeWorkflowId ? getVariablesByWorkflowId(activeWorkflowId) : []
+
   const actualPosition = useMemo(
     () => getVariablesPosition(position, width, height),
     [position, width, height]
@@ -102,33 +124,31 @@ export function Variables() {
     onDimensionsChange: setDimensions,
   })
 
-  // Data for current workflow
-  const workflowVariables = useMemo(
-    () => (activeWorkflowId ? getVariablesByWorkflowId(activeWorkflowId) : []),
-    [activeWorkflowId, getVariablesByWorkflowId, variables]
-  )
-
-  useEffect(() => {
-    if (activeWorkflowId) {
-      loadForWorkflow(activeWorkflowId).catch((e) => logger.error('loadForWorkflow failed', e))
-    }
-  }, [activeWorkflowId, loadForWorkflow])
-
-  // Ensure variables are loaded when the modal is opened
-  useEffect(() => {
-    if (isOpen && activeWorkflowId) {
-      loadForWorkflow(activeWorkflowId).catch((e) => logger.error('loadForWorkflow failed', e))
-    }
-  }, [isOpen, activeWorkflowId, loadForWorkflow])
-
-  // Local per-variable UI state
   const [collapsedById, setCollapsedById] = useState<Record<string, boolean>>({})
   const [localNames, setLocalNames] = useState<Record<string, string>>({})
   const [nameErrors, setNameErrors] = useState<Record<string, string>>({})
+  const cleanupState = useCallback(
+    (
+      setter: React.Dispatch<React.SetStateAction<Record<string, any>>>,
+      currentIds: Set<string>
+    ) => {
+      setter((prev) => {
+        const filtered = Object.fromEntries(
+          Object.entries(prev).filter(([id]) => currentIds.has(id))
+        )
+        return Object.keys(filtered).length !== Object.keys(prev).length ? filtered : prev
+      })
+    },
+    []
+  )
 
-  /**
-   * Toggles the collapsed state of a variable
-   */
+  useEffect(() => {
+    const currentVariableIds = new Set(workflowVariables.map((v) => v.id))
+    cleanupState(setCollapsedById, currentVariableIds)
+    cleanupState(setLocalNames, currentVariableIds)
+    cleanupState(setNameErrors, currentVariableIds)
+  }, [workflowVariables, cleanupState])
+
   const toggleCollapsed = (variableId: string) => {
     setCollapsedById((prev) => ({
       ...prev,
@@ -136,26 +156,21 @@ export function Variables() {
     }))
   }
 
-  /**
-   * Clear local name/error state for a variable
-   */
-  const clearLocalState = (variableId: string) => {
-    setLocalNames((prev) => {
-      const updated = { ...prev }
-      delete updated[variableId]
-      return updated
-    })
-    setNameErrors((prev) => {
-      const updated = { ...prev }
-      delete updated[variableId]
-      return updated
-    })
+  const handleHeaderKeyDown = (e: React.KeyboardEvent, variableId: string) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault()
+      toggleCollapsed(variableId)
+    }
   }
 
-  /**
-   * Clear error for a specific variable if present
-   */
-  const clearError = (variableId: string) => {
+  const clearVariableState = (variableId: string, clearNames = true) => {
+    if (clearNames) {
+      setLocalNames((prev) => {
+        const updated = { ...prev }
+        delete updated[variableId]
+        return updated
+      })
+    }
     setNameErrors((prev) => {
       if (!prev[variableId]) return prev
       const updated = { ...prev }
@@ -164,185 +179,195 @@ export function Variables() {
     })
   }
 
-  /**
-   * Adds a new variable to the list
-   */
-  const handleAddVariable = () => {
+  const handleAddVariable = useCallback(() => {
     if (!activeWorkflowId) return
-    addVariable({
+    collaborativeAddVariable({
       name: '',
       type: 'plain',
       value: '',
       workflowId: activeWorkflowId,
     })
-  }
+  }, [activeWorkflowId, collaborativeAddVariable])
 
-  /**
-   * Removes a variable by ID
-   */
-  const handleRemoveVariable = (variableId: string) => {
-    deleteVariable(variableId)
-  }
+  const handleRemoveVariable = useCallback(
+    (variableId: string) => {
+      collaborativeDeleteVariable(variableId)
+    },
+    [collaborativeDeleteVariable]
+  )
 
-  /**
-   * Updates a specific variable property
-   */
-  const handleUpdateVariable = (variableId: string, field: keyof Variable, value: any) => {
-    const validatedValue =
-      field === 'name' && typeof value === 'string' ? validateName(value) : value
-    updateVariable(variableId, { [field]: validatedValue })
-  }
+  const handleUpdateVariable = useCallback(
+    (variableId: string, field: 'name' | 'value' | 'type', value: any) => {
+      collaborativeUpdateVariable(variableId, field, value)
+    },
+    [collaborativeUpdateVariable]
+  )
+  const isDuplicateName = useCallback(
+    (variableId: string, name: string): boolean => {
+      const trimmedName = name.trim()
+      return (
+        !!trimmedName &&
+        workflowVariables.some((v) => v.id !== variableId && v.name === trimmedName)
+      )
+    },
+    [workflowVariables]
+  )
 
-  /**
-   * Local handlers for name editing with validation akin to panel behavior
-   */
-  const isDuplicateName = (variableId: string, name: string): boolean => {
-    if (!name.trim()) return false
-    return workflowVariables.some((v) => v.id !== variableId && v.name === name.trim())
-  }
-
-  const handleVariableNameChange = (variableId: string, newName: string) => {
+  const handleVariableNameChange = useCallback((variableId: string, newName: string) => {
     const validatedName = validateName(newName)
     setLocalNames((prev) => ({
       ...prev,
       [variableId]: validatedName,
     }))
-    clearError(variableId)
-  }
+    clearVariableState(variableId, false)
+  }, [])
 
-  const handleVariableNameBlur = (variableId: string) => {
-    const localName = localNames[variableId]
-    if (localName === undefined) return
+  const handleVariableNameBlur = useCallback(
+    (variableId: string) => {
+      const localName = localNames[variableId]
+      if (localName === undefined) return
 
-    const trimmedName = localName.trim()
-    if (!trimmedName) {
-      setNameErrors((prev) => ({
-        ...prev,
-        [variableId]: 'Variable name cannot be empty',
-      }))
-      return
-    }
+      const trimmedName = localName.trim()
+      if (!trimmedName) {
+        setNameErrors((prev) => ({
+          ...prev,
+          [variableId]: STRINGS.errors.emptyName,
+        }))
+        return
+      }
 
-    if (isDuplicateName(variableId, trimmedName)) {
-      setNameErrors((prev) => ({
-        ...prev,
-        [variableId]: 'Two variables cannot have the same name',
-      }))
-      return
-    }
+      if (isDuplicateName(variableId, trimmedName)) {
+        setNameErrors((prev) => ({
+          ...prev,
+          [variableId]: STRINGS.errors.duplicateName,
+        }))
+        return
+      }
 
-    updateVariable(variableId, { name: trimmedName })
-    clearLocalState(variableId)
-  }
+      collaborativeUpdateVariable(variableId, 'name', trimmedName)
+      clearVariableState(variableId)
+    },
+    [localNames, isDuplicateName, collaborativeUpdateVariable]
+  )
 
-  const handleVariableNameKeyDown = (
-    variableId: string,
-    e: React.KeyboardEvent<HTMLInputElement>
-  ) => {
+  const handleVariableNameKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
       e.currentTarget.blur()
     }
   }
 
-  /**
-   * Formats variable value for display in editor
-   */
-  const formatValue = (variable: Variable) => {
-    if (variable.value === '') return ''
-    return typeof variable.value === 'string' ? variable.value : JSON.stringify(variable.value)
+  const handleClose = () => {
+    setIsOpen(false)
   }
 
-  const handleClose = useCallback(() => {
-    setIsOpen(false)
-  }, [setIsOpen])
-
-  /**
-   * Renders the variable header with name, type badge, and action buttons
-   */
-  const renderVariableHeader = (variable: Variable, index: number) => (
-    <div
-      className='flex cursor-pointer items-center justify-between bg-transparent px-[10px] py-[5px]'
-      onClick={() => toggleCollapsed(variable.id)}
-    >
-      <div className='flex min-w-0 flex-1 items-center gap-[8px]'>
-        <span className='block truncate font-medium text-[#AEAEAE] text-[14px]'>
-          {variable.name || `Variable ${index + 1}`}
-        </span>
-        {variable.name && <Badge className='h-[20px] text-[13px]'>{variable.type}</Badge>}
-      </div>
-      <div className='flex items-center gap-[8px] pl-[8px]' onClick={(e) => e.stopPropagation()}>
-        <Button variant='ghost' onClick={handleAddVariable} className='h-auto p-0'>
-          <Plus className='h-[14px] w-[14px]' />
-          <span className='sr-only'>Add Variable</span>
-        </Button>
-        <Button
-          variant='ghost'
-          onClick={() => handleRemoveVariable(variable.id)}
-          className='h-auto p-0 text-[#EF4444] hover:text-[#EF4444]'
+  const renderVariableHeader = useCallback(
+    (variable: Variable, index: number) => {
+      const isCollapsed = collapsedById[variable.id] ?? false
+      return (
+        <div
+          className='flex cursor-pointer items-center justify-between bg-transparent px-[10px] py-[5px]'
+          onClick={() => toggleCollapsed(variable.id)}
+          onKeyDown={(e) => handleHeaderKeyDown(e, variable.id)}
+          role='button'
+          tabIndex={0}
+          aria-expanded={!isCollapsed}
+          aria-controls={`variable-content-${variable.id}`}
         >
-          <Trash className='h-[14px] w-[14px]' />
-          <span className='sr-only'>Delete Variable</span>
-        </Button>
-      </div>
-    </div>
+          <div className='flex min-w-0 flex-1 items-center gap-[8px]'>
+            <span className='block truncate font-medium text-[#AEAEAE] text-[14px]'>
+              {variable.name || `Variable ${index + 1}`}
+            </span>
+            {variable.name && (
+              <Badge style={{ height: `${BADGE_HEIGHT}px`, fontSize: `${BADGE_TEXT_SIZE}px` }}>
+                {variable.type}
+              </Badge>
+            )}
+          </div>
+          <Button
+            variant='ghost'
+            onClick={(e) => {
+              e.stopPropagation()
+              handleRemoveVariable(variable.id)
+            }}
+            className='h-auto p-0 text-[#EF4444] hover:text-[#EF4444]'
+            aria-label={`Delete ${variable.name || `variable ${index + 1}`}`}
+          >
+            <Trash style={{ width: `${ICON_SIZE}px`, height: `${ICON_SIZE}px` }} />
+            <span className='sr-only'>Delete Variable</span>
+          </Button>
+        </div>
+      )
+    },
+    [collapsedById, toggleCollapsed, handleRemoveVariable]
   )
 
   /**
-   * Renders the value input based on variable type
+   * Renders the value input based on variable type.
+   * Memoized with useCallback to prevent unnecessary re-renders.
    */
-  const renderValueInput = (variable: Variable) => {
-    const variableValue = formatValue(variable)
+  const renderValueInput = useCallback(
+    (variable: Variable) => {
+      const variableValue =
+        variable.value === ''
+          ? ''
+          : typeof variable.value === 'string'
+            ? variable.value
+            : JSON.stringify(variable.value)
 
-    if (variable.type === 'object' || variable.type === 'array') {
-      const lineCount = variableValue.split('\n').length
-      const gutterWidth = calculateGutterWidth(lineCount)
-      const placeholder = variable.type === 'object' ? '{\n  "key": "value"\n}' : '[\n  1, 2, 3\n]'
+      if (variable.type === 'object' || variable.type === 'array') {
+        const lineCount = variableValue.split('\n').length
+        const gutterWidth = calculateGutterWidth(lineCount)
+        const placeholder =
+          variable.type === 'object' ? STRINGS.placeholders.object : STRINGS.placeholders.array
 
-      const renderLineNumbers = () => {
-        return Array.from({ length: lineCount }, (_, i) => (
-          <div
-            key={i}
-            className='font-medium font-mono text-[#787878] text-xs'
-            style={{ height: `${21}px`, lineHeight: `${21}px` }}
-          >
-            {i + 1}
-          </div>
-        ))
+        const renderLineNumbers = () => {
+          return Array.from({ length: lineCount }, (_, i) => (
+            <div
+              key={i}
+              className='font-medium font-mono text-[#787878] text-xs'
+              style={{ height: `${LINE_HEIGHT}px`, lineHeight: `${LINE_HEIGHT}px` }}
+            >
+              {i + 1}
+            </div>
+          ))
+        }
+
+        return (
+          <Code.Container style={{ minHeight: `${MIN_EDITOR_HEIGHT}px` }}>
+            <Code.Gutter width={gutterWidth}>{renderLineNumbers()}</Code.Gutter>
+            <Code.Content paddingLeft={`${gutterWidth}px`}>
+              <Code.Placeholder gutterWidth={gutterWidth} show={variableValue.length === 0}>
+                {placeholder}
+              </Code.Placeholder>
+              <Editor
+                value={variableValue}
+                onValueChange={(newValue) => handleUpdateVariable(variable.id, 'value', newValue)}
+                highlight={(code) => highlight(code, languages.json, 'json')}
+                {...getCodeEditorProps()}
+              />
+            </Code.Content>
+          </Code.Container>
+        )
       }
 
       return (
-        <Code.Container className='min-h-[120px]'>
-          <Code.Gutter width={gutterWidth}>{renderLineNumbers()}</Code.Gutter>
-          <Code.Content paddingLeft={`${gutterWidth}px`}>
-            <Code.Placeholder gutterWidth={gutterWidth} show={variableValue.length === 0}>
-              {placeholder}
-            </Code.Placeholder>
-            <Editor
-              value={variableValue}
-              onValueChange={(newValue) => handleUpdateVariable(variable.id, 'value', newValue)}
-              highlight={(code) => highlight(code, languages.json, 'json')}
-              {...getCodeEditorProps()}
-            />
-          </Code.Content>
-        </Code.Container>
+        <Input
+          name='value'
+          autoComplete='off'
+          value={variableValue}
+          onChange={(e) => handleUpdateVariable(variable.id, 'value', e.target.value)}
+          placeholder={
+            variable.type === 'number'
+              ? STRINGS.placeholders.number
+              : variable.type === 'boolean'
+                ? STRINGS.placeholders.boolean
+                : STRINGS.placeholders.plain
+          }
+        />
       )
-    }
-
-    return (
-      <Input
-        name='value'
-        value={variableValue}
-        onChange={(e) => handleUpdateVariable(variable.id, 'value', e.target.value)}
-        placeholder={
-          variable.type === 'number'
-            ? '42'
-            : variable.type === 'boolean'
-              ? 'true'
-              : 'Plain text value'
-        }
-      />
-    )
-  }
+    },
+    [handleUpdateVariable]
+  )
 
   if (!isOpen) return null
 
@@ -376,11 +401,17 @@ export function Variables() {
               e.stopPropagation()
               handleAddVariable()
             }}
+            aria-label='Add new variable'
           >
-            <Plus className='h-[16px] w-[16px]' />
+            <Plus style={{ width: `${HEADER_ICON_SIZE}px`, height: `${HEADER_ICON_SIZE}px` }} />
           </Button>
-          <Button variant='ghost' className='!p-1.5 -m-1.5' onClick={handleClose}>
-            <X className='h-[16px] w-[16px]' />
+          <Button
+            variant='ghost'
+            className='!p-1.5 -m-1.5'
+            onClick={handleClose}
+            aria-label='Close variables panel'
+          >
+            <X style={{ width: `${HEADER_ICON_SIZE}px`, height: `${HEADER_ICON_SIZE}px` }} />
           </Button>
         </div>
       </div>
@@ -389,7 +420,7 @@ export function Variables() {
       <div className='flex flex-1 flex-col overflow-hidden pt-[8px]'>
         {workflowVariables.length === 0 ? (
           <div className='flex flex-1 items-center justify-center text-[#8D8D8D] text-[13px]'>
-            No variables yet
+            {STRINGS.emptyState}
           </div>
         ) : (
           <div className='h-full overflow-y-auto overflow-x-hidden'>
@@ -405,24 +436,30 @@ export function Variables() {
                   {renderVariableHeader(variable, index)}
 
                   {!(collapsedById[variable.id] ?? false) && (
-                    <div className='flex flex-col gap-[6px] border-[#303030] border-t px-[10px] pt-[6px] pb-[10px]'>
+                    <div
+                      id={`variable-content-${variable.id}`}
+                      className='flex flex-col gap-[6px] border-[#303030] border-t px-[10px] pt-[6px] pb-[10px]'
+                    >
                       <div className='flex flex-col gap-[4px]'>
-                        <Label className='text-[13px]'>Name</Label>
+                        <Label className='text-[13px]'>{STRINGS.labels.name}</Label>
                         <Input
                           name='name'
+                          autoComplete='off'
                           value={localNames[variable.id] ?? variable.name}
                           onChange={(e) => handleVariableNameChange(variable.id, e.target.value)}
                           onBlur={() => handleVariableNameBlur(variable.id)}
-                          onKeyDown={(e) => handleVariableNameKeyDown(variable.id, e)}
-                          placeholder='variableName'
+                          onKeyDown={handleVariableNameKeyDown}
+                          placeholder={STRINGS.placeholders.name}
                         />
                         {nameErrors[variable.id] && (
-                          <div className='mt-1 text-red-400 text-xs'>{nameErrors[variable.id]}</div>
+                          <p className='text-[#EF4444] text-xs' role='alert'>
+                            {nameErrors[variable.id]}
+                          </p>
                         )}
                       </div>
 
                       <div className='space-y-[4px]'>
-                        <Label className='text-[13px]'>Type</Label>
+                        <Label className='text-[13px]'>{STRINGS.labels.type}</Label>
                         <Combobox
                           options={TYPE_OPTIONS}
                           value={variable.type}
@@ -431,7 +468,7 @@ export function Variables() {
                       </div>
 
                       <div className='space-y-[4px]'>
-                        <Label className='text-[13px]'>Value</Label>
+                        <Label className='text-[13px]'>{STRINGS.labels.value}</Label>
                         <div className='relative'>{renderValueInput(variable)}</div>
                       </div>
                     </div>

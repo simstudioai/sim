@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { Check, Copy, Eye, EyeOff, Plus, RefreshCw, Trash2 } from 'lucide-react'
+import { Check, Copy, Eye, EyeOff, Plus, RefreshCw } from 'lucide-react'
+import { Trash } from '@/components/emcn/icons/trash'
 import { Button, Card, CardContent, Input, Label } from '@/components/ui'
 import { getEnv, isTruthy } from '@/lib/env'
 import { cn, generatePassword } from '@/lib/utils'
@@ -266,7 +267,7 @@ export function AuthSelector({
                           disabled={disabled}
                           className='h-7 w-7 opacity-70'
                         >
-                          <Trash2 className='h-4 w-4' />
+                          <Trash className='h-4 w-4' />
                         </Button>
                       </div>
                     </li>

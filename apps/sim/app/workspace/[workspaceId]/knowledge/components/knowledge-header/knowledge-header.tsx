@@ -1,7 +1,8 @@
 'use client'
 
-import { LibraryBig, MoreHorizontal, Trash2 } from 'lucide-react'
+import { LibraryBig, MoreHorizontal } from 'lucide-react'
 import Link from 'next/link'
+import { Trash } from '@/components/emcn/icons/trash'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -107,7 +108,7 @@ export function KnowledgeHeader({ breadcrumbs, options }: KnowledgeHeaderProps) 
                     onClick={options.onDeleteKnowledgeBase}
                     className='flex cursor-pointer items-center gap-2 rounded-md px-3 py-2 font-[380] text-red-600 text-sm hover:bg-secondary/50 focus:bg-secondary/50 focus:text-red-600'
                   >
-                    <Trash2 className='h-4 w-4' />
+                    <Trash className='h-4 w-4' />
                     Delete Knowledge Base
                   </DropdownMenuItem>
                 </div>

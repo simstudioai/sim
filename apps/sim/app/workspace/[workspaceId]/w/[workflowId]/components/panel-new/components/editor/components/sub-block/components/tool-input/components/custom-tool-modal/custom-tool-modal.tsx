@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { AlertCircle, Code, FileJson, Trash2, X } from 'lucide-react'
+import { AlertCircle, Code, FileJson, X } from 'lucide-react'
 import { useParams } from 'next/navigation'
+import { Trash } from '@/components/emcn/icons/trash'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
   AlertDialog,
@@ -1143,7 +1144,7 @@ try {
                   onClick={() => setShowDeleteConfirm(true)}
                   className='gap-1'
                 >
-                  <Trash2 className='h-4 w-4' />
+                  <Trash className='h-4 w-4' />
                   Delete
                 </Button>
               ) : (

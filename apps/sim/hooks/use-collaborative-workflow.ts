@@ -380,6 +380,15 @@ export function useCollaborativeWorkflow() {
                 payload.id
               )
               break
+            case 'variable-update':
+              if (payload.field === 'name') {
+                variablesStore.updateVariable(payload.variableId, { name: payload.value })
+              } else if (payload.field === 'value') {
+                variablesStore.updateVariable(payload.variableId, { value: payload.value })
+              } else if (payload.field === 'type') {
+                variablesStore.updateVariable(payload.variableId, { type: payload.value })
+              }
+              break
             case 'remove':
               variablesStore.deleteVariable(payload.variableId)
               break
@@ -1518,6 +1527,8 @@ export function useCollaborativeWorkflow() {
   const collaborativeAddVariable = useCallback(
     (variableData: { name: string; type: any; value: any; workflowId: string }) => {
       const id = crypto.randomUUID()
+
+      // Optimistically add to local store first
       variablesStore.addVariable(variableData, id)
       const processedVariable = useVariablesStore.getState().variables[id]
 
@@ -1528,6 +1539,8 @@ export function useCollaborativeWorkflow() {
           name: processedVariable.name,
         }
 
+        // Queue operation with processed name for server & other clients
+        // Empty callback because local store is already updated above
         executeQueuedOperation('add', 'variable', payloadWithProcessedName, () => {})
       }
 
