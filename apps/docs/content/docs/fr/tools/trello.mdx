@@ -10,6 +10,21 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#0052CC"
 />
 
+{/* MANUAL-CONTENT-START:intro */}
+[Trello](https://trello.com) est un outil de collaboration visuel qui vous aide à organiser des projets, des tâches et des flux de travail à l'aide de tableaux, de listes et de cartes.
+
+Avec Trello dans Sim, vous pouvez :
+
+- **Lister les tableaux et les listes** : Visualiser les tableaux auxquels vous avez accès et leurs listes associées.
+- **Lister et rechercher des cartes** : Récupérer toutes les cartes d'un tableau ou filtrer par liste pour voir leur contenu et leur statut.
+- **Créer des cartes** : Ajouter de nouvelles cartes à une liste Trello, y compris des descriptions, des étiquettes et des dates d'échéance.
+- **Mettre à jour et déplacer des cartes** : Modifier les propriétés des cartes, déplacer des cartes entre les listes, et définir des dates d'échéance ou des étiquettes.
+- **Obtenir l'activité récente** : Récupérer les actions et l'historique d'activité pour les tableaux et les cartes.
+- **Commenter les cartes** : Ajouter des commentaires aux cartes pour la collaboration et le suivi.
+
+L'intégration de Trello avec Sim permet à vos agents de gérer les tâches, les tableaux et les projets de votre équipe de manière programmatique. Automatisez les flux de travail de gestion de projet, maintenez les listes de tâches à jour, synchronisez avec d'autres outils, ou déclenchez des flux de travail intelligents en réponse aux événements Trello — le tout grâce à vos agents IA.
+{/* MANUAL-CONTENT-END */}
+
 ## Instructions d'utilisation
 
 Intégrez avec Trello pour gérer les tableaux et les cartes. Listez les tableaux, listez les cartes, créez des cartes, mettez à jour des cartes, obtenez des actions et ajoutez des commentaires.
@@ -23,8 +38,8 @@ Lister toutes les listes d'un tableau Trello
 #### Entrée
 
 | Paramètre | Type | Obligatoire | Description |
-| --------- | ---- | -------- | ----------- |
-| `boardId` | string | Oui | ID du tableau dont on veut lister les listes |
+| --------- | ---- | ---------- | ----------- |
+| `boardId` | chaîne | Oui | ID du tableau dont on veut lister les listes |
 
 #### Sortie
 
@@ -51,7 +66,7 @@ Lister toutes les cartes d'un tableau Trello
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
 | `success` | boolean | Si l'opération a réussi |
-| `cards` | array | Tableau d'objets carte avec id, nom, description, url, IDs de tableau/liste, étiquettes et date d'échéance |
+| `cards` | array | Tableau d'objets carte avec id, nom, description, url, IDs du tableau/liste, étiquettes et date d'échéance |
 | `count` | number | Nombre de cartes retournées |
 | `error` | string | Message d'erreur si l'opération a échoué |
 
@@ -62,14 +77,14 @@ Créer une nouvelle carte sur un tableau Trello
 #### Entrée
 
 | Paramètre | Type | Obligatoire | Description |
-| --------- | ---- | ---------- | ----------- |
-| `boardId` | chaîne | Oui | ID du tableau sur lequel créer la carte |
-| `listId` | chaîne | Oui | ID de la liste dans laquelle créer la carte |
-| `name` | chaîne | Oui | Nom/titre de la carte |
-| `desc` | chaîne | Non | Description de la carte |
-| `pos` | chaîne | Non | Position de la carte \(haut, bas, ou nombre flottant positif\) |
-| `due` | chaîne | Non | Date d'échéance \(format ISO 8601\) |
-| `labels` | chaîne | Non | Liste d'IDs d'étiquettes séparés par des virgules |
+| --------- | ---- | -------- | ----------- |
+| `boardId` | string | Oui | ID du tableau sur lequel créer la carte |
+| `listId` | string | Oui | ID de la liste dans laquelle créer la carte |
+| `name` | string | Oui | Nom/titre de la carte |
+| `desc` | string | Non | Description de la carte |
+| `pos` | string | Non | Position de la carte \(top, bottom, ou nombre flottant positif\) |
+| `due` | string | Non | Date d'échéance \(format ISO 8601\) |
+| `labels` | string | Non | Liste d'IDs d'étiquettes séparés par des virgules |
 
 #### Sortie
 
@@ -99,9 +114,9 @@ Mettre à jour une carte existante sur Trello
 
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Indique si la carte a été mise à jour avec succès |
-| `card` | object | L'objet carte mis à jour avec id, nom, description, url et autres propriétés |
-| `error` | string | Message d'erreur si l'opération a échoué |
+| `success` | booléen | Indique si la carte a été mise à jour avec succès |
+| `card` | objet | L'objet carte mis à jour avec id, nom, description, url et autres propriétés |
+| `error` | chaîne | Message d'erreur si l'opération a échoué |
 
 ### `trello_get_actions`
 
@@ -111,10 +126,10 @@ Obtenir l'activité/les actions d'un tableau ou d'une carte
 
 | Paramètre | Type | Obligatoire | Description |
 | --------- | ---- | ---------- | ----------- |
-| `boardId` | string | Non | ID du tableau pour obtenir les actions (soit boardId soit cardId requis) |
-| `cardId` | string | Non | ID de la carte pour obtenir les actions (soit boardId soit cardId requis) |
-| `filter` | string | Non | Filtrer les actions par type (par exemple, "commentCard,updateCard,createCard" ou "all") |
-| `limit` | number | Non | Nombre maximum d'actions à retourner (par défaut : 50, max : 1000) |
+| `boardId` | chaîne | Non | ID du tableau dont on veut obtenir les actions \(soit boardId soit cardId requis\) |
+| `cardId` | chaîne | Non | ID de la carte dont on veut obtenir les actions \(soit boardId soit cardId requis\) |
+| `filter` | chaîne | Non | Filtrer les actions par type \(ex. : "commentCard,updateCard,createCard" ou "all"\) |
+| `limit` | nombre | Non | Nombre maximum d'actions à retourner \(par défaut : 50, max : 1000\) |
 
 #### Sortie
 

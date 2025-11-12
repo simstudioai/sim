@@ -12,8 +12,8 @@ import { Image } from '@/components/ui/image'
   <Image
     src="/static/blocks/workflow.png"
     alt="Configuration du bloc de flux de travail"
-    width={400}
-    height={280}
+    width={500}
+    height={400}
     className="rounded-xl border border-border shadow-sm"
   />
 </div>
@@ -39,6 +39,18 @@ Déposez un bloc de flux de travail lorsque vous souhaitez appeler un flux de tr
    - `result` – la réponse finale du flux de travail enfant
    - `success` – s'il s'est exécuté sans erreurs
    - `error` – message lorsque l'exécution échoue
+
+## Badge de statut de déploiement
+
+Le bloc Workflow affiche un badge de statut de déploiement pour vous aider à suivre si le flux de travail enfant est prêt à être exécuté :
+
+- **Déployé** – Le flux de travail enfant a été déployé et est prêt à être utilisé. Le bloc exécutera la version déployée actuelle.
+- **Non déployé** – Le flux de travail enfant n'a jamais été déployé. Vous devez le déployer avant que le bloc Workflow puisse l'exécuter.
+- **Redéployer** – Des modifications ont été détectées dans le flux de travail enfant depuis le dernier déploiement. Cliquez sur le badge pour redéployer le flux de travail enfant avec les dernières modifications.
+
+<Callout type="warn">
+Le bloc Workflow exécute toujours la version déployée la plus récente du flux de travail enfant, pas la version de l'éditeur. Assurez-vous de redéployer après avoir apporté des modifications pour garantir que le bloc utilise la logique la plus récente.
+</Callout>
 
 ## Notes d'exécution
 

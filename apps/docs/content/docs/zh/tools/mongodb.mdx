@@ -10,9 +10,23 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#E0E0E0"
 />
 
+{/* MANUAL-CONTENT-START:intro */}
+[MongoDB](https://www.mongodb.com/) 工具使您能够连接到 MongoDB 数据库，并直接在您的代理工作流中执行各种面向文档的操作。通过灵活的配置和安全的连接管理，您可以轻松地与数据交互并对其进行操作。
+
+使用 MongoDB 工具，您可以：
+
+- **查找文档**：使用 `mongodb_query` 操作，通过丰富的查询过滤器查询集合并检索文档。
+- **插入文档**：使用 `mongodb_insert` 操作，将一个或多个文档添加到集合中。
+- **更新文档**：通过指定过滤条件和更新操作，使用 `mongodb_update` 操作修改现有文档。
+- **删除文档**：使用 `mongodb_delete` 操作，从集合中删除文档，指定过滤器和删除选项。
+- **聚合数据**：使用 `mongodb_execute` 操作运行复杂的聚合管道，以转换和分析数据。
+
+MongoDB 工具非常适合需要管理或分析结构化、基于文档的数据的工作流。无论是处理用户生成的内容、管理应用数据，还是支持分析，MongoDB 工具都能以安全、编程化的方式简化您的数据访问和操作。
+{/* MANUAL-CONTENT-END */}
+
 ## 使用说明
 
-将 MongoDB 集成到工作流程中。可以查找、插入、更新、删除和聚合数据。
+将 MongoDB 集成到工作流中。可以查找、插入、更新、删除和聚合数据。
 
 ## 工具
 
@@ -25,16 +39,16 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 | 参数 | 类型 | 必需 | 描述 |
 | --------- | ---- | -------- | ----------- |
 | `host` | string | 是 | MongoDB 服务器主机名或 IP 地址 |
-| `port` | number | 是 | MongoDB 服务器端口 \(默认值：27017\) |
+| `port` | number | 是 | MongoDB 服务器端口 \(默认：27017\) |
 | `database` | string | 是 | 要连接的数据库名称 |
 | `username` | string | 否 | MongoDB 用户名 |
 | `password` | string | 否 | MongoDB 密码 |
 | `authSource` | string | 否 | 认证数据库 |
-| `ssl` | string | 否 | SSL 连接模式 \(禁用、必需、优先\) |
+| `ssl` | string | 否 | SSL 连接模式 \(禁用、必需、首选\) |
 | `collection` | string | 是 | 要查询的集合名称 |
-| `query` | string | 否 | 作为 JSON 字符串的 MongoDB 查询过滤器 |
+| `query` | string | 否 | MongoDB 查询过滤器（JSON 字符串） |
 | `limit` | number | 否 | 要返回的文档最大数量 |
-| `sort` | string | 否 | 作为 JSON 字符串的排序条件 |
+| `sort` | string | 否 | 排序条件（JSON 字符串） |
 
 #### 输出
 
@@ -50,7 +64,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 #### 输入
 
-| 参数 | 类型 | 必填 | 描述 |
+| 参数 | 类型 | 必需 | 描述 |
 | --------- | ---- | -------- | ----------- |
 | `host` | string | 是 | MongoDB 服务器主机名或 IP 地址 |
 | `port` | number | 是 | MongoDB 服务器端口 \(默认值：27017\) |
@@ -69,7 +83,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 | `message` | string | 操作状态消息 |
 | `documentCount` | number | 插入的文档数量 |
 | `insertedId` | string | 插入文档的 ID \(单个插入\) |
-| `insertedIds` | array | 插入文档 ID 的数组 \(多个插入\) |
+| `insertedIds` | array | 插入文档的 ID 数组 \(多个插入\) |
 
 ### `mongodb_update`
 
@@ -97,10 +111,10 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
 | `message` | string | 操作状态消息 |
-| `matchedCount` | number | 符合筛选条件的文档数量 |
+| `matchedCount` | number | 符合过滤条件的文档数量 |
 | `modifiedCount` | number | 被修改的文档数量 |
 | `documentCount` | number | 受影响的文档总数 |
-| `insertedId` | string | 插入文档的 ID（如果是 upsert） |
+| `insertedId` | string | 插入文档的 ID \(如果是 upsert\) |
 
 ### `mongodb_delete`
 
@@ -108,25 +122,25 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 #### 输入
 
-| 参数 | 类型 | 必需 | 描述 |
+| 参数 | 类型 | 必填 | 描述 |
 | --------- | ---- | -------- | ----------- |
 | `host` | string | 是 | MongoDB 服务器主机名或 IP 地址 |
-| `port` | number | 是 | MongoDB 服务器端口（默认：27017） |
+| `port` | number | 是 | MongoDB 服务器端口 \(默认值：27017\) |
 | `database` | string | 是 | 要连接的数据库名称 |
 | `username` | string | 否 | MongoDB 用户名 |
 | `password` | string | 否 | MongoDB 密码 |
 | `authSource` | string | 否 | 认证数据库 |
-| `ssl` | string | 否 | SSL 连接模式（禁用、必需、首选） |
+| `ssl` | string | 否 | SSL 连接模式 \(禁用、必需、优先\) |
 | `collection` | string | 是 | 要删除的集合名称 |
-| `filter` | string | 是 | 作为 JSON 字符串的筛选条件 |
-| `multi` | boolean | 否 | 是否删除多个文档 |
+| `filter` | string | 是 | 过滤条件（JSON 字符串） |
+| `multi` | boolean | 否 | 删除多个文档 |
 
 #### 输出
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
 | `message` | string | 操作状态消息 |
-| `deletedCount` | number | 被删除的文档数量 |
+| `deletedCount` | number | 删除的文档数量 |
 | `documentCount` | number | 受影响的文档总数 |
 
 ### `mongodb_execute`
@@ -135,7 +149,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 #### 输入
 
-| 参数 | 类型 | 必需 | 描述 |
+| 参数 | 类型 | 必填 | 描述 |
 | --------- | ---- | -------- | ----------- |
 | `host` | string | 是 | MongoDB 服务器主机名或 IP 地址 |
 | `port` | number | 是 | MongoDB 服务器端口 \(默认值：27017\) |
@@ -145,14 +159,14 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 | `authSource` | string | 否 | 认证数据库 |
 | `ssl` | string | 否 | SSL 连接模式 \(禁用、必需、优先\) |
 | `collection` | string | 是 | 要执行管道的集合名称 |
-| `pipeline` | string | 是 | 作为 JSON 字符串的聚合管道 |
+| `pipeline` | string | 是 | 聚合管道（JSON 字符串） |
 
 #### 输出
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
 | `message` | string | 操作状态消息 |
-| `documents` | array | 从聚合中返回的文档数组 |
+| `documents` | array | 从聚合返回的文档数组 |
 | `documentCount` | number | 返回的文档数量 |
 
 ## 注意事项

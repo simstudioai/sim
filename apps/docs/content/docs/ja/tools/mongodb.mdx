@@ -10,6 +10,20 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#E0E0E0"
 />
 
+{/* MANUAL-CONTENT-START:intro */}
+[MongoDB](https://www.mongodb.com/)ツールを使用すると、MongoDBデータベースに接続し、エージェントワークフロー内で直接ドキュメント指向の幅広い操作を実行できます。柔軟な構成と安全な接続管理により、データの操作や操作が簡単に行えます。
+
+MongoDBツールでは、以下のことができます：
+
+- **ドキュメントの検索**: `mongodb_query`操作を使用して、リッチなクエリフィルターでコレクションに問い合わせ、ドキュメントを取得します。
+- **ドキュメントの挿入**: `mongodb_insert`操作を使用して、1つまたは複数のドキュメントをコレクションに追加します。
+- **ドキュメントの更新**: `mongodb_update`操作を使用して、フィルター条件と更新アクションを指定して既存のドキュメントを変更します。
+- **ドキュメントの削除**: `mongodb_delete`操作を使用して、フィルターと削除オプションを指定してコレクションからドキュメントを削除します。
+- **データの集計**: `mongodb_execute`操作を使用して複雑な集計パイプラインを実行し、データを変換および分析します。
+
+MongoDBツールは、エージェントが構造化されたドキュメントベースのデータを管理または分析する必要があるワークフローに最適です。ユーザー生成コンテンツの処理、アプリデータの管理、分析の強化など、MongoDBツールはデータアクセスと操作を安全でプログラム的な方法で効率化します。
+{/* MANUAL-CONTENT-END */}
+
 ## 使用方法
 
 MongoDBをワークフローに統合します。データの検索、挿入、更新、削除、集計が可能です。
@@ -18,47 +32,47 @@ MongoDBをワークフローに統合します。データの検索、挿入、�
 
 ### `mongodb_query`
 
-MongoDB コレクションに対して検索操作を実行
+MongoDBコレクションで検索操作を実行する
 
 #### 入力
 
 | パラメータ | 型 | 必須 | 説明 |
 | --------- | ---- | -------- | ----------- |
 | `host` | string | はい | MongoDBサーバーのホスト名またはIPアドレス |
-| `port` | number | はい | MongoDBサーバーのポート（デフォルト: 27017） |
+| `port` | number | はい | MongoDBサーバーのポート（デフォルト：27017） |
 | `database` | string | はい | 接続先のデータベース名 |
-| `username` | string | いいえ | MongoDBのユーザー名 |
-| `password` | string | いいえ | MongoDBのパスワード |
+| `username` | string | いいえ | MongoDBユーザー名 |
+| `password` | string | いいえ | MongoDBパスワード |
 | `authSource` | string | いいえ | 認証データベース |
-| `ssl` | string | いいえ | SSL接続モード（disabled, required, preferred） |
+| `ssl` | string | いいえ | SSL接続モード（disabled、required、preferred） |
 | `collection` | string | はい | クエリを実行するコレクション名 |
-| `query` | string | いいえ | JSON文字列形式のMongoDBクエリフィルター |
+| `query` | string | いいえ | JSON文字列としてのMongoDBクエリフィルター |
 | `limit` | number | いいえ | 返すドキュメントの最大数 |
-| `sort` | string | いいえ | JSON文字列形式のソート条件 |
+| `sort` | string | いいえ | JSON文字列としてのソート条件 |
 
 #### 出力
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
-| `message` | string | 操作のステータスメッセージ |
+| `message` | string | 操作ステータスメッセージ |
 | `documents` | array | クエリから返されたドキュメントの配列 |
-| `documentCount` | number | 返されたドキュメントの数 |
+| `documentCount` | number | 返されたドキュメント数 |
 
 ### `mongodb_insert`
 
-MongoDBコレクションにドキュメントを挿入
+MongoDBコレクションにドキュメントを挿入する
 
 #### 入力
 
 | パラメータ | 型 | 必須 | 説明 |
 | --------- | ---- | -------- | ----------- |
 | `host` | string | はい | MongoDBサーバーのホスト名またはIPアドレス |
-| `port` | number | はい | MongoDBサーバーのポート（デフォルト: 27017） |
+| `port` | number | はい | MongoDBサーバーのポート（デフォルト：27017） |
 | `database` | string | はい | 接続先のデータベース名 |
-| `username` | string | いいえ | MongoDBのユーザー名 |
-| `password` | string | いいえ | MongoDBのパスワード |
+| `username` | string | いいえ | MongoDBユーザー名 |
+| `password` | string | いいえ | MongoDBパスワード |
 | `authSource` | string | いいえ | 認証データベース |
-| `ssl` | string | いいえ | SSL接続モード（disabled, required, preferred） |
+| `ssl` | string | いいえ | SSL接続モード（disabled、required、preferred） |
 | `collection` | string | はい | 挿入先のコレクション名 |
 | `documents` | array | はい | 挿入するドキュメントの配列 |
 
@@ -117,8 +131,8 @@ MongoDBコレクションからドキュメントを削除する
 | `password` | string | いいえ | MongoDBパスワード |
 | `authSource` | string | いいえ | 認証データベース |
 | `ssl` | string | いいえ | SSL接続モード（disabled、required、preferred） |
-| `collection` | string | はい | 削除対象のコレクション名 |
-| `filter` | string | はい | フィルター条件（JSON文字列） |
+| `collection` | string | はい | 削除元のコレクション名 |
+| `filter` | string | はい | JSON文字列としてのフィルター条件 |
 | `multi` | boolean | いいえ | 複数のドキュメントを削除する |
 
 #### 出力
@@ -138,14 +152,14 @@ MongoDB集計パイプラインを実行する
 | パラメータ | 型 | 必須 | 説明 |
 | --------- | ---- | -------- | ----------- |
 | `host` | string | はい | MongoDBサーバーのホスト名またはIPアドレス |
-| `port` | number | はい | MongoDBサーバーのポート（デフォルト：27017） |
+| `port` | number | はい | MongoDBサーバーのポート（デフォルト: 27017） |
 | `database` | string | はい | 接続先のデータベース名 |
-| `username` | string | いいえ | MongoDBユーザー名 |
-| `password` | string | いいえ | MongoDBパスワード |
+| `username` | string | いいえ | MongoDBのユーザー名 |
+| `password` | string | いいえ | MongoDBのパスワード |
 | `authSource` | string | いいえ | 認証データベース |
 | `ssl` | string | いいえ | SSL接続モード（disabled、required、preferred） |
 | `collection` | string | はい | パイプラインを実行するコレクション名 |
-| `pipeline` | string | はい | 集計パイプライン（JSON文字列） |
+| `pipeline` | string | はい | JSON文字列としての集計パイプライン |
 
 #### 出力
 
@@ -153,9 +167,9 @@ MongoDB集計パイプラインを実行する
 | --------- | ---- | ----------- |
 | `message` | string | 操作ステータスメッセージ |
 | `documents` | array | 集計から返されたドキュメントの配列 |
-| `documentCount` | number | 返されたドキュメントの数 |
+| `documentCount` | number | 返されたドキュメント数 |
 
 ## 注意事項
 
-- カテゴリー: `tools`
+- カテゴリ: `tools`
 - タイプ: `mongodb`

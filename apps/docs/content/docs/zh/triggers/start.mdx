@@ -88,3 +88,13 @@ import { Image } from '@/components/ui/image'
 - 当您希望同时支持 API 和聊天调用者时，将 Start 块视为单一入口点。
 - 优先使用命名的输入格式字段，而不是在下游节点中解析原始 JSON；类型强制会自动发生。
 - 如果您的工作流需要某些字段才能成功，请在 Start 之后立即添加验证或路由。
+
+- 将 <code>&lt;start.fieldName&gt;</code> 直接连接到需要结构化负载的代理、工具或函数。
+- 在提示字段中使用模板语法，例如 <code>&lt;start.sampleField&gt;</code> 或 <code>&lt;start.files[0].url&gt;</code>（仅限聊天）。
+- 当需要对输出进行分组、更新会话历史记录或回调到聊天 API 时，请随时使用 <code>&lt;start.conversationId&gt;</code>。
+
+## 最佳实践
+
+- 当您希望同时支持 API 和聊天调用者时，将 Start 块视为单一入口点。
+- 优先使用命名的输入格式字段，而不是在下游节点中解析原始 JSON；类型强制会自动发生。
+- 如果某些字段是工作流成功所必需的，请在 Start 之后立即添加验证或路由。

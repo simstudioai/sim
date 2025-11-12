@@ -10,20 +10,34 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#E0E0E0"
 />
 
+{/* MANUAL-CONTENT-START:intro */}
+La herramienta [Salesforce](https://www.salesforce.com/) te permite conectarte directamente a tu CRM de Salesforce y realizar una amplia gama de operaciones de gestión de relaciones con clientes dentro de tus flujos de trabajo con agentes. Con una integración fluida y segura, puedes acceder y automatizar eficientemente procesos empresariales clave en tus datos de ventas, soporte y marketing.
+
+Con la herramienta Salesforce, puedes:
+
+- **Recuperar cuentas**: Usa la operación `salesforce_get_accounts` para obtener Cuentas de Salesforce con filtros personalizados, ordenación y selección de campos.
+- **Crear cuentas**: Añade automáticamente nuevas Cuentas a Salesforce usando la operación `salesforce_create_account`, especificando detalles como nombre, industria y dirección de facturación.
+- **Gestionar contactos**: (Si se proporciona, hay herramientas similares disponibles para Contactos—añadir, actualizar o recuperar contactos según sea necesario.)
+- **Manejar leads y oportunidades**: Integra la gestión de leads y oportunidades en tu flujo de trabajo, permitiendo a tus agentes capturar, calificar y actualizar datos del pipeline de ventas.
+- **Seguimiento de casos y tareas**: Automatiza el soporte al cliente y las actividades de seguimiento interactuando con Casos y Tareas dentro de Salesforce.
+
+La herramienta Salesforce es ideal para flujos de trabajo donde tus agentes necesitan agilizar las operaciones de ventas, gestión de cuentas, generación de leads y soporte. Ya sea que tus agentes estén sincronizando datos entre plataformas, proporcionando información de clientes en tiempo real o automatizando actualizaciones rutinarias de CRM, la herramienta Salesforce incorpora todo el poder y la extensibilidad de Salesforce en tus procesos programáticos impulsados por agentes.
+{/* MANUAL-CONTENT-END */}
+
 ## Instrucciones de uso
 
-Integra Salesforce en tu flujo de trabajo. Gestiona cuentas, contactos, clientes potenciales, oportunidades, casos y tareas con potentes capacidades de automatización.
+Integra Salesforce en tu flujo de trabajo. Gestiona cuentas, contactos, leads, oportunidades, casos y tareas con potentes capacidades de automatización.
 
 ## Herramientas
 
 ### `salesforce_get_accounts`
 
-Recuperar cuentas desde Salesforce CRM
+Recuperar cuentas del CRM de Salesforce
 
 #### Entrada
 
-| Parámetro | Tipo | Obligatorio | Descripción |
-| --------- | ---- | -------- | ----------- |
+| Parámetro | Tipo | Requerido | Descripción |
+| --------- | ---- | --------- | ----------- |
 | `idToken` | string | No | El token ID de OAuth de Salesforce \(contiene URL de instancia\) |
 | `instanceUrl` | string | No | La URL de instancia de Salesforce |
 | `limit` | string | No | Número de resultados a devolver \(predeterminado: 100, máximo: 2000\) |
@@ -107,7 +121,7 @@ Eliminar una cuenta de Salesforce CRM
 #### Entrada
 
 | Parámetro | Tipo | Obligatorio | Descripción |
-| --------- | ---- | ----------- | ----------- |
+| --------- | ---- | -------- | ----------- |
 | `idToken` | string | No | Sin descripción |
 | `instanceUrl` | string | No | Sin descripción |
 | `accountId` | string | Sí | ID de la cuenta a eliminar \(obligatorio\) |
@@ -124,7 +138,7 @@ Eliminar una cuenta de Salesforce CRM
 #### Entrada
 
 | Parámetro | Tipo | Obligatorio | Descripción |
-| --------- | ---- | ----------- | ----------- |
+| --------- | ---- | -------- | ----------- |
 
 #### Salida
 
@@ -138,7 +152,7 @@ Eliminar una cuenta de Salesforce CRM
 #### Entrada
 
 | Parámetro | Tipo | Obligatorio | Descripción |
-| --------- | ---- | ----------- | ----------- |
+| --------- | ---- | -------- | ----------- |
 
 #### Salida
 
@@ -152,7 +166,7 @@ Eliminar una cuenta de Salesforce CRM
 #### Entrada
 
 | Parámetro | Tipo | Obligatorio | Descripción |
-| --------- | ---- | ----------- | ----------- |
+| --------- | ---- | -------- | ----------- |
 
 #### Salida
 
@@ -166,7 +180,7 @@ Eliminar una cuenta de Salesforce CRM
 #### Entrada
 
 | Parámetro | Tipo | Obligatorio | Descripción |
-| --------- | ---- | ----------- | ----------- |
+| --------- | ---- | -------- | ----------- |
 
 #### Salida
 
@@ -180,7 +194,7 @@ Eliminar una cuenta de Salesforce CRM
 #### Entrada
 
 | Parámetro | Tipo | Obligatorio | Descripción |
-| --------- | ---- | ----------- | ----------- |
+| --------- | ---- | -------- | ----------- |
 
 #### Salida
 
@@ -194,7 +208,7 @@ Eliminar una cuenta de Salesforce CRM
 #### Entrada
 
 | Parámetro | Tipo | Obligatorio | Descripción |
-| --------- | ---- | ----------- | ----------- |
+| --------- | ---- | -------- | ----------- |
 
 #### Salida
 
@@ -208,7 +222,7 @@ Eliminar una cuenta de Salesforce CRM
 #### Entrada
 
 | Parámetro | Tipo | Obligatorio | Descripción |
-| --------- | ---- | ----------- | ----------- |
+| --------- | ---- | -------- | ----------- |
 
 #### Salida
 
@@ -222,7 +236,7 @@ Eliminar una cuenta de Salesforce CRM
 #### Entrada
 
 | Parámetro | Tipo | Obligatorio | Descripción |
-| --------- | ---- | ----------- | ----------- |
+| --------- | ---- | -------- | ----------- |
 
 #### Salida
 
@@ -236,7 +250,7 @@ Eliminar una cuenta de Salesforce CRM
 #### Entrada
 
 | Parámetro | Tipo | Obligatorio | Descripción |
-| --------- | ---- | ----------- | ----------- |
+| --------- | ---- | -------- | ----------- |
 
 #### Salida
 
@@ -250,7 +264,7 @@ Eliminar una cuenta de Salesforce CRM
 #### Entrada
 
 | Parámetro | Tipo | Obligatorio | Descripción |
-| --------- | ---- | ----------- | ----------- |
+| --------- | ---- | -------- | ----------- |
 
 #### Salida
 
@@ -264,7 +278,7 @@ Eliminar una cuenta de Salesforce CRM
 #### Entrada
 
 | Parámetro | Tipo | Obligatorio | Descripción |
-| --------- | ---- | ----------- | ----------- |
+| --------- | ---- | -------- | ----------- |
 
 #### Salida
 
@@ -278,7 +292,7 @@ Eliminar una cuenta de Salesforce CRM
 #### Entrada
 
 | Parámetro | Tipo | Obligatorio | Descripción |
-| --------- | ---- | ----------- | ----------- |
+| --------- | ---- | -------- | ----------- |
 
 #### Salida
 
@@ -292,7 +306,7 @@ Eliminar una cuenta de Salesforce CRM
 #### Entrada
 
 | Parámetro | Tipo | Obligatorio | Descripción |
-| --------- | ---- | ----------- | ----------- |
+| --------- | ---- | -------- | ----------- |
 
 #### Salida
 
@@ -306,7 +320,7 @@ Eliminar una cuenta de Salesforce CRM
 #### Entrada
 
 | Parámetro | Tipo | Obligatorio | Descripción |
-| --------- | ---- | ----------- | ----------- |
+| --------- | ---- | -------- | ----------- |
 
 #### Salida
 
@@ -320,7 +334,7 @@ Eliminar una cuenta de Salesforce CRM
 #### Entrada
 
 | Parámetro | Tipo | Obligatorio | Descripción |
-| --------- | ---- | ----------- | ----------- |
+| --------- | ---- | -------- | ----------- |
 
 #### Salida
 
@@ -334,7 +348,7 @@ Eliminar una cuenta de Salesforce CRM
 #### Entrada
 
 | Parámetro | Tipo | Obligatorio | Descripción |
-| --------- | ---- | ----------- | ----------- |
+| --------- | ---- | -------- | ----------- |
 
 #### Salida
 
@@ -348,7 +362,7 @@ Eliminar una cuenta de Salesforce CRM
 #### Entrada
 
 | Parámetro | Tipo | Obligatorio | Descripción |
-| --------- | ---- | ----------- | ----------- |
+| --------- | ---- | -------- | ----------- |
 
 #### Salida
 
@@ -362,7 +376,7 @@ Eliminar una cuenta de Salesforce CRM
 #### Entrada
 
 | Parámetro | Tipo | Obligatorio | Descripción |
-| --------- | ---- | ----------- | ----------- |
+| --------- | ---- | -------- | ----------- |
 
 #### Salida
 
@@ -376,7 +390,7 @@ Eliminar una cuenta de Salesforce CRM
 #### Entrada
 
 | Parámetro | Tipo | Obligatorio | Descripción |
-| --------- | ---- | ----------- | ----------- |
+| --------- | ---- | -------- | ----------- |
 
 #### Salida
 
@@ -390,7 +404,7 @@ Eliminar una cuenta de Salesforce CRM
 #### Entrada
 
 | Parámetro | Tipo | Obligatorio | Descripción |
-| --------- | ---- | ----------- | ----------- |
+| --------- | ---- | -------- | ----------- |
 
 #### Salida
 

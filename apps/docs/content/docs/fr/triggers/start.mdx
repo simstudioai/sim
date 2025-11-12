@@ -94,3 +94,13 @@ Référencez les valeurs structurées en aval avec des expressions telles que <c
 - Considérez le bloc Start comme le point d'entrée unique lorsque vous souhaitez prendre en charge à la fois les appelants API et chat.
 - Préférez les champs de format d'entrée nommés plutôt que d'analyser du JSON brut dans les nœuds en aval ; la conversion de type se fait automatiquement.
 - Ajoutez une validation ou un routage immédiatement après Start si certains champs sont nécessaires pour que votre flux de travail réussisse.
+
+- Connectez <code>&lt;start.fieldName&gt;</code> directement aux agents, outils ou fonctions qui attendent des charges utiles structurées.
+- Utilisez la syntaxe de modèle comme <code>&lt;start.sampleField&gt;</code> ou <code>&lt;start.files[0].url&gt;</code> (chat uniquement) dans les champs de prompt.
+- Gardez <code>&lt;start.conversationId&gt;</code> à portée de main lorsque vous devez regrouper des sorties, mettre à jour l'historique de conversation ou rappeler l'API de chat.
+
+## Meilleures pratiques
+
+- Traitez le bloc Start comme le point d'entrée unique lorsque vous souhaitez prendre en charge à la fois les appelants API et chat.
+- Préférez les champs de format d'entrée nommés plutôt que d'analyser du JSON brut dans les nœuds en aval ; la conversion de type se fait automatiquement.
+- Ajoutez une validation ou un routage immédiatement après Start si certains champs sont nécessaires pour que votre flux de travail réussisse.

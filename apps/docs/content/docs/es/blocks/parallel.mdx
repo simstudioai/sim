@@ -124,14 +124,10 @@ Cada instancia paralela se ejecuta de forma independiente:
   - No puedes colocar ningún bloque contenedor dentro de otro bloque contenedor
 </Callout>
 
-<Callout type="warning">
-  Los bloques paralelos solo pueden contener un único bloque. No puedes tener múltiples bloques conectados entre sí dentro de un paralelo - en ese caso solo se ejecutaría el primer bloque.
-</Callout>
-
 <Callout type="info">
-  Aunque la ejecución paralela es más rápida, ten en cuenta:
-  - Los límites de tasa de API al realizar solicitudes concurrentes
-  - El uso de memoria con conjuntos de datos grandes
+  Aunque la ejecución en paralelo es más rápida, ten en cuenta:
+  - Límites de tasa de API al realizar solicitudes concurrentes
+  - Uso de memoria con conjuntos de datos grandes
   - Máximo de 20 instancias concurrentes para evitar el agotamiento de recursos
 </Callout>
 
@@ -147,9 +143,9 @@ Entendiendo cuándo usar cada uno:
 | Caso de uso | Operaciones independientes | Operaciones dependientes |
 | Uso de recursos | Mayor | Menor |
 
-## Entradas y salidas
+## Entradas y Salidas
 
-<Tabs items={['Configuration', 'Variables', 'Results']}>
+<Tabs items={['Configuración', 'Variables', 'Resultados']}>
   <Tab>
     <ul className="list-disc space-y-2 pl-6">
       <li>
@@ -190,6 +186,6 @@ Entendiendo cuándo usar cada uno:
 
 ## Mejores prácticas
 
-- **Solo operaciones independientes**: Asegúrate de que las operaciones no dependan unas de otras
-- **Gestiona los límites de frecuencia**: Añade retrasos o limitaciones para flujos de trabajo con uso intensivo de API
-- **Manejo de errores**: Cada instancia debe manejar sus propios errores de manera elegante
+- **Solo operaciones independientes**: Asegúrate de que las operaciones no dependan entre sí
+- **Gestionar límites de tasa**: Añade retrasos o limitaciones para flujos de trabajo con uso intensivo de API
+- **Manejo de errores**: Cada instancia debe manejar sus propios errores correctamente
