@@ -72,9 +72,13 @@ export class ExecutionEngine {
         logs: this.context.blockLogs,
         metadata: this.context.metadata,
       }
-      const executionError = new Error(errorMessage)
-      ;(executionError as any).executionResult = executionResult
-      throw executionError
+      
+      // Attach executionResult to the original error instead of creating a new one
+      // This preserves block error metadata (blockId, blockName, blockType, etc.)
+      if (error && typeof error === 'object') {
+        ;(error as any).executionResult = executionResult
+      }
+      throw error
     }
   }
 
@@ -105,6 +109,11 @@ export class ExecutionEngine {
 
   private trackExecution(promise: Promise<void>): void {
     this.executing.add(promise)
+    // Attach error handler to prevent unhandled rejection warnings
+    // The actual error handling happens in waitForAllExecutions/waitForAnyExecution
+    promise.catch(() => {
+      // Error will be properly handled by Promise.all/Promise.race in wait methods
+    })
     promise.finally(() => {
       this.executing.delete(promise)
     })

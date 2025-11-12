@@ -510,7 +510,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
         return NextResponse.json(filteredResult)
       } catch (error: any) {
-        logger.error(`[${requestId}] Non-SSE execution failed:`, error)
+        // Block errors are already logged with full details by BlockExecutor
+        // Only log the error message here to avoid duplicate logging
+        const errorMessage = error.message || 'Unknown error'
+        logger.error(`[${requestId}] Non-SSE execution failed: ${errorMessage}`)
 
         const executionResult = error.executionResult
 
@@ -803,7 +806,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
             },
           })
         } catch (error: any) {
-          logger.error(`[${requestId}] SSE execution failed:`, error)
+          // Block errors are already logged with full details by BlockExecutor
+          // Only log the error message here to avoid duplicate logging
+          const errorMessage = error.message || 'Unknown error'
+          logger.error(`[${requestId}] SSE execution failed: ${errorMessage}`)
 
           const executionResult = error.executionResult
 
@@ -813,7 +819,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
             executionId,
             workflowId,
             data: {
-              error: executionResult?.error || error.message || 'Unknown error',
+              error: executionResult?.error || errorMessage,
               duration: executionResult?.metadata?.duration || 0,
             },
           })

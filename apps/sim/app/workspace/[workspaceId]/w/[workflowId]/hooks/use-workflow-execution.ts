@@ -16,7 +16,7 @@ import { WorkflowValidationError } from '@/serializer'
 import { useExecutionStore } from '@/stores/execution/store'
 import { useVariablesStore } from '@/stores/panel/variables/store'
 import { useEnvironmentStore } from '@/stores/settings/environment/store'
-import { useTerminalConsoleStore } from '@/stores/terminal'
+import { useTerminalConsoleStore, type ConsoleEntry } from '@/stores/terminal'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { mergeSubblockState } from '@/stores/workflows/utils'
@@ -1005,21 +1005,31 @@ export function useWorkflowExecution() {
                 logs: [],
               }
 
-              // Add error to console
-              addConsole({
-                input: {},
-                output: {},
-                success: false,
-                error: data.error,
-                durationMs: data.duration || 0,
-                startedAt: new Date(Date.now() - (data.duration || 0)).toISOString(),
-                endedAt: new Date().toISOString(),
-                workflowId: activeWorkflowId,
-                blockId: 'workflow',
-                executionId: executionId || uuidv4(),
-                blockName: 'Workflow Execution',
-                blockType: 'workflow',
-              })
+              // Only add workflow-level error if no blocks have executed yet
+              // This catches pre-execution errors (validation, serialization, etc.)
+              // Block execution errors are already logged via onBlockError callback
+              const { entries } = useTerminalConsoleStore.getState()
+              const existingLogs = entries.filter(
+                (log: ConsoleEntry) => log.executionId === executionId
+              )
+              
+              if (existingLogs.length === 0) {
+                // No blocks executed yet - this is a pre-execution error
+                addConsole({
+                  input: {},
+                  output: {},
+                  success: false,
+                  error: data.error,
+                  durationMs: data.duration || 0,
+                  startedAt: new Date(Date.now() - (data.duration || 0)).toISOString(),
+                  endedAt: new Date().toISOString(),
+                  workflowId: activeWorkflowId,
+                  blockId: 'validation',
+                  executionId: executionId || uuidv4(),
+                  blockName: 'Workflow Validation',
+                  blockType: 'validation',
+                })
+              }
             },
           },
         })
