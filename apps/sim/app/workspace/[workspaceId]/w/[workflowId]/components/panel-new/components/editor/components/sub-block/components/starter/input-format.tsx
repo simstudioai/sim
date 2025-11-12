@@ -1,5 +1,6 @@
 import { useRef } from 'react'
-import { Plus, Trash } from 'lucide-react'
+import { Plus } from 'lucide-react'
+import { Trash } from '@/components/emcn/icons/trash'
 import 'prismjs/components/prism-json'
 import Editor from 'react-simple-code-editor'
 import { Badge, Button, Combobox, Input } from '@/components/emcn'
@@ -330,6 +331,7 @@ export function FieldFormat({
           }
           placeholder={valuePlaceholder}
           disabled={isReadOnly}
+          autoComplete='off'
           className={cn('allow-scroll w-full overflow-auto', inputClassName)}
           style={{ overflowX: 'auto' }}
         />
@@ -378,6 +380,7 @@ export function FieldFormat({
                   onChange={(e) => updateField(field.id, 'name', e.target.value)}
                   placeholder={placeholder}
                   disabled={isReadOnly}
+                  autoComplete='off'
                 />
               </div>
 

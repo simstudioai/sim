@@ -2,7 +2,7 @@
 
 import type { MouseEvent as ReactMouseEvent } from 'react'
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react'
-import { History, Plus, Trash2 } from 'lucide-react'
+import { History, Plus } from 'lucide-react'
 import {
   Button,
   Popover,
@@ -12,6 +12,7 @@ import {
   PopoverSection,
   PopoverTrigger,
 } from '@/components/emcn'
+import { Trash } from '@/components/emcn/icons/trash'
 import { createLogger } from '@/lib/logs/console/logger'
 import {
   CopilotMessage,
@@ -387,7 +388,7 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
                                     }}
                                     aria-label='Delete chat'
                                   >
-                                    <Trash2 className='h-[10px] w-[10px]' />
+                                    <Trash className='h-[10px] w-[10px]' />
                                   </Button>
                                 </div>
                               </PopoverItem>

@@ -82,6 +82,7 @@ export function WebhookConfigField({
             value={value}
             onChange={onChange ? (e) => onChange(e.target.value) : undefined}
             placeholder={placeholder}
+            autoComplete='off'
             className={cn(
               'h-10 flex-1',
               readOnly ? 'cursor-text font-mono text-xs' : '',

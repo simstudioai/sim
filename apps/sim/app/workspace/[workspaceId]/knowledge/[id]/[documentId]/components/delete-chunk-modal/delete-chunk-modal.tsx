@@ -1,7 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { Loader2, Trash2 } from 'lucide-react'
+import { Loader2 } from 'lucide-react'
+import { Trash } from '@/components/emcn/icons/trash'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -97,7 +98,7 @@ export function DeleteChunkModal({
               </>
             ) : (
               <>
-                <Trash2 className='mr-2 h-4 w-4' />
+                <Trash className='mr-2 h-4 w-4' />
                 Delete
               </>
             )}

@@ -1,7 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { Plus, Trash2 } from 'lucide-react'
+import { Plus } from 'lucide-react'
+import { Trash } from '@/components/emcn/icons/trash'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -234,6 +235,7 @@ export function KnowledgeTagFilters({
             value={cellValue}
             readOnly
             disabled={disabled || isLoading}
+            autoComplete='off'
             className='w-full cursor-pointer border-0 text-transparent caret-foreground placeholder:text-muted-foreground/50 focus-visible:ring-0 focus-visible:ring-offset-0'
             onClick={handleDropdownClick}
             onFocus={handleFocus}
@@ -321,6 +323,7 @@ export function KnowledgeTagFilters({
               }
             }}
             disabled={disabled}
+            autoComplete='off'
             className='w-full border-0 text-transparent caret-foreground placeholder:text-muted-foreground/50 focus-visible:ring-0 focus-visible:ring-offset-0'
           />
           <div className='pointer-events-none absolute inset-0 flex items-center overflow-hidden bg-transparent px-3 text-sm'>
@@ -347,7 +350,7 @@ export function KnowledgeTagFilters({
           className='-translate-y-1/2 absolute top-1/2 right-2 h-8 w-8 opacity-0 group-hover:opacity-100'
           onClick={() => handleDeleteRow(rowIndex)}
         >
-          <Trash2 className='h-4 w-4 text-muted-foreground' />
+          <Trash className='h-4 w-4 text-muted-foreground' />
         </Button>
       </td>
     ) : null
