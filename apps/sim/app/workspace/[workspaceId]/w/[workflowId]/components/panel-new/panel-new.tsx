@@ -244,16 +244,11 @@ export function Panel() {
       shortcut: 'Mod+Enter',
       allowInEditable: false,
       handler: () => {
-        try {
-          if (isExecuting) {
-            cancelWorkflow()
-          } else if (!isButtonDisabled) {
-            runWorkflow()
-          } else {
-            logger.warn('Cannot run workflow: button is disabled')
-          }
-        } catch (err) {
-          logger.error('Failed to execute Cmd+Enter command', { err })
+        // Do exactly what the Run button does
+        if (isExecuting) {
+          cancelWorkflow()
+        } else {
+          runWorkflow()
         }
       },
     },
