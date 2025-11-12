@@ -1004,6 +1004,22 @@ export function useWorkflowExecution() {
                 },
                 logs: [],
               }
+
+              // Add error to console
+              addConsole({
+                input: {},
+                output: {},
+                success: false,
+                error: data.error,
+                durationMs: data.duration || 0,
+                startedAt: new Date(Date.now() - (data.duration || 0)).toISOString(),
+                endedAt: new Date().toISOString(),
+                workflowId: activeWorkflowId,
+                blockId: 'workflow',
+                executionId: executionId || uuidv4(),
+                blockName: 'Workflow Execution',
+                blockType: 'workflow',
+              })
             },
           },
         })
