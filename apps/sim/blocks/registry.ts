@@ -167,7 +167,6 @@ export const registry: Record<string, BlockConfig> = {
   salesforce: SalesforceBlock,
   serper: SerperBlock,
   sharepoint: SharepointBlock,
-  // sms: SMSBlock,
   stagehand: StagehandBlock,
   stagehand_agent: StagehandAgentBlock,
   slack: SlackBlock,
