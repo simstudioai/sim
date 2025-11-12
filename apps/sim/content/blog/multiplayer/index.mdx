@@ -1,0 +1,181 @@
+---
+slug: multiplayer
+title: 'Realtime Collaboration on Sim'
+description: A high-level explanation into Sim realtime collaborative workflow builder - from operation queues to conflict resolution.
+date: 2025-11-11
+updated: 2025-11-11
+authors:
+  - vik
+readingTime: 12
+tags: [Multiplayer, Realtime, Collaboration, WebSockets, Architecture]
+ogImage: /studio/multiplayer/cover.png
+canonical: https://sim.ai/studio/multiplayer
+draft: false
+---
+
+When we started building Sim, we noticed that AI workflow development looked a lot like the design process [Figma](https://www.figma.com/blog/how-figmas-multiplayer-technology-works/) had already solved for. Product managers need to sketch out user-facing flows, engineers need to configure integrations and APIs, and domain experts need to validate business logic—often all at the same time. Traditional workflow builders force serial collaboration: one person edits, saves, exports, and notifies the next person. This creates unnecessary friction.
+
+We decided multiplayer editing was the right approach, even though workflow platforms like n8n and Make do not currently offer it. This post explains how we built it. We'll cover the operation queue, conflict resolution, how we handle blocks/edges/subflows separately, undo/redo as a wrapper around this, and why our system is a lot simpler than you'd expect.
+
+## Architecture Overview: Client-Server with WebSockets
+
+Sim uses a client-server architecture where browser clients communicate with a standalone Node.js WebSocket server over persistent connections. When you open a workflow, your client joins a "workflow room" on the server. All subsequent operations—adding blocks, connecting edges, updating configurations—are synchronized through this connection.
+
+### Server-Side: The Source of Truth
+
+The server maintains authoritative state in PostgreSQL across three normalized tables:
+
+- `workflow_blocks`: Block metadata, positions, configurations, and subblock values
+- `workflow_edges`: Connections between blocks with source/target handles
+- `workflow_subflows`: Loop and parallel container configurations with child node lists
+
+This separation is deliberate. Blocks, edges, and subflows have different update patterns and conflict characteristics. By storing them separately:
+
+1. **Targeted updates**: Moving a block only updates `positionX` and `positionY` fields for that specific block row. We don't load or lock the entire workflow.
+2. **Query optimization**: Different operations hit different tables with appropriate indexes. Updating edge connections only touches `workflow_edges`, leaving blocks untouched.
+3. **Separate channels**: Structural operations (adding blocks, connecting edges) go through the main operation handler with persistence-first logic. Value updates (editing text in a subblock) go through a separate debounced channel with server-side coalescing—reducing database writes from hundreds to dozens for a typical typing session.
+
+The server uses different broadcast strategies: position updates are broadcast immediately for smooth collaborative dragging (optimistic), while structural operations (adding blocks, connecting edges) persist first to ensure consistency (pessimistic).
+
+### Client-Side: Optimistic Updates with Reconciliation
+
+Clients maintain local copies of workflow state in [Zustand](https://github.com/pmndrs/zustand) stores. When you drag a block or type in a text field, the UI updates immediately—this is optimistic rendering. Simultaneously, the client queues an operation in a separate operation queue store to send to the server.
+
+The client doesn't wait for server confirmation to render changes. Instead, it assumes success and continues. If the server rejects an operation (permissions failure, conflict, validation error), the client reconciles by either retrying or reverting the local change.
+
+This is why workflow editing feels instantaneous—you never wait for a network round-trip to see your changes. The downside is added complexity around handling reconciliation, retries, and conflict resolution.
+
+## The Operation Queue: Reliability Through Retries
+
+At the heart of Sim's multiplayer system is the **Operation Queue**—a client-side abstraction that ensures no operation is lost, even under poor network conditions.
+
+### How It Works
+
+Every user action that modifies workflow state generates an operation object:
+
+```typescript
+{
+  id: 'op-uuid',
+  operation: {
+    operation: 'update',  // or 'add', 'remove', 'move'
+    target: 'block',      // or 'edge', 'subblock', 'variable'
+    payload: { /* change data */ }
+  },
+  workflowId: 'workflow-id',
+  userId: 'user-id',
+  status: 'pending'
+}
+```
+
+Operations are enqueued in FIFO order. The queue processor sends one operation at a time over the WebSocket, waiting for server confirmation before proceeding to the next. Text edits (subblock values, variable fields) are debounced client-side and coalesced server-side—a user typing a 500-character prompt generates ~10 operations instead of 500.
+
+Failed operations retry with exponential backoff (structural changes get 3 attempts, text edits get 5). If all retries fail, the system enters offline mode—the queue is cleared and the UI becomes read-only until the user manually refreshes.
+
+### Handling Dependent Operations
+
+The operation queue's real power emerges when handling conflicts between collaborators. Consider this scenario:
+
+**User A** deletes a block while **User B** has a pending subblock update for that same block in their operation queue.
+
+```
+┌─────────────┐                    ┌─────────────┐                    ┌─────────────┐
+│   User A    │                    │   Server    │                    │   User B    │
+└──────┬──────┘                    └──────┬──────┘                    └──────┬──────┘
+       │                                  │                                  │
+       │  Delete Block X                  │                                  │
+       ├─────────────────────────────────>│                                  │
+       │                                  │                                  │
+       │                                  │  Persist deletion                │
+       │                                  │  ────────────┐                   │
+       │                                  │              │                   │
+       │                                  │<─────────────┘                   │
+       │                                  │                                  │
+       │                                  │  Broadcast: Block X deleted      │
+       │                                  ├─────────────────────────────────>│
+       │                                  │                                  │
+       │                                  │             Cancel all ops for X │
+       │                                  │             (including subblock) │
+       │                                  │                          ────────┤
+       │                                  │                                  │
+       │                                  │              Remove Block X      │
+       │                                  │                          ────────┤
+       │                                  │                                  │
+```
+
+Here's what happens:
+
+1. User A's delete operation reaches the server and persists successfully
+2. The server broadcasts the deletion to all clients, including User B
+3. User B's client receives the broadcast and **immediately cancels all pending operations** for Block X (including the subblock update)
+4. Then User B's client removes Block X from local state
+
+No operations are sent to the server for a block that no longer exists. The client proactively removes all related operations from the queue—both block-level operations and subblock operations. User B never sees an error because the stale operation is silently discarded before it's sent.
+
+This is more efficient than server-side validation. By canceling dependent operations locally when receiving a deletion broadcast, we avoid wasting network requests on operations that would fail anyway.
+
+## Conflict Resolution: Timestamps and Determinism
+
+In line with our goal of keeping things simple, Sim uses a **last-writer-wins** strategy with timestamp-based ordering. Every operation carries a client-generated timestamp. When conflicts occur, the operation with the latest timestamp takes precedence.
+
+This is simpler than Figma's operational transform approach, but sufficient for our use case. Workflow building has lower conflict density than text editing—users typically work on different parts of the canvas or different blocks.
+
+**Position conflicts** are handled with timestamp ordering. If two users simultaneously drag the same block, both clients render their local positions optimistically. The server persists both updates based on timestamps, broadcasting each in sequence. Clients receive the conflicting positions and converge to the latest timestamp.
+
+**Value conflicts** (editing the same text field) are rarer but use last-to-arrive wins. Subblock updates are coalesced server-side within a 25ms window—whichever update reaches the server last within that window is persisted, regardless of client timestamp.
+
+## Undo/Redo: A Thin Wrapper Over Sockets
+
+Undo/redo in multiplayer environments is notoriously complex. Should undoing overwrite others' changes? What happens when you undo something someone else modified?
+
+Sim takes a pragmatic approach: **undo/redo is a local, per-user stack that generates inverse operations sent through the same socket system as regular edits.**
+
+### How It Works
+
+Every operation you perform is recorded in a local undo stack with its inverse:
+
+- **Add block** → Inverse: **Remove block** (with full block snapshot)
+- **Remove block** → Inverse: **Add block** (restoring from snapshot)
+- **Move block** → Inverse: **Move block** (with original position)
+- **Update subblock** → Inverse: **Update subblock** (with previous value)
+
+When you press Cmd+Z:
+
+1. Pop the latest operation from your undo stack
+2. Push it to your redo stack
+3. Execute the inverse operation by queuing it through the operation queue
+4. The inverse operation flows through the normal socket system: validation, persistence, broadcast
+
+This means **undo is just another edit**. If you undo adding a block, Sim sends a "remove block" operation through the queue. Other users see the block disappear in real-time, as if you manually deleted it.
+
+### Coalescing and Snapshots
+
+Consecutive operations of the same type are coalesced. If you drag a block across the canvas in 50 small movements, only the starting and ending positions are recorded—pressing undo moves the block back to where you started dragging, not through every intermediate position.
+
+For removal operations, we snapshot the complete state of the removed entity (including all subblock values and connected edges) at the time of removal. This snapshot travels with the undo entry. When you undo a deletion, we restore from the snapshot, ensuring perfect reconstruction even if the workflow structure changed in the interim.
+
+### Multiplayer Undo Semantics
+
+Undo stacks are **per-user**. Your undo history doesn't include others' changes. This matches user expectations: Cmd+Z undoes *your* recent actions, not your collaborator's.
+
+The system prunes invalid operations from your stack when entities are deleted by collaborators. If User B has "add edge to Block X" in their undo stack, but User A deletes Block X, that undo entry becomes invalid and is automatically removed since the target block no longer exists.
+
+An interesting case: you add a block, someone else connects an edge to it, and then you undo your addition. The block disappears along with their edge (because of foreign key constraints). This is correct—your block no longer exists, so edges referencing it can't exist either. Both users see the block and edge vanish.
+
+During execution, undo operations are marked in-progress to prevent circular recording—undoing shouldn't create a new undo entry for the inverse operation itself.
+
+## Conclusion
+
+Building multiplayer workflow editing required rethinking assumptions about how workflow builders should work. By applying lessons from Figma's collaborative design tool to the domain of AI agent workflows, we created a system that feels fast, reliable, and natural for teams building together.
+
+If you're building collaborative editing for structured data (not just text), consider:
+
+- Whether OT/CRDT complexity is necessary for your conflict density
+- How to separate high-frequency value updates from structural changes
+- What guarantees your users need around data persistence and offline editing
+- Whether exposing operation status builds trust in the system
+
+Multiplayer workflow building is no longer a technical curiosity—it's how teams should work together to build AI agents. And the infrastructure to make it reliable and fast is more approachable than you might think.
+
+---
+
+*Interested in how Sim's multiplayer system works in practice? [Try building a workflow](https://sim.ai) with a collaborator in real-time.*

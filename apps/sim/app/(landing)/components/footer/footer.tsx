@@ -217,10 +217,10 @@ export default function Footer({ fullWidth = false }: FooterProps) {
                 Enterprise
               </Link>
               <Link
-                href='/blog'
+                href='/studio'
                 className='text-[14px] text-muted-foreground transition-colors hover:text-foreground'
               >
-                Blog
+                Sim Studio
               </Link>
               <Link
                 href='/changelog'

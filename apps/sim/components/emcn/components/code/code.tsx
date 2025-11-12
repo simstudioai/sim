@@ -2,6 +2,7 @@ import { Fragment, type ReactNode } from 'react'
 import { highlight, languages } from 'prismjs'
 import 'prismjs/components/prism-javascript'
 import 'prismjs/components/prism-python'
+import 'prismjs/components/prism-json'
 import { cn } from '@/lib/utils'
 import './code.css'
 
