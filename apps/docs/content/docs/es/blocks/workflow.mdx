@@ -12,8 +12,8 @@ import { Image } from '@/components/ui/image'
   <Image
     src='/static/blocks/workflow.png'
     alt='Configuración del bloque de flujo de trabajo'
-    width={400}
-    height={280}
+    width={500}
+    height={400}
     className='rounded-xl border border-border shadow-sm'
   />
 </div>
@@ -40,12 +40,24 @@ Coloca un bloque de Flujo de trabajo cuando quieras llamar a un flujo de trabajo
    - `success` – si se ejecutó sin errores
    - `error` – mensaje cuando la ejecución falla
 
+## Insignia de estado de implementación
+
+El bloque de flujo de trabajo muestra una insignia de estado de implementación para ayudarte a realizar un seguimiento de si el flujo de trabajo secundario está listo para ejecutarse:
+
+- **Implementado** – El flujo de trabajo secundario ha sido implementado y está listo para usar. El bloque ejecutará la versión implementada actual.
+- **No implementado** – El flujo de trabajo secundario nunca ha sido implementado. Debes implementarlo antes de que el bloque de flujo de trabajo pueda ejecutarlo.
+- **Reimplementar** – Se han detectado cambios en el flujo de trabajo secundario desde la última implementación. Haz clic en la insignia para reimplementar el flujo de trabajo secundario con los últimos cambios.
+
+<Callout type="warn">
+El bloque de flujo de trabajo siempre ejecuta la versión implementada más reciente del flujo de trabajo secundario, no la versión del editor. Asegúrate de reimplementar después de hacer cambios para garantizar que el bloque utilice la lógica más reciente.
+</Callout>
+
 ## Notas de ejecución
 
-- Los flujos de trabajo hijos se ejecutan en el mismo contexto de espacio de trabajo, por lo que las variables de entorno y herramientas se mantienen.
-- El bloque utiliza versionado de despliegue: cualquier ejecución de API, programación, webhook, manual o chat llama a la instantánea desplegada. Vuelve a desplegar el hijo cuando lo cambies.
-- Si el hijo falla, el bloque genera un error a menos que lo manejes en etapas posteriores.
+- Los flujos de trabajo secundarios se ejecutan en el mismo contexto de espacio de trabajo, por lo que las variables de entorno y las herramientas se mantienen.
+- El bloque utiliza el control de versiones de implementación: cualquier API, programación, webhook, ejecución manual o de chat llama a la instantánea implementada. Reimplementa el flujo secundario cuando lo cambies.
+- Si el flujo secundario falla, el bloque genera un error a menos que lo manejes posteriormente.
 
 <Callout>
-Mantén los flujos de trabajo hijos enfocados. Los flujos pequeños y reutilizables facilitan su combinación sin crear anidamientos profundos.
+Mantén los flujos de trabajo secundarios enfocados. Los flujos pequeños y reutilizables facilitan su combinación sin crear anidamientos profundos.
 </Callout>

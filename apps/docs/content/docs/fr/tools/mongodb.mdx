@@ -10,9 +10,23 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#E0E0E0"
 />
 
+{/* MANUAL-CONTENT-START:intro */}
+L'outil [MongoDB](https://www.mongodb.com/) vous permet de vous connecter à une base de données MongoDB et d'effectuer une large gamme d'opérations orientées document directement dans vos flux de travail d'agents. Avec une configuration flexible et une gestion sécurisée des connexions, vous pouvez facilement interagir avec vos données et les manipuler.
+
+Avec l'outil MongoDB, vous pouvez :
+
+- **Trouver des documents** : interroger des collections et récupérer des documents avec l'opération `mongodb_query` en utilisant des filtres de requête riches.
+- **Insérer des documents** : ajouter un ou plusieurs documents à une collection en utilisant l'opération `mongodb_insert`.
+- **Mettre à jour des documents** : modifier des documents existants avec l'opération `mongodb_update` en spécifiant des critères de filtre et les actions de mise à jour.
+- **Supprimer des documents** : retirer des documents d'une collection en utilisant l'opération `mongodb_delete`, en spécifiant des filtres et des options de suppression.
+- **Agréger des données** : exécuter des pipelines d'agrégation complexes avec l'opération `mongodb_execute` pour transformer et analyser vos données.
+
+L'outil MongoDB est idéal pour les flux de travail où vos agents doivent gérer ou analyser des données structurées basées sur des documents. Qu'il s'agisse de traiter du contenu généré par les utilisateurs, de gérer des données d'application ou d'alimenter des analyses, l'outil MongoDB simplifie l'accès et la manipulation de vos données de manière sécurisée et programmatique.
+{/* MANUAL-CONTENT-END */}
+
 ## Instructions d'utilisation
 
-Intégrer MongoDB dans le flux de travail. Peut trouver, insérer, mettre à jour, supprimer et agréger des données.
+Intégrez MongoDB dans le flux de travail. Permet de trouver, insérer, mettre à jour, supprimer et agréger des données.
 
 ## Outils
 
@@ -24,17 +38,17 @@ Exécuter une opération de recherche sur une collection MongoDB
 
 | Paramètre | Type | Obligatoire | Description |
 | --------- | ---- | ----------- | ----------- |
-| `host` | chaîne | Oui | Nom d'hôte ou adresse IP du serveur MongoDB |
-| `port` | nombre | Oui | Port du serveur MongoDB \(par défaut : 27017\) |
-| `database` | chaîne | Oui | Nom de la base de données à laquelle se connecter |
-| `username` | chaîne | Non | Nom d'utilisateur MongoDB |
-| `password` | chaîne | Non | Mot de passe MongoDB |
-| `authSource` | chaîne | Non | Base de données d'authentification |
-| `ssl` | chaîne | Non | Mode de connexion SSL \(disabled, required, preferred\) |
-| `collection` | chaîne | Oui | Nom de la collection à interroger |
-| `query` | chaîne | Non | Filtre de requête MongoDB sous forme de chaîne JSON |
-| `limit` | nombre | Non | Nombre maximum de documents à retourner |
-| `sort` | chaîne | Non | Critères de tri sous forme de chaîne JSON |
+| `host` | string | Oui | Nom d'hôte ou adresse IP du serveur MongoDB |
+| `port` | number | Oui | Port du serveur MongoDB \(par défaut : 27017\) |
+| `database` | string | Oui | Nom de la base de données à laquelle se connecter |
+| `username` | string | Non | Nom d'utilisateur MongoDB |
+| `password` | string | Non | Mot de passe MongoDB |
+| `authSource` | string | Non | Base de données d'authentification |
+| `ssl` | string | Non | Mode de connexion SSL \(disabled, required, preferred\) |
+| `collection` | string | Oui | Nom de la collection à interroger |
+| `query` | string | Non | Filtre de requête MongoDB au format JSON |
+| `limit` | number | Non | Nombre maximum de documents à retourner |
+| `sort` | string | Non | Critères de tri au format JSON |
 
 #### Sortie
 
@@ -60,7 +74,7 @@ Insérer des documents dans une collection MongoDB
 | `authSource` | chaîne | Non | Base de données d'authentification |
 | `ssl` | chaîne | Non | Mode de connexion SSL \(disabled, required, preferred\) |
 | `collection` | chaîne | Oui | Nom de la collection dans laquelle insérer |
-| `documents` | tableau | Oui | Tableau de documents à insérer |
+| `documents` | tableau | Oui | Tableau des documents à insérer |
 
 #### Sortie
 
@@ -96,11 +110,11 @@ Mettre à jour des documents dans une collection MongoDB
 
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
-| `message` | string | Message d'état de l'opération |
-| `matchedCount` | number | Nombre de documents correspondant au filtre |
-| `modifiedCount` | number | Nombre de documents modifiés |
-| `documentCount` | number | Nombre total de documents affectés |
-| `insertedId` | string | ID du document inséré \(si upsert\) |
+| `message` | chaîne | Message d'état de l'opération |
+| `matchedCount` | nombre | Nombre de documents correspondant au filtre |
+| `modifiedCount` | nombre | Nombre de documents modifiés |
+| `documentCount` | nombre | Nombre total de documents affectés |
+| `insertedId` | chaîne | ID du document inséré \(si upsert\) |
 
 ### `mongodb_delete`
 
@@ -109,25 +123,25 @@ Supprimer des documents d'une collection MongoDB
 #### Entrée
 
 | Paramètre | Type | Obligatoire | Description |
-| --------- | ---- | ----------- | ----------- |
-| `host` | string | Oui | Nom d'hôte ou adresse IP du serveur MongoDB |
-| `port` | number | Oui | Port du serveur MongoDB \(par défaut : 27017\) |
-| `database` | string | Oui | Nom de la base de données à laquelle se connecter |
-| `username` | string | Non | Nom d'utilisateur MongoDB |
-| `password` | string | Non | Mot de passe MongoDB |
-| `authSource` | string | Non | Base de données d'authentification |
-| `ssl` | string | Non | Mode de connexion SSL \(disabled, required, preferred\) |
-| `collection` | string | Oui | Nom de la collection dans laquelle supprimer |
-| `filter` | string | Oui | Critères de filtre au format JSON |
-| `multi` | boolean | Non | Supprimer plusieurs documents |
+| --------- | ---- | ---------- | ----------- |
+| `host` | chaîne | Oui | Nom d'hôte ou adresse IP du serveur MongoDB |
+| `port` | nombre | Oui | Port du serveur MongoDB \(par défaut : 27017\) |
+| `database` | chaîne | Oui | Nom de la base de données à laquelle se connecter |
+| `username` | chaîne | Non | Nom d'utilisateur MongoDB |
+| `password` | chaîne | Non | Mot de passe MongoDB |
+| `authSource` | chaîne | Non | Base de données d'authentification |
+| `ssl` | chaîne | Non | Mode de connexion SSL \(disabled, required, preferred\) |
+| `collection` | chaîne | Oui | Nom de la collection de laquelle supprimer |
+| `filter` | chaîne | Oui | Critères de filtrage au format JSON |
+| `multi` | booléen | Non | Supprimer plusieurs documents |
 
 #### Sortie
 
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
-| `message` | string | Message d'état de l'opération |
-| `deletedCount` | number | Nombre de documents supprimés |
-| `documentCount` | number | Nombre total de documents affectés |
+| `message` | chaîne | Message d'état de l'opération |
+| `deletedCount` | nombre | Nombre de documents supprimés |
+| `documentCount` | nombre | Nombre total de documents affectés |
 
 ### `mongodb_execute`
 
@@ -145,17 +159,17 @@ Exécuter un pipeline d'agrégation MongoDB
 | `authSource` | chaîne | Non | Base de données d'authentification |
 | `ssl` | chaîne | Non | Mode de connexion SSL \(disabled, required, preferred\) |
 | `collection` | chaîne | Oui | Nom de la collection sur laquelle exécuter le pipeline |
-| `pipeline` | chaîne | Oui | Pipeline d'agrégation sous forme de chaîne JSON |
+| `pipeline` | chaîne | Oui | Pipeline d'agrégation au format JSON |
 
 #### Sortie
 
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
 | `message` | chaîne | Message d'état de l'opération |
-| `documents` | tableau | Tableau des documents retournés par l'agrégation |
+| `documents` | tableau | Tableau de documents retournés par l'agrégation |
 | `documentCount` | nombre | Nombre de documents retournés |
 
-## Remarques
+## Notes
 
 - Catégorie : `tools`
 - Type : `mongodb`

@@ -10,9 +10,23 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#E0E0E0"
 />
 
+{/* MANUAL-CONTENT-START:intro */}
+La herramienta [MongoDB](https://www.mongodb.com/) te permite conectarte a una base de datos MongoDB y realizar una amplia gama de operaciones orientadas a documentos directamente dentro de tus flujos de trabajo con agentes. Con una configuración flexible y una gestión segura de conexiones, puedes interactuar fácilmente con tus datos y manipularlos.
+
+Con la herramienta MongoDB, puedes:
+
+- **Encontrar documentos**: Consultar colecciones y recuperar documentos con la operación `mongodb_query` utilizando filtros de consulta avanzados.
+- **Insertar documentos**: Añadir uno o varios documentos a una colección utilizando la operación `mongodb_insert`.
+- **Actualizar documentos**: Modificar documentos existentes con la operación `mongodb_update` especificando criterios de filtro y acciones de actualización.
+- **Eliminar documentos**: Eliminar documentos de una colección utilizando la operación `mongodb_delete`, especificando filtros y opciones de eliminación.
+- **Agregar datos**: Ejecutar pipelines de agregación complejos con la operación `mongodb_execute` para transformar y analizar tus datos.
+
+La herramienta MongoDB es ideal para flujos de trabajo donde tus agentes necesitan gestionar o analizar datos estructurados basados en documentos. Ya sea procesando contenido generado por usuarios, gestionando datos de aplicaciones o impulsando análisis, la herramienta MongoDB simplifica el acceso y la manipulación de tus datos de manera segura y programática.
+{/* MANUAL-CONTENT-END */}
+
 ## Instrucciones de uso
 
-Integrar MongoDB en el flujo de trabajo. Puede encontrar, insertar, actualizar, eliminar y agregar datos.
+Integra MongoDB en el flujo de trabajo. Puede encontrar, insertar, actualizar, eliminar y agregar datos.
 
 ## Herramientas
 
@@ -22,8 +36,8 @@ Ejecutar operación de búsqueda en colección de MongoDB
 
 #### Entrada
 
-| Parámetro | Tipo | Obligatorio | Descripción |
-| --------- | ---- | ----------- | ----------- |
+| Parámetro | Tipo | Requerido | Descripción |
+| --------- | ---- | -------- | ----------- |
 | `host` | string | Sí | Nombre de host o dirección IP del servidor MongoDB |
 | `port` | number | Sí | Puerto del servidor MongoDB \(predeterminado: 27017\) |
 | `database` | string | Sí | Nombre de la base de datos a la que conectarse |
@@ -51,7 +65,7 @@ Insertar documentos en colección de MongoDB
 #### Entrada
 
 | Parámetro | Tipo | Obligatorio | Descripción |
-| --------- | ---- | ---------- | ----------- |
+| --------- | ---- | -------- | ----------- |
 | `host` | string | Sí | Nombre de host o dirección IP del servidor MongoDB |
 | `port` | number | Sí | Puerto del servidor MongoDB \(predeterminado: 27017\) |
 | `database` | string | Sí | Nombre de la base de datos a la que conectarse |
@@ -59,7 +73,7 @@ Insertar documentos en colección de MongoDB
 | `password` | string | No | Contraseña de MongoDB |
 | `authSource` | string | No | Base de datos de autenticación |
 | `ssl` | string | No | Modo de conexión SSL \(disabled, required, preferred\) |
-| `collection` | string | Sí | Nombre de la colección donde insertar |
+| `collection` | string | Sí | Nombre de la colección en la que insertar |
 | `documents` | array | Sí | Array de documentos a insertar |
 
 #### Salida
@@ -73,7 +87,7 @@ Insertar documentos en colección de MongoDB
 
 ### `mongodb_update`
 
-Actualizar documentos en una colección de MongoDB
+Actualizar documentos en colección de MongoDB
 
 #### Entrada
 
@@ -100,7 +114,7 @@ Actualizar documentos en una colección de MongoDB
 | `matchedCount` | number | Número de documentos que coinciden con el filtro |
 | `modifiedCount` | number | Número de documentos modificados |
 | `documentCount` | number | Número total de documentos afectados |
-| `insertedId` | string | ID del documento insertado (si es upsert) |
+| `insertedId` | string | ID del documento insertado \(si hay upsert\) |
 
 ### `mongodb_delete`
 
@@ -109,15 +123,15 @@ Eliminar documentos de una colección de MongoDB
 #### Entrada
 
 | Parámetro | Tipo | Obligatorio | Descripción |
-| --------- | ---- | ----------- | ----------- |
+| --------- | ---- | ---------- | ----------- |
 | `host` | string | Sí | Nombre de host o dirección IP del servidor MongoDB |
-| `port` | number | Sí | Puerto del servidor MongoDB (predeterminado: 27017) |
+| `port` | number | Sí | Puerto del servidor MongoDB \(predeterminado: 27017\) |
 | `database` | string | Sí | Nombre de la base de datos a la que conectarse |
 | `username` | string | No | Nombre de usuario de MongoDB |
 | `password` | string | No | Contraseña de MongoDB |
 | `authSource` | string | No | Base de datos de autenticación |
-| `ssl` | string | No | Modo de conexión SSL (disabled, required, preferred) |
-| `collection` | string | Sí | Nombre de la colección de la que eliminar |
+| `ssl` | string | No | Modo de conexión SSL \(disabled, required, preferred\) |
+| `collection` | string | Sí | Nombre de la colección de donde eliminar |
 | `filter` | string | Sí | Criterios de filtro como cadena JSON |
 | `multi` | boolean | No | Eliminar múltiples documentos |
 
@@ -136,7 +150,7 @@ Ejecutar pipeline de agregación de MongoDB
 #### Entrada
 
 | Parámetro | Tipo | Obligatorio | Descripción |
-| --------- | ---- | ----------- | ----------- |
+| --------- | ---- | ---------- | ----------- |
 | `host` | string | Sí | Nombre de host o dirección IP del servidor MongoDB |
 | `port` | number | Sí | Puerto del servidor MongoDB \(predeterminado: 27017\) |
 | `database` | string | Sí | Nombre de la base de datos a la que conectarse |
@@ -144,7 +158,7 @@ Ejecutar pipeline de agregación de MongoDB
 | `password` | string | No | Contraseña de MongoDB |
 | `authSource` | string | No | Base de datos de autenticación |
 | `ssl` | string | No | Modo de conexión SSL \(disabled, required, preferred\) |
-| `collection` | string | Sí | Nombre de la colección en la que ejecutar el pipeline |
+| `collection` | string | Sí | Nombre de la colección donde ejecutar el pipeline |
 | `pipeline` | string | Sí | Pipeline de agregación como cadena JSON |
 
 #### Salida

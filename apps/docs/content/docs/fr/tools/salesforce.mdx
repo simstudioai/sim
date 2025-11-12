@@ -10,24 +10,38 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#E0E0E0"
 />
 
+{/* MANUAL-CONTENT-START:intro */}
+L'outil [Salesforce](https://www.salesforce.com/) vous permet de vous connecter directement à votre CRM Salesforce et d'effectuer un large éventail d'opérations de gestion de la relation client dans vos flux de travail automatisés. Grâce à une intégration fluide et sécurisée, vous pouvez accéder efficacement à vos processus commerciaux clés et les automatiser à travers vos données de vente, d'assistance et de marketing.
+
+Avec l'outil Salesforce, vous pouvez :
+
+- **Récupérer des comptes** : Utilisez l'opération `salesforce_get_accounts` pour extraire des comptes de Salesforce avec des filtres personnalisés, des tris et une sélection de champs.
+- **Créer des comptes** : Ajoutez automatiquement de nouveaux comptes à Salesforce en utilisant l'opération `salesforce_create_account`, en spécifiant des détails comme le nom, le secteur d'activité et l'adresse de facturation.
+- **Gérer les contacts** : (Si fourni, des outils similaires sont disponibles pour les contacts - ajoutez, mettez à jour ou récupérez des contacts selon vos besoins.)
+- **Gérer les prospects et opportunités** : Intégrez la gestion des prospects et des opportunités dans votre flux de travail, permettant à vos agents de capturer, qualifier et mettre à jour les données du pipeline de vente.
+- **Suivre les dossiers et les tâches** : Automatisez les activités de support client et de suivi en interagissant avec les dossiers et les tâches dans Salesforce.
+
+L'outil Salesforce est idéal pour les flux de travail où vos agents doivent rationaliser les opérations de vente, de gestion de comptes, de génération de prospects et d'assistance. Que vos agents synchronisent des données entre plateformes, fournissent des informations client en temps réel ou automatisent des mises à jour CRM de routine, l'outil Salesforce apporte toute la puissance et l'extensibilité de Salesforce dans vos processus programmatiques pilotés par des agents.
+{/* MANUAL-CONTENT-END */}
+
 ## Instructions d'utilisation
 
-Intégrez Salesforce dans votre flux de travail. Gérez les comptes, contacts, prospects, opportunités, requêtes et tâches avec de puissantes capacités d'automatisation.
+Intégrez Salesforce dans votre flux de travail. Gérez les comptes, contacts, prospects, opportunités, dossiers et tâches avec de puissantes capacités d'automatisation.
 
 ## Outils
 
 ### `salesforce_get_accounts`
 
-Récupérer des comptes depuis Salesforce CRM
+Récupérer des comptes depuis le CRM Salesforce
 
 #### Entrée
 
 | Paramètre | Type | Obligatoire | Description |
-| --------- | ---- | -------- | ----------- |
-| `idToken` | string | Non | Le jeton ID de l'OAuth Salesforce \(contient l'URL de l'instance\) |
+| --------- | ---- | ---------- | ----------- |
+| `idToken` | string | Non | Le jeton d'ID de l'OAuth Salesforce \(contient l'URL de l'instance\) |
 | `instanceUrl` | string | Non | L'URL de l'instance Salesforce |
 | `limit` | string | Non | Nombre de résultats à retourner \(par défaut : 100, max : 2000\) |
-| `fields` | string | Non | Liste des champs à retourner séparés par des virgules \(ex. : "Id,Name,Industry,Phone"\) |
+| `fields` | string | Non | Liste de champs à retourner séparés par des virgules \(ex. : "Id,Name,Industry,Phone"\) |
 | `orderBy` | string | Non | Champ pour l'ordre de tri \(ex. : "Name ASC" ou "CreatedDate DESC"\) |
 
 #### Sortie
@@ -48,8 +62,8 @@ Créer un nouveau compte dans Salesforce CRM
 | `idToken` | string | Non | Pas de description |
 | `instanceUrl` | string | Non | Pas de description |
 | `name` | string | Oui | Nom du compte \(obligatoire\) |
-| `type` | string | Non | Type de compte \(ex. : Client, Partenaire, Prospect\) |
-| `industry` | string | Non | Secteur d'activité \(ex. : Technologie, Santé, Finance\) |
+| `type` | string | Non | Type de compte \(ex., Client, Partenaire, Prospect\) |
+| `industry` | string | Non | Secteur d'activité \(ex., Technologie, Santé, Finance\) |
 | `phone` | string | Non | Numéro de téléphone |
 | `website` | string | Non | URL du site web |
 | `billingStreet` | string | Non | Adresse de facturation |
@@ -131,7 +145,7 @@ Supprimer un compte de Salesforce CRM
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
 | `success` | boolean | Statut de réussite de l'opération |
-| `output` | json | Données du résultat de l'opération |
+| `output` | json | Données résultant de l'opération |
 
 ### `salesforce_create_contact`
 
@@ -145,7 +159,7 @@ Supprimer un compte de Salesforce CRM
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
 | `success` | boolean | Statut de réussite de l'opération |
-| `output` | json | Données du résultat de l'opération |
+| `output` | json | Données résultant de l'opération |
 
 ### `salesforce_update_contact`
 
@@ -159,14 +173,14 @@ Supprimer un compte de Salesforce CRM
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
 | `success` | boolean | Statut de réussite de l'opération |
-| `output` | json | Données du résultat de l'opération |
+| `output` | json | Données résultant de l'opération |
 
 ### `salesforce_delete_contact`
 
 #### Entrée
 
 | Paramètre | Type | Obligatoire | Description |
-| --------- | ---- | ----------- | ----------- |
+| --------- | ---- | -------- | ----------- |
 
 #### Sortie
 
@@ -180,7 +194,7 @@ Supprimer un compte de Salesforce CRM
 #### Entrée
 
 | Paramètre | Type | Obligatoire | Description |
-| --------- | ---- | ----------- | ----------- |
+| --------- | ---- | -------- | ----------- |
 
 #### Sortie
 
@@ -194,7 +208,7 @@ Supprimer un compte de Salesforce CRM
 #### Entrée
 
 | Paramètre | Type | Obligatoire | Description |
-| --------- | ---- | ----------- | ----------- |
+| --------- | ---- | -------- | ----------- |
 
 #### Sortie
 
@@ -208,7 +222,7 @@ Supprimer un compte de Salesforce CRM
 #### Entrée
 
 | Paramètre | Type | Obligatoire | Description |
-| --------- | ---- | ----------- | ----------- |
+| --------- | ---- | -------- | ----------- |
 
 #### Sortie
 
@@ -222,7 +236,7 @@ Supprimer un compte de Salesforce CRM
 #### Entrée
 
 | Paramètre | Type | Obligatoire | Description |
-| --------- | ---- | ----------- | ----------- |
+| --------- | ---- | -------- | ----------- |
 
 #### Sortie
 
@@ -306,7 +320,7 @@ Supprimer un compte de Salesforce CRM
 #### Entrée
 
 | Paramètre | Type | Obligatoire | Description |
-| --------- | ---- | ----------- | ----------- |
+| --------- | ---- | -------- | ----------- |
 
 #### Sortie
 
@@ -320,7 +334,7 @@ Supprimer un compte de Salesforce CRM
 #### Entrée
 
 | Paramètre | Type | Obligatoire | Description |
-| --------- | ---- | ----------- | ----------- |
+| --------- | ---- | -------- | ----------- |
 
 #### Sortie
 
@@ -334,7 +348,7 @@ Supprimer un compte de Salesforce CRM
 #### Entrée
 
 | Paramètre | Type | Obligatoire | Description |
-| --------- | ---- | ----------- | ----------- |
+| --------- | ---- | -------- | ----------- |
 
 #### Sortie
 
@@ -348,7 +362,7 @@ Supprimer un compte de Salesforce CRM
 #### Entrée
 
 | Paramètre | Type | Obligatoire | Description |
-| --------- | ---- | ----------- | ----------- |
+| --------- | ---- | -------- | ----------- |
 
 #### Sortie
 
@@ -362,7 +376,7 @@ Supprimer un compte de Salesforce CRM
 #### Entrée
 
 | Paramètre | Type | Obligatoire | Description |
-| --------- | ---- | ----------- | ----------- |
+| --------- | ---- | -------- | ----------- |
 
 #### Sortie
 
@@ -376,7 +390,7 @@ Supprimer un compte de Salesforce CRM
 #### Entrée
 
 | Paramètre | Type | Obligatoire | Description |
-| --------- | ---- | ----------- | ----------- |
+| --------- | ---- | -------- | ----------- |
 
 #### Sortie
 
@@ -390,7 +404,7 @@ Supprimer un compte de Salesforce CRM
 #### Entrée
 
 | Paramètre | Type | Obligatoire | Description |
-| --------- | ---- | ----------- | ----------- |
+| --------- | ---- | -------- | ----------- |
 
 #### Sortie
 

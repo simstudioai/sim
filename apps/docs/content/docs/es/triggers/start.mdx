@@ -95,3 +95,13 @@ Haz referencia a valores estructurados posteriores con expresiones como <code>&l
 - Trata el bloque Start como el único punto de entrada cuando quieras dar soporte tanto a llamadas de API como de chat.
 - Prefiere campos con formato de entrada nombrados en lugar de analizar JSON sin procesar en nodos posteriores; la conversión de tipos ocurre automáticamente.
 - Añade validación o enrutamiento inmediatamente después de Start si ciertos campos son necesarios para que tu flujo de trabajo tenga éxito.
+
+- Conecta <code>&lt;start.fieldName&gt;</code> directamente a agentes, herramientas o funciones que esperan cargas estructuradas.
+- Usa sintaxis de plantillas como <code>&lt;start.sampleField&gt;</code> o <code>&lt;start.files[0].url&gt;</code> (solo en chat) en campos de prompt.
+- Mantén <code>&lt;start.conversationId&gt;</code> a mano cuando necesites agrupar salidas, actualizar el historial de conversación o llamar de nuevo a la API de chat.
+
+## Mejores prácticas
+
+- Trata el bloque Start como el único punto de entrada cuando quieras admitir tanto llamadas de API como de chat.
+- Prefiere campos de Formato de Entrada con nombre en lugar de analizar JSON sin procesar en nodos posteriores; la conversión de tipos ocurre automáticamente.
+- Añade validación o enrutamiento inmediatamente después de Start si ciertos campos son necesarios para que tu flujo de trabajo tenga éxito.

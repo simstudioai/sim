@@ -10,9 +10,24 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#0052CC"
 />
 
+{/* MANUAL-CONTENT-START:intro */}
+[Trello](https://trello.com) es una herramienta de colaboración visual que te ayuda a organizar proyectos, tareas y flujos de trabajo utilizando tableros, listas y tarjetas.
+
+Con Trello en Sim, puedes:
+
+- **Listar tableros y listas**: Ver los tableros a los que tienes acceso y sus listas asociadas.
+- **Listar y buscar tarjetas**: Obtener todas las tarjetas en un tablero o filtrar por lista para ver su contenido y estado.
+- **Crear tarjetas**: Añadir nuevas tarjetas a una lista de Trello, incluyendo descripciones, etiquetas y fechas de vencimiento.
+- **Actualizar y mover tarjetas**: Editar propiedades de tarjetas, mover tarjetas entre listas y establecer fechas de vencimiento o etiquetas.
+- **Obtener actividad reciente**: Recuperar acciones e historial de actividad para tableros y tarjetas.
+- **Comentar en tarjetas**: Añadir comentarios a las tarjetas para colaboración y seguimiento.
+
+La integración de Trello con Sim permite a tus agentes gestionar programáticamente las tareas, tableros y proyectos de tu equipo. Automatiza flujos de trabajo de gestión de proyectos, mantén listas de tareas actualizadas, sincroniza con otras herramientas o activa flujos de trabajo inteligentes en respuesta a eventos de Trello, todo a través de tus agentes de IA.
+{/* MANUAL-CONTENT-END */}
+
 ## Instrucciones de uso
 
-Intégrate con Trello para gestionar tableros y tarjetas. Lista tableros, lista tarjetas, crea tarjetas, actualiza tarjetas, obtén acciones y añade comentarios.
+Integra con Trello para gestionar tableros y tarjetas. Lista tableros, lista tarjetas, crea tarjetas, actualiza tarjetas, obtiene acciones y añade comentarios.
 
 ## Herramientas
 
@@ -31,27 +46,26 @@ Listar todas las listas en un tablero de Trello
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
 | `success` | boolean | Si la operación fue exitosa |
-| `lists` | array | Array de objetos de lista con id, nombre, cerrado, pos e idBoard |
+| `lists` | array | Array de objetos de lista con id, nombre, cerrado, posición e idTablero |
 | `count` | number | Número de listas devueltas |
 | `error` | string | Mensaje de error si la operación falló |
 
 ### `trello_list_cards`
 
-Listar todas las tarjetas en un tablero de Trello
+Listar todas las listas en un tablero de Trello
 
 #### Entrada
 
 | Parámetro | Tipo | Obligatorio | Descripción |
 | --------- | ---- | -------- | ----------- |
-| `boardId` | string | Sí | ID del tablero del que listar las tarjetas |
-| `listId` | string | No | Opcional: Filtrar tarjetas por ID de lista |
+| `boardId` | string | Sí | ID del tablero del que listar las listas |
 
 #### Salida
 
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
 | `success` | boolean | Si la operación fue exitosa |
-| `cards` | array | Array de objetos de tarjeta con id, nombre, descripción, url, IDs de tablero/lista, etiquetas y fecha de vencimiento |
+| `cards` | array | Array de objetos de tarjeta con id, nombre, desc, url, IDs de tablero/lista, etiquetas y fecha de vencimiento |
 | `count` | number | Número de tarjetas devueltas |
 | `error` | string | Mensaje de error si la operación falló |
 
@@ -63,13 +77,13 @@ Crear una nueva tarjeta en un tablero de Trello
 
 | Parámetro | Tipo | Obligatorio | Descripción |
 | --------- | ---- | -------- | ----------- |
-| `boardId` | string | Sí | ID del tablero donde crear la tarjeta |
-| `listId` | string | Sí | ID de la lista donde crear la tarjeta |
+| `boardId` | string | Sí | ID del tablero en el que crear la tarjeta |
+| `listId` | string | Sí | ID de la lista en la que crear la tarjeta |
 | `name` | string | Sí | Nombre/título de la tarjeta |
 | `desc` | string | No | Descripción de la tarjeta |
-| `pos` | string | No | Posición de la tarjeta \(arriba, abajo o número flotante positivo\) |
+| `pos` | string | No | Posición de la tarjeta \(top, bottom, o número flotante positivo\) |
 | `due` | string | No | Fecha de vencimiento \(formato ISO 8601\) |
-| `labels` | string | No | Lista de IDs de etiquetas separadas por comas |
+| `labels` | string | No | Lista de IDs de etiquetas separados por comas |
 
 #### Salida
 
@@ -99,8 +113,8 @@ Actualizar una tarjeta existente en Trello
 
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
-| `success` | boolean | Indica si la tarjeta se actualizó correctamente |
-| `card` | object | El objeto de tarjeta actualizado con id, nombre, descripción, url y otras propiedades |
+| `success` | boolean | Si la tarjeta se actualizó correctamente |
+| `card` | object | El objeto de la tarjeta actualizada con id, nombre, descripción, url y otras propiedades |
 | `error` | string | Mensaje de error si la operación falló |
 
 ### `trello_get_actions`
@@ -113,14 +127,14 @@ Obtener actividad/acciones de un tablero o tarjeta
 | --------- | ---- | -------- | ----------- |
 | `boardId` | string | No | ID del tablero del que obtener acciones \(se requiere boardId o cardId\) |
 | `cardId` | string | No | ID de la tarjeta de la que obtener acciones \(se requiere boardId o cardId\) |
-| `filter` | string | No | Filtrar acciones por tipo \(p. ej., "commentCard,updateCard,createCard" o "all"\) |
+| `filter` | string | No | Filtrar acciones por tipo \(p.ej., "commentCard,updateCard,createCard" o "all"\) |
 | `limit` | number | No | Número máximo de acciones a devolver \(predeterminado: 50, máx: 1000\) |
 
 #### Salida
 
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
-| `success` | boolean | Indica si la operación fue exitosa |
+| `success` | boolean | Si la operación fue exitosa |
 | `actions` | array | Array de objetos de acción con tipo, fecha, miembro y datos |
 | `count` | number | Número de acciones devueltas |
 | `error` | string | Mensaje de error si la operación falló |
@@ -140,7 +154,7 @@ Añadir un comentario a una tarjeta de Trello
 
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
-| `success` | boolean | Indica si el comentario se agregó correctamente |
+| `success` | boolean | Si el comentario se añadió correctamente |
 | `comment` | object | El objeto de comentario creado con id, texto, fecha y miembro creador |
 | `error` | string | Mensaje de error si la operación falló |
 

@@ -124,10 +124,6 @@ Parallel (["gpt-4o", "claude-3.7-sonnet", "gemini-2.5-pro"]) → Agent → Evalu
   - どのコンテナブロック内にも別のコンテナブロックを配置できません
 </Callout>
 
-<Callout type="warning">
-  並列ブロックには単一のブロックしか含められません。並列内で複数のブロックを互いに接続することはできません - その場合、最初のブロックのみが実行されます。
-</Callout>
-
 <Callout type="info">
   並列実行は高速ですが、以下の点に注意してください：
   - 同時リクエスト時のAPIレート制限
@@ -135,13 +131,13 @@ Parallel (["gpt-4o", "claude-3.7-sonnet", "gemini-2.5-pro"]) → Agent → Evalu
   - リソース枯渇を防ぐための最大20の同時インスタンス
 </Callout>
 
-## 並列とループの比較
+## 並列処理とループ処理の比較
 
 それぞれの使用タイミングを理解する：
 
-| 機能 | 並列 | ループ |
+| 機能 | 並列処理 | ループ処理 |
 |---------|----------|------|
-| 実行 | 同時 | 順次 |
+| 実行方法 | 同時実行 | 順次実行 |
 | 速度 | 独立した操作では高速 | 遅いが順序を保持 |
 | 順序 | 順序保証なし | 順序を維持 |
 | ユースケース | 独立した操作 | 依存関係のある操作 |
@@ -159,7 +155,7 @@ Parallel (["gpt-4o", "claude-3.7-sonnet", "gemini-2.5-pro"]) → Agent → Evalu
         <strong>カウント</strong>：実行するインスタンス数（カウントベース）
       </li>
       <li>
-        <strong>コレクション</strong>：分配する配列またはオブジェクト（コレクションベース）
+        <strong>コレクション</strong>：分散する配列またはオブジェクト（コレクションベース）
       </li>
     </ul>
   </Tab>
@@ -169,7 +165,7 @@ Parallel (["gpt-4o", "claude-3.7-sonnet", "gemini-2.5-pro"]) → Agent → Evalu
         <strong>parallel.currentItem</strong>：このインスタンスのアイテム
       </li>
       <li>
-        <strong>parallel.index</strong>：インスタンス番号（0ベース）
+        <strong>parallel.index</strong>：インスタンス番号（0から始まる）
       </li>
       <li>
         <strong>parallel.items</strong>：完全なコレクション（コレクションベース）
@@ -182,7 +178,7 @@ Parallel (["gpt-4o", "claude-3.7-sonnet", "gemini-2.5-pro"]) → Agent → Evalu
         <strong>parallel.results</strong>：すべてのインスタンス結果の配列
       </li>
       <li>
-        <strong>アクセス</strong>：並列後のブロックで利用可能
+        <strong>アクセス</strong>：並列処理後のブロックで利用可能
       </li>
     </ul>
   </Tab>
@@ -190,6 +186,6 @@ Parallel (["gpt-4o", "claude-3.7-sonnet", "gemini-2.5-pro"]) → Agent → Evalu
 
 ## ベストプラクティス
 
-- **独立した操作のみ**: 操作が互いに依存しないようにする
-- **レート制限の処理**: API負荷の高いワークフローには遅延またはスロットリングを追加する
-- **エラー処理**: 各インスタンスは自身のエラーを適切に処理する必要がある
+- **独立した操作のみ**：操作が互いに依存しないようにする
+- **レート制限の処理**：API使用が多いワークフローには遅延やスロットリングを追加
+- **エラー処理**：各インスタンスは自身のエラーを適切に処理すべき

@@ -95,3 +95,13 @@ Referenzieren Sie strukturierte Werte nachgelagert mit Ausdrücken wie <code>&lt
 - Behandle den Start-Block als einzigen Einstiegspunkt, wenn du sowohl API- als auch Chat-Aufrufer unterstützen möchtest.
 - Bevorzuge benannte Eingabeformat-Felder gegenüber dem Parsen von rohem JSON in nachgelagerten Knoten; Typumwandlung erfolgt automatisch.
 - Füge unmittelbar nach dem Start Validierung oder Routing hinzu, wenn bestimmte Felder für den Erfolg deines Workflows erforderlich sind.
+
+- Verbinde <code>&lt;start.fieldName&gt;</code> direkt mit Agenten, Tools oder Funktionen, die strukturierte Daten erwarten.
+- Verwende Template-Syntax wie <code>&lt;start.sampleField&gt;</code> oder <code>&lt;start.files[0].url&gt;</code> (nur im Chat) in Prompt-Feldern.
+- Halte <code>&lt;start.conversationId&gt;</code> bereit, wenn du Ausgaben gruppieren, Gesprächsverlauf aktualisieren oder die Chat-API erneut aufrufen musst.
+
+## Bewährte Praktiken
+
+- Behandle den Start-Block als einzigen Einstiegspunkt, wenn du sowohl API- als auch Chat-Aufrufer unterstützen möchtest.
+- Bevorzuge benannte Eingabeformat-Felder gegenüber dem Parsen von rohem JSON in nachgelagerten Knoten; Typumwandlung erfolgt automatisch.
+- Füge Validierung oder Routing unmittelbar nach dem Start hinzu, wenn bestimmte Felder für den Erfolg deines Workflows erforderlich sind.

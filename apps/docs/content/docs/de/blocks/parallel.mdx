@@ -149,20 +149,16 @@ Jede parallele Instanz läuft unabhängig:
   - Sie können keinen Container-Block in einen anderen Container-Block platzieren
 </Callout>
 
-<Callout type="warning">
-  Parallele Blöcke können nur einen einzigen Block enthalten. Sie können nicht mehrere Blöcke haben, die innerhalb einer Parallele miteinander verbunden sind - in diesem Fall würde nur der erste Block ausgeführt werden.
-</Callout>
-
 <Callout type="info">
-  Während die parallele Ausführung schneller ist, sollten Sie auf Folgendes achten:
+  Während die parallele Ausführung schneller ist, beachten Sie bitte:
   - API-Ratenbegrenzungen bei gleichzeitigen Anfragen
-  - Speichernutzung bei großen Datensätzen
-  - Maximal 20 gleichzeitige Instanzen, um Ressourcenerschöpfung zu vermeiden
+  - Speicherverbrauch bei großen Datensätzen
+  - Maximum von 20 gleichzeitigen Instanzen, um Ressourcenerschöpfung zu vermeiden
 </Callout>
 
 ## Parallel vs. Schleife
 
-Verständnis, wann was zu verwenden ist:
+Wann Sie welche Methode verwenden sollten:
 
 | Funktion | Parallel | Schleife |
 |---------|----------|------|
@@ -178,7 +174,7 @@ Verständnis, wann was zu verwenden ist:
   <Tab>
     <ul className="list-disc space-y-2 pl-6">
       <li>
-        <strong>Paralleltyp</strong>: Wählen Sie zwischen 'count' oder 'collection'
+        <strong>Parallel-Typ</strong>: Wählen Sie zwischen 'count' oder 'collection'
       </li>
       <li>
         <strong>Anzahl</strong>: Anzahl der auszuführenden Instanzen (anzahlbasiert)
@@ -207,14 +203,14 @@ Verständnis, wann was zu verwenden ist:
         <strong>parallel.results</strong>: Array aller Instanzergebnisse
       </li>
       <li>
-        <strong>Zugriff</strong>: Verfügbar in Blöcken nach der Parallele
+        <strong>Zugriff</strong>: Verfügbar in Blöcken nach der Parallelausführung
       </li>
     </ul>
   </Tab>
 </Tabs>
 
-## Bewährte Methoden
+## Best Practices
 
 - **Nur unabhängige Operationen**: Stellen Sie sicher, dass Operationen nicht voneinander abhängen
-- **Umgang mit Ratenbegrenzungen**: Fügen Sie Verzögerungen oder Drosselungen für API-intensive Workflows hinzu
+- **Ratenbegrenzungen berücksichtigen**: Fügen Sie Verzögerungen oder Drosselungen für API-intensive Workflows hinzu
 - **Fehlerbehandlung**: Jede Instanz sollte ihre eigenen Fehler angemessen behandeln

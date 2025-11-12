@@ -10,9 +10,23 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#E0E0E0"
 />
 
+{/* MANUAL-CONTENT-START:intro */}
+[Salesforce](https://www.salesforce.com/)ツールを使用すると、SalesforceのCRMに直接接続し、エージェントワークフロー内で幅広い顧客関係管理操作を実行できます。シームレスで安全な統合により、営業、サポート、マーケティングデータ全体の主要なビジネスプロセスに効率的にアクセスし、自動化することができます。
+
+Salesforceツールでは、以下のことが可能です：
+
+- **アカウントの取得**: `salesforce_get_accounts`操作を使用して、カスタムフィルター、ソート、フィールド選択でSalesforceからアカウントを取得します。
+- **アカウントの作成**: `salesforce_create_account`操作を使用して、名前、業種、請求先住所などの詳細を指定して、新しいアカウントをSalesforceに自動的に追加します。
+- **連絡先の管理**: （提供されている場合、連絡先の追加、更新、または取得に利用できる同様のツール）
+- **リードと商談の管理**: リードと商談の管理をワークフローに統合し、エージェントが販売パイプラインデータをキャプチャ、評価、更新できるようにします。
+- **ケースとタスクの追跡**: Salesforce内のケースとタスクを操作することで、カスタマーサポートとフォローアップ活動を自動化します。
+
+Salesforceツールは、エージェントが販売、アカウント管理、リード生成、サポート業務を効率化する必要があるワークフローに最適です。エージェントがプラットフォーム間でデータを同期する場合でも、リアルタイムの顧客インサイトを提供する場合でも、定期的なCRM更新を自動化する場合でも、Salesforceツールは、プログラム的なエージェント駆動プロセスにSalesforceの完全なパワーと拡張性をもたらします。
+{/* MANUAL-CONTENT-END */}
+
 ## 使用方法
 
-Salesforceをワークフローに統合します。アカウント、連絡先、リード、商談、ケース、タスクを強力な自動化機能で管理できます。
+Salesforceをワークフローに統合します。強力な自動化機能でアカウント、連絡先、リード、商談、ケース、タスクを管理します。
 
 ## ツール
 
@@ -34,7 +48,7 @@ Salesforce CRMからアカウントを取得する
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作の成功ステータス |
+| `success` | boolean | 操作成功ステータス |
 | `output` | object | アカウントデータ |
 
 ### `salesforce_create_account`
@@ -89,7 +103,7 @@ Salesforce CRMの既存アカウントを更新する
 | `billingState` | string | いいえ | 請求先都道府県 |
 | `billingPostalCode` | string | いいえ | 請求先郵便番号 |
 | `billingCountry` | string | いいえ | 請求先国 |
-| `description` | string | いいえ | アカウント説明 |
+| `description` | string | いいえ | アカウントの説明 |
 | `annualRevenue` | string | いいえ | 年間売上（数値） |
 | `numberOfEmployees` | string | いいえ | 従業員数（数値） |
 

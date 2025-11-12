@@ -10,43 +10,57 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#E0E0E0"
 />
 
+{/* MANUAL-CONTENT-START:intro */}
+Das [MongoDB](https://www.mongodb.com/)-Tool ermöglicht es Ihnen, eine Verbindung zu einer MongoDB-Datenbank herzustellen und eine Vielzahl von dokumentenorientierten Operationen direkt innerhalb Ihrer agentischen Workflows durchzuführen. Mit flexibler Konfiguration und sicherem Verbindungsmanagement können Sie einfach mit Ihren Daten interagieren und diese manipulieren.
+
+Mit dem MongoDB-Tool können Sie:
+
+- **Dokumente finden**: Sammlungen abfragen und Dokumente mit der `mongodb_query`Operation unter Verwendung umfangreicher Abfragefilter abrufen.
+- **Dokumente einfügen**: Fügen Sie ein oder mehrere Dokumente zu einer Sammlung mit der `mongodb_insert`Operation hinzu.
+- **Dokumente aktualisieren**: Ändern Sie bestehende Dokumente mit der `mongodb_update`Operation, indem Sie Filterkriterien und Aktualisierungsaktionen angeben.
+- **Dokumente löschen**: Entfernen Sie Dokumente aus einer Sammlung mit der `mongodb_delete`Operation, indem Sie Filter und Löschoptionen angeben.
+- **Daten aggregieren**: Führen Sie komplexe Aggregationspipelines mit der `mongodb_execute`Operation aus, um Ihre Daten zu transformieren und zu analysieren.
+
+Das MongoDB-Tool ist ideal für Workflows, bei denen Ihre Agenten strukturierte, dokumentenbasierte Daten verwalten oder analysieren müssen. Ob bei der Verarbeitung von benutzergenerierten Inhalten, der Verwaltung von App-Daten oder der Unterstützung von Analysen - das MongoDB-Tool vereinfacht den Datenzugriff und die Datenmanipulation auf sichere, programmatische Weise.
+{/* MANUAL-CONTENT-END */}
+
 ## Gebrauchsanweisung
 
-MongoDB in den Workflow integrieren. Kann Daten finden, einfügen, aktualisieren, löschen und aggregieren.
+Integrieren Sie MongoDB in den Workflow. Kann Daten finden, einfügen, aktualisieren, löschen und aggregieren.
 
 ## Tools
 
 ### `mongodb_query`
 
-Führt eine Find-Operation auf einer MongoDB-Kollektion aus
+Führt eine Suchoperation in einer MongoDB-Sammlung aus
 
 #### Eingabe
 
-| Parameter | Typ | Erforderlich | Beschreibung |
+| Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Ja | MongoDB-Server-Hostname oder IP-Adresse |
-| `port` | number | Ja | MongoDB-Server-Port \(Standard: 27017\) |
-| `database` | string | Ja | Name der Datenbank, zu der verbunden werden soll |
-| `username` | string | Nein | MongoDB-Benutzername |
-| `password` | string | Nein | MongoDB-Passwort |
-| `authSource` | string | Nein | Authentifizierungsdatenbank |
-| `ssl` | string | Nein | SSL-Verbindungsmodus \(disabled, required, preferred\) |
-| `collection` | string | Ja | Name der zu abfragenden Kollektion |
-| `query` | string | Nein | MongoDB-Abfragefilter als JSON-String |
-| `limit` | number | Nein | Maximale Anzahl der zurückzugebenden Dokumente |
-| `sort` | string | Nein | Sortierkriterien als JSON-String |
+| `host` | string | Yes | MongoDB-Server-Hostname oder IP-Adresse |
+| `port` | number | Yes | MongoDB-Server-Port \(Standard: 27017\) |
+| `database` | string | Yes | Datenbankname, zu dem eine Verbindung hergestellt werden soll |
+| `username` | string | No | MongoDB-Benutzername |
+| `password` | string | No | MongoDB-Passwort |
+| `authSource` | string | No | Authentifizierungsdatenbank |
+| `ssl` | string | No | SSL-Verbindungsmodus \(disabled, required, preferred\) |
+| `collection` | string | Yes | Name der abzufragenden Sammlung |
+| `query` | string | No | MongoDB-Abfragefilter als JSON-String |
+| `limit` | number | No | Maximale Anzahl der zurückzugebenden Dokumente |
+| `sort` | string | No | Sortierkriterien als JSON-String |
 
 #### Ausgabe
 
 | Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
 | `message` | string | Statusmeldung der Operation |
-| `documents` | array | Array von Dokumenten, die von der Abfrage zurückgegeben wurden |
+| `documents` | array | Array der aus der Abfrage zurückgegebenen Dokumente |
 | `documentCount` | number | Anzahl der zurückgegebenen Dokumente |
 
 ### `mongodb_insert`
 
-Dokumente in MongoDB-Kollektion einfügen
+Dokumente in MongoDB-Sammlung einfügen
 
 #### Eingabe
 
@@ -59,8 +73,8 @@ Dokumente in MongoDB-Kollektion einfügen
 | `password` | string | Nein | MongoDB-Passwort |
 | `authSource` | string | Nein | Authentifizierungsdatenbank |
 | `ssl` | string | Nein | SSL-Verbindungsmodus \(disabled, required, preferred\) |
-| `collection` | string | Ja | Name der Kollektion, in die eingefügt werden soll |
-| `documents` | array | Ja | Array von einzufügenden Dokumenten |
+| `collection` | string | Ja | Name der Sammlung, in die eingefügt werden soll |
+| `documents` | array | Ja | Array der einzufügenden Dokumente |
 
 #### Ausgabe
 
@@ -69,7 +83,7 @@ Dokumente in MongoDB-Kollektion einfügen
 | `message` | string | Statusmeldung der Operation |
 | `documentCount` | number | Anzahl der eingefügten Dokumente |
 | `insertedId` | string | ID des eingefügten Dokuments \(einzelnes Einfügen\) |
-| `insertedIds` | array | Array der eingefügten Dokument-IDs \(mehrfaches Einfügen\) |
+| `insertedIds` | array | Array der IDs der eingefügten Dokumente \(mehrfaches Einfügen\) |
 
 ### `mongodb_update`
 
@@ -99,7 +113,7 @@ Dokumente in MongoDB-Sammlung aktualisieren
 | `message` | string | Statusmeldung der Operation |
 | `matchedCount` | number | Anzahl der vom Filter gefundenen Dokumente |
 | `modifiedCount` | number | Anzahl der geänderten Dokumente |
-| `documentCount` | number | Gesamtanzahl der betroffenen Dokumente |
+| `documentCount` | number | Gesamtzahl der betroffenen Dokumente |
 | `insertedId` | string | ID des eingefügten Dokuments \(bei Upsert\) |
 
 ### `mongodb_delete`
@@ -127,7 +141,7 @@ Dokumente aus MongoDB-Sammlung löschen
 | --------- | ---- | ----------- |
 | `message` | string | Statusmeldung der Operation |
 | `deletedCount` | number | Anzahl der gelöschten Dokumente |
-| `documentCount` | number | Gesamtzahl der betroffenen Dokumente |
+| `documentCount` | number | Gesamtanzahl der betroffenen Dokumente |
 
 ### `mongodb_execute`
 
@@ -152,7 +166,7 @@ MongoDB-Aggregationspipeline ausführen
 | Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
 | `message` | string | Statusmeldung der Operation |
-| `documents` | array | Array von Dokumenten, die aus der Aggregation zurückgegeben wurden |
+| `documents` | array | Array von Dokumenten, die von der Aggregation zurückgegeben wurden |
 | `documentCount` | number | Anzahl der zurückgegebenen Dokumente |
 
 ## Hinweise

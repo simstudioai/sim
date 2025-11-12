@@ -124,10 +124,6 @@ Chaque instance parallèle s'exécute indépendamment :
   - Vous ne pouvez pas placer un bloc conteneur à l'intérieur d'un autre bloc conteneur
 </Callout>
 
-<Callout type="warning">
-  Les blocs parallèles ne peuvent contenir qu'un seul bloc. Vous ne pouvez pas avoir plusieurs blocs connectés les uns aux autres à l'intérieur d'un parallèle - seul le premier bloc s'exécuterait dans ce cas.
-</Callout>
-
 <Callout type="info">
   Bien que l'exécution parallèle soit plus rapide, soyez attentif à :
   - Limites de taux des API lors de requêtes simultanées
@@ -191,5 +187,5 @@ Comprendre quand utiliser chacun :
 ## Bonnes pratiques
 
 - **Opérations indépendantes uniquement** : Assurez-vous que les opérations ne dépendent pas les unes des autres
-- **Gérer les limites de débit** : Ajoutez des délais ou limitez le débit pour les workflows à forte utilisation d'API
+- **Gérer les limites de taux** : Ajoutez des délais ou une limitation pour les workflows intensifs en API
 - **Gestion des erreurs** : Chaque instance doit gérer ses propres erreurs avec élégance
