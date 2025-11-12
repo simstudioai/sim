@@ -23,14 +23,17 @@ import {
   Trash,
 } from '@/components/emcn'
 import { createLogger } from '@/lib/logs/console/logger'
+import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { useDeleteWorkflow } from '@/app/workspace/[workspaceId]/w/hooks'
 import { useChatStore } from '@/stores/chat/store'
 import { usePanelStore } from '@/stores/panel-new/store'
 import type { PanelTab } from '@/stores/panel-new/types'
+// import { useVariablesStore } from '@/stores/variables/store'
 import { useWorkflowJsonStore } from '@/stores/workflows/json/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
+// import { Variables } from '../variables/variables'
 import { Copilot, Deploy, Editor, Toolbar } from './components'
 import { usePanelResize, useRunWorkflow, useUsageLimits } from './hooks'
 
@@ -104,6 +107,7 @@ export function Panel() {
 
   // Chat state
   const { isChatOpen, setIsChatOpen } = useChatStore()
+  // const { isOpen: isVariablesOpen, setIsOpen: setVariablesOpen } = useVariablesStore()
 
   const currentWorkflow = activeWorkflowId ? workflows[activeWorkflowId] : null
 
@@ -233,6 +237,28 @@ export function Panel() {
   const isWorkflowBlocked = isExecuting || hasValidationErrors
   const isButtonDisabled = !isExecuting && (isWorkflowBlocked || (!canRun && !isLoadingPermissions))
 
+  // Register global keyboard shortcuts
+  useRegisterGlobalCommands(() => [
+    {
+      id: 'run-workflow',
+      shortcut: 'Mod+Enter',
+      allowInEditable: false,
+      handler: () => {
+        try {
+          if (isExecuting) {
+            cancelWorkflow()
+          } else if (!isButtonDisabled) {
+            runWorkflow()
+          } else {
+            logger.warn('Cannot run workflow: button is disabled')
+          }
+        } catch (err) {
+          logger.error('Failed to execute Cmd+Enter command', { err })
+        }
+      },
+    },
+  ])
+
   return (
     <>
       <aside
@@ -259,6 +285,10 @@ export function Panel() {
                     <Layout className='h-3 w-3' animate={isAutoLayouting} variant='clockwise' />
                     <span>Auto layout</span>
                   </PopoverItem>
+                  {/* <PopoverItem onClick={() => setVariablesOpen(!isVariablesOpen)}>
+                    <Braces className='h-3 w-3' />
+                    <span>Variables</span>
+                  </PopoverItem> */}
                   {/* <PopoverItem>
                     <Bug className='h-3 w-3' />
                     <span>Debug</span>
@@ -437,6 +467,9 @@ export function Panel() {
           </ModalFooter>
         </ModalContent>
       </Modal>
+
+      {/* Floating Variables Modal */}
+      {/* <Variables /> */}
     </>
   )
 }

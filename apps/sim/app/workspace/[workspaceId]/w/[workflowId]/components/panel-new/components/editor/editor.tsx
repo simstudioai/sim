@@ -1,7 +1,16 @@
 'use client'
 
-import { useCallback, useRef } from 'react'
-import { BookOpen, ChevronUp, Crosshair, RepeatIcon, Settings, SplitIcon } from 'lucide-react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import {
+  BookOpen,
+  Check,
+  ChevronUp,
+  Crosshair,
+  Pencil,
+  RepeatIcon,
+  Settings,
+  SplitIcon,
+} from 'lucide-react'
 import { Button, Tooltip } from '@/components/emcn'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { getSubBlockStableKey } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/utils'
@@ -98,7 +107,13 @@ export function Editor() {
   })
 
   // Collaborative actions
-  const { collaborativeToggleBlockAdvancedMode } = useCollaborativeWorkflow()
+  const { collaborativeToggleBlockAdvancedMode, collaborativeUpdateBlockName } =
+    useCollaborativeWorkflow()
+
+  // Rename state
+  const [isRenaming, setIsRenaming] = useState(false)
+  const [editedName, setEditedName] = useState('')
+  const nameInputRef = useRef<HTMLInputElement>(null)
 
   // Mode toggle handlers
   const handleToggleAdvancedMode = useCallback(() => {
@@ -106,6 +121,43 @@ export function Editor() {
       collaborativeToggleBlockAdvancedMode(currentBlockId)
     }
   }, [currentBlockId, userPermissions.canEdit, collaborativeToggleBlockAdvancedMode])
+
+  /**
+   * Handles starting the rename process.
+   */
+  const handleStartRename = useCallback(() => {
+    if (!userPermissions.canEdit || !currentBlock) return
+    setEditedName(currentBlock.name || '')
+    setIsRenaming(true)
+  }, [userPermissions.canEdit, currentBlock])
+
+  /**
+   * Handles saving the renamed block.
+   */
+  const handleSaveRename = useCallback(() => {
+    if (!currentBlockId || !isRenaming) return
+
+    const trimmedName = editedName.trim()
+    if (trimmedName && trimmedName !== currentBlock?.name) {
+      collaborativeUpdateBlockName(currentBlockId, trimmedName)
+    }
+    setIsRenaming(false)
+  }, [currentBlockId, isRenaming, editedName, currentBlock?.name, collaborativeUpdateBlockName])
+
+  /**
+   * Handles canceling the rename process.
+   */
+  const handleCancelRename = useCallback(() => {
+    setIsRenaming(false)
+    setEditedName('')
+  }, [])
+
+  // Focus input when entering rename mode
+  useEffect(() => {
+    if (isRenaming && nameInputRef.current) {
+      nameInputRef.current.select()
+    }
+  }, [isRenaming])
 
   // Focus on block handler
   const handleFocusOnBlock = useCallback(() => {
@@ -145,14 +197,55 @@ export function Editor() {
               />
             </div>
           )}
-          <h2
-            className='min-w-0 flex-1 truncate pr-[8px] font-medium text-[#FFFFFF] text-[14px] dark:text-[#FFFFFF]'
-            title={title}
-          >
-            {title}
-          </h2>
+          {isRenaming ? (
+            <input
+              ref={nameInputRef}
+              type='text'
+              value={editedName}
+              onChange={(e) => setEditedName(e.target.value)}
+              onBlur={handleSaveRename}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  handleSaveRename()
+                } else if (e.key === 'Escape') {
+                  handleCancelRename()
+                }
+              }}
+              className='min-w-0 flex-1 truncate bg-transparent pr-[8px] font-medium text-[#FFFFFF] text-[14px] outline-none dark:text-[#FFFFFF]'
+            />
+          ) : (
+            <h2
+              className='min-w-0 flex-1 truncate pr-[8px] font-medium text-[#FFFFFF] text-[14px] dark:text-[#FFFFFF]'
+              title={title}
+            >
+              {title}
+            </h2>
+          )}
         </div>
         <div className='flex shrink-0 items-center gap-[8px]'>
+          {/* Rename button */}
+          {currentBlock && !isSubflow && (
+            <Tooltip.Root>
+              <Tooltip.Trigger asChild>
+                <Button
+                  variant='ghost'
+                  className='p-0'
+                  onClick={isRenaming ? handleSaveRename : handleStartRename}
+                  disabled={!userPermissions.canEdit}
+                  aria-label={isRenaming ? 'Save name' : 'Rename block'}
+                >
+                  {isRenaming ? (
+                    <Check className='h-[14px] w-[14px]' />
+                  ) : (
+                    <Pencil className='h-[14px] w-[14px]' />
+                  )}
+                </Button>
+              </Tooltip.Trigger>
+              <Tooltip.Content side='top'>
+                <p>{isRenaming ? 'Save name' : 'Rename block'}</p>
+              </Tooltip.Content>
+            </Tooltip.Root>
+          )}
           {/* Focus on block button */}
           {currentBlock && (
             <Tooltip.Root>

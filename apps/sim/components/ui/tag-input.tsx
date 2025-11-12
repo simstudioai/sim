@@ -95,7 +95,7 @@ export function TagInput({
           onBlur={handleBlur}
           placeholder={value.length === 0 ? placeholder : ''}
           disabled={disabled}
-          className='h-7 min-w-[120px] flex-1 border-0 p-0 px-1 text-sm shadow-none placeholder:text-muted-foreground/60 focus-visible:ring-0 focus-visible:ring-offset-0'
+          className='h-7 min-w-[120px] flex-1 border-0 bg-transparent p-0 px-1 text-sm shadow-none placeholder:text-muted-foreground/60 focus-visible:ring-0 focus-visible:ring-offset-0'
         />
       )}
     </div>

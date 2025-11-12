@@ -95,29 +95,18 @@ export const KeyboardNavigationHandler: React.FC<KeyboardNavigationHandlerProps>
   useEffect(() => {
     if (!visible || !flatTagList.length) return
 
-    // Helper to open a folder with proper selection callback and parent selection
     const openFolderWithSelection = (
       folderId: string,
       folderTitle: string,
       parentTag: string,
       group: BlockTagGroup
     ) => {
+      const parentIdx = flatTagList.findIndex((item) => item.tag === parentTag)
       const selectionCallback = () => handleTagSelect(parentTag, group)
-
-      // Find parent tag index (which is first in visible items when in folder)
-      let parentIndex = 0
-      for (const g of nestedBlockTagGroups) {
-        for (const nestedTag of g.nestedTags) {
-          if (nestedTag.parentTag === parentTag) {
-            const idx = flatTagList.findIndex((item) => item.tag === nestedTag.parentTag)
-            parentIndex = idx >= 0 ? idx : 0
-            break
-          }
-        }
-      }
-
       openFolder(folderId, folderTitle, undefined, selectionCallback)
-      setSelectedIndex(parentIndex)
+      if (parentIdx >= 0) {
+        setSelectedIndex(parentIdx)
+      }
     }
 
     const handleKeyboardEvent = (e: KeyboardEvent) => {

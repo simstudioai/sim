@@ -7,8 +7,10 @@ import { persist } from 'zustand/middleware'
 interface SidebarState {
   workspaceDropdownOpen: boolean
   sidebarWidth: number
+  isCollapsed: boolean
   setWorkspaceDropdownOpen: (isOpen: boolean) => void
   setSidebarWidth: (width: number) => void
+  setIsCollapsed: (isCollapsed: boolean) => void
 }
 
 /**
@@ -23,6 +25,7 @@ export const useSidebarStore = create<SidebarState>()(
     (set, get) => ({
       workspaceDropdownOpen: false,
       sidebarWidth: DEFAULT_SIDEBAR_WIDTH,
+      isCollapsed: false,
       setWorkspaceDropdownOpen: (isOpen) => set({ workspaceDropdownOpen: isOpen }),
       setSidebarWidth: (width) => {
         // Only enforce minimum - maximum is enforced dynamically by the resize hook
@@ -33,14 +36,26 @@ export const useSidebarStore = create<SidebarState>()(
           document.documentElement.style.setProperty('--sidebar-width', `${clampedWidth}px`)
         }
       },
+      setIsCollapsed: (isCollapsed) => {
+        set({ isCollapsed })
+        // Set width to 0 when collapsed (floating UI doesn't need sidebar space)
+        if (isCollapsed && typeof window !== 'undefined') {
+          document.documentElement.style.setProperty('--sidebar-width', '0px')
+        } else if (!isCollapsed && typeof window !== 'undefined') {
+          // Restore to stored width when expanding
+          const currentWidth = get().sidebarWidth
+          document.documentElement.style.setProperty('--sidebar-width', `${currentWidth}px`)
+        }
+      },
     }),
     {
       name: 'sidebar-state',
       onRehydrateStorage: () => (state) => {
         // Validate and enforce constraints after rehydration
         if (state && typeof window !== 'undefined') {
-          // Sync CSS variables with validated state
-          document.documentElement.style.setProperty('--sidebar-width', `${state.sidebarWidth}px`)
+          // Use 0 width if collapsed (floating UI), otherwise use stored width
+          const width = state.isCollapsed ? 0 : state.sidebarWidth
+          document.documentElement.style.setProperty('--sidebar-width', `${width}px`)
         }
       },
     }

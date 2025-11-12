@@ -15,7 +15,7 @@ interface UseItemRenameProps {
   /**
    * Item type for logging
    */
-  itemType: 'workflow' | 'folder'
+  itemType: 'workflow' | 'folder' | 'workspace'
   /**
    * Item ID for logging
    */
@@ -23,7 +23,7 @@ interface UseItemRenameProps {
 }
 
 /**
- * Hook for managing inline rename functionality for workflows and folders.
+ * Hook for managing inline rename functionality for workflows, folders, and workspaces.
  *
  * Handles:
  * - Edit state management

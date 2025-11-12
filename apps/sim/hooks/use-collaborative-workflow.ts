@@ -882,6 +882,12 @@ export function useCollaborativeWorkflow() {
       }
       findAllDescendants(id)
 
+      // If the currently edited block is among the blocks being removed, clear selection to restore the last tab
+      const currentEditedBlockId = usePanelEditorStore.getState().currentBlockId
+      if (currentEditedBlockId && blocksToRemove.has(currentEditedBlockId)) {
+        usePanelEditorStore.getState().clearCurrentBlock()
+      }
+
       // Capture state before removal, including all nested blocks with subblock values
       const allBlocks = mergeSubblockState(workflowStore.blocks, activeWorkflowId || undefined)
       const capturedBlocks: Record<string, BlockState> = {}
@@ -1261,6 +1267,9 @@ export function useCollaborativeWorkflow() {
           height: sourceBlock.height,
         }
       )
+
+      // Focus the newly duplicated block in the editor
+      usePanelEditorStore.getState().setCurrentBlockId(newId)
 
       executeQueuedOperation('duplicate', 'block', duplicatedBlockData, () => {
         workflowStore.addBlock(

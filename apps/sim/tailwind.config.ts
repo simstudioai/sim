@@ -94,92 +94,12 @@ export default {
         padding: 'padding',
       },
       keyframes: {
-        'slide-down': {
-          '0%': {
-            transform: 'translate(-50%, -100%)',
-            opacity: '0',
-          },
-          '100%': {
-            transform: 'translate(-50%, 0)',
-            opacity: '1',
-          },
-        },
-        'notification-slide': {
-          '0%': {
-            opacity: '0',
-            transform: 'translateY(-100%)',
-          },
-          '100%': {
-            opacity: '1',
-            transform: 'translateY(0)',
-          },
-        },
-        'notification-fade-out': {
-          '0%': {
-            opacity: '1',
-            transform: 'translateY(0)',
-          },
-          '100%': {
-            opacity: '0',
-            transform: 'translateY(0)',
-          },
-        },
-        'fade-up': {
-          '0%': {
-            opacity: '0',
-            transform: 'translateY(10px)',
-          },
-          '100%': {
-            opacity: '1',
-            transform: 'translateY(0)',
-          },
-        },
-        'rocket-pulse': {
-          '0%, 100%': {
-            opacity: '1',
-          },
-          '50%': {
-            opacity: '0.7',
-          },
-        },
-        'run-glow': {
-          '0%, 100%': {
-            filter: 'opacity(1)',
-          },
-          '50%': {
-            filter: 'opacity(0.7)',
-          },
-        },
         'caret-blink': {
           '0%,70%,100%': {
             opacity: '1',
           },
           '20%,50%': {
             opacity: '0',
-          },
-        },
-        'pulse-slow': {
-          '0%, 100%': {
-            opacity: '1',
-          },
-          '50%': {
-            opacity: '0.7',
-          },
-        },
-        'accordion-down': {
-          from: {
-            height: '0',
-          },
-          to: {
-            height: 'var(--radix-accordion-content-height)',
-          },
-        },
-        'accordion-up': {
-          from: {
-            height: 'var(--radix-accordion-content-height)',
-          },
-          to: {
-            height: '0',
           },
         },
         'slide-left': {
@@ -225,40 +145,6 @@ export default {
             transform: 'translateX(100%)',
           },
         },
-        orbit: {
-          '0%': {
-            transform:
-              'rotate(calc(var(--angle) * 1deg)) translateY(calc(var(--radius) * 1px)) rotate(calc(var(--angle) * -1deg))',
-          },
-          '100%': {
-            transform:
-              'rotate(calc(var(--angle) * 1deg + 360deg)) translateY(calc(var(--radius) * 1px)) rotate(calc((var(--angle) * -1deg) - 360deg))',
-          },
-        },
-        marquee: {
-          from: {
-            transform: 'translateX(0)',
-          },
-          to: {
-            transform: 'translateX(calc(-100% - var(--gap)))',
-          },
-        },
-        'marquee-vertical': {
-          from: {
-            transform: 'translateY(0)',
-          },
-          to: {
-            transform: 'translateY(calc(-100% - var(--gap)))',
-          },
-        },
-        'fade-in': {
-          from: {
-            opacity: '0',
-          },
-          to: {
-            opacity: '1',
-          },
-        },
         'placeholder-pulse': {
           '0%, 100%': {
             opacity: '0.5',
@@ -269,25 +155,12 @@ export default {
         },
       },
       animation: {
-        'slide-down': 'slide-down 0.3s ease-out',
-        'notification-slide': 'notification-slide 0.3s ease-out forwards',
-        'notification-fade-out': 'notification-fade-out 0.2s ease-out forwards',
-        'fade-up': 'fade-up 0.5s ease-out forwards',
-        'rocket-pulse': 'rocket-pulse 1.5s ease-in-out infinite',
-        'run-glow': 'run-glow 2s ease-in-out infinite',
         'caret-blink': 'caret-blink 1.25s ease-out infinite',
-        'pulse-slow': 'pulse-slow 3s ease-in-out infinite',
-        'accordion-down': 'accordion-down 0.2s ease-out',
-        'accordion-up': 'accordion-up 0.2s ease-out',
         'slide-left': 'slide-left 80s linear infinite',
         'slide-right': 'slide-right 80s linear infinite',
         'dash-animation': 'dash-animation 1.5s linear infinite',
         'pulse-ring': 'pulse-ring 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite',
         'code-shimmer': 'code-shimmer 1.5s infinite',
-        orbit: 'orbit calc(var(--duration, 2) * 1s) linear infinite',
-        marquee: 'marquee var(--duration) infinite linear',
-        'marquee-vertical': 'marquee-vertical var(--duration) linear infinite',
-        'fade-in': 'fade-in 0.3s ease-in-out forwards',
         'placeholder-pulse': 'placeholder-pulse 1.5s ease-in-out infinite',
       },
     },

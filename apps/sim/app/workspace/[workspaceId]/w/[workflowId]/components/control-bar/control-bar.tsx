@@ -39,10 +39,6 @@ import {
   WebhookSettings,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/control-bar/components'
 import { useWorkflowExecution } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-workflow-execution'
-import {
-  getKeyboardShortcutText,
-  useKeyboardShortcuts,
-} from '@/app/workspace/[workspaceId]/w/hooks/use-keyboard-shortcuts'
 import { useDebounce } from '@/hooks/use-debounce'
 import { useFolderStore } from '@/stores/folders/store'
 import { useOperationQueueStore } from '@/stores/operation-queue/store'
@@ -146,14 +142,6 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
 
   // Shared condition for keyboard shortcut and button disabled state
   const isWorkflowBlocked = isExecuting || hasValidationErrors
-
-  // Register keyboard shortcut for running workflow
-  useKeyboardShortcuts(() => {
-    if (!isWorkflowBlocked) {
-      openConsolePanel()
-      handleRunWorkflow()
-    }
-  }, isWorkflowBlocked)
 
   // // Check if the current user is the owner of the published workflow
   // const isWorkflowOwner = () => {
@@ -1125,12 +1113,6 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
             <Play className={cn('h-3.5 w-3.5', 'fill-current stroke-current')} />
           </Button>
         </Tooltip.Trigger>
-        <Tooltip.Content>
-          {getTooltipContent()}
-          <span className='ml-1 text-xs opacity-75'>
-            ({getKeyboardShortcutText('Enter', true)})
-          </span>
-        </Tooltip.Content>
       </Tooltip.Root>
     )
   }

@@ -4,7 +4,7 @@ import { persist } from 'zustand/middleware'
 /**
  * Display mode type for terminal output
  */
-export type DisplayMode = 'raw' | 'prettier'
+// export type DisplayMode = 'raw' | 'prettier'
 
 /**
  * Terminal state interface
@@ -14,8 +14,8 @@ interface TerminalState {
   setTerminalHeight: (height: number) => void
   outputPanelWidth: number
   setOutputPanelWidth: (width: number) => void
-  displayMode: DisplayMode
-  setDisplayMode: (mode: DisplayMode) => void
+  // displayMode: DisplayMode
+  // setDisplayMode: (mode: DisplayMode) => void
   _hasHydrated: boolean
   setHasHydrated: (hasHydrated: boolean) => void
 }
@@ -25,7 +25,7 @@ interface TerminalState {
  * Note: Maximum height is enforced dynamically at 70% of viewport height in the resize hook
  */
 const MIN_TERMINAL_HEIGHT = 30
-const DEFAULT_TERMINAL_HEIGHT = 100
+export const DEFAULT_TERMINAL_HEIGHT = 145
 
 /**
  * Output panel width constraints
@@ -36,7 +36,7 @@ const DEFAULT_OUTPUT_PANEL_WIDTH = 400
 /**
  * Default display mode
  */
-const DEFAULT_DISPLAY_MODE: DisplayMode = 'prettier'
+// const DEFAULT_DISPLAY_MODE: DisplayMode = 'prettier'
 
 export const useTerminalStore = create<TerminalState>()(
   persist(
@@ -56,10 +56,10 @@ export const useTerminalStore = create<TerminalState>()(
         const clampedWidth = Math.max(MIN_OUTPUT_PANEL_WIDTH, width)
         set({ outputPanelWidth: clampedWidth })
       },
-      displayMode: DEFAULT_DISPLAY_MODE,
-      setDisplayMode: (mode) => {
-        set({ displayMode: mode })
-      },
+      // displayMode: DEFAULT_DISPLAY_MODE,
+      // setDisplayMode: (mode) => {
+      //   set({ displayMode: mode })
+      // },
       _hasHydrated: false,
       setHasHydrated: (hasHydrated) => {
         set({ _hasHydrated: hasHydrated })
