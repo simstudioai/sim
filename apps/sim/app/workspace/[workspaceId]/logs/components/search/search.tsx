@@ -2,8 +2,8 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { Loader2, Search, X } from 'lucide-react'
+import { Button } from '@/components/emcn'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { parseQuery } from '@/lib/logs/query-parser'
 import { SearchSuggestions } from '@/lib/logs/search-suggestions'
@@ -131,7 +131,7 @@ export function AutocompleteSearch({
       {/* Search Input */}
       <div
         className={cn(
-          'relative flex items-center gap-2 rounded-lg border bg-background pr-2 pl-3 transition-all duration-200',
+          'relative flex items-center gap-2 border bg-background pr-2 pl-3 transition-all duration-200',
           'h-9 w-full min-w-[600px] max-w-[800px]',
           state.isOpen && 'ring-1 ring-ring'
         )}
@@ -190,7 +190,6 @@ export function AutocompleteSearch({
           <Button
             type='button'
             variant='ghost'
-            size='sm'
             className='h-6 w-6 p-0 hover:bg-muted/50'
             onMouseDown={(e) => {
               e.preventDefault()
@@ -206,7 +205,7 @@ export function AutocompleteSearch({
       {state.isOpen && state.suggestions.length > 0 && (
         <div
           ref={dropdownRef}
-          className='min-w[500px] absolute z-[9999] mt-1 w-full overflow-hidden rounded-md border bg-popover shadow-md'
+          className='min-w[500px] absolute z-[9999] mt-1 w-full overflow-hidden border bg-popover shadow-md'
           id={listboxId}
           role='listbox'
           aria-labelledby={inputId}
@@ -284,7 +283,6 @@ export function AutocompleteSearch({
               <Button
                 type='button'
                 variant='ghost'
-                size='sm'
                 className='ml-1 h-3 w-3 p-0 text-muted-foreground hover:bg-muted/50 hover:text-foreground'
                 onClick={() => removeFilter(filter)}
               >
@@ -296,7 +294,6 @@ export function AutocompleteSearch({
             <Button
               type='button'
               variant='ghost'
-              size='sm'
               className='h-6 text-muted-foreground text-xs hover:text-foreground'
               onMouseDown={(e) => {
                 e.preventDefault()

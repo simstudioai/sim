@@ -1,7 +1,8 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { Modal, ModalContent } from '@/components/emcn'
+import * as VisuallyHidden from '@radix-ui/react-visually-hidden'
+import { Modal, ModalContent, ModalDescription, ModalTitle } from '@/components/emcn'
 import { getEnv, isTruthy } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
 import {
@@ -20,7 +21,7 @@ import {
   Subscription,
   TeamManagement,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/components-new/settings-modal/components'
-import { CreatorProfile } from '@/app/workspace/[workspaceId]/w/components/sidebar/components-new/settings-modal/components/components/creator-profile/creator-profile'
+import { CreatorProfile } from '@/app/workspace/[workspaceId]/w/components/sidebar/components-new/settings-modal/components/creator-profile/creator-profile'
 import { useOrganizationStore } from '@/stores/organization'
 import { useGeneralStore } from '@/stores/settings/general/store'
 
@@ -126,6 +127,14 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
   return (
     <Modal open={open} onOpenChange={handleDialogOpenChange}>
       <ModalContent className='flex h-[70vh] w-full max-w-[840px] flex-col gap-0 p-0'>
+        <VisuallyHidden.Root>
+          <ModalTitle>Settings</ModalTitle>
+        </VisuallyHidden.Root>
+        <VisuallyHidden.Root>
+          <ModalDescription>
+            Configure your workspace settings, environment variables, credentials, and preferences
+          </ModalDescription>
+        </VisuallyHidden.Root>
         <div className='flex flex-col border-[var(--surface-11)] border-b px-[16px] py-[12px]'>
           <h2 className='font-medium text-[14px] text-[var(--text-primary)] dark:text-[var(--text-primary)]'>
             Settings

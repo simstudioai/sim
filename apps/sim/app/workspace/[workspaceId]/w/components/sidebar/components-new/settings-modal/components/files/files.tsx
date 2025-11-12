@@ -1,10 +1,10 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Download, Search, Trash2 } from 'lucide-react'
+import { ArrowDown, Search } from 'lucide-react'
 import { useParams } from 'next/navigation'
+import { Button, Tooltip, Trash } from '@/components/emcn'
 import { Input, Progress, Skeleton } from '@/components/ui'
-import { Button } from '@/components/ui/button'
 import {
   Table,
   TableBody,
@@ -51,7 +51,7 @@ interface StorageInfo {
   percentUsed: number
 }
 
-export function FileUploads() {
+export function Files() {
   const params = useParams()
   const workspaceId = params?.workspaceId as string
   const [files, setFiles] = useState<WorkspaceFileRecord[]>([])
@@ -351,7 +351,13 @@ export function FileUploads() {
       </div>
 
       {/* Error message */}
-      {uploadError && <div className='px-6 pb-2 text-red-600 text-sm'>{uploadError}</div>}
+      {uploadError && (
+        <div className='px-6 pb-2'>
+          <div className='text-[#DC2626] text-[12px] leading-tight dark:text-[#F87171]'>
+            {uploadError}
+          </div>
+        </div>
+      )}
 
       {/* Files Table */}
       <div className='min-h-0 flex-1 overflow-y-auto px-6'>
@@ -396,28 +402,34 @@ export function FileUploads() {
                     </TableCell>
                     <TableCell className='px-3'>
                       <div className='flex items-center gap-1'>
-                        <Button
-                          variant='ghost'
-                          size='icon'
-                          onClick={() => handleDownload(file)}
-                          title='Download'
-                          className='h-6 w-6'
-                          aria-label={`Download ${file.name}`}
-                        >
-                          <Download className='h-3.5 w-3.5 text-muted-foreground' />
-                        </Button>
+                        <Tooltip.Root>
+                          <Tooltip.Trigger asChild>
+                            <Button
+                              variant='ghost'
+                              onClick={() => handleDownload(file)}
+                              className='h-6 w-6 p-0'
+                              aria-label={`Download ${file.name}`}
+                            >
+                              <ArrowDown className='h-[14px] w-[14px]' />
+                            </Button>
+                          </Tooltip.Trigger>
+                          <Tooltip.Content>Download file</Tooltip.Content>
+                        </Tooltip.Root>
                         {userPermissions.canEdit && (
-                          <Button
-                            variant='ghost'
-                            size='icon'
-                            onClick={() => handleDelete(file)}
-                            className='h-6 w-6 text-destructive hover:text-destructive'
-                            disabled={deletingFileId === file.id}
-                            title='Delete'
-                            aria-label={`Delete ${file.name}`}
-                          >
-                            <Trash2 className='h-3.5 w-3.5' />
-                          </Button>
+                          <Tooltip.Root>
+                            <Tooltip.Trigger asChild>
+                              <Button
+                                variant='ghost'
+                                onClick={() => handleDelete(file)}
+                                className='h-6 w-6 p-0'
+                                disabled={deletingFileId === file.id}
+                                aria-label={`Delete ${file.name}`}
+                              >
+                                <Trash className='h-[14px] w-[14px]' />
+                              </Button>
+                            </Tooltip.Trigger>
+                            <Tooltip.Content>Delete file</Tooltip.Content>
+                          </Tooltip.Root>
                         )}
                       </div>
                     </TableCell>

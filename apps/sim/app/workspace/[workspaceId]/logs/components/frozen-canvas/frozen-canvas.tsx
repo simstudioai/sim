@@ -42,7 +42,7 @@ function ExpandableDataSection({ title, data }: { title: string; data: any }) {
             {isLargeData && (
               <button
                 onClick={() => setIsModalOpen(true)}
-                className='rounded-[4px] p-[4px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--border)] hover:text-[var(--text-primary)] dark:text-[var(--text-secondary)] dark:hover:bg-[var(--border)] dark:hover:text-[var(--text-primary)]'
+                className='p-[4px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--border)] hover:text-[var(--text-primary)] dark:text-[var(--text-secondary)] dark:hover:bg-[var(--border)] dark:hover:text-[var(--text-primary)]'
                 title='Expand in modal'
               >
                 <Maximize2 className='h-[12px] w-[12px]' />
@@ -62,7 +62,7 @@ function ExpandableDataSection({ title, data }: { title: string; data: any }) {
         </div>
         <div
           className={cn(
-            'overflow-y-auto rounded-[8px] bg-[var(--surface-5)] p-[12px] font-mono text-[12px] transition-all duration-200',
+            'overflow-y-auto bg-[var(--surface-5)] p-[12px] font-mono text-[12px] transition-all duration-200',
             isExpanded ? 'max-h-96' : 'max-h-32'
           )}
         >
@@ -75,14 +75,14 @@ function ExpandableDataSection({ title, data }: { title: string; data: any }) {
       {/* Modal for large data */}
       {isModalOpen && (
         <div className='fixed inset-0 z-[200] flex items-center justify-center bg-black/50'>
-          <div className='mx-[16px] h-[80vh] w-full max-w-4xl rounded-[14px] border bg-[var(--surface-1)] shadow-lg dark:border-[var(--border)] dark:bg-[var(--surface-1)]'>
+          <div className='mx-[16px] h-[80vh] w-full max-w-4xl border bg-[var(--surface-1)] shadow-lg dark:border-[var(--border)] dark:bg-[var(--surface-1)]'>
             <div className='flex items-center justify-between border-b p-[16px] dark:border-[var(--border)]'>
               <h3 className='font-medium text-[15px] text-[var(--text-primary)] dark:text-[var(--text-primary)]'>
                 {title}
               </h3>
               <button
                 onClick={() => setIsModalOpen(false)}
-                className='rounded-[4px] p-[4px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--border)] hover:text-[var(--text-primary)] dark:text-[var(--text-secondary)] dark:hover:bg-[var(--border)] dark:hover:text-[var(--text-primary)]'
+                className='p-[4px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--border)] hover:text-[var(--text-primary)] dark:text-[var(--text-secondary)] dark:hover:bg-[var(--border)] dark:hover:text-[var(--text-primary)]'
               >
                 <X className='h-[14px] w-[14px]' />
               </button>
@@ -194,7 +194,7 @@ function PinnedLogs({
     }
 
     return (
-      <Card className='fixed top-[16px] right-[16px] z-[100] max-h-[calc(100vh-8rem)] w-96 overflow-y-auto rounded-[14px] border bg-[var(--surface-1)] shadow-lg dark:border-[var(--border)] dark:bg-[var(--surface-1)]'>
+      <Card className='fixed top-[16px] right-[16px] z-[100] max-h-[calc(100vh-8rem)] w-96 overflow-y-auto border bg-[var(--surface-1)] shadow-lg dark:border-[var(--border)] dark:bg-[var(--surface-1)]'>
         <CardHeader className='pb-[12px]'>
           <div className='flex items-center justify-between'>
             <CardTitle className='flex items-center gap-[8px] text-[15px] text-[var(--text-primary)] dark:text-[var(--text-primary)]'>
@@ -217,7 +217,7 @@ function PinnedLogs({
         </CardHeader>
 
         <CardContent className='space-y-[16px]'>
-          <div className='rounded-[8px] bg-[var(--surface-5)] p-[16px] text-center'>
+          <div className='bg-[var(--surface-5)] p-[16px] text-center'>
             <div className='text-[13px] text-[var(--text-secondary)] dark:text-[var(--text-secondary)]'>
               This block was not executed because the workflow failed before reaching it.
             </div>

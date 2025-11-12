@@ -1,5 +1,5 @@
 import { Check, ChevronDown } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { Button } from '@/components/emcn'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -37,7 +37,7 @@ export default function Timeline({ variant = 'default' }: TimelineProps = {}) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant='outline' size='sm' className={filterButtonClass}>
+        <Button variant='outline' className={filterButtonClass}>
           {timeRange}
           <ChevronDown className='ml-2 h-4 w-4 text-muted-foreground' />
         </Button>
@@ -58,7 +58,7 @@ export default function Timeline({ variant = 'default' }: TimelineProps = {}) {
             onSelect={() => {
               setTimeRange('All time')
             }}
-            className='flex cursor-pointer items-center justify-between rounded-md px-3 py-2 font-[380] text-card-foreground text-sm hover:bg-secondary/50 focus:bg-secondary/50'
+            className='flex cursor-pointer items-center justify-between px-3 py-2 font-[380] text-card-foreground text-sm hover:bg-secondary/50 focus:bg-secondary/50'
           >
             <span>All time</span>
             {timeRange === 'All time' && <Check className='h-4 w-4 text-muted-foreground' />}
@@ -72,7 +72,7 @@ export default function Timeline({ variant = 'default' }: TimelineProps = {}) {
               onSelect={() => {
                 setTimeRange(range)
               }}
-              className='flex cursor-pointer items-center justify-between rounded-md px-3 py-2 font-[380] text-card-foreground text-sm hover:bg-secondary/50 focus:bg-secondary/50'
+              className='flex cursor-pointer items-center justify-between px-3 py-2 font-[380] text-card-foreground text-sm hover:bg-secondary/50 focus:bg-secondary/50'
             >
               <span>{range}</span>
               {timeRange === range && <Check className='h-4 w-4 text-muted-foreground' />}

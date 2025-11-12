@@ -610,7 +610,7 @@ export function TraceSpanItem({
               })()}
               {localHoveredPercent != null && (
                 <div
-                  className='pointer-events-none absolute inset-y-0 w-px bg-black/30 dark:bg-white/45'
+                  className='pointer-events-none absolute inset-y-0 w-px bg-black/30 dark:bg-gray-600'
                   style={{
                     left: `${Math.max(0, Math.min(100, localHoveredPercent))}%`,
                     zIndex: 12,

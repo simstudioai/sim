@@ -16,7 +16,7 @@ import {
   RotateCcw,
 } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
-import { Tooltip } from '@/components/emcn'
+import { Button, Tooltip } from '@/components/emcn'
 import { Trash } from '@/components/emcn/icons/trash'
 import {
   AlertDialog,
@@ -28,7 +28,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { SearchHighlight } from '@/components/ui/search-highlight'
 import type { DocumentSortField, SortOrder } from '@/lib/knowledge/documents/types'
@@ -1006,7 +1005,6 @@ export function KnowledgeBase({
                                       <Tooltip.Trigger asChild>
                                         <Button
                                           variant='ghost'
-                                          size='sm'
                                           onClick={(e) => {
                                             e.stopPropagation()
                                             handleRetryDocument(doc.id)
@@ -1024,7 +1022,6 @@ export function KnowledgeBase({
                                     <Tooltip.Trigger asChild>
                                       <Button
                                         variant='ghost'
-                                        size='sm'
                                         onClick={(e) => {
                                           e.stopPropagation()
                                           handleToggleEnabled(doc.id)
@@ -1059,7 +1056,6 @@ export function KnowledgeBase({
                                     <Tooltip.Trigger asChild>
                                       <Button
                                         variant='ghost'
-                                        size='sm'
                                         onClick={(e) => {
                                           e.stopPropagation()
                                           handleDeleteDocument(doc.id)
@@ -1070,7 +1066,7 @@ export function KnowledgeBase({
                                         }
                                         className='h-8 w-8 p-0 text-gray-500 hover:text-red-600 disabled:opacity-50'
                                       >
-                                        <Trash className='h-4 w-4' />
+                                        <Trash className='h-[14px] w-[14px]' />
                                       </Button>
                                     </Tooltip.Trigger>
                                     <Tooltip.Content side='top'>
@@ -1097,7 +1093,6 @@ export function KnowledgeBase({
                     <div className='flex items-center gap-1'>
                       <Button
                         variant='ghost'
-                        size='sm'
                         onClick={prevPage}
                         disabled={!hasPrevPage || isLoadingDocuments}
                         className='h-8 w-8 p-0'
@@ -1138,7 +1133,6 @@ export function KnowledgeBase({
 
                       <Button
                         variant='ghost'
-                        size='sm'
                         onClick={nextPage}
                         disabled={!hasNextPage || isLoadingDocuments}
                         className='h-8 w-8 p-0'
