@@ -382,9 +382,9 @@ export function useDisplayName(
         })
         .then((res) => res.json())
         .then((data) => {
-          if (data.page?.title) {
+          if (data.id && data.title) {
             useDisplayNamesStore.getState().setDisplayNames('files', context.credentialId!, {
-              [value as string]: data.page.title,
+              [data.id]: data.title,
             })
           }
         })

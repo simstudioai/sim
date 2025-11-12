@@ -210,21 +210,23 @@ export function ConfluenceFileSelector({
         }
 
         const data = await response.json()
-        if (data.file) {
-          setSelectedFile(data.file)
-          onFileInfoChange?.(data.file)
-        } else {
-          const fileInfo: ConfluenceFileInfo = {
-            id: data.id || pageId,
-            name: data.title || `Page ${pageId}`,
-            mimeType: 'confluence/page',
-            webViewLink: undefined,
-            modifiedTime: undefined,
-            spaceId: undefined,
-            url: undefined,
-          }
-          setSelectedFile(fileInfo)
-          onFileInfoChange?.(fileInfo)
+        const fileInfo: ConfluenceFileInfo = {
+          id: data.id || pageId,
+          name: data.title || `Page ${pageId}`,
+          mimeType: 'confluence/page',
+          webViewLink: `https://${domain}/wiki/pages/${data.id}`,
+          modifiedTime: data.version?.when,
+          spaceId: data.spaceId,
+          url: `https://${domain}/wiki/pages/${data.id}`,
+        }
+        setSelectedFile(fileInfo)
+        onFileInfoChange?.(fileInfo)
+
+        // Cache the page name in display names store
+        if (selectedCredentialId) {
+          useDisplayNamesStore
+            .getState()
+            .setDisplayNames('files', selectedCredentialId, { [fileInfo.id]: fileInfo.name })
         }
       } catch (error) {
         logger.error('Error fetching page info:', error)
