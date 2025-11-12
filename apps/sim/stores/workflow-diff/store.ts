@@ -60,7 +60,7 @@ interface WorkflowDiffState {
 }
 
 interface WorkflowDiffActions {
-  setProposedChanges: (jsonContent: string, diffAnalysis?: DiffAnalysis) => Promise<void>
+  setProposedChanges: (jsonContent: string | WorkflowState, diffAnalysis?: DiffAnalysis) => Promise<WorkflowState | null>
   mergeProposedChanges: (jsonContent: string, diffAnalysis?: DiffAnalysis) => Promise<void>
   clearDiff: () => void
   getCurrentWorkflowForCanvas: () => WorkflowState
@@ -122,7 +122,7 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
         setProposedChanges: async (
           proposedContent: string | WorkflowState,
           diffAnalysis?: DiffAnalysis
-        ) => {
+        ): Promise<WorkflowState | null> => {
           // PERFORMANCE OPTIMIZATION: Immediate state update to prevent UI flicker
           batchedUpdate({ isDiffReady: false, diffError: null })
 
@@ -160,7 +160,7 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
               logger.error('[DiffStore] Diff validation failed:', { message, error: e })
               // Do not mark ready; store error and keep diff hidden
               batchedUpdate({ isDiffReady: false, diffError: message, isShowingDiff: false })
-              return
+              return null
             }
 
             // Attempt to capture the triggering user message id from copilot store
@@ -204,6 +204,9 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
             })
 
             logger.info('Diff created successfully')
+            
+            // Return the proposedState so callers can use it immediately without waiting for batched updates
+            return result.diff.proposedState
           } else {
             logger.error('Failed to create diff:', result.errors)
             batchedUpdate({

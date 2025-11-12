@@ -11,6 +11,7 @@ import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { mergeSubblockState } from '@/stores/workflows/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
+import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
 interface EditWorkflowOperation {
   operation_type: 'add' | 'edit' | 'delete'
@@ -113,12 +114,17 @@ export class EditWorkflowClientTool extends BaseClientTool {
     })
     this.setState(ClientToolCallState.success)
 
+    // Read from the diff store to get the exact state that get_user_workflow would return
+    // This ensures consistency between edit_workflow and get_user_workflow results
+    const diffStore = useWorkflowDiffStore.getState()
+    const actualDiffWorkflow = diffStore.diffWorkflow
+    
     // Get the workflow state that was applied, merge subblocks, and sanitize
     // This matches what get_user_workflow would return
-    const workflowJson = this.lastResult?.workflowState
-      ? this.getSanitizedWorkflowJson(this.lastResult.workflowState)
+    const workflowJson = actualDiffWorkflow
+      ? this.getSanitizedWorkflowJson(actualDiffWorkflow)
       : undefined
-    const sanitizedData = workflowJson ? { workflowJson } : undefined
+    const sanitizedData = workflowJson ? { userWorkflow: workflowJson } : undefined
 
     await this.markToolComplete(200, 'Workflow edits accepted', sanitizedData)
     this.setState(ClientToolCallState.success)
@@ -252,15 +258,26 @@ export class EditWorkflowClientTool extends BaseClientTool {
       })
 
       // Update diff directly with workflow state - no YAML conversion needed!
+      // The diff engine may transform the workflow state (e.g., assign new IDs), so we must use
+      // the returned proposedState rather than the original result.workflowState
+      let actualDiffWorkflow: WorkflowState | null = null
+      
       if (result.workflowState) {
         try {
           if (!this.hasAppliedDiff) {
             const diffStore = useWorkflowDiffStore.getState()
-            await diffStore.setProposedChanges(result.workflowState)
-            logger.info('diff proposed changes set for edit_workflow with direct workflow state')
+            // setProposedChanges returns the actual proposedState that will be stored
+            actualDiffWorkflow = await diffStore.setProposedChanges(result.workflowState)
+            logger.info('diff proposed changes set for edit_workflow with direct workflow state', {
+              hasProposedState: !!actualDiffWorkflow,
+              blocksCount: actualDiffWorkflow ? Object.keys(actualDiffWorkflow.blocks || {}).length : 0,
+            })
             this.hasAppliedDiff = true
           } else {
             logger.info('skipping diff apply (already applied)')
+            // If we already applied, read from store
+            const diffStore = useWorkflowDiffStore.getState()
+            actualDiffWorkflow = diffStore.diffWorkflow
           }
         } catch (e) {
           logger.warn('Failed to set proposed changes in diff store', e as any)
@@ -269,13 +286,15 @@ export class EditWorkflowClientTool extends BaseClientTool {
       } else {
         throw new Error('No workflow state returned from server')
       }
+      
+      if (!actualDiffWorkflow) {
+        throw new Error('Failed to retrieve workflow from diff store after setting changes')
+      }
 
       // Get the workflow state that was just applied, merge subblocks, and sanitize
       // This matches what get_user_workflow would return (the true state after edits were applied)
-      const workflowJson = result.workflowState
-        ? this.getSanitizedWorkflowJson(result.workflowState)
-        : undefined
-      const sanitizedData = workflowJson ? { workflowJson } : undefined
+      const workflowJson = this.getSanitizedWorkflowJson(actualDiffWorkflow)
+      const sanitizedData = workflowJson ? { userWorkflow: workflowJson } : undefined
 
       // Mark complete early to unblock LLM stream
       await this.markToolComplete(200, 'Workflow diff ready for review', sanitizedData)
