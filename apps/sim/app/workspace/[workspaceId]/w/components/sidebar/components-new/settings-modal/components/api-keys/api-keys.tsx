@@ -369,6 +369,7 @@ export function ApiKeys({ onOpenChange, registerCloseHandler }: ApiKeysProps) {
     if (!allowPersonalApiKeys && keyType === 'personal') {
       setKeyType('workspace')
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allowPersonalApiKeys])
 
   useEffect(() => {

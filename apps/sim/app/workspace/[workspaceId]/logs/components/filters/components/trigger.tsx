@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Check, ChevronDown } from 'lucide-react'
 import { Button } from '@/components/emcn'
 import {
@@ -26,7 +26,6 @@ import type { TriggerType } from '@/stores/logs/filters/types'
 export default function Trigger() {
   const { triggers, toggleTrigger, setTriggers } = useFilterStore()
   const [search, setSearch] = useState('')
-  const triggerRef = useRef<HTMLButtonElement | null>(null)
   const triggerOptions: { value: TriggerType; label: string; color?: string }[] = [
     { value: 'manual', label: 'Manual', color: 'bg-gray-500' },
     { value: 'api', label: 'API', color: 'bg-blue-500' },
@@ -58,7 +57,7 @@ export default function Trigger() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button ref={triggerRef} variant='outline' className={filterButtonClass}>
+        <Button variant='outline' className={filterButtonClass}>
           {getSelectedTriggersText()}
           <ChevronDown className='ml-2 h-4 w-4 text-muted-foreground' />
         </Button>

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Check, ChevronDown } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { Button } from '@/components/emcn'
@@ -35,9 +35,8 @@ interface FolderOption {
 }
 
 export default function FolderFilter() {
-  const triggerRef = useRef<HTMLButtonElement | null>(null)
   const { folderIds, toggleFolderId, setFolderIds } = useFilterStore()
-  const { getFolderTree, getFolderPath, fetchFolders } = useFolderStore()
+  const { getFolderTree, fetchFolders } = useFolderStore()
   const params = useParams()
   const workspaceId = params.workspaceId as string
   const [folders, setFolders] = useState<FolderOption[]>([])
@@ -111,7 +110,7 @@ export default function FolderFilter() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button ref={triggerRef} variant='outline' className={filterButtonClass}>
+        <Button variant='outline' className={filterButtonClass}>
           {loading ? 'Loading folders...' : getSelectedFoldersText()}
           <ChevronDown className='ml-2 h-4 w-4 text-muted-foreground' />
         </Button>

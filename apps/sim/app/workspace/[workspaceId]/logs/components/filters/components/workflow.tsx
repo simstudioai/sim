@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Check, ChevronDown } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { Button } from '@/components/emcn'
@@ -33,7 +33,6 @@ interface WorkflowOption {
 }
 
 export default function Workflow() {
-  const triggerRef = useRef<HTMLButtonElement | null>(null)
   const { workflowIds, toggleWorkflowId, setWorkflowIds, folderIds } = useFilterStore()
   const params = useParams()
   const workspaceId = params?.workspaceId as string | undefined
@@ -91,7 +90,7 @@ export default function Workflow() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button ref={triggerRef} variant='outline' className={filterButtonClass}>
+        <Button variant='outline' className={filterButtonClass}>
           {loading ? 'Loading workflows...' : getSelectedWorkflowsText()}
           <ChevronDown className='ml-2 h-4 w-4 text-muted-foreground' />
         </Button>
