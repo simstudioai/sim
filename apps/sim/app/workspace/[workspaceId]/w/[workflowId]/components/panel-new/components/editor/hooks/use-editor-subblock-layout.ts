@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import { getEnv, isTruthy } from '@/lib/env'
 import type { BlockConfig, SubBlockConfig, SubBlockType } from '@/blocks/types'
+import { useWorkflowDiffStore } from '@/stores/workflow-diff'
 import { mergeSubblockState } from '@/stores/workflows/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
@@ -14,6 +15,7 @@ import { useWorkflowStore } from '@/stores/workflows/workflow/store'
  * @param displayTriggerMode - Whether trigger mode is enabled for this block
  * @param activeWorkflowId - The active workflow ID
  * @param blockSubBlockValues - Current subblock values from the store
+ * @param isDiffMode - Whether we're currently viewing a diff
  * @returns Object containing subBlocks array and stateToUse for stable key generation
  */
 export function useEditorSubblockLayout(
@@ -22,7 +24,8 @@ export function useEditorSubblockLayout(
   displayAdvancedMode: boolean,
   displayTriggerMode: boolean,
   activeWorkflowId: string | null,
-  blockSubBlockValues: Record<string, any>
+  blockSubBlockValues: Record<string, any>,
+  isDiffMode: boolean
 ) {
   return useMemo(() => {
     // Guard against missing config or block selection
@@ -33,15 +36,28 @@ export function useEditorSubblockLayout(
     // Get the appropriate state for conditional evaluation
     let stateToUse: Record<string, any> = {}
 
-    const blocks = useWorkflowStore.getState().blocks || {}
+    // Get blocks based on whether we're in diff mode
+    let blocks: Record<string, any>
+    if (isDiffMode) {
+      // In diff mode, get blocks from diff workflow
+      const diffStore = useWorkflowDiffStore.getState()
+      const diffWorkflow = diffStore.diffWorkflow
+      blocks = (diffWorkflow as any)?.blocks || {}
+    } else {
+      // In normal mode, get blocks from workflow store
+      blocks = useWorkflowStore.getState().blocks || {}
+    }
+
     const mergedMap = mergeSubblockState(blocks, activeWorkflowId || undefined, blockId)
     const mergedState = mergedMap ? mergedMap[blockId] : undefined
     const mergedSubBlocks = mergedState?.subBlocks || {}
 
+    // In diff mode, prioritize diff workflow values; in normal mode, prioritize live store values
     stateToUse = Object.keys(mergedSubBlocks).reduce(
       (acc, key) => {
-        const value =
-          blockSubBlockValues[key] !== undefined
+        const value = isDiffMode
+          ? (mergedSubBlocks[key]?.value ?? null)
+          : blockSubBlockValues[key] !== undefined
             ? blockSubBlockValues[key]
             : (mergedSubBlocks[key]?.value ?? null)
         acc[key] = { value }
@@ -50,11 +66,14 @@ export function useEditorSubblockLayout(
       {} as Record<string, { value: unknown }>
     )
 
-    Object.keys(blockSubBlockValues).forEach((key) => {
-      if (!(key in stateToUse)) {
-        stateToUse[key] = { value: blockSubBlockValues[key] }
-      }
-    })
+    // Only add live store values if not in diff mode
+    if (!isDiffMode) {
+      Object.keys(blockSubBlockValues).forEach((key) => {
+        if (!(key in stateToUse)) {
+          stateToUse[key] = { value: blockSubBlockValues[key] }
+        }
+      })
+    }
 
     // Filter visible blocks and those that meet their conditions
     const visibleSubBlocks = (config.subBlocks || []).filter((block) => {
@@ -134,5 +153,6 @@ export function useEditorSubblockLayout(
     displayTriggerMode,
     blockSubBlockValues,
     activeWorkflowId,
+    isDiffMode,
   ])
 }

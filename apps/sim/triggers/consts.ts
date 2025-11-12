@@ -31,7 +31,7 @@ export const TRIGGER_PERSISTED_SUBBLOCK_IDS: string[] = [
 ]
 
 /**
- * Trigger-related subblock IDs that represent runtime metadata. They should remain
+ * Trigger and schedule-related subblock IDs that represent runtime metadata. They should remain
  * in the workflow state but must not be modified or cleared by diff operations.
  */
 export const TRIGGER_RUNTIME_SUBBLOCK_IDS: string[] = [
@@ -39,4 +39,5 @@ export const TRIGGER_RUNTIME_SUBBLOCK_IDS: string[] = [
   'triggerPath',
   'testUrl',
   'testUrlExpiresAt',
+  'scheduleId',
 ]
