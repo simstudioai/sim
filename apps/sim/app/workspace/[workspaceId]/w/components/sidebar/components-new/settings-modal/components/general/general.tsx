@@ -3,13 +3,14 @@ import { Info } from 'lucide-react'
 import { Tooltip } from '@/components/emcn'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+// COMMENTED OUT: Theme switching disabled - dark mode is forced for workspace
+// import {
+//   Select,
+//   SelectContent,
+//   SelectItem,
+//   SelectTrigger,
+//   SelectValue,
+// } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Switch } from '@/components/ui/switch'
 import { useSession } from '@/lib/auth-client'
@@ -95,14 +96,15 @@ export function General() {
     }
   }
 
-  // Sync theme from store to next-themes when theme changes
-  useEffect(() => {
-    if (!isLoading && theme) {
-      // Ensure next-themes is in sync with our store
-      const { syncThemeToNextThemes } = require('@/lib/theme-sync')
-      syncThemeToNextThemes(theme)
-    }
-  }, [theme, isLoading])
+  // COMMENTED OUT: Theme switching disabled - dark mode is forced for workspace
+  // // Sync theme from store to next-themes when theme changes
+  // useEffect(() => {
+  //   if (!isLoading && theme) {
+  //     // Ensure next-themes is in sync with our store
+  //     const { syncThemeToNextThemes } = require('@/lib/theme-sync')
+  //     syncThemeToNextThemes(theme)
+  //   }
+  // }, [theme, isLoading])
 
   const handleThemeChange = async (value: 'system' | 'light' | 'dark') => {
     await setTheme(value)
@@ -143,15 +145,16 @@ export function General() {
       <div className='flex flex-col gap-4'>
         {isLoading ? (
           <>
+            {/* COMMENTED OUT: Theme switching disabled - dark mode is forced for workspace */}
             {/* Theme setting with skeleton value */}
-            <div className='flex items-center justify-between'>
+            {/* <div className='flex items-center justify-between'>
               <div className='flex items-center gap-2'>
                 <Label htmlFor='theme-select' className='font-normal'>
                   Theme
                 </Label>
               </div>
               <Skeleton className='h-9 w-[180px]' />
-            </div>
+            </div> */}
 
             {/* Auto-connect setting with skeleton value */}
             <div className='flex items-center justify-between'>
@@ -207,7 +210,8 @@ export function General() {
           </>
         ) : (
           <>
-            <div className='flex items-center justify-between'>
+            {/* COMMENTED OUT: Theme switching disabled - dark mode is forced for workspace */}
+            {/* <div className='flex items-center justify-between'>
               <div className='flex items-center gap-2'>
                 <Label htmlFor='theme-select' className='font-normal'>
                   Theme
@@ -242,7 +246,7 @@ export function General() {
                   </SelectItem>
                 </SelectContent>
               </Select>
-            </div>
+            </div> */}
             <div className='flex items-center justify-between'>
               <div className='flex items-center gap-2'>
                 <Label htmlFor='auto-connect' className='font-normal'>

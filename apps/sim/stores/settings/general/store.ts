@@ -1,7 +1,8 @@
 import { create } from 'zustand'
 import { devtools, persist } from 'zustand/middleware'
 import { createLogger } from '@/lib/logs/console/logger'
-import { syncThemeToNextThemes } from '@/lib/theme-sync'
+// COMMENTED OUT: Theme switching disabled - dark mode is forced for workspace
+// import { syncThemeToNextThemes } from '@/lib/theme-sync'
 import { withOptimisticUpdate } from '@/lib/utils'
 import type { General, GeneralStore, UserSettings } from '@/stores/settings/general/types'
 
@@ -130,25 +131,27 @@ export const useGeneralStore = create<GeneralStore>()(
             )
           },
 
+          // COMMENTED OUT: Theme switching disabled - dark mode is forced for workspace
           setTheme: async (theme) => {
             if (get().isThemeLoading) return
 
-            await withOptimisticUpdate({
-              getCurrentState: () => get().theme,
-              optimisticUpdate: () => {
-                set({ theme, isThemeLoading: true })
-                syncThemeToNextThemes(theme)
-              },
-              apiCall: async () => {
-                await get().updateSetting('theme', theme)
-              },
-              rollback: (originalTheme) => {
-                set({ theme: originalTheme })
-                syncThemeToNextThemes(originalTheme)
-              },
-              onComplete: () => set({ isThemeLoading: false }),
-              errorMessage: 'Failed to sync theme to database',
-            })
+            // COMMENTED OUT: Dark mode is forced for workspace pages
+            // await withOptimisticUpdate({
+            //   getCurrentState: () => get().theme,
+            //   optimisticUpdate: () => {
+            //     set({ theme, isThemeLoading: true })
+            //     syncThemeToNextThemes(theme)
+            //   },
+            //   apiCall: async () => {
+            //     await get().updateSetting('theme', theme)
+            //   },
+            //   rollback: (originalTheme) => {
+            //     set({ theme: originalTheme })
+            //     syncThemeToNextThemes(originalTheme)
+            //   },
+            //   onComplete: () => set({ isThemeLoading: false }),
+            //   errorMessage: 'Failed to sync theme to database',
+            // })
           },
 
           setTelemetryEnabled: async (enabled) => {
@@ -231,13 +234,14 @@ export const useGeneralStore = create<GeneralStore>()(
                 isLoading: false,
               })
 
-              // Sync theme to next-themes if it's different
-              if (data.theme && typeof window !== 'undefined') {
-                const currentTheme = localStorage.getItem('sim-theme')
-                if (currentTheme !== data.theme) {
-                  syncThemeToNextThemes(data.theme)
-                }
-              }
+              // COMMENTED OUT: Theme switching disabled - dark mode is forced for workspace
+              // // Sync theme to next-themes if it's different
+              // if (data.theme && typeof window !== 'undefined') {
+              //   const currentTheme = localStorage.getItem('sim-theme')
+              //   if (currentTheme !== data.theme) {
+              //     syncThemeToNextThemes(data.theme)
+              //   }
+              // }
 
               lastLoadTime = now
               errorRetryCount = 0

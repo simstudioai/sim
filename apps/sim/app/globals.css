@@ -81,7 +81,7 @@
   :root,
   .light {
     /* Neutrals (surfaces) */
-    --bg: #f5f5f7;
+    --bg: #ffffff;
     --surface-1: #ffffff;
     --surface-2: #fafafa;
     --surface-3: #f8f8f8;
@@ -103,7 +103,7 @@
     --text-tertiary: #555555;
     --text-muted: #737373;
     --text-subtle: #8a8a8a;
-    --text-inverse: #ffffff;
+    --text-inverse: #1b1b1b;
     --text-error: #ef4444;
 
     /* Borders / dividers */
@@ -114,6 +114,7 @@
 
     /* Brand & state */
     --brand-400: #8e4cfb;
+    --brand-500: #6f3dfa;
     --brand-secondary: #33b4ff;
     --brand-tertiary: #22c55e;
     --warning: #ff6600;
@@ -493,7 +494,12 @@ input[type="search"]::-ms-clear {
   }
 
   .auth-card {
-    background-color: rgba(var(--white-rgb), 0.9) !important;
+    background-color: var(--white) !important;
+    border-color: var(--border-muted) !important;
+  }
+
+  .dark .auth-card {
+    background-color: var(--surface-1) !important;
     border-color: var(--border-muted) !important;
   }
 
@@ -502,7 +508,7 @@ input[type="search"]::-ms-clear {
   }
 
   .auth-text-secondary {
-    color: var(--surface-14) !important;
+    color: var(--text-secondary) !important;
   }
 
   .auth-text-muted {
@@ -656,7 +662,7 @@ input[type="search"]::-ms-clear {
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 98%;
     --input: 0 0% 89.8%;
-    --input-background: 0 0% 79.22%;
+    --input-background: 0 0% 100%;
     --ring: 0 0% 3.9%;
     --radius: 0.5rem;
     --scrollbar-track: 0 0% 85%;
