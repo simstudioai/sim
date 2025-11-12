@@ -87,25 +87,6 @@ export function VariablesInput({
     return currentWorkflowVariables.filter((variable) => !otherSelectedIds.has(variable.id))
   }
 
-  /**
-   * Get the display name for a variable assignment
-   * Prioritizes store lookup to ensure we always show the latest name
-   */
-  const getVariableDisplayName = (assignment: VariableAssignment): string => {
-    // Look up by ID first (source of truth)
-    if (assignment.variableId) {
-      const variable = currentWorkflowVariables.find((v) => v.id === assignment.variableId)
-      return variable?.name || ''
-    }
-
-    // Fallback to stored name (for backwards compatibility)
-    if (assignment.variableName) {
-      return assignment.variableName
-    }
-
-    return ''
-  }
-
   const hasNoWorkflowVariables = currentWorkflowVariables.length === 0
   const allVariablesAssigned =
     !hasNoWorkflowVariables && getAvailableVariablesFor('new').length === 0
@@ -328,9 +309,7 @@ export function VariablesInput({
                       disabled={isPreview || disabled}
                     >
                       <SelectTrigger className='h-9 border border-input bg-white dark:border-input/60 dark:bg-background'>
-                        <SelectValue placeholder='Select a variable...'>
-                          {getVariableDisplayName(assignment)}
-                        </SelectValue>
+                        <SelectValue placeholder='Select a variable...' />
                       </SelectTrigger>
                       <SelectContent>
                         {(() => {
