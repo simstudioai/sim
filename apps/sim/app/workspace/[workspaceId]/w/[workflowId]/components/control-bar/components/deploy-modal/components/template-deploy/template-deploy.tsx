@@ -454,12 +454,12 @@ export function TemplateDeploy({ workflowId, onDeploymentComplete }: TemplateDep
       )}
 
       {/* Template State Preview Dialog */}
-      {showPreviewDialog && (
-        <Dialog open={showPreviewDialog} onOpenChange={setShowPreviewDialog}>
-          <DialogContent className='max-h-[80vh] max-w-5xl overflow-auto'>
-            <DialogHeader>
-              <DialogTitle>Template State Preview</DialogTitle>
-            </DialogHeader>
+      <Dialog open={showPreviewDialog} onOpenChange={setShowPreviewDialog}>
+        <DialogContent className='max-h-[80vh] max-w-5xl overflow-auto'>
+          <DialogHeader>
+            <DialogTitle>Published Template Preview</DialogTitle>
+          </DialogHeader>
+          {showPreviewDialog && (
             <div className='mt-4'>
               {(() => {
                 if (!existingTemplate?.state || !existingTemplate.state.blocks) {
@@ -487,7 +487,7 @@ export function TemplateDeploy({ workflowId, onDeploymentComplete }: TemplateDep
                 return (
                   <div className='h-[500px] w-full'>
                     <WorkflowPreview
-                      key={`template-preview-${existingTemplate.id}-${Date.now()}`}
+                      key={`template-preview-${existingTemplate.id}`}
                       workflowState={workflowState}
                       showSubBlocks={true}
                       height='100%'
@@ -497,9 +497,9 @@ export function TemplateDeploy({ workflowId, onDeploymentComplete }: TemplateDep
                 )
               })()}
             </div>
-          </DialogContent>
-        </Dialog>
-      )}
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

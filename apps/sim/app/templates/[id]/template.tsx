@@ -651,10 +651,10 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
                   className={cn(
                     'transition-colors',
                     isStarred &&
-                      'border-yellow-200 bg-yellow-50 text-yellow-700 hover:bg-yellow-100'
+                      'border-yellow-500/50 bg-yellow-500/10 text-yellow-500 hover:bg-yellow-500/20'
                   )}
                 >
-                  <Star className={cn('mr-2 h-4 w-4', isStarred && 'fill-current')} />
+                  <Star className={cn('mr-2 h-4 w-4', isStarred && 'fill-yellow-500')} />
                   {starCount}
                 </Button>
               )}

@@ -353,7 +353,7 @@ export function TemplateCard({
             onClick={handleStarClick}
             className={cn(
               'h-[12px] w-[12px] cursor-pointer transition-colors',
-              localIsStarred ? 'fill-yellow-400 text-yellow-400' : 'text-[#888888]',
+              localIsStarred ? 'fill-yellow-500 text-yellow-500' : 'text-[#888888]',
               isStarLoading && 'opacity-50'
             )}
           />

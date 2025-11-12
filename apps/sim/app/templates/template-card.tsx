@@ -460,8 +460,8 @@ export function TemplateCard({
                     className={cn(
                       'h-4 w-4 cursor-pointer transition-colors duration-50',
                       localIsStarred
-                        ? 'fill-yellow-400 text-yellow-400'
-                        : 'text-muted-foreground hover:fill-yellow-400 hover:text-yellow-400',
+                        ? 'fill-yellow-500 text-yellow-500'
+                        : 'text-muted-foreground hover:fill-yellow-500 hover:text-yellow-500',
                       isStarLoading && 'opacity-50'
                     )}
                   />
