@@ -309,6 +309,14 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
         }
       },
       params: (params) => {
+        console.log('[Slack Block Params Transformer] Received params:', {
+          allKeys: Object.keys(params),
+          operation: params.operation,
+          text: params.text,
+          textType: typeof params.text,
+          textLength: params.text?.length,
+        })
+
         const {
           credential,
           authMethod,
