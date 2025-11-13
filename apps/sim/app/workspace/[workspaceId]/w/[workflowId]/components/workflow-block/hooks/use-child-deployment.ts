@@ -35,8 +35,6 @@ export function useChildDeployment(childWorkflowId: string | undefined): UseChil
     try {
       setIsLoading(true)
 
-      // Use the workflow status API which provides accurate deployment and change detection
-      // This uses the same logic as the main deploy button (comparing actual workflow state)
       const statusRes = await fetch(`/api/workflows/${wfId}/status`, {
         cache: 'no-store',
         headers: { 'Cache-Control': 'no-cache' },
@@ -53,7 +51,6 @@ export function useChildDeployment(childWorkflowId: string | undefined): UseChil
 
       const statusData = await statusRes.json()
 
-      // Also fetch deployments to get the active version number
       const deploymentsRes = await fetch(`/api/workflows/${wfId}/deployments`, {
         cache: 'no-store',
         headers: { 'Cache-Control': 'no-cache' },
