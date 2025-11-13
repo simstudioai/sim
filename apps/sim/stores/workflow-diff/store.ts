@@ -366,7 +366,15 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
 
           const workflowStore = useWorkflowStore.getState()
           const currentState = workflowStore.getWorkflowState()
-          const cleanState = stripWorkflowDiffMarkers(cloneWorkflowState(currentState))
+          const mergedBlocks = mergeSubblockState(
+            currentState.blocks,
+            activeWorkflowId ?? undefined
+          )
+          const mergedState = {
+            ...currentState,
+            blocks: mergedBlocks,
+          }
+          const cleanState = stripWorkflowDiffMarkers(cloneWorkflowState(mergedState))
           const validation = validateWorkflowState(cleanState, { sanitize: true })
 
           if (!validation.valid) {
