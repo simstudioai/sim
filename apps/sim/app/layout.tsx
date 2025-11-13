@@ -6,6 +6,7 @@ import { generateBrandedMetadata, generateStructuredData } from '@/lib/branding/
 import { PostHogProvider } from '@/lib/posthog/provider'
 import '@/app/globals.css'
 
+import { OneDollarStats } from '@/components/analytics/onedollarstats'
 import { SessionProvider } from '@/lib/session/session-context'
 import { season } from '@/app/fonts/season/season'
 import { HydrationErrorHandler } from '@/app/hydration-error-handler'
@@ -54,6 +55,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <meta name='color-scheme' content='light dark' />
         <meta name='format-detection' content='telephone=no' />
         <meta httpEquiv='x-ua-compatible' content='ie=edge' />
+
+        {/* OneDollarStats Analytics - Only loads if DRIZZLE_ODS_API_KEY is set */}
+        <script defer src='https://assets.onedollarstats.com/stonks.js' />
 
         {/* Blocking script to prevent sidebar dimensions flash on page load */}
         <script
@@ -166,6 +170,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body className={`${season.variable} font-season`} suppressHydrationWarning>
         <HydrationErrorHandler />
+        <OneDollarStats />
         <PostHogProvider>
           <ThemeProvider>
             <SessionProvider>
