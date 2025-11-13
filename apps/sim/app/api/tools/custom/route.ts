@@ -1,6 +1,6 @@
 import { db } from '@sim/db'
 import { customTools, workflow } from '@sim/db/schema'
-import { and, eq, isNull, ne, or } from 'drizzle-orm'
+import { and, desc, eq, isNull, ne, or } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
@@ -101,6 +101,7 @@ export async function GET(request: NextRequest) {
       .select()
       .from(customTools)
       .where(or(...conditions))
+      .orderBy(desc(customTools.createdAt))
 
     return NextResponse.json({ data: result }, { status: 200 })
   } catch (error) {
@@ -266,6 +267,7 @@ export async function POST(req: NextRequest) {
           .select()
           .from(customTools)
           .where(eq(customTools.workspaceId, workspaceId))
+          .orderBy(desc(customTools.createdAt))
 
         return NextResponse.json({ success: true, data: resultTools })
       })
