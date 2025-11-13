@@ -110,7 +110,7 @@ Read the latest messages from Slack channels. Retrieve conversation history with
 | `authMethod` | string | No | Authentication method: oauth or bot_token |
 | `botToken` | string | No | Bot token for Custom Bot |
 | `channel` | string | Yes | Slack channel to read messages from \(e.g., #general\) |
-| `limit` | number | No | Number of messages to retrieve \(default: 10, max: 100\) |
+| `limit` | number | No | Number of messages to retrieve \(default: 10, Slack limits non-Marketplace apps to max 15 per request\) |
 | `oldest` | string | No | Start of time range \(timestamp\) |
 | `latest` | string | No | End of time range \(timestamp\) |
 
@@ -132,7 +132,7 @@ Read the root message and replies from a specific Slack thread.
 | `botToken` | string | No | Bot token for Custom Bot |
 | `channel` | string | Yes | Slack channel that contains the thread |
 | `thread_ts` | string | Yes | Timestamp of the root message to read |
-| `limit` | number | No | Number of thread messages to retrieve (default: 20, max: 100) |
+| `limit` | number | No | Number of thread messages to retrieve (default: 15, Slack currently limits non-Marketplace apps to max 15 per request) |
 | `cursor` | string | No | Pagination cursor for fetching additional replies |
 | `oldest` | string | No | Start of time range (timestamp) |
 | `latest` | string | No | End of time range (timestamp) |

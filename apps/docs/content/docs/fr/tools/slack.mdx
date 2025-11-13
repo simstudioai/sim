@@ -108,7 +108,7 @@ Lisez les derniers messages des canaux Slack. Récupérez l'historique des conve
 | `authMethod` | chaîne | Non | Méthode d'authentification : oauth ou bot_token |
 | `botToken` | chaîne | Non | Jeton du bot pour Bot personnalisé |
 | `channel` | chaîne | Oui | Canal Slack pour lire les messages \(ex. : #general\) |
-| `limit` | nombre | Non | Nombre de messages à récupérer \(par défaut : 10, max : 100\) |
+| `limit` | nombre | Non | Nombre de messages à récupérer \(par défaut : 10; Slack limite les apps hors Marketplace à 15 par requête\) |
 | `oldest` | chaîne | Non | Début de la plage temporelle \(horodatage\) |
 | `latest` | chaîne | Non | Fin de la plage temporelle \(horodatage\) |
 
@@ -130,7 +130,7 @@ Lisez le message racine et les réponses d'un thread Slack spécifique.
 | `botToken` | chaîne | Non | Jeton du bot pour Bot personnalisé |
 | `channel` | chaîne | Oui | Canal Slack qui contient le thread |
 | `thread_ts` | chaîne | Oui | Horodatage du message racine à lire |
-| `limit` | nombre | Non | Nombre de messages du thread à récupérer (par défaut : 20, max : 100) |
+| `limit` | nombre | Non | Nombre de messages du thread à récupérer (par défaut : 15; Slack limite les apps hors Marketplace à 15 par requête) |
 | `cursor` | chaîne | Non | Curseur de pagination pour récupérer plus de réponses |
 | `oldest` | chaîne | Non | Début de la plage temporelle (horodatage) |
 | `latest` | chaîne | Non | Fin de la plage temporelle (horodatage) |

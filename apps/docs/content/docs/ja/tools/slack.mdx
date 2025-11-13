@@ -107,7 +107,7 @@ Slackチャンネルから最新のメッセージを読み取ります。フィ
 | `authMethod` | string | いいえ | 認証方法：oauthまたはbot_token |
 | `botToken` | string | いいえ | カスタムボット用のボットトークン |
 | `channel` | string | はい | メッセージを読み取るSlackチャンネル（例：#general） |
-| `limit` | number | いいえ | 取得するメッセージ数（デフォルト：10、最大：100） |
+| `limit` | number | いいえ | 取得するメッセージ数（デフォルト：10。Slackの制限によりMarketplace外アプリは1リクエストあたり15件まで） |
 | `oldest` | string | いいえ | 時間範囲の開始（タイムスタンプ） |
 | `latest` | string | いいえ | 時間範囲の終了（タイムスタンプ） |
 
@@ -129,7 +129,7 @@ Slackチャンネルから最新のメッセージを読み取ります。フィ
 | `botToken` | string | いいえ | カスタムボット用のボットトークン |
 | `channel` | string | はい | スレッドを含むSlackチャンネル |
 | `thread_ts` | string | はい | 読み取るルートメッセージのタイムスタンプ |
-| `limit` | number | いいえ | 取得するスレッドメッセージ数（デフォルト：20、最大：100） |
+| `limit` | number | いいえ | 取得するスレッドメッセージ数（デフォルト：15。Slackの制限によりMarketplace外アプリは1リクエストあたり15件まで） |
 | `cursor` | string | いいえ | 追加の返信を取得するためのカーソル |
 | `oldest` | string | いいえ | 時間範囲の開始（タイムスタンプ） |
 | `latest` | string | いいえ | 時間範囲の終了（タイムスタンプ） |

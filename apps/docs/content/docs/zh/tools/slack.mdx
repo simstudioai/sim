@@ -106,7 +106,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 | `authMethod` | string | 否 | 认证方法：oauth 或 bot_token |
 | `botToken` | string | 否 | 自定义 Bot 的 Bot token |
 | `channel` | string | 是 | 要读取消息的 Slack 频道（例如：#general） |
-| `limit` | number | 否 | 要检索的消息数量（默认：10，最大：100） |
+| `limit` | number | 否 | 要检索的消息数量（默认：10；Slack 限制非 Marketplace 应用每次请求最多 15 条） |
 | `oldest` | string | 否 | 时间范围的开始（时间戳） |
 | `latest` | string | 否 | 时间范围的结束（时间戳） |
 
@@ -128,7 +128,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 | `botToken` | string | 否 | 自定义 Bot 的 token |
 | `channel` | string | 是 | 包含该线程的 Slack 频道 |
 | `thread_ts` | string | 是 | 需要读取的根消息时间戳 |
-| `limit` | number | 否 | 要检索的线程消息数（默认：20，最大：100） |
+| `limit` | number | 否 | 要检索的线程消息数（默认：15；Slack 限制非 Marketplace 应用每次请求最多 15 条） |
 | `cursor` | string | 否 | 获取更多回复的分页游标 |
 | `oldest` | string | 否 | 时间范围开始（时间戳） |
 | `latest` | string | 否 | 时间范围结束（时间戳） |

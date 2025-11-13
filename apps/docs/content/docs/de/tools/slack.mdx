@@ -108,7 +108,7 @@ Lesen Sie die neuesten Nachrichten aus Slack-Kanälen. Rufen Sie den Konversatio
 | `authMethod` | string | Nein | Authentifizierungsmethode: oauth oder bot_token |
 | `botToken` | string | Nein | Bot-Token für benutzerdefinierten Bot |
 | `channel` | string | Ja | Slack-Kanal, aus dem Nachrichten gelesen werden sollen (z.B. #general) |
-| `limit` | number | Nein | Anzahl der abzurufenden Nachrichten (Standard: 10, max: 100) |
+| `limit` | number | Nein | Anzahl der abzurufenden Nachrichten (Standard: 10; Slack begrenzt Nicht-Marketplace-Apps auf 15 pro Anfrage) |
 | `oldest` | string | Nein | Beginn des Zeitraums (Zeitstempel) |
 | `latest` | string | Nein | Ende des Zeitraums (Zeitstempel) |
 
@@ -130,7 +130,7 @@ Lesen Sie die Stammnachricht und alle Antworten aus einem bestimmten Slack-Threa
 | `botToken` | string | Nein | Bot-Token für benutzerdefinierten Bot |
 | `channel` | string | Ja | Slack-Kanal, der den Thread enthält |
 | `thread_ts` | string | Ja | Zeitstempel der Stammnachricht, die gelesen werden soll |
-| `limit` | number | Nein | Anzahl der Thread-Nachrichten (Standard: 20, max: 100) |
+| `limit` | number | Nein | Anzahl der Thread-Nachrichten (Standard: 15; Slack begrenzt Nicht-Marketplace-Apps auf 15 pro Anfrage) |
 | `cursor` | string | Nein | Paginierungs-Cursor zum Abrufen weiterer Antworten |
 | `oldest` | string | Nein | Beginn des Zeitraums (Zeitstempel) |
 | `latest` | string | Nein | Ende des Zeitraums (Zeitstempel) |

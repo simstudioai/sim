@@ -108,7 +108,7 @@ Lee los últimos mensajes de los canales de Slack. Recupera el historial de conv
 | `authMethod` | string | No | Método de autenticación: oauth o bot_token |
 | `botToken` | string | No | Token del bot para Bot personalizado |
 | `channel` | string | Sí | Canal de Slack del que leer mensajes (p. ej., #general) |
-| `limit` | number | No | Número de mensajes a recuperar (predeterminado: 10, máx: 100) |
+| `limit` | number | No | Número de mensajes a recuperar (predeterminado: 10; Slack limita a 15 por solicitud para apps fuera del Marketplace) |
 | `oldest` | string | No | Inicio del rango de tiempo (marca de tiempo) |
 | `latest` | string | No | Fin del rango de tiempo (marca de tiempo) |
 
@@ -130,7 +130,7 @@ Lee el mensaje raíz y las respuestas de un hilo específico de Slack.
 | `botToken` | string | No | Token del bot para Bot personalizado |
 | `channel` | string | Sí | Canal de Slack que contiene el hilo |
 | `thread_ts` | string | Sí | Marca de tiempo del mensaje raíz que se quiere leer |
-| `limit` | number | No | Número de mensajes del hilo a recuperar (predeterminado: 20, máx: 100) |
+| `limit` | number | No | Número de mensajes del hilo a recuperar (predeterminado: 15; Slack limita a 15 por solicitud para apps fuera del Marketplace) |
 | `cursor` | string | No | Cursor de paginación para obtener respuestas adicionales |
 | `oldest` | string | No | Inicio del rango de tiempo (marca de tiempo) |
 | `latest` | string | No | Fin del rango de tiempo (marca de tiempo) |
