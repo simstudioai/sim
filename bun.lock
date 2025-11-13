@@ -10,6 +10,7 @@
         "cronstrue": "3.3.0",
         "drizzle-orm": "^0.44.5",
         "mongodb": "6.19.0",
+        "onedollarstats": "0.0.10",
         "postgres": "^3.4.5",
         "remark-gfm": "4.0.1",
         "socket.io-client": "4.8.1",
@@ -2493,6 +2494,8 @@
     "on-finished": ["on-finished@2.4.1", "", { "dependencies": { "ee-first": "1.1.1" } }, "sha512-oVlzkg3ENAhCk2zdv7IJwd/QUD4z2RxRwpkcGY8psCVcCYZNq4wYnVWALHM+brtuJjePWiYF/ClmuDr8Ch5+kg=="],
 
     "once": ["once@1.4.0", "", { "dependencies": { "wrappy": "1" } }, "sha512-lNaJgI+2Q5URQBkccEKHTQOPaXdUxnZZElQTZY0MFUAuaEqe1E+Nyvgdz/aIyNi6Z9MzO5dv1H8n58/GELp3+w=="],
+
+    "onedollarstats": ["onedollarstats@0.0.10", "", {}, "sha512-+s2o5qBuKej2BrbJDqVRZr9U7F0ERBsNjXIJs1DSy2yK4yNk8z5iM0nHuwhelbNgqyVEwckCV7BJ9MsP/c8kQw=="],
 
     "onetime": ["onetime@6.0.0", "", { "dependencies": { "mimic-fn": "^4.0.0" } }, "sha512-1FlR+gjXK7X+AsAHso35MnyN5KqGwJRi/31ft6x0M194ht7S+rWAvd7PHss9xSKMzE0asv1pyIHaJYq+BbacAQ=="],
 
