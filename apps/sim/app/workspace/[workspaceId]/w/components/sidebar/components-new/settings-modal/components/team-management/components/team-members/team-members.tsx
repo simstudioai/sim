@@ -1,7 +1,5 @@
 import { useState } from 'react'
-import { UserX, X } from 'lucide-react'
-import { Button, Tooltip } from '@/components/emcn'
-import { Button as UIButton } from '@/components/ui/button'
+import { Button } from '@/components/emcn'
 import { UserAvatar } from '@/components/user-avatar/user-avatar'
 import { createLogger } from '@/lib/logs/console/logger'
 import type { Invitation, Member, Organization } from '@/lib/organization'
@@ -214,45 +212,25 @@ export function TeamMembers({
                 item.type === 'member' &&
                 item.role !== 'owner' &&
                 item.email !== currentUserEmail && (
-                  <Tooltip.Root>
-                    <Tooltip.Trigger asChild>
-                      <UIButton
-                        variant='outline'
-                        size='sm'
-                        onClick={() => onRemoveMember(item.member)}
-                        className='h-8 w-8 rounded-[8px] p-0'
-                      >
-                        <UserX className='h-4 w-4' />
-                      </UIButton>
-                    </Tooltip.Trigger>
-                    <Tooltip.Content side='left'>Remove Member</Tooltip.Content>
-                  </Tooltip.Root>
+                  <Button
+                    variant='ghost'
+                    onClick={() => onRemoveMember(item.member)}
+                    className='h-8 text-muted-foreground hover:text-foreground'
+                  >
+                    Remove
+                  </Button>
                 )}
 
               {/* Admin can cancel invitations */}
               {isAdminOrOwner && item.type === 'invitation' && (
-                <Tooltip.Root>
-                  <Tooltip.Trigger asChild>
-                    <UIButton
-                      variant='outline'
-                      size='sm'
-                      onClick={() => handleCancelInvitation(item.invitation.id)}
-                      disabled={cancellingInvitations.has(item.invitation.id)}
-                      className='h-8 w-8 rounded-[8px] p-0'
-                    >
-                      {cancellingInvitations.has(item.invitation.id) ? (
-                        <span className='h-4 w-4 animate-spin rounded-full border-2 border-current border-r-transparent' />
-                      ) : (
-                        <X className='h-4 w-4' />
-                      )}
-                    </UIButton>
-                  </Tooltip.Trigger>
-                  <Tooltip.Content side='left'>
-                    {cancellingInvitations.has(item.invitation.id)
-                      ? 'Cancelling...'
-                      : 'Cancel Invitation'}
-                  </Tooltip.Content>
-                </Tooltip.Root>
+                <Button
+                  variant='ghost'
+                  onClick={() => handleCancelInvitation(item.invitation.id)}
+                  disabled={cancellingInvitations.has(item.invitation.id)}
+                  className='h-8 text-muted-foreground hover:text-foreground'
+                >
+                  {cancellingInvitations.has(item.invitation.id) ? 'Cancelling...' : 'Cancel'}
+                </Button>
               )}
             </div>
           </div>

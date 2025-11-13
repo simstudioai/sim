@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Check, Copy, Plus } from 'lucide-react'
 import {
+  Button,
   Modal,
   ModalContent,
   ModalDescription,
@@ -8,7 +9,7 @@ import {
   ModalHeader,
   ModalTitle,
 } from '@/components/emcn'
-import { Button, Input, Label } from '@/components/ui'
+import { Label } from '@/components/ui'
 import { createLogger } from '@/lib/logs/console/logger'
 import {
   type CopilotKey,
@@ -268,21 +269,6 @@ export function Copilot() {
             </ModalDescription>
           </ModalHeader>
 
-          {deleteKey && (
-            <div className='py-2'>
-              <p className='mb-2 font-[360] text-sm'>
-                Enter <span className='font-semibold'>{deleteKey.displayKey}</span> to confirm.
-              </p>
-              <Input
-                value={deleteConfirmationKey}
-                onChange={(e) => setDeleteConfirmationKey(e.target.value)}
-                placeholder='Type key to confirm'
-                className='h-9 rounded-[8px]'
-                autoFocus
-              />
-            </div>
-          )}
-
           <ModalFooter className='flex'>
             <Button
               className='h-9 w-full rounded-[8px] bg-background text-foreground hover:bg-muted dark:bg-background dark:text-foreground dark:hover:bg-muted/80'
@@ -297,7 +283,6 @@ export function Copilot() {
             <Button
               onClick={handleDeleteKey}
               className='h-9 w-full rounded-[8px] bg-red-500 text-white transition-all duration-200 hover:bg-red-600 dark:bg-red-500 dark:hover:bg-red-600'
-              disabled={!deleteKey || deleteConfirmationKey !== deleteKey.displayKey}
             >
               Delete
             </Button>

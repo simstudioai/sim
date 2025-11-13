@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Tooltip } from '@/components/emcn'
-import { Button } from '@/components/ui/button'
+import { Button, Combobox, type ComboboxOption, Tooltip } from '@/components/emcn'
 import {
   Dialog,
   DialogContent,
@@ -10,13 +9,6 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import { DEFAULT_TEAM_TIER_COST_LIMIT } from '@/lib/billing/constants'
 import { env } from '@/lib/env'
 
@@ -63,6 +55,11 @@ export function TeamSeats({
     await onConfirm(selectedSeats)
   }
 
+  const seatOptions: ComboboxOption[] = [1, 2, 3, 4, 5, 10, 15, 20, 25, 30, 40, 50].map((num) => ({
+    value: num.toString(),
+    label: `${num} ${num === 1 ? 'seat' : 'seats'} ($${num * costPerSeat}/month)`,
+  }))
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
@@ -73,21 +70,12 @@ export function TeamSeats({
 
         <div className='py-4'>
           <Label htmlFor='seats'>Number of seats</Label>
-          <Select
+          <Combobox
+            options={seatOptions}
             value={selectedSeats.toString()}
-            onValueChange={(value) => setSelectedSeats(Number.parseInt(value))}
-          >
-            <SelectTrigger id='seats' className='rounded-[8px]'>
-              <SelectValue placeholder='Select number of seats' />
-            </SelectTrigger>
-            <SelectContent>
-              {[1, 2, 3, 4, 5, 10, 15, 20, 25, 30, 40, 50].map((num) => (
-                <SelectItem key={num} value={num.toString()}>
-                  {num} {num === 1 ? 'seat' : 'seats'} (${num * costPerSeat}/month)
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+            onChange={(value) => setSelectedSeats(Number.parseInt(value))}
+            placeholder='Select number of seats'
+          />
 
           <p className='mt-2 text-muted-foreground text-sm'>
             Your team will have {selectedSeats} {selectedSeats === 1 ? 'seat' : 'seats'} with a
@@ -123,6 +111,7 @@ export function TeamSeats({
             <Tooltip.Trigger asChild>
               <span>
                 <Button
+                  variant='primary'
                   onClick={handleConfirm}
                   disabled={
                     isLoading ||
