@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { MessageSquare, Package } from 'lucide-react'
+import { ListTree, MessageSquare, Package } from 'lucide-react'
 import {
   Badge,
   Popover,
@@ -13,10 +13,10 @@ import {
 import { cn } from '@/lib/utils'
 
 interface ModeSelectorProps {
-  /** Current mode - 'ask' or 'build' */
-  mode: 'ask' | 'build'
+  /** Current mode - 'ask', 'build', or 'plan' */
+  mode: 'ask' | 'build' | 'plan'
   /** Callback when mode changes */
-  onModeChange?: (mode: 'ask' | 'build') => void
+  onModeChange?: (mode: 'ask' | 'build' | 'plan') => void
   /** Whether the input is near the top of viewport (affects dropdown direction) */
   isNearTop: boolean
   /** Whether the selector is disabled */
@@ -24,7 +24,7 @@ interface ModeSelectorProps {
 }
 
 /**
- * Mode selector dropdown for switching between Ask and Build modes.
+ * Mode selector dropdown for switching between Ask, Build, and Plan modes.
  * Displays appropriate icon and label, with tooltips explaining each mode.
  *
  * @param props - Component props
@@ -39,6 +39,9 @@ export function ModeSelector({ mode, onModeChange, isNearTop, disabled }: ModeSe
     if (mode === 'ask') {
       return <MessageSquare className='h-3 w-3' />
     }
+    if (mode === 'plan') {
+      return <ListTree className='h-3 w-3' />
+    }
     return <Package className='h-3 w-3' />
   }
 
@@ -46,10 +49,13 @@ export function ModeSelector({ mode, onModeChange, isNearTop, disabled }: ModeSe
     if (mode === 'ask') {
       return 'Ask'
     }
+    if (mode === 'plan') {
+      return 'Plan'
+    }
     return 'Build'
   }
 
-  const handleSelect = (selectedMode: 'ask' | 'build') => {
+  const handleSelect = (selectedMode: 'ask' | 'build' | 'plan') => {
     onModeChange?.(selectedMode)
     setOpen(false)
   }
@@ -121,6 +127,10 @@ export function ModeSelector({ mode, onModeChange, isNearTop, disabled }: ModeSe
           <PopoverItem active={mode === 'ask'} onClick={() => handleSelect('ask')}>
             <MessageSquare className='h-3.5 w-3.5' />
             <span>Ask</span>
+          </PopoverItem>
+          <PopoverItem active={mode === 'plan'} onClick={() => handleSelect('plan')}>
+            <ListTree className='h-3.5 w-3.5' />
+            <span>Plan</span>
           </PopoverItem>
           <PopoverItem active={mode === 'build'} onClick={() => handleSelect('build')}>
             <Package className='h-3.5 w-3.5' />

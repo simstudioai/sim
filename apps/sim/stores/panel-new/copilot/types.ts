@@ -64,7 +64,7 @@ export interface CopilotChat {
   updatedAt: Date
 }
 
-export type CopilotMode = 'ask' | 'build'
+export type CopilotMode = 'ask' | 'build' | 'plan'
 
 export interface CopilotState {
   mode: CopilotMode

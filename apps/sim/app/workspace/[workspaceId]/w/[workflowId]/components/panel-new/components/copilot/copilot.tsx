@@ -433,7 +433,7 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
                   />
                 </div>
                 <div className='flex-shrink-0 pt-[8px]'>
-                  <Welcome onQuestionClick={handleSubmit} mode={mode === 'ask' ? 'ask' : 'build'} />
+                  <Welcome onQuestionClick={handleSubmit} mode={mode} />
                 </div>
               </div>
             ) : (

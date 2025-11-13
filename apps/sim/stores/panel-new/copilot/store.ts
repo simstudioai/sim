@@ -1807,12 +1807,14 @@ export const useCopilotStore = create<CopilotStore>()(
           })
         } catch {}
 
+        const apiMode: 'ask' | 'agent' | 'plan' =
+          mode === 'ask' ? 'ask' : mode === 'plan' ? 'plan' : 'agent'
         const result = await sendStreamingMessage({
           message,
           userMessageId: userMessage.id,
           chatId: currentChat?.id,
           workflowId,
-          mode: mode === 'ask' ? 'ask' : 'agent',
+          mode: apiMode,
           model: get().selectedModel,
           prefetch: get().agentPrefetch,
           createNewChat: !currentChat,
@@ -1942,11 +1944,13 @@ export const useCopilotStore = create<CopilotStore>()(
       const newAssistantMessage = createStreamingMessage()
       set((state) => ({ messages: [...state.messages, newAssistantMessage] }))
       try {
+        const apiMode: 'ask' | 'agent' | 'plan' =
+          mode === 'ask' ? 'ask' : mode === 'plan' ? 'plan' : 'agent'
         const result = await sendStreamingMessage({
           message: 'Please continue your response.',
           chatId: currentChat?.id,
           workflowId,
-          mode: mode === 'ask' ? 'ask' : 'agent',
+          mode: apiMode,
           model: selectedModel,
           prefetch: get().agentPrefetch,
           createNewChat: !currentChat,

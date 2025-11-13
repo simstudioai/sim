@@ -53,7 +53,7 @@ const ChatMessageSchema = z.object({
     ])
     .optional()
     .default('claude-4.5-sonnet'),
-  mode: z.enum(['ask', 'agent']).optional().default('agent'),
+  mode: z.enum(['ask', 'agent', 'plan']).optional().default('agent'),
   prefetch: z.boolean().optional(),
   createNewChat: z.boolean().optional().default(false),
   stream: z.boolean().optional().default(true),

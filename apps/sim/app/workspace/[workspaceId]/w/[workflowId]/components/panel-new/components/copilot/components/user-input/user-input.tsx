@@ -52,8 +52,8 @@ interface UserInputProps {
   isAborting?: boolean
   placeholder?: string
   className?: string
-  mode?: 'ask' | 'build'
-  onModeChange?: (mode: 'ask' | 'build') => void
+  mode?: 'ask' | 'build' | 'plan'
+  onModeChange?: (mode: 'ask' | 'build' | 'plan') => void
   value?: string
   onChange?: (value: string) => void
   panelWidth?: number
@@ -112,7 +112,12 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
 
     // Effective placeholder
     const effectivePlaceholder =
-      placeholder || (mode === 'ask' ? 'Ask about your workflow' : 'Plan, search, build anything')
+      placeholder ||
+      (mode === 'ask'
+        ? 'Ask about your workflow'
+        : mode === 'plan'
+          ? 'Plan your workflow'
+          : 'Plan, search, build anything')
 
     // Custom hooks - order matters for ref sharing
     // Context management (manages selectedContexts state)
