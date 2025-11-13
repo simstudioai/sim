@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { createLogger } from '@/lib/logs/console/logger'
 import { generateWorkspaceName } from '@/lib/naming'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -32,6 +32,7 @@ export function useWorkspaceManagement({
   sessionUserId,
 }: UseWorkspaceManagementProps) {
   const router = useRouter()
+  const pathname = usePathname()
   const { switchToWorkspace } = useWorkflowRegistry()
 
   // Workspace management state
@@ -45,12 +46,14 @@ export function useWorkspaceManagement({
   // Refs to avoid dependency issues
   const workspaceIdRef = useRef<string>(workspaceId)
   const routerRef = useRef<ReturnType<typeof useRouter>>(router)
+  const pathnameRef = useRef<string | null>(pathname || null)
   const activeWorkspaceRef = useRef<Workspace | null>(null)
   const isInitializedRef = useRef<boolean>(false)
 
   // Update refs when values change
   workspaceIdRef.current = workspaceId
   routerRef.current = router
+  pathnameRef.current = pathname || null
   activeWorkspaceRef.current = activeWorkspace
 
   /**
@@ -189,7 +192,17 @@ export function useWorkspaceManagement({
       try {
         // Switch workspace and update URL
         await switchToWorkspace(workspace.id)
-        routerRef.current?.push(`/workspace/${workspace.id}/w`)
+        const currentPath = pathnameRef.current || ''
+        // Preserve templates route if user is on templates or template detail
+        const templateDetailMatch = currentPath.match(/^\/workspace\/[^/]+\/templates\/([^/]+)$/)
+        if (templateDetailMatch) {
+          const templateId = templateDetailMatch[1]
+          routerRef.current?.push(`/workspace/${workspace.id}/templates/${templateId}`)
+        } else if (/^\/workspace\/[^/]+\/templates$/.test(currentPath)) {
+          routerRef.current?.push(`/workspace/${workspace.id}/templates`)
+        } else {
+          routerRef.current?.push(`/workspace/${workspace.id}/w`)
+        }
         logger.info(`Switched to workspace: ${workspace.name} (${workspace.id})`)
       } catch (error) {
         logger.error('Error switching workspace:', error)
