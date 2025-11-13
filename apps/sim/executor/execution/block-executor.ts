@@ -565,7 +565,15 @@ export class BlockExecutor {
     if (responseFormat) {
       try {
         const parsed = JSON.parse(fullContent.trim())
-        Object.assign(executionOutput, parsed)
+
+        streamingExec.execution.output = {
+          ...parsed,
+          tokens: executionOutput.tokens,
+          toolCalls: executionOutput.toolCalls,
+          providerTiming: executionOutput.providerTiming,
+          cost: executionOutput.cost,
+          model: executionOutput.model,
+        }
         return
       } catch (error) {
         logger.warn('Failed to parse streamed content for response format', { blockId, error })
