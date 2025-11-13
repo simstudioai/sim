@@ -316,6 +316,7 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
           operation,
           channel,
           manualChannel,
+          text,
           title,
           content,
           limit,
@@ -359,10 +360,10 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
         // Handle operation-specific params
         switch (operation) {
           case 'send': {
-            if (!rest.text) {
+            if (!text || text.trim() === '') {
               throw new Error('Message text is required for send operation')
             }
-            baseParams.text = rest.text
+            baseParams.text = text
             // Add thread_ts if provided
             if (threadTs) {
               baseParams.thread_ts = threadTs
