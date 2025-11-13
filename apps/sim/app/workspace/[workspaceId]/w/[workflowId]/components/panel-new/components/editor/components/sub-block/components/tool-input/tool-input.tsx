@@ -477,6 +477,7 @@ export function ToolInput({
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
   const customTools = useCustomToolsStore((state) => state.getAllTools())
+  const fetchCustomTools = useCustomToolsStore((state) => state.fetchTools)
   const subBlockStore = useSubBlockStore()
 
   // MCP tools integration
@@ -486,6 +487,13 @@ export function ToolInput({
     error: mcpError,
     refreshTools,
   } = useMcpTools(workspaceId)
+
+  // Fetch custom tools on mount
+  useEffect(() => {
+    if (workspaceId) {
+      fetchCustomTools(workspaceId)
+    }
+  }, [workspaceId, fetchCustomTools])
 
   // Get the current model from the 'model' subblock
   const modelValue = useSubBlockStore.getState().getValue(blockId, 'model')
