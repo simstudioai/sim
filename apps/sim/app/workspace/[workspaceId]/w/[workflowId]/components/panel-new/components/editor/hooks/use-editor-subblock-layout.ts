@@ -25,7 +25,7 @@ export function useEditorSubblockLayout(
   displayTriggerMode: boolean,
   activeWorkflowId: string | null,
   blockSubBlockValues: Record<string, any>,
-  isDiffMode: boolean
+  isSnapshotView: boolean
 ) {
   return useMemo(() => {
     // Guard against missing config or block selection
@@ -35,15 +35,13 @@ export function useEditorSubblockLayout(
 
     const diffStore = useWorkflowDiffStore.getState()
     const workflowBlocks = useWorkflowStore.getState().blocks || {}
-    const shouldShowBaseline =
-      !isDiffMode && diffStore.hasActiveDiff && diffStore.baselineWorkflow !== null
 
-    const sourceBlocks = shouldShowBaseline
+    const sourceBlocks = isSnapshotView
       ? (diffStore.baselineWorkflow?.blocks as Record<string, any>) || {}
       : workflowBlocks
 
-    const mergedMap = shouldShowBaseline
-      ? { [blockId]: sourceBlocks[blockId] }
+    const mergedMap = isSnapshotView
+      ? { [blockId]: structuredClone(sourceBlocks[blockId]) }
       : mergeSubblockState(sourceBlocks, activeWorkflowId || undefined, blockId)
 
     const mergedState = mergedMap ? mergedMap[blockId] : undefined
@@ -55,14 +53,14 @@ export function useEditorSubblockLayout(
         const liveValue =
           blockSubBlockValues[key] !== undefined ? blockSubBlockValues[key] : baselineValue
         acc[key] = {
-          value: shouldShowBaseline ? baselineValue : liveValue,
+          value: isSnapshotView ? baselineValue : liveValue,
         }
         return acc
       },
       {} as Record<string, { value: unknown }>
     )
 
-    if (!shouldShowBaseline) {
+    if (!isSnapshotView) {
       Object.keys(blockSubBlockValues).forEach((key) => {
         if (!(key in stateToUse)) {
           stateToUse[key] = { value: blockSubBlockValues[key] }
@@ -148,6 +146,6 @@ export function useEditorSubblockLayout(
     displayTriggerMode,
     blockSubBlockValues,
     activeWorkflowId,
-    isDiffMode,
+    isSnapshotView,
   ])
 }

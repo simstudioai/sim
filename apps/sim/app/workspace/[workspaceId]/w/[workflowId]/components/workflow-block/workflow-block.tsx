@@ -462,21 +462,16 @@ export const WorkflowBlock = memo(function WorkflowBlock({
      * Uses preview values in preview mode, diff workflow values in diff mode,
      * or the current block's subblock values otherwise.
      */
-    let stateToUse: Record<string, { value: unknown }> = {}
-
-    if (data.isPreview && data.subBlockValues) {
-      stateToUse = data.subBlockValues
-    } else if (currentWorkflow.isDiffMode && currentBlock) {
-      stateToUse = currentBlock.subBlocks || {}
-    } else {
-      stateToUse = Object.entries(blockSubBlockValues).reduce(
-        (acc, [key, value]) => {
-          acc[key] = { value }
-          return acc
-        },
-        {} as Record<string, { value: unknown }>
-      )
-    }
+    const stateToUse: Record<string, { value: unknown }> =
+      data.isPreview && data.subBlockValues
+        ? data.subBlockValues
+        : Object.entries(blockSubBlockValues).reduce(
+            (acc, [key, value]) => {
+              acc[key] = { value }
+              return acc
+            },
+            {} as Record<string, { value: unknown }>
+          )
 
     const effectiveAdvanced = displayAdvancedMode
     const effectiveTrigger = displayTriggerMode

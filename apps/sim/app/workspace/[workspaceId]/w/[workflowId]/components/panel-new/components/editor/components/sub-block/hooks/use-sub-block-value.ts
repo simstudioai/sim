@@ -76,10 +76,12 @@ export function useSubBlockValue<T = any>(
   // Check if we're in diff mode and get diff value if available
   const { isShowingDiff, hasActiveDiff, baselineWorkflow } = useWorkflowDiffStore()
   const isBaselineView = hasActiveDiff && !isShowingDiff
-  const snapshotValue =
+  const snapshotSubBlock =
     isBaselineView && baselineWorkflow
-      ? (baselineWorkflow.blocks?.[blockId]?.subBlocks?.[subBlockId]?.value ?? null)
-      : null
+      ? baselineWorkflow.blocks?.[blockId]?.subBlocks?.[subBlockId]
+      : undefined
+  const hasSnapshotValue = snapshotSubBlock !== undefined
+  const snapshotValue = hasSnapshotValue ? ((snapshotSubBlock as any)?.value ?? null) : null
 
   // Check if this is an API key field that could be auto-filled
   const isApiKey =
@@ -208,8 +210,11 @@ export function useSubBlockValue<T = any>(
   )
 
   // Determine the effective value: diff value takes precedence if in diff mode
-  const effectiveValue =
-    snapshotValue !== null ? snapshotValue : storeValue !== undefined ? storeValue : initialValue
+  const effectiveValue = hasSnapshotValue
+    ? snapshotValue
+    : storeValue !== undefined
+      ? storeValue
+      : initialValue
 
   // Initialize valueRef on first render
   useEffect(() => {

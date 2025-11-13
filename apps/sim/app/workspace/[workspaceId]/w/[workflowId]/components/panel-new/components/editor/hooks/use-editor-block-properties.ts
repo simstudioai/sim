@@ -7,13 +7,14 @@ import { useWorkflowStore } from '@/stores/workflows/workflow/store'
  * Provides access to advanced mode and trigger mode states.
  *
  * @param blockId - The ID of the block being edited
- * @param isDiffMode - Whether we're currently viewing a diff
+ * @param isSnapshotView - Whether we're currently viewing the baseline snapshot
  * @returns Block display properties (advanced mode, trigger mode)
  */
-export function useEditorBlockProperties(blockId: string | null, isDiffMode: boolean) {
-  // Get blocks from appropriate source
+export function useEditorBlockProperties(blockId: string | null, isSnapshotView: boolean) {
   const normalBlocks = useWorkflowStore(useCallback((state) => state.blocks, []))
-  const baselineWorkflow = useWorkflowDiffStore(useCallback((state) => state.baselineWorkflow, []))
+  const baselineBlocks = useWorkflowDiffStore(
+    useCallback((state) => state.baselineWorkflow?.blocks || {}, [])
+  )
 
   const blockProperties = useMemo(() => {
     if (!blockId) {
@@ -23,16 +24,14 @@ export function useEditorBlockProperties(blockId: string | null, isDiffMode: boo
       }
     }
 
-    // Get block from appropriate source based on mode
-    const blocks =
-      isDiffMode || !baselineWorkflow ? normalBlocks : (baselineWorkflow.blocks as any) || {}
-    const block = blocks[blockId]
+    const blocks = isSnapshotView ? baselineBlocks : normalBlocks
+    const block = blocks?.[blockId]
 
     return {
       advancedMode: block?.advancedMode ?? false,
       triggerMode: block?.triggerMode ?? false,
     }
-  }, [blockId, isDiffMode, normalBlocks, baselineWorkflow])
+  }, [blockId, isSnapshotView, normalBlocks, baselineBlocks])
 
   return blockProperties
 }
