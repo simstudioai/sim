@@ -144,7 +144,7 @@ export const CareersSubmissionEmail = ({
                   <td style={{ padding: '8px 0', fontSize: '14px', color: '#333333' }}>
                     <a
                       href={`mailto:${email}`}
-                      style={{ color: '#802FFF', textDecoration: 'none' }}
+                      style={{ color: '#6F3DFA', textDecoration: 'none' }}
                     >
                       {email}
                     </a>
@@ -163,7 +163,7 @@ export const CareersSubmissionEmail = ({
                       Phone:
                     </td>
                     <td style={{ padding: '8px 0', fontSize: '14px', color: '#333333' }}>
-                      <a href={`tel:${phone}`} style={{ color: '#802FFF', textDecoration: 'none' }}>
+                      <a href={`tel:${phone}`} style={{ color: '#6F3DFA', textDecoration: 'none' }}>
                         {phone}
                       </a>
                     </td>
@@ -231,7 +231,7 @@ export const CareersSubmissionEmail = ({
                         href={linkedin}
                         target='_blank'
                         rel='noopener noreferrer'
-                        style={{ color: '#802FFF', textDecoration: 'none' }}
+                        style={{ color: '#6F3DFA', textDecoration: 'none' }}
                       >
                         View Profile
                       </a>
@@ -255,7 +255,7 @@ export const CareersSubmissionEmail = ({
                         href={portfolio}
                         target='_blank'
                         rel='noopener noreferrer'
-                        style={{ color: '#802FFF', textDecoration: 'none' }}
+                        style={{ color: '#6F3DFA', textDecoration: 'none' }}
                       >
                         View Portfolio
                       </a>

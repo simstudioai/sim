@@ -78,12 +78,12 @@ export const CareersConfirmationEmail = ({
                 href='https://docs.sim.ai'
                 target='_blank'
                 rel='noopener noreferrer'
-                style={{ color: '#802FFF', textDecoration: 'none' }}
+                style={{ color: '#6F3DFA', textDecoration: 'none' }}
               >
                 documentation
               </a>{' '}
               to learn more about what we're building, or check out our{' '}
-              <a href={`${baseUrl}/studio`} style={{ color: '#802FFF', textDecoration: 'none' }}>
+              <a href={`${baseUrl}/studio`} style={{ color: '#6F3DFA', textDecoration: 'none' }}>
                 blog
               </a>{' '}
               for the latest updates.
