@@ -415,6 +415,15 @@ export class Serializer {
       }
     })
 
+    // Debug: Log params before canonical consolidation
+    if (block.type === 'slack') {
+      console.log('[Serializer] Params after extraction (before canonical):', {
+        blockId: block.id,
+        text: params.text,
+        allKeys: Object.keys(params),
+      })
+    }
+
     // Finally, consolidate canonical parameters (e.g., selector and manual ID into a single param)
     const canonicalGroups: Record<string, { basic?: string; advanced: string[] }> = {}
     blockConfig.subBlocks.forEach((sb) => {
@@ -453,6 +462,15 @@ export class Serializer {
       if (chosen !== undefined) params[canonicalKey] = chosen
       else delete params[canonicalKey]
     })
+
+    // Debug: Log params after canonical consolidation
+    if (block.type === 'slack') {
+      console.log('[Serializer] Params after canonical consolidation:', {
+        blockId: block.id,
+        text: params.text,
+        allKeys: Object.keys(params),
+      })
+    }
 
     return params
   }

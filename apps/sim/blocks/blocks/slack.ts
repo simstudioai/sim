@@ -441,6 +441,12 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
             break
         }
 
+        console.log('[Slack Block Params Transformer] Returning baseParams:', {
+          operation,
+          baseParamsKeys: Object.keys(baseParams),
+          text: baseParams.text,
+        })
+
         return baseParams
       },
     },

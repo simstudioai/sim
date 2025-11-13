@@ -34,8 +34,31 @@ export class GenericBlockHandler implements BlockHandler {
       const blockConfig = getBlock(blockType)
       if (blockConfig?.tools?.config?.params) {
         try {
+          if (blockType === 'slack') {
+            console.log('[GenericHandler] Before params transformer:', {
+              blockType,
+              inputsText: inputs.text,
+              inputsKeys: Object.keys(inputs),
+            })
+          }
+
           const transformedParams = blockConfig.tools.config.params(inputs)
+
+          if (blockType === 'slack') {
+            console.log('[GenericHandler] After params transformer:', {
+              transformedParamsText: transformedParams.text,
+              transformedKeys: Object.keys(transformedParams),
+            })
+          }
+
           finalInputs = { ...inputs, ...transformedParams }
+
+          if (blockType === 'slack') {
+            console.log('[GenericHandler] After merge:', {
+              finalInputsText: finalInputs.text,
+              finalInputsKeys: Object.keys(finalInputs),
+            })
+          }
         } catch (error) {
           logger.warn(`Failed to apply parameter transformation for block type ${blockType}:`, {
             error: error instanceof Error ? error.message : String(error),
