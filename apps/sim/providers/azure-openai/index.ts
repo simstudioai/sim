@@ -523,9 +523,9 @@ export const azureOpenAIProvider: ProviderConfig = {
         iterationCount++
       }
 
-      // After all tool processing complete, if streaming was requested and we have messages, use streaming for the final response
-      if (request.stream && iterationCount > 0) {
-        logger.info('Using streaming for final response after tool calls')
+      // After all tool processing complete, if streaming was requested, use streaming for the final response
+      if (request.stream) {
+        logger.info('Using streaming for final response after tool processing')
 
         // When streaming after tool calls with forced tools, make sure tool_choice is set to 'auto'
         // This prevents Azure OpenAI API from trying to force tool usage again in the final streaming response

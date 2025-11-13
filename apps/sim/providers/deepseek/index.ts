@@ -457,8 +457,8 @@ export const deepseekProvider: ProviderConfig = {
       const totalDuration = providerEndTime - providerStartTime
 
       // POST-TOOL STREAMING: stream final response after tool calls if requested
-      if (request.stream && iterationCount > 0) {
-        logger.info('Using streaming for final DeepSeek response after tool calls')
+      if (request.stream) {
+        logger.info('Using streaming for final DeepSeek response after tool processing')
 
         // When streaming after tool calls with forced tools, make sure tool_choice is set to 'auto'
         // This prevents the API from trying to force tool usage again in the final streaming response
