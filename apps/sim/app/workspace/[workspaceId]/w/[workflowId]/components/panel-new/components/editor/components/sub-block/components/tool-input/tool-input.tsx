@@ -50,9 +50,9 @@ import { ToolCommand } from '@/app/workspace/[workspaceId]/w/[workflowId]/compon
 import { ToolCredentialSelector } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/components/sub-block/components/tool-input/components/tool-credential-selector'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/components/sub-block/hooks/use-sub-block-value'
 import { getAllBlocks } from '@/blocks'
+import { useCustomTools } from '@/hooks/queries/custom-tools'
 import { useMcpTools } from '@/hooks/use-mcp-tools'
 import { getProviderFromModel, supportsToolUsageControl } from '@/providers/utils'
-import { useCustomToolsStore } from '@/stores/custom-tools/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import {
   formatParameterLabel,
@@ -476,8 +476,7 @@ export function ToolInput({
   const [searchQuery, setSearchQuery] = useState('')
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
-  const customTools = useCustomToolsStore((state) => state.getAllTools())
-  const fetchCustomTools = useCustomToolsStore((state) => state.fetchTools)
+  const { data: customTools = [] } = useCustomTools(workspaceId)
   const subBlockStore = useSubBlockStore()
 
   // MCP tools integration
@@ -487,13 +486,6 @@ export function ToolInput({
     error: mcpError,
     refreshTools,
   } = useMcpTools(workspaceId)
-
-  // Fetch custom tools on mount
-  useEffect(() => {
-    if (workspaceId) {
-      fetchCustomTools(workspaceId)
-    }
-  }, [workspaceId, fetchCustomTools])
 
   // Get the current model from the 'model' subblock
   const modelValue = useSubBlockStore.getState().getValue(blockId, 'model')
@@ -706,7 +698,7 @@ export function ToolInput({
     (customTool: CustomTool) => {
       if (isPreview || disabled) return
 
-      const customToolId = `custom-${customTool.schema.function.name}`
+      const customToolId = `custom-${customTool.schema?.function?.name || 'unknown'}`
 
       const newTool: StoredTool = {
         type: 'custom-tool',
@@ -782,7 +774,7 @@ export function ToolInput({
           customTools.some(
             (customTool) =>
               customTool.id === toolId &&
-              customTool.schema.function.name === tool.schema.function.name
+              customTool.schema?.function?.name === tool.schema.function.name
           )
         ) {
           return false
@@ -823,7 +815,6 @@ export function ToolInput({
   const handleOperationChange = useCallback(
     (toolIndex: number, operation: string) => {
       if (isPreview || disabled) {
-        logger.info('❌ Early return: preview or disabled')
         return
       }
 
@@ -832,7 +823,6 @@ export function ToolInput({
       const newToolId = getToolIdForOperation(tool.type, operation)
 
       if (!newToolId) {
-        logger.info('❌ Early return: no newToolId')
         return
       }
 
@@ -840,7 +830,6 @@ export function ToolInput({
       const toolParams = getToolParametersConfig(newToolId, tool.type)
 
       if (!toolParams) {
-        logger.info('❌ Early return: no toolParams')
         return
       }
 
@@ -1400,7 +1389,7 @@ export function ToolInput({
                               const newTool: StoredTool = {
                                 type: 'custom-tool',
                                 title: customTool.title,
-                                toolId: `custom-${customTool.schema.function.name}`,
+                                toolId: `custom-${customTool.schema?.function?.name || 'unknown'}`,
                                 params: {},
                                 isExpanded: true,
                                 schema: customTool.schema,
@@ -1934,7 +1923,7 @@ export function ToolInput({
                                 const newTool: StoredTool = {
                                   type: 'custom-tool',
                                   title: customTool.title,
-                                  toolId: `custom-${customTool.schema.function.name}`,
+                                  toolId: `custom-${customTool.schema?.function?.name || 'unknown'}`,
                                   params: {},
                                   isExpanded: true,
                                   schema: customTool.schema,
@@ -2025,8 +2014,8 @@ export function ToolInput({
             ? {
                 id: customTools.find(
                   (tool) =>
-                    tool.schema.function.name ===
-                    selectedTools[editingToolIndex].schema.function.name
+                    tool.schema?.function?.name ===
+                    selectedTools[editingToolIndex].schema?.function?.name
                 )?.id,
                 schema: selectedTools[editingToolIndex].schema,
                 code: selectedTools[editingToolIndex].code || '',

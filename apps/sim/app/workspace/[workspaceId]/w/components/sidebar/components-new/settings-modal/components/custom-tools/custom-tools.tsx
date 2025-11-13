@@ -1,13 +1,13 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { AlertCircle, Plus, Search } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { Button, Label } from '@/components/emcn'
 import { Alert, AlertDescription, Input, Skeleton } from '@/components/ui'
 import { createLogger } from '@/lib/logs/console/logger'
 import { CustomToolModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/components/sub-block/components/tool-input/components/custom-tool-modal/custom-tool-modal'
-import { useCustomToolsStore } from '@/stores/custom-tools/store'
+import { useCustomTools, useDeleteCustomTool } from '@/hooks/queries/custom-tools'
 
 const logger = createLogger('CustomToolsSettings')
 
@@ -32,25 +32,15 @@ function CustomToolSkeleton() {
 export function CustomTools() {
   const params = useParams()
   const workspaceId = params.workspaceId as string
-  const { tools, isLoading, error, fetchTools, deleteTool, clearError } = useCustomToolsStore()
+
+  // React Query hooks
+  const { data: tools = [], isLoading, error, refetch: refetchTools } = useCustomTools(workspaceId)
+  const deleteToolMutation = useDeleteCustomTool()
 
   const [searchTerm, setSearchTerm] = useState('')
   const [deletingTools, setDeletingTools] = useState<Set<string>>(new Set())
   const [editingTool, setEditingTool] = useState<string | null>(null)
   const [showAddForm, setShowAddForm] = useState(false)
-
-  useEffect(() => {
-    if (workspaceId) {
-      fetchTools(workspaceId)
-    }
-  }, [workspaceId, fetchTools])
-
-  // Clear store errors when modal opens (errors should show in modal, not in settings)
-  useEffect(() => {
-    if (showAddForm || editingTool) {
-      clearError()
-    }
-  }, [showAddForm, editingTool, clearError])
 
   const filteredTools = tools.filter((tool) => {
     if (!searchTerm.trim()) return true
@@ -69,15 +59,13 @@ export function CustomTools() {
     setDeletingTools((prev) => new Set(prev).add(toolId))
     try {
       // Pass null workspaceId for user-scoped tools (legacy tools without workspaceId)
-      await deleteTool(tool.workspaceId ?? null, toolId)
+      await deleteToolMutation.mutateAsync({
+        workspaceId: tool.workspaceId ?? null,
+        toolId,
+      })
       logger.info(`Deleted custom tool: ${toolId}`)
-      // Silently refresh the list - no toast notification
-      if (workspaceId) {
-        await fetchTools(workspaceId)
-      }
     } catch (error) {
       logger.error('Error deleting custom tool:', error)
-      // Silently handle error - no toast notification
     } finally {
       setDeletingTools((prev) => {
         const next = new Set(prev)
@@ -90,9 +78,8 @@ export function CustomTools() {
   const handleToolSaved = () => {
     setShowAddForm(false)
     setEditingTool(null)
-    if (workspaceId) {
-      fetchTools(workspaceId)
-    }
+    // React Query will automatically refetch via cache invalidation
+    refetchTools()
   }
 
   return (
@@ -103,7 +90,9 @@ export function CustomTools() {
         {error && !showAddForm && !editingTool && (
           <Alert variant='destructive' className='mb-4'>
             <AlertCircle className='h-4 w-4' />
-            <AlertDescription>{error}</AlertDescription>
+            <AlertDescription>
+              {error instanceof Error ? error.message : 'An error occurred'}
+            </AlertDescription>
           </Alert>
         )}
 
@@ -229,7 +218,16 @@ export function CustomTools() {
         onSave={handleToolSaved}
         onDelete={() => {}}
         blockId=''
-        initialValues={editingTool ? tools.find((t) => t.id === editingTool) : undefined}
+        initialValues={
+          editingTool
+            ? (() => {
+                const tool = tools.find((t) => t.id === editingTool)
+                return tool?.schema
+                  ? { id: tool.id, schema: tool.schema, code: tool.code }
+                  : undefined
+              })()
+            : undefined
+        }
       />
     </div>
   )

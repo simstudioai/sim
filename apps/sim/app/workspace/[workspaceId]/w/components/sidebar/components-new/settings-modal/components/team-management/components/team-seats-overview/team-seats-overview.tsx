@@ -1,6 +1,4 @@
-import { Building2 } from 'lucide-react'
-import { Badge } from '@/components/emcn'
-import { Button } from '@/components/ui/button'
+import { Badge, Button } from '@/components/emcn'
 import { Skeleton } from '@/components/ui/skeleton'
 import { checkEnterprisePlan } from '@/lib/billing/subscriptions/utils'
 import { cn } from '@/lib/utils'
@@ -70,22 +68,19 @@ export function TeamSeatsOverview({
   if (!subscriptionData) {
     return (
       <div className='rounded-[8px] border bg-background p-3 shadow-xs'>
-        <div className='space-y-4 text-center'>
-          <div className='mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-amber-100'>
-            <Building2 className='h-6 w-6 text-amber-600' />
-          </div>
+        <div className='space-y-3 text-center'>
           <div className='space-y-2'>
             <p className='font-medium text-sm'>No Team Subscription Found</p>
-            <p className='text-muted-foreground text-sm'>
+            <p className='text-muted-foreground text-xs'>
               Your subscription may need to be transferred to this organization.
             </p>
           </div>
           <Button
+            variant='primary'
             onClick={() => {
               onConfirmTeamUpgrade(2) // Start with 2 seats as default
             }}
             disabled={isLoading}
-            className='h-9 rounded-[8px]'
           >
             Set Up Team Subscription
           </Button>

@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { createLogger } from '@/lib/logs/console/logger'
-import { useSubscriptionStore } from '@/stores/subscription/store'
-import type { UsageData as StoreUsageData } from '@/stores/subscription/types'
+import type { UsageData as StoreUsageData } from '@/lib/subscription/types'
 
 const logger = createLogger('useUsageLimits')
 
@@ -120,25 +119,7 @@ export function useUsageLimits(options?: {
           return usage
         }
 
-        // Fallback: use store if API not available (user context only)
-        if (context === 'user') {
-          const { getUsage, refresh } = useSubscriptionStore.getState()
-          if (forceRefresh) await refresh()
-          const storeUsage = getUsage()
-          const usage = normalizeUsageData(storeUsage)
-
-          // Update cache
-          usageDataCache = {
-            data: usage,
-            timestamp: now,
-            expirationMs: usageDataCache.expirationMs,
-          }
-
-          setUsageData(usage)
-          setUsageExceeded(usage?.isExceeded || false)
-          return usage
-        }
-
+        // No fallback available - React Query handles this globally
         throw new Error('Failed to fetch usage data')
       } catch (err) {
         const error = err instanceof Error ? err : new Error('Failed to check usage limits')
@@ -186,12 +167,18 @@ export function useUsageLimits(options?: {
           return { success: true }
         }
 
-        // User context
-        const { updateUsageLimit } = useSubscriptionStore.getState()
-        const result = await updateUsageLimit(newLimit)
+        // User context - use API directly
+        const response = await fetch('/api/usage', {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ context: 'user', limit: newLimit }),
+        })
 
-        if (!result.success) {
-          throw new Error(result.error || 'Failed to update limit')
+        const data = await response.json()
+        if (!response.ok) {
+          throw new Error(data.error || 'Failed to update limit')
         }
 
         // Clear cache and refresh

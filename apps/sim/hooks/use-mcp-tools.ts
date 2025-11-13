@@ -11,7 +11,7 @@ import { WrenchIcon } from 'lucide-react'
 import { createLogger } from '@/lib/logs/console/logger'
 import type { McpTool } from '@/lib/mcp/types'
 import { createMcpToolId } from '@/lib/mcp/utils'
-import { useMcpServersStore } from '@/stores/mcp-servers/store'
+import { useMcpServers } from '@/hooks/queries/mcp'
 
 const logger = createLogger('useMcpTools')
 
@@ -41,7 +41,7 @@ export function useMcpTools(workspaceId: string): UseMcpToolsResult {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const servers = useMcpServersStore((state) => state.servers)
+  const { data: servers = [] } = useMcpServers(workspaceId)
 
   // Track the last fingerprint
   const lastProcessedFingerprintRef = useRef<string>('')

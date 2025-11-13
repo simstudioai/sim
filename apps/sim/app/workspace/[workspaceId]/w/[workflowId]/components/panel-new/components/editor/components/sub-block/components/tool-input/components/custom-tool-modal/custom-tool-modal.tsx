@@ -36,7 +36,12 @@ import {
 import { CodeEditor } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/components/sub-block/components/tool-input/components/code-editor/code-editor'
 import { WandPromptBar } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/wand-prompt-bar/wand-prompt-bar'
 import { useWand } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-wand'
-import { useCustomToolsStore } from '@/stores/custom-tools/store'
+import {
+  useCreateCustomTool,
+  useCustomTools,
+  useDeleteCustomTool,
+  useUpdateCustomTool,
+} from '@/hooks/queries/custom-tools'
 
 const logger = createLogger('CustomToolModal')
 
@@ -261,9 +266,11 @@ try {
   // Schema params keyboard navigation
   const [schemaParamSelectedIndex, setSchemaParamSelectedIndex] = useState(0)
 
-  const createTool = useCustomToolsStore((state) => state.createTool)
-  const updateTool = useCustomToolsStore((state) => state.updateTool)
-  const deleteTool = useCustomToolsStore((state) => state.deleteTool)
+  // React Query mutations
+  const createToolMutation = useCreateCustomTool()
+  const updateToolMutation = useUpdateCustomTool()
+  const deleteToolMutation = useDeleteCustomTool()
+  const { data: customTools = [] } = useCustomTools(workspaceId)
 
   // Initialize form with initial values if provided
   useEffect(() => {
@@ -448,10 +455,8 @@ try {
       if (isEditing && !toolIdToUpdate && initialValues?.schema) {
         const originalName = initialValues.schema.function?.name
         if (originalName) {
-          const customToolsStore = useCustomToolsStore.getState()
-          const existingTools = customToolsStore.getAllTools()
-          const originalTool = existingTools.find(
-            (tool) => tool.schema.function.name === originalName
+          const originalTool = customTools.find(
+            (tool) => tool.schema?.function?.name === originalName
           )
           if (originalTool) {
             toolIdToUpdate = originalTool.id
@@ -460,23 +465,27 @@ try {
       }
 
       // Save to the store (server validates duplicates)
-      let _finalToolId: string | undefined = toolIdToUpdate
-
       if (isEditing && toolIdToUpdate) {
         // Update existing tool
-        await updateTool(workspaceId, toolIdToUpdate, {
-          title: name,
-          schema,
-          code: functionCode || '',
+        await updateToolMutation.mutateAsync({
+          workspaceId,
+          toolId: toolIdToUpdate,
+          updates: {
+            title: name,
+            schema,
+            code: functionCode || '',
+          },
         })
       } else {
         // Create new tool
-        const createdTool = await createTool(workspaceId, {
-          title: name,
-          schema,
-          code: functionCode || '',
+        await createToolMutation.mutateAsync({
+          workspaceId,
+          tool: {
+            title: name,
+            schema,
+            code: functionCode || '',
+          },
         })
-        _finalToolId = createdTool.id
       }
 
       // Create the custom tool object for the parent component
@@ -782,8 +791,11 @@ try {
     try {
       setShowDeleteConfirm(false)
 
-      // Delete from store (which calls the API)
-      await deleteTool(workspaceId, toolId)
+      // Delete using React Query mutation
+      await deleteToolMutation.mutateAsync({
+        workspaceId,
+        toolId,
+      })
       logger.info(`Deleted tool: ${toolId}`)
 
       // Notify parent component if callback provided
@@ -966,11 +978,6 @@ try {
                   language='json'
                   showWandButton={true}
                   onWandClick={() => {
-                    logger.debug('Schema AI button clicked')
-                    logger.debug(
-                      'showPromptInline function exists:',
-                      typeof schemaGeneration.showPromptInline === 'function'
-                    )
                     schemaGeneration.isPromptVisible
                       ? schemaGeneration.hidePromptInline()
                       : schemaGeneration.showPromptInline()
@@ -1045,11 +1052,6 @@ try {
                     language='javascript'
                     showWandButton={true}
                     onWandClick={() => {
-                      logger.debug('Code AI button clicked')
-                      logger.debug(
-                        'showPromptInline function exists:',
-                        typeof codeGeneration.showPromptInline === 'function'
-                      )
                       codeGeneration.isPromptVisible
                         ? codeGeneration.hidePromptInline()
                         : codeGeneration.showPromptInline()

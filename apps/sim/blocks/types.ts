@@ -135,7 +135,28 @@ export interface SubBlockConfig {
   type: SubBlockType
   mode?: 'basic' | 'advanced' | 'both' | 'trigger' // Default is 'both' if not specified. 'trigger' means only shown in trigger mode
   canonicalParamId?: string
-  required?: boolean
+  required?:
+    | boolean
+    | {
+        field: string
+        value: string | number | boolean | Array<string | number | boolean>
+        not?: boolean
+        and?: {
+          field: string
+          value: string | number | boolean | Array<string | number | boolean> | undefined
+          not?: boolean
+        }
+      }
+    | (() => {
+        field: string
+        value: string | number | boolean | Array<string | number | boolean>
+        not?: boolean
+        and?: {
+          field: string
+          value: string | number | boolean | Array<string | number | boolean> | undefined
+          not?: boolean
+        }
+      })
   defaultValue?: string | number | boolean | Record<string, unknown> | Array<unknown>
   options?:
     | {

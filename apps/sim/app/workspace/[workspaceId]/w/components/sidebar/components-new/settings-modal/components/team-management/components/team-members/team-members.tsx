@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { UserX, X } from 'lucide-react'
 import { Button, Tooltip } from '@/components/emcn'
 import { Button as UIButton } from '@/components/ui/button'
 import { UserAvatar } from '@/components/user-avatar/user-avatar'
 import { createLogger } from '@/lib/logs/console/logger'
-import type { Invitation, Member, Organization } from '@/stores/organization'
+import type { Invitation, Member, Organization } from '@/lib/organization'
+import { useCancelInvitation, useOrganizationMembers } from '@/hooks/queries/organization'
 
 const logger = createLogger('TeamMembers')
 
@@ -13,7 +14,6 @@ interface TeamMembersProps {
   currentUserEmail: string
   isAdminOrOwner: boolean
   onRemoveMember: (member: Member) => void
-  onCancelInvitation: (invitationId: string) => void
 }
 
 interface BaseItem {
@@ -44,43 +44,23 @@ export function TeamMembers({
   currentUserEmail,
   isAdminOrOwner,
   onRemoveMember,
-  onCancelInvitation,
 }: TeamMembersProps) {
-  const [memberUsageData, setMemberUsageData] = useState<Record<string, number>>({})
-  const [isLoadingUsage, setIsLoadingUsage] = useState(false)
-  const [cancellingInvitations, setCancellingInvitations] = useState<Set<string>>(new Set())
+  // Fetch member usage data using React Query
+  const { data: memberUsageResponse, isLoading: isLoadingUsage } = useOrganizationMembers(
+    organization?.id || ''
+  )
 
-  // Fetch member usage data when organization changes and user is admin
-  useEffect(() => {
-    const fetchMemberUsage = async () => {
-      if (!organization?.id || !isAdminOrOwner) return
+  const cancelInvitationMutation = useCancelInvitation()
 
-      setIsLoadingUsage(true)
-      try {
-        const response = await fetch(`/api/organizations/${organization.id}/members?include=usage`)
-        if (response.ok) {
-          const result = await response.json()
-          const usageMap: Record<string, number> = {}
-
-          if (result.data) {
-            result.data.forEach((member: any) => {
-              if (member.currentPeriodCost !== null && member.currentPeriodCost !== undefined) {
-                usageMap[member.userId] = Number.parseFloat(member.currentPeriodCost.toString())
-              }
-            })
-          }
-
-          setMemberUsageData(usageMap)
-        }
-      } catch (error) {
-        logger.error('Failed to fetch member usage data', { error })
-      } finally {
-        setIsLoadingUsage(false)
+  // Build usage data map from response
+  const memberUsageData: Record<string, number> = {}
+  if (memberUsageResponse?.data) {
+    memberUsageResponse.data.forEach((member: any) => {
+      if (member.currentPeriodCost !== null && member.currentPeriodCost !== undefined) {
+        memberUsageData[member.userId] = Number.parseFloat(member.currentPeriodCost.toString())
       }
-    }
-
-    fetchMemberUsage()
-  }, [organization?.id, isAdminOrOwner])
+    })
+  }
 
   // Combine members and pending invitations into a single list
   const teamItems: TeamMemberItem[] = []
@@ -142,11 +122,20 @@ export function TeamMembers({
   const canLeaveOrganization =
     currentUserMember && currentUserMember.role !== 'owner' && currentUserMember.user?.id
 
-  // Wrap onCancelInvitation to manage loading state
+  // Track which invitations are being cancelled for individual loading states
+  const [cancellingInvitations, setCancellingInvitations] = useState<Set<string>>(new Set())
+
   const handleCancelInvitation = async (invitationId: string) => {
+    if (!organization?.id) return
+
     setCancellingInvitations((prev) => new Set([...prev, invitationId]))
     try {
-      await onCancelInvitation(invitationId)
+      await cancelInvitationMutation.mutateAsync({
+        invitationId,
+        orgId: organization.id,
+      })
+    } catch (error) {
+      logger.error('Failed to cancel invitation', { error })
     } finally {
       setCancellingInvitations((prev) => {
         const next = new Set(prev)

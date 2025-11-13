@@ -2,6 +2,7 @@ import { AgentBlock } from '@/blocks/blocks/agent'
 import { AirtableBlock } from '@/blocks/blocks/airtable'
 import { ApiBlock } from '@/blocks/blocks/api'
 import { ApiTriggerBlock } from '@/blocks/blocks/api_trigger'
+import { ApolloBlock } from '@/blocks/blocks/apollo'
 import { ArxivBlock } from '@/blocks/blocks/arxiv'
 import { AsanaBlock } from '@/blocks/blocks/asana'
 import { BrowserUseBlock } from '@/blocks/blocks/browser_use'
@@ -102,6 +103,7 @@ import type { BlockConfig } from '@/blocks/types'
 export const registry: Record<string, BlockConfig> = {
   agent: AgentBlock,
   airtable: AirtableBlock,
+  apollo: ApolloBlock,
   api: ApiBlock,
   arxiv: ArxivBlock,
   asana: AsanaBlock,

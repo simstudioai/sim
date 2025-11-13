@@ -57,17 +57,6 @@ interface ComboBoxProps {
   config: SubBlockConfig
 }
 
-/**
- * ComboBox component that provides a searchable dropdown with support for:
- * - Free text input or selection from predefined options
- * - Environment variable and tag insertion via special triggers
- * - Drag and drop connections from other blocks
- * - Keyboard navigation (Arrow keys, Enter, Escape)
- * - Preview mode for displaying read-only values
- *
- * @param props - Component props
- * @returns Rendered ComboBox component
- */
 export function ComboBox({
   options,
   defaultValue,
@@ -110,7 +99,7 @@ export function ComboBox({
       if (typeof option === 'string') {
         return { label: option, value: option }
       }
-      return { label: option.label, value: option.id, icon: option.icon }
+      return { label: option.label, value: option.label, icon: option.icon }
     })
   }, [evaluatedOptions])
 
@@ -157,33 +146,46 @@ export function ComboBox({
   }, [defaultValue, evaluatedOptions, subBlockId, getOptionValue])
 
   /**
-   * Filters options based on current input value
-   * Shows all options when dropdown is closed or when value matches an exact option
-   * Otherwise filters by search term
+   * Resolve the user-facing text for the current stored value.
+   * - For object options, map stored ID -> label
+   * - For everything else, display the raw value
+   */
+  const displayValue = useMemo(() => {
+    const raw = value?.toString() ?? ''
+    if (!raw) return ''
+
+    const match = evaluatedOptions.find((option) =>
+      typeof option === 'string' ? option === raw : option.id === raw
+    )
+
+    if (!match) return raw
+    return typeof match === 'string' ? match : match.label
+  }, [value, evaluatedOptions])
+
+  /**
+   * Filters options based on current display value (label text).
+   * Shows all options when dropdown is closed or when the label matches an exact option.
    */
   const filteredOptions = useMemo(() => {
     // Always show all options when dropdown is not open
     if (!open) return evaluatedOptions
 
-    // If no value or value matches an exact option, show all options
-    if (!value) return evaluatedOptions
+    // If no input or input matches an exact option label, show all options
+    if (!displayValue) return evaluatedOptions
 
-    const currentValue = value.toString()
-    const exactMatch = evaluatedOptions.find(
-      (opt) => getOptionValue(opt) === currentValue || getOptionLabel(opt) === currentValue
-    )
+    const currentValue = displayValue.toString()
+    const exactMatch = evaluatedOptions.find((opt) => getOptionLabel(opt) === currentValue)
 
-    // If current value exactly matches an option, show all options (user just selected it)
+    // If current value exactly matches an option label, show all options (user just selected it)
     if (exactMatch) return evaluatedOptions
 
-    // Otherwise filter based on current input
+    // Otherwise filter based on current input (label)
     return evaluatedOptions.filter((option) => {
       const label = getOptionLabel(option).toLowerCase()
-      const optionValue = getOptionValue(option).toLowerCase()
       const search = currentValue.toLowerCase()
-      return label.includes(search) || optionValue.includes(search)
+      return label.includes(search)
     })
-  }, [evaluatedOptions, value, open, getOptionValue, getOptionLabel])
+  }, [evaluatedOptions, displayValue, open, getOptionLabel])
 
   // Mark store as initialized on first render
   useEffect(() => {
@@ -367,7 +369,7 @@ export function ComboBox({
     if (inputRef.current && overlayRef.current) {
       overlayRef.current.scrollLeft = inputRef.current.scrollLeft
     }
-  }, [value])
+  }, [displayValue])
 
   // Adjust highlighted index when filtered options change
   useEffect(() => {
@@ -417,45 +419,33 @@ export function ComboBox({
     }
   }, [open])
 
-  const displayValue = useMemo(() => value?.toString() ?? '', [value])
-
-  /**
-   * Handles value change from Combobox
-   */
-  const handleComboboxChange = useCallback(
-    (newValue: string) => {
-      if (!isPreview) {
-        setStoreValue(newValue)
-      }
-    },
-    [isPreview, setStoreValue]
-  )
-
   /**
    * Gets the icon for the currently selected option
    */
-  const selectedOptionIcon = useMemo(() => {
-    const selectedOpt = comboboxOptions.find((opt) => opt.value === displayValue)
-    return selectedOpt?.icon
+  const selectedOption = useMemo(() => {
+    return comboboxOptions.find((opt) => opt.value === displayValue)
   }, [comboboxOptions, displayValue])
+
+  const selectedOptionIcon = selectedOption?.icon
 
   /**
    * Overlay content for the editable combobox
    */
   const overlayContent = useMemo(() => {
     const SelectedIcon = selectedOptionIcon
+    const displayLabel = selectedOption?.label ?? displayValue
     return (
       <div className='flex w-full items-center truncate [scrollbar-width:none]'>
         {SelectedIcon && <SelectedIcon className='mr-[8px] h-3 w-3 flex-shrink-0 opacity-60' />}
         <div className='truncate'>
-          {formatDisplayText(displayValue, {
+          {formatDisplayText(displayLabel, {
             accessiblePrefixes,
             highlightAll: !accessiblePrefixes,
           })}
         </div>
       </div>
     )
-  }, [displayValue, accessiblePrefixes, selectedOptionIcon])
+  }, [displayValue, accessiblePrefixes, selectedOption, selectedOptionIcon])
 
   /**
    * Handles mouse enter on dropdown option
@@ -499,9 +489,22 @@ export function ComboBox({
             options={comboboxOptions}
             value={displayValue}
             onChange={(newValue) => {
-              // Use controller's handler for consistency
+              // Map the user-facing label back to the stored value:
+              // - For object options, store the underlying ID
+              // - For plain string options or free text, store the label as-is
+              let storedString = newValue
+
+              const matchedOption = evaluatedOptions.find((option) =>
+                typeof option === 'string' ? option === newValue : option.label === newValue
+              )
+
+              if (matchedOption && typeof matchedOption !== 'string') {
+                storedString = matchedOption.id
+              }
+
+              // Use controller's handler so env vars, tags, and DnD still work
               const syntheticEvent = {
-                target: { value: newValue, selectionStart: newValue.length },
+                target: { value: storedString, selectionStart: storedString.length },
               } as React.ChangeEvent<HTMLInputElement>
               ctrlOnChange(syntheticEvent)
             }}

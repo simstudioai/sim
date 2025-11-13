@@ -40,13 +40,13 @@ import {
 import { getBlock } from '@/blocks'
 import { useSocket } from '@/contexts/socket-context'
 import { isAnnotationOnlyBlock } from '@/executor/consts'
+import { useWorkspaceEnvironment } from '@/hooks/queries/environment'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { useStreamCleanup } from '@/hooks/use-stream-cleanup'
 import { useWorkspacePermissions } from '@/hooks/use-workspace-permissions'
 import { useExecutionStore } from '@/stores/execution/store'
 import { useCopilotStore } from '@/stores/panel-new/copilot/store'
 import { usePanelEditorStore } from '@/stores/panel-new/editor/store'
-import { useEnvironmentStore } from '@/stores/settings/environment/store'
 import { useGeneralStore } from '@/stores/settings/general/store'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 import { hasWorkflowsInitiallyLoaded, useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -1158,19 +1158,8 @@ const WorkflowContent = React.memo(() => {
     setIsWorkflowReady(shouldBeReady)
   }, [activeWorkflowId, params.workflowId, workflows, isLoading])
 
-  const loadWorkspaceEnvironment = useEnvironmentStore((state) => state.loadWorkspaceEnvironment)
-  const clearWorkspaceEnvCache = useEnvironmentStore((state) => state.clearWorkspaceEnvCache)
-  const prevWorkspaceIdRef = useRef<string | null>(null)
-
-  useEffect(() => {
-    if (!workspaceId) return
-    if (prevWorkspaceIdRef.current && prevWorkspaceIdRef.current !== workspaceId) {
-      clearWorkspaceEnvCache(prevWorkspaceIdRef.current)
-    }
-    void loadWorkspaceEnvironment(workspaceId)
-
-    prevWorkspaceIdRef.current = workspaceId
-  }, [workspaceId, loadWorkspaceEnvironment, clearWorkspaceEnvCache])
+  // Preload workspace environment - React Query handles caching automatically
+  useWorkspaceEnvironment(workspaceId)
 
   // Handle navigation and validation
   useEffect(() => {
