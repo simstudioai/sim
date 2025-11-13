@@ -447,8 +447,8 @@ export const mistralProvider: ProviderConfig = {
         iterationCount++
       }
 
-      if (request.stream && iterationCount > 0) {
-        logger.info('Using streaming for final response after tool calls')
+      if (request.stream) {
+        logger.info('Using streaming for final response after tool processing')
 
         const streamingPayload = {
           ...payload,

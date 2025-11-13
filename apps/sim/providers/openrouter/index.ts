@@ -381,7 +381,7 @@ export const openRouterProvider: ProviderConfig = {
         iterationCount++
       }
 
-      if (request.stream && iterationCount > 0) {
+      if (request.stream) {
         const streamingPayload = {
           ...payload,
           messages: currentMessages,

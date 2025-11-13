@@ -529,8 +529,8 @@ export const ollamaProvider: ProviderConfig = {
       }
 
       // After all tool processing complete, if streaming was requested and we have messages, use streaming for the final response
-      if (request.stream && iterationCount > 0) {
-        logger.info('Using streaming for final response after tool calls')
+      if (request.stream) {
+        logger.info('Using streaming for final response after tool processing')
 
         const streamingPayload = {
           ...payload,

@@ -22,6 +22,7 @@ import type {
   NormalizedBlockOutput,
 } from '@/executor/types'
 import { buildBlockExecutionError, normalizeError } from '@/executor/utils/errors'
+import { streamingResponseFormatProcessor } from '@/executor/utils'
 import type { VariableResolver } from '@/executor/variables/resolver'
 import type { SerializedBlock } from '@/serializer/types'
 import type { SubflowType } from '@/stores/workflows/workflow/types'
@@ -100,11 +101,14 @@ export class BlockExecutor {
         const streamingExec = output as { stream: ReadableStream; execution: any }
 
         if (ctx.onStream) {
-          try {
-            await ctx.onStream(streamingExec)
-          } catch (error) {
-            logger.error('Error in onStream callback', { blockId: node.id, error })
-          }
+          await this.handleStreamingExecution(
+            ctx,
+            node,
+            block,
+            streamingExec,
+            resolvedInputs,
+            ctx.selectedOutputs ?? []
+          )
         }
 
         normalizedOutput = this.normalizeOutput(
@@ -445,5 +449,129 @@ export class BlockExecutor {
         this.state.deleteBlockState(blockId)
       }
     }
+  }
+
+  private async handleStreamingExecution(
+    ctx: ExecutionContext,
+    node: DAGNode,
+    block: SerializedBlock,
+    streamingExec: { stream: ReadableStream; execution: any },
+    resolvedInputs: Record<string, any>,
+    selectedOutputs: string[]
+  ): Promise<void> {
+    const blockId = node.id
+
+    const responseFormat =
+      resolvedInputs?.responseFormat ??
+      (block.config?.params as Record<string, any> | undefined)?.responseFormat ??
+      (block.config as Record<string, any> | undefined)?.responseFormat
+
+    const stream = streamingExec.stream
+    if (typeof stream.tee !== 'function') {
+      await this.forwardStream(ctx, blockId, streamingExec, stream, responseFormat, selectedOutputs)
+      return
+    }
+
+    const [clientStream, executorStream] = stream.tee()
+
+    const processedClientStream = streamingResponseFormatProcessor.processStream(
+      clientStream,
+      blockId,
+      selectedOutputs,
+      responseFormat
+    )
+
+    const clientStreamingExec = {
+      ...streamingExec,
+      stream: processedClientStream,
+    }
+
+    const executorConsumption = this.consumeExecutorStream(
+      executorStream,
+      streamingExec,
+      blockId,
+      responseFormat
+    )
+
+    const clientConsumption = (async () => {
+      try {
+        await ctx.onStream?.(clientStreamingExec)
+      } catch (error) {
+        logger.error('Error in onStream callback', { blockId, error })
+      }
+    })()
+
+    await Promise.all([clientConsumption, executorConsumption])
+  }
+
+  private async forwardStream(
+    ctx: ExecutionContext,
+    blockId: string,
+    streamingExec: { stream: ReadableStream; execution: any },
+    stream: ReadableStream,
+    responseFormat: any,
+    selectedOutputs: string[]
+  ): Promise<void> {
+    const processedStream = streamingResponseFormatProcessor.processStream(
+      stream,
+      blockId,
+      selectedOutputs,
+      responseFormat
+    )
+
+    try {
+      await ctx.onStream?.({
+        ...streamingExec,
+        stream: processedStream,
+      })
+    } catch (error) {
+      logger.error('Error in onStream callback', { blockId, error })
+    }
+  }
+
+  private async consumeExecutorStream(
+    stream: ReadableStream,
+    streamingExec: { execution: any },
+    blockId: string,
+    responseFormat: any
+  ): Promise<void> {
+    const reader = stream.getReader()
+    const decoder = new TextDecoder()
+    let fullContent = ''
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        fullContent += decoder.decode(value, { stream: true })
+      }
+    } catch (error) {
+      logger.error('Error reading executor stream for block', { blockId, error })
+    } finally {
+      try {
+        reader.releaseLock()
+      } catch {}
+    }
+
+    if (!fullContent) {
+      return
+    }
+
+    const executionOutput = streamingExec.execution?.output
+    if (!executionOutput || typeof executionOutput !== 'object') {
+      return
+    }
+
+    if (responseFormat) {
+      try {
+        const parsed = JSON.parse(fullContent.trim())
+        Object.assign(executionOutput, parsed)
+        return
+      } catch (error) {
+        logger.warn('Failed to parse streamed content for response format', { blockId, error })
+      }
+    }
+
+    executionOutput.content = fullContent
   }
 }
