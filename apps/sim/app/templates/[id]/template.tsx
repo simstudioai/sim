@@ -522,7 +522,7 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
     <div className={cn('flex min-h-screen flex-col', isWorkspaceContext && 'pl-64')}>
       <div className='flex flex-1 overflow-hidden'>
         <div className='flex flex-1 flex-col overflow-auto px-[24px] pt-[24px] pb-[24px]'>
-          {/* Top bar with back button and action buttons */}
+          {/* Top bar with back button */}
           <div className='flex items-center justify-between'>
             {/* Back button */}
             <button
@@ -532,6 +532,11 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
               <ArrowLeft className='h-[14px] w-[14px]' />
               <span>Back</span>
             </button>
+          </div>
+
+          {/* Template name and action buttons */}
+          <div className='mt-[24px] flex items-center justify-between'>
+            <h1 className='font-medium text-[18px]'>{template.name}</h1>
 
             {/* Action buttons */}
             <div className='flex items-center gap-[8px]'>
@@ -636,9 +641,9 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
                       variant='primary'
                       onClick={handleUseTemplate}
                       disabled={isUsing}
-                      className='h-[32px] rounded-[6px]'
+                      className='!text-[#FFFFFF] h-[32px] rounded-[6px] px-[12px] text-[14px]'
                     >
-                      {isUsing ? 'Creating...' : 'Use'}
+                      {isUsing ? 'Creating...' : 'Use template'}
                     </Button>
                   ) : (
                     <DropdownMenu
@@ -650,7 +655,7 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
                           variant='primary'
                           onClick={() => setShowWorkspaceSelectorForUse(true)}
                           disabled={isUsing || isLoadingWorkspaces}
-                          className='h-[32px] rounded-[6px]'
+                          className='h-[32px] rounded-[6px] px-[16px] text-[#FFFFFF] text-[14px]'
                         >
                           {isUsing ? 'Creating...' : isLoadingWorkspaces ? 'Loading...' : 'Use'}
                           <ChevronDown className='ml-2 h-4 w-4' />
@@ -685,12 +690,9 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
             </div>
           </div>
 
-          {/* Template name */}
-          <h1 className='mt-[24px] font-medium text-[18px]'>{template.name}</h1>
-
           {/* Template tagline */}
           {template.details?.tagline && (
-            <p className='mt-[8px] font-medium text-[#888888] text-[14px]'>
+            <p className='mt-[4px] font-medium text-[#888888] text-[14px]'>
               {template.details.tagline}
             </p>
           )}
