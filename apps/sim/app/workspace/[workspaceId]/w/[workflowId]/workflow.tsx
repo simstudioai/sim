@@ -1337,7 +1337,6 @@ const WorkflowContent = React.memo(() => {
           name: block.name,
           isActive,
           isPending,
-          // Pass width/height for note blocks from block.data
           ...(block.type === 'note' && {
             width: block.data?.width ?? 250,
             height: block.data?.height ?? 100,
