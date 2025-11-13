@@ -21,8 +21,8 @@ import type {
   ExecutionContext,
   NormalizedBlockOutput,
 } from '@/executor/types'
-import { buildBlockExecutionError, normalizeError } from '@/executor/utils/errors'
 import { streamingResponseFormatProcessor } from '@/executor/utils'
+import { buildBlockExecutionError, normalizeError } from '@/executor/utils/errors'
 import type { VariableResolver } from '@/executor/variables/resolver'
 import type { SerializedBlock } from '@/serializer/types'
 import type { SubflowType } from '@/stores/workflows/workflow/types'
