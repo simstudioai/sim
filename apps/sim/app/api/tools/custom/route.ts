@@ -157,16 +157,16 @@ export async function POST(req: NextRequest) {
           const nowTime = new Date()
 
           if (tool.id) {
-            // Check if tool exists and belongs to the workspace
-            const existingTool = await tx
+            // First, check if tool exists in the workspace
+            const existingWorkspaceTool = await tx
               .select()
               .from(customTools)
               .where(and(eq(customTools.id, tool.id), eq(customTools.workspaceId, workspaceId)))
               .limit(1)
 
-            if (existingTool.length > 0) {
-              // Tool exists - check if name changed and if new name conflicts
-              if (existingTool[0].title !== tool.title) {
+            if (existingWorkspaceTool.length > 0) {
+              // Tool exists in workspace - check if name changed and if new name conflicts
+              if (existingWorkspaceTool[0].title !== tool.title) {
                 // Check for duplicate name in workspace (excluding current tool)
                 const duplicateTool = await tx
                   .select()
@@ -190,7 +190,7 @@ export async function POST(req: NextRequest) {
                 }
               }
 
-              // Update existing tool
+              // Update existing workspace tool
               await tx
                 .update(customTools)
                 .set({
@@ -200,6 +200,35 @@ export async function POST(req: NextRequest) {
                   updatedAt: nowTime,
                 })
                 .where(and(eq(customTools.id, tool.id), eq(customTools.workspaceId, workspaceId)))
+              continue
+            }
+
+            // Check if this is a legacy tool (no workspaceId, belongs to user)
+            const existingLegacyTool = await tx
+              .select()
+              .from(customTools)
+              .where(
+                and(
+                  eq(customTools.id, tool.id),
+                  isNull(customTools.workspaceId),
+                  eq(customTools.userId, userId)
+                )
+              )
+              .limit(1)
+
+            if (existingLegacyTool.length > 0) {
+              // Legacy tool found - update it without migrating to workspace
+              await tx
+                .update(customTools)
+                .set({
+                  title: tool.title,
+                  schema: tool.schema,
+                  code: tool.code,
+                  updatedAt: nowTime,
+                })
+                .where(eq(customTools.id, tool.id))
+
+              logger.info(`[${requestId}] Updated legacy tool ${tool.id}`)
               continue
             }
           }
