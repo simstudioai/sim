@@ -157,6 +157,11 @@ export async function middleware(request: NextRequest) {
   }
 
   if (url.pathname.startsWith('/workspace')) {
+    // Allow public access to workspace template pages - they handle their own redirects
+    if (url.pathname.match(/^\/workspace\/[^/]+\/templates/)) {
+      return NextResponse.next()
+    }
+
     if (!hasActiveSession) {
       return NextResponse.redirect(new URL('/login', request.url))
     }

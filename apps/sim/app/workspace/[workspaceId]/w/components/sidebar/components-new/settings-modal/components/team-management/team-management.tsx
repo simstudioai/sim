@@ -12,7 +12,6 @@ import {
   TeamMembers,
   TeamSeats,
   TeamSeatsOverview,
-  TeamUsage,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/components-new/settings-modal/components/team-management/components'
 import { generateSlug, useOrganizationStore } from '@/stores/organization'
 import { useSubscriptionStore } from '@/stores/subscription/store'
@@ -275,112 +274,149 @@ export function TeamManagement() {
   }
 
   return (
-    <div className='flex h-full flex-col px-6 pt-4 pb-4'>
-      <div className='flex flex-1 flex-col gap-6 overflow-y-auto'>
+    <div className='flex h-full flex-col'>
+      <div className='flex flex-1 flex-col overflow-y-auto px-6 pt-4 pb-4'>
         {error && (
-          <Alert variant='destructive' className='rounded-[8px]'>
+          <Alert variant='destructive' className='mb-4 rounded-[8px]'>
             <AlertTitle>Error</AlertTitle>
             <AlertDescription>{error}</AlertDescription>
           </Alert>
         )}
 
-        {/* Team Usage Overview */}
-        <TeamUsage hasAdminAccess={adminOrOwner} />
+        {/* Seats Overview - Full Width */}
+        {adminOrOwner && (
+          <div className='mb-4'>
+            <TeamSeatsOverview
+              subscriptionData={subscriptionData}
+              isLoadingSubscription={isLoadingSubscription}
+              usedSeats={usedSeats.used}
+              isLoading={isLoading}
+              onConfirmTeamUpgrade={confirmTeamUpgrade}
+              onReduceSeats={handleReduceSeats}
+              onAddSeatDialog={handleAddSeatDialog}
+            />
+          </div>
+        )}
 
-        {/* Team Billing Information (only show for Team Plan, not Enterprise) */}
-        {hasTeamPlan && !hasEnterprisePlan && (
-          <div className='rounded-[8px] border bg-blue-50/50 p-4 shadow-xs dark:bg-blue-950/20'>
-            <div className='space-y-3'>
-              <h4 className='font-medium text-sm'>How Team Billing Works</h4>
-              <ul className='ml-4 list-disc space-y-2 text-muted-foreground text-xs'>
-                <li>
-                  Your team is billed a minimum of $
-                  {(subscriptionData?.seats || 0) *
-                    (env.TEAM_TIER_COST_LIMIT ?? DEFAULT_TEAM_TIER_COST_LIMIT)}
-                  /month for {subscriptionData?.seats || 0} licensed seats
-                </li>
-                <li>All team member usage is pooled together from a shared limit</li>
-                <li>
-                  When pooled usage exceeds the limit, all members are blocked from using the
-                  service
-                </li>
-                <li>You can increase the usage limit to allow for higher usage</li>
-                <li>
-                  Any usage beyond the minimum seat cost is billed as overage at the end of the
-                  billing period
-                </li>
-              </ul>
+        {/* Main Content: Team Members */}
+        <div className='mb-4'>
+          <TeamMembers
+            organization={activeOrganization}
+            currentUserEmail={session?.user?.email ?? ''}
+            isAdminOrOwner={adminOrOwner}
+            onRemoveMember={handleRemoveMember}
+            onCancelInvitation={cancelInvitation}
+          />
+        </div>
+
+        {/* Action: Invite New Members */}
+        {adminOrOwner && (
+          <div className='mb-4'>
+            <MemberInvitationCard
+              inviteEmail={inviteEmail}
+              setInviteEmail={setInviteEmail}
+              isInviting={isInviting}
+              showWorkspaceInvite={showWorkspaceInvite}
+              setShowWorkspaceInvite={setShowWorkspaceInvite}
+              selectedWorkspaces={selectedWorkspaces}
+              userWorkspaces={userWorkspaces}
+              onInviteMember={handleInviteMember}
+              onLoadUserWorkspaces={() => loadUserWorkspaces(session?.user?.id)}
+              onWorkspaceToggle={handleWorkspaceToggle}
+              inviteSuccess={inviteSuccess}
+              availableSeats={Math.max(0, (subscriptionData?.seats || 0) - usedSeats.used)}
+              maxSeats={subscriptionData?.seats || 0}
+            />
+          </div>
+        )}
+
+        {/* Additional Info - Subtle and collapsed */}
+        <div className='space-y-3'>
+          {/* Single Organization Notice */}
+          {adminOrOwner && (
+            <div className='rounded-lg border border-[var(--border-muted)] bg-[var(--surface-3)] p-3'>
+              <p className='text-muted-foreground text-xs'>
+                <span className='font-medium'>Note:</span> Users can only be part of one
+                organization at a time.
+              </p>
             </div>
-          </div>
-        )}
+          )}
 
-        {/* Team Seats Overview */}
-        {adminOrOwner && (
-          <TeamSeatsOverview
-            subscriptionData={subscriptionData}
-            isLoadingSubscription={isLoadingSubscription}
-            usedSeats={usedSeats.used}
-            isLoading={isLoading}
-            onConfirmTeamUpgrade={confirmTeamUpgrade}
-            onReduceSeats={handleReduceSeats}
-            onAddSeatDialog={handleAddSeatDialog}
-          />
-        )}
+          {/* Team Information */}
+          <details className='group rounded-lg border border-[var(--border-muted)] bg-[var(--surface-3)]'>
+            <summary className='flex cursor-pointer items-center justify-between p-3 font-medium text-sm hover:bg-[var(--surface-4)]'>
+              <span>Team Information</span>
+              <svg
+                className='h-4 w-4 transition-transform group-open:rotate-180'
+                fill='none'
+                viewBox='0 0 24 24'
+                stroke='currentColor'
+              >
+                <path
+                  strokeLinecap='round'
+                  strokeLinejoin='round'
+                  strokeWidth={2}
+                  d='M19 9l-7 7-7-7'
+                />
+              </svg>
+            </summary>
+            <div className='space-y-2 border-[var(--border-muted)] border-t p-3 text-xs'>
+              <div className='flex justify-between'>
+                <span className='text-muted-foreground'>Team ID:</span>
+                <span className='font-mono text-[10px]'>{activeOrganization.id}</span>
+              </div>
+              <div className='flex justify-between'>
+                <span className='text-muted-foreground'>Created:</span>
+                <span>{new Date(activeOrganization.createdAt).toLocaleDateString()}</span>
+              </div>
+              <div className='flex justify-between'>
+                <span className='text-muted-foreground'>Your Role:</span>
+                <span className='font-medium capitalize'>{userRole}</span>
+              </div>
+            </div>
+          </details>
 
-        {/* Team Members */}
-        <TeamMembers
-          organization={activeOrganization}
-          currentUserEmail={session?.user?.email ?? ''}
-          isAdminOrOwner={adminOrOwner}
-          onRemoveMember={handleRemoveMember}
-          onCancelInvitation={cancelInvitation}
-        />
-
-        {/* Single Organization Notice */}
-        {adminOrOwner && (
-          <div className='mt-4 rounded-lg bg-muted/50 p-3'>
-            <p className='text-muted-foreground text-xs'>
-              <span className='font-medium'>Note:</span> Users can only be part of one organization
-              at a time. They must leave their current organization before joining another.
-            </p>
-          </div>
-        )}
-
-        {/* Member Invitation Card */}
-        {adminOrOwner && (
-          <MemberInvitationCard
-            inviteEmail={inviteEmail}
-            setInviteEmail={setInviteEmail}
-            isInviting={isInviting}
-            showWorkspaceInvite={showWorkspaceInvite}
-            setShowWorkspaceInvite={setShowWorkspaceInvite}
-            selectedWorkspaces={selectedWorkspaces}
-            userWorkspaces={userWorkspaces}
-            onInviteMember={handleInviteMember}
-            onLoadUserWorkspaces={() => loadUserWorkspaces(session?.user?.id)}
-            onWorkspaceToggle={handleWorkspaceToggle}
-            inviteSuccess={inviteSuccess}
-            availableSeats={Math.max(0, (subscriptionData?.seats || 0) - usedSeats.used)}
-            maxSeats={subscriptionData?.seats || 0}
-          />
-        )}
-      </div>
-
-      {/* Team Information Section - pinned to bottom of modal */}
-      <div className='mt-6 flex-shrink-0 border-t pt-6'>
-        <div className='space-y-3 text-xs'>
-          <div className='flex justify-between'>
-            <span className='text-muted-foreground'>Team ID:</span>
-            <span className='font-mono'>{activeOrganization.id}</span>
-          </div>
-          <div className='flex justify-between'>
-            <span className='text-muted-foreground'>Created:</span>
-            <span>{new Date(activeOrganization.createdAt).toLocaleDateString()}</span>
-          </div>
-          <div className='flex justify-between'>
-            <span className='text-muted-foreground'>Your Role:</span>
-            <span className='font-medium capitalize'>{userRole}</span>
-          </div>
+          {/* Team Billing Information (only show for Team Plan, not Enterprise) */}
+          {hasTeamPlan && !hasEnterprisePlan && (
+            <details className='group rounded-lg border border-[var(--border-muted)] bg-[var(--surface-3)]'>
+              <summary className='flex cursor-pointer items-center justify-between p-3 font-medium text-sm hover:bg-[var(--surface-4)]'>
+                <span>Billing Information</span>
+                <svg
+                  className='h-4 w-4 transition-transform group-open:rotate-180'
+                  fill='none'
+                  viewBox='0 0 24 24'
+                  stroke='currentColor'
+                >
+                  <path
+                    strokeLinecap='round'
+                    strokeLinejoin='round'
+                    strokeWidth={2}
+                    d='M19 9l-7 7-7-7'
+                  />
+                </svg>
+              </summary>
+              <div className='border-[var(--border-muted)] border-t p-3'>
+                <ul className='ml-4 list-disc space-y-2 text-muted-foreground text-xs'>
+                  <li>
+                    Your team is billed a minimum of $
+                    {(subscriptionData?.seats || 0) *
+                      (env.TEAM_TIER_COST_LIMIT ?? DEFAULT_TEAM_TIER_COST_LIMIT)}
+                    /month for {subscriptionData?.seats || 0} licensed seats
+                  </li>
+                  <li>All team member usage is pooled together from a shared limit</li>
+                  <li>
+                    When pooled usage exceeds the limit, all members are blocked from using the
+                    service
+                  </li>
+                  <li>You can increase the usage limit to allow for higher usage</li>
+                  <li>
+                    Any usage beyond the minimum seat cost is billed as overage at the end of the
+                    billing period
+                  </li>
+                </ul>
+              </div>
+            </details>
+          )}
         </div>
       </div>
 

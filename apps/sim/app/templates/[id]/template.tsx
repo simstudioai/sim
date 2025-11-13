@@ -9,12 +9,20 @@ import {
   Globe,
   Linkedin,
   Mail,
+  Share2,
   Star,
   User,
 } from 'lucide-react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import ReactMarkdown from 'react-markdown'
-import { Button } from '@/components/emcn'
+import {
+  Button,
+  Copy,
+  Popover,
+  PopoverContent,
+  PopoverItem,
+  PopoverTrigger,
+} from '@/components/emcn'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -23,6 +31,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { useSession } from '@/lib/auth-client'
 import { createLogger } from '@/lib/logs/console/logger'
+import { getBaseUrl } from '@/lib/urls/utils'
 import { cn } from '@/lib/utils'
 import type { CredentialRequirement } from '@/lib/workflows/credential-extractor'
 import type { Template } from '@/app/templates/templates'
@@ -63,7 +72,7 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
   >([])
   const [isLoadingWorkspaces, setIsLoadingWorkspaces] = useState(false)
   const [showWorkspaceSelectorForEdit, setShowWorkspaceSelectorForEdit] = useState(false)
-  const [showWorkspaceSelectorForUse, setShowWorkspaceSelectorForUse] = useState(false)
+  const [sharePopoverOpen, setSharePopoverOpen] = useState(false)
 
   const currentUserId = session?.user?.id || null
 
@@ -351,8 +360,6 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
     // In workspace context, use current workspace directly
     if (isWorkspaceContext && workspaceId) {
       handleWorkspaceSelectForUse(workspaceId)
-    } else {
-      setShowWorkspaceSelectorForUse(true)
     }
   }
 
@@ -415,7 +422,6 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
     if (isUsing || !template) return
 
     setIsUsing(true)
-    setShowWorkspaceSelectorForUse(false)
     try {
       const response = await fetch(`/api/templates/${template.id}/use`, {
         method: 'POST',
@@ -518,6 +524,57 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
     }
   }
 
+  /**
+   * Shares the template to X (Twitter)
+   */
+  const handleShareToTwitter = () => {
+    if (!template) return
+
+    setSharePopoverOpen(false)
+    const templateUrl = `${getBaseUrl()}/templates/${template.id}`
+
+    let tweetText = `🚀 Check out this workflow template: ${template.name}`
+
+    if (template.details?.tagline) {
+      const taglinePreview =
+        template.details.tagline.length > 100
+          ? `${template.details.tagline.substring(0, 100)}...`
+          : template.details.tagline
+      tweetText += `\n\n${taglinePreview}`
+    }
+
+    const maxTextLength = 280 - 23 - 1
+    if (tweetText.length > maxTextLength) {
+      tweetText = `${tweetText.substring(0, maxTextLength - 3)}...`
+    }
+
+    const twitterUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(tweetText)}&url=${encodeURIComponent(templateUrl)}`
+    window.open(twitterUrl, '_blank', 'noopener,noreferrer')
+  }
+
+  /**
+   * Shares the template to LinkedIn.
+   */
+  const handleShareToLinkedIn = () => {
+    if (!template) return
+
+    setSharePopoverOpen(false)
+    const templateUrl = `${getBaseUrl()}/templates/${template.id}`
+    const linkedInUrl = `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(templateUrl)}`
+    window.open(linkedInUrl, '_blank', 'noopener,noreferrer')
+  }
+
+  const handleCopyLink = async () => {
+    setSharePopoverOpen(false)
+    const templateUrl = `${getBaseUrl()}/templates/${template?.id}`
+    try {
+      await navigator.clipboard.writeText(templateUrl)
+      logger.info('Template link copied to clipboard')
+    } catch (error) {
+      logger.error('Failed to copy link:', error)
+    }
+  }
+
   return (
     <div className={cn('flex min-h-screen flex-col', isWorkspaceContext && 'pl-64')}>
       <div className='flex flex-1 overflow-hidden'>
@@ -530,7 +587,7 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
               className='flex items-center gap-[6px] font-medium text-[#ADADAD] text-[14px] transition-colors hover:text-white'
             >
               <ArrowLeft className='h-[14px] w-[14px]' />
-              <span>Back</span>
+              <span>More Templates</span>
             </button>
           </div>
 
@@ -622,7 +679,7 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
                 <>
                   {!currentUserId ? (
                     <Button
-                      variant='active'
+                      variant='primary'
                       onClick={() => {
                         const callbackUrl =
                           isWorkspaceContext && workspaceId
@@ -645,48 +702,39 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
                     >
                       {isUsing ? 'Creating...' : 'Use template'}
                     </Button>
-                  ) : (
-                    <DropdownMenu
-                      open={showWorkspaceSelectorForUse}
-                      onOpenChange={setShowWorkspaceSelectorForUse}
-                    >
-                      <DropdownMenuTrigger asChild>
-                        <Button
-                          variant='primary'
-                          onClick={() => setShowWorkspaceSelectorForUse(true)}
-                          disabled={isUsing || isLoadingWorkspaces}
-                          className='h-[32px] rounded-[6px] px-[16px] text-[#FFFFFF] text-[14px]'
-                        >
-                          {isUsing ? 'Creating...' : isLoadingWorkspaces ? 'Loading...' : 'Use'}
-                          <ChevronDown className='ml-2 h-4 w-4' />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align='end' className='w-56'>
-                        {workspaces.length === 0 ? (
-                          <DropdownMenuItem disabled className='text-muted-foreground text-sm'>
-                            No workspaces with write access
-                          </DropdownMenuItem>
-                        ) : (
-                          workspaces.map((workspace) => (
-                            <DropdownMenuItem
-                              key={workspace.id}
-                              onClick={() => handleWorkspaceSelectForUse(workspace.id)}
-                              className='flex cursor-pointer items-center justify-between'
-                            >
-                              <div className='flex flex-col'>
-                                <span className='font-medium text-sm'>{workspace.name}</span>
-                                <span className='text-muted-foreground text-xs capitalize'>
-                                  {workspace.permissions} access
-                                </span>
-                              </div>
-                            </DropdownMenuItem>
-                          ))
-                        )}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  )}
+                  ) : null}
                 </>
               )}
+
+              {/* Share button */}
+              <Popover open={sharePopoverOpen} onOpenChange={setSharePopoverOpen}>
+                <PopoverTrigger asChild>
+                  <Button variant='active' className='h-[32px] rounded-[6px] px-[12px]'>
+                    <Share2 className='h-[14px] w-[14px]' />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent align='end' side='bottom' sideOffset={8}>
+                  <PopoverItem onClick={handleCopyLink}>
+                    <Copy className='h-3 w-3' />
+                    <span>Copy link</span>
+                  </PopoverItem>
+                  <PopoverItem onClick={handleShareToTwitter}>
+                    <svg
+                      className='h-3 w-3'
+                      viewBox='0 0 24 24'
+                      fill='currentColor'
+                      xmlns='http://www.w3.org/2000/svg'
+                    >
+                      <path d='M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z' />
+                    </svg>
+                    <span>Share on X</span>
+                  </PopoverItem>
+                  <PopoverItem onClick={handleShareToLinkedIn}>
+                    <Linkedin className='h-3 w-3' />
+                    <span>Share on LinkedIn</span>
+                  </PopoverItem>
+                </PopoverContent>
+              </Popover>
             </div>
           </div>
 

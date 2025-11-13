@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
-import { LogOut, UserX, X } from 'lucide-react'
-import { Tooltip } from '@/components/emcn'
-import { Button } from '@/components/ui/button'
+import { UserX, X } from 'lucide-react'
+import { Button, Tooltip } from '@/components/emcn'
+import { Button as UIButton } from '@/components/ui/button'
+import { UserAvatar } from '@/components/user-avatar/user-avatar'
 import { createLogger } from '@/lib/logs/console/logger'
 import type { Invitation, Member, Organization } from '@/stores/organization'
 
@@ -20,6 +21,8 @@ interface BaseItem {
   name: string
   email: string
   avatarInitial: string
+  avatarUrl?: string | null
+  userId?: string
   usage: string
 }
 
@@ -95,6 +98,8 @@ export function TeamMembers({
         name,
         email: member.user?.email || '',
         avatarInitial: name.charAt(0).toUpperCase(),
+        avatarUrl: member.user?.image,
+        userId: member.user?.id,
         usage: `$${usageAmount.toFixed(2)}`,
         role: member.role,
         member,
@@ -118,6 +123,8 @@ export function TeamMembers({
         name: emailPrefix,
         email: invitation.email,
         avatarInitial: emailPrefix.charAt(0).toUpperCase(),
+        avatarUrl: null,
+        userId: invitation.email, // Use email as fallback for color generation
         usage: '-',
         invitation,
       }
@@ -163,15 +170,12 @@ export function TeamMembers({
             {/* Member info */}
             <div className='flex flex-1 items-center gap-3'>
               {/* Avatar */}
-              <div
-                className={`flex h-8 w-8 items-center justify-center rounded-full font-medium text-sm ${
-                  item.type === 'member'
-                    ? 'bg-primary/10 text-muted-foreground'
-                    : 'bg-muted text-muted-foreground'
-                }`}
-              >
-                {item.avatarInitial}
-              </div>
+              <UserAvatar
+                userId={item.userId || item.email}
+                userName={item.name}
+                avatarUrl={item.avatarUrl}
+                size={32}
+              />
 
               {/* Name and email */}
               <div className='min-w-0 flex-1'>
@@ -223,14 +227,14 @@ export function TeamMembers({
                 item.email !== currentUserEmail && (
                   <Tooltip.Root>
                     <Tooltip.Trigger asChild>
-                      <Button
+                      <UIButton
                         variant='outline'
                         size='sm'
                         onClick={() => onRemoveMember(item.member)}
                         className='h-8 w-8 rounded-[8px] p-0'
                       >
                         <UserX className='h-4 w-4' />
-                      </Button>
+                      </UIButton>
                     </Tooltip.Trigger>
                     <Tooltip.Content side='left'>Remove Member</Tooltip.Content>
                   </Tooltip.Root>
@@ -240,7 +244,7 @@ export function TeamMembers({
               {isAdminOrOwner && item.type === 'invitation' && (
                 <Tooltip.Root>
                   <Tooltip.Trigger asChild>
-                    <Button
+                    <UIButton
                       variant='outline'
                       size='sm'
                       onClick={() => handleCancelInvitation(item.invitation.id)}
@@ -252,7 +256,7 @@ export function TeamMembers({
                       ) : (
                         <X className='h-4 w-4' />
                       )}
-                    </Button>
+                    </UIButton>
                   </Tooltip.Trigger>
                   <Tooltip.Content side='left'>
                     {cancellingInvitations.has(item.invitation.id)
@@ -268,10 +272,9 @@ export function TeamMembers({
 
       {/* Leave Organization button */}
       {canLeaveOrganization && (
-        <div className='border-t pt-4'>
+        <div className='mt-4 border-[var(--border-muted)] border-t pt-4'>
           <Button
-            variant='outline'
-            size='default'
+            variant='default'
             onClick={() => {
               if (!currentUserMember?.user?.id) {
                 logger.error('Cannot leave organization: missing user ID', { currentUserMember })
@@ -279,9 +282,7 @@ export function TeamMembers({
               }
               onRemoveMember(currentUserMember)
             }}
-            className='w-full hover:bg-muted'
           >
-            <LogOut className='mr-2 h-4 w-4' />
             Leave Organization
           </Button>
         </div>

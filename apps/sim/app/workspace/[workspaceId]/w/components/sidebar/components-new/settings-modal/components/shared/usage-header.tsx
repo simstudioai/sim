@@ -2,11 +2,13 @@
 
 import type { ReactNode } from 'react'
 import { Badge } from '@/components/emcn'
-import { Progress } from '@/components/ui'
 import { cn } from '@/lib/utils'
 
 const GRADIENT_BADGE_STYLES =
   'gradient-text h-[1.125rem] rounded-[6px] border-gradient-primary/20 bg-gradient-to-b from-gradient-primary via-gradient-secondary to-gradient-primary px-2 py-0 font-medium text-xs cursor-pointer'
+
+// Constants matching UsageIndicator
+const PILL_COUNT = 8
 
 interface UsageHeaderProps {
   title: string
@@ -43,17 +45,22 @@ export function UsageHeader({
 }: UsageHeaderProps) {
   const progress = progressValue ?? (limit > 0 ? Math.min((current / limit) * 100, 100) : 0)
 
+  // Calculate filled pills based on usage percentage
+  const filledPillsCount = Math.ceil((progress / 100) * PILL_COUNT)
+  const isAlmostOut = filledPillsCount === PILL_COUNT
+
   return (
     <div className='rounded-[8px] border bg-background p-3 shadow-xs'>
       <div className='space-y-2'>
+        {/* Top row */}
         <div className='flex items-center justify-between'>
           <div className='flex items-center gap-2'>
             <span
               className={cn(
-                'font-medium text-sm',
+                'font-medium text-[12px]',
                 gradientTitle
                   ? 'gradient-text bg-gradient-to-b from-gradient-primary via-gradient-secondary to-gradient-primary'
-                  : 'text-foreground'
+                  : 'text-[#FFFFFF]'
               )}
             >
               {title}
@@ -67,25 +74,42 @@ export function UsageHeader({
               <span className='text-muted-foreground text-xs'>({seatsText})</span>
             ) : null}
           </div>
-          <div className='flex items-center gap-1 text-xs tabular-nums'>
+          <div className='flex items-center gap-[4px] text-xs tabular-nums'>
             {isBlocked ? (
-              <span className='text-muted-foreground'>Payment required</span>
+              <span className='font-medium text-[#B1B1B1] text-[12px]'>Payment required</span>
             ) : (
               <>
-                <span className='text-muted-foreground'>${current.toFixed(2)}</span>
-                <span className='text-muted-foreground'>/</span>
-                {rightContent ?? <span className='text-muted-foreground'>${limit}</span>}
+                <span className='font-medium text-[#B1B1B1] text-[12px] tabular-nums'>
+                  ${current.toFixed(2)}
+                </span>
+                <span className='font-medium text-[#B1B1B1] text-[12px]'>/</span>
+                {rightContent ?? (
+                  <span className='font-medium text-[#B1B1B1] text-[12px] tabular-nums'>
+                    ${limit}
+                  </span>
+                )}
               </>
             )}
           </div>
         </div>
 
-        <Progress
-          value={isBlocked ? 100 : progress}
-          className='h-2'
-          indicatorClassName='bg-black dark:bg-white'
-        />
+        {/* Pills row - matching UsageIndicator */}
+        <div className='flex items-center gap-[4px]'>
+          {Array.from({ length: PILL_COUNT }).map((_, i) => {
+            const isFilled = i < filledPillsCount
+            return (
+              <div
+                key={i}
+                className='h-[6px] flex-1 rounded-[2px]'
+                style={{
+                  backgroundColor: isFilled ? (isAlmostOut ? '#ef4444' : '#34B5FF') : '#414141',
+                }}
+              />
+            )
+          })}
+        </div>
 
+        {/* Status messages */}
         {isBlocked && (
           <div className='flex items-center justify-between rounded-[6px] bg-destructive/10 px-2 py-1'>
             <span className='text-destructive text-xs'>

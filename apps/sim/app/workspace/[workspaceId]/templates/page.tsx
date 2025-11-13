@@ -21,9 +21,9 @@ export default async function TemplatesPage({ params }: TemplatesPageProps) {
   const { workspaceId } = await params
   const session = await getSession()
 
-  // Require authentication
+  // Redirect unauthenticated users to public templates page
   if (!session?.user?.id) {
-    redirect('/login')
+    redirect('/templates')
   }
 
   // Verify workspace membership

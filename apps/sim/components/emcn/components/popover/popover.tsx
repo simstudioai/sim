@@ -278,7 +278,7 @@ const PopoverContent = React.forwardRef<
           sticky='partial'
           {...restProps}
           className={cn(
-            'z-[9999999] flex flex-col overflow-hidden rounded-[8px] bg-[var(--surface-3)] px-[5.5px] py-[5px] text-foreground outline-none dark:bg-[var(--surface-3)]',
+            'z-[10000001] flex flex-col overflow-hidden rounded-[8px] bg-[var(--surface-3)] px-[5.5px] py-[5px] text-foreground outline-none dark:bg-[var(--surface-3)]',
             // If width is constrained by the caller, ensure inner flexible text truncates by default.
             hasUserWidthConstraint && '[&_.flex-1]:truncate',
             className
