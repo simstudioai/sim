@@ -1,6 +1,6 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams } from 'next/navigation'
-import { Handle, type NodeProps, Position } from 'reactflow'
+import { Handle, type NodeProps, Position, useUpdateNodeInternals } from 'reactflow'
 import { Badge } from '@/components/emcn/components/badge/badge'
 import { Tooltip } from '@/components/emcn/components/tooltip/tooltip'
 import { getEnv, isTruthy } from '@/lib/env'
@@ -688,6 +688,16 @@ export const WorkflowBlock = memo(function WorkflowBlock({
       horizontalHandles,
     ],
   })
+
+  /**
+   * Notify React Flow when handle orientation changes so it can recalculate edge paths.
+   * This is necessary because toggling handles doesn't change block dimensions,
+   * so useBlockDimensions won't trigger updateNodeInternals.
+   */
+  const updateNodeInternals = useUpdateNodeInternals()
+  useEffect(() => {
+    updateNodeInternals(id)
+  }, [horizontalHandles, id, updateNodeInternals])
 
   const showWebhookIndicator = (isStarterBlock || isWebhookTriggerBlock) && isWebhookConfigured
   const shouldShowScheduleBadge =
