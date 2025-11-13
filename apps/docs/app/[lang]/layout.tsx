@@ -4,6 +4,7 @@ import { DocsLayout } from 'fumadocs-ui/layouts/docs'
 import { RootProvider } from 'fumadocs-ui/provider/next'
 import { Geist_Mono, Inter } from 'next/font/google'
 import Image from 'next/image'
+import { OneDollarStats } from '@/components/analytics/onedollarstats'
 import {
   SidebarFolder,
   SidebarItem,
@@ -13,7 +14,6 @@ import { Navbar } from '@/components/navbar/navbar'
 import { i18n } from '@/lib/i18n'
 import { source } from '@/lib/source'
 import '../global.css'
-import { Analytics } from '@vercel/analytics/next'
 
 const inter = Inter({
   subsets: ['latin'],
@@ -94,8 +94,11 @@ export default async function Layout({ children, params }: LayoutProps) {
           type='application/ld+json'
           dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
         />
+        {/* OneDollarStats Analytics */}
+        <script defer src='https://assets.onedollarstats.com/stonks.js' />
       </head>
       <body className='flex min-h-screen flex-col font-sans'>
+        <OneDollarStats />
         <RootProvider i18n={provider(lang)}>
           <Navbar />
           <DocsLayout
@@ -132,7 +135,6 @@ export default async function Layout({ children, params }: LayoutProps) {
           >
             {children}
           </DocsLayout>
-          <Analytics />
         </RootProvider>
       </body>
     </html>
