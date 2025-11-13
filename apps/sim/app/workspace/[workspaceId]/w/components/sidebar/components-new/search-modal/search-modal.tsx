@@ -331,16 +331,35 @@ export function SearchModal({
     return items
   }, [workspaces, workflows, pages, blocks, triggers, tools, docs])
 
-  // Filter items based on search query
-  const filteredItems = useMemo(() => {
-    if (!searchQuery.trim()) return allItems
+  const sectionOrder = useMemo<SearchItem['type'][]>(
+    () => ['workspace', 'workflow', 'page', 'tool', 'trigger', 'block', 'doc'],
+    []
+  )
 
-    const query = searchQuery.toLowerCase()
-    return allItems.filter(
-      (item) =>
-        item.name.toLowerCase().includes(query) || item.description?.toLowerCase().includes(query)
+  // Filter items based on search query and enforce section ordering
+  const filteredItems = useMemo(() => {
+    const orderMap = sectionOrder.reduce<Record<SearchItem['type'], number>>(
+      (acc, type, index) => {
+        acc[type] = index
+        return acc
+      },
+      {} as Record<SearchItem['type'], number>
     )
-  }, [allItems, searchQuery])
+
+    const baseItems = !searchQuery.trim()
+      ? allItems
+      : allItems.filter(
+          (item) =>
+            item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            item.description?.toLowerCase().includes(searchQuery.toLowerCase())
+        )
+
+    return [...baseItems].sort((a, b) => {
+      const aOrder = orderMap[a.type] ?? Number.MAX_SAFE_INTEGER
+      const bOrder = orderMap[b.type] ?? Number.MAX_SAFE_INTEGER
+      return aOrder - bOrder
+    })
+  }, [allItems, searchQuery, sectionOrder])
 
   // Reset selected index when filtered items change
   useEffect(() => {
@@ -470,7 +489,7 @@ export function SearchModal({
       <DialogPortal>
         <DialogOverlay
           className='bg-white/80 dark:bg-[#1b1b1b]/90'
-          style={{ backdropFilter: 'blur(4px)' }}
+          style={{ backdropFilter: 'blur(4px)', zIndex: 40 }}
         />
         <DialogPrimitive.Content className='fixed top-[15%] left-[50%] z-50 flex w-[500px] translate-x-[-50%] flex-col gap-[12px] p-0 focus:outline-none focus-visible:outline-none'>
           <VisuallyHidden.Root>
@@ -493,7 +512,8 @@ export function SearchModal({
           {/* Floating results container */}
           {filteredItems.length > 0 ? (
             <div className='scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent max-h-[400px] overflow-y-auto rounded-[10px] py-[10px] shadow-sm'>
-              {Object.entries(groupedItems).map(([type, items]) => {
+              {sectionOrder.map((type) => {
+                const items = groupedItems[type] || []
                 if (items.length === 0) return null
 
                 return (
