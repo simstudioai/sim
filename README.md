@@ -21,7 +21,7 @@ Design agent workflows visually on a canvas—connect agents, tools, and blocks,
 </p>
 
 ### Supercharge with Copilot
-Leverage Copilot to scaffold nodes, fix errors, and iterate on flows directly from natural language.
+Leverage Copilot to generate nodes, fix errors, and iterate on flows directly from natural language.
 
 <p align="center">
   <img src="apps/sim/public/static/copilot.gif" alt="Copilot Demo" width="800"/>
