@@ -3,7 +3,8 @@
 import { useEffect, useState } from 'react'
 import { AlertCircle, Plus, Search } from 'lucide-react'
 import { useParams } from 'next/navigation'
-import { Alert, AlertDescription, Button, Input, Skeleton } from '@/components/ui'
+import { Button, Label } from '@/components/emcn'
+import { Alert, AlertDescription, Input, Skeleton } from '@/components/ui'
 import { createLogger } from '@/lib/logs/console/logger'
 import { CustomToolModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/components/sub-block/components/tool-input/components/custom-tool-modal/custom-tool-modal'
 import { useCustomToolsStore } from '@/stores/custom-tools/store'
@@ -12,13 +13,17 @@ const logger = createLogger('CustomToolsSettings')
 
 function CustomToolSkeleton() {
   return (
-    <div className='rounded-[8px] border bg-background p-4'>
-      <div className='flex items-center justify-between'>
-        <div className='flex-1 space-y-2'>
-          <Skeleton className='h-4 w-32' />
-          <Skeleton className='h-3 w-48' />
+    <div className='flex flex-col gap-2'>
+      <Skeleton className='h-4 w-32' /> {/* Tool title */}
+      <div className='flex items-center justify-between gap-4'>
+        <div className='flex items-center gap-3'>
+          <Skeleton className='h-8 w-24 rounded-[8px]' /> {/* Function name */}
+          <Skeleton className='h-4 w-48' /> {/* Description */}
         </div>
-        <Skeleton className='h-8 w-20' />
+        <div className='flex items-center gap-2'>
+          <Skeleton className='h-8 w-12' /> {/* Edit button */}
+          <Skeleton className='h-8 w-16' /> {/* Delete button */}
+        </div>
       </div>
     </div>
   )
@@ -91,27 +96,22 @@ export function CustomTools() {
   }
 
   return (
-    <div className='flex h-full flex-col'>
-      {/* Header */}
-      <div className='border-b px-6 py-4'>
-        <div className='flex items-center justify-between'>
-          <div>
-            <h2 className='font-semibold text-foreground text-lg'>Custom Tools</h2>
-            <p className='mt-1 text-muted-foreground text-sm'>
-              Manage workspace-scoped custom tools for your agents
-            </p>
-          </div>
-          {!showAddForm && !editingTool && (
-            <Button size='sm' onClick={() => setShowAddForm(true)} className='h-9'>
-              <Plus className='mr-2 h-4 w-4' />
-              Add Tool
-            </Button>
-          )}
-        </div>
+    <div className='relative flex h-full flex-col'>
+      {/* Fixed Header with Search */}
+      <div className='px-6 pt-4 pb-2'>
+        {/* Error Alert - only show when modal is not open */}
+        {error && !showAddForm && !editingTool && (
+          <Alert variant='destructive' className='mb-4'>
+            <AlertCircle className='h-4 w-4' />
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
 
-        {/* Search */}
-        {tools.length > 0 && !showAddForm && !editingTool && (
-          <div className='mt-4 flex h-9 w-56 items-center gap-2 rounded-lg border bg-transparent pr-2 pl-3'>
+        {/* Search Input */}
+        {isLoading ? (
+          <Skeleton className='h-9 w-56 rounded-[8px]' />
+        ) : (
+          <div className='flex h-9 w-56 items-center gap-2 rounded-[8px] border bg-transparent pr-2 pl-3'>
             <Search className='h-4 w-4 flex-shrink-0 text-muted-foreground' strokeWidth={2} />
             <Input
               placeholder='Search tools...'
@@ -121,79 +121,98 @@ export function CustomTools() {
             />
           </div>
         )}
-
-        {/* Error Alert - only show when modal is not open */}
-        {error && !showAddForm && !editingTool && (
-          <Alert variant='destructive' className='mt-4'>
-            <AlertCircle className='h-4 w-4' />
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        )}
       </div>
 
       {/* Scrollable Content */}
-      <div className='scrollbar-thin scrollbar-thumb-muted scrollbar-track-transparent min-h-0 flex-1 overflow-y-auto px-6'>
-        <div className='h-full space-y-4 py-2'>
+      <div className='min-h-0 flex-1 overflow-y-auto px-6'>
+        <div className='space-y-2 pt-2 pb-6'>
           {isLoading ? (
-            <div className='space-y-4'>
+            <div className='space-y-2'>
               <CustomToolSkeleton />
               <CustomToolSkeleton />
               <CustomToolSkeleton />
             </div>
-          ) : filteredTools.length === 0 && !showAddForm && !editingTool ? (
+          ) : tools.length === 0 && !showAddForm && !editingTool ? (
             <div className='flex h-full items-center justify-center text-muted-foreground text-sm'>
-              {searchTerm.trim() ? (
-                <>No tools found matching "{searchTerm}"</>
-              ) : (
-                <>Click "Add Tool" above to create your first custom tool</>
-              )}
+              Click "Create Tool" below to get started
             </div>
           ) : (
-            <div className='space-y-4'>
-              {filteredTools.map((tool) => (
-                <div
-                  key={tool.id}
-                  className='flex items-center justify-between gap-4 rounded-[8px] border bg-background p-4'
-                >
-                  <div className='min-w-0 flex-1'>
-                    <div className='mb-1 flex items-center gap-2'>
-                      <code className='font-medium font-mono text-foreground text-sm'>
-                        {tool.title}
-                      </code>
+            <>
+              <div className='space-y-2'>
+                {filteredTools.map((tool) => (
+                  <div key={tool.id} className='flex flex-col gap-2'>
+                    <Label className='font-normal text-muted-foreground text-xs uppercase'>
+                      {tool.title}
+                    </Label>
+                    <div className='flex items-center justify-between gap-4'>
+                      <div className='flex items-center gap-3'>
+                        <div className='flex h-8 items-center rounded-[8px] bg-muted px-3'>
+                          <code className='font-mono text-foreground text-xs'>
+                            {tool.schema?.function?.name || 'unnamed'}
+                          </code>
+                        </div>
+                        {tool.schema?.function?.description && (
+                          <p className='truncate text-muted-foreground text-xs'>
+                            {tool.schema.function.description}
+                          </p>
+                        )}
+                      </div>
+                      <div className='flex items-center gap-2'>
+                        <Button
+                          variant='ghost'
+                          onClick={() => setEditingTool(tool.id)}
+                          className='h-8'
+                        >
+                          Edit
+                        </Button>
+                        <Button
+                          variant='ghost'
+                          onClick={() => handleDeleteTool(tool.id)}
+                          disabled={deletingTools.has(tool.id)}
+                          className='h-8'
+                        >
+                          {deletingTools.has(tool.id) ? 'Deleting...' : 'Delete'}
+                        </Button>
+                      </div>
                     </div>
-                    {tool.schema?.function?.description && (
-                      <p className='truncate text-muted-foreground text-xs'>
-                        {tool.schema.function.description}
-                      </p>
-                    )}
                   </div>
-                  <div className='flex items-center gap-2'>
-                    <Button
-                      variant='ghost'
-                      size='sm'
-                      onClick={() => setEditingTool(tool.id)}
-                      className='h-8 text-muted-foreground hover:text-foreground'
-                    >
-                      Edit
-                    </Button>
-                    <Button
-                      variant='ghost'
-                      size='sm'
-                      onClick={() => handleDeleteTool(tool.id)}
-                      disabled={deletingTools.has(tool.id)}
-                      className='h-8 text-muted-foreground hover:text-foreground'
-                    >
-                      {deletingTools.has(tool.id) ? 'Deleting...' : 'Delete'}
-                    </Button>
-                  </div>
-                </div>
-              ))}
+                ))}
+              </div>
+
+              {/* Show message when search has no results */}
               {searchTerm.trim() && filteredTools.length === 0 && tools.length > 0 && (
                 <div className='py-8 text-center text-muted-foreground text-sm'>
                   No tools found matching "{searchTerm}"
                 </div>
               )}
-            </div>
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* Footer */}
+      <div className='bg-background'>
+        <div className='flex w-full items-center justify-between px-6 py-4'>
+          {isLoading ? (
+            <>
+              <Skeleton className='h-9 w-[117px] rounded-[8px]' />
+              <div className='w-[200px]' />
+            </>
+          ) : (
+            <>
+              <Button
+                onClick={() => setShowAddForm(true)}
+                variant='ghost'
+                className='h-9 rounded-[8px] border bg-background px-3 shadow-xs hover:bg-muted focus:outline-none focus-visible:ring-0 focus-visible:ring-offset-0'
+                disabled={isLoading}
+              >
+                <Plus className='h-4 w-4 stroke-[2px]' />
+                Create Tool
+              </Button>
+              <div className='text-muted-foreground text-xs'>
+                Custom tools extend agent capabilities with workspace-specific functions
+              </div>
+            </>
           )}
         </div>
       </div>

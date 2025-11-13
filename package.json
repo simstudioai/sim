@@ -40,6 +40,7 @@
     "cronstrue": "3.3.0",
     "drizzle-orm": "^0.44.5",
     "mongodb": "6.19.0",
+    "onedollarstats": "0.0.10",
     "postgres": "^3.4.5",
     "remark-gfm": "4.0.1",
     "socket.io-client": "4.8.1",

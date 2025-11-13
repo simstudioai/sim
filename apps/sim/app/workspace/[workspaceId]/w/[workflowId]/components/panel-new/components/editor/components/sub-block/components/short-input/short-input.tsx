@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/components/sub-block/components/formatted-text'
 import { SubBlockInputController } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/components/sub-block/components/sub-block-input-controller'
+import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/components/sub-block/hooks/use-sub-block-value'
 import type { WandControlHandlers } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/components/sub-block/sub-block'
 import { WandPromptBar } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/wand-prompt-bar/wand-prompt-bar'
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
@@ -82,6 +83,7 @@ export function ShortInput({
   const [localContent, setLocalContent] = useState<string>('')
   const [isFocused, setIsFocused] = useState(false)
   const [copied, setCopied] = useState(false)
+  const persistSubBlockValueRef = useRef<(value: string) => void>(() => {})
 
   // Always call the hook - hooks must be called unconditionally
   const webhookManagement = useWebhookManagement({
@@ -105,8 +107,21 @@ export function ShortInput({
     onGeneratedContent: (content) => {
       // Final content update
       setLocalContent(content)
+      if (!isPreview && !disabled && !readOnly) {
+        persistSubBlockValueRef.current(content)
+      }
     },
   })
+
+  const [, setSubBlockValue] = useSubBlockValue<string>(blockId, subBlockId, false, {
+    isStreaming: wandHook.isStreaming,
+  })
+
+  useEffect(() => {
+    persistSubBlockValueRef.current = (value: string) => {
+      setSubBlockValue(value)
+    }
+  }, [setSubBlockValue])
 
   // Check if wand is actually enabled
   const isWandEnabled = config.wandConfig?.enabled ?? false

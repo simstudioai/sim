@@ -15,6 +15,7 @@ import { cn } from '@/lib/utils'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/components/sub-block/components/formatted-text'
 import { SubBlockInputController } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/components/sub-block/components/sub-block-input-controller'
 import { useSubBlockInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/components/sub-block/hooks/use-sub-block-input'
+import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/components/sub-block/hooks/use-sub-block-value'
 import type { WandControlHandlers } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/components/sub-block/sub-block'
 import { WandPromptBar } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/wand-prompt-bar/wand-prompt-bar'
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
@@ -94,6 +95,7 @@ export function LongInput({
 }: LongInputProps) {
   // Local state for immediate UI updates during streaming
   const [localContent, setLocalContent] = useState<string>('')
+  const persistSubBlockValueRef = useRef<(value: string) => void>(() => {})
 
   // Wand functionality - always call the hook unconditionally
   const wandHook = useWand({
@@ -110,8 +112,21 @@ export function LongInput({
     onGeneratedContent: (content) => {
       // Final content update (fallback)
       setLocalContent(content)
+      if (!isPreview && !disabled) {
+        persistSubBlockValueRef.current(content)
+      }
     },
   })
+
+  const [, setSubBlockValue] = useSubBlockValue<string>(blockId, subBlockId, false, {
+    isStreaming: wandHook.isStreaming,
+  })
+
+  useEffect(() => {
+    persistSubBlockValueRef.current = (value: string) => {
+      setSubBlockValue(value)
+    }
+  }, [setSubBlockValue])
 
   // Check if wand is actually enabled
   const isWandEnabled = config.wandConfig?.enabled ?? false

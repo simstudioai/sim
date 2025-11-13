@@ -4,62 +4,24 @@ import { useEffect, useState } from 'react'
 import { formatDistanceToNow } from 'date-fns'
 import {
   ArrowLeft,
-  Award,
-  BarChart3,
-  Bell,
-  BookOpen,
-  Bot,
-  Brain,
-  Briefcase,
-  Calculator,
+  ChartNoAxesColumn,
   ChevronDown,
-  Clock,
-  Cloud,
-  Code,
-  Cpu,
-  CreditCard,
-  Database,
-  DollarSign,
-  Eye,
-  FileText,
-  Folder,
   Globe,
-  HeadphonesIcon,
-  Layers,
-  Lightbulb,
-  LineChart,
   Linkedin,
   Mail,
-  Megaphone,
-  MessageSquare,
-  NotebookPen,
-  Phone,
-  Play,
-  Search,
-  Server,
-  Settings,
-  ShoppingCart,
   Star,
-  Target,
-  TrendingUp,
-  Twitter,
   User,
-  Users,
-  Workflow,
-  Wrench,
-  Zap,
 } from 'lucide-react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import ReactMarkdown from 'react-markdown'
-import { Tooltip } from '@/components/emcn'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
+import { Button } from '@/components/emcn'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { useSession } from '@/lib/auth-client'
 import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
 import type { CredentialRequirement } from '@/lib/workflows/credential-extractor'
@@ -69,55 +31,19 @@ import { getBlock } from '@/blocks/registry'
 
 const logger = createLogger('TemplateDetails')
 
-// Icon mapping
-const iconMap = {
-  FileText,
-  NotebookPen,
-  BookOpen,
-  BarChart3,
-  LineChart,
-  TrendingUp,
-  Target,
-  Database,
-  Server,
-  Cloud,
-  Folder,
-  Megaphone,
-  Mail,
-  MessageSquare,
-  Phone,
-  Bell,
-  DollarSign,
-  CreditCard,
-  Calculator,
-  ShoppingCart,
-  Briefcase,
-  HeadphonesIcon,
-  Users,
-  Settings,
-  Wrench,
-  Bot,
-  Brain,
-  Cpu,
-  Code,
-  Zap,
-  Workflow,
-  Search,
-  Play,
-  Layers,
-  Lightbulb,
-  Globe,
-  Award,
+interface TemplateDetailsProps {
+  isWorkspaceContext?: boolean
 }
 
-export default function TemplateDetails() {
+export default function TemplateDetails({ isWorkspaceContext = false }: TemplateDetailsProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const params = useParams()
   const templateId = params?.id as string
+  const workspaceId = isWorkspaceContext ? (params?.workspaceId as string) : null
+  const { data: session } = useSession()
 
   const [template, setTemplate] = useState<Template | null>(null)
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const [currentUserOrgs, setCurrentUserOrgs] = useState<string[]>([])
   const [currentUserOrgRoles, setCurrentUserOrgRoles] = useState<
     Array<{ organizationId: string; role: string }>
@@ -139,6 +65,8 @@ export default function TemplateDetails() {
   const [showWorkspaceSelectorForEdit, setShowWorkspaceSelectorForEdit] = useState(false)
   const [showWorkspaceSelectorForUse, setShowWorkspaceSelectorForUse] = useState(false)
 
+  const currentUserId = session?.user?.id || null
+
   // Fetch template data on client side
   useEffect(() => {
     if (!templateId) {
@@ -156,28 +84,15 @@ export default function TemplateDetails() {
           setStarCount(data.data.stars || 0)
         }
       } catch (error) {
-        console.error('Error fetching template:', error)
+        logger.error('Error fetching template:', error)
       } finally {
         setLoading(false)
       }
     }
 
-    const fetchCurrentUser = async () => {
-      try {
-        const response = await fetch('/api/auth/get-session')
-        if (response.ok) {
-          const data = await response.json()
-          setCurrentUserId(data?.user?.id || null)
-        } else {
-          setCurrentUserId(null)
-        }
-      } catch (error) {
-        console.error('Error fetching session:', error)
-        setCurrentUserId(null)
-      }
-    }
-
     const fetchUserOrganizations = async () => {
+      if (!currentUserId) return
+
       try {
         const response = await fetch('/api/organizations')
         if (response.ok) {
@@ -192,11 +107,13 @@ export default function TemplateDetails() {
           setCurrentUserOrgRoles(orgRoles)
         }
       } catch (error) {
-        console.error('Error fetching organizations:', error)
+        logger.error('Error fetching organizations:', error)
       }
     }
 
     const fetchSuperUserStatus = async () => {
+      if (!currentUserId) return
+
       try {
         const response = await fetch('/api/user/super-user')
         if (response.ok) {
@@ -204,15 +121,14 @@ export default function TemplateDetails() {
           setIsSuperUser(data.isSuperUser || false)
         }
       } catch (error) {
-        console.error('Error fetching super user status:', error)
+        logger.error('Error fetching super user status:', error)
       }
     }
 
     fetchTemplate()
-    fetchCurrentUser()
     fetchSuperUserStatus()
     fetchUserOrganizations()
-  }, [templateId])
+  }, [templateId, currentUserId])
 
   // Fetch workspaces when user is logged in
   useEffect(() => {
@@ -235,7 +151,7 @@ export default function TemplateDetails() {
           setWorkspaces(availableWorkspaces)
         }
       } catch (error) {
-        console.error('Error fetching workspaces:', error)
+        logger.error('Error fetching workspaces:', error)
       } finally {
         setIsLoadingWorkspaces(false)
       }
@@ -247,9 +163,14 @@ export default function TemplateDetails() {
   // Clean up URL when returning from login
   useEffect(() => {
     if (template && searchParams?.get('use') === 'true' && currentUserId) {
-      router.replace(`/templates/${template.id}`)
+      if (isWorkspaceContext && workspaceId) {
+        handleWorkspaceSelectForUse(workspaceId)
+        router.replace(`/workspace/${workspaceId}/templates/${template.id}`)
+      } else {
+        router.replace(`/templates/${template.id}`)
+      }
     }
-  }, [searchParams, currentUserId, template, router])
+  }, [searchParams, currentUserId, template, isWorkspaceContext, workspaceId, router])
 
   // Check if user can edit template
   const canEditTemplate = (() => {
@@ -313,7 +234,7 @@ export default function TemplateDetails() {
     return (
       <div className='flex h-screen items-center justify-center'>
         <div className='text-center'>
-          <p className='text-muted-foreground'>Loading template...</p>
+          <p className='font-sans text-muted-foreground text-sm'>Loading template...</p>
         </div>
       </div>
     )
@@ -323,8 +244,10 @@ export default function TemplateDetails() {
     return (
       <div className='flex h-screen items-center justify-center'>
         <div className='text-center'>
-          <h1 className='mb-4 font-bold text-2xl'>Template Not Found</h1>
-          <p className='text-muted-foreground'>The template you're looking for doesn't exist.</p>
+          <h1 className='mb-4 font-sans font-semibold text-2xl'>Template Not Found</h1>
+          <p className='font-sans text-muted-foreground text-sm'>
+            The template you're looking for doesn't exist.
+          </p>
         </div>
       </div>
     )
@@ -335,8 +258,10 @@ export default function TemplateDetails() {
       return (
         <div className='flex h-full items-center justify-center text-center'>
           <div className='text-muted-foreground'>
-            <div className='mb-2 font-medium text-lg'>⚠️ No Workflow Data</div>
-            <div className='text-sm'>This template doesn't contain workflow state data.</div>
+            <div className='mb-2 font-medium font-sans text-lg'>⚠️ No Workflow Data</div>
+            <div className='font-sans text-sm'>
+              This template doesn't contain workflow state data.
+            </div>
           </div>
         </div>
       )
@@ -355,12 +280,12 @@ export default function TemplateDetails() {
         />
       )
     } catch (error) {
-      console.error('Error rendering workflow preview:', error)
+      logger.error('Error rendering workflow preview:', error)
       return (
         <div className='flex h-full items-center justify-center text-center'>
           <div className='text-muted-foreground'>
-            <div className='mb-2 font-medium text-lg'>⚠️ Preview Error</div>
-            <div className='text-sm'>Unable to render workflow preview</div>
+            <div className='mb-2 font-medium font-sans text-lg'>⚠️ Preview Error</div>
+            <div className='font-sans text-sm'>Unable to render workflow preview</div>
           </div>
         </div>
       )
@@ -368,7 +293,30 @@ export default function TemplateDetails() {
   }
 
   const handleBack = () => {
-    router.push('/templates')
+    if (isWorkspaceContext) {
+      router.back()
+    } else {
+      router.push('/templates')
+    }
+  }
+  /**
+   * Intercepts wheel events over the workflow preview so that the page handles scrolling
+   * instead of the underlying canvas. We stop propagation in the capture phase to prevent
+   * React Flow from consuming the event, but intentionally avoid preventDefault so the
+   * browser can perform its normal scroll behavior.
+   *
+   * We allow zoom gestures (Ctrl/Cmd + wheel) to pass through unmodified.
+   *
+   * @param event - The wheel event fired when the user scrolls over the preview area.
+   */
+  const handleCanvasWheelCapture = (event: React.WheelEvent<HTMLDivElement>) => {
+    // Allow pinch/zoom gestures (e.g., ctrl/cmd + wheel) to continue to the canvas.
+    if (event.ctrlKey || event.metaKey) {
+      return
+    }
+
+    // Prevent React Flow from handling the wheel; let the page scroll naturally.
+    event.stopPropagation()
   }
 
   const handleStarToggle = async () => {
@@ -392,37 +340,59 @@ export default function TemplateDetails() {
 
   const handleUseTemplate = () => {
     if (!currentUserId) {
-      const callbackUrl = encodeURIComponent(`/templates/${template.id}`)
+      const callbackUrl =
+        isWorkspaceContext && workspaceId
+          ? encodeURIComponent(`/workspace/${workspaceId}/templates/${template.id}?use=true`)
+          : encodeURIComponent(`/templates/${template.id}`)
       router.push(`/login?callbackUrl=${callbackUrl}`)
       return
     }
-    setShowWorkspaceSelectorForUse(true)
+
+    // In workspace context, use current workspace directly
+    if (isWorkspaceContext && workspaceId) {
+      handleWorkspaceSelectForUse(workspaceId)
+    } else {
+      setShowWorkspaceSelectorForUse(true)
+    }
   }
 
   const handleEditTemplate = async () => {
     if (!currentUserId || !template) return
 
-    // Check if workflow exists and user has access
-    if (template.workflowId) {
+    // In workspace context with existing workflow, navigate directly
+    if (isWorkspaceContext && workspaceId && template.workflowId) {
+      setIsEditing(true)
+      try {
+        const checkResponse = await fetch(`/api/workflows/${template.workflowId}`)
+
+        if (checkResponse.ok) {
+          router.push(`/workspace/${workspaceId}/w/${template.workflowId}`)
+          return
+        }
+      } catch (error) {
+        logger.error('Error checking workflow:', error)
+      } finally {
+        setIsEditing(false)
+      }
+      // If workflow doesn't exist, fall through to workspace selector
+    }
+
+    // Check if workflow exists and user has access (global context)
+    if (template.workflowId && !isWorkspaceContext) {
       setIsEditing(true)
       try {
         const checkResponse = await fetch(`/api/workflows/${template.workflowId}`)
 
         if (checkResponse.status === 403) {
-          // User doesn't have access to the workspace
-          // This shouldn't happen if button is properly disabled, but handle it gracefully
           alert("You don't have access to the workspace containing this template")
           return
         }
 
         if (checkResponse.ok) {
-          // Workflow exists and user has access, get its workspace and navigate to it
           const result = await checkResponse.json()
-          const workspaceId = result.data?.workspaceId
-          if (workspaceId) {
-            // Use window.location to ensure a full page load with fresh data
-            // This avoids race conditions with client-side navigation
-            window.location.href = `/workspace/${workspaceId}/w/${template.workflowId}`
+          const templateWorkspaceId = result.data?.workspaceId
+          if (templateWorkspaceId) {
+            window.location.href = `/workspace/${templateWorkspaceId}/w/${template.workflowId}`
             return
           }
         }
@@ -433,8 +403,12 @@ export default function TemplateDetails() {
       }
     }
 
-    // Workflow doesn't exist or was deleted - show workspace selector
-    setShowWorkspaceSelectorForEdit(true)
+    // Workflow doesn't exist - show workspace selector or use current workspace
+    if (isWorkspaceContext && workspaceId) {
+      handleWorkspaceSelectForEdit(workspaceId)
+    } else {
+      setShowWorkspaceSelectorForEdit(true)
+    }
   }
 
   const handleWorkspaceSelectForUse = async (workspaceId: string) => {
@@ -505,7 +479,11 @@ export default function TemplateDetails() {
         // Update template status optimistically
         setTemplate({ ...template, status: 'approved' })
         // Redirect back to templates page after approval
-        router.push('/templates')
+        if (isWorkspaceContext && workspaceId) {
+          router.push(`/workspace/${workspaceId}/templates`)
+        } else {
+          router.push('/templates')
+        }
       }
     } catch (error) {
       logger.error('Error approving template:', error)
@@ -527,7 +505,11 @@ export default function TemplateDetails() {
         // Update template status optimistically
         setTemplate({ ...template, status: 'rejected' })
         // Redirect back to templates page after rejection
-        router.push('/templates')
+        if (isWorkspaceContext && workspaceId) {
+          router.push(`/workspace/${workspaceId}/templates`)
+        } else {
+          router.push('/templates')
+        }
       }
     } catch (error) {
       logger.error('Error rejecting template:', error)
@@ -537,116 +519,61 @@ export default function TemplateDetails() {
   }
 
   return (
-    <div className='flex min-h-screen flex-col'>
-      {/* Header */}
-      <div className='border-b bg-background p-6'>
-        <div className='mx-auto max-w-7xl'>
-          {/* Back button */}
-          <button
-            onClick={handleBack}
-            className='mb-6 flex items-center gap-2 text-muted-foreground transition-colors hover:text-foreground'
-          >
-            <ArrowLeft className='h-4 w-4' />
-            <span className='text-sm'>Back to templates</span>
-          </button>
+    <div className={cn('flex min-h-screen flex-col', isWorkspaceContext && 'pl-64')}>
+      <div className='flex flex-1 overflow-hidden'>
+        <div className='flex flex-1 flex-col overflow-auto px-[24px] pt-[24px] pb-[24px]'>
+          {/* Top bar with back button */}
+          <div className='flex items-center justify-between'>
+            {/* Back button */}
+            <button
+              onClick={handleBack}
+              className='flex items-center gap-[6px] font-medium text-[#ADADAD] text-[14px] transition-colors hover:text-white'
+            >
+              <ArrowLeft className='h-[14px] w-[14px]' />
+              <span>Back</span>
+            </button>
+          </div>
 
-          {/* Template header */}
-          <div className='flex items-start justify-between'>
-            <div className='flex items-start gap-4'>
-              {/* Icon */}
-
-              {/* Title and description */}
-              <div>
-                <h1 className='font-bold text-3xl text-foreground'>{template.name}</h1>
-                {template.details?.tagline && (
-                  <p className='mt-2 max-w-3xl text-lg text-muted-foreground'>
-                    {template.details.tagline}
-                  </p>
-                )}
-                {/* Tags */}
-                {template.tags && template.tags.length > 0 && (
-                  <div className='mt-3 flex flex-wrap gap-2'>
-                    {template.tags.map((tag, index) => (
-                      <Badge
-                        key={index}
-                        variant='secondary'
-                        className='border-0 bg-muted/60 px-2.5 py-0.5 text-sm hover:bg-muted/80'
-                      >
-                        {tag}
-                      </Badge>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
+          {/* Template name and action buttons */}
+          <div className='mt-[24px] flex items-center justify-between'>
+            <h1 className='font-medium text-[18px]'>{template.name}</h1>
 
             {/* Action buttons */}
-            <div className='flex items-center gap-3'>
-              {/* Super user approve/reject buttons for pending templates */}
+            <div className='flex items-center gap-[8px]'>
+              {/* Approve/Reject buttons for super users */}
               {isSuperUser && template.status === 'pending' && (
                 <>
                   <Button
+                    variant='active'
                     onClick={handleApprove}
                     disabled={isApproving}
-                    className='bg-green-600 text-white hover:bg-green-700'
+                    className='h-[32px] rounded-[6px]'
                   >
                     {isApproving ? 'Approving...' : 'Approve'}
                   </Button>
                   <Button
+                    variant='active'
                     onClick={handleReject}
                     disabled={isRejecting}
-                    variant='outline'
-                    className='border-red-600 text-red-600 hover:bg-red-50'
+                    className='h-[32px] rounded-[6px]'
                   >
                     {isRejecting ? 'Rejecting...' : 'Reject'}
                   </Button>
                 </>
               )}
 
-              {/* Star button - only for logged-in non-owners and non-pending templates */}
-              {currentUserId && !canEditTemplate && template.status !== 'pending' && (
-                <Button
-                  variant='outline'
-                  size='sm'
-                  onClick={handleStarToggle}
-                  disabled={isStarring}
-                  className={cn(
-                    'transition-colors',
-                    isStarred &&
-                      'border-yellow-200 bg-yellow-50 text-yellow-700 hover:bg-yellow-100'
-                  )}
-                >
-                  <Star className={cn('mr-2 h-4 w-4', isStarred && 'fill-current')} />
-                  {starCount}
-                </Button>
-              )}
-
-              {/* Edit button - for template owners (approved or pending) */}
+              {/* Edit button - for template owners */}
               {canEditTemplate && currentUserId && (
                 <>
-                  {template.workflowId && !showWorkspaceSelectorForEdit ? (
-                    <Tooltip.Root>
-                      <Tooltip.Trigger asChild>
-                        <span>
-                          <Button
-                            onClick={handleEditTemplate}
-                            disabled={isEditing || hasWorkspaceAccess === false}
-                            className={
-                              hasWorkspaceAccess === false
-                                ? 'cursor-not-allowed opacity-50'
-                                : 'bg-blue-600 text-white hover:bg-blue-700'
-                            }
-                          >
-                            {isEditing ? 'Opening...' : 'Edit Template'}
-                          </Button>
-                        </span>
-                      </Tooltip.Trigger>
-                      {hasWorkspaceAccess === false && (
-                        <Tooltip.Content>
-                          <p>Don't have access to workspace to edit template</p>
-                        </Tooltip.Content>
-                      )}
-                    </Tooltip.Root>
+                  {(isWorkspaceContext || template.workflowId) && !showWorkspaceSelectorForEdit ? (
+                    <Button
+                      variant='active'
+                      onClick={handleEditTemplate}
+                      disabled={isEditing || (!isWorkspaceContext && hasWorkspaceAccess === false)}
+                      className='h-[32px] rounded-[6px]'
+                    >
+                      {isEditing ? 'Opening...' : 'Edit'}
+                    </Button>
                   ) : (
                     <DropdownMenu
                       open={showWorkspaceSelectorForEdit}
@@ -654,17 +581,12 @@ export default function TemplateDetails() {
                     >
                       <DropdownMenuTrigger asChild>
                         <Button
-                          onClick={() =>
-                            !template.workflowId && setShowWorkspaceSelectorForEdit(true)
-                          }
+                          variant='active'
+                          onClick={() => setShowWorkspaceSelectorForEdit(true)}
                           disabled={isUsing || isLoadingWorkspaces}
-                          className='bg-blue-600 text-white hover:bg-blue-700'
+                          className='h-[32px] rounded-[6px]'
                         >
-                          {isUsing
-                            ? 'Importing...'
-                            : isLoadingWorkspaces
-                              ? 'Loading...'
-                              : 'Edit Template'}
+                          {isUsing ? 'Importing...' : isLoadingWorkspaces ? 'Loading...' : 'Edit'}
                           <ChevronDown className='ml-2 h-4 w-4' />
                         </Button>
                       </DropdownMenuTrigger>
@@ -700,13 +622,28 @@ export default function TemplateDetails() {
                 <>
                   {!currentUserId ? (
                     <Button
+                      variant='active'
                       onClick={() => {
-                        const callbackUrl = encodeURIComponent(`/templates/${template.id}`)
+                        const callbackUrl =
+                          isWorkspaceContext && workspaceId
+                            ? encodeURIComponent(
+                                `/workspace/${workspaceId}/templates/${template.id}?use=true`
+                              )
+                            : encodeURIComponent(`/templates/${template.id}`)
                         router.push(`/login?callbackUrl=${callbackUrl}`)
                       }}
-                      className='bg-purple-600 text-white hover:bg-purple-700'
+                      className='h-[32px] rounded-[6px]'
                     >
                       Sign in to use
+                    </Button>
+                  ) : isWorkspaceContext ? (
+                    <Button
+                      variant='primary'
+                      onClick={handleUseTemplate}
+                      disabled={isUsing}
+                      className='!text-[#FFFFFF] h-[32px] rounded-[6px] px-[12px] text-[14px]'
+                    >
+                      {isUsing ? 'Creating...' : 'Use template'}
                     </Button>
                   ) : (
                     <DropdownMenu
@@ -715,15 +652,12 @@ export default function TemplateDetails() {
                     >
                       <DropdownMenuTrigger asChild>
                         <Button
+                          variant='primary'
                           onClick={() => setShowWorkspaceSelectorForUse(true)}
                           disabled={isUsing || isLoadingWorkspaces}
-                          className='bg-purple-600 text-white hover:bg-purple-700'
+                          className='h-[32px] rounded-[6px] px-[16px] text-[#FFFFFF] text-[14px]'
                         >
-                          {isUsing
-                            ? 'Creating...'
-                            : isLoadingWorkspaces
-                              ? 'Loading...'
-                              : 'Use this template'}
+                          {isUsing ? 'Creating...' : isLoadingWorkspaces ? 'Loading...' : 'Use'}
                           <ChevronDown className='ml-2 h-4 w-4' />
                         </Button>
                       </DropdownMenuTrigger>
@@ -756,39 +690,83 @@ export default function TemplateDetails() {
             </div>
           </div>
 
-          {/* Tags */}
-          <div className='mt-6 flex items-center gap-3 text-muted-foreground text-sm'>
-            {/* Views */}
-            <div className='flex items-center gap-1 rounded-full bg-secondary px-3 py-1'>
-              <Eye className='h-3 w-3' />
-              <span>{template.views} views</span>
-            </div>
+          {/* Template tagline */}
+          {template.details?.tagline && (
+            <p className='mt-[4px] font-medium text-[#888888] text-[14px]'>
+              {template.details.tagline}
+            </p>
+          )}
 
-            {/* Stars */}
-            <div className='flex items-center gap-1 rounded-full bg-secondary px-3 py-1'>
-              <Star className='h-3 w-3' />
-              <span>{starCount} stars</span>
-            </div>
+          {/* Creator and stats row */}
+          <div className='mt-[16px] flex items-center gap-[8px]'>
+            {/* Star icon and count */}
+            <Star
+              onClick={handleStarToggle}
+              className={cn(
+                'h-[14px] w-[14px] cursor-pointer transition-colors',
+                isStarred ? 'fill-yellow-500 text-yellow-500' : 'text-[#888888]',
+                isStarring && 'opacity-50'
+              )}
+            />
+            <span className='font-medium text-[#888888] text-[14px]'>{starCount}</span>
 
-            {/* Author */}
-            <div className='flex items-center gap-1 rounded-full bg-secondary px-3 py-1'>
-              <User className='h-3 w-3' />
-              <span>by {template.creator?.name || 'Unknown'}</span>
-            </div>
+            {/* Users icon and count */}
+            <ChartNoAxesColumn className='h-[16px] w-[16px] text-[#888888]' />
+            <span className='font-medium text-[#888888] text-[14px]'>{template.views}</span>
 
-            {/* Author Type - show if organization */}
-            {template.creator?.referenceType === 'organization' && (
-              <div className='flex items-center gap-1 rounded-full bg-secondary px-3 py-1'>
-                <Users className='h-3 w-3' />
-                <span>Organization</span>
+            {/* Vertical divider */}
+            <div className='mx-[4px] mb-[-1.5px] h-[18px] w-[1.25px] rounded-full bg-[#3A3A3A]' />
+
+            {/* Creator profile pic */}
+            {template.creator?.profileImageUrl ? (
+              <div className='h-[16px] w-[16px] flex-shrink-0 overflow-hidden rounded-full'>
+                <img
+                  src={template.creator.profileImageUrl}
+                  alt={template.creator.name}
+                  className='h-full w-full object-cover'
+                />
+              </div>
+            ) : (
+              <div className='flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center rounded-full bg-[#4A4A4A]'>
+                <User className='h-[14px] w-[14px] text-[#888888]' />
               </div>
             )}
+            {/* Creator name */}
+            <span className='font-medium text-[#8B8B8B] text-[14px]'>
+              {template.creator?.name || 'Unknown'}
+            </span>
+          </div>
 
-            {/* Last Updated */}
+          {/* Credentials needed */}
+          {Array.isArray(template.requiredCredentials) &&
+            template.requiredCredentials.length > 0 && (
+              <p className='mt-[12px] font-medium text-[#888888] text-[12px]'>
+                Credentials needed:{' '}
+                {template.requiredCredentials
+                  .map((cred: CredentialRequirement) => {
+                    const blockName =
+                      getBlock(cred.blockType)?.name ||
+                      cred.blockType.charAt(0).toUpperCase() + cred.blockType.slice(1)
+                    const alreadyHasBlock = cred.label
+                      .toLowerCase()
+                      .includes(` for ${blockName.toLowerCase()}`)
+                    return alreadyHasBlock ? cred.label : `${cred.label} for ${blockName}`
+                  })
+                  .join(', ')}
+              </p>
+            )}
+
+          {/* Canvas preview */}
+          <div
+            className='relative mt-[24px] h-[450px] w-full overflow-hidden rounded-[8px] border border-[var(--border)]'
+            onWheelCapture={handleCanvasWheelCapture}
+          >
+            {renderWorkflowPreview()}
+
+            {/* Last updated overlay */}
             {template.updatedAt && (
-              <div className='flex items-center gap-1 rounded-full bg-secondary px-3 py-1'>
-                <Clock className='h-3 w-3' />
-                <span>
+              <div className='pointer-events-none absolute right-[12px] bottom-[12px] rounded-[4px] bg-[var(--bg)]/80 px-[8px] py-[4px] backdrop-blur-sm'>
+                <span className='font-medium text-[#8B8B8B] text-[12px]'>
                   Last updated{' '}
                   {formatDistanceToNow(new Date(template.updatedAt), {
                     addSuffix: true,
@@ -797,132 +775,208 @@ export default function TemplateDetails() {
               </div>
             )}
           </div>
-        </div>
-      </div>
-
-      {/* Workflow preview */}
-      <div className='flex-1 p-6'>
-        <div className='mx-auto max-w-7xl'>
-          <h2 className='mb-4 font-semibold text-xl'>Workflow Preview</h2>
-          <div className='h-[600px] w-full'>{renderWorkflowPreview()}</div>
-
-          {Array.isArray(template.requiredCredentials) &&
-            template.requiredCredentials.length > 0 && (
-              <div className='mt-8'>
-                <h3 className='mb-3 font-semibold text-lg'>Credentials Needed</h3>
-                <ul className='list-disc space-y-1 pl-6 text-muted-foreground text-sm'>
-                  {template.requiredCredentials.map((cred: CredentialRequirement, idx: number) => {
-                    // Get block name from registry or format blockType
-                    const blockName =
-                      getBlock(cred.blockType)?.name ||
-                      cred.blockType.charAt(0).toUpperCase() + cred.blockType.slice(1)
-                    const alreadyHasBlock = cred.label
-                      .toLowerCase()
-                      .includes(` for ${blockName.toLowerCase()}`)
-                    const text = alreadyHasBlock ? cred.label : `${cred.label} for ${blockName}`
-                    return <li key={idx}>{text}</li>
-                  })}
-                </ul>
-              </div>
-            )}
 
           {/* About this Workflow */}
           {template.details?.about && (
             <div className='mt-8'>
-              <h3 className='mb-3 font-semibold text-lg'>About this Workflow</h3>
-              <div className='prose prose-sm dark:prose-invert max-w-none'>
-                <ReactMarkdown>{template.details.about}</ReactMarkdown>
+              <h3 className='mb-4 font-sans font-semibold text-base text-foreground'>
+                About this Workflow
+              </h3>
+              <div className='max-w-none space-y-2'>
+                <ReactMarkdown
+                  components={{
+                    p: ({ children }) => (
+                      <p className='mb-2 font-sans text-muted-foreground text-sm leading-[1.4rem] last:mb-0'>
+                        {children}
+                      </p>
+                    ),
+                    h1: ({ children }) => (
+                      <h1 className='mt-6 mb-3 font-sans font-semibold text-foreground text-xl first:mt-0'>
+                        {children}
+                      </h1>
+                    ),
+                    h2: ({ children }) => (
+                      <h2 className='mt-5 mb-2.5 font-sans font-semibold text-foreground text-lg first:mt-0'>
+                        {children}
+                      </h2>
+                    ),
+                    h3: ({ children }) => (
+                      <h3 className='mt-4 mb-2 font-sans font-semibold text-base text-foreground first:mt-0'>
+                        {children}
+                      </h3>
+                    ),
+                    h4: ({ children }) => (
+                      <h4 className='mt-3 mb-2 font-sans font-semibold text-foreground text-sm first:mt-0'>
+                        {children}
+                      </h4>
+                    ),
+                    ul: ({ children }) => (
+                      <ul className='my-2 ml-5 list-disc space-y-1.5 font-sans text-muted-foreground text-sm'>
+                        {children}
+                      </ul>
+                    ),
+                    ol: ({ children }) => (
+                      <ol className='my-2 ml-5 list-decimal space-y-1.5 font-sans text-muted-foreground text-sm'>
+                        {children}
+                      </ol>
+                    ),
+                    li: ({ children }) => <li className='leading-[1.4rem]'>{children}</li>,
+                    code: ({ inline, children }: any) =>
+                      inline ? (
+                        <code className='rounded bg-muted px-1.5 py-0.5 font-mono text-[#F59E0B] text-xs'>
+                          {children}
+                        </code>
+                      ) : (
+                        <code className='my-2 block overflow-x-auto rounded-md bg-muted p-3 font-mono text-foreground text-xs'>
+                          {children}
+                        </code>
+                      ),
+                    a: ({ href, children }) => (
+                      <a
+                        href={href}
+                        target='_blank'
+                        rel='noopener noreferrer'
+                        className='text-blue-600 underline-offset-2 transition-colors hover:text-blue-500 hover:underline dark:text-blue-400 dark:hover:text-blue-300'
+                      >
+                        {children}
+                      </a>
+                    ),
+                    strong: ({ children }) => (
+                      <strong className='font-sans font-semibold text-foreground'>
+                        {children}
+                      </strong>
+                    ),
+                    em: ({ children }) => <em className='text-muted-foreground'>{children}</em>,
+                  }}
+                >
+                  {template.details.about}
+                </ReactMarkdown>
               </div>
             </div>
           )}
 
-          {/* Creator Profile */}
-          {template.creator && (
-            <div className='mt-8'>
-              <h3 className='mb-4 font-semibold text-lg'>About the Creator</h3>
-              <div className='rounded-lg border bg-card p-6'>
+          {/* About the Creator */}
+          {template.creator &&
+            (template.creator.details?.about ||
+              template.creator.details?.xUrl ||
+              template.creator.details?.linkedinUrl ||
+              template.creator.details?.websiteUrl ||
+              template.creator.details?.contactEmail) && (
+              <div className='mt-8'>
+                <h3 className='mb-4 font-sans font-semibold text-base text-foreground'>
+                  About the Creator
+                </h3>
                 <div className='flex items-start gap-4'>
-                  {/* Profile Picture */}
-                  <div className='flex-shrink-0'>
-                    {template.creator.profileImageUrl ? (
-                      <div className='relative h-20 w-20 overflow-hidden rounded-full'>
-                        <img
-                          src={template.creator.profileImageUrl}
-                          alt={template.creator.name}
-                          className='h-full w-full object-cover'
-                        />
-                      </div>
-                    ) : (
-                      <div className='flex h-20 w-20 items-center justify-center rounded-full bg-[#802FFF]'>
-                        <User className='h-10 w-10 text-white' />
-                      </div>
-                    )}
-                  </div>
+                  {/* Creator profile image */}
+                  {template.creator.profileImageUrl ? (
+                    <div className='h-[48px] w-[48px] flex-shrink-0 overflow-hidden rounded-full'>
+                      <img
+                        src={template.creator.profileImageUrl}
+                        alt={template.creator.name}
+                        className='h-full w-full object-cover'
+                      />
+                    </div>
+                  ) : (
+                    <div className='flex h-[48px] w-[48px] flex-shrink-0 items-center justify-center rounded-full bg-[#4A4A4A]'>
+                      <User className='h-[24px] w-[24px] text-[#888888]' />
+                    </div>
+                  )}
 
-                  {/* Creator Info */}
+                  {/* Creator details */}
                   <div className='flex-1'>
-                    <h4 className='font-semibold text-lg'>{template.creator.name}</h4>
-                    {template.creator.details?.about && (
-                      <p className='mt-2 text-muted-foreground text-sm leading-relaxed'>
-                        {template.creator.details.about}
-                      </p>
-                    )}
+                    <div className='mb-[5px] flex items-center gap-3'>
+                      <h4 className='font-sans font-semibold text-base text-foreground'>
+                        {template.creator.name}
+                      </h4>
 
-                    {/* Social Links */}
-                    {(template.creator.details?.xUrl ||
-                      template.creator.details?.linkedinUrl ||
-                      template.creator.details?.websiteUrl ||
-                      template.creator.details?.contactEmail) && (
-                      <div className='mt-4 flex flex-wrap gap-3'>
-                        {template.creator.details.xUrl && (
-                          <a
-                            href={template.creator.details.xUrl}
-                            target='_blank'
-                            rel='noopener noreferrer'
-                            className='inline-flex items-center gap-1.5 text-muted-foreground text-sm transition-colors hover:text-foreground'
-                          >
-                            <Twitter className='h-4 w-4' />
-                            <span>X</span>
-                          </a>
-                        )}
-                        {template.creator.details.linkedinUrl && (
-                          <a
-                            href={template.creator.details.linkedinUrl}
-                            target='_blank'
-                            rel='noopener noreferrer'
-                            className='inline-flex items-center gap-1.5 text-muted-foreground text-sm transition-colors hover:text-foreground'
-                          >
-                            <Linkedin className='h-4 w-4' />
-                            <span>LinkedIn</span>
-                          </a>
-                        )}
-                        {template.creator.details.websiteUrl && (
+                      {/* Social links */}
+                      <div className='flex items-center gap-[12px]'>
+                        {template.creator.details?.websiteUrl && (
                           <a
                             href={template.creator.details.websiteUrl}
                             target='_blank'
                             rel='noopener noreferrer'
-                            className='inline-flex items-center gap-1.5 text-muted-foreground text-sm transition-colors hover:text-foreground'
+                            className='flex items-center text-[#888888] transition-colors hover:text-[var(--text-primary)]'
+                            aria-label='Website'
                           >
-                            <Globe className='h-4 w-4' />
-                            <span>Website</span>
+                            <Globe className='h-[14px] w-[14px]' />
                           </a>
                         )}
-                        {template.creator.details.contactEmail && (
+                        {template.creator.details?.xUrl && (
+                          <a
+                            href={template.creator.details.xUrl}
+                            target='_blank'
+                            rel='noopener noreferrer'
+                            className='flex items-center text-[#888888] transition-colors hover:text-[var(--text-primary)]'
+                            aria-label='X (Twitter)'
+                          >
+                            <svg
+                              className='h-[14px] w-[14px]'
+                              viewBox='0 0 24 24'
+                              fill='currentColor'
+                            >
+                              <path d='M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z' />
+                            </svg>
+                          </a>
+                        )}
+                        {template.creator.details?.linkedinUrl && (
+                          <a
+                            href={template.creator.details.linkedinUrl}
+                            target='_blank'
+                            rel='noopener noreferrer'
+                            className='flex items-center text-[#888888] transition-colors hover:text-[var(--text-primary)]'
+                            aria-label='LinkedIn'
+                          >
+                            <Linkedin className='h-[14px] w-[14px]' />
+                          </a>
+                        )}
+                        {template.creator.details?.contactEmail && (
                           <a
                             href={`mailto:${template.creator.details.contactEmail}`}
-                            className='inline-flex items-center gap-1.5 text-muted-foreground text-sm transition-colors hover:text-foreground'
+                            className='flex items-center text-[#888888] transition-colors hover:text-[var(--text-primary)]'
+                            aria-label='Email'
                           >
-                            <Mail className='h-4 w-4' />
-                            <span>Contact</span>
+                            <Mail className='h-[14px] w-[14px]' />
                           </a>
                         )}
+                      </div>
+                    </div>
+
+                    {/* Creator bio */}
+                    {template.creator.details?.about && (
+                      <div className='max-w-none'>
+                        <ReactMarkdown
+                          components={{
+                            p: ({ children }) => (
+                              <p className='mb-2 font-sans text-muted-foreground text-sm leading-[1.4rem] last:mb-0'>
+                                {children}
+                              </p>
+                            ),
+                            a: ({ href, children }) => (
+                              <a
+                                href={href}
+                                target='_blank'
+                                rel='noopener noreferrer'
+                                className='text-blue-600 underline-offset-2 transition-colors hover:text-blue-500 hover:underline dark:text-blue-400 dark:hover:text-blue-300'
+                              >
+                                {children}
+                              </a>
+                            ),
+                            strong: ({ children }) => (
+                              <strong className='font-sans font-semibold text-foreground'>
+                                {children}
+                              </strong>
+                            ),
+                          }}
+                        >
+                          {template.creator.details.about}
+                        </ReactMarkdown>
                       </div>
                     )}
                   </div>
                 </div>
               </div>
-            </div>
-          )}
+            )}
         </div>
       </div>
     </div>

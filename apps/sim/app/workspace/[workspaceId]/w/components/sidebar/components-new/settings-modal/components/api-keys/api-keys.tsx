@@ -3,22 +3,17 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Check, Copy, Info, Plus, Search } from 'lucide-react'
 import { useParams } from 'next/navigation'
-import { Tooltip } from '@/components/emcn/components/tooltip/tooltip'
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Skeleton } from '@/components/ui/skeleton'
-import { Switch } from '@/components/ui/switch'
+  Button,
+  Modal,
+  ModalContent,
+  ModalDescription,
+  ModalFooter,
+  ModalHeader,
+  ModalTitle,
+} from '@/components/emcn'
+import { Tooltip } from '@/components/emcn/components/tooltip/tooltip'
+import { Input, Label, Skeleton, Switch } from '@/components/ui'
 import { useSession } from '@/lib/auth-client'
 import { createLogger } from '@/lib/logs/console/logger'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
@@ -374,7 +369,8 @@ export function ApiKeys({ onOpenChange, registerCloseHandler }: ApiKeysProps) {
     if (!allowPersonalApiKeys && keyType === 'personal') {
       setKeyType('workspace')
     }
-  }, [allowPersonalApiKeys, keyType])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allowPersonalApiKeys])
 
   useEffect(() => {
     if (shouldScrollToBottom && scrollContainerRef.current) {
@@ -398,7 +394,7 @@ export function ApiKeys({ onOpenChange, registerCloseHandler }: ApiKeysProps) {
   return (
     <div className='relative flex h-full flex-col'>
       {/* Fixed Header */}
-      <div className='px-6 pt-2 pb-2'>
+      <div className='px-6 pt-4 pb-2'>
         {/* Search Input */}
         {isLoading ? (
           <Skeleton className='h-9 w-56 rounded-lg' />
@@ -417,7 +413,7 @@ export function ApiKeys({ onOpenChange, registerCloseHandler }: ApiKeysProps) {
 
       {/* Scrollable Content */}
       <div ref={scrollContainerRef} className='min-h-0 flex-1 overflow-y-auto px-6'>
-        <div className='h-full space-y-2 py-2'>
+        <div className='space-y-2 pt-2 pb-6'>
           {isLoading ? (
             <div className='space-y-2'>
               <ApiKeySkeleton />
@@ -432,44 +428,46 @@ export function ApiKeys({ onOpenChange, registerCloseHandler }: ApiKeysProps) {
             <>
               {/* Allow Personal API Keys Toggle */}
               {!searchTerm.trim() && (
-                <div className='mb-6 flex items-center justify-between'>
-                  <div className='flex items-center gap-2'>
-                    <span className='font-medium text-[12px] text-foreground'>
-                      Allow personal API keys
-                    </span>
-                    <Tooltip.Root>
-                      <Tooltip.Trigger asChild>
-                        <button
-                          type='button'
-                          className='rounded-full p-1 text-muted-foreground transition hover:text-foreground'
-                        >
-                          <Info className='h-3 w-3' strokeWidth={2} />
-                        </button>
-                      </Tooltip.Trigger>
-                      <Tooltip.Content side='top' className='max-w-xs text-xs'>
-                        Allow collaborators to create and use their own keys with billing charged to
-                        them.
-                      </Tooltip.Content>
-                    </Tooltip.Root>
+                <Tooltip.Provider delayDuration={150}>
+                  <div className='mb-6 flex items-center justify-between'>
+                    <div className='flex items-center gap-2'>
+                      <span className='font-medium text-[12px] text-foreground'>
+                        Allow personal API keys
+                      </span>
+                      <Tooltip.Root>
+                        <Tooltip.Trigger asChild>
+                          <button
+                            type='button'
+                            className='rounded-full p-1 text-muted-foreground transition hover:text-foreground'
+                          >
+                            <Info className='h-3 w-3' strokeWidth={2} />
+                          </button>
+                        </Tooltip.Trigger>
+                        <Tooltip.Content side='top' className='max-w-xs text-xs'>
+                          Allow collaborators to create and use their own keys with billing charged
+                          to them.
+                        </Tooltip.Content>
+                      </Tooltip.Root>
+                    </div>
+                    {workspaceSettingsLoading ? (
+                      <Skeleton className='h-5 w-16 rounded-full' />
+                    ) : (
+                      <Switch
+                        checked={allowPersonalApiKeys}
+                        disabled={!canManageWorkspaceKeys || workspaceSettingsUpdating}
+                        onCheckedChange={async (checked) => {
+                          const previous = allowPersonalApiKeys
+                          setAllowPersonalApiKeys(checked)
+                          try {
+                            await updateWorkspaceSettings({ allowPersonalApiKeys: checked })
+                          } catch (error) {
+                            setAllowPersonalApiKeys(previous)
+                          }
+                        }}
+                      />
+                    )}
                   </div>
-                  {workspaceSettingsLoading ? (
-                    <Skeleton className='h-5 w-16 rounded-full' />
-                  ) : (
-                    <Switch
-                      checked={allowPersonalApiKeys}
-                      disabled={!canManageWorkspaceKeys || workspaceSettingsUpdating}
-                      onCheckedChange={async (checked) => {
-                        const previous = allowPersonalApiKeys
-                        setAllowPersonalApiKeys(checked)
-                        try {
-                          await updateWorkspaceSettings({ allowPersonalApiKeys: checked })
-                        } catch (error) {
-                          setAllowPersonalApiKeys(previous)
-                        }
-                      }}
-                    />
-                  )}
-                </div>
+                </Tooltip.Provider>
               )}
 
               {/* Workspace section */}
@@ -494,7 +492,6 @@ export function ApiKeys({ onOpenChange, registerCloseHandler }: ApiKeysProps) {
                           <div className='flex items-center gap-2'>
                             <Button
                               variant='ghost'
-                              size='sm'
                               onClick={() => {
                                 setDeleteKey(key)
                                 setShowDeleteDialog(true)
@@ -527,7 +524,6 @@ export function ApiKeys({ onOpenChange, registerCloseHandler }: ApiKeysProps) {
                         </div>
                         <Button
                           variant='ghost'
-                          size='sm'
                           onClick={() => {
                             setDeleteKey(key)
                             setShowDeleteDialog(true)
@@ -566,7 +562,6 @@ export function ApiKeys({ onOpenChange, registerCloseHandler }: ApiKeysProps) {
                       <div className='flex items-center gap-2'>
                         <Button
                           variant='ghost'
-                          size='sm'
                           onClick={() => {
                             setDeleteKey(key)
                             setShowDeleteDialog(true)
@@ -607,17 +602,19 @@ export function ApiKeys({ onOpenChange, registerCloseHandler }: ApiKeysProps) {
             <Skeleton className='h-9 w-[117px] rounded-[8px]' />
           ) : (
             <Button
-              onClick={() => {
+              onClick={(e) => {
                 if (createButtonDisabled) {
                   return
                 }
+                // Remove focus from button before opening dialog to prevent focus trap
+                e.currentTarget.blur()
                 setIsCreateDialogOpen(true)
                 setKeyType(defaultKeyType)
                 setCreateError(null)
               }}
               variant='ghost'
               disabled={createButtonDisabled}
-              className='h-8 rounded-[8px] border bg-background px-3 shadow-xs hover:bg-muted focus:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 disabled:cursor-not-allowed disabled:opacity-60'
+              className='h-9 rounded-[8px] border bg-background px-3 shadow-xs hover:bg-muted focus:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 disabled:cursor-not-allowed disabled:opacity-60'
             >
               <Plus className='h-4 w-4 stroke-[2px]' />
               Create Key
@@ -627,16 +624,16 @@ export function ApiKeys({ onOpenChange, registerCloseHandler }: ApiKeysProps) {
       </div>
 
       {/* Create API Key Dialog */}
-      <AlertDialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-        <AlertDialogContent className='rounded-[10px] sm:max-w-md'>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Create new API key</AlertDialogTitle>
-            <AlertDialogDescription>
+      <Modal open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+        <ModalContent className='rounded-[10px] sm:max-w-md' showClose={false}>
+          <ModalHeader>
+            <ModalTitle>Create new API key</ModalTitle>
+            <ModalDescription>
               {keyType === 'workspace'
                 ? "This key will have access to all workflows in this workspace. Make sure to copy it after creation as you won't be able to see it again."
                 : "This key will have access to your personal workflows. Make sure to copy it after creation as you won't be able to see it again."}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
+            </ModalDescription>
+          </ModalHeader>
 
           <div className='space-y-4 py-2'>
             {canManageWorkspaceKeys && (
@@ -645,26 +642,24 @@ export function ApiKeys({ onOpenChange, registerCloseHandler }: ApiKeysProps) {
                 <div className='flex gap-2'>
                   <Button
                     type='button'
-                    variant={keyType === 'personal' ? 'default' : 'outline'}
-                    size='sm'
+                    variant={keyType === 'personal' ? 'outline' : 'default'}
                     onClick={() => {
                       setKeyType('personal')
                       if (createError) setCreateError(null)
                     }}
                     disabled={!allowPersonalApiKeys}
-                    className='h-8 disabled:cursor-not-allowed disabled:opacity-60 data-[variant=outline]:border-border data-[variant=outline]:bg-background data-[variant=outline]:text-foreground data-[variant=outline]:hover:bg-muted dark:data-[variant=outline]:border-border dark:data-[variant=outline]:bg-background dark:data-[variant=outline]:text-foreground dark:data-[variant=outline]:hover:bg-muted/80'
+                    className='h-8 disabled:cursor-not-allowed disabled:opacity-60'
                   >
                     Personal
                   </Button>
                   <Button
                     type='button'
-                    variant={keyType === 'workspace' ? 'default' : 'outline'}
-                    size='sm'
+                    variant={keyType === 'workspace' ? 'outline' : 'default'}
                     onClick={() => {
                       setKeyType('workspace')
                       if (createError) setCreateError(null)
                     }}
-                    className='h-8 data-[variant=outline]:border-border data-[variant=outline]:bg-background data-[variant=outline]:text-foreground data-[variant=outline]:hover:bg-muted dark:data-[variant=outline]:border-border dark:data-[variant=outline]:bg-background dark:data-[variant=outline]:text-foreground dark:data-[variant=outline]:hover:bg-muted/80'
+                    className='h-8'
                   >
                     Workspace
                   </Button>
@@ -685,24 +680,30 @@ export function ApiKeys({ onOpenChange, registerCloseHandler }: ApiKeysProps) {
                 className='h-9 rounded-[8px]'
                 autoFocus
               />
-              {createError && <div className='text-red-600 text-sm'>{createError}</div>}
+              {createError && (
+                <div className='text-[#DC2626] text-[12px] leading-tight dark:text-[#F87171]'>
+                  {createError}
+                </div>
+              )}
             </div>
           </div>
 
-          <AlertDialogFooter className='flex'>
-            <AlertDialogCancel
-              className='h-9 w-full rounded-[8px] border-border bg-background text-foreground hover:bg-muted dark:border-border dark:bg-background dark:text-foreground dark:hover:bg-muted/80'
+          <ModalFooter className='flex'>
+            <Button
+              className='h-9 w-full rounded-[8px] bg-background text-foreground hover:bg-muted dark:bg-background dark:text-foreground dark:hover:bg-muted/80'
               onClick={() => {
+                setIsCreateDialogOpen(false)
                 setNewKeyName('')
                 setKeyType(defaultKeyType)
               }}
             >
               Cancel
-            </AlertDialogCancel>
+            </Button>
             <Button
               type='button'
+              variant='primary'
               onClick={handleCreateKey}
-              className='h-9 w-full rounded-[8px] bg-primary text-white hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50'
+              className='h-9 w-full rounded-[8px] disabled:cursor-not-allowed disabled:opacity-50'
               disabled={
                 !newKeyName.trim() ||
                 isSubmittingCreate ||
@@ -711,14 +712,14 @@ export function ApiKeys({ onOpenChange, registerCloseHandler }: ApiKeysProps) {
             >
               Create {keyType === 'workspace' ? 'Workspace' : 'Personal'} Key
             </Button>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
 
       {/* New API Key Dialog */}
-      <AlertDialog
+      <Modal
         open={showNewKeyDialog}
-        onOpenChange={(open) => {
+        onOpenChange={(open: boolean) => {
           setShowNewKeyDialog(open)
           if (!open) {
             setNewKey(null)
@@ -726,14 +727,14 @@ export function ApiKeys({ onOpenChange, registerCloseHandler }: ApiKeysProps) {
           }
         }}
       >
-        <AlertDialogContent className='rounded-[10px] sm:max-w-md'>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Your API key has been created</AlertDialogTitle>
-            <AlertDialogDescription>
+        <ModalContent className='rounded-[10px] sm:max-w-md' showClose={false}>
+          <ModalHeader>
+            <ModalTitle>Your API key has been created</ModalTitle>
+            <ModalDescription>
               This is the only time you will see your API key.{' '}
               <span className='font-semibold'>Copy it now and store it securely.</span>
-            </AlertDialogDescription>
-          </AlertDialogHeader>
+            </ModalDescription>
+          </ModalHeader>
 
           {newKey && (
             <div className='relative'>
@@ -744,7 +745,6 @@ export function ApiKeys({ onOpenChange, registerCloseHandler }: ApiKeysProps) {
               </div>
               <Button
                 variant='ghost'
-                size='icon'
                 className='-translate-y-1/2 absolute top-1/2 right-1 h-7 w-7 rounded-[4px] text-muted-foreground hover:bg-muted hover:text-foreground'
                 onClick={() => copyToClipboard(newKey.key)}
               >
@@ -753,19 +753,19 @@ export function ApiKeys({ onOpenChange, registerCloseHandler }: ApiKeysProps) {
               </Button>
             </div>
           )}
-        </AlertDialogContent>
-      </AlertDialog>
+        </ModalContent>
+      </Modal>
 
       {/* Delete Confirmation Dialog */}
-      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-        <AlertDialogContent className='rounded-[10px] sm:max-w-md'>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete API key?</AlertDialogTitle>
-            <AlertDialogDescription>
+      <Modal open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <ModalContent className='rounded-[10px] sm:max-w-md' showClose={false}>
+          <ModalHeader>
+            <ModalTitle>Delete API key?</ModalTitle>
+            <ModalDescription>
               Deleting this API key will immediately revoke access for any integrations using it.{' '}
               <span className='text-red-500 dark:text-red-500'>This action cannot be undone.</span>
-            </AlertDialogDescription>
-          </AlertDialogHeader>
+            </ModalDescription>
+          </ModalHeader>
 
           {deleteKey && (
             <div className='py-2'>
@@ -783,17 +783,18 @@ export function ApiKeys({ onOpenChange, registerCloseHandler }: ApiKeysProps) {
             </div>
           )}
 
-          <AlertDialogFooter className='flex'>
-            <AlertDialogCancel
-              className='h-9 w-full rounded-[8px]'
+          <ModalFooter className='flex'>
+            <Button
+              className='h-9 w-full rounded-[8px] bg-background text-foreground hover:bg-muted dark:bg-background dark:text-foreground dark:hover:bg-muted/80'
               onClick={() => {
+                setShowDeleteDialog(false)
                 setDeleteKey(null)
                 setDeleteConfirmationName('')
               }}
             >
               Cancel
-            </AlertDialogCancel>
-            <AlertDialogAction
+            </Button>
+            <Button
               onClick={() => {
                 handleDeleteKey()
                 setDeleteConfirmationName('')
@@ -802,10 +803,10 @@ export function ApiKeys({ onOpenChange, registerCloseHandler }: ApiKeysProps) {
               disabled={!deleteKey || deleteConfirmationName !== deleteKey.name}
             >
               Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
     </div>
   )
 }

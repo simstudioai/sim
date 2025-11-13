@@ -161,7 +161,11 @@ export function MemberInvitationCard({
               className={cn('w-full', emailError && 'border-red-500 focus-visible:ring-red-500')}
             />
             <div className='h-4 pt-1'>
-              {emailError && <p className='text-red-500 text-xs'>{emailError}</p>}
+              {emailError && (
+                <p className='text-[#DC2626] text-[12px] leading-tight dark:text-[#F87171]'>
+                  {emailError}
+                </p>
+              )}
             </div>
           </div>
         </div>

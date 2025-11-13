@@ -809,18 +809,33 @@ export default function Logs() {
 
                           {/* Status */}
                           <div>
-                            <div
-                              className={cn(
-                                'inline-flex items-center rounded-[8px] px-[8px] py-[2px] font-medium text-[12px] transition-all duration-200',
-                                isError
-                                  ? 'bg-red-500 text-white'
-                                  : isPending
-                                    ? 'bg-amber-300 text-amber-900 dark:bg-amber-500/90 dark:text-black'
-                                    : 'bg-secondary text-card-foreground'
-                              )}
-                            >
-                              {statusLabel}
-                            </div>
+                            {isError || !isPending ? (
+                              <div
+                                className={cn(
+                                  'flex h-[24px] w-[56px] items-center justify-start rounded-[6px] border pl-[9px]',
+                                  isError
+                                    ? 'gap-[5px] border-[#883827] bg-[#491515]'
+                                    : 'gap-[8px] border-[#686868] bg-[#383838]'
+                                )}
+                              >
+                                <div
+                                  className='h-[6px] w-[6px] rounded-[2px]'
+                                  style={{
+                                    backgroundColor: isError ? '#EF4444' : '#B7B7B7',
+                                  }}
+                                />
+                                <span
+                                  className='font-medium text-[11.5px]'
+                                  style={{ color: isError ? '#EF4444' : '#B7B7B7' }}
+                                >
+                                  {statusLabel}
+                                </span>
+                              </div>
+                            ) : (
+                              <div className='inline-flex items-center bg-amber-300 px-[8px] py-[2px] font-medium text-[12px] text-amber-900 dark:bg-amber-500/90 dark:text-black'>
+                                {statusLabel}
+                              </div>
+                            )}
                           </div>
 
                           {/* Workflow */}
@@ -843,17 +858,8 @@ export default function Logs() {
                           <div className='hidden xl:block'>
                             {log.trigger ? (
                               <div
-                                className={cn(
-                                  'inline-flex items-center rounded-[8px] px-[8px] py-[2px] font-medium text-[12px] transition-all duration-200',
-                                  log.trigger.toLowerCase() === 'manual'
-                                    ? 'bg-secondary text-card-foreground'
-                                    : 'text-white'
-                                )}
-                                style={
-                                  log.trigger.toLowerCase() === 'manual'
-                                    ? undefined
-                                    : { backgroundColor: getTriggerColor(log.trigger) }
-                                }
+                                className='inline-flex items-center rounded-[6px] px-[8px] py-[2px] font-medium text-[12px] text-white'
+                                style={{ backgroundColor: getTriggerColor(log.trigger) }}
                               >
                                 {log.trigger}
                               </div>

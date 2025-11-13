@@ -1,4 +1,4 @@
-import { useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import { useParams } from 'next/navigation'
 import { Button } from '@/components/emcn/components/button/button'
 import { Trash } from '@/components/emcn/icons/trash'
@@ -60,42 +60,57 @@ export function Table({
   // Create refs for input elements
   const inputRefs = useRef<Map<string, HTMLInputElement>>(new Map())
 
+  // Memoized template for empty cells for current columns
+  const emptyCellsTemplate = useMemo(
+    () => Object.fromEntries(columns.map((col) => [col, ''])),
+    [columns]
+  )
+
+  /**
+   * Initialize the table with a default empty row when the component mounts
+   * and when the current store value is missing or empty.
+   */
+  useEffect(() => {
+    if (!isPreview && !disabled && (!Array.isArray(storeValue) || storeValue.length === 0)) {
+      const initialRow: TableRow = {
+        id: crypto.randomUUID(),
+        cells: { ...emptyCellsTemplate },
+      }
+      setStoreValue([initialRow])
+    }
+  }, [isPreview, disabled, storeValue, setStoreValue, emptyCellsTemplate])
+
   // Ensure value is properly typed and initialized
   const rows = useMemo(() => {
-    if (!Array.isArray(value)) {
+    if (!Array.isArray(value) || value.length === 0) {
       return [
         {
           id: crypto.randomUUID(),
-          cells: Object.fromEntries(columns.map((col) => [col, ''])),
+          cells: { ...emptyCellsTemplate },
         },
       ]
     }
 
-    // Validate and fix each row to ensure proper structure
+    // Validate and normalize each row without in-place mutation
     const validatedRows = value.map((row) => {
-      // Ensure row has an id
-      if (!row.id) {
-        row.id = crypto.randomUUID()
-      }
-
-      // Ensure row has cells object with proper structure
-      if (!row.cells || typeof row.cells !== 'object') {
+      const hasValidCells = row?.cells && typeof row.cells === 'object'
+      if (!hasValidCells) {
         logger.warn('Fixing malformed table row:', row)
-        row.cells = Object.fromEntries(columns.map((col) => [col, '']))
-      } else {
-        // Ensure all required columns exist in cells
-        columns.forEach((col) => {
-          if (!(col in row.cells)) {
-            row.cells[col] = ''
-          }
-        })
       }
 
-      return row
+      const normalizedCells = {
+        ...emptyCellsTemplate,
+        ...(hasValidCells ? row.cells : {}),
+      }
+
+      return {
+        id: row?.id ?? crypto.randomUUID(),
+        cells: normalizedCells,
+      }
     })
 
     return validatedRows as TableRow[]
-  }, [value, columns])
+  }, [value, emptyCellsTemplate])
 
   // Helper to update a cell value
   const updateCellValue = (rowIndex: number, column: string, newValue: string) => {
@@ -103,15 +118,13 @@ export function Table({
 
     const updatedRows = [...rows].map((row, idx) => {
       if (idx === rowIndex) {
-        // Ensure the row has a proper cells object
-        if (!row.cells || typeof row.cells !== 'object') {
-          logger.warn('Fixing malformed row cells during cell change:', row)
-          row.cells = Object.fromEntries(columns.map((col) => [col, '']))
-        }
+        const hasValidCells = row.cells && typeof row.cells === 'object'
+        const baseCells = hasValidCells ? row.cells : { ...emptyCellsTemplate }
+        if (!hasValidCells) logger.warn('Fixing malformed row cells during cell change:', row)
 
         return {
           ...row,
-          cells: { ...row.cells, [column]: newValue },
+          cells: { ...baseCells, [column]: newValue },
         }
       }
       return row
@@ -120,7 +133,7 @@ export function Table({
     if (rowIndex === rows.length - 1 && newValue !== '') {
       updatedRows.push({
         id: crypto.randomUUID(),
-        cells: Object.fromEntries(columns.map((col) => [col, ''])),
+        cells: { ...emptyCellsTemplate },
       })
     }
 
@@ -152,16 +165,12 @@ export function Table({
 
   const renderCell = (row: TableRow, rowIndex: number, column: string, cellIndex: number) => {
     // Defensive programming: ensure row.cells exists and has the expected structure
-    if (!row.cells || typeof row.cells !== 'object') {
-      logger.warn('Table row has malformed cells data:', row)
-      // Create a fallback cells object
-      row = {
-        ...row,
-        cells: Object.fromEntries(columns.map((col) => [col, ''])),
-      }
-    }
+    const hasValidCells = row.cells && typeof row.cells === 'object'
+    if (!hasValidCells) logger.warn('Table row has malformed cells data:', row)
 
-    const cellValue = row.cells[column] || ''
+    const cells = hasValidCells ? row.cells : { ...emptyCellsTemplate }
+
+    const cellValue = cells[column] || ''
     const cellKey = `${rowIndex}-${column}`
 
     // Get field state and handlers for this cell

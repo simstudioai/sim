@@ -310,6 +310,47 @@ export function FieldFormat({
       )
     }
 
+    if (field.type === 'files') {
+      const lineCount = fieldValue.split('\n').length
+      const gutterWidth = calculateGutterWidth(lineCount)
+
+      const renderLineNumbers = () => {
+        return Array.from({ length: lineCount }, (_, i) => (
+          <div
+            key={i}
+            className='font-medium font-mono text-[var(--text-muted)] text-xs'
+            style={{ height: `${21}px`, lineHeight: `${21}px` }}
+          >
+            {i + 1}
+          </div>
+        ))
+      }
+
+      return (
+        <Code.Container className='min-h-[120px]'>
+          <Code.Gutter width={gutterWidth}>{renderLineNumbers()}</Code.Gutter>
+          <Code.Content paddingLeft={`${gutterWidth}px`}>
+            <Code.Placeholder gutterWidth={gutterWidth} show={fieldValue.length === 0}>
+              {
+                '[\n  {\n    "data": "data:application/pdf;base64,...",\n    "type": "file",\n    "name": "document.pdf",\n    "mime": "application/pdf"\n  }\n]'
+              }
+            </Code.Placeholder>
+            <Editor
+              value={fieldValue}
+              onValueChange={(newValue) => {
+                if (!isReadOnly) {
+                  updateField(field.id, 'value', newValue)
+                }
+              }}
+              highlight={(code) => highlight(code, languages.json, 'json')}
+              disabled={isReadOnly}
+              {...getCodeEditorProps({ disabled: isReadOnly })}
+            />
+          </Code.Content>
+        </Code.Container>
+      )
+    }
+
     return (
       <>
         <Input

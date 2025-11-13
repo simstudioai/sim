@@ -215,10 +215,7 @@ export function TraceSpans({ traceSpans, totalDuration = 0, onExpansionChange }:
           })()}
         </div>
       </div>
-      <div
-        ref={containerRef}
-        className='relative w-full overflow-hidden rounded-md border shadow-sm'
-      >
+      <div ref={containerRef} className='relative w-full overflow-hidden border shadow-sm'>
         {filtered.map((span, index) => {
           const normalizedSpan = normalizeChildWorkflowSpan(span)
           const hasSubItems = Boolean(

@@ -810,17 +810,17 @@ export default function Dashboard() {
                       <div className='flex items-center gap-2 text-muted-foreground text-xs'>
                         <span>Filters:</span>
                         {workflowIds.length > 0 && (
-                          <span className='inline-flex items-center rounded-md bg-primary/10 px-2 py-0.5 text-primary text-xs'>
+                          <span className='inline-flex items-center rounded-[6px] bg-primary/10 px-2 py-0.5 text-primary text-xs'>
                             {workflowIds.length} workflow{workflowIds.length !== 1 ? 's' : ''}
                           </span>
                         )}
                         {folderIds.length > 0 && (
-                          <span className='inline-flex items-center rounded-md bg-primary/10 px-2 py-0.5 text-primary text-xs'>
+                          <span className='inline-flex items-center rounded-[6px] bg-primary/10 px-2 py-0.5 text-primary text-xs'>
                             {folderIds.length} folder{folderIds.length !== 1 ? 's' : ''}
                           </span>
                         )}
                         {triggers.length > 0 && (
-                          <span className='inline-flex items-center rounded-md bg-primary/10 px-2 py-0.5 text-primary text-xs'>
+                          <span className='inline-flex items-center rounded-[6px] bg-primary/10 px-2 py-0.5 text-primary text-xs'>
                             {triggers.length} trigger{triggers.length !== 1 ? 's' : ''}
                           </span>
                         )}
