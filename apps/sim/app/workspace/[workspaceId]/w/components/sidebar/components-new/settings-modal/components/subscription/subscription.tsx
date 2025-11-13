@@ -437,7 +437,7 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
   return (
     <div className='px-6 pt-4 pb-4'>
       <div className='flex flex-col gap-2'>
-        {/* Current Plan & Usage Overview - Styled like usage-indicator */}
+        {/* Current Plan & Usage Overview */}
         <div className='mb-2'>
           <UsageHeader
             title={formatPlanName(subscription.plan)}

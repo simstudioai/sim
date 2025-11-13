@@ -1,12 +1,9 @@
-'use client'
+import TemplatesLayoutClient from './layout-client'
 
-import { Tooltip } from '@/components/emcn'
-import { season } from '@/app/fonts/season/season'
-
+/**
+ * Templates layout - server component wrapper for client layout.
+ * Redirect logic is handled by individual pages to preserve paths.
+ */
 export default function TemplatesLayout({ children }: { children: React.ReactNode }) {
-  return (
-    <Tooltip.Provider delayDuration={600} skipDelayDuration={0}>
-      <div className={`${season.variable} font-season`}>{children}</div>
-    </Tooltip.Provider>
-  )
+  return <TemplatesLayoutClient>{children}</TemplatesLayoutClient>
 }

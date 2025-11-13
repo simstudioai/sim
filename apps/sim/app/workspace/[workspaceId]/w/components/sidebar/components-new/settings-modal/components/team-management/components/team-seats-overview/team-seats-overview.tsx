@@ -1,10 +1,11 @@
 import { Building2 } from 'lucide-react'
+import { Badge } from '@/components/emcn'
 import { Button } from '@/components/ui/button'
-import { Progress } from '@/components/ui/progress'
 import { Skeleton } from '@/components/ui/skeleton'
-import { DEFAULT_TEAM_TIER_COST_LIMIT } from '@/lib/billing/constants'
 import { checkEnterprisePlan } from '@/lib/billing/subscriptions/utils'
-import { env } from '@/lib/env'
+import { cn } from '@/lib/utils'
+
+const PILL_COUNT = 8
 
 type Subscription = {
   id: string
@@ -93,55 +94,58 @@ export function TeamSeatsOverview({
     )
   }
 
+  const totalSeats = subscriptionData.seats || 0
+  const isEnterprise = checkEnterprisePlan(subscriptionData)
+
   return (
     <div className='rounded-[8px] border bg-background p-3 shadow-xs'>
       <div className='space-y-2'>
-        {/* Seats info and usage - matching team usage layout */}
+        {/* Top row - matching UsageHeader */}
         <div className='flex items-center justify-between'>
           <div className='flex items-center gap-2'>
-            <span className='font-medium text-sm'>Seats</span>
-            {!checkEnterprisePlan(subscriptionData) ? (
-              <span className='text-muted-foreground text-xs'>
-                (${env.TEAM_TIER_COST_LIMIT ?? DEFAULT_TEAM_TIER_COST_LIMIT}/month each)
-              </span>
-            ) : null}
+            <span className='font-medium text-[#FFFFFF] text-[12px]'>Seats</span>
+            {!isEnterprise && (
+              <Badge
+                className='gradient-text h-[1.125rem] cursor-pointer rounded-[6px] border-gradient-primary/20 bg-gradient-to-b from-gradient-primary via-gradient-secondary to-gradient-primary px-2 py-0 font-medium text-xs'
+                onClick={onAddSeatDialog}
+              >
+                Add Seats
+              </Badge>
+            )}
           </div>
-          <div className='flex items-center gap-1 text-xs tabular-nums'>
-            <span className='text-muted-foreground'>{usedSeats} used</span>
-            <span className='text-muted-foreground'>/</span>
-            <span className='text-muted-foreground'>{subscriptionData.seats || 0} total</span>
+          <div className='flex items-center gap-[4px] text-xs tabular-nums'>
+            <span className='font-medium text-[#B1B1B1] text-[12px] tabular-nums'>
+              {usedSeats} used
+            </span>
+            <span className='font-medium text-[#B1B1B1] text-[12px]'>/</span>
+            <span className='font-medium text-[#B1B1B1] text-[12px] tabular-nums'>
+              {totalSeats} total
+            </span>
           </div>
         </div>
 
-        {/* Progress Bar - matching team usage component */}
-        <Progress value={(usedSeats / (subscriptionData.seats || 1)) * 100} className='h-2' />
+        {/* Pills row - one pill per seat */}
+        <div className='flex items-center gap-[4px]'>
+          {Array.from({ length: totalSeats }).map((_, i) => {
+            const isFilled = i < usedSeats
+            return (
+              <div
+                key={i}
+                className={cn(
+                  'h-[6px] flex-1 rounded-full transition-colors',
+                  isFilled ? 'bg-[#4285F4]' : 'bg-[#2C2C2C]'
+                )}
+              />
+            )
+          })}
+        </div>
 
-        {/* Action buttons - below the usage display */}
-        {checkEnterprisePlan(subscriptionData) ? (
-          <div className='text-center'>
+        {/* Enterprise message */}
+        {isEnterprise && (
+          <div className='pt-1 text-center'>
             <p className='text-muted-foreground text-xs'>
               Contact support for enterprise usage limit changes
             </p>
-          </div>
-        ) : (
-          <div className='flex gap-2 pt-1'>
-            <Button
-              variant='outline'
-              size='sm'
-              onClick={onReduceSeats}
-              disabled={(subscriptionData.seats || 0) <= 1 || isLoading}
-              className='h-8 flex-1 rounded-[8px]'
-            >
-              Remove Seat
-            </Button>
-            <Button
-              size='sm'
-              onClick={onAddSeatDialog}
-              disabled={isLoading}
-              className='h-8 flex-1 rounded-[8px]'
-            >
-              Add Seat
-            </Button>
           </div>
         )}
       </div>
