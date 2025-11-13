@@ -70,6 +70,7 @@ describe('Custom Tools API Routes', () => {
   const mockSelect = vi.fn()
   const mockFrom = vi.fn()
   const mockWhere = vi.fn()
+  const mockOrderBy = vi.fn()
   const mockInsert = vi.fn()
   const mockValues = vi.fn()
   const mockUpdate = vi.fn()
@@ -84,10 +85,23 @@ describe('Custom Tools API Routes', () => {
     // Reset all mock implementations
     mockSelect.mockReturnValue({ from: mockFrom })
     mockFrom.mockReturnValue({ where: mockWhere })
-    // where() can be called with limit() or directly awaited
-    // Create a mock query builder that supports both patterns
+    // where() can be called with orderBy(), limit(), or directly awaited
+    // Create a mock query builder that supports all patterns
     mockWhere.mockImplementation((condition) => {
-      // Return an object that is both awaitable and has a limit() method
+      // Return an object that is both awaitable and has orderBy() and limit() methods
+      const queryBuilder = {
+        orderBy: mockOrderBy,
+        limit: mockLimit,
+        then: (resolve: (value: typeof sampleTools) => void) => {
+          resolve(sampleTools)
+          return queryBuilder
+        },
+        catch: (reject: (error: Error) => void) => queryBuilder,
+      }
+      return queryBuilder
+    })
+    mockOrderBy.mockImplementation(() => {
+      // orderBy returns an awaitable query builder
       const queryBuilder = {
         limit: mockLimit,
         then: (resolve: (value: typeof sampleTools) => void) => {
@@ -120,9 +134,22 @@ describe('Custom Tools API Routes', () => {
           const txMockUpdate = vi.fn().mockReturnValue({ set: mockSet })
           const txMockDelete = vi.fn().mockReturnValue({ where: mockWhere })
 
-          // Transaction where() should also support the query builder pattern
+          // Transaction where() should also support the query builder pattern with orderBy
+          const txMockOrderBy = vi.fn().mockImplementation(() => {
+            const queryBuilder = {
+              limit: mockLimit,
+              then: (resolve: (value: typeof sampleTools) => void) => {
+                resolve(sampleTools)
+                return queryBuilder
+              },
+              catch: (reject: (error: Error) => void) => queryBuilder,
+            }
+            return queryBuilder
+          })
+
           const txMockWhere = vi.fn().mockImplementation((condition) => {
             const queryBuilder = {
+              orderBy: txMockOrderBy,
               limit: mockLimit,
               then: (resolve: (value: typeof sampleTools) => void) => {
                 resolve(sampleTools)
@@ -201,12 +228,18 @@ describe('Custom Tools API Routes', () => {
         or: vi.fn().mockImplementation((...conditions) => ({ operator: 'or', conditions })),
         isNull: vi.fn().mockImplementation((field) => ({ field, operator: 'isNull' })),
         ne: vi.fn().mockImplementation((field, value) => ({ field, value, operator: 'ne' })),
+        desc: vi.fn().mockImplementation((field) => ({ field, operator: 'desc' })),
       }
     })
 
     // Mock utils
     vi.doMock('@/lib/utils', () => ({
       generateRequestId: vi.fn().mockReturnValue('test-request-id'),
+    }))
+
+    // Mock custom tools operations
+    vi.doMock('@/lib/custom-tools/operations', () => ({
+      upsertCustomTools: vi.fn().mockResolvedValue(sampleTools),
     }))
   })
 
@@ -224,8 +257,10 @@ describe('Custom Tools API Routes', () => {
         'http://localhost:3000/api/tools/custom?workspaceId=workspace-123'
       )
 
-      // Simulate DB returning tools
-      mockWhere.mockReturnValueOnce(Promise.resolve(sampleTools))
+      // Simulate DB returning tools with orderBy chain
+      mockWhere.mockReturnValueOnce({
+        orderBy: mockOrderBy.mockReturnValueOnce(Promise.resolve(sampleTools)),
+      })
 
       // Import handler after mocks are set up
       const { GET } = await import('@/app/api/tools/custom/route')
@@ -243,6 +278,7 @@ describe('Custom Tools API Routes', () => {
       expect(mockSelect).toHaveBeenCalled()
       expect(mockFrom).toHaveBeenCalled()
       expect(mockWhere).toHaveBeenCalled()
+      expect(mockOrderBy).toHaveBeenCalled()
     })
 
     it('should handle unauthorized access', async () => {
