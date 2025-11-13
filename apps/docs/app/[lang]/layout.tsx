@@ -4,7 +4,6 @@ import { DocsLayout } from 'fumadocs-ui/layouts/docs'
 import { RootProvider } from 'fumadocs-ui/provider/next'
 import { Geist_Mono, Inter } from 'next/font/google'
 import Image from 'next/image'
-import { OneDollarStats } from '@/components/analytics/onedollarstats'
 import {
   SidebarFolder,
   SidebarItem,
@@ -94,11 +93,10 @@ export default async function Layout({ children, params }: LayoutProps) {
           type='application/ld+json'
           dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
         />
-        {/* OneDollarStats Analytics */}
+        {/* OneDollarStats Analytics - CDN script handles everything automatically */}
         <script defer src='https://assets.onedollarstats.com/stonks.js' />
       </head>
       <body className='flex min-h-screen flex-col font-sans'>
-        <OneDollarStats />
         <RootProvider i18n={provider(lang)}>
           <Navbar />
           <DocsLayout

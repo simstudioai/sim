@@ -1,7 +1,8 @@
 'use client'
 
 import type { ReactNode } from 'react'
-import { Badge, Progress } from '@/components/ui'
+import { Badge } from '@/components/emcn'
+import { Progress } from '@/components/ui'
 import { cn } from '@/lib/utils'
 
 const GRADIENT_BADGE_STYLES =
