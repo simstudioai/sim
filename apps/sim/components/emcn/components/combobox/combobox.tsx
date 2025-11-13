@@ -69,6 +69,8 @@ export interface ComboboxProps
   inputRef?: React.RefObject<HTMLInputElement | null>
   /** Whether to filter options based on input value (default: true for editable mode) */
   filterOptions?: boolean
+  /** Explicitly control which option is marked as selected (defaults to `value`) */
+  selectedValue?: string
   /** Enable multi-select mode */
   multiSelect?: boolean
   /** Loading state */
@@ -101,6 +103,7 @@ const Combobox = forwardRef<HTMLDivElement, ComboboxProps>(
       inputProps = {},
       inputRef: externalInputRef,
       filterOptions = editable,
+      selectedValue,
       multiSelect = false,
       isLoading = false,
       error = null,
@@ -116,9 +119,11 @@ const Combobox = forwardRef<HTMLDivElement, ComboboxProps>(
     const internalInputRef = useRef<HTMLInputElement>(null)
     const inputRef = externalInputRef || internalInputRef
 
+    const effectiveSelectedValue = selectedValue ?? value
+
     const selectedOption = useMemo(
-      () => options.find((opt) => opt.value === value),
-      [options, value]
+      () => options.find((opt) => opt.value === effectiveSelectedValue),
+      [options, effectiveSelectedValue]
     )
 
     /**
@@ -479,7 +484,7 @@ const Combobox = forwardRef<HTMLDivElement, ComboboxProps>(
                   filteredOptions.map((option, index) => {
                     const isSelected = multiSelect
                       ? multiSelectValues?.includes(option.value)
-                      : value === option.value
+                      : effectiveSelectedValue === option.value
                     const isHighlighted = index === highlightedIndex
                     const OptionIcon = option.icon
 

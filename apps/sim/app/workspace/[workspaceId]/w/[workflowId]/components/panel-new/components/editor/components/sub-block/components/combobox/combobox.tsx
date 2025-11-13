@@ -1,8 +1,6 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useParams } from 'next/navigation'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useReactFlow } from 'reactflow'
 import { Combobox, type ComboboxOption } from '@/components/emcn/components'
-import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/components/sub-block/components/formatted-text'
 import { SubBlockInputController } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/components/sub-block/components/sub-block-input-controller'
@@ -10,19 +8,14 @@ import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/c
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
 import type { SubBlockConfig } from '@/blocks/types'
 
-const logger = createLogger('ComboBox')
-
 /**
  * Constants for ComboBox component behavior
  */
-const CURSOR_POSITION_DELAY = 0
-const SCROLL_SYNC_DELAY = 0
 const DEFAULT_MODEL = 'gpt-4o'
 const ZOOM_FACTOR_BASE = 0.96
 const MIN_ZOOM = 0.1
 const MAX_ZOOM = 1
 const ZOOM_DURATION = 0
-const DROPDOWN_CLOSE_DELAY = 150
 
 /**
  * Represents a selectable option in the combobox
@@ -70,20 +63,12 @@ export function ComboBox({
   config,
 }: ComboBoxProps) {
   // Hooks and context
-  const params = useParams()
   const [storeValue, setStoreValue] = useSubBlockValue<string>(blockId, subBlockId)
   const accessiblePrefixes = useAccessibleReferencePrefixes(blockId)
   const reactFlowInstance = useReactFlow()
 
   // State management
   const [storeInitialized, setStoreInitialized] = useState(false)
-  const [open, setOpen] = useState(false)
-  const [highlightedIndex, setHighlightedIndex] = useState(-1)
-
-  // Refs
-  const inputRef = useRef<HTMLInputElement>(null)
-  const overlayRef = useRef<HTMLDivElement>(null)
-  const dropdownRef = useRef<HTMLDivElement>(null)
 
   // Determine the active value based on mode (preview vs. controlled vs. store)
   const value = isPreview ? previewValue : propValue !== undefined ? propValue : storeValue
@@ -99,7 +84,7 @@ export function ComboBox({
       if (typeof option === 'string') {
         return { label: option, value: option }
       }
-      return { label: option.label, value: option.label, icon: option.icon }
+      return { label: option.label, value: option.id, icon: option.icon }
     })
   }, [evaluatedOptions])
 
@@ -110,15 +95,6 @@ export function ComboBox({
    */
   const getOptionValue = useCallback((option: ComboBoxOption): string => {
     return typeof option === 'string' ? option : option.id
-  }, [])
-
-  /**
-   * Extracts the display label from an option
-   * @param option - The option to extract label from
-   * @returns The option's display label
-   */
-  const getOptionLabel = useCallback((option: ComboBoxOption): string => {
-    return typeof option === 'string' ? option : option.label
   }, [])
 
   /**
@@ -162,30 +138,11 @@ export function ComboBox({
     return typeof match === 'string' ? match : match.label
   }, [value, evaluatedOptions])
 
-  /**
-   * Filters options based on current display value (label text).
-   * Shows all options when dropdown is closed or when the label matches an exact option.
-   */
-  const filteredOptions = useMemo(() => {
-    // Always show all options when dropdown is not open
-    if (!open) return evaluatedOptions
+  const [inputValue, setInputValue] = useState(displayValue)
 
-    // If no input or input matches an exact option label, show all options
-    if (!displayValue) return evaluatedOptions
-
-    const currentValue = displayValue.toString()
-    const exactMatch = evaluatedOptions.find((opt) => getOptionLabel(opt) === currentValue)
-
-    // If current value exactly matches an option label, show all options (user just selected it)
-    if (exactMatch) return evaluatedOptions
-
-    // Otherwise filter based on current input (label)
-    return evaluatedOptions.filter((option) => {
-      const label = getOptionLabel(option).toLowerCase()
-      const search = currentValue.toLowerCase()
-      return label.includes(search)
-    })
-  }, [evaluatedOptions, displayValue, open, getOptionLabel])
+  useEffect(() => {
+    setInputValue(displayValue)
+  }, [displayValue])
 
   // Mark store as initialized on first render
   useEffect(() => {
@@ -202,128 +159,6 @@ export function ComboBox({
       setStoreValue(defaultOptionValue)
     }
   }, [storeInitialized, value, defaultOptionValue, setStoreValue])
-
-  /**
-   * Handles selection of an option from the dropdown
-   * @param selectedValue - The value of the selected option
-   */
-  const handleSelect = useCallback(
-    (selectedValue: string) => {
-      if (!isPreview && !disabled) {
-        setStoreValue(selectedValue)
-      }
-      setOpen(false)
-      setHighlightedIndex(-1)
-      inputRef.current?.blur()
-    },
-    [isPreview, disabled, setStoreValue]
-  )
-
-  /**
-   * Handles click on the dropdown chevron button
-   * @param e - Mouse event
-   */
-  const handleDropdownClick = useCallback(
-    (e: React.MouseEvent) => {
-      e.preventDefault()
-      e.stopPropagation()
-      if (!disabled) {
-        setOpen((prev) => {
-          const newOpen = !prev
-          if (newOpen) {
-            inputRef.current?.focus()
-          }
-          return newOpen
-        })
-      }
-    },
-    [disabled]
-  )
-
-  /**
-   * Handles focus event on the input
-   */
-  const handleFocus = useCallback(() => {
-    setOpen(true)
-    setHighlightedIndex(-1)
-  }, [])
-
-  /**
-   * Handles blur event on the input
-   * Delays closing to allow for dropdown interactions
-   */
-  const handleBlur = useCallback(() => {
-    // Delay closing to allow dropdown selection
-    setTimeout(() => {
-      const activeElement = document.activeElement
-      if (!activeElement || !activeElement.closest('.absolute.top-full')) {
-        setOpen(false)
-        setHighlightedIndex(-1)
-      }
-    }, DROPDOWN_CLOSE_DELAY)
-  }, [])
-
-  /**
-   * Handles keyboard navigation and selection
-   * @param e - Keyboard event
-   */
-  const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent<HTMLInputElement>) => {
-      if (e.key === 'Escape') {
-        setOpen(false)
-        setHighlightedIndex(-1)
-        return
-      }
-
-      if (e.key === 'ArrowDown') {
-        e.preventDefault()
-        if (!open) {
-          setOpen(true)
-          setHighlightedIndex(0)
-        } else {
-          setHighlightedIndex((prev) => (prev < filteredOptions.length - 1 ? prev + 1 : 0))
-        }
-      }
-
-      if (e.key === 'ArrowUp') {
-        e.preventDefault()
-        if (open) {
-          setHighlightedIndex((prev) => (prev > 0 ? prev - 1 : filteredOptions.length - 1))
-        }
-      }
-
-      if (e.key === 'Enter' && open && highlightedIndex >= 0) {
-        e.preventDefault()
-        const selectedOption = filteredOptions[highlightedIndex]
-        if (selectedOption) {
-          handleSelect(getOptionValue(selectedOption))
-        }
-      }
-    },
-    [open, filteredOptions, highlightedIndex, handleSelect, getOptionValue]
-  )
-
-  /**
-   * Synchronizes overlay scroll with input scroll
-   * @param e - UI event from input element
-   */
-  const handleScroll = useCallback((e: React.UIEvent<HTMLInputElement>) => {
-    if (overlayRef.current) {
-      overlayRef.current.scrollLeft = e.currentTarget.scrollLeft
-    }
-  }, [])
-
-  /**
-   * Synchronizes overlay scroll after paste operation
-   * @param e - Clipboard event
-   */
-  const handlePaste = useCallback((e: React.ClipboardEvent<HTMLInputElement>) => {
-    setTimeout(() => {
-      if (inputRef.current && overlayRef.current) {
-        overlayRef.current.scrollLeft = inputRef.current.scrollLeft
-      }
-    }, SCROLL_SYNC_DELAY)
-  }, [])
 
   /**
    * Handles wheel event for ReactFlow zoom control
@@ -364,67 +199,13 @@ export function ComboBox({
     [reactFlowInstance]
   )
 
-  // Synchronize overlay scroll position with input when value changes
-  useEffect(() => {
-    if (inputRef.current && overlayRef.current) {
-      overlayRef.current.scrollLeft = inputRef.current.scrollLeft
-    }
-  }, [displayValue])
-
-  // Adjust highlighted index when filtered options change
-  useEffect(() => {
-    setHighlightedIndex((prev) => {
-      if (prev >= 0 && prev < filteredOptions.length) {
-        return prev
-      }
-      return -1
-    })
-  }, [filteredOptions])
-
-  // Scroll highlighted option into view for keyboard navigation
-  useEffect(() => {
-    if (highlightedIndex >= 0 && dropdownRef.current) {
-      const highlightedElement = dropdownRef.current.querySelector(
-        `[data-option-index="${highlightedIndex}"]`
-      )
-      if (highlightedElement) {
-        highlightedElement.scrollIntoView({
-          behavior: 'smooth',
-          block: 'nearest',
-        })
-      }
-    }
-  }, [highlightedIndex])
-
-  // Handle clicks outside the dropdown to close it
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      const target = event.target as Element
-      if (
-        inputRef.current &&
-        !inputRef.current.contains(target) &&
-        !target.closest('[data-radix-popper-content-wrapper]') &&
-        !target.closest('.absolute.top-full')
-      ) {
-        setOpen(false)
-        setHighlightedIndex(-1)
-      }
-    }
-
-    if (open) {
-      document.addEventListener('mousedown', handleClickOutside)
-      return () => {
-        document.removeEventListener('mousedown', handleClickOutside)
-      }
-    }
-  }, [open])
-
   /**
    * Gets the icon for the currently selected option
    */
   const selectedOption = useMemo(() => {
-    return comboboxOptions.find((opt) => opt.value === displayValue)
-  }, [comboboxOptions, displayValue])
+    if (!value) return undefined
+    return comboboxOptions.find((opt) => opt.value === value)
+  }, [comboboxOptions, value])
 
   const selectedOptionIcon = selectedOption?.icon
 
@@ -433,7 +214,7 @@ export function ComboBox({
    */
   const overlayContent = useMemo(() => {
     const SelectedIcon = selectedOptionIcon
-    const displayLabel = selectedOption?.label ?? displayValue
+    const displayLabel = inputValue
     return (
       <div className='flex w-full items-center truncate [scrollbar-width:none]'>
         {SelectedIcon && <SelectedIcon className='mr-[8px] h-3 w-3 flex-shrink-0 opacity-60' />}
@@ -445,28 +226,7 @@ export function ComboBox({
         </div>
       </div>
     )
-  }, [displayValue, accessiblePrefixes, selectedOption, selectedOptionIcon])
-
-  /**
-   * Handles mouse enter on dropdown option
-   * @param index - Index of the option
-   */
-  const handleOptionMouseEnter = useCallback((index: number) => {
-    setHighlightedIndex(index)
-  }, [])
-
-  /**
-   * Handles mouse down on dropdown option
-   * @param e - Mouse event
-   * @param optionValue - Value of the selected option
-   */
-  const handleOptionMouseDown = useCallback(
-    (e: React.MouseEvent, optionValue: string) => {
-      e.preventDefault()
-      handleSelect(optionValue)
-    },
-    [handleSelect]
-  )
+  }, [inputValue, accessiblePrefixes, selectedOption, selectedOptionIcon])
 
   return (
     <div className='relative w-full'>
@@ -476,9 +236,23 @@ export function ComboBox({
         config={config}
         value={propValue}
         onChange={(newValue) => {
-          if (!isPreview) {
-            setStoreValue(newValue)
+          if (isPreview) {
+            return
           }
+
+          const matchedOption = evaluatedOptions.find((option) => {
+            if (typeof option === 'string') {
+              return option === newValue
+            }
+            return option.id === newValue
+          })
+
+          if (!matchedOption) {
+            return
+          }
+
+          const nextValue = typeof matchedOption === 'string' ? matchedOption : matchedOption.id
+          setStoreValue(nextValue)
         }}
         isPreview={isPreview}
         disabled={disabled}
@@ -487,24 +261,21 @@ export function ComboBox({
         {({ ref, onChange: ctrlOnChange, onDrop, onDragOver }) => (
           <Combobox
             options={comboboxOptions}
-            value={displayValue}
+            value={inputValue}
+            selectedValue={value ?? ''}
             onChange={(newValue) => {
-              // Map the user-facing label back to the stored value:
-              // - For object options, store the underlying ID
-              // - For plain string options or free text, store the label as-is
-              let storedString = newValue
-
-              const matchedOption = evaluatedOptions.find((option) =>
-                typeof option === 'string' ? option === newValue : option.label === newValue
+              const matchedComboboxOption = comboboxOptions.find(
+                (option) => option.value === newValue
               )
-
-              if (matchedOption && typeof matchedOption !== 'string') {
-                storedString = matchedOption.id
+              if (matchedComboboxOption) {
+                setInputValue(matchedComboboxOption.label)
+              } else {
+                setInputValue(newValue)
               }
 
               // Use controller's handler so env vars, tags, and DnD still work
               const syntheticEvent = {
-                target: { value: storedString, selectionStart: storedString.length },
+                target: { value: newValue, selectionStart: newValue.length },
               } as React.ChangeEvent<HTMLInputElement>
               ctrlOnChange(syntheticEvent)
             }}
@@ -518,8 +289,6 @@ export function ComboBox({
             inputProps={{
               onDrop: onDrop as (e: React.DragEvent<HTMLInputElement>) => void,
               onDragOver: onDragOver as (e: React.DragEvent<HTMLInputElement>) => void,
-              onScroll: handleScroll,
-              onPaste: handlePaste,
               onWheel: handleWheel,
               autoComplete: 'off',
             }}
