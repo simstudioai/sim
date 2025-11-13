@@ -9,12 +9,20 @@ import {
   Globe,
   Linkedin,
   Mail,
+  Share2,
   Star,
   User,
 } from 'lucide-react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import ReactMarkdown from 'react-markdown'
-import { Button } from '@/components/emcn'
+import {
+  Button,
+  Copy,
+  Popover,
+  PopoverContent,
+  PopoverItem,
+  PopoverTrigger,
+} from '@/components/emcn'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -518,6 +526,29 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
     }
   }
 
+  const handleShareToTwitter = () => {
+    const templateUrl = `${window.location.origin}/templates/${template?.id}`
+    const text = `Check out this workflow template: ${template?.name}`
+    const twitterUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(templateUrl)}`
+    window.open(twitterUrl, '_blank', 'noopener,noreferrer')
+  }
+
+  const handleShareToLinkedIn = () => {
+    const templateUrl = `${window.location.origin}/templates/${template?.id}`
+    const linkedInUrl = `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(templateUrl)}`
+    window.open(linkedInUrl, '_blank', 'noopener,noreferrer')
+  }
+
+  const handleCopyLink = async () => {
+    const templateUrl = `${window.location.origin}/templates/${template?.id}`
+    try {
+      await navigator.clipboard.writeText(templateUrl)
+      logger.info('Template link copied to clipboard')
+    } catch (error) {
+      logger.error('Failed to copy link:', error)
+    }
+  }
+
   return (
     <div className={cn('flex min-h-screen flex-col', isWorkspaceContext && 'pl-64')}>
       <div className='flex flex-1 overflow-hidden'>
@@ -687,6 +718,36 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
                   )}
                 </>
               )}
+
+              {/* Share button */}
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant='active' className='h-[32px] rounded-[6px] px-[12px]'>
+                    <Share2 className='h-[14px] w-[14px]' />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent align='end' side='bottom' sideOffset={8}>
+                  <PopoverItem onClick={handleCopyLink}>
+                    <Copy className='h-3 w-3' />
+                    <span>Copy link</span>
+                  </PopoverItem>
+                  <PopoverItem onClick={handleShareToTwitter}>
+                    <svg
+                      className='h-3 w-3'
+                      viewBox='0 0 24 24'
+                      fill='currentColor'
+                      xmlns='http://www.w3.org/2000/svg'
+                    >
+                      <path d='M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z' />
+                    </svg>
+                    <span>Share on X</span>
+                  </PopoverItem>
+                  <PopoverItem onClick={handleShareToLinkedIn}>
+                    <Linkedin className='h-3 w-3' />
+                    <span>Share on LinkedIn</span>
+                  </PopoverItem>
+                </PopoverContent>
+              </Popover>
             </div>
           </div>
 
