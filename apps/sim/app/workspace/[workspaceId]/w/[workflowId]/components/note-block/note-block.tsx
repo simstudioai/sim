@@ -5,6 +5,7 @@ import remarkGfm from 'remark-gfm'
 import { cn } from '@/lib/utils'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { useBlockCore } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
+import { BLOCK_DIMENSIONS } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-block-dimensions'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import { ActionBar } from '../workflow-block/components'
@@ -90,7 +91,13 @@ const NoteMarkdown = memo(function NoteMarkdown({ content }: { content: string }
 })
 
 export const NoteBlock = memo(function NoteBlock({ id, data }: NodeProps<NoteBlockNodeData>) {
-  const { type, config, name, width = 250, height = 100 } = data
+  const {
+    type,
+    config,
+    name,
+    width = BLOCK_DIMENSIONS.FIXED_WIDTH,
+    height = BLOCK_DIMENSIONS.MIN_HEIGHT,
+  } = data
 
   const { activeWorkflowId, isEnabled, isFocused, handleClick, hasRing, ringStyles } = useBlockCore(
     { blockId: id, data }
@@ -152,8 +159,14 @@ export const NoteBlock = memo(function NoteBlock({ id, data }: NodeProps<NoteBlo
         const deltaX = e.clientX - startMouseRef.current.x
         const deltaY = e.clientY - startMouseRef.current.y
 
-        const newWidth = Math.max(250, Math.min(600, startDimensionsRef.current.width + deltaX))
-        const newHeight = Math.max(100, Math.min(800, startDimensionsRef.current.height + deltaY))
+        const newWidth = Math.max(
+          BLOCK_DIMENSIONS.FIXED_WIDTH,
+          Math.min(600, startDimensionsRef.current.width + deltaX)
+        )
+        const newHeight = Math.max(
+          BLOCK_DIMENSIONS.MIN_HEIGHT,
+          Math.min(800, startDimensionsRef.current.height + deltaY)
+        )
 
         updateNodeDimensions(id, { width: newWidth, height: newHeight })
       }
@@ -220,7 +233,6 @@ export const NoteBlock = memo(function NoteBlock({ id, data }: NodeProps<NoteBlo
           </div>
         </div>
 
-        {/* Invisible resize handle at bottom-right corner */}
         {!data.isPreview && (
           <div
             className='absolute right-0 bottom-0 h-[16px] w-[16px] cursor-se-resize'

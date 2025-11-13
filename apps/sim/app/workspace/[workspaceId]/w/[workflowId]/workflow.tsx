@@ -37,6 +37,7 @@ import {
   useCurrentWorkflow,
   useNodeUtilities,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
+import { BLOCK_DIMENSIONS } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-block-dimensions'
 import { getBlock } from '@/blocks'
 import { useSocket } from '@/contexts/socket-context'
 import { isAnnotationOnlyBlock } from '@/executor/consts'
@@ -1338,13 +1339,18 @@ const WorkflowContent = React.memo(() => {
           isActive,
           isPending,
           ...(block.type === 'note' && {
-            width: block.data?.width ?? 250,
-            height: block.data?.height ?? 100,
+            width: block.data?.width ?? BLOCK_DIMENSIONS.FIXED_WIDTH,
+            height: block.data?.height ?? BLOCK_DIMENSIONS.MIN_HEIGHT,
           }),
         },
-        width: block.type === 'note' ? (block.data?.width ?? 250) : 250,
+        width:
+          block.type === 'note'
+            ? (block.data?.width ?? BLOCK_DIMENSIONS.FIXED_WIDTH)
+            : BLOCK_DIMENSIONS.FIXED_WIDTH,
         height:
-          block.type === 'note' ? (block.data?.height ?? 100) : Math.max(block.height || 100, 100),
+          block.type === 'note'
+            ? (block.data?.height ?? BLOCK_DIMENSIONS.MIN_HEIGHT)
+            : Math.max(block.height || BLOCK_DIMENSIONS.MIN_HEIGHT, BLOCK_DIMENSIONS.MIN_HEIGHT),
       })
     })
 
