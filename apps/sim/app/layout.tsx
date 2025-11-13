@@ -56,7 +56,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <meta name='format-detection' content='telephone=no' />
         <meta httpEquiv='x-ua-compatible' content='ie=edge' />
 
-        {/* OneDollarStats Analytics - Only loads if DRIZZLE_ODS_API_KEY is set */}
+        {/* OneDollarStats Analytics */}
         <script defer src='https://assets.onedollarstats.com/stonks.js' />
 
         {/* Blocking script to prevent sidebar dimensions flash on page load */}
