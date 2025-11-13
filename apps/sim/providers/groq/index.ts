@@ -374,8 +374,8 @@ export const groqProvider: ProviderConfig = {
       }
 
       // After all tool processing complete, if streaming was requested and we have messages, use streaming for the final response
-      if (request.stream && iterationCount > 0) {
-        logger.info('Using streaming for final Groq response after tool calls')
+      if (request.stream) {
+        logger.info('Using streaming for final Groq response after tool processing')
 
         // When streaming after tool calls with forced tools, make sure tool_choice is set to 'auto'
         // This prevents the API from trying to force tool usage again in the final streaming response
