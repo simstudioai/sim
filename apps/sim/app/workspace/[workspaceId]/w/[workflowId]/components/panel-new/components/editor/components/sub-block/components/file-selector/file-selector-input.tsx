@@ -87,9 +87,11 @@ export function FileSelectorInput({
   const foreignCheckProvider = subBlock.serviceId
     ? getProviderIdFromServiceId(subBlock.serviceId)
     : (subBlock.provider as string) || ''
+  const normalizedCredentialId = coerceToIdString(connectedCredential)
+  const providerForForeignCheck = foreignCheckProvider || (subBlock.provider as string) || undefined
   const { isForeignCredential } = useForeignCredential(
-    subBlock.provider || subBlock.serviceId || 'outlook',
-    (connectedCredential as string) || ''
+    providerForForeignCheck,
+    normalizedCredentialId
   )
 
   // Get provider-specific values
@@ -123,8 +125,7 @@ export function FileSelectorInput({
 
   const credentialDependencySatisfied = (() => {
     if (!dependsOn.includes('credential')) return true
-    const normalizedCredential = coerceToIdString(connectedCredential)
-    if (!normalizedCredential || normalizedCredential.trim().length === 0) {
+    if (!normalizedCredentialId || normalizedCredentialId.trim().length === 0) {
       return false
     }
     if (isForeignCredential) {

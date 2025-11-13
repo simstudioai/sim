@@ -17,7 +17,7 @@ export function useForeignCredential(
       setLoading(true)
       setError(null)
       try {
-        if (!normalizedCredentialId) {
+        if (!normalizedProvider || !normalizedCredentialId) {
           if (!cancelled) setIsForeign(false)
           return
         }
