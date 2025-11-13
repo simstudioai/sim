@@ -349,7 +349,7 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
         }
       },
       params: (params) => {
-        const { credential, folderId, fileId, mimeType, values, ...rest } = params
+        const { credential, folderId, fileId, mimeType, values, downloadFileName, ...rest } = params
 
         let parsedValues
         try {
@@ -366,6 +366,7 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
           fileId: fileId || undefined,
           pageSize: rest.pageSize ? Number.parseInt(rest.pageSize as string, 10) : undefined,
           mimeType: mimeType,
+          ...(downloadFileName && { fileName: downloadFileName }),
         }
       },
     },
