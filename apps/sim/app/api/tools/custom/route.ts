@@ -1,9 +1,10 @@
 import { db } from '@sim/db'
 import { customTools, workflow } from '@sim/db/schema'
-import { and, desc, eq, isNull, ne, or } from 'drizzle-orm'
+import { and, desc, eq, isNull, or } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
+import { upsertCustomTools } from '@/lib/custom-tools/operations'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getUserEntityPermissions } from '@/lib/permissions/utils'
 import { generateRequestId } from '@/lib/utils'
@@ -151,126 +152,15 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'Write permission required' }, { status: 403 })
       }
 
-      // Use a transaction for multi-step database operations
-      return await db.transaction(async (tx) => {
-        // Process each tool: either update existing or create new
-        for (const tool of tools) {
-          const nowTime = new Date()
-
-          if (tool.id) {
-            // First, check if tool exists in the workspace
-            const existingWorkspaceTool = await tx
-              .select()
-              .from(customTools)
-              .where(and(eq(customTools.id, tool.id), eq(customTools.workspaceId, workspaceId)))
-              .limit(1)
-
-            if (existingWorkspaceTool.length > 0) {
-              // Tool exists in workspace - check if name changed and if new name conflicts
-              if (existingWorkspaceTool[0].title !== tool.title) {
-                // Check for duplicate name in workspace (excluding current tool)
-                const duplicateTool = await tx
-                  .select()
-                  .from(customTools)
-                  .where(
-                    and(
-                      eq(customTools.workspaceId, workspaceId),
-                      eq(customTools.title, tool.title),
-                      ne(customTools.id, tool.id)
-                    )
-                  )
-                  .limit(1)
-
-                if (duplicateTool.length > 0) {
-                  return NextResponse.json(
-                    {
-                      error: `A tool with the name "${tool.title}" already exists in this workspace`,
-                    },
-                    { status: 400 }
-                  )
-                }
-              }
-
-              // Update existing workspace tool
-              await tx
-                .update(customTools)
-                .set({
-                  title: tool.title,
-                  schema: tool.schema,
-                  code: tool.code,
-                  updatedAt: nowTime,
-                })
-                .where(and(eq(customTools.id, tool.id), eq(customTools.workspaceId, workspaceId)))
-              continue
-            }
-
-            // Check if this is a legacy tool (no workspaceId, belongs to user)
-            const existingLegacyTool = await tx
-              .select()
-              .from(customTools)
-              .where(
-                and(
-                  eq(customTools.id, tool.id),
-                  isNull(customTools.workspaceId),
-                  eq(customTools.userId, userId)
-                )
-              )
-              .limit(1)
-
-            if (existingLegacyTool.length > 0) {
-              // Legacy tool found - update it without migrating to workspace
-              await tx
-                .update(customTools)
-                .set({
-                  title: tool.title,
-                  schema: tool.schema,
-                  code: tool.code,
-                  updatedAt: nowTime,
-                })
-                .where(eq(customTools.id, tool.id))
-
-              logger.info(`[${requestId}] Updated legacy tool ${tool.id}`)
-              continue
-            }
-          }
-
-          // Creating new tool - check for duplicate names in workspace
-          const duplicateTool = await tx
-            .select()
-            .from(customTools)
-            .where(and(eq(customTools.workspaceId, workspaceId), eq(customTools.title, tool.title)))
-            .limit(1)
-
-          if (duplicateTool.length > 0) {
-            return NextResponse.json(
-              { error: `A tool with the name "${tool.title}" already exists in this workspace` },
-              { status: 400 }
-            )
-          }
-
-          // Create new tool
-          const newToolId = tool.id || crypto.randomUUID()
-          await tx.insert(customTools).values({
-            id: newToolId,
-            workspaceId,
-            userId,
-            title: tool.title,
-            schema: tool.schema,
-            code: tool.code,
-            createdAt: nowTime,
-            updatedAt: nowTime,
-          })
-        }
-
-        // Fetch and return the created/updated tools
-        const resultTools = await tx
-          .select()
-          .from(customTools)
-          .where(eq(customTools.workspaceId, workspaceId))
-          .orderBy(desc(customTools.createdAt))
-
-        return NextResponse.json({ success: true, data: resultTools })
+      // Use the extracted upsert function
+      const resultTools = await upsertCustomTools({
+        tools,
+        workspaceId,
+        userId,
+        requestId,
       })
+
+      return NextResponse.json({ success: true, data: resultTools })
     } catch (validationError) {
       if (validationError instanceof z.ZodError) {
         logger.warn(`[${requestId}] Invalid custom tools data`, {
