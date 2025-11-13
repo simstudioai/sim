@@ -245,18 +245,17 @@ const WorkflowContent = React.memo(() => {
 
   // Create diff-aware permissions that disable editing when in diff mode
   const effectivePermissions = useMemo(() => {
-    if (isDiffMode) {
-      // In diff mode, disable all editing regardless of user permissions
+    if (currentWorkflow.isSnapshotView) {
+      // Snapshot view is read-only
       return {
         ...userPermissions,
         canEdit: false,
         canAdmin: false,
-        // Keep canRead true so users can still view content
         canRead: userPermissions.canRead,
       }
     }
     return userPermissions
-  }, [userPermissions, isDiffMode])
+  }, [userPermissions, currentWorkflow.isSnapshotView])
 
   // Workspace permissions - get all users and their permissions for this workspace
   const { permissions: workspacePermissions, error: permissionsError } = useWorkspacePermissions(

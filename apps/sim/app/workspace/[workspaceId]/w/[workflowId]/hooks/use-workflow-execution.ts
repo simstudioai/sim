@@ -1,6 +1,5 @@
 import { useCallback, useState } from 'react'
 import { v4 as uuidv4 } from 'uuid'
-import { shallow } from 'zustand/shallow'
 import { createLogger } from '@/lib/logs/console/logger'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import { processStreamingBlockLogs } from '@/lib/tokenization'
@@ -102,26 +101,7 @@ export function useWorkflowExecution() {
   } = useExecutionStore()
   const [executionResult, setExecutionResult] = useState<ExecutionResult | null>(null)
   const executionStream = useExecutionStream()
-  const {
-    diffWorkflow: executionDiffWorkflow,
-    isDiffReady: isDiffWorkflowReady,
-    isShowingDiff: isViewingDiff,
-  } = useWorkflowDiffStore(
-    useCallback(
-      (state) => ({
-        diffWorkflow: state.diffWorkflow,
-        isDiffReady: state.isDiffReady,
-        isShowingDiff: state.isShowingDiff,
-      }),
-      []
-    ),
-    shallow
-  )
-  const hasActiveDiffWorkflow =
-    isDiffWorkflowReady &&
-    isViewingDiff &&
-    !!executionDiffWorkflow &&
-    Object.keys(executionDiffWorkflow.blocks || {}).length > 0
+  const isViewingDiff = useWorkflowDiffStore((state) => state.isShowingDiff)
 
   /**
    * Validates debug state before performing debug operations
@@ -669,9 +649,8 @@ export function useWorkflowExecution() {
     overrideTriggerType?: 'chat' | 'manual' | 'api'
   ): Promise<ExecutionResult | StreamingExecution> => {
     // Use diff workflow for execution when available, regardless of canvas view state
-    const executionWorkflowState =
-      hasActiveDiffWorkflow && executionDiffWorkflow ? executionDiffWorkflow : null
-    const usingDiffForExecution = executionWorkflowState !== null
+    const executionWorkflowState = null
+    const usingDiffForExecution = false
 
     // Read blocks and edges directly from store to ensure we get the latest state,
     // even if React hasn't re-rendered yet after adding blocks/edges

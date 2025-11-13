@@ -6,6 +6,7 @@ import {
 } from '@/lib/copilot/tools/client/base-tool'
 import { ExecuteResponseSuccessSchema } from '@/lib/copilot/tools/shared/schemas'
 import { createLogger } from '@/lib/logs/console/logger'
+import { stripWorkflowDiffMarkers } from '@/lib/workflows/diff'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { mergeSubblockState } from '@/stores/workflows/utils'
@@ -98,54 +99,24 @@ export class EditWorkflowClientTool extends BaseClientTool {
 
       // Prepare currentUserWorkflow JSON from stores to preserve block IDs
       let currentUserWorkflow = args?.currentUserWorkflow
-      const diffStoreState = useWorkflowDiffStore.getState()
-      let usedDiffWorkflow = false
 
-      if (!currentUserWorkflow && diffStoreState.isDiffReady && diffStoreState.diffWorkflow) {
-        try {
-          const diffWorkflow = diffStoreState.diffWorkflow
-          const normalizedDiffWorkflow = {
-            ...diffWorkflow,
-            blocks: diffWorkflow.blocks || {},
-            edges: diffWorkflow.edges || [],
-            loops: diffWorkflow.loops || {},
-            parallels: diffWorkflow.parallels || {},
-          }
-          currentUserWorkflow = JSON.stringify(normalizedDiffWorkflow)
-          usedDiffWorkflow = true
-          logger.info('Using diff workflow state as base for edit_workflow operations', {
-            toolCallId: this.toolCallId,
-            blocksCount: Object.keys(normalizedDiffWorkflow.blocks).length,
-            edgesCount: normalizedDiffWorkflow.edges.length,
-          })
-        } catch (e) {
-          logger.warn(
-            'Failed to serialize diff workflow state; falling back to active workflow',
-            e as any
-          )
-        }
-      }
-
-      if (!currentUserWorkflow && !usedDiffWorkflow) {
+      if (!currentUserWorkflow) {
         try {
           const workflowStore = useWorkflowStore.getState()
           const fullState = workflowStore.getWorkflowState()
-          let merged = fullState
-          if (merged?.blocks) {
-            merged = { ...merged, blocks: mergeSubblockState(merged.blocks, workflowId as any) }
-          }
-          if (merged) {
-            if (!merged.loops) merged.loops = {}
-            if (!merged.parallels) merged.parallels = {}
-            if (!merged.edges) merged.edges = []
-            if (!merged.blocks) merged.blocks = {}
-            currentUserWorkflow = JSON.stringify(merged)
-          }
-        } catch (e) {
-          logger.warn(
-            'Failed to build currentUserWorkflow from stores; proceeding without it',
-            e as any
-          )
+          const mergedBlocks = mergeSubblockState(fullState.blocks, workflowId as any)
+          const payloadState = stripWorkflowDiffMarkers({
+            ...fullState,
+            blocks: mergedBlocks,
+            edges: fullState.edges || [],
+            loops: fullState.loops || {},
+            parallels: fullState.parallels || {},
+          })
+          currentUserWorkflow = JSON.stringify(payloadState)
+        } catch (error) {
+          logger.warn('Failed to build currentUserWorkflow from stores; proceeding without it', {
+            error,
+          })
         }
       }
 

@@ -24,6 +24,7 @@ export interface CurrentWorkflow {
   // Mode information
   isDiffMode: boolean
   isNormalMode: boolean
+  isSnapshotView: boolean
 
   // Full workflow state (for cases that need the complete object)
   workflowState: WorkflowState
@@ -59,15 +60,15 @@ export function useCurrentWorkflow(): CurrentWorkflow {
   }, shallow)
 
   // Get diff state - now including isDiffReady
-  const { isShowingDiff, isDiffReady, diffWorkflow } = useWorkflowDiffStore()
+  const { isShowingDiff, isDiffReady, hasActiveDiff, baselineWorkflow } = useWorkflowDiffStore()
 
   // Create the abstracted interface - optimized to prevent unnecessary re-renders
   const currentWorkflow = useMemo((): CurrentWorkflow => {
-    // Determine which workflow to use - only use diff if it's ready
-    const hasDiffBlocks =
-      !!diffWorkflow && Object.keys((diffWorkflow as any).blocks || {}).length > 0
-    const shouldUseDiff = isShowingDiff && isDiffReady && hasDiffBlocks
-    const activeWorkflow = shouldUseDiff ? diffWorkflow : normalWorkflow
+    // Determine which workflow to use
+    const isSnapshotView =
+      Boolean(baselineWorkflow) && hasActiveDiff && isDiffReady && !isShowingDiff
+
+    const activeWorkflow = isSnapshotView ? (baselineWorkflow as WorkflowState) : normalWorkflow
 
     return {
       // Current workflow state
@@ -82,8 +83,9 @@ export function useCurrentWorkflow(): CurrentWorkflow {
       needsRedeployment: activeWorkflow.needsRedeployment,
 
       // Mode information - update to reflect ready state
-      isDiffMode: shouldUseDiff,
-      isNormalMode: !shouldUseDiff,
+      isDiffMode: hasActiveDiff && isShowingDiff,
+      isNormalMode: !hasActiveDiff || (!isShowingDiff && !isSnapshotView),
+      isSnapshotView: Boolean(isSnapshotView),
 
       // Full workflow state (for cases that need the complete object)
       workflowState: activeWorkflow as WorkflowState,
@@ -95,7 +97,7 @@ export function useCurrentWorkflow(): CurrentWorkflow {
       hasBlocks: () => Object.keys(activeWorkflow.blocks || {}).length > 0,
       hasEdges: () => (activeWorkflow.edges || []).length > 0,
     }
-  }, [normalWorkflow, isShowingDiff, isDiffReady, diffWorkflow])
+  }, [normalWorkflow, isShowingDiff, isDiffReady, hasActiveDiff, baselineWorkflow])
 
   return currentWorkflow
 }

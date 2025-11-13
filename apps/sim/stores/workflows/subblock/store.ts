@@ -164,5 +164,13 @@ export const useSubBlockStore = create<SubBlockStore>()(
         useWorkflowRegistry.setState({ activeWorkflowId: originalActiveWorkflowId })
       }
     },
+    setWorkflowValues: (workflowId: string, values: Record<string, Record<string, any>>) => {
+      set((state) => ({
+        workflowValues: {
+          ...state.workflowValues,
+          [workflowId]: values,
+        },
+      }))
+    },
   }))
 )

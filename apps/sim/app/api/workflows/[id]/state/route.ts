@@ -4,6 +4,7 @@ import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
+import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
 import { generateRequestId } from '@/lib/utils'
 import { extractAndPersistCustomTools } from '@/lib/workflows/custom-tools-persistence'
@@ -241,6 +242,26 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
     const elapsed = Date.now() - startTime
     logger.info(`[${requestId}] Successfully saved workflow ${workflowId} state in ${elapsed}ms`)
+
+    try {
+      const socketUrl = env.SOCKET_SERVER_URL || 'http://localhost:3002'
+      const notifyResponse = await fetch(`${socketUrl}/api/workflow-updated`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ workflowId }),
+      })
+
+      if (!notifyResponse.ok) {
+        logger.warn(
+          `[${requestId}] Failed to notify Socket.IO server about workflow ${workflowId} update`
+        )
+      }
+    } catch (notificationError) {
+      logger.warn(
+        `[${requestId}] Error notifying Socket.IO server about workflow ${workflowId} update`,
+        notificationError
+      )
+    }
 
     return NextResponse.json({ success: true, warnings }, { status: 200 })
   } catch (error: any) {

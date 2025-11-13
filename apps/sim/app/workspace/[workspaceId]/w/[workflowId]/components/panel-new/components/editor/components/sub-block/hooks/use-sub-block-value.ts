@@ -74,10 +74,11 @@ export function useSubBlockValue<T = any>(
   )
 
   // Check if we're in diff mode and get diff value if available
-  const { isShowingDiff, diffWorkflow } = useWorkflowDiffStore()
-  const diffValue =
-    isShowingDiff && diffWorkflow
-      ? (diffWorkflow.blocks?.[blockId]?.subBlocks?.[subBlockId]?.value ?? null)
+  const { isShowingDiff, hasActiveDiff, baselineWorkflow } = useWorkflowDiffStore()
+  const isBaselineView = hasActiveDiff && !isShowingDiff
+  const snapshotValue =
+    isBaselineView && baselineWorkflow
+      ? (baselineWorkflow.blocks?.[blockId]?.subBlocks?.[subBlockId]?.value ?? null)
       : null
 
   // Check if this is an API key field that could be auto-filled
@@ -122,9 +123,9 @@ export function useSubBlockValue<T = any>(
   // Hook to set a value in the subblock store
   const setValue = useCallback(
     (newValue: T) => {
-      // Don't allow updates when in diff mode (readonly preview)
-      if (isShowingDiff) {
-        logger.debug('Ignoring setValue in diff mode', { blockId, subBlockId })
+      // Don't allow updates when showing the baseline snapshot (readonly preview)
+      if (isBaselineView) {
+        logger.debug('Ignoring setValue while viewing baseline diff', { blockId, subBlockId })
         return
       }
 
@@ -202,17 +203,13 @@ export function useSubBlockValue<T = any>(
       modelValue,
       isStreaming,
       emitValue,
-      isShowingDiff,
+      isBaselineView,
     ]
   )
 
   // Determine the effective value: diff value takes precedence if in diff mode
   const effectiveValue =
-    isShowingDiff && diffValue !== null
-      ? diffValue
-      : storeValue !== undefined
-        ? storeValue
-        : initialValue
+    snapshotValue !== null ? snapshotValue : storeValue !== undefined ? storeValue : initialValue
 
   // Initialize valueRef on first render
   useEffect(() => {
