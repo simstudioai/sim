@@ -21,7 +21,6 @@ export interface CopilotBlockState {
   type: string
   name: string
   inputs?: Record<string, string | number | string[][] | object>
-  outputs: BlockState['outputs']
   connections?: Record<string, string | string[]>
   nestedNodes?: Record<string, CopilotBlockState>
   enabled: boolean
@@ -352,7 +351,6 @@ export function sanitizeForCopilot(state: WorkflowState): CopilotWorkflowState {
     const result: CopilotBlockState = {
       type: block.type,
       name: block.name,
-      outputs: block.outputs,
       enabled: block.enabled,
     }
 
