@@ -172,6 +172,10 @@ export const useWorkflowStore = create<WorkflowStore>()(
         const nodeData = {
           ...data,
           ...(parentId && { parentId, extent: extent || 'parent' }),
+          ...(type === 'note' && {
+            width: data?.width ?? 250,
+            height: data?.height ?? 100,
+          }),
         }
 
         const subBlocks: Record<string, SubBlockState> = {}

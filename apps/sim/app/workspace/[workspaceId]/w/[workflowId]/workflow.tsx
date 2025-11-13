@@ -1337,11 +1337,15 @@ const WorkflowContent = React.memo(() => {
           name: block.name,
           isActive,
           isPending,
+          // Pass width/height for note blocks from block.data
+          ...(block.type === 'note' && {
+            width: block.data?.width ?? 250,
+            height: block.data?.height ?? 100,
+          }),
         },
-        // Include dynamic dimensions for container resizing calculations (must match rendered size)
-        // Both note and workflow blocks calculate dimensions deterministically via useBlockDimensions
-        width: 250, // Standard width for both block types
-        height: Math.max(block.height || 100, 100), // Use calculated height with minimum
+        width: block.type === 'note' ? (block.data?.width ?? 250) : 250,
+        height:
+          block.type === 'note' ? (block.data?.height ?? 100) : Math.max(block.height || 100, 100),
       })
     })
 

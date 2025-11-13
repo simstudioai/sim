@@ -1,19 +1,19 @@
-import { memo, useCallback, useMemo } from 'react'
+import { memo, useCallback, useMemo, useRef } from 'react'
 import ReactMarkdown from 'react-markdown'
 import type { NodeProps } from 'reactflow'
 import remarkGfm from 'remark-gfm'
 import { cn } from '@/lib/utils'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { useBlockCore } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
-import {
-  BLOCK_DIMENSIONS,
-  useBlockDimensions,
-} from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-block-dimensions'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
+import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import { ActionBar } from '../workflow-block/components'
 import type { WorkflowBlockProps } from '../workflow-block/types'
 
-interface NoteBlockNodeData extends WorkflowBlockProps {}
+interface NoteBlockNodeData extends WorkflowBlockProps {
+  width?: number
+  height?: number
+}
 
 /**
  * Extract string value from subblock value object or primitive
@@ -90,7 +90,7 @@ const NoteMarkdown = memo(function NoteMarkdown({ content }: { content: string }
 })
 
 export const NoteBlock = memo(function NoteBlock({ id, data }: NodeProps<NoteBlockNodeData>) {
-  const { type, config, name } = data
+  const { type, config, name, width = 250, height = 100 } = data
 
   const { activeWorkflowId, isEnabled, isFocused, handleClick, hasRing, ringStyles } = useBlockCore(
     { blockId: id, data }
@@ -129,31 +129,54 @@ export const NoteBlock = memo(function NoteBlock({ id, data }: NodeProps<NoteBlo
   const showMarkdown = noteValues.format === 'markdown' && !isEmpty
 
   const userPermissions = useUserPermissionsContext()
+  const updateNodeDimensions = useWorkflowStore((state) => state.updateNodeDimensions)
+
+  // Resize logic
+  const startDimensionsRef = useRef({ width: 0, height: 0 })
+  const startMouseRef = useRef({ x: 0, y: 0 })
 
   /**
-   * Calculate deterministic dimensions based on content structure.
-   * Uses fixed width and computed height to avoid ResizeObserver jitter.
+   * Start resize operation
    */
-  useBlockDimensions({
-    blockId: id,
-    calculateDimensions: () => {
-      const contentHeight = isEmpty
-        ? BLOCK_DIMENSIONS.NOTE_MIN_CONTENT_HEIGHT
-        : BLOCK_DIMENSIONS.NOTE_BASE_CONTENT_HEIGHT
-      const calculatedHeight =
-        BLOCK_DIMENSIONS.HEADER_HEIGHT + BLOCK_DIMENSIONS.NOTE_CONTENT_PADDING + contentHeight
+  const handleResizeStart = useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault()
+      e.stopPropagation()
 
-      return { width: BLOCK_DIMENSIONS.FIXED_WIDTH, height: calculatedHeight }
+      startDimensionsRef.current = { width, height }
+      startMouseRef.current = { x: e.clientX, y: e.clientY }
+
+      document.body.style.cursor = 'se-resize'
+
+      const handleMouseMove = (e: MouseEvent) => {
+        const deltaX = e.clientX - startMouseRef.current.x
+        const deltaY = e.clientY - startMouseRef.current.y
+
+        const newWidth = Math.max(250, Math.min(600, startDimensionsRef.current.width + deltaX))
+        const newHeight = Math.max(100, Math.min(800, startDimensionsRef.current.height + deltaY))
+
+        updateNodeDimensions(id, { width: newWidth, height: newHeight })
+      }
+
+      const handleMouseUp = () => {
+        document.body.style.cursor = ''
+        document.removeEventListener('mousemove', handleMouseMove)
+        document.removeEventListener('mouseup', handleMouseUp)
+      }
+
+      document.addEventListener('mousemove', handleMouseMove)
+      document.addEventListener('mouseup', handleMouseUp)
     },
-    dependencies: [isEmpty],
-  })
+    [width, height, id, updateNodeDimensions]
+  )
 
   return (
     <div className='group relative'>
       <div
         className={cn(
-          'relative z-[20] w-[250px] cursor-default select-none rounded-[8px] bg-[var(--surface-2)]'
+          'relative z-[20] cursor-default select-none rounded-[8px] bg-[var(--surface-2)]'
         )}
+        style={{ width: `${width}px`, height: `${height}px` }}
         onClick={handleClick}
       >
         <ActionBar blockId={id} blockType={type} disabled={!userPermissions.canEdit} />
@@ -180,7 +203,10 @@ export const NoteBlock = memo(function NoteBlock({ id, data }: NodeProps<NoteBlo
           </div>
         </div>
 
-        <div className='relative px-[12px] pt-[6px] pb-[8px]'>
+        <div
+          className='relative px-[12px] pt-[6px] pb-[8px]'
+          style={{ height: 'calc(100% - 40px)', overflow: 'auto' }}
+        >
           <div className='relative whitespace-pre-wrap break-words'>
             {isEmpty ? (
               <p className='text-[#868686] text-sm italic'>Add a note...</p>
@@ -193,6 +219,16 @@ export const NoteBlock = memo(function NoteBlock({ id, data }: NodeProps<NoteBlo
             )}
           </div>
         </div>
+
+        {/* Invisible resize handle at bottom-right corner */}
+        {!data.isPreview && (
+          <div
+            className='absolute right-0 bottom-0 h-[16px] w-[16px] cursor-se-resize'
+            style={{ pointerEvents: 'auto' }}
+            onMouseDown={handleResizeStart}
+          />
+        )}
+
         {hasRing && (
           <div
             className={cn('pointer-events-none absolute inset-0 z-40 rounded-[8px]', ringStyles)}
