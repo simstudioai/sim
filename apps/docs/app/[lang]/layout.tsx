@@ -13,7 +13,6 @@ import { Navbar } from '@/components/navbar/navbar'
 import { i18n } from '@/lib/i18n'
 import { source } from '@/lib/source'
 import '../global.css'
-import { Analytics } from '@vercel/analytics/next'
 
 const inter = Inter({
   subsets: ['latin'],
@@ -94,6 +93,8 @@ export default async function Layout({ children, params }: LayoutProps) {
           type='application/ld+json'
           dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
         />
+        {/* OneDollarStats Analytics - CDN script handles everything automatically */}
+        <script defer src='https://assets.onedollarstats.com/stonks.js' />
       </head>
       <body className='flex min-h-screen flex-col font-sans'>
         <RootProvider i18n={provider(lang)}>
@@ -132,7 +133,6 @@ export default async function Layout({ children, params }: LayoutProps) {
           >
             {children}
           </DocsLayout>
-          <Analytics />
         </RootProvider>
       </body>
     </html>

@@ -147,7 +147,7 @@ export function TeamUsage({ hasAdminAccess }: TeamUsageProps) {
             onLimitUpdated={handleLimitUpdated}
           />
         ) : (
-          <span className='text-muted-foreground text-xs tabular-nums'>
+          <span className='font-medium text-[#B1B1B1] text-[12px] tabular-nums'>
             ${currentCap.toFixed(0)}
           </span>
         )

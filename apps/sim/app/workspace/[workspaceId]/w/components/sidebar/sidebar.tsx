@@ -347,13 +347,22 @@ export function Sidebar() {
       try {
         // Switch workspace and update URL
         await switchToWorkspace(workspace.id)
-        routerRef.current?.push(`/workspace/${workspace.id}/w`)
+        const currentPath = pathname || ''
+        const templateDetailMatch = currentPath.match(/^\/workspace\/[^/]+\/templates\/([^/]+)$/)
+        if (templateDetailMatch) {
+          const templateId = templateDetailMatch[1]
+          routerRef.current?.push(`/workspace/${workspace.id}/templates/${templateId}`)
+        } else if (/^\/workspace\/[^/]+\/templates$/.test(currentPath)) {
+          routerRef.current?.push(`/workspace/${workspace.id}/templates`)
+        } else {
+          routerRef.current?.push(`/workspace/${workspace.id}/w`)
+        }
         logger.info(`Switched to workspace: ${workspace.name} (${workspace.id})`)
       } catch (error) {
         logger.error('Error switching workspace:', error)
       }
     },
-    [switchToWorkspace] // Removed activeWorkspace and router dependencies
+    [switchToWorkspace, pathname] // include pathname
   )
 
   /**

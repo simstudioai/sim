@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from 'react'
 import { Check, ChevronDown, Copy, Eye, EyeOff } from 'lucide-react'
-import { Alert, AlertDescription, Button, Input, Label } from '@/components/ui'
+import { Button, Combobox } from '@/components/emcn'
+import { Alert, AlertDescription, Input, Label } from '@/components/ui'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useSession } from '@/lib/auth-client'
 import { isBillingEnabled } from '@/lib/environment'
@@ -535,7 +536,7 @@ export function SSO() {
             // SSO Provider Status View
             <div className='space-y-4'>
               {providers.map((provider) => (
-                <div key={provider.id} className='rounded-[12px] border border-border p-6'>
+                <div key={provider.id} className='rounded-[8px] bg-muted/30 p-4'>
                   <div className='flex items-start justify-between gap-3'>
                     <div className='flex-1'>
                       <h3 className='font-medium text-base'>Single Sign-On Provider</h3>
@@ -545,10 +546,9 @@ export function SSO() {
                     </div>
                     <div className='flex items-center space-x-2'>
                       <Button
-                        variant='outline'
-                        size='sm'
+                        variant='ghost'
                         onClick={() => handleReconfigure(provider)}
-                        className='rounded-[8px]'
+                        className='h-8'
                       >
                         Reconfigure
                       </Button>
@@ -609,12 +609,12 @@ export function SSO() {
               {hasProviders && (
                 <div className='mb-4'>
                   <Button
-                    variant='outline'
+                    variant='ghost'
                     onClick={() => {
                       setShowConfigForm(false)
                       setIsEditing(false)
                     }}
-                    className='rounded-[8px]'
+                    className='h-8'
                   >
                     ← Back to SSO Status
                   </Button>
@@ -626,14 +626,14 @@ export function SSO() {
                 {/* Provider Type Selection */}
                 <div className='space-y-1'>
                   <Label>Provider Type</Label>
-                  <div className='flex rounded-[10px] border border-input bg-background p-1'>
+                  <div className='flex gap-2 rounded-[10px] border border-[var(--border-muted)] bg-[var(--surface-3)] p-1'>
                     <button
                       type='button'
                       className={cn(
-                        'flex-1 rounded-[6px] px-3 py-2 font-medium text-sm transition-colors',
+                        'flex-1 rounded-[6px] px-3 py-2 font-medium text-sm transition-all',
                         formData.providerType === 'oidc'
-                          ? 'bg-primary text-primary-foreground'
-                          : 'text-muted-foreground hover:text-foreground'
+                          ? 'bg-[var(--surface-1)] text-[var(--text-primary)] shadow-sm ring-1 ring-[var(--border-muted)]'
+                          : 'text-muted-foreground hover:bg-[var(--surface-2)] hover:text-foreground'
                       )}
                       onClick={() => handleInputChange('providerType', 'oidc')}
                     >
@@ -642,10 +642,10 @@ export function SSO() {
                     <button
                       type='button'
                       className={cn(
-                        'flex-1 rounded-[6px] px-3 py-2 font-medium text-sm transition-colors',
+                        'flex-1 rounded-[6px] px-3 py-2 font-medium text-sm transition-all',
                         formData.providerType === 'saml'
-                          ? 'bg-primary text-primary-foreground'
-                          : 'text-muted-foreground hover:text-foreground'
+                          ? 'bg-[var(--surface-1)] text-[var(--text-primary)] shadow-sm ring-1 ring-[var(--border-muted)]'
+                          : 'text-muted-foreground hover:bg-[var(--surface-2)] hover:text-foreground'
                       )}
                       onClick={() => handleInputChange('providerType', 'saml')}
                     >
@@ -661,24 +661,21 @@ export function SSO() {
 
                 <div className='space-y-1'>
                   <Label htmlFor='provider-id'>Provider ID</Label>
-                  <select
-                    id='provider-id'
+                  <Combobox
                     value={formData.providerId}
-                    onChange={(e) => handleInputChange('providerId', e.target.value)}
+                    onChange={(value: string) => handleInputChange('providerId', value)}
+                    options={TRUSTED_SSO_PROVIDERS.map((id) => ({
+                      label: id,
+                      value: id,
+                    }))}
+                    placeholder='Select a provider ID'
+                    editable={true}
                     className={cn(
-                      'w-full rounded-[10px] border border-input bg-background px-3 py-2 text-sm ring-offset-background transition-colors focus:border-gray-400 focus:ring-2 focus:ring-gray-100',
                       showErrors &&
                         errors.providerId.length > 0 &&
                         'border-red-500 focus:border-red-500 focus:ring-red-100 focus-visible:ring-red-500'
                     )}
-                  >
-                    <option value=''>Select a provider ID</option>
-                    {TRUSTED_SSO_PROVIDERS.map((providerId) => (
-                      <option key={providerId} value={providerId}>
-                        {providerId}
-                      </option>
-                    ))}
-                  </select>
+                  />
                   {showErrors && errors.providerId.length > 0 && (
                     <div className='mt-1 text-[#DC2626] text-[12px] leading-tight dark:text-[#F87171]'>
                       <p>{errors.providerId.join(' ')}</p>
@@ -808,16 +805,20 @@ export function SSO() {
                               'border-red-500 focus:border-red-500 focus:ring-red-100 focus-visible:ring-red-500'
                           )}
                         />
-                        <button
-                          type='button'
+                        <Button
+                          variant='ghost'
                           onClick={() => setShowClientSecret((s) => !s)}
-                          className='-translate-y-1/2 absolute top-1/2 right-3 text-gray-500 transition hover:text-gray-700'
+                          className='-translate-y-1/2 absolute top-1/2 right-3 h-6 w-6 rounded-[4px] p-0 text-muted-foreground hover:text-foreground'
                           aria-label={
                             showClientSecret ? 'Hide client secret' : 'Show client secret'
                           }
                         >
-                          {showClientSecret ? <EyeOff size={18} /> : <Eye size={18} />}
-                        </button>
+                          {showClientSecret ? (
+                            <EyeOff className='h-4 w-4' />
+                          ) : (
+                            <Eye className='h-4 w-4' />
+                          )}
+                        </Button>
                       </div>
                       {showErrors && errors.clientSecret.length > 0 && (
                         <div className='mt-1 text-[#DC2626] text-[12px] leading-tight dark:text-[#F87171]'>
@@ -1011,7 +1012,7 @@ export function SSO() {
 
                 <Button
                   type='submit'
-                  className='w-full rounded-[10px]'
+                  className='h-9 w-full'
                   disabled={isLoading || hasAnyErrors(errors) || !isFormValid()}
                 >
                   {isLoading
@@ -1029,29 +1030,18 @@ export function SSO() {
                 <p className='text-muted-foreground text-xs'>
                   Configure this URL in your identity provider as the callback/redirect URI
                 </p>
-                <div className='relative'>
-                  <Input
-                    id='callback-url'
-                    readOnly
-                    value={callbackUrl}
-                    autoComplete='off'
-                    autoCapitalize='none'
-                    spellCheck={false}
-                    className='h-9 w-full cursor-text pr-10 font-mono text-xs focus-visible:ring-2 focus-visible:ring-primary/20'
-                    onClick={(e) => (e.target as HTMLInputElement).select()}
-                  />
-                  <button
-                    type='button'
+                <div className='relative flex h-9 items-center rounded-[8px] bg-muted px-3 pr-10'>
+                  <code className='flex-1 truncate font-mono text-foreground text-xs'>
+                    {callbackUrl}
+                  </code>
+                  <Button
+                    variant='ghost'
                     onClick={copyCallback}
                     aria-label='Copy callback URL'
-                    className='-translate-y-1/2 absolute top-1/2 right-3 rounded p-1 text-muted-foreground transition hover:text-foreground'
+                    className='absolute right-1 h-6 w-6 rounded-[4px] p-0 text-muted-foreground hover:text-foreground'
                   >
-                    {copied ? (
-                      <Check className='h-4 w-4 text-green-500' />
-                    ) : (
-                      <Copy className='h-4 w-4' />
-                    )}
-                  </button>
+                    {copied ? <Check className='h-4 w-4' /> : <Copy className='h-4 w-4' />}
+                  </Button>
                 </div>
               </div>
             </>

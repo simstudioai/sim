@@ -284,7 +284,6 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
       id: 'downloadFileName',
       title: 'File Name Override',
       type: 'short-input',
-      canonicalParamId: 'fileName',
       placeholder: 'Optional: Override the filename',
       condition: { field: 'operation', value: 'download' },
     },
@@ -350,7 +349,7 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
         }
       },
       params: (params) => {
-        const { credential, folderId, fileId, mimeType, values, ...rest } = params
+        const { credential, folderId, fileId, mimeType, values, downloadFileName, ...rest } = params
 
         let parsedValues
         try {
@@ -367,6 +366,7 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
           fileId: fileId || undefined,
           pageSize: rest.pageSize ? Number.parseInt(rest.pageSize as string, 10) : undefined,
           mimeType: mimeType,
+          ...(downloadFileName && { fileName: downloadFileName }),
         }
       },
     },

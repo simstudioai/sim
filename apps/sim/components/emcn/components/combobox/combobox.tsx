@@ -439,7 +439,26 @@ const Combobox = forwardRef<HTMLDivElement, ComboboxProps>(
               }
             }}
           >
-            <PopoverScrollArea className='max-h-48 p-[4px]'>
+            <PopoverScrollArea
+              className='!flex-none max-h-48 p-[4px]'
+              onWheelCapture={(e) => {
+                // Ensure wheel events are captured and don't get blocked by parent handlers
+                const target = e.currentTarget
+                const { scrollTop, scrollHeight, clientHeight } = target
+                const delta = e.deltaY
+                const isScrollingDown = delta > 0
+                const isScrollingUp = delta < 0
+
+                // Check if we're at scroll boundaries
+                const isAtTop = scrollTop === 0
+                const isAtBottom = scrollTop + clientHeight >= scrollHeight - 1
+
+                // Only stop propagation if we can scroll in the requested direction
+                if ((isScrollingDown && !isAtBottom) || (isScrollingUp && !isAtTop)) {
+                  e.stopPropagation()
+                }
+              }}
+            >
               <div ref={dropdownRef} role='listbox'>
                 {isLoading ? (
                   <div className='flex items-center justify-center py-[14px]'>

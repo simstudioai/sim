@@ -2,11 +2,11 @@
 
 import { useEffect, useState } from 'react'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { CheckCircle2, Loader2, Plus, Trash2 } from 'lucide-react'
+import { CheckCircle2, Loader2, Plus } from 'lucide-react'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
+import { Badge, Button, Input, Textarea, Trash } from '@/components/emcn'
 import {
-  Button,
   Dialog,
   DialogContent,
   DialogHeader,
@@ -17,13 +17,11 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
-  Input,
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-  Textarea,
 } from '@/components/ui'
 import { TagInput } from '@/components/ui/tag-input'
 import { useSession } from '@/lib/auth-client'
@@ -273,18 +271,23 @@ export function TemplateDeploy({ workflowId, onDeploymentComplete }: TemplateDep
   return (
     <div className='space-y-4'>
       {existingTemplate && (
-        <div className='flex items-center justify-between rounded-lg border border-border/50 bg-muted/30 px-4 py-3'>
-          <div className='flex items-center gap-3'>
-            <CheckCircle2 className='h-4 w-4 text-green-600 dark:text-green-400' />
-            <div className='flex items-center gap-2'>
-              <span className='font-medium text-sm'>Template Connected</span>
+        <div className='flex items-center justify-between rounded-[8px] border border-[var(--border)] bg-[var(--surface-3)] px-[16px] py-[12px]'>
+          <div className='flex items-center gap-[12px]'>
+            <CheckCircle2 className='h-[16px] w-[16px] text-green-600 dark:text-green-400' />
+            <div className='flex items-center gap-[8px]'>
+              <span className='font-medium text-[14px] text-[var(--text-primary)]'>
+                Template Connected
+              </span>
               {existingTemplate.status === 'pending' && (
-                <span className='rounded-md bg-yellow-100 px-2 py-0.5 font-medium text-xs text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300'>
+                <Badge
+                  variant='outline'
+                  className='border-yellow-300 bg-yellow-100 text-yellow-700 dark:border-yellow-700 dark:bg-yellow-900 dark:text-yellow-300'
+                >
                   Under Review
-                </span>
+                </Badge>
               )}
               {existingTemplate.status === 'approved' && existingTemplate.views > 0 && (
-                <span className='text-muted-foreground text-xs'>
+                <span className='font-medium text-[12px] text-[var(--text-tertiary)]'>
                   • {existingTemplate.views} views
                   {existingTemplate.stars > 0 && ` • ${existingTemplate.stars} stars`}
                 </span>
@@ -294,11 +297,10 @@ export function TemplateDeploy({ workflowId, onDeploymentComplete }: TemplateDep
           <Button
             type='button'
             variant='ghost'
-            size='sm'
             onClick={() => setShowDeleteDialog(true)}
-            className='h-8 px-2 text-muted-foreground hover:text-red-600 dark:hover:text-red-400'
+            className='h-[32px] px-[8px] text-[var(--text-muted)] hover:text-red-600 dark:hover:text-red-400'
           >
-            <Trash2 className='h-4 w-4' />
+            <Trash className='h-[14px] w-[14px]' />
           </Button>
         </div>
       )}
@@ -362,8 +364,6 @@ export function TemplateDeploy({ workflowId, onDeploymentComplete }: TemplateDep
                     <Button
                       type='button'
                       variant='outline'
-                      size='sm'
-                      className='gap-2'
                       onClick={() => {
                         try {
                           const event = new CustomEvent('open-settings', {
@@ -377,9 +377,10 @@ export function TemplateDeploy({ workflowId, onDeploymentComplete }: TemplateDep
                           })
                         }
                       }}
+                      className='gap-[8px]'
                     >
-                      <Plus className='h-4 w-4 text-muted-foreground' />
-                      <span className='text-muted-foreground'>Create a Creator Profile</span>
+                      <Plus className='h-[14px] w-[14px] text-[var(--text-muted)]' />
+                      <span className='text-[var(--text-muted)]'>Create a Creator Profile</span>
                     </Button>
                   </div>
                 ) : (
@@ -432,7 +433,7 @@ export function TemplateDeploy({ workflowId, onDeploymentComplete }: TemplateDep
             )}
           />
 
-          <div className='flex justify-end gap-2 border-t pt-4'>
+          <div className='flex justify-end gap-[8px] border-[var(--border)] border-t pt-[16px]'>
             {existingTemplate && (
               <Button
                 type='button'
@@ -445,12 +446,12 @@ export function TemplateDeploy({ workflowId, onDeploymentComplete }: TemplateDep
             )}
             <Button
               type='submit'
+              variant='primary'
               disabled={isSubmitting || !form.formState.isValid}
-              className='bg-purple-600 hover:bg-purple-700'
             >
               {isSubmitting ? (
                 <>
-                  <Loader2 className='mr-2 h-4 w-4 animate-spin' />
+                  <Loader2 className='mr-[8px] h-[14px] w-[14px] animate-spin' />
                   {existingTemplate ? 'Updating...' : 'Publishing...'}
                 </>
               ) : existingTemplate ? (
@@ -465,19 +466,21 @@ export function TemplateDeploy({ workflowId, onDeploymentComplete }: TemplateDep
 
       {showDeleteDialog && (
         <div className='fixed inset-0 z-50 flex items-center justify-center bg-black/50'>
-          <div className='w-full max-w-md rounded-lg bg-background p-6 shadow-lg'>
-            <h3 className='mb-4 font-semibold text-lg'>Delete Template?</h3>
-            <p className='mb-6 text-muted-foreground text-sm'>
+          <div className='w-full max-w-md rounded-[8px] bg-[var(--surface-3)] p-[24px] shadow-lg'>
+            <h3 className='mb-[16px] font-semibold text-[18px] text-[var(--text-primary)]'>
+              Delete Template?
+            </h3>
+            <p className='mb-[24px] text-[14px] text-[var(--text-secondary)]'>
               This will permanently delete your template. This action cannot be undone.
             </p>
-            <div className='flex justify-end gap-2'>
+            <div className='flex justify-end gap-[8px]'>
               <Button variant='outline' onClick={() => setShowDeleteDialog(false)}>
                 Cancel
               </Button>
               <Button
                 onClick={handleDelete}
                 disabled={isDeleting}
-                className='bg-red-600 hover:bg-red-700'
+                className='bg-red-600 text-white hover:bg-red-700'
               >
                 {isDeleting ? 'Deleting...' : 'Delete'}
               </Button>
