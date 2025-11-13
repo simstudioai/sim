@@ -362,17 +362,6 @@ export class Serializer {
     const isAdvancedMode = block.advancedMode ?? false
     const isStarterBlock = block.type === 'starter'
 
-    // Debug logging for Slack blocks
-    if (block.type === 'slack') {
-      console.log('[Serializer] Extracting params for Slack block:', {
-        blockId: block.id,
-        blockName: block.name,
-        subBlockKeys: Object.keys(block.subBlocks),
-        textSubBlock: block.subBlocks['text'],
-        textValue: block.subBlocks['text']?.value,
-      })
-    }
-
     // First collect all current values from subBlocks, filtering by mode
     Object.entries(block.subBlocks).forEach(([id, subBlock]) => {
       // Find the corresponding subblock config to check its mode
@@ -390,15 +379,6 @@ export class Serializer {
         (shouldIncludeField(subBlockConfig, isAdvancedMode) || hasStarterInputFormatValues)
       ) {
         params[id] = subBlock.value
-
-        // Debug for Slack text field
-        if (block.type === 'slack' && id === 'text') {
-          console.log('[Serializer] Including text param:', {
-            id,
-            value: subBlock.value,
-            included: true,
-          })
-        }
       }
     })
 
@@ -414,15 +394,6 @@ export class Serializer {
         params[id] = subBlockConfig.value(params)
       }
     })
-
-    // Debug: Log params before canonical consolidation
-    if (block.type === 'slack') {
-      console.log('[Serializer] Params after extraction (before canonical):', {
-        blockId: block.id,
-        text: params.text,
-        allKeys: Object.keys(params),
-      })
-    }
 
     // Finally, consolidate canonical parameters (e.g., selector and manual ID into a single param)
     const canonicalGroups: Record<string, { basic?: string; advanced: string[] }> = {}
@@ -462,15 +433,6 @@ export class Serializer {
       if (chosen !== undefined) params[canonicalKey] = chosen
       else delete params[canonicalKey]
     })
-
-    // Debug: Log params after canonical consolidation
-    if (block.type === 'slack') {
-      console.log('[Serializer] Params after canonical consolidation:', {
-        blockId: block.id,
-        text: params.text,
-        allKeys: Object.keys(params),
-      })
-    }
 
     return params
   }

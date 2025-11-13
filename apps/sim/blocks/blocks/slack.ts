@@ -229,7 +229,6 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
       id: 'updateText',
       title: 'New Message Text',
       type: 'long-input',
-      canonicalParamId: 'text',
       placeholder: 'Enter new message text (supports Slack mrkdwn)',
       condition: {
         field: 'operation',
@@ -309,14 +308,6 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
         }
       },
       params: (params) => {
-        console.log('[Slack Block Params Transformer] Received params:', {
-          allKeys: Object.keys(params),
-          operation: params.operation,
-          text: params.text,
-          textType: typeof params.text,
-          textLength: params.text?.length,
-        })
-
         const {
           credential,
           authMethod,
@@ -440,12 +431,6 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
             baseParams.name = emojiName
             break
         }
-
-        console.log('[Slack Block Params Transformer] Returning baseParams:', {
-          operation,
-          baseParamsKeys: Object.keys(baseParams),
-          text: baseParams.text,
-        })
 
         return baseParams
       },
