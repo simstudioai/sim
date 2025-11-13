@@ -48,8 +48,8 @@ export const GoogleSheetsBlock: BlockConfig<GoogleSheetsResponse> = {
       title: 'Select Sheet',
       type: 'file-selector',
       canonicalParamId: 'spreadsheetId',
-      provider: 'google-drive',
-      serviceId: 'google-drive',
+      provider: 'google-sheets',
+      serviceId: 'google-sheets',
       requiredScopes: [
         'https://www.googleapis.com/auth/drive.readonly',
         'https://www.googleapis.com/auth/drive.file',
