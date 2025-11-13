@@ -116,6 +116,32 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 | --------- | ---- | ----------- |
 | `messages` | array | 频道中的消息对象数组 |
 
+### `slack_thread_reader`
+
+读取特定 Slack 线程的根消息及所有回复。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `authMethod` | string | 否 | 认证方式：oauth 或 bot_token |
+| `botToken` | string | 否 | 自定义 Bot 的 token |
+| `channel` | string | 是 | 包含该线程的 Slack 频道 |
+| `thread_ts` | string | 是 | 需要读取的根消息时间戳 |
+| `limit` | number | 否 | 要检索的线程消息数（默认：20，最大：100） |
+| `cursor` | string | 否 | 获取更多回复的分页游标 |
+| `oldest` | string | 否 | 时间范围开始（时间戳） |
+| `latest` | string | 否 | 时间范围结束（时间戳） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `thread_ts` | string | 线程根消息的时间戳 |
+| `messages` | array | 线程消息（根消息 + 回复）的数组 |
+| `has_more` | boolean | 指示是否还有更多回复可获取 |
+| `next_cursor` | string | 获取下一页回复的游标 |
+
 ### `slack_download`
 
 从 Slack 下载文件

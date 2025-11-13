@@ -27,6 +27,15 @@ export interface SlackMessageReaderParams extends SlackBaseParams {
   latest?: string
 }
 
+export interface SlackThreadReaderParams extends SlackBaseParams {
+  channel: string
+  thread_ts: string
+  limit?: number
+  cursor?: string
+  oldest?: string
+  latest?: string
+}
+
 export interface SlackDownloadParams extends SlackBaseParams {
   fileId: string
   fileName?: string
@@ -83,6 +92,30 @@ export interface SlackMessageReaderResponse extends ToolResponse {
   }
 }
 
+export interface SlackThreadReaderResponse extends ToolResponse {
+  output: {
+    thread_ts: string
+    messages: Array<{
+      ts: string
+      text: string
+      user: string
+      type: string
+      subtype?: string
+      thread_ts?: string
+      parent_user_id?: string
+      files?: Array<{
+        id: string
+        name: string
+        mimetype: string
+        size: number
+        url_private?: string
+      }>
+    }>
+    has_more?: boolean
+    next_cursor?: string
+  }
+}
+
 export interface SlackDownloadResponse extends ToolResponse {
   output: {
     file: {
@@ -129,6 +162,7 @@ export interface SlackAddReactionResponse extends ToolResponse {
 export type SlackResponse =
   | SlackCanvasResponse
   | SlackMessageReaderResponse
+  | SlackThreadReaderResponse
   | SlackMessageResponse
   | SlackDownloadResponse
   | SlackUpdateMessageResponse

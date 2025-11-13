@@ -118,6 +118,32 @@ Lisez les derniers messages des canaux Slack. Récupérez l'historique des conve
 | --------- | ---- | ----------- |
 | `messages` | tableau | Tableau d'objets de messages du canal |
 
+### `slack_thread_reader`
+
+Lisez le message racine et les réponses d'un thread Slack spécifique.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `authMethod` | chaîne | Non | Méthode d'authentification : oauth ou bot_token |
+| `botToken` | chaîne | Non | Jeton du bot pour Bot personnalisé |
+| `channel` | chaîne | Oui | Canal Slack qui contient le thread |
+| `thread_ts` | chaîne | Oui | Horodatage du message racine à lire |
+| `limit` | nombre | Non | Nombre de messages du thread à récupérer (par défaut : 20, max : 100) |
+| `cursor` | chaîne | Non | Curseur de pagination pour récupérer plus de réponses |
+| `oldest` | chaîne | Non | Début de la plage temporelle (horodatage) |
+| `latest` | chaîne | Non | Fin de la plage temporelle (horodatage) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `thread_ts` | chaîne | Horodatage du message racine du thread |
+| `messages` | tableau | Tableau des messages du thread (racine + réponses) |
+| `has_more` | booléen | Indique si d'autres réponses peuvent être récupérées |
+| `next_cursor` | chaîne | Curseur pour récupérer la page suivante de réponses |
+
 ### `slack_download`
 
 Télécharger un fichier depuis Slack

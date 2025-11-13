@@ -120,6 +120,32 @@ Read the latest messages from Slack channels. Retrieve conversation history with
 | --------- | ---- | ----------- |
 | `messages` | array | Array of message objects from the channel |
 
+### `slack_thread_reader`
+
+Read the root message and replies from a specific Slack thread.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `authMethod` | string | No | Authentication method: oauth or bot_token |
+| `botToken` | string | No | Bot token for Custom Bot |
+| `channel` | string | Yes | Slack channel that contains the thread |
+| `thread_ts` | string | Yes | Timestamp of the root message to read |
+| `limit` | number | No | Number of thread messages to retrieve (default: 20, max: 100) |
+| `cursor` | string | No | Pagination cursor for fetching additional replies |
+| `oldest` | string | No | Start of time range (timestamp) |
+| `latest` | string | No | End of time range (timestamp) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `thread_ts` | string | Timestamp of the thread root message |
+| `messages` | array | Array of thread messages (root + replies) |
+| `has_more` | boolean | Indicates whether more replies can be fetched |
+| `next_cursor` | string | Cursor for fetching the next page of replies |
+
 ### `slack_download`
 
 Download a file from Slack

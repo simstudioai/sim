@@ -118,6 +118,32 @@ Lee los últimos mensajes de los canales de Slack. Recupera el historial de conv
 | --------- | ---- | ----------- |
 | `messages` | array | Array de objetos de mensaje del canal |
 
+### `slack_thread_reader`
+
+Lee el mensaje raíz y las respuestas de un hilo específico de Slack.
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `authMethod` | string | No | Método de autenticación: oauth o bot_token |
+| `botToken` | string | No | Token del bot para Bot personalizado |
+| `channel` | string | Sí | Canal de Slack que contiene el hilo |
+| `thread_ts` | string | Sí | Marca de tiempo del mensaje raíz que se quiere leer |
+| `limit` | number | No | Número de mensajes del hilo a recuperar (predeterminado: 20, máx: 100) |
+| `cursor` | string | No | Cursor de paginación para obtener respuestas adicionales |
+| `oldest` | string | No | Inicio del rango de tiempo (marca de tiempo) |
+| `latest` | string | No | Fin del rango de tiempo (marca de tiempo) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `thread_ts` | string | Marca de tiempo del mensaje raíz del hilo |
+| `messages` | array | Array de mensajes del hilo (raíz + respuestas) |
+| `has_more` | boolean | Indica si se pueden obtener más respuestas |
+| `next_cursor` | string | Cursor para obtener la siguiente página de respuestas |
+
 ### `slack_download`
 
 Descargar un archivo de Slack

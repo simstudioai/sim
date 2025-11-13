@@ -118,6 +118,32 @@ Lesen Sie die neuesten Nachrichten aus Slack-Kanälen. Rufen Sie den Konversatio
 | --------- | ---- | ----------- |
 | `messages` | array | Array von Nachrichtenobjekten aus dem Kanal |
 
+### `slack_thread_reader`
+
+Lesen Sie die Stammnachricht und alle Antworten aus einem bestimmten Slack-Thread.
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `authMethod` | string | Nein | Authentifizierungsmethode: oauth oder bot_token |
+| `botToken` | string | Nein | Bot-Token für benutzerdefinierten Bot |
+| `channel` | string | Ja | Slack-Kanal, der den Thread enthält |
+| `thread_ts` | string | Ja | Zeitstempel der Stammnachricht, die gelesen werden soll |
+| `limit` | number | Nein | Anzahl der Thread-Nachrichten (Standard: 20, max: 100) |
+| `cursor` | string | Nein | Paginierungs-Cursor zum Abrufen weiterer Antworten |
+| `oldest` | string | Nein | Beginn des Zeitraums (Zeitstempel) |
+| `latest` | string | Nein | Ende des Zeitraums (Zeitstempel) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `thread_ts` | string | Zeitstempel der Stammnachricht des Threads |
+| `messages` | array | Array der Thread-Nachrichten (Stamm + Antworten) |
+| `has_more` | boolean | Zeigt an, ob weitere Antworten abgerufen werden können |
+| `next_cursor` | string | Cursor zum Abrufen der nächsten Seite von Antworten |
+
 ### `slack_download`
 
 Eine Datei von Slack herunterladen
