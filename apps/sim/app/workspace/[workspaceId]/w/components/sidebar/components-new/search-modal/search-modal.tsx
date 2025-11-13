@@ -488,8 +488,8 @@ export function SearchModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogPortal>
         <DialogOverlay
-          className='bg-white/80 dark:bg-[#1b1b1b]/90'
-          style={{ backdropFilter: 'blur(4px)', zIndex: 40 }}
+          className='z-40 bg-white/80 dark:bg-[#1b1b1b]/90'
+          style={{ backdropFilter: 'blur(4px)' }}
         />
         <DialogPrimitive.Content className='fixed top-[15%] left-[50%] z-50 flex w-[500px] translate-x-[-50%] flex-col gap-[12px] p-0 focus:outline-none focus-visible:outline-none'>
           <VisuallyHidden.Root>
