@@ -362,6 +362,17 @@ export class Serializer {
     const isAdvancedMode = block.advancedMode ?? false
     const isStarterBlock = block.type === 'starter'
 
+    // Debug logging for Slack blocks
+    if (block.type === 'slack') {
+      console.log('[Serializer] Extracting params for Slack block:', {
+        blockId: block.id,
+        blockName: block.name,
+        subBlockKeys: Object.keys(block.subBlocks),
+        textSubBlock: block.subBlocks['text'],
+        textValue: block.subBlocks['text']?.value,
+      })
+    }
+
     // First collect all current values from subBlocks, filtering by mode
     Object.entries(block.subBlocks).forEach(([id, subBlock]) => {
       // Find the corresponding subblock config to check its mode
@@ -379,6 +390,15 @@ export class Serializer {
         (shouldIncludeField(subBlockConfig, isAdvancedMode) || hasStarterInputFormatValues)
       ) {
         params[id] = subBlock.value
+
+        // Debug for Slack text field
+        if (block.type === 'slack' && id === 'text') {
+          console.log('[Serializer] Including text param:', {
+            id,
+            value: subBlock.value,
+            included: true,
+          })
+        }
       }
     })
 
