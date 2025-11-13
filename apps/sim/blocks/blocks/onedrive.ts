@@ -351,19 +351,11 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
       params: (params) => {
         const { credential, folderId, fileId, mimeType, values, downloadFileName, ...rest } = params
 
-        // Handle values - could be string (from UI) or already parsed (from variable reference)
         let parsedValues
-        if (values) {
-          if (typeof values === 'string') {
-            try {
-              parsedValues = JSON.parse(values)
-            } catch (error) {
-              throw new Error('Invalid JSON format for values')
-            }
-          } else {
-            // Already an object/array from variable reference
-            parsedValues = values
-          }
+        try {
+          parsedValues = values ? JSON.parse(values as string) : undefined
+        } catch (error) {
+          throw new Error('Invalid JSON format for values')
         }
 
         return {
