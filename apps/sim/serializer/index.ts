@@ -5,6 +5,7 @@ import { getBlock } from '@/blocks'
 import type { SubBlockConfig } from '@/blocks/types'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 import type { BlockState, Loop, Parallel } from '@/stores/workflows/workflow/types'
+import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
 import { getTool } from '@/tools/utils'
 
 const logger = createLogger('Serializer')
@@ -41,12 +42,15 @@ export class Serializer {
   serializeWorkflow(
     blocks: Record<string, BlockState>,
     edges: Edge[],
-    loops: Record<string, Loop>,
+    loops?: Record<string, Loop>,
     parallels?: Record<string, Parallel>,
     validateRequired = false
   ): SerializedWorkflow {
-    const safeLoops = loops || {}
-    const safeParallels = parallels || {}
+    const canonicalLoops = generateLoopBlocks(blocks)
+    const canonicalParallels = generateParallelBlocks(blocks)
+    const safeLoops = Object.keys(canonicalLoops).length > 0 ? canonicalLoops : loops || {}
+    const safeParallels =
+      Object.keys(canonicalParallels).length > 0 ? canonicalParallels : parallels || {}
     const accessibleBlocksMap = this.computeAccessibleBlockIds(
       blocks,
       edges,
@@ -483,6 +487,52 @@ export class Serializer {
     // Check required user-only parameters for the current tool
     const missingFields: string[] = []
 
+    // Helper function to evaluate conditions
+    const evalCond = (
+      condition:
+        | {
+            field: string
+            value: any
+            not?: boolean
+            and?: { field: string; value: any; not?: boolean }
+          }
+        | (() => {
+            field: string
+            value: any
+            not?: boolean
+            and?: { field: string; value: any; not?: boolean }
+          })
+        | undefined,
+      values: Record<string, any>
+    ): boolean => {
+      if (!condition) return true
+      const actual = typeof condition === 'function' ? condition() : condition
+      const fieldValue = values[actual.field]
+
+      const valueMatch = Array.isArray(actual.value)
+        ? fieldValue != null &&
+          (actual.not ? !actual.value.includes(fieldValue) : actual.value.includes(fieldValue))
+        : actual.not
+          ? fieldValue !== actual.value
+          : fieldValue === actual.value
+
+      const andMatch = !actual.and
+        ? true
+        : (() => {
+            const andFieldValue = values[actual.and!.field]
+            return Array.isArray(actual.and!.value)
+              ? andFieldValue != null &&
+                  (actual.and!.not
+                    ? !actual.and!.value.includes(andFieldValue)
+                    : actual.and!.value.includes(andFieldValue))
+              : actual.and!.not
+                ? andFieldValue !== actual.and!.value
+                : andFieldValue === actual.and!.value
+          })()
+
+      return valueMatch && andMatch
+    }
+
     // Iterate through the tool's parameters, not the block's subBlocks
     Object.entries(currentTool.params || {}).forEach(([paramId, paramConfig]) => {
       if (paramConfig.required && paramConfig.visibility === 'user-only') {
@@ -494,58 +544,18 @@ export class Serializer {
           const isAdvancedMode = block.advancedMode ?? false
           const includedByMode = shouldIncludeField(subBlockConfig, isAdvancedMode)
 
-          const includedByCondition = (() => {
-            const evalCond = (
-              condition:
-                | {
-                    field: string
-                    value: any
-                    not?: boolean
-                    and?: { field: string; value: any; not?: boolean }
-                  }
-                | (() => {
-                    field: string
-                    value: any
-                    not?: boolean
-                    and?: { field: string; value: any; not?: boolean }
-                  })
-                | undefined,
-              values: Record<string, any>
-            ): boolean => {
-              if (!condition) return true
-              const actual = typeof condition === 'function' ? condition() : condition
-              const fieldValue = values[actual.field]
+          // Check visibility condition
+          const includedByCondition = evalCond(subBlockConfig.condition, params)
 
-              const valueMatch = Array.isArray(actual.value)
-                ? fieldValue != null &&
-                  (actual.not
-                    ? !actual.value.includes(fieldValue)
-                    : actual.value.includes(fieldValue))
-                : actual.not
-                  ? fieldValue !== actual.value
-                  : fieldValue === actual.value
-
-              const andMatch = !actual.and
-                ? true
-                : (() => {
-                    const andFieldValue = values[actual.and!.field]
-                    return Array.isArray(actual.and!.value)
-                      ? andFieldValue != null &&
-                          (actual.and!.not
-                            ? !actual.and!.value.includes(andFieldValue)
-                            : actual.and!.value.includes(andFieldValue))
-                      : actual.and!.not
-                        ? andFieldValue !== actual.and!.value
-                        : andFieldValue === actual.and!.value
-                  })()
-
-              return valueMatch && andMatch
-            }
-
-            return evalCond(subBlockConfig.condition, params)
+          // Check if field is required based on its required condition (if it's a condition object)
+          const isRequired = (() => {
+            if (!subBlockConfig.required) return false
+            if (typeof subBlockConfig.required === 'boolean') return subBlockConfig.required
+            // If required is a condition object, evaluate it
+            return evalCond(subBlockConfig.required, params)
           })()
 
-          shouldValidateParam = includedByMode && includedByCondition
+          shouldValidateParam = includedByMode && includedByCondition && isRequired
         }
 
         if (!shouldValidateParam) {

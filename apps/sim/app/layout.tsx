@@ -10,6 +10,7 @@ import { OneDollarStats } from '@/components/analytics/onedollarstats'
 import { SessionProvider } from '@/lib/session/session-context'
 import { season } from '@/app/fonts/season/season'
 import { HydrationErrorHandler } from '@/app/hydration-error-handler'
+import { QueryProvider } from '@/app/providers/query-client-provider'
 import { ThemeProvider } from '@/app/theme-provider'
 import { ZoomPrevention } from '@/app/zoom-prevention'
 
@@ -173,12 +174,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <OneDollarStats />
         <PostHogProvider>
           <ThemeProvider>
-            <SessionProvider>
-              <BrandedLayout>
-                <ZoomPrevention />
-                {children}
-              </BrandedLayout>
-            </SessionProvider>
+            <QueryProvider>
+              <SessionProvider>
+                <BrandedLayout>
+                  <ZoomPrevention />
+                  {children}
+                </BrandedLayout>
+              </SessionProvider>
+            </QueryProvider>
           </ThemeProvider>
         </PostHogProvider>
       </body>

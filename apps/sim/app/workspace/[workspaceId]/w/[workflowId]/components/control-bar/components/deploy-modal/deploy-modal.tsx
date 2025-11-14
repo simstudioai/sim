@@ -784,6 +784,7 @@ export function DeployModal({
                         getInputFormatExample={getInputFormatExample}
                         selectedStreamingOutputs={selectedStreamingOutputs}
                         onSelectedStreamingOutputsChange={setSelectedStreamingOutputs}
+                        onLoadDeploymentComplete={handleCloseModal}
                       />
                     )}
                   </div>
@@ -1062,6 +1063,7 @@ export function DeployModal({
             }
             workflowId={workflowId}
             isSelectedVersionActive={versions.find((v) => v.version === previewVersion)?.isActive}
+            onLoadDeploymentComplete={handleCloseModal}
           />
         )}
       </Dialog>

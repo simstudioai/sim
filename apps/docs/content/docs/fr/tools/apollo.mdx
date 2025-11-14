@@ -1,0 +1,574 @@
+---
+title: Apollo
+description: Recherchez, enrichissez et gérez des contacts avec Apollo.io
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="apollo"
+  color="#EBF212"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Apollo.io](https://apollo.io/) est une plateforme de premier plan en matière d'intelligence commerciale et d'engagement qui permet aux utilisateurs de trouver, d'enrichir et d'interagir avec des contacts et des entreprises à grande échelle. Apollo.io combine une vaste base de données de contacts avec des outils robustes d'enrichissement et d'automatisation des flux de travail, aidant les équipes de vente, de marketing et de recrutement à accélérer leur croissance.
+
+Avec Apollo.io, vous pouvez :
+
+- **Rechercher des millions de contacts et d'entreprises** : Trouvez des prospects précis à l'aide de filtres avancés
+- **Enrichir les prospects et les comptes** : Complétez les informations manquantes avec des données vérifiées et des informations à jour
+- **Gérer et organiser les enregistrements CRM** : Gardez vos données sur les personnes et les entreprises précises et exploitables
+- **Automatiser la prospection** : Ajoutez des contacts à des séquences et créez des tâches de suivi directement depuis Apollo.io
+
+Dans Sim, l'intégration Apollo.io permet à vos agents d'effectuer les opérations essentielles d'Apollo de manière programmatique :
+
+- **Rechercher des personnes et des entreprises** : Utilisez `apollo_people_search` pour découvrir de nouveaux prospects à l'aide de filtres flexibles.
+- **Enrichir les données des personnes** : Utilisez `apollo_people_enrich` pour augmenter les contacts avec des informations vérifiées.
+- **Enrichir des personnes en masse** : Utilisez `apollo_people_bulk_enrich` pour l'enrichissement à grande échelle de plusieurs contacts à la fois.
+- **Rechercher et enrichir des entreprises** : Utilisez `apollo_company_search` et `apollo_company_enrich` pour découvrir et mettre à jour des informations clés sur les entreprises.
+
+Cela permet à vos agents de créer des flux de travail puissants pour la prospection, l'enrichissement CRM et l'automatisation sans saisie manuelle de données ou changement d'onglets. Intégrez Apollo.io comme source dynamique de données et moteur CRM — permettant à vos agents d'identifier, de qualifier et de contacter des prospects de manière transparente dans le cadre de leurs opérations quotidiennes.
+{/* MANUAL-CONTENT-END */}
+
+## Instructions d'utilisation
+
+Intègre Apollo.io dans le flux de travail. Recherchez des personnes et des entreprises, enrichissez les données de contact, gérez vos contacts et comptes CRM, ajoutez des contacts aux séquences et créez des tâches.
+
+## Outils
+
+### `apollo_people_search`
+
+Rechercher dans Apollo
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `apiKey` | string | Oui | Clé API Apollo |
+| `person_titles` | array | Non | Titres de poste à rechercher \(ex., \["CEO", "VP of Sales"\]\) |
+| `person_locations` | array | Non | Lieux à rechercher \(ex., \["San Francisco, CA", "New York, NY"\]\) |
+| `person_seniorities` | array | Non | Niveaux d'ancienneté \(ex., \["senior", "executive", "manager"\]\) |
+| `organization_names` | array | Non | Noms d'entreprises à rechercher |
+| `q_keywords` | string | Non | Mots-clés à rechercher |
+| `page` | number | Non | Numéro de page pour la pagination \(par défaut : 1\) |
+| `per_page` | number | Non | Résultats par page \(par défaut : 25, max : 100\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `people` | json | Tableau de personnes correspondant aux critères de recherche |
+| `metadata` | json | Informations de pagination incluant page, par_page et total_entrées |
+
+### `apollo_people_enrich`
+
+Enrichir les données d'une personne en utilisant Apollo
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `apiKey` | string | Oui | Clé API Apollo |
+| `first_name` | string | Non | Prénom de la personne |
+| `last_name` | string | Non | Nom de famille de la personne |
+| `email` | string | Non | Adresse e-mail de la personne |
+| `organization_name` | string | Non | Nom de l'entreprise où travaille la personne |
+| `domain` | string | Non | Domaine de l'entreprise \(ex., apollo.io\) |
+| `linkedin_url` | string | Non | URL du profil LinkedIn |
+| `reveal_personal_emails` | boolean | Non | Révéler les adresses e-mail personnelles \(utilise des crédits\) |
+| `reveal_phone_number` | boolean | Non | Révéler les numéros de téléphone \(utilise des crédits\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `person` | json | Données de personne enrichies depuis Apollo |
+| `metadata` | json | Métadonnées d'enrichissement incluant le statut d'enrichissement |
+
+### `apollo_people_bulk_enrich`
+
+Enrichir les données pour jusqu'à 10 personnes à la fois en utilisant Apollo
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Oui | Clé API Apollo |
+| `people` | array | Oui | Tableau de personnes à enrichir \(max 10\) |
+| `reveal_personal_emails` | boolean | Non | Révéler les adresses e-mail personnelles \(utilise des crédits\) |
+| `reveal_phone_number` | boolean | Non | Révéler les numéros de téléphone \(utilise des crédits\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `people` | json | Tableau de données de personnes enrichies |
+| `metadata` | json | Métadonnées d'enrichissement en masse incluant les comptages totaux et enrichis |
+
+### `apollo_organization_search`
+
+Rechercher dans Apollo
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Oui | Clé API Apollo |
+| `organization_locations` | array | Non | Emplacements d'entreprise à rechercher |
+| `organization_num_employees_ranges` | array | Non | Fourchettes de nombre d'employés \(ex. \["1-10", "11-50"\]\) |
+| `q_organization_keyword_tags` | array | Non | Tags d'industrie ou mots-clés |
+| `q_organization_name` | string | Non | Nom de l'organisation à rechercher |
+| `page` | number | Non | Numéro de page pour la pagination |
+| `per_page` | number | Non | Résultats par page \(max : 100\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `organizations` | json | Tableau des organisations correspondant aux critères de recherche |
+| `metadata` | json | Informations de pagination incluant page, par_page et total_entrées |
+
+### `apollo_organization_enrich`
+
+Enrichir les données pour une seule organisation en utilisant Apollo
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Oui | Clé API Apollo |
+| `organization_name` | string | Non | Nom de l'organisation \(au moins un des paramètres nom_organisation ou domaine est requis\) |
+| `domain` | string | Non | Domaine de l'entreprise \(par exemple, apollo.io\) \(au moins un des paramètres domaine ou nom_organisation est requis\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `organization` | json | Données d'organisation enrichies depuis Apollo |
+| `metadata` | json | Métadonnées d'enrichissement incluant le statut d'enrichissement |
+
+### `apollo_organization_bulk_enrich`
+
+Enrichir les données pour jusqu'à 10 organisations à la fois en utilisant Apollo
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Oui | Clé API Apollo |
+| `organizations` | array | Oui | Tableau des organisations à enrichir \(max 10\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `organizations` | json | Tableau des données d'organisation enrichies |
+| `metadata` | json | Métadonnées d'enrichissement en masse incluant les comptages totaux et enrichis |
+
+### `apollo_contact_create`
+
+Créer un nouveau contact dans votre base de données Apollo
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Oui | Clé API Apollo |
+| `first_name` | string | Oui | Prénom du contact |
+| `last_name` | string | Oui | Nom de famille du contact |
+| `email` | string | Non | Adresse e-mail du contact |
+| `title` | string | Non | Titre du poste |
+| `account_id` | string | Non | ID de compte Apollo à associer |
+| `owner_id` | string | Non | ID utilisateur du propriétaire du contact |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `contact` | json | Données du contact créé dans Apollo |
+| `metadata` | json | Métadonnées de création incluant le statut de création |
+
+### `apollo_contact_update`
+
+Mettre à jour un contact existant dans votre base de données Apollo
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Oui | Clé API Apollo |
+| `contact_id` | string | Oui | ID du contact à mettre à jour |
+| `first_name` | string | Non | Prénom du contact |
+| `last_name` | string | Non | Nom de famille du contact |
+| `email` | string | Non | Adresse e-mail |
+| `title` | string | Non | Titre du poste |
+| `account_id` | string | Non | ID de compte Apollo |
+| `owner_id` | string | Non | ID utilisateur du propriétaire du contact |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `contact` | json | Données de contact mises à jour depuis Apollo |
+| `metadata` | json | Métadonnées de mise à jour incluant le statut mis à jour |
+
+### `apollo_contact_search`
+
+Rechercher votre équipe
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Oui | Clé API Apollo |
+| `q_keywords` | string | Non | Mots-clés à rechercher |
+| `contact_stage_ids` | array | Non | Filtrer par IDs d'étape de contact |
+| `page` | number | Non | Numéro de page pour la pagination |
+| `per_page` | number | Non | Résultats par page \(max : 100\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `contacts` | json | Tableau de contacts correspondant aux critères de recherche |
+| `metadata` | json | Informations de pagination incluant page, per_page et total_entries |
+
+### `apollo_contact_bulk_create`
+
+Créez jusqu'à 100 contacts à la fois dans votre base de données Apollo. Prend en charge la déduplication pour éviter de créer des contacts en double. Clé principale requise.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Oui | Clé API Apollo \(clé principale requise\) |
+| `contacts` | array | Oui | Tableau de contacts à créer \(max 100\). Chaque contact doit inclure first_name, last_name, et optionnellement email, title, account_id, owner_id |
+| `run_dedupe` | boolean | Non | Activer la déduplication pour éviter de créer des contacts en double. Lorsque défini sur true, les contacts existants sont renvoyés sans modification |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `created_contacts` | json | Tableau des contacts nouvellement créés |
+| `existing_contacts` | json | Tableau des contacts existants \(lorsque la déduplication est activée\) |
+| `metadata` | json | Métadonnées de création en masse incluant le nombre de contacts créés et existants |
+
+### `apollo_contact_bulk_update`
+
+Mettez à jour jusqu'à 100 contacts existants à la fois dans votre base de données Apollo. Chaque contact doit inclure un champ id. Clé principale requise.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Oui | Clé API Apollo \(clé principale requise\) |
+| `contacts` | array | Oui | Tableau de contacts à mettre à jour \(max 100\). Chaque contact doit inclure le champ id, et optionnellement first_name, last_name, email, title, account_id, owner_id |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `updated_contacts` | json | Tableau des contacts mis à jour avec succès |
+| `failed_contacts` | json | Tableau des contacts dont la mise à jour a échoué |
+| `metadata` | json | Métadonnées de mise à jour en masse incluant le nombre de contacts mis à jour et en échec |
+
+### `apollo_account_create`
+
+Créer un nouveau compte (entreprise) dans votre base de données Apollo
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Oui | Clé API Apollo |
+| `name` | string | Oui | Nom de l'entreprise |
+| `website_url` | string | Non | URL du site web de l'entreprise |
+| `phone` | string | Non | Numéro de téléphone de l'entreprise |
+| `owner_id` | string | Non | ID utilisateur du propriétaire du compte |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `account` | json | Données du compte créé depuis Apollo |
+| `metadata` | json | Métadonnées de création incluant le statut de création |
+
+### `apollo_account_update`
+
+Mettre à jour un compte existant dans votre base de données Apollo
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Oui | Clé API Apollo |
+| `account_id` | string | Oui | ID du compte à mettre à jour |
+| `name` | string | Non | Nom de l'entreprise |
+| `website_url` | string | Non | URL du site web de l'entreprise |
+| `phone` | string | Non | Numéro de téléphone de l'entreprise |
+| `owner_id` | string | Non | ID utilisateur du propriétaire du compte |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `account` | json | Données du compte mis à jour depuis Apollo |
+| `metadata` | json | Métadonnées de mise à jour incluant le statut de mise à jour |
+
+### `apollo_account_search`
+
+Rechercher dans votre équipe
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Oui | Clé API Apollo \(clé principale requise\) |
+| `q_keywords` | string | Non | Mots-clés à rechercher dans les données du compte |
+| `owner_id` | string | Non | Filtrer par ID utilisateur du propriétaire du compte |
+| `account_stage_ids` | array | Non | Filtrer par IDs d'étape de compte |
+| `page` | number | Non | Numéro de page pour la pagination |
+| `per_page` | number | Non | Résultats par page \(max : 100\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `accounts` | json | Tableau des comptes correspondant aux critères de recherche |
+| `metadata` | json | Informations de pagination incluant page, par_page et total_entrées |
+
+### `apollo_account_bulk_create`
+
+Créez jusqu'à 100 comptes à la fois dans votre base de données Apollo. Remarque : Apollo n'applique pas de déduplication - des comptes en double peuvent être créés si les entrées partagent des noms ou domaines similaires. Clé principale requise.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Oui | Clé API Apollo \(clé principale requise\) |
+| `accounts` | array | Oui | Tableau des comptes à créer \(max 100\). Chaque compte doit inclure un nom \(obligatoire\), et éventuellement website_url, téléphone, owner_id |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `created_accounts` | json | Tableau des comptes nouvellement créés |
+| `failed_accounts` | json | Tableau des comptes dont la création a échoué |
+| `metadata` | json | Métadonnées de création en masse incluant le nombre de comptes créés et échoués |
+
+### `apollo_account_bulk_update`
+
+Mettez à jour jusqu'à 1000 comptes existants à la fois dans votre base de données Apollo (limite plus élevée que pour les contacts !). Chaque compte doit inclure un champ id. Clé principale requise.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Oui | Clé API Apollo \(clé principale requise\) |
+| `accounts` | array | Oui | Tableau des comptes à mettre à jour \(max 1000\). Chaque compte doit inclure un champ id, et éventuellement name, website_url, phone, owner_id |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `updated_accounts` | json | Tableau des comptes mis à jour avec succès |
+| `failed_accounts` | json | Tableau des comptes dont la mise à jour a échoué |
+| `metadata` | json | Métadonnées de mise à jour en masse incluant le nombre de comptes mis à jour et échoués |
+
+### `apollo_opportunity_create`
+
+Créer une nouvelle opportunité pour un compte dans votre base de données Apollo (clé principale requise)
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `apiKey` | string | Oui | Clé API Apollo \(clé principale requise\) |
+| `name` | string | Oui | Nom de l'opportunité/affaire |
+| `account_id` | string | Oui | ID du compte auquel cette opportunité appartient |
+| `amount` | number | Non | Valeur monétaire de l'opportunité |
+| `stage_id` | string | Non | ID de l'étape de l'affaire |
+| `owner_id` | string | Non | ID utilisateur du propriétaire de l'opportunité |
+| `close_date` | string | Non | Date de clôture prévue \(format ISO 8601\) |
+| `description` | string | Non | Description ou notes concernant l'opportunité |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `opportunity` | json | Données de l'opportunité créée depuis Apollo |
+| `metadata` | json | Métadonnées de création incluant le statut de création |
+
+### `apollo_opportunity_search`
+
+Rechercher et lister toutes les affaires/opportunités dans votre équipe
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `apiKey` | string | Oui | Clé API Apollo |
+| `q_keywords` | string | Non | Mots-clés à rechercher dans les noms d'opportunités |
+| `account_ids` | array | Non | Filtrer par identifiants de compte spécifiques |
+| `stage_ids` | array | Non | Filtrer par identifiants d'étape de transaction |
+| `owner_ids` | array | Non | Filtrer par identifiants de propriétaires d'opportunités |
+| `page` | number | Non | Numéro de page pour la pagination |
+| `per_page` | number | Non | Résultats par page \(max : 100\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `opportunities` | json | Tableau d'opportunités correspondant aux critères de recherche |
+| `metadata` | json | Informations de pagination incluant page, par_page et total_entrées |
+
+### `apollo_opportunity_get`
+
+Récupérer les détails complets d'une transaction/opportunité spécifique par ID
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `apiKey` | string | Oui | Clé API Apollo |
+| `opportunity_id` | string | Oui | ID de l'opportunité à récupérer |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `opportunity` | json | Données complètes de l'opportunité depuis Apollo |
+| `metadata` | json | Métadonnées de récupération incluant le statut trouvé |
+
+### `apollo_opportunity_update`
+
+Mettre à jour une transaction/opportunité existante dans votre base de données Apollo
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `apiKey` | string | Oui | Clé API Apollo |
+| `opportunity_id` | string | Oui | ID de l'opportunité à mettre à jour |
+| `name` | string | Non | Nom de l'opportunité/affaire |
+| `amount` | number | Non | Valeur monétaire de l'opportunité |
+| `stage_id` | string | Non | ID de l'étape de l'affaire |
+| `owner_id` | string | Non | ID utilisateur du propriétaire de l'opportunité |
+| `close_date` | string | Non | Date de clôture prévue (format ISO 8601) |
+| `description` | string | Non | Description ou notes concernant l'opportunité |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `opportunity` | json | Données d'opportunité mises à jour depuis Apollo |
+| `metadata` | json | Métadonnées de mise à jour incluant le statut de mise à jour |
+
+### `apollo_sequence_search`
+
+Rechercher des séquences/campagnes dans votre équipe
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `apiKey` | string | Oui | Clé API Apollo (clé principale requise) |
+| `q_name` | string | Non | Rechercher des séquences par nom |
+| `active` | boolean | Non | Filtrer par statut actif (true pour les séquences actives, false pour les inactives) |
+| `page` | number | Non | Numéro de page pour la pagination |
+| `per_page` | number | Non | Résultats par page (max : 100) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `sequences` | json | Tableau de séquences/campagnes correspondant aux critères de recherche |
+| `metadata` | json | Informations de pagination incluant page, par_page et total_entrées |
+
+### `apollo_sequence_add_contacts`
+
+Ajouter des contacts à une séquence Apollo
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Oui | Clé API Apollo (clé principale requise) |
+| `sequence_id` | string | Oui | ID de la séquence à laquelle ajouter des contacts |
+| `contact_ids` | array | Oui | Tableau d'ID de contacts à ajouter à la séquence |
+| `emailer_campaign_id` | string | Non | ID de campagne d'e-mailing optionnel |
+| `send_email_from_user_id` | string | Non | ID utilisateur pour l'envoi des e-mails |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `contacts_added` | json | Tableau d'ID de contacts ajoutés à la séquence |
+| `metadata` | json | Métadonnées de séquence incluant sequence_id et nombre total_added |
+
+### `apollo_task_create`
+
+Créer une nouvelle tâche dans Apollo
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Oui | Clé API Apollo (clé principale requise) |
+| `note` | string | Oui | Note/description de la tâche |
+| `contact_id` | string | Non | ID du contact à associer |
+| `account_id` | string | Non | ID du compte à associer |
+| `due_at` | string | Non | Date d'échéance au format ISO |
+| `priority` | string | Non | Priorité de la tâche |
+| `type` | string | Non | Type de tâche |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `task` | json | Données de tâche créées depuis Apollo |
+| `metadata` | json | Métadonnées de création incluant le statut de création |
+
+### `apollo_task_search`
+
+Rechercher des tâches dans Apollo
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Oui | Clé API Apollo (clé principale requise) |
+| `contact_id` | string | Non | Filtrer par ID de contact |
+| `account_id` | string | Non | Filtrer par ID de compte |
+| `completed` | boolean | Non | Filtrer par statut d'achèvement |
+| `page` | number | Non | Numéro de page pour la pagination |
+| `per_page` | number | Non | Résultats par page (max : 100) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `tasks` | json | Tableau des tâches correspondant aux critères de recherche |
+| `metadata` | json | Informations de pagination incluant page, par_page et total_entrées |
+
+### `apollo_email_accounts`
+
+Obtenir la liste de l'équipe
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Oui | Clé API Apollo (clé principale requise) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `email_accounts` | json | Tableau des comptes email d'équipe liés dans Apollo |
+| `metadata` | json | Métadonnées incluant le nombre total de comptes email |
+
+## Notes
+
+- Catégorie : `tools`
+- Type : `apollo`

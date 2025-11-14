@@ -67,12 +67,61 @@ interface SubBlockProps {
 }
 
 /**
- * Returns whether the field is required for validation. Intentionally unused.
+ * Returns whether the field is required for validation.
+ * Evaluates conditional requirements based on current field values.
  * @param config - The sub-block configuration
+ * @param subBlockValues - Current values of all subblocks
  * @returns True if the field is required
  */
-const isFieldRequired = (config: SubBlockConfig): boolean => {
-  return config.required === true
+const isFieldRequired = (config: SubBlockConfig, subBlockValues?: Record<string, any>): boolean => {
+  if (!config.required) return false
+  if (typeof config.required === 'boolean') return config.required
+
+  // Helper function to evaluate a condition
+  const evalCond = (
+    cond: {
+      field: string
+      value: string | number | boolean | Array<string | number | boolean>
+      not?: boolean
+      and?: {
+        field: string
+        value: string | number | boolean | Array<string | number | boolean> | undefined
+        not?: boolean
+      }
+    },
+    values: Record<string, any>
+  ): boolean => {
+    const fieldValue = values[cond.field]?.value
+    const condValue = cond.value
+
+    let match: boolean
+    if (Array.isArray(condValue)) {
+      match = condValue.includes(fieldValue)
+    } else {
+      match = fieldValue === condValue
+    }
+
+    if (cond.not) match = !match
+
+    if (cond.and) {
+      const andFieldValue = values[cond.and.field]?.value
+      const andCondValue = cond.and.value
+      let andMatch: boolean
+      if (Array.isArray(andCondValue)) {
+        andMatch = andCondValue.includes(andFieldValue)
+      } else {
+        andMatch = andFieldValue === andCondValue
+      }
+      if (cond.and.not) andMatch = !andMatch
+      match = match && andMatch
+    }
+
+    return match
+  }
+
+  // If required is a condition object or function, evaluate it
+  const condition = typeof config.required === 'function' ? config.required() : config.required
+  return evalCond(condition, subBlockValues || {})
 }
 
 /**
@@ -96,6 +145,7 @@ const getPreviewValue = (
  * @param config - The sub-block configuration
  * @param isValidJson - Whether the JSON is valid
  * @param wandState - Wand interaction state
+ * @param subBlockValues - Current values of all subblocks for evaluating conditional requirements
  * @returns The label JSX element or null if no title or for switch types
  */
 const renderLabel = (
@@ -113,7 +163,8 @@ const renderLabel = (
     onSearchSubmit: () => void
     onSearchCancel: () => void
     searchInputRef: React.RefObject<HTMLInputElement | null>
-  }
+  },
+  subBlockValues?: Record<string, any>
 ): JSX.Element | null => {
   if (config.type === 'switch') return null
   if (!config.title) return null
@@ -132,10 +183,13 @@ const renderLabel = (
     searchInputRef,
   } = wandState
 
+  const required = isFieldRequired(config, subBlockValues)
+
   return (
     <Label className='flex items-center justify-between gap-[6px] pl-[2px]'>
       <div className='flex items-center gap-[6px] whitespace-nowrap'>
         {config.title}
+        {required && <span className='ml-0.5'>*</span>}
         {config.id === 'responseFormat' && (
           <Tooltip.Root>
             <Tooltip.Trigger asChild>
@@ -769,19 +823,24 @@ function SubBlockComponent({
 
   return (
     <div onMouseDown={handleMouseDown} className='flex flex-col gap-[10px]'>
-      {renderLabel(config, isValidJson, {
-        isSearchActive,
-        searchQuery,
-        isWandEnabled,
-        isPreview,
-        isStreaming: wandControlRef.current?.isWandStreaming ?? false,
-        onSearchClick: handleSearchClick,
-        onSearchBlur: handleSearchBlur,
-        onSearchChange: handleSearchChange,
-        onSearchSubmit: handleSearchSubmit,
-        onSearchCancel: handleSearchCancel,
-        searchInputRef,
-      })}
+      {renderLabel(
+        config,
+        isValidJson,
+        {
+          isSearchActive,
+          searchQuery,
+          isWandEnabled,
+          isPreview,
+          isStreaming: wandControlRef.current?.isWandStreaming ?? false,
+          onSearchClick: handleSearchClick,
+          onSearchBlur: handleSearchBlur,
+          onSearchChange: handleSearchChange,
+          onSearchSubmit: handleSearchSubmit,
+          onSearchCancel: handleSearchCancel,
+          searchInputRef,
+        },
+        subBlockValues
+      )}
       {renderInput()}
     </div>
   )

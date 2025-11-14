@@ -17,23 +17,20 @@ import { Input, Label, Skeleton, Switch } from '@/components/ui'
 import { useSession } from '@/lib/auth-client'
 import { createLogger } from '@/lib/logs/console/logger'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
+import {
+  type ApiKey,
+  useApiKeys,
+  useCreateApiKey,
+  useDeleteApiKey,
+  useUpdateWorkspaceApiKeySettings,
+} from '@/hooks/queries/api-keys'
+import { useWorkspaceSettings } from '@/hooks/queries/workspace'
 
 const logger = createLogger('ApiKeys')
 
 interface ApiKeysProps {
   onOpenChange?: (open: boolean) => void
   registerCloseHandler?: (handler: (open: boolean) => void) => void
-}
-
-interface ApiKey {
-  id: string
-  name: string
-  key: string
-  displayKey?: string
-  lastUsed?: string
-  createdAt: string
-  expiresAt?: string
-  createdBy?: string
 }
 
 interface ApiKeyDisplayProps {
@@ -57,13 +54,29 @@ export function ApiKeys({ onOpenChange, registerCloseHandler }: ApiKeysProps) {
   const userPermissions = useUserPermissionsContext()
   const canManageWorkspaceKeys = userPermissions.canAdmin
 
-  // State for both workspace and personal keys
-  const [workspaceKeys, setWorkspaceKeys] = useState<ApiKey[]>([])
-  const [personalKeys, setPersonalKeys] = useState<ApiKey[]>([])
-  const [conflicts, setConflicts] = useState<string[]>([])
-  const [isLoading, setIsLoading] = useState(true)
+  // React Query hooks
+  const {
+    data: apiKeysData,
+    isLoading: isLoadingKeys,
+    refetch: refetchApiKeys,
+  } = useApiKeys(workspaceId)
+  const { data: workspaceSettingsData, isLoading: isLoadingSettings } =
+    useWorkspaceSettings(workspaceId)
+  const createApiKeyMutation = useCreateApiKey()
+  const deleteApiKeyMutation = useDeleteApiKey()
+  const updateSettingsMutation = useUpdateWorkspaceApiKeySettings()
+
+  // Extract data from queries
+  const workspaceKeys = apiKeysData?.workspaceKeys || []
+  const personalKeys = apiKeysData?.personalKeys || []
+  const conflicts = apiKeysData?.conflicts || []
+  const isLoading = isLoadingKeys || isLoadingSettings
+
+  const allowPersonalApiKeys =
+    workspaceSettingsData?.settings?.workspace?.allowPersonalApiKeys ?? true
+
+  // Local UI state
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
-  const [isSubmittingCreate, setIsSubmittingCreate] = useState(false)
   const [newKeyName, setNewKeyName] = useState('')
   const [newKey, setNewKey] = useState<ApiKey | null>(null)
   const [showNewKeyDialog, setShowNewKeyDialog] = useState(false)
@@ -76,17 +89,8 @@ export function ApiKeys({ onOpenChange, registerCloseHandler }: ApiKeysProps) {
   const [shouldScrollToBottom, setShouldScrollToBottom] = useState(false)
   const [createError, setCreateError] = useState<string | null>(null)
 
-  const [billedAccountUserId, setBilledAccountUserId] = useState<string | null>(null)
-  const [allowPersonalApiKeys, setAllowPersonalApiKeys] = useState<boolean>(true)
-  const [workspaceAdmins, setWorkspaceAdmins] = useState<
-    Array<{ userId: string; name: string; email: string; permissionType: string }>
-  >([])
-  const [workspaceSettingsLoading, setWorkspaceSettingsLoading] = useState<boolean>(true)
-  const [workspaceSettingsUpdating, setWorkspaceSettingsUpdating] = useState<boolean>(false)
-
   const defaultKeyType = allowPersonalApiKeys ? 'personal' : 'workspace'
-  const createButtonDisabled =
-    workspaceSettingsLoading || (!allowPersonalApiKeys && !canManageWorkspaceKeys)
+  const createButtonDisabled = isLoading || (!allowPersonalApiKeys && !canManageWorkspaceKeys)
 
   const scrollContainerRef = useRef<HTMLDivElement>(null)
 
@@ -113,118 +117,6 @@ export function ApiKeys({ onOpenChange, registerCloseHandler }: ApiKeysProps) {
     return filteredWorkspaceKeys.length > 0 ? 'mt-8' : 'mt-0'
   }, [searchTerm, filteredWorkspaceKeys])
 
-  const fetchApiKeys = async () => {
-    if (!userId || !workspaceId) return
-
-    setIsLoading(true)
-    try {
-      const [workspaceResponse, personalResponse] = await Promise.all([
-        fetch(`/api/workspaces/${workspaceId}/api-keys`),
-        fetch('/api/users/me/api-keys'),
-      ])
-
-      let workspaceKeys: ApiKey[] = []
-      let personalKeys: ApiKey[] = []
-
-      if (workspaceResponse.ok) {
-        const workspaceData = await workspaceResponse.json()
-        workspaceKeys = workspaceData.keys || []
-      } else {
-        logger.error('Failed to fetch workspace API keys:', { status: workspaceResponse.status })
-      }
-
-      if (personalResponse.ok) {
-        const personalData = await personalResponse.json()
-        personalKeys = personalData.keys || []
-      } else {
-        logger.error('Failed to fetch personal API keys:', { status: personalResponse.status })
-      }
-
-      // Client-side conflict detection
-      const workspaceKeyNames = new Set(workspaceKeys.map((k) => k.name))
-      const conflicts = personalKeys
-        .filter((key) => workspaceKeyNames.has(key.name))
-        .map((key) => key.name)
-
-      setWorkspaceKeys(workspaceKeys)
-      setPersonalKeys(personalKeys)
-      setConflicts(conflicts)
-    } catch (error) {
-      logger.error('Error fetching API keys:', { error })
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-  const fetchWorkspaceSettings = async () => {
-    if (!workspaceId) return
-
-    setWorkspaceSettingsLoading(true)
-    try {
-      const [workspaceResponse, permissionsResponse] = await Promise.all([
-        fetch(`/api/workspaces/${workspaceId}`),
-        fetch(`/api/workspaces/${workspaceId}/permissions`),
-      ])
-
-      if (workspaceResponse.ok) {
-        const data = await workspaceResponse.json()
-        const workspaceData = data.workspace ?? {}
-        setBilledAccountUserId(workspaceData.billedAccountUserId ?? null)
-        setAllowPersonalApiKeys(
-          workspaceData.allowPersonalApiKeys === undefined
-            ? true
-            : Boolean(workspaceData.allowPersonalApiKeys)
-        )
-      } else {
-        logger.error('Failed to fetch workspace details', { status: workspaceResponse.status })
-      }
-
-      if (permissionsResponse.ok) {
-        const data = await permissionsResponse.json()
-        const users = Array.isArray(data.users) ? data.users : []
-        const admins = users.filter((user: any) => user.permissionType === 'admin')
-        setWorkspaceAdmins(admins)
-      } else {
-        logger.error('Failed to fetch workspace permissions', {
-          status: permissionsResponse.status,
-        })
-      }
-    } catch (error) {
-      logger.error('Error fetching workspace settings:', { error })
-    } finally {
-      setWorkspaceSettingsLoading(false)
-    }
-  }
-
-  const updateWorkspaceSettings = async (updates: {
-    billedAccountUserId?: string
-    allowPersonalApiKeys?: boolean
-  }) => {
-    if (!workspaceId) return
-    setWorkspaceSettingsUpdating(true)
-    try {
-      const response = await fetch(`/api/workspaces/${workspaceId}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(updates),
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.error || 'Failed to update workspace settings')
-      }
-
-      await fetchWorkspaceSettings()
-    } catch (error) {
-      logger.error('Error updating workspace settings:', { error })
-      throw error
-    } finally {
-      setWorkspaceSettingsUpdating(false)
-    }
-  }
-
   const handleCreateKey = async () => {
     if (!userId || !newKeyName.trim()) return
 
@@ -242,63 +134,28 @@ export function ApiKeys({ onOpenChange, registerCloseHandler }: ApiKeysProps) {
       return
     }
 
-    setIsSubmittingCreate(true)
     setCreateError(null)
     try {
-      const url =
-        keyType === 'workspace'
-          ? `/api/workspaces/${workspaceId}/api-keys`
-          : '/api/users/me/api-keys'
-
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          name: newKeyName.trim(),
-        }),
+      const data = await createApiKeyMutation.mutateAsync({
+        workspaceId,
+        name: trimmedName,
+        keyType,
       })
 
-      if (response.ok) {
-        const data = await response.json()
-        setNewKey(data.key)
-        setShowNewKeyDialog(true)
-        fetchApiKeys()
-        setNewKeyName('')
-        setKeyType('personal')
-        setCreateError(null)
-        setIsSubmittingCreate(false)
-        setIsCreateDialogOpen(false)
+      setNewKey(data.key)
+      setShowNewKeyDialog(true)
+      setNewKeyName('')
+      setKeyType('personal')
+      setCreateError(null)
+      setIsCreateDialogOpen(false)
+    } catch (error: any) {
+      logger.error('API key creation failed:', { error })
+      const errorMessage = error.message || 'Failed to create API key. Please try again.'
+      if (errorMessage.toLowerCase().includes('already exists')) {
+        setCreateError(errorMessage)
       } else {
-        let errorData
-        try {
-          errorData = await response.json()
-        } catch (parseError) {
-          logger.error('Error parsing API response:', parseError)
-          errorData = { error: 'Server error' }
-        }
-
-        logger.error('API key creation failed:', { status: response.status, errorData })
-
-        const serverMessage = typeof errorData?.error === 'string' ? errorData.error : null
-        if (response.status === 409 || serverMessage?.toLowerCase().includes('already exists')) {
-          const errorMessage =
-            serverMessage ||
-            (keyType === 'workspace'
-              ? `A workspace API key named "${trimmedName}" already exists. Please choose a different name.`
-              : `A personal API key named "${trimmedName}" already exists. Please choose a different name.`)
-          logger.error('Setting error message:', errorMessage)
-          setCreateError(errorMessage)
-        } else {
-          setCreateError(errorData.error || 'Failed to create API key. Please try again.')
-        }
+        setCreateError('Failed to create API key. Please check your connection and try again.')
       }
-    } catch (error) {
-      setCreateError('Failed to create API key. Please check your connection and try again.')
-      logger.error('Error creating API key:', { error })
-    } finally {
-      setIsSubmittingCreate(false)
     }
   }
 
@@ -307,33 +164,21 @@ export function ApiKeys({ onOpenChange, registerCloseHandler }: ApiKeysProps) {
 
     try {
       const isWorkspaceKey = workspaceKeys.some((k) => k.id === deleteKey.id)
-      const url = isWorkspaceKey
-        ? `/api/workspaces/${workspaceId}/api-keys/${deleteKey.id}`
-        : `/api/users/me/api-keys/${deleteKey.id}`
-
-      if (isWorkspaceKey) {
-        setWorkspaceKeys((prev) => prev.filter((k) => k.id !== deleteKey.id))
-      } else {
-        setPersonalKeys((prev) => prev.filter((k) => k.id !== deleteKey.id))
-        setConflicts((prev) => prev.filter((name) => name !== deleteKey.name))
-      }
+      const keyTypeToDelete = isWorkspaceKey ? 'workspace' : 'personal'
 
       setShowDeleteDialog(false)
       setDeleteKey(null)
       setDeleteConfirmationName('')
 
-      const response = await fetch(url, {
-        method: 'DELETE',
+      await deleteApiKeyMutation.mutateAsync({
+        workspaceId,
+        keyId: deleteKey.id,
+        keyType: keyTypeToDelete,
       })
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        logger.error('Failed to delete API key:', errorData)
-        fetchApiKeys()
-      }
     } catch (error) {
       logger.error('Error deleting API key:', { error })
-      fetchApiKeys()
+      // Refetch to restore correct state in case of error
+      refetchApiKeys()
     }
   }
 
@@ -348,29 +193,16 @@ export function ApiKeys({ onOpenChange, registerCloseHandler }: ApiKeysProps) {
   }
 
   useEffect(() => {
-    if (userId && workspaceId) {
-      fetchApiKeys()
-    }
-  }, [userId, workspaceId])
-
-  useEffect(() => {
     if (registerCloseHandler) {
       registerCloseHandler(handleModalClose)
     }
   }, [registerCloseHandler])
 
   useEffect(() => {
-    if (workspaceId) {
-      fetchWorkspaceSettings()
-    }
-  }, [workspaceId])
-
-  useEffect(() => {
     if (!allowPersonalApiKeys && keyType === 'personal') {
       setKeyType('workspace')
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allowPersonalApiKeys])
+  }, [allowPersonalApiKeys, keyType])
 
   useEffect(() => {
     if (shouldScrollToBottom && scrollContainerRef.current) {
@@ -449,19 +281,20 @@ export function ApiKeys({ onOpenChange, registerCloseHandler }: ApiKeysProps) {
                         </Tooltip.Content>
                       </Tooltip.Root>
                     </div>
-                    {workspaceSettingsLoading ? (
+                    {isLoadingSettings ? (
                       <Skeleton className='h-5 w-16 rounded-full' />
                     ) : (
                       <Switch
                         checked={allowPersonalApiKeys}
-                        disabled={!canManageWorkspaceKeys || workspaceSettingsUpdating}
+                        disabled={!canManageWorkspaceKeys || updateSettingsMutation.isPending}
                         onCheckedChange={async (checked) => {
-                          const previous = allowPersonalApiKeys
-                          setAllowPersonalApiKeys(checked)
                           try {
-                            await updateWorkspaceSettings({ allowPersonalApiKeys: checked })
+                            await updateSettingsMutation.mutateAsync({
+                              workspaceId,
+                              allowPersonalApiKeys: checked,
+                            })
                           } catch (error) {
-                            setAllowPersonalApiKeys(previous)
+                            logger.error('Error updating workspace settings:', { error })
                           }
                         }}
                       />
@@ -706,7 +539,7 @@ export function ApiKeys({ onOpenChange, registerCloseHandler }: ApiKeysProps) {
               className='h-9 w-full rounded-[8px] disabled:cursor-not-allowed disabled:opacity-50'
               disabled={
                 !newKeyName.trim() ||
-                isSubmittingCreate ||
+                createApiKeyMutation.isPending ||
                 (keyType === 'workspace' && !canManageWorkspaceKeys)
               }
             >

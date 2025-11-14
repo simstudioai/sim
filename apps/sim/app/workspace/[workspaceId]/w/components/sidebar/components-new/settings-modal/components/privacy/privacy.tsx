@@ -1,13 +1,11 @@
 'use client'
 
-import { useEffect } from 'react'
 import { Info } from 'lucide-react'
 import { Tooltip } from '@/components/emcn'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
-import { Skeleton } from '@/components/ui/skeleton'
 import { Switch } from '@/components/ui/switch'
-import { useGeneralStore } from '@/stores/settings/general/store'
+import { useGeneralSettings, useUpdateGeneralSetting } from '@/hooks/queries/general-settings'
 
 const TOOLTIPS = {
   telemetry:
@@ -15,31 +13,29 @@ const TOOLTIPS = {
 }
 
 export function Privacy() {
-  const isLoading = useGeneralStore((state) => state.isLoading)
-  const telemetryEnabled = useGeneralStore((state) => state.telemetryEnabled)
-  const setTelemetryEnabled = useGeneralStore((state) => state.setTelemetryEnabled)
-  const loadSettings = useGeneralStore((state) => state.loadSettings)
+  // React Query hooks - with placeholderData to show cached data immediately (no skeleton loading!)
+  const { data: settings } = useGeneralSettings()
+  const updateSetting = useUpdateGeneralSetting()
 
-  useEffect(() => {
-    loadSettings()
-  }, [loadSettings])
+  const handleTelemetryToggle = async (checked: boolean) => {
+    if (checked !== settings?.telemetryEnabled && !updateSetting.isPending) {
+      await updateSetting.mutateAsync({ key: 'telemetryEnabled', value: checked })
 
-  const handleTelemetryToggle = (checked: boolean) => {
-    setTelemetryEnabled(checked)
-
-    if (checked) {
-      if (typeof window !== 'undefined') {
-        fetch('/api/telemetry', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            category: 'consent',
-            action: 'enable_from_settings',
-            timestamp: new Date().toISOString(),
-          }),
-        }).catch(() => {
-          // Silently fail - this is just telemetry
-        })
+      // Send telemetry event when enabling
+      if (checked) {
+        if (typeof window !== 'undefined') {
+          fetch('/api/telemetry', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              category: 'consent',
+              action: 'enable_from_settings',
+              timestamp: new Date().toISOString(),
+            }),
+          }).catch(() => {
+            // Silently fail - this is just telemetry
+          })
+        }
       }
     }
   }
@@ -47,38 +43,35 @@ export function Privacy() {
   return (
     <div className='px-6 pt-4 pb-2'>
       <div className='flex flex-col gap-2'>
-        {isLoading ? (
-          <SettingRowSkeleton hasInfoButton isSwitch />
-        ) : (
-          <div className='flex items-center justify-between'>
-            <div className='flex items-center gap-2'>
-              <Label htmlFor='telemetry' className='font-normal'>
-                Allow anonymous telemetry
-              </Label>
-              <Tooltip.Root>
-                <Tooltip.Trigger asChild>
-                  <Button
-                    variant='ghost'
-                    size='sm'
-                    className='h-7 p-1 text-gray-500'
-                    aria-label='Learn more about telemetry data collection'
-                  >
-                    <Info className='h-5 w-5' />
-                  </Button>
-                </Tooltip.Trigger>
-                <Tooltip.Content side='top' className='max-w-[300px] p-3'>
-                  <p className='text-sm'>{TOOLTIPS.telemetry}</p>
-                </Tooltip.Content>
-              </Tooltip.Root>
-            </div>
-            <Switch
-              id='telemetry'
-              checked={telemetryEnabled}
-              onCheckedChange={handleTelemetryToggle}
-              disabled={isLoading}
-            />
+        <div className='flex items-center justify-between'>
+          <div className='flex items-center gap-2'>
+            <Label htmlFor='telemetry' className='font-normal'>
+              Allow anonymous telemetry
+            </Label>
+            <Tooltip.Root>
+              <Tooltip.Trigger asChild>
+                <Button
+                  variant='ghost'
+                  size='sm'
+                  className='h-7 p-1 text-gray-500'
+                  aria-label='Learn more about telemetry data collection'
+                  disabled={updateSetting.isPending}
+                >
+                  <Info className='h-5 w-5' />
+                </Button>
+              </Tooltip.Trigger>
+              <Tooltip.Content side='top' className='max-w-[300px] p-3'>
+                <p className='text-sm'>{TOOLTIPS.telemetry}</p>
+              </Tooltip.Content>
+            </Tooltip.Root>
           </div>
-        )}
+          <Switch
+            id='telemetry'
+            checked={settings?.telemetryEnabled ?? true}
+            onCheckedChange={handleTelemetryToggle}
+            disabled={updateSetting.isPending}
+          />
+        </div>
 
         <div className='border-t pt-4'>
           <p className='text-muted-foreground text-xs'>
@@ -91,23 +84,3 @@ export function Privacy() {
     </div>
   )
 }
-
-const SettingRowSkeleton = ({
-  hasInfoButton = false,
-  isSwitch = false,
-}: {
-  hasInfoButton?: boolean
-  isSwitch?: boolean
-}) => (
-  <div className='flex items-center justify-between'>
-    <div className='flex items-center gap-2'>
-      <Skeleton className='h-5 w-32' />
-      {hasInfoButton && <Skeleton className='h-7 w-7 rounded' />}
-    </div>
-    {isSwitch ? (
-      <Skeleton className='h-6 w-11 rounded-full' />
-    ) : (
-      <Skeleton className='h-9 w-[180px]' />
-    )}
-  </div>
-)

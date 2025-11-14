@@ -569,7 +569,7 @@ export function Chat() {
 
   return (
     <div
-      className='fixed z-30 flex flex-col overflow-hidden rounded-[6px] bg-[var(--surface-1)] px-[10px] pt-[2px] pb-[8px]'
+      className='fixed z-30 flex flex-col overflow-hidden rounded-[6px] border border-[var(--border)] bg-[var(--surface-1)] px-[10px] pt-[2px] pb-[8px]'
       style={{
         left: `${actualPosition.x}px`,
         top: `${actualPosition.y}px`,
@@ -619,6 +619,7 @@ export function Chat() {
               side='bottom'
               align='end'
               sideOffset={8}
+              maxHeight={100}
               style={{ width: '110px', minWidth: '110px' }}
             >
               <PopoverScrollArea>

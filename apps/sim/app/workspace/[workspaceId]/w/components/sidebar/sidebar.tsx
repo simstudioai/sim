@@ -8,6 +8,7 @@ import { useSession } from '@/lib/auth-client'
 import { getEnv, isTruthy } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
 import { generateWorkspaceName } from '@/lib/naming'
+import { canUpgrade, getBillingStatus } from '@/lib/subscription/helpers'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import {
   CreateMenu,
@@ -25,8 +26,8 @@ import {
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/components'
 import { InviteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components-new/workspace-header/components/invite-modal/invite-modal'
 import { useAutoScroll } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks/use-auto-scroll'
+import { useSubscriptionData } from '@/hooks/queries/subscription'
 import { useKnowledgeBasesList } from '@/hooks/use-knowledge'
-import { useSubscriptionStore } from '@/stores/subscription/store'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
@@ -111,6 +112,9 @@ export function Sidebar() {
 
   // Knowledge bases for search modal
   const { knowledgeBases } = useKnowledgeBasesList(workspaceId)
+
+  // Subscription data for usage indicator
+  const { data: subscriptionData } = useSubscriptionData()
 
   // Refs
   const workflowScrollAreaRef = useRef<HTMLDivElement | null>(null)
@@ -998,11 +1002,10 @@ export function Sidebar() {
         >
           <UsageIndicator
             onClick={() => {
-              const subscriptionStore = useSubscriptionStore.getState()
-              const isBlocked = subscriptionStore.getBillingStatus() === 'blocked'
-              const canUpgrade = subscriptionStore.canUpgrade()
+              const isBlocked = getBillingStatus(subscriptionData?.data) === 'blocked'
+              const canUpg = canUpgrade(subscriptionData?.data)
 
-              if (isBlocked || !canUpgrade) {
+              if (isBlocked || !canUpg) {
                 if (typeof window !== 'undefined') {
                   window.dispatchEvent(
                     new CustomEvent('open-settings', { detail: { tab: 'subscription' } })

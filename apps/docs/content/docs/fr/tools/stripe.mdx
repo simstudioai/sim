@@ -1017,3 +1017,22 @@ Lister tous les événements
 
 - Catégorie : `tools`
 - Type : `stripe`
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Oui | Clé API Stripe (clé secrète) |
+| `limit` | number | Non | Nombre de résultats à retourner (par défaut 10, max 100) |
+| `type` | string | Non | Filtrer par type d'événement (par ex., payment_intent.created) |
+| `created` | json | Non | Filtrer par date de création (par ex., \{"gt": 1633024800\}) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `events` | json | Tableau d'objets événement |
+| `metadata` | json | Métadonnées de liste incluant le nombre et has_more |
+
+## Notes
+
+- Catégorie : `tools`
+- Type : `stripe`

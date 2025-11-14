@@ -32,8 +32,9 @@ export const WorkflowInputBlock: BlockConfig = {
     {
       id: 'workflowId',
       title: 'Select Workflow',
-      type: 'dropdown',
+      type: 'combobox',
       options: getAvailableWorkflows,
+      placeholder: 'Search workflows...',
       required: true,
     },
     // Renders dynamic mapping UI based on selected child workflow's Start trigger inputFormat
