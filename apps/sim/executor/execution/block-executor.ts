@@ -72,7 +72,6 @@ export class BlockExecutor {
 
     try {
       resolvedInputs = this.resolver.resolveInputs(ctx, node.id, block.config.params, block)
-      // Store resolved inputs in the block log after variable resolution
       if (blockLog) {
         blockLog.input = resolvedInputs
       }
