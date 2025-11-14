@@ -82,8 +82,7 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
       type: 'code',
       language: 'json',
       generationType: 'json-object',
-      placeholder:
-        'Enter a JSON array of rows (e.g., [["A1","B1"],["A2","B2"]]) or use a reference like {{block_1.rows}}',
+      placeholder: 'Enter a JSON array of rows (e.g., [["A1","B1"],["A2","B2"]])',
       condition: {
         field: 'operation',
         value: 'create_file',
