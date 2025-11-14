@@ -178,6 +178,7 @@ interface WorkflowDiffActions {
   toggleDiffView: () => void
   acceptChanges: () => Promise<void>
   rejectChanges: () => Promise<void>
+  reapplyDiffMarkers: () => void
   _batchedStateUpdate: (updates: Partial<WorkflowDiffState>) => void
 }
 
@@ -261,6 +262,17 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
               logger.error('[DiffStore] Diff validation failed', { message, error })
               throw new Error(message)
             }
+
+            // Log to verify diff markers are present
+            const sampleBlock = Object.values(candidateState.blocks)[0] as any
+            logger.info('Applying candidate state with diff markers', {
+              sampleBlockId: sampleBlock?.id,
+              sampleBlockHasDiff: !!sampleBlock?.is_diff,
+              sampleBlockDiffStatus: sampleBlock?.is_diff,
+              totalBlocks: Object.keys(candidateState.blocks).length,
+              blocksWithDiff: Object.values(candidateState.blocks).filter((b: any) => b.is_diff)
+                .length,
+            })
 
             applyWorkflowStateToStores(activeWorkflowId, candidateState)
             const persisted = await persistWorkflowStateToServer(activeWorkflowId, candidateState)
@@ -463,6 +475,74 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
           }
 
           get().clearDiff({ restoreBaseline: false })
+        },
+
+        reapplyDiffMarkers: () => {
+          const { hasActiveDiff, isDiffReady, diffAnalysis } = get()
+          if (!hasActiveDiff || !isDiffReady || !diffAnalysis) {
+            return
+          }
+
+          const workflowStore = useWorkflowStore.getState()
+          const currentBlocks = workflowStore.blocks
+
+          // Check if any blocks need markers applied (checking the actual property, not just existence)
+          const needsUpdate =
+            diffAnalysis.new_blocks?.some((blockId) => {
+              const block = currentBlocks[blockId]
+              return block && (block as any).is_diff !== 'new'
+            }) ||
+            diffAnalysis.edited_blocks?.some((blockId) => {
+              const block = currentBlocks[blockId]
+              return block && (block as any).is_diff !== 'edited'
+            })
+
+          if (!needsUpdate) {
+            return
+          }
+
+          const updatedBlocks: Record<string, any> = {}
+          let hasChanges = false
+
+          // Only clone blocks that need diff markers
+          Object.entries(currentBlocks).forEach(([blockId, block]) => {
+            const isNewBlock = diffAnalysis.new_blocks?.includes(blockId)
+            const isEditedBlock = diffAnalysis.edited_blocks?.includes(blockId)
+
+            if (isNewBlock && (block as any).is_diff !== 'new') {
+              updatedBlocks[blockId] = { ...block, is_diff: 'new' }
+              hasChanges = true
+            } else if (isEditedBlock && (block as any).is_diff !== 'edited') {
+              updatedBlocks[blockId] = { ...block, is_diff: 'edited' }
+
+              // Re-apply field_diffs if available
+              if (diffAnalysis.field_diffs?.[blockId]) {
+                updatedBlocks[blockId].field_diffs = diffAnalysis.field_diffs[blockId]
+
+                // Clone subblocks and apply markers
+                const fieldDiff = diffAnalysis.field_diffs[blockId]
+                updatedBlocks[blockId].subBlocks = { ...block.subBlocks }
+
+                fieldDiff.changed_fields.forEach((field) => {
+                  if (updatedBlocks[blockId].subBlocks?.[field]) {
+                    updatedBlocks[blockId].subBlocks[field] = {
+                      ...updatedBlocks[blockId].subBlocks[field],
+                      is_diff: 'changed',
+                    }
+                  }
+                })
+              }
+              hasChanges = true
+            } else {
+              updatedBlocks[blockId] = block
+            }
+          })
+
+          // Only update if we actually made changes
+          if (hasChanges) {
+            useWorkflowStore.setState({ blocks: updatedBlocks })
+            logger.info('Re-applied diff markers to workflow blocks')
+          }
         },
       }
     },

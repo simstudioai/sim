@@ -168,7 +168,20 @@ const WorkflowContent = React.memo(() => {
   }, [blocks])
 
   // Get diff analysis for edge reconstruction
-  const { diffAnalysis, isShowingDiff, isDiffReady } = useWorkflowDiffStore()
+  const { diffAnalysis, isShowingDiff, isDiffReady, reapplyDiffMarkers, hasActiveDiff } =
+    useWorkflowDiffStore()
+
+  // Re-apply diff markers when blocks change (e.g., after socket rehydration)
+  const blocksRef = useRef(blocks)
+  useEffect(() => {
+    if (hasActiveDiff && isDiffReady && blocks !== blocksRef.current) {
+      blocksRef.current = blocks
+      // Use setTimeout to ensure the store update has settled
+      setTimeout(() => {
+        reapplyDiffMarkers()
+      }, 0)
+    }
+  }, [blocks, hasActiveDiff, isDiffReady, reapplyDiffMarkers])
 
   // Reconstruct deleted edges when viewing original workflow and filter trigger edges
   const edgesForDisplay = useMemo(() => {
