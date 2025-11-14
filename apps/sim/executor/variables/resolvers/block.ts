@@ -159,9 +159,12 @@ export class BlockResolver implements Resolver {
 
     if (blockType === 'response') {
       if (typeof value === 'string') {
+        return value
+      }
+      if (Array.isArray(value) || (typeof value === 'object' && value !== null)) {
         return JSON.stringify(value)
       }
-      return value
+      return String(value)
     }
 
     if (typeof value === 'object' && value !== null) {
