@@ -184,7 +184,15 @@ export function setupOperationsHandlers(
       }
 
       if (target === 'workflow' && operation === 'replace-state') {
-        // Broadcast only - don't persist to DB (will be persisted via API separately)
+        // Persist the workflow state replacement to database first
+        await persistWorkflowOperation(workflowId, {
+          operation,
+          target,
+          payload,
+          timestamp: operationTimestamp,
+          userId: session.userId,
+        })
+
         room.lastModified = Date.now()
 
         const broadcastData = {

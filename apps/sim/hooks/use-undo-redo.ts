@@ -765,6 +765,13 @@ export function useUndoRedo() {
         // Undo apply-diff means clearing the diff and restoring baseline
         const applyDiffInverse = entry.inverse as any
         const { baselineSnapshot } = applyDiffInverse.data
+        
+        logger.info('Undoing apply-diff operation', {
+          hasBaseline: !!baselineSnapshot,
+          baselineBlockCount: Object.keys(baselineSnapshot?.blocks || {}).length,
+          activeWorkflowId,
+        })
+        
         const { useWorkflowDiffStore } = await import('@/stores/workflow-diff/store')
         const { useWorkflowStore } = await import('@/stores/workflows/workflow/store')
         const { useSubBlockStore } = await import('@/stores/workflows/subblock/store')
@@ -775,6 +782,10 @@ export function useUndoRedo() {
         try {
           // Restore baseline state and broadcast to everyone
           if (baselineSnapshot && activeWorkflowId) {
+            logger.info('Restoring baseline state', {
+              blockCount: Object.keys(baselineSnapshot.blocks || {}).length,
+            })
+            
             useWorkflowStore.getState().replaceWorkflowState(baselineSnapshot)
 
             // Extract and set subblock values
@@ -792,6 +803,7 @@ export function useUndoRedo() {
             useSubBlockStore.getState().setWorkflowValues(activeWorkflowId, subBlockValues)
 
             // Broadcast state change to other users
+            logger.info('Broadcasting baseline state to other users')
             addToQueue({
               id: opId,
               operation: {
@@ -805,12 +817,13 @@ export function useUndoRedo() {
           }
 
           // Clear diff state (local UI only)
+          logger.info('Clearing diff UI state')
           useWorkflowDiffStore.getState().clearDiff({ restoreBaseline: false })
         } finally {
           ;(window as any).__skipDiffRecording = false
         }
 
-        logger.info('Undid apply-diff operation')
+        logger.info('Undid apply-diff operation successfully')
         break
       }
       case 'accept-diff': {
@@ -876,6 +889,63 @@ export function useUndoRedo() {
         }
 
         logger.info('Undid accept-diff operation - restored diff view')
+        break
+      }
+      case 'reject-diff': {
+        // Undo reject-diff means restoring diff view with markers
+        const rejectDiffInverse = entry.inverse as any
+        const rejectDiffOp = entry.operation as any
+        const { beforeReject, diffAnalysis, baselineSnapshot } = rejectDiffInverse.data
+        const { useWorkflowDiffStore } = await import('@/stores/workflow-diff/store')
+        const { useWorkflowStore } = await import('@/stores/workflows/workflow/store')
+        const { useSubBlockStore } = await import('@/stores/workflows/subblock/store')
+
+        ;(window as any).__skipDiffRecording = true
+        try {
+          // Apply the before-reject state (with markers for this user)
+          useWorkflowStore.getState().replaceWorkflowState(beforeReject)
+
+          // Extract and set subblock values
+          const subBlockValues: Record<string, Record<string, any>> = {}
+          Object.entries(beforeReject.blocks || {}).forEach(([blockId, block]: [string, any]) => {
+            subBlockValues[blockId] = {}
+            Object.entries(block.subBlocks || {}).forEach(
+              ([subBlockId, subBlock]: [string, any]) => {
+                subBlockValues[blockId][subBlockId] = subBlock.value
+              }
+            )
+          })
+          useSubBlockStore.getState().setWorkflowValues(activeWorkflowId, subBlockValues)
+
+          // Broadcast clean state to other users (without markers)
+          const { stripWorkflowDiffMarkers } = await import('@/lib/workflows/diff')
+          const cleanState = stripWorkflowDiffMarkers(beforeReject)
+          addToQueue({
+            id: opId,
+            operation: {
+              operation: 'replace-state',
+              target: 'workflow',
+              payload: { state: cleanState },
+            },
+            workflowId: activeWorkflowId,
+            userId,
+          })
+
+          // Restore diff state with baseline (local UI only)
+          const diffStore = useWorkflowDiffStore.getState()
+          diffStore._batchedStateUpdate({
+            hasActiveDiff: true,
+            isShowingDiff: true,
+            isDiffReady: true,
+            baselineWorkflow: baselineSnapshot || null,
+            baselineWorkflowId: activeWorkflowId,
+            diffAnalysis: diffAnalysis,
+          })
+        } finally {
+          ;(window as any).__skipDiffRecording = false
+        }
+
+        logger.info('Undid reject-diff operation - restored diff view')
         break
       }
     }
@@ -1452,6 +1522,52 @@ export function useUndoRedo() {
         logger.info('Redid accept-diff operation - cleared diff view')
         break
       }
+      case 'reject-diff': {
+        // Redo reject-diff means re-rejecting (restoring baseline, clearing diff)
+        const rejectDiffOp = entry.operation as any
+        const { afterReject } = rejectDiffOp.data
+        const { useWorkflowDiffStore } = await import('@/stores/workflow-diff/store')
+        const { useWorkflowStore } = await import('@/stores/workflows/workflow/store')
+        const { useSubBlockStore } = await import('@/stores/workflows/subblock/store')
+
+        ;(window as any).__skipDiffRecording = true
+        try {
+          // Apply the after-reject state (baseline) and broadcast
+          useWorkflowStore.getState().replaceWorkflowState(afterReject)
+
+          // Extract and set subblock values
+          const subBlockValues: Record<string, Record<string, any>> = {}
+          Object.entries(afterReject.blocks || {}).forEach(([blockId, block]: [string, any]) => {
+            subBlockValues[blockId] = {}
+            Object.entries(block.subBlocks || {}).forEach(
+              ([subBlockId, subBlock]: [string, any]) => {
+                subBlockValues[blockId][subBlockId] = subBlock.value
+              }
+            )
+          })
+          useSubBlockStore.getState().setWorkflowValues(activeWorkflowId, subBlockValues)
+
+          // Broadcast state change to other users
+          addToQueue({
+            id: opId,
+            operation: {
+              operation: 'replace-state',
+              target: 'workflow',
+              payload: { state: afterReject },
+            },
+            workflowId: activeWorkflowId,
+            userId,
+          })
+
+          // Clear diff state (local UI only)
+          await useWorkflowDiffStore.getState().clearDiff({ restoreBaseline: false })
+        } finally {
+          ;(window as any).__skipDiffRecording = false
+        }
+
+        logger.info('Redid reject-diff operation - cleared diff view')
+        break
+      }
     }
 
     logger.info('Redo operation completed', {
@@ -1504,7 +1620,13 @@ export function useUndoRedo() {
       const entry = createOperationEntry(operation, inverse)
       undoRedoStore.push(activeWorkflowId, userId, entry)
 
-      logger.debug('Recorded apply-diff operation', { workflowId: activeWorkflowId })
+      logger.info('Recorded apply-diff operation', { 
+        workflowId: activeWorkflowId,
+        hasBaseline: !!baselineSnapshot,
+        hasProposed: !!proposedState,
+        baselineBlockCount: Object.keys(baselineSnapshot?.blocks || {}).length,
+        proposedBlockCount: Object.keys(proposedState?.blocks || {}).length,
+      })
     },
     [activeWorkflowId, userId, undoRedoStore]
   )
@@ -1549,6 +1671,50 @@ export function useUndoRedo() {
     [activeWorkflowId, userId, undoRedoStore]
   )
 
+  const recordRejectDiff = useCallback(
+    (beforeReject: any, afterReject: any, diffAnalysis: any, baselineSnapshot: any) => {
+      if (!activeWorkflowId) return
+
+      const operation: any = {
+        id: crypto.randomUUID(),
+        type: 'reject-diff',
+        timestamp: Date.now(),
+        workflowId: activeWorkflowId,
+        userId,
+        data: {
+          beforeReject,
+          afterReject,
+          diffAnalysis,
+          baselineSnapshot,
+        },
+      }
+
+      const inverse: any = {
+        id: crypto.randomUUID(),
+        type: 'reject-diff',
+        timestamp: Date.now(),
+        workflowId: activeWorkflowId,
+        userId,
+        data: {
+          beforeReject,
+          afterReject,
+          diffAnalysis,
+          baselineSnapshot,
+        },
+      }
+
+      const entry = createOperationEntry(operation, inverse)
+      undoRedoStore.push(activeWorkflowId, userId, entry)
+
+      logger.info('Recorded reject-diff operation', { 
+        workflowId: activeWorkflowId,
+        beforeBlockCount: Object.keys(beforeReject?.blocks || {}).length,
+        afterBlockCount: Object.keys(afterReject?.blocks || {}).length,
+      })
+    },
+    [activeWorkflowId, userId, undoRedoStore]
+  )
+
   return {
     recordAddBlock,
     recordRemoveBlock,
@@ -1559,6 +1725,7 @@ export function useUndoRedo() {
     recordUpdateParent,
     recordApplyDiff,
     recordAcceptDiff,
+    recordRejectDiff,
     undo,
     redo,
     getStackSizes,

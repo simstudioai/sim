@@ -14,6 +14,7 @@ export type OperationType =
   | 'update-parent'
   | 'apply-diff'
   | 'accept-diff'
+  | 'reject-diff'
 
 export interface BaseOperation {
   id: string
@@ -139,6 +140,17 @@ export interface AcceptDiffOperation extends BaseOperation {
     beforeAccept: any // WorkflowState with diff markers
     afterAccept: any // WorkflowState without diff markers
     diffAnalysis: any // DiffAnalysis to restore markers on undo
+    baselineSnapshot: any // Baseline workflow state
+  }
+}
+
+export interface RejectDiffOperation extends BaseOperation {
+  type: 'reject-diff'
+  data: {
+    beforeReject: any // WorkflowState with diff markers
+    afterReject: any // WorkflowState baseline (after reject)
+    diffAnalysis: any // DiffAnalysis to restore markers on undo
+    baselineSnapshot: any // Baseline workflow state
   }
 }
 
@@ -155,6 +167,7 @@ export type Operation =
   | UpdateParentOperation
   | ApplyDiffOperation
   | AcceptDiffOperation
+  | RejectDiffOperation
 
 export interface OperationEntry {
   id: string

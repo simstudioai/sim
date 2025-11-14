@@ -26,6 +26,7 @@ export function useCollaborativeWorkflow() {
   const undoRedo = useUndoRedo()
   const isUndoRedoInProgress = useRef(false)
   const skipEdgeRecording = useRef(false)
+  const lastDiffOperationId = useRef<string | null>(null)
 
   useEffect(() => {
     const moveHandler = (e: any) => {
@@ -58,15 +59,24 @@ export function useCollaborativeWorkflow() {
     }
 
     const diffOperationHandler = (e: any) => {
-      const { type, baselineSnapshot, proposedState, diffAnalysis, beforeAccept, afterAccept } =
+      const { type, baselineSnapshot, proposedState, diffAnalysis, beforeAccept, afterAccept, beforeReject, afterReject } =
         e.detail || {}
       // Don't record during undo/redo operations
       if (isUndoRedoInProgress.current) return
+
+      // Generate a unique ID for this diff operation to prevent duplicates
+      const operationId = type + '-' + Date.now() + '-' + JSON.stringify(baselineSnapshot?.blocks ? Object.keys(baselineSnapshot.blocks) : [])
+      if (lastDiffOperationId.current === operationId) {
+        return // Skip duplicate
+      }
+      lastDiffOperationId.current = operationId
 
       if (type === 'apply-diff' && baselineSnapshot && proposedState) {
         undoRedo.recordApplyDiff(baselineSnapshot, proposedState, diffAnalysis)
       } else if (type === 'accept-diff' && beforeAccept && afterAccept) {
         undoRedo.recordAcceptDiff(beforeAccept, afterAccept, diffAnalysis, baselineSnapshot)
+      } else if (type === 'reject-diff' && beforeReject && afterReject) {
+        undoRedo.recordRejectDiff(beforeReject, afterReject, diffAnalysis, baselineSnapshot)
       }
     }
 

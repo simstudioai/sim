@@ -489,7 +489,7 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
         },
 
         rejectChanges: async () => {
-          const { baselineWorkflow, baselineWorkflowId, _triggerMessageId } = get()
+          const { baselineWorkflow, baselineWorkflowId, _triggerMessageId, diffAnalysis } = get()
           const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
 
           if (!baselineWorkflow || !baselineWorkflowId) {
@@ -507,11 +507,60 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
             return
           }
 
+          // Capture current state (with markers) before rejecting
+          const workflowStore = useWorkflowStore.getState()
+          const currentState = workflowStore.getWorkflowState()
+          const mergedBlocks = mergeSubblockState(
+            currentState.blocks,
+            activeWorkflowId ?? undefined
+          )
+          const beforeReject = cloneWorkflowState({
+            ...currentState,
+            blocks: mergedBlocks,
+          })
+          const afterReject = cloneWorkflowState(baselineWorkflow)
+
+          // Apply baseline state locally
           applyWorkflowStateToStores(baselineWorkflowId, baselineWorkflow)
 
+          // Broadcast to other users
+          const { useOperationQueueStore } = await import('../operation-queue/store')
+          const { client } = await import('@/lib/auth-client')
+          
+          const { addToQueue } = useOperationQueueStore.getState()
+          const sessionResult = await client.getSession()
+          const userId = sessionResult.data?.user?.id || 'unknown'
+
+          addToQueue({
+            id: crypto.randomUUID(),
+            operation: {
+              operation: 'replace-state',
+              target: 'workflow',
+              payload: { state: baselineWorkflow },
+            },
+            workflowId: activeWorkflowId,
+            userId,
+          })
+
+          // Persist to database
           const persisted = await persistWorkflowStateToServer(baselineWorkflowId, baselineWorkflow)
           if (!persisted) {
             throw new Error('Failed to restore baseline workflow state')
+          }
+
+          // Emit event for undo/redo recording
+          if (!(window as any).__skipDiffRecording) {
+            window.dispatchEvent(
+              new CustomEvent('record-diff-operation', {
+                detail: {
+                  type: 'reject-diff',
+                  beforeReject,
+                  afterReject,
+                  diffAnalysis,
+                  baselineSnapshot: baselineWorkflow,
+                },
+              })
+            )
           }
 
           if (_triggerMessageId) {
