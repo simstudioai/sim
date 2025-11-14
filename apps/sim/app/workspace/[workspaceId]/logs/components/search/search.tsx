@@ -1,21 +1,23 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { Loader2, Search, X } from 'lucide-react'
-import { Button } from '@/components/emcn'
-import { Badge } from '@/components/ui/badge'
-import { Input } from '@/components/ui/input'
-import { parseQuery } from '@/lib/logs/query-parser'
-import { SearchSuggestions } from '@/lib/logs/search-suggestions'
+import { Search, X } from 'lucide-react'
+import { Button, Popover, PopoverAnchor, PopoverContent } from '@/components/emcn'
+import { type ParsedFilter, parseQuery } from '@/lib/logs/query-parser'
+import {
+  type FolderData,
+  SearchSuggestions,
+  type WorkflowData,
+} from '@/lib/logs/search-suggestions'
 import { cn } from '@/lib/utils'
-import { useAutocomplete } from '@/app/workspace/[workspaceId]/logs/hooks/use-autocomplete'
+import { useSearchState } from '@/app/workspace/[workspaceId]/logs/hooks/use-search-state'
+import { useFolderStore } from '@/stores/folders/store'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 interface AutocompleteSearchProps {
   value: string
   onChange: (value: string) => void
   placeholder?: string
-  availableWorkflows?: string[]
-  availableFolders?: string[]
   className?: string
   onOpenChange?: (open: boolean) => void
 }
@@ -24,301 +26,307 @@ export function AutocompleteSearch({
   value,
   onChange,
   placeholder = 'Search logs...',
-  availableWorkflows = [],
-  availableFolders = [],
   className,
   onOpenChange,
 }: AutocompleteSearchProps) {
+  const workflows = useWorkflowRegistry((state) => state.workflows)
+  const folders = useFolderStore((state) => state.folders)
+
+  const workflowsData = useMemo<WorkflowData[]>(() => {
+    return Object.values(workflows).map((w) => ({
+      id: w.id,
+      name: w.name,
+      description: w.description,
+    }))
+  }, [workflows])
+
+  const foldersData = useMemo<FolderData[]>(() => {
+    return Object.values(folders).map((f) => ({
+      id: f.id,
+      name: f.name,
+    }))
+  }, [folders])
+
   const suggestionEngine = useMemo(() => {
-    return new SearchSuggestions(availableWorkflows, availableFolders)
-  }, [availableWorkflows, availableFolders])
+    return new SearchSuggestions(workflowsData, foldersData)
+  }, [workflowsData, foldersData])
+
+  const handleFiltersChange = (filters: ParsedFilter[], textSearch: string) => {
+    const filterStrings = filters.map(
+      (f) => `${f.field}:${f.operator !== '=' ? f.operator : ''}${f.originalValue}`
+    )
+    const fullQuery = [...filterStrings, textSearch].filter(Boolean).join(' ')
+    onChange(fullQuery)
+  }
 
   const {
-    state,
+    appliedFilters,
+    currentInput,
+    textSearch,
+    isOpen,
+    suggestions,
+    sections,
+    highlightedIndex,
+    highlightedBadgeIndex,
     inputRef,
     dropdownRef,
     handleInputChange,
-    handleCursorChange,
-    handleSuggestionHover,
     handleSuggestionSelect,
     handleKeyDown,
     handleFocus,
     handleBlur,
-    reset: resetAutocomplete,
-    closeDropdown,
-  } = useAutocomplete({
-    getSuggestions: (inputValue, cursorPos) =>
-      suggestionEngine.getSuggestions(inputValue, cursorPos),
-    generatePreview: (suggestion, inputValue, cursorPos) =>
-      suggestionEngine.generatePreview(suggestion, inputValue, cursorPos),
-    onQueryChange: onChange,
-    validateQuery: (query) => suggestionEngine.validateQuery(query),
-    debounceMs: 100,
+    removeBadge,
+    clearAll,
+    setHighlightedIndex,
+    initializeFromQuery,
+  } = useSearchState({
+    onFiltersChange: handleFiltersChange,
+    getSuggestions: (input) => suggestionEngine.getSuggestions(input),
   })
 
-  const clearAll = () => {
-    resetAutocomplete()
-    closeDropdown()
-    onChange('')
-    if (inputRef.current) {
-      inputRef.current.focus()
+  // Initialize from external value (URL params) - only on mount
+  useEffect(() => {
+    if (value) {
+      const parsed = parseQuery(value)
+      initializeFromQuery(parsed.textSearch, parsed.filters)
     }
-  }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
-  const parsedQuery = parseQuery(value)
-  const hasFilters = parsedQuery.filters.length > 0
-  const hasTextSearch = parsedQuery.textSearch.length > 0
-
-  const listboxId = 'logs-search-listbox'
-  const inputId = 'logs-search-input'
-
+  const [dropdownWidth, setDropdownWidth] = useState(500)
   useEffect(() => {
-    onOpenChange?.(state.isOpen)
-  }, [state.isOpen, onOpenChange])
-
-  useEffect(() => {
-    if (!state.isOpen || state.highlightedIndex < 0) return
-    const container = dropdownRef.current
-    const optionEl = document.getElementById(`${listboxId}-option-${state.highlightedIndex}`)
-    if (container && optionEl) {
-      try {
-        optionEl.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
-      } catch {
-        optionEl.scrollIntoView({ block: 'nearest' })
+    const measure = () => {
+      if (inputRef.current) {
+        setDropdownWidth(inputRef.current.parentElement?.offsetWidth || 500)
       }
     }
-  }, [state.isOpen, state.highlightedIndex])
+    measure()
+    window.addEventListener('resize', measure)
+    return () => window.removeEventListener('resize', measure)
+  }, [])
 
-  const [showSpinner, setShowSpinner] = useState(false)
   useEffect(() => {
-    if (!state.pendingQuery) {
-      setShowSpinner(false)
-      return
+    onOpenChange?.(isOpen)
+  }, [isOpen, onOpenChange])
+
+  useEffect(() => {
+    if (!isOpen || highlightedIndex < 0) return
+    const container = dropdownRef.current
+    const optionEl = container?.querySelector(`[data-index="${highlightedIndex}"]`)
+    if (container && optionEl) {
+      optionEl.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
     }
-    const t = setTimeout(() => setShowSpinner(true), 200)
-    return () => clearTimeout(t)
-  }, [state.pendingQuery])
+  }, [isOpen, highlightedIndex])
 
-  const onInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newValue = e.target.value
-    const cursorPos = e.target.selectionStart || 0
-    handleInputChange(newValue, cursorPos)
-  }
-
-  const updateCursorPosition = (element: HTMLInputElement) => {
-    const cursorPos = element.selectionStart || 0
-    handleCursorChange(cursorPos)
-  }
-
-  const removeFilter = (filterToRemove: (typeof parsedQuery.filters)[0]) => {
-    const remainingFilters = parsedQuery.filters.filter(
-      (f) => !(f.field === filterToRemove.field && f.value === filterToRemove.value)
-    )
-
-    const filterStrings = remainingFilters.map(
-      (f) => `${f.field}:${f.operator !== '=' ? f.operator : ''}${f.originalValue}`
-    )
-
-    const newQuery = [...filterStrings, parsedQuery.textSearch].filter(Boolean).join(' ')
-    handleInputChange(newQuery, newQuery.length)
-    if (inputRef.current) {
-      inputRef.current.focus()
-    }
-  }
+  const hasFilters = appliedFilters.length > 0
+  const hasTextSearch = textSearch.length > 0
+  const suggestionType =
+    sections.length > 0 ? 'multi-section' : suggestions.length > 0 ? suggestions[0]?.category : null
 
   return (
     <div className={cn('relative', className)}>
-      {/* Search Input */}
-      <div
-        className={cn(
-          'relative flex items-center gap-2 border bg-background pr-2 pl-3 transition-all duration-200',
-          'h-9 w-full min-w-[600px] max-w-[800px]',
-          state.isOpen && 'ring-1 ring-ring'
-        )}
+      {/* Search Input with Inline Badges */}
+      <Popover
+        open={isOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            setHighlightedIndex(-1)
+          }
+        }}
       >
-        {showSpinner ? (
-          <Loader2 className='h-4 w-4 flex-shrink-0 animate-spin text-muted-foreground' />
-        ) : (
-          <Search className='h-4 w-4 flex-shrink-0 text-muted-foreground' strokeWidth={2} />
-        )}
+        <PopoverAnchor asChild>
+          <div className='relative flex h-9 w-[500px] items-center rounded-[4px] border border-[var(--surface-11)] bg-[var(--surface-6)] transition-colors focus-within:border-[var(--surface-14)] focus-within:ring-1 focus-within:ring-ring hover:border-[var(--surface-14)] dark:bg-[var(--surface-9)] dark:hover:border-[var(--surface-13)]'>
+            {/* Search Icon */}
+            <Search
+              className='ml-2.5 h-4 w-4 flex-shrink-0 text-muted-foreground'
+              strokeWidth={2}
+            />
 
-        {/* Text display with ghost text */}
-        <div className='relative flex-1 font-[380] font-sans text-base leading-none'>
-          {/* Invisible input for cursor and interactions */}
-          <Input
-            ref={inputRef}
-            id={inputId}
-            placeholder={state.inputValue ? '' : placeholder}
-            value={state.inputValue}
-            onChange={onInputChange}
-            onFocus={handleFocus}
-            onBlur={handleBlur}
-            onClick={(e) => updateCursorPosition(e.currentTarget)}
-            onKeyDown={handleKeyDown}
-            onSelect={(e) => updateCursorPosition(e.currentTarget)}
-            className='relative z-10 w-full border-0 bg-transparent p-0 font-[380] font-sans text-base text-transparent leading-none placeholder:text-muted-foreground focus-visible:ring-0 focus-visible:ring-offset-0'
-            style={{ background: 'transparent' }}
-            role='combobox'
-            aria-expanded={state.isOpen}
-            aria-controls={state.isOpen ? listboxId : undefined}
-            aria-autocomplete='list'
-            aria-activedescendant={
-              state.isOpen && state.highlightedIndex >= 0
-                ? `${listboxId}-option-${state.highlightedIndex}`
-                : undefined
-            }
-          />
-
-          {/* Always-visible text overlay */}
-          <div className='pointer-events-none absolute inset-0 flex items-center'>
-            <span className='whitespace-pre font-[380] font-sans text-base leading-none'>
-              <span className='text-foreground'>{state.inputValue}</span>
-              {state.showPreview &&
-                state.previewValue &&
-                state.previewValue !== state.inputValue &&
-                state.inputValue && (
-                  <span className='text-muted-foreground/50'>
-                    {state.previewValue.slice(state.inputValue.length)}
+            {/* Scrollable container for badges */}
+            <div className='flex flex-1 items-center gap-1.5 overflow-x-auto px-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'>
+              {/* Applied Filter Badges */}
+              {appliedFilters.map((filter, index) => (
+                <Button
+                  key={`${filter.field}-${filter.value}-${index}`}
+                  variant='outline'
+                  className={cn(
+                    'h-6 flex-shrink-0 gap-1 rounded-[6px] px-2 text-[11px]',
+                    highlightedBadgeIndex === index && 'border-white dark:border-white'
+                  )}
+                  onClick={(e) => {
+                    e.preventDefault()
+                    removeBadge(index)
+                  }}
+                >
+                  <span className='text-[var(--text-muted)]'>{filter.field}:</span>
+                  <span className='text-[var(--text-primary)]'>
+                    {filter.operator !== '=' && filter.operator}
+                    {filter.originalValue}
                   </span>
-                )}
-            </span>
-          </div>
-        </div>
+                  <X className='h-3 w-3' />
+                </Button>
+              ))}
 
-        {/* Clear all button */}
-        {(hasFilters || hasTextSearch) && (
-          <Button
-            type='button'
-            variant='ghost'
-            className='h-6 w-6 p-0 hover:bg-muted/50'
-            onMouseDown={(e) => {
-              e.preventDefault()
-              clearAll()
-            }}
-          >
-            <X className='h-3 w-3' />
-          </Button>
-        )}
-      </div>
+              {/* Text Search Badge (if present) */}
+              {hasTextSearch && (
+                <Button
+                  variant='outline'
+                  className='h-6 flex-shrink-0 gap-1 rounded-[6px] px-2 text-[11px]'
+                  onClick={(e) => {
+                    e.preventDefault()
+                    handleFiltersChange(appliedFilters, '')
+                  }}
+                >
+                  <span className='text-[var(--text-primary)]'>"{textSearch}"</span>
+                  <X className='h-3 w-3' />
+                </Button>
+              )}
 
-      {/* Suggestions Dropdown */}
-      {state.isOpen && state.suggestions.length > 0 && (
-        <div
-          ref={dropdownRef}
-          className='min-w[500px] absolute z-[9999] mt-1 w-full overflow-hidden border bg-popover shadow-md'
-          id={listboxId}
-          role='listbox'
-          aria-labelledby={inputId}
-        >
-          <div className='max-h-96 overflow-y-auto py-1'>
-            {state.suggestionType === 'filter-keys' && (
-              <div className='border-border/50 border-b px-3 py-1 font-medium text-muted-foreground/70 text-xs uppercase tracking-wide'>
-                SUGGESTED FILTERS
-              </div>
-            )}
-            {state.suggestionType === 'filter-values' && (
-              <div className='border-border/50 border-b px-3 py-1 font-medium text-muted-foreground/70 text-xs uppercase tracking-wide'>
-                {state.suggestions[0]?.category?.toUpperCase() || 'VALUES'}
-              </div>
-            )}
+              {/* Input - only current typing */}
+              <input
+                ref={inputRef}
+                type='text'
+                placeholder={hasFilters || hasTextSearch ? '' : placeholder}
+                value={currentInput}
+                onChange={(e) => handleInputChange(e.target.value)}
+                onKeyDown={handleKeyDown}
+                onFocus={handleFocus}
+                onBlur={handleBlur}
+                className='min-w-[100px] flex-1 border-0 bg-transparent font-sans text-foreground text-sm outline-none placeholder:text-[var(--text-muted)]'
+              />
+            </div>
 
-            {state.suggestions.map((suggestion, index) => (
+            {/* Clear All Button */}
+            {(hasFilters || hasTextSearch) && (
               <button
-                key={suggestion.id}
-                className={cn(
-                  'w-full px-3 py-2 text-left text-sm',
-                  'focus:bg-accent focus:text-accent-foreground focus:outline-none',
-                  'transition-colors hover:bg-accent hover:text-accent-foreground',
-                  index === state.highlightedIndex && 'bg-accent text-accent-foreground'
-                )}
-                onMouseEnter={() => {
-                  if (typeof window !== 'undefined' && (window as any).__logsKeyboardNavActive) {
-                    return
-                  }
-                  handleSuggestionHover(index)
-                }}
-                onMouseDown={(e) => {
-                  e.preventDefault()
-                  e.stopPropagation()
-                  handleSuggestionSelect(suggestion)
-                }}
-                id={`${listboxId}-option-${index}`}
-                role='option'
-                aria-selected={index === state.highlightedIndex}
-              >
-                <div className='flex items-center justify-between'>
-                  <div className='flex-1'>
-                    <div className='font-medium text-sm'>{suggestion.label}</div>
-                    {suggestion.description && (
-                      <div className='mt-0.5 text-muted-foreground text-xs'>
-                        {suggestion.description}
-                      </div>
-                    )}
-                  </div>
-                  <div className='ml-4 font-mono text-muted-foreground text-xs'>
-                    {suggestion.value}
-                  </div>
-                </div>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Active filters as chips */}
-      {hasFilters && (
-        <div className='mt-3 flex flex-wrap items-center gap-2'>
-          <span className='font-medium text-muted-foreground text-xs'>ACTIVE FILTERS:</span>
-          {parsedQuery.filters.map((filter, index) => (
-            <Badge
-              key={`${filter.field}-${filter.value}-${index}`}
-              variant='secondary'
-              className='h-6 border border-border/50 bg-muted/50 font-mono text-muted-foreground text-xs hover:bg-muted'
-            >
-              <span className='mr-1'>{filter.field}:</span>
-              <span>
-                {filter.operator !== '=' && filter.operator}
-                {filter.originalValue}
-              </span>
-              <Button
                 type='button'
-                variant='ghost'
-                className='ml-1 h-3 w-3 p-0 text-muted-foreground hover:bg-muted/50 hover:text-foreground'
-                onClick={() => removeFilter(filter)}
+                className='mr-2.5 flex h-5 w-5 flex-shrink-0 items-center justify-center text-muted-foreground transition-colors hover:text-foreground'
+                onClick={clearAll}
               >
-                <X className='h-2.5 w-2.5' />
-              </Button>
-            </Badge>
-          ))}
-          {parsedQuery.filters.length > 1 && (
-            <Button
-              type='button'
-              variant='ghost'
-              className='h-6 text-muted-foreground text-xs hover:text-foreground'
-              onMouseDown={(e) => {
-                e.preventDefault()
-                const newQuery = parsedQuery.textSearch
-                handleInputChange(newQuery, newQuery.length)
-                if (inputRef.current) {
-                  inputRef.current.focus()
-                }
-              }}
-            >
-              Clear all
-            </Button>
-          )}
-        </div>
-      )}
+                <X className='h-4 w-4' />
+              </button>
+            )}
+          </div>
+        </PopoverAnchor>
 
-      {/* Text search indicator */}
-      {hasTextSearch && (
-        <div className='mt-2 flex items-center gap-2'>
-          <span className='font-medium text-muted-foreground text-xs'>TEXT SEARCH:</span>
-          <Badge variant='outline' className='text-xs'>
-            "{parsedQuery.textSearch}"
-          </Badge>
-        </div>
-      )}
+        {/* Dropdown */}
+        <PopoverContent
+          ref={dropdownRef}
+          className='p-0'
+          style={{ width: dropdownWidth }}
+          align='start'
+          sideOffset={4}
+          onOpenAutoFocus={(e) => e.preventDefault()}
+        >
+          <div className='max-h-96 overflow-y-auto'>
+            {sections.length > 0 ? (
+              // Multi-section layout
+              <div className='py-1'>
+                {/* Show all results (no header) */}
+                {suggestions[0]?.category === 'show-all' && (
+                  <button
+                    key={suggestions[0].id}
+                    data-index={0}
+                    className={cn(
+                      'w-full px-3 py-1.5 text-left transition-colors focus:outline-none',
+                      'hover:bg-[var(--surface-9)] dark:hover:bg-[var(--surface-9)]',
+                      highlightedIndex === 0 && 'bg-[var(--surface-9)] dark:bg-[var(--surface-9)]'
+                    )}
+                    onMouseEnter={() => setHighlightedIndex(0)}
+                    onMouseDown={(e) => {
+                      e.preventDefault()
+                      handleSuggestionSelect(suggestions[0])
+                    }}
+                  >
+                    <div className='text-[13px]'>{suggestions[0].label}</div>
+                  </button>
+                )}
+
+                {sections.map((section) => (
+                  <div key={section.title}>
+                    <div className='border-border/50 border-t px-3 py-1.5 font-medium text-[11px] text-[var(--text-muted)] uppercase tracking-wide'>
+                      {section.title}
+                    </div>
+                    {section.suggestions.map((suggestion) => {
+                      if (suggestion.category === 'show-all') return null
+
+                      const index = suggestions.indexOf(suggestion)
+                      const isHighlighted = index === highlightedIndex
+
+                      return (
+                        <button
+                          key={suggestion.id}
+                          data-index={index}
+                          className={cn(
+                            'w-full px-3 py-1.5 text-left transition-colors focus:outline-none',
+                            'hover:bg-[var(--surface-9)] dark:hover:bg-[var(--surface-9)]',
+                            isHighlighted && 'bg-[var(--surface-9)] dark:bg-[var(--surface-9)]'
+                          )}
+                          onMouseEnter={() => setHighlightedIndex(index)}
+                          onMouseDown={(e) => {
+                            e.preventDefault()
+                            handleSuggestionSelect(suggestion)
+                          }}
+                        >
+                          <div className='flex items-center justify-between gap-3'>
+                            <div className='min-w-0 flex-1 truncate text-[13px]'>
+                              {suggestion.label}
+                            </div>
+                            {suggestion.value !== suggestion.label && (
+                              <div className='flex-shrink-0 font-mono text-[11px] text-[var(--text-muted)]'>
+                                {suggestion.category === 'workflow' ||
+                                suggestion.category === 'folder'
+                                  ? `${suggestion.category}:`
+                                  : ''}
+                              </div>
+                            )}
+                          </div>
+                        </button>
+                      )
+                    })}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              // Single section layout
+              <div className='py-1'>
+                {suggestionType === 'filters' && (
+                  <div className='border-border/50 border-b px-3 py-1.5 font-medium text-[11px] text-[var(--text-muted)] uppercase tracking-wide'>
+                    SUGGESTED FILTERS
+                  </div>
+                )}
+
+                {suggestions.map((suggestion, index) => (
+                  <button
+                    key={suggestion.id}
+                    data-index={index}
+                    className={cn(
+                      'w-full px-3 py-1.5 text-left transition-colors focus:outline-none',
+                      'hover:bg-[var(--surface-9)] dark:hover:bg-[var(--surface-9)]',
+                      index === highlightedIndex &&
+                        'bg-[var(--surface-9)] dark:bg-[var(--surface-9)]'
+                    )}
+                    onMouseEnter={() => setHighlightedIndex(index)}
+                    onMouseDown={(e) => {
+                      e.preventDefault()
+                      handleSuggestionSelect(suggestion)
+                    }}
+                  >
+                    <div className='flex items-center justify-between gap-3'>
+                      <div className='min-w-0 flex-1 text-[13px]'>{suggestion.label}</div>
+                      {suggestion.description && (
+                        <div className='flex-shrink-0 text-[11px] text-[var(--text-muted)]'>
+                          {suggestion.value}
+                        </div>
+                      )}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </PopoverContent>
+      </Popover>
     </div>
   )
 }

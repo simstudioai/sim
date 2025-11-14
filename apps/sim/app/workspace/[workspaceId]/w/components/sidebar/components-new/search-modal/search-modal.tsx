@@ -447,7 +447,7 @@ export function SearchModal({
     if (open && selectedIndex >= 0) {
       const element = document.querySelector(`[data-search-item-index="${selectedIndex}"]`)
       if (element) {
-        element.scrollIntoView({ block: 'nearest' })
+        element.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
       }
     }
   }, [selectedIndex, open])

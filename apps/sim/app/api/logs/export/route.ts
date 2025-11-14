@@ -60,7 +60,12 @@ export async function GET(request: NextRequest) {
     let conditions: SQL | undefined = eq(workflow.workspaceId, params.workspaceId)
 
     if (params.level && params.level !== 'all') {
-      conditions = and(conditions, eq(workflowExecutionLogs.level, params.level))
+      const levels = params.level.split(',').filter(Boolean)
+      if (levels.length === 1) {
+        conditions = and(conditions, eq(workflowExecutionLogs.level, levels[0]))
+      } else if (levels.length > 1) {
+        conditions = and(conditions, inArray(workflowExecutionLogs.level, levels))
+      }
     }
 
     if (params.workflowIds) {
