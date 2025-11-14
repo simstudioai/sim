@@ -711,9 +711,7 @@ export default function Logs() {
                 value={searchQuery}
                 onChange={setSearchQuery}
                 placeholder='Search logs...'
-                availableWorkflows={availableWorkflows}
-                availableFolders={availableFolders}
-                onOpenChange={(open) => {
+                onOpenChange={(open: boolean) => {
                   isSearchOpenRef.current = open
                 }}
               />
@@ -840,8 +838,16 @@ export default function Logs() {
 
                           {/* Workflow */}
                           <div className='min-w-0'>
-                            <div className='truncate font-medium text-[13px] text-[var(--text-primary)] dark:text-[var(--text-primary)]'>
-                              {log.workflow?.name || 'Unknown Workflow'}
+                            <div className='flex items-center gap-2 truncate'>
+                              <div
+                                className='h-[12px] w-[12px] flex-shrink-0 rounded'
+                                style={{
+                                  backgroundColor: log.workflow?.color || '#64748b',
+                                }}
+                              />
+                              <span className='truncate font-medium text-[13px] text-[var(--text-primary)] dark:text-[var(--text-primary)]'>
+                                {log.workflow?.name || 'Unknown Workflow'}
+                              </span>
                             </div>
                           </div>
 

@@ -59,7 +59,7 @@ export function WorkflowsList({
   }
   return (
     <div
-      className='overflow-hidden border bg-card shadow-sm'
+      className='overflow-hidden rounded-[11px] border bg-card shadow-sm'
       style={{ height: '380px', display: 'flex', flexDirection: 'column' }}
     >
       <div className='flex-shrink-0 border-b bg-muted/30 px-4 py-2'>
@@ -97,7 +97,7 @@ export function WorkflowsList({
                   <div className='w-52 min-w-0 flex-shrink-0'>
                     <div className='flex items-center gap-2'>
                       <div
-                        className='h-[14px] w-[14px] flex-shrink-0'
+                        className='h-[14px] w-[14px] flex-shrink-0 rounded'
                         style={{
                           backgroundColor: workflows[workflow.workflowId]?.color || '#64748b',
                         }}
