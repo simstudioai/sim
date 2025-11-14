@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import * as DialogPrimitive from '@radix-ui/react-dialog'
 import * as VisuallyHidden from '@radix-ui/react-visually-hidden'
 import { BookOpen, Layout, RepeatIcon, ScrollText, Search, SplitIcon } from 'lucide-react'
@@ -332,7 +332,7 @@ export function SearchModal({
   }, [workspaces, workflows, pages, blocks, triggers, tools, docs])
 
   const sectionOrder = useMemo<SearchItem['type'][]>(
-    () => ['workspace', 'workflow', 'page', 'tool', 'trigger', 'block', 'doc'],
+    () => ['block', 'tool', 'trigger', 'workflow', 'workspace', 'page', 'doc'],
     []
   )
 
@@ -411,13 +411,6 @@ export function SearchModal({
     [router, onOpenChange]
   )
 
-  /**
-   * Tracks whether the user has manually navigated the results list.
-   * This is used to avoid triggering smooth scrolling on initial open,
-   * which can introduce a small but noticeable delay.
-   */
-  const hasUserNavigatedRef = useRef(false)
-
   // Handle keyboard navigation
   useEffect(() => {
     if (!open) return
@@ -426,12 +419,10 @@ export function SearchModal({
       switch (e.key) {
         case 'ArrowDown':
           e.preventDefault()
-          hasUserNavigatedRef.current = true
           setSelectedIndex((prev) => Math.min(prev + 1, filteredItems.length - 1))
           break
         case 'ArrowUp':
           e.preventDefault()
-          hasUserNavigatedRef.current = true
           setSelectedIndex((prev) => Math.max(prev - 1, 0))
           break
         case 'Enter':
@@ -458,7 +449,7 @@ export function SearchModal({
       if (element) {
         element.scrollIntoView({
           block: 'nearest',
-          behavior: hasUserNavigatedRef.current ? 'smooth' : 'auto',
+          behavior: 'auto',
         })
       }
     }
@@ -493,13 +484,13 @@ export function SearchModal({
     trigger: 'Triggers',
     block: 'Blocks',
     tool: 'Tools',
-    doc: 'Documentation',
+    doc: 'Docs',
   }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogPortal>
-        <DialogPrimitive.Overlay className='fixed inset-0 z-40 bg-black/40 dark:bg-black/60' />
+        <DialogPrimitive.Overlay className='fixed inset-0 z-40 backdrop-blur-md' />
         <DialogPrimitive.Content className='fixed top-[15%] left-[50%] z-50 flex w-[500px] translate-x-[-50%] flex-col gap-[12px] p-0 focus:outline-none focus-visible:outline-none'>
           <VisuallyHidden.Root>
             <DialogTitle>Search</DialogTitle>
@@ -507,13 +498,13 @@ export function SearchModal({
 
           {/* Search input container */}
           <div className='flex items-center gap-[8px] rounded-[10px] border border-[var(--border)] bg-[var(--surface-5)] px-[12px] py-[8px] shadow-sm dark:border-[var(--border)] dark:bg-[var(--surface-5)]'>
-            <Search className='h-[16px] w-[16px] flex-shrink-0 text-[var(--text-subtle)] dark:text-[var(--text-subtle)]' />
+            <Search className='h-[15px] w-[15px] flex-shrink-0 text-[var(--text-subtle)] dark:text-[var(--text-subtle)]' />
             <input
               type='text'
               placeholder='Search anything...'
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className='w-full border-0 bg-transparent font-base text-[18px] text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] focus:outline-none dark:text-[var(--text-primary)] dark:placeholder:text-[var(--text-secondary)]'
+              className='w-full border-0 bg-transparent font-base text-[15px] text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] focus:outline-none dark:text-[var(--text-primary)] dark:placeholder:text-[var(--text-secondary)]'
               autoFocus
             />
           </div>
