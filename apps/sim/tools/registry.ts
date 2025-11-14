@@ -1011,6 +1011,17 @@ import {
 import { smsSendTool } from '@/tools/sms'
 import { smtpSendMailTool } from '@/tools/smtp'
 import {
+  snowflakeDescribeTableTool,
+  snowflakeExecuteQueryTool,
+  snowflakeListDatabasesTool,
+  snowflakeListFileFormatsTool,
+  snowflakeListSchemasTool,
+  snowflakeListStagesTool,
+  snowflakeListTablesTool,
+  snowflakeListViewsTool,
+  snowflakeListWarehousesTool,
+} from '@/tools/snowflake'
+import {
   checkCommandExistsTool as sshCheckCommandExistsTool,
   checkFileExistsTool as sshCheckFileExistsTool,
   createDirectoryTool as sshCreateDirectoryTool,
@@ -2425,4 +2436,13 @@ export const tools: Record<string, ToolConfig> = {
   zoom_get_meeting_recordings: zoomGetMeetingRecordingsTool,
   zoom_delete_recording: zoomDeleteRecordingTool,
   zoom_list_past_participants: zoomListPastParticipantsTool,
+  snowflake_execute_query: snowflakeExecuteQueryTool,
+  snowflake_list_databases: snowflakeListDatabasesTool,
+  snowflake_list_schemas: snowflakeListSchemasTool,
+  snowflake_list_tables: snowflakeListTablesTool,
+  snowflake_list_views: snowflakeListViewsTool,
+  snowflake_list_warehouses: snowflakeListWarehousesTool,
+  snowflake_list_file_formats: snowflakeListFileFormatsTool,
+  snowflake_list_stages: snowflakeListStagesTool,
+  snowflake_describe_table: snowflakeDescribeTableTool,
 }

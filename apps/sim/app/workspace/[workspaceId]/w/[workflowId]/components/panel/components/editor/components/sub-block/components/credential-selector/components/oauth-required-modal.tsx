@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import { Check } from 'lucide-react'
 import { Button, Modal, ModalBody, ModalContent, ModalFooter, ModalHeader } from '@/components/emcn'
 import { client } from '@/lib/auth/auth-client'
@@ -271,6 +272,9 @@ export function OAuthRequiredModal({
   serviceId,
   newScopes = [],
 }: OAuthRequiredModalProps) {
+  const [snowflakeAccountUrl, setSnowflakeAccountUrl] = useState('')
+  const [accountUrlError, setAccountUrlError] = useState('')
+
   const effectiveServiceId = serviceId || getServiceIdFromScopes(provider, requiredScopes)
   const { baseProvider } = parseProvider(provider)
   const baseProviderConfig = OAUTH_PROVIDERS[baseProvider]
@@ -300,6 +304,23 @@ export function OAuthRequiredModal({
   const handleConnectDirectly = async () => {
     try {
       const providerId = getProviderIdFromServiceId(effectiveServiceId)
+
+      // Special handling for Snowflake - requires account URL
+      if (providerId === 'snowflake') {
+        if (!snowflakeAccountUrl.trim()) {
+          setAccountUrlError('Account URL is required')
+          return
+        }
+
+        onClose()
+
+        logger.info('Initiating Snowflake OAuth:', {
+          accountUrl: snowflakeAccountUrl,
+        })
+
+        window.location.href = `/api/auth/snowflake/authorize?accountUrl=${encodeURIComponent(snowflakeAccountUrl)}`
+        return
+      }
 
       onClose()
 

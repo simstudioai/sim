@@ -30,7 +30,7 @@ import {
   SalesforceIcon,
   ShopifyIcon,
   SlackIcon,
-  // SupabaseIcon,
+  SnowflakeIcon,
   TrelloIcon,
   WealthboxIcon,
   WebflowIcon,
@@ -69,6 +69,7 @@ export type OAuthProvider =
   | 'shopify'
   | 'zoom'
   | 'wordpress'
+  | 'snowflake'
   | string
 
 export type OAuthService =
@@ -109,6 +110,7 @@ export type OAuthService =
   | 'shopify'
   | 'zoom'
   | 'wordpress'
+  | 'snowflake'
 export interface OAuthProviderConfig {
   id: OAuthProvider
   name: string
@@ -830,6 +832,23 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     },
     defaultService: 'salesforce',
   },
+  snowflake: {
+    id: 'snowflake',
+    name: 'Snowflake',
+    icon: (props) => SnowflakeIcon(props),
+    services: {
+      snowflake: {
+        id: 'snowflake',
+        name: 'Snowflake',
+        description: 'Execute queries and manage data in your Snowflake data warehouse.',
+        providerId: 'snowflake',
+        icon: (props) => SnowflakeIcon(props),
+        baseProviderIcon: (props) => SnowflakeIcon(props),
+        scopes: [],
+      },
+    },
+    defaultService: 'snowflake',
+  },
   zoom: {
     id: 'zoom',
     name: 'Zoom',
@@ -1415,6 +1434,21 @@ function getProviderAuthConfig(provider: string): ProviderAuthConfig {
         supportsRefreshTokenRotation: false,
       }
     }
+    case 'snowflake': {
+      const { clientId, clientSecret } = getCredentials(
+        env.SNOWFLAKE_CLIENT_ID,
+        env.SNOWFLAKE_CLIENT_SECRET
+      )
+      // Note: For Snowflake, the tokenEndpoint is account-specific
+      // The actual URL will be constructed dynamically in refreshOAuthToken
+      return {
+        tokenEndpoint: 'https://placeholder.snowflakecomputing.com/oauth/token-request',
+        clientId,
+        clientSecret,
+        useBasicAuth: false,
+        supportsRefreshTokenRotation: true,
+      }
+    }
     case 'shopify': {
       // Shopify access tokens don't expire and don't support refresh tokens
       // This configuration is provided for completeness but won't be used for token refresh
@@ -1495,11 +1529,13 @@ function buildAuthRequest(
  * This is a server-side utility function to refresh OAuth tokens
  * @param providerId The provider ID (e.g., 'google-drive')
  * @param refreshToken The refresh token to use
+ * @param metadata Optional metadata (e.g., accountUrl for Snowflake)
  * @returns Object containing the new access token and expiration time in seconds, or null if refresh failed
  */
 export async function refreshOAuthToken(
   providerId: string,
-  refreshToken: string
+  refreshToken: string,
+  metadata?: { accountUrl?: string }
 ): Promise<{ accessToken: string; expiresIn: number; refreshToken: string } | null> {
   try {
     // Get the provider from the providerId (e.g., 'google-drive' -> 'google')
@@ -1508,11 +1544,20 @@ export async function refreshOAuthToken(
     // Get provider configuration
     const config = getProviderAuthConfig(provider)
 
+    // For Snowflake, use the account-specific token endpoint
+    let tokenEndpoint = config.tokenEndpoint
+    if (provider === 'snowflake' && metadata?.accountUrl) {
+      tokenEndpoint = `https://${metadata.accountUrl}/oauth/token-request`
+      logger.info('Using Snowflake account-specific token endpoint', {
+        accountUrl: metadata.accountUrl,
+      })
+    }
+
     // Build authentication request
     const { headers, bodyParams } = buildAuthRequest(config, refreshToken)
 
     // Refresh the token
-    const response = await fetch(config.tokenEndpoint, {
+    const response = await fetch(tokenEndpoint, {
       method: 'POST',
       headers,
       body: new URLSearchParams(bodyParams).toString(),
