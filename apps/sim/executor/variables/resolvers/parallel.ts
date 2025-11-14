@@ -1,7 +1,11 @@
 import { createLogger } from '@/lib/logs/console/logger'
 import { isReference, parseReferencePath, REFERENCE } from '@/executor/consts'
 import { extractBaseBlockId, extractBranchIndex } from '@/executor/utils/subflow-utils'
-import type { ResolutionContext, Resolver } from '@/executor/variables/resolvers/reference'
+import {
+  navigatePath,
+  type ResolutionContext,
+  type Resolver,
+} from '@/executor/variables/resolvers/reference'
 import type { SerializedWorkflow } from '@/serializer/types'
 
 const logger = createLogger('ParallelResolver')
@@ -28,7 +32,7 @@ export class ParallelResolver implements Resolver {
       return undefined
     }
 
-    const [_, property] = parts
+    const [_, property, ...pathParts] = parts
     const parallelId = this.findParallelForBlock(context.currentNodeId)
     if (!parallelId) {
       return undefined
@@ -47,25 +51,36 @@ export class ParallelResolver implements Resolver {
 
     const distributionItems = this.getDistributionItems(parallelConfig)
 
+    let value: any
     switch (property) {
       case 'index':
-        return branchIndex
+        value = branchIndex
+        break
       case 'currentItem':
         if (Array.isArray(distributionItems)) {
-          return distributionItems[branchIndex]
-        }
-        if (typeof distributionItems === 'object' && distributionItems !== null) {
+          value = distributionItems[branchIndex]
+        } else if (typeof distributionItems === 'object' && distributionItems !== null) {
           const keys = Object.keys(distributionItems)
           const key = keys[branchIndex]
-          return key !== undefined ? distributionItems[key] : undefined
+          value = key !== undefined ? distributionItems[key] : undefined
+        } else {
+          return undefined
         }
-        return undefined
+        break
       case 'items':
-        return distributionItems
+        value = distributionItems
+        break
       default:
         logger.warn('Unknown parallel property', { property })
         return undefined
     }
+
+    // If there are additional path parts, navigate deeper
+    if (pathParts.length > 0) {
+      return navigatePath(value, pathParts)
+    }
+
+    return value
   }
 
   private findParallelForBlock(blockId: string): string | undefined {
