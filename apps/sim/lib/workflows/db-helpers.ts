@@ -16,6 +16,7 @@ import { createLogger } from '@/lib/logs/console/logger'
 import { sanitizeAgentToolsInBlocks } from '@/lib/workflows/validation'
 import type { BlockState, Loop, Parallel, WorkflowState } from '@/stores/workflows/workflow/types'
 import { SUBFLOW_TYPES } from '@/stores/workflows/workflow/types'
+import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
 
 const logger = createLogger('WorkflowDBHelpers')
 
@@ -248,6 +249,10 @@ export async function saveWorkflowToNormalizedTables(
   state: WorkflowState
 ): Promise<{ success: boolean; error?: string }> {
   try {
+    const blockRecords = state.blocks as Record<string, BlockState>
+    const canonicalLoops = generateLoopBlocks(blockRecords)
+    const canonicalParallels = generateParallelBlocks(blockRecords)
+
     // Start a transaction
     await db.transaction(async (tx) => {
       // Snapshot existing webhooks before deletion to preserve them through the cycle
@@ -310,7 +315,7 @@ export async function saveWorkflowToNormalizedTables(
       const subflowInserts: any[] = []
 
       // Add loops
-      Object.values(state.loops || {}).forEach((loop) => {
+      Object.values(canonicalLoops).forEach((loop) => {
         subflowInserts.push({
           id: loop.id,
           workflowId: workflowId,
@@ -320,7 +325,7 @@ export async function saveWorkflowToNormalizedTables(
       })
 
       // Add parallels
-      Object.values(state.parallels || {}).forEach((parallel) => {
+      Object.values(canonicalParallels).forEach((parallel) => {
         subflowInserts.push({
           id: parallel.id,
           workflowId: workflowId,

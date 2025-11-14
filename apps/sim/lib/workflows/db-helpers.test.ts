@@ -124,6 +124,58 @@ const mockBlocksFromDb = [
     parentId: 'loop-1',
     extent: 'parent',
   },
+  {
+    id: 'loop-1',
+    workflowId: mockWorkflowId,
+    type: 'loop',
+    name: 'Loop Container',
+    positionX: 50,
+    positionY: 50,
+    enabled: true,
+    horizontalHandles: true,
+    advancedMode: false,
+    triggerMode: false,
+    height: 250,
+    subBlocks: {},
+    outputs: {},
+    data: { width: 500, height: 300, loopType: 'for', count: 5 },
+    parentId: null,
+    extent: null,
+  },
+  {
+    id: 'parallel-1',
+    workflowId: mockWorkflowId,
+    type: 'parallel',
+    name: 'Parallel Container',
+    positionX: 600,
+    positionY: 50,
+    enabled: true,
+    horizontalHandles: true,
+    advancedMode: false,
+    triggerMode: false,
+    height: 250,
+    subBlocks: {},
+    outputs: {},
+    data: { width: 500, height: 300, parallelType: 'count', count: 3 },
+    parentId: null,
+    extent: null,
+  },
+  {
+    id: 'block-3',
+    workflowId: mockWorkflowId,
+    type: 'api',
+    name: 'Parallel Child',
+    positionX: 650,
+    positionY: 150,
+    enabled: true,
+    horizontalHandles: true,
+    height: 200,
+    subBlocks: {},
+    outputs: {},
+    data: { parentId: 'parallel-1', extent: 'parent' },
+    parentId: 'parallel-1',
+    extent: 'parent',
+  },
 ]
 
 const mockEdgesFromDb = [
@@ -186,6 +238,42 @@ const mockWorkflowState: WorkflowState = {
       horizontalHandles: true,
       height: 200,
       data: { parentId: 'loop-1', extent: 'parent' },
+    },
+    'loop-1': {
+      id: 'loop-1',
+      type: 'loop',
+      name: 'Loop Container',
+      position: { x: 200, y: 50 },
+      subBlocks: {},
+      outputs: {},
+      enabled: true,
+      horizontalHandles: true,
+      height: 250,
+      data: { width: 500, height: 300, count: 5, loopType: 'for' },
+    },
+    'parallel-1': {
+      id: 'parallel-1',
+      type: 'parallel',
+      name: 'Parallel Container',
+      position: { x: 600, y: 50 },
+      subBlocks: {},
+      outputs: {},
+      enabled: true,
+      horizontalHandles: true,
+      height: 250,
+      data: { width: 500, height: 300, parallelType: 'count', count: 3 },
+    },
+    'block-3': {
+      id: 'block-3',
+      type: 'api',
+      name: 'Parallel Child',
+      position: { x: 650, y: 150 },
+      subBlocks: {},
+      outputs: {},
+      enabled: true,
+      horizontalHandles: true,
+      height: 180,
+      data: { parentId: 'parallel-1', extent: 'parent' },
     },
   },
   edges: [
@@ -567,20 +655,36 @@ describe('Database Helpers', () => {
 
       await dbHelpers.saveWorkflowToNormalizedTables(mockWorkflowId, mockWorkflowState)
 
-      expect(capturedBlockInserts).toHaveLength(2)
-      expect(capturedBlockInserts[0]).toMatchObject({
-        id: 'block-1',
-        workflowId: mockWorkflowId,
-        type: 'starter',
-        name: 'Start Block',
-        positionX: '100',
-        positionY: '100',
-        enabled: true,
-        horizontalHandles: true,
-        height: '150',
-        parentId: null,
-        extent: null,
-      })
+      expect(capturedBlockInserts).toHaveLength(5)
+      expect(capturedBlockInserts).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            id: 'block-1',
+            workflowId: mockWorkflowId,
+            type: 'starter',
+            name: 'Start Block',
+            positionX: '100',
+            positionY: '100',
+            enabled: true,
+            horizontalHandles: true,
+            height: '150',
+            parentId: null,
+            extent: null,
+          }),
+          expect.objectContaining({
+            id: 'loop-1',
+            workflowId: mockWorkflowId,
+            type: 'loop',
+            parentId: null,
+          }),
+          expect.objectContaining({
+            id: 'parallel-1',
+            workflowId: mockWorkflowId,
+            type: 'parallel',
+            parentId: null,
+          }),
+        ])
+      )
 
       expect(capturedEdgeInserts).toHaveLength(1)
       expect(capturedEdgeInserts[0]).toMatchObject({
@@ -598,6 +702,48 @@ describe('Database Helpers', () => {
         workflowId: mockWorkflowId,
         type: 'loop',
       })
+    })
+
+    it('should regenerate missing loop and parallel definitions from block data', async () => {
+      let capturedSubflowInserts: any[] = []
+
+      const mockTransaction = vi.fn().mockImplementation(async (callback) => {
+        const tx = {
+          select: vi.fn().mockReturnValue({
+            from: vi.fn().mockReturnValue({
+              where: vi.fn().mockResolvedValue([]),
+            }),
+          }),
+          delete: vi.fn().mockReturnValue({
+            where: vi.fn().mockResolvedValue([]),
+          }),
+          insert: vi.fn().mockReturnValue({
+            values: vi.fn().mockImplementation((data) => {
+              if (data.length > 0 && (data[0].type === 'loop' || data[0].type === 'parallel')) {
+                capturedSubflowInserts = data
+              }
+              return Promise.resolve([])
+            }),
+          }),
+        }
+        return await callback(tx)
+      })
+
+      mockDb.transaction = mockTransaction
+
+      const staleWorkflowState = JSON.parse(JSON.stringify(mockWorkflowState)) as WorkflowState
+      staleWorkflowState.loops = {}
+      staleWorkflowState.parallels = {}
+
+      await dbHelpers.saveWorkflowToNormalizedTables(mockWorkflowId, staleWorkflowState)
+
+      expect(capturedSubflowInserts).toHaveLength(2)
+      expect(capturedSubflowInserts).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ id: 'loop-1', type: 'loop' }),
+          expect.objectContaining({ id: 'parallel-1', type: 'parallel' }),
+        ])
+      )
     })
   })
 
