@@ -15,19 +15,43 @@ export const revalidate = 0
  * GET /api/templates/approved/sanitized
  * Returns all approved templates with their sanitized JSONs, names, and descriptions
  * Requires internal API secret authentication via X-API-Key header
+ *
+ * Example usage:
+ * curl -X GET https://your-domain.com/api/templates/approved/sanitized \
+ *   -H "X-API-Key: your_internal_api_secret"
  */
 export async function GET(request: NextRequest) {
   const requestId = generateRequestId()
 
   try {
+    // Log incoming request details
+    const url = new URL(request.url)
+    const hasApiKey = !!request.headers.get('x-api-key')
+    
+    logger.info(`[${requestId}] Incoming request to /api/templates/approved/sanitized`, {
+      method: request.method,
+      url: url.pathname,
+      fullUrl: url.toString(),
+      hasApiKey,
+      userAgent: request.headers.get('user-agent'),
+      origin: request.headers.get('origin'),
+    })
+
     // Check internal API key authentication
     const authResult = checkInternalApiKey(request)
     if (!authResult.success) {
-      logger.warn(`[${requestId}] Unauthorized access to approved sanitized templates: ${authResult.error}`)
-      return NextResponse.json({ error: authResult.error }, { status: 401 })
+      logger.warn(`[${requestId}] Authentication failed for approved sanitized templates`, {
+        error: authResult.error,
+        hasApiKey,
+        howToUse: 'Add header: X-API-Key: <INTERNAL_API_SECRET>',
+      })
+      return NextResponse.json({ 
+        error: authResult.error,
+        hint: 'Include X-API-Key header with INTERNAL_API_SECRET value'
+      }, { status: 401 })
     }
 
-    logger.info(`[${requestId}] Fetching all approved templates with sanitized JSON`)
+    logger.info(`[${requestId}] Authentication successful, fetching approved templates`)
 
     // Fetch all approved templates
     const approvedTemplates = await db
@@ -37,11 +61,15 @@ export async function GET(request: NextRequest) {
         details: templates.details,
         state: templates.state,
         tags: templates.tags,
+        requiredCredentials: templates.requiredCredentials,
       })
       .from(templates)
       .where(eq(templates.status, 'approved'))
 
-    logger.info(`[${requestId}] Found ${approvedTemplates.length} approved templates`)
+    logger.info(`[${requestId}] Found ${approvedTemplates.length} approved templates`, {
+      templateIds: approvedTemplates.map(t => t.id).slice(0, 5), // Log first 5 IDs
+      totalCount: approvedTemplates.length,
+    })
 
     // Process each template to sanitize for copilot
     const sanitizedTemplates = approvedTemplates.map((template) => {
@@ -58,6 +86,7 @@ export async function GET(request: NextRequest) {
           name: template.name,
           description,
           tags: template.tags,
+          requiredCredentials: template.requiredCredentials,
           sanitizedJson: copilotSanitized,
         }
       } catch (error) {
@@ -70,18 +99,47 @@ export async function GET(request: NextRequest) {
     }).filter((t): t is NonNullable<typeof t> => t !== null)
 
     logger.info(
-      `[${requestId}] Successfully sanitized ${sanitizedTemplates.length} templates for copilot`
+      `[${requestId}] Successfully sanitized ${sanitizedTemplates.length} templates for copilot`,
+      {
+        totalTemplates: sanitizedTemplates.length,
+        templateNames: sanitizedTemplates.map(t => t.name).slice(0, 5), // Log first 5 names
+      }
     )
 
-    return NextResponse.json({
+    const response = {
       templates: sanitizedTemplates,
       count: sanitizedTemplates.length,
+    }
+
+    logger.info(`[${requestId}] Sending response`, {
+      responseSize: JSON.stringify(response).length,
+      templateCount: sanitizedTemplates.length,
     })
+
+    return NextResponse.json(response)
   } catch (error) {
     logger.error(`[${requestId}] Error fetching approved sanitized templates`, {
       error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
     })
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return NextResponse.json({ 
+      error: 'Internal server error',
+      requestId,
+    }, { status: 500 })
   }
+}
+
+// Add a helpful OPTIONS handler for CORS preflight
+export async function OPTIONS(request: NextRequest) {
+  const requestId = generateRequestId()
+  logger.info(`[${requestId}] OPTIONS request received for /api/templates/approved/sanitized`)
+  
+  return new NextResponse(null, {
+    status: 200,
+    headers: {
+      'Access-Control-Allow-Methods': 'GET, OPTIONS',
+      'Access-Control-Allow-Headers': 'X-API-Key, Content-Type',
+    },
+  })
 }
 
