@@ -88,6 +88,23 @@ export const slackMessageReaderTool: ToolConfig<
   transformResponse: async (response: Response) => {
     const data = await response.json()
 
+    if (!data.ok) {
+      if (data.error === 'not_in_channel') {
+        throw new Error(
+          'Bot is not in the channel. Please invite the Sim bot to your Slack channel by typing: /invite @Sim Studio'
+        )
+      }
+      if (data.error === 'channel_not_found') {
+        throw new Error('Channel not found. Please check the channel ID and try again.')
+      }
+      if (data.error === 'missing_scope') {
+        throw new Error(
+          'Missing required permissions. Please reconnect your Slack account with the necessary scopes (channels:history, groups:history).'
+        )
+      }
+      throw new Error(data.error || 'Failed to fetch messages from Slack')
+    }
+
     const messages = (data.messages || []).map((message: any) => ({
       // Core properties
       type: message.type || 'message',
