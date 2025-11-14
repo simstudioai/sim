@@ -412,6 +412,31 @@ export function useCollaborativeWorkflow() {
               variablesStore.duplicateVariable(payload.sourceVariableId, payload.id)
               break
           }
+        } else if (target === 'workflow') {
+          switch (operation) {
+            case 'replace-state':
+              if (payload.state) {
+                logger.info('Received workflow state replacement from remote user')
+                workflowStore.replaceWorkflowState(payload.state)
+                
+                // Extract and apply subblock values
+                const subBlockValues: Record<string, Record<string, any>> = {}
+                Object.entries(payload.state.blocks || {}).forEach(
+                  ([blockId, block]: [string, any]) => {
+                    subBlockValues[blockId] = {}
+                    Object.entries(block.subBlocks || {}).forEach(
+                      ([subBlockId, subBlock]: [string, any]) => {
+                        subBlockValues[blockId][subBlockId] = subBlock.value
+                      }
+                    )
+                  }
+                )
+                if (activeWorkflowId) {
+                  subBlockStore.setWorkflowValues(activeWorkflowId, subBlockValues)
+                }
+              }
+              break
+          }
         }
       } catch (error) {
         logger.error('Error applying remote operation:', error)

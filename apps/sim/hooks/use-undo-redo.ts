@@ -773,7 +773,7 @@ export function useUndoRedo() {
 
         ;(window as any).__skipDiffRecording = true
         try {
-          // Restore baseline state (local only - diff state is per-user)
+          // Restore baseline state and broadcast to everyone
           if (baselineSnapshot && activeWorkflowId) {
             useWorkflowStore.getState().replaceWorkflowState(baselineSnapshot)
 
@@ -790,9 +790,21 @@ export function useUndoRedo() {
               }
             )
             useSubBlockStore.getState().setWorkflowValues(activeWorkflowId, subBlockValues)
+
+            // Broadcast state change to other users
+            addToQueue({
+              id: opId,
+              operation: {
+                operation: 'replace-state',
+                target: 'workflow',
+                payload: { state: baselineSnapshot },
+              },
+              workflowId: activeWorkflowId,
+              userId,
+            })
           }
 
-          // Clear diff state
+          // Clear diff state (local UI only)
           useWorkflowDiffStore.getState().clearDiff({ restoreBaseline: false })
         } finally {
           ;(window as any).__skipDiffRecording = false
@@ -818,7 +830,7 @@ export function useUndoRedo() {
 
         ;(window as any).__skipDiffRecording = true
         try {
-          // Apply the before-accept state (with markers) - local only, diff state is per-user
+          // Apply the before-accept state (with markers for this user)
           useWorkflowStore.getState().replaceWorkflowState(beforeAccept)
 
           // Extract and set subblock values
@@ -833,10 +845,24 @@ export function useUndoRedo() {
           })
           useSubBlockStore.getState().setWorkflowValues(activeWorkflowId, subBlockValues)
 
+          // Broadcast clean state to other users (without markers)
+          const { stripWorkflowDiffMarkers } = await import('@/lib/workflows/diff')
+          const cleanState = stripWorkflowDiffMarkers(beforeAccept)
+          addToQueue({
+            id: opId,
+            operation: {
+              operation: 'replace-state',
+              target: 'workflow',
+              payload: { state: cleanState },
+            },
+            workflowId: activeWorkflowId,
+            userId,
+          })
+
           // Get baseline from the original apply-diff operation
           const { baselineSnapshot: originalBaseline } = acceptDiffOp.data
 
-          // Restore diff state with baseline
+          // Restore diff state with baseline (local UI only)
           diffStore._batchedStateUpdate({
             hasActiveDiff: true,
             isShowingDiff: true,
@@ -1333,7 +1359,7 @@ export function useUndoRedo() {
           // Manually apply the proposed state and set up diff store (similar to setProposedChanges but with original baseline)
           const diffStore = useWorkflowDiffStore.getState()
 
-          // Apply proposed state to main store (local only - diff state is per-user)
+          // Apply proposed state WITH markers locally (for this user's diff UI)
           useWorkflowStore.getState().replaceWorkflowState(proposedState)
 
           // Extract and set subblock values
@@ -1348,7 +1374,21 @@ export function useUndoRedo() {
           })
           useSubBlockStore.getState().setWorkflowValues(activeWorkflowId, subBlockValues)
 
-          // Restore diff state with original baseline
+          // Broadcast clean state to other users (without markers)
+          const { stripWorkflowDiffMarkers } = await import('@/lib/workflows/diff')
+          const cleanState = stripWorkflowDiffMarkers(proposedState)
+          addToQueue({
+            id: opId,
+            operation: {
+              operation: 'replace-state',
+              target: 'workflow',
+              payload: { state: cleanState },
+            },
+            workflowId: activeWorkflowId,
+            userId,
+          })
+
+          // Restore diff state with original baseline (local UI only)
           diffStore._batchedStateUpdate({
             hasActiveDiff: true,
             isShowingDiff: true,
@@ -1376,7 +1416,7 @@ export function useUndoRedo() {
 
         ;(window as any).__skipDiffRecording = true
         try {
-          // Apply the after-accept state (without markers) - local only, diff state is per-user
+          // Apply the after-accept state (without markers) and broadcast
           useWorkflowStore.getState().replaceWorkflowState(afterAccept)
 
           // Extract and set subblock values
@@ -1391,7 +1431,19 @@ export function useUndoRedo() {
           })
           useSubBlockStore.getState().setWorkflowValues(activeWorkflowId, subBlockValues)
 
-          // Clear diff state
+          // Broadcast state change to other users
+          addToQueue({
+            id: opId,
+            operation: {
+              operation: 'replace-state',
+              target: 'workflow',
+              payload: { state: afterAccept },
+            },
+            workflowId: activeWorkflowId,
+            userId,
+          })
+
+          // Clear diff state (local UI only)
           await useWorkflowDiffStore.getState().clearDiff({ restoreBaseline: false })
         } finally {
           ;(window as any).__skipDiffRecording = false

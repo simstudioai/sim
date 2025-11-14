@@ -274,7 +274,32 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
                 .length,
             })
 
+            // Apply the candidate state WITH markers locally (for visual diff)
             applyWorkflowStateToStores(activeWorkflowId, candidateState)
+
+            // Broadcast state change to other users (without markers)
+            const cleanState = stripWorkflowDiffMarkers(cloneWorkflowState(candidateState))
+            const { useOperationQueueStore } = await import('../operation-queue/store')
+            const { client } = await import('@/lib/auth-client')
+            
+            const { addToQueue } = useOperationQueueStore.getState()
+            
+            // Get userId from auth client session
+            const sessionResult = await client.getSession()
+            const userId = sessionResult.data?.user?.id || 'unknown'
+
+            addToQueue({
+              id: crypto.randomUUID(),
+              operation: {
+                operation: 'replace-state',
+                target: 'workflow',
+                payload: { state: cleanState },
+              },
+              workflowId: activeWorkflowId,
+              userId,
+            })
+
+            // Persist to database
             const persisted = await persistWorkflowStateToServer(activeWorkflowId, candidateState)
 
             if (!persisted) {
