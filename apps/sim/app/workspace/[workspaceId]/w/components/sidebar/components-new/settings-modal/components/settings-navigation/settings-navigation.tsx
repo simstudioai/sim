@@ -1,5 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useMemo } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import {
+  Bot,
   CreditCard,
   FileCode,
   Files,
@@ -18,10 +20,13 @@ import {
 import { useSession } from '@/lib/auth-client'
 import { getEnv, isTruthy } from '@/lib/env'
 import { isHosted } from '@/lib/environment'
+import { getUserRole } from '@/lib/organization/helpers'
+import { getSubscriptionStatus } from '@/lib/subscription/helpers'
 import { cn } from '@/lib/utils'
-import { useOrganizationStore } from '@/stores/organization'
-import { useGeneralStore } from '@/stores/settings/general/store'
-import { useSubscriptionStore } from '@/stores/subscription/store'
+import { generalSettingsKeys } from '@/hooks/queries/general-settings'
+import { organizationKeys, useOrganizations } from '@/hooks/queries/organization'
+import { ssoKeys, useSSOProviders } from '@/hooks/queries/sso'
+import { subscriptionKeys, useSubscriptionData } from '@/hooks/queries/subscription'
 
 const isBillingEnabled = isTruthy(getEnv('NEXT_PUBLIC_BILLING_ENABLED'))
 
@@ -69,6 +74,7 @@ type NavigationItem = {
   requiresTeam?: boolean
   requiresEnterprise?: boolean
   requiresOwner?: boolean
+  requiresHosted?: boolean
 }
 
 const allNavigationItems: NavigationItem[] = [
@@ -117,11 +123,12 @@ const allNavigationItems: NavigationItem[] = [
     label: 'Files',
     icon: Files,
   },
-  // {
-  //   id: 'copilot',
-  //   label: 'Copilot',
-  //   icon: Bot,
-  // },
+  {
+    id: 'copilot',
+    label: 'Copilot',
+    icon: Bot,
+    requiresHosted: true,
+  },
   {
     id: 'privacy',
     label: 'Privacy',
@@ -156,120 +163,200 @@ export function SettingsNavigation({
   hasOrganization,
 }: SettingsNavigationProps) {
   const { data: session } = useSession()
-  const { hasEnterprisePlan, getUserRole } = useOrganizationStore()
+  const queryClient = useQueryClient()
+  const { data: orgsData } = useOrganizations()
+  const { data: subscriptionData } = useSubscriptionData()
+  const activeOrg = orgsData?.activeOrganization
   const userEmail = session?.user?.email
   const userId = session?.user?.id
-  const userRole = getUserRole(userEmail)
+  const userRole = getUserRole(activeOrg, userEmail)
   const isOwner = userRole === 'owner'
   const isAdmin = userRole === 'admin'
   const canManageSSO = isOwner || isAdmin
+  const subscriptionStatus = getSubscriptionStatus(subscriptionData?.data)
+  const hasEnterprisePlan = subscriptionStatus.isEnterprise
 
-  const [isSSOProviderOwner, setIsSSOProviderOwner] = useState<boolean | null>(null)
+  // Use React Query to check SSO provider ownership (with proper caching)
+  // Only fetch if not hosted (hosted uses billing/org checks)
+  const { data: ssoProvidersData, isLoading: isLoadingSSO } = useSSOProviders()
 
-  useEffect(() => {
-    if (!isHosted && userId) {
-      fetch('/api/auth/sso/providers')
-        .then((res) => {
-          if (!res.ok) throw new Error('Failed to fetch providers')
-          return res.json()
-        })
-        .then((data) => {
-          const ownsProvider = data.providers?.some((p: any) => p.userId === userId) || false
-          setIsSSOProviderOwner(ownsProvider)
-        })
-        .catch(() => {
-          setIsSSOProviderOwner(false)
-        })
-    } else if (isHosted) {
-      setIsSSOProviderOwner(null)
-    }
-  }, [userId, isHosted])
+  // Memoize SSO provider ownership check
+  const isSSOProviderOwner = useMemo(() => {
+    if (isHosted) return null
+    if (!userId || isLoadingSSO) return null
+    return ssoProvidersData?.providers?.some((p: any) => p.userId === userId) || false
+  }, [userId, isHosted, ssoProvidersData?.providers, isLoadingSSO])
 
-  const navigationItems = allNavigationItems.filter((item) => {
-    if (item.hideWhenBillingDisabled && !isBillingEnabled) {
-      return false
-    }
-
-    if (item.requiresTeam && !hasOrganization) {
-      return false
-    }
-
-    if (item.requiresEnterprise && !hasEnterprisePlan) {
-      return false
-    }
-
-    if (item.id === 'sso') {
-      if (isHosted) {
-        return hasOrganization && hasEnterprisePlan && canManageSSO
+  // Memoize navigation items to avoid filtering on every render
+  const navigationItems = useMemo(() => {
+    return allNavigationItems.filter((item) => {
+      if (item.hideWhenBillingDisabled && !isBillingEnabled) {
+        return false
       }
-      return isSSOProviderOwner === true
-    }
 
-    if (item.requiresOwner && !isOwner) {
-      return false
-    }
+      if (item.requiresTeam && !hasOrganization) {
+        return false
+      }
 
-    return true
-  })
+      if (item.requiresEnterprise && !hasEnterprisePlan) {
+        return false
+      }
+
+      if (item.requiresHosted && !isHosted) {
+        return false
+      }
+
+      if (item.id === 'sso') {
+        if (isHosted) {
+          return hasOrganization && hasEnterprisePlan && canManageSSO
+        }
+        // For non-hosted, only show if we know the ownership status
+        return isSSOProviderOwner === true
+      }
+
+      if (item.requiresOwner && !isOwner) {
+        return false
+      }
+
+      return true
+    })
+  }, [hasOrganization, hasEnterprisePlan, canManageSSO, isSSOProviderOwner, isOwner])
+
+  // Prefetch functions for React Query
+  const prefetchGeneral = () => {
+    // Prefetch general settings using React Query
+    queryClient.prefetchQuery({
+      queryKey: generalSettingsKeys.settings(),
+      queryFn: async () => {
+        const response = await fetch('/api/users/me/settings')
+        if (!response.ok) {
+          throw new Error('Failed to fetch general settings')
+        }
+        const { data } = await response.json()
+        return {
+          autoConnect: data.autoConnect ?? true,
+          autoPan: data.autoPan ?? true,
+          consoleExpandedByDefault: data.consoleExpandedByDefault ?? true,
+          showFloatingControls: data.showFloatingControls ?? true,
+          showTrainingControls: data.showTrainingControls ?? false,
+          superUserModeEnabled: data.superUserModeEnabled ?? true,
+          theme: data.theme || 'system',
+          telemetryEnabled: data.telemetryEnabled ?? true,
+          billingUsageNotificationsEnabled: data.billingUsageNotificationsEnabled ?? true,
+        }
+      },
+      staleTime: 60 * 60 * 1000, // 1 hour
+    })
+  }
+
+  const prefetchSubscription = () => {
+    queryClient.prefetchQuery({
+      queryKey: subscriptionKeys.user(),
+      queryFn: async () => {
+        const response = await fetch('/api/billing?context=user')
+        if (!response.ok) {
+          throw new Error('Failed to fetch subscription data')
+        }
+        return response.json()
+      },
+      staleTime: 30 * 1000,
+    })
+  }
+
+  const prefetchOrganization = () => {
+    queryClient.prefetchQuery({
+      queryKey: organizationKeys.lists(),
+      queryFn: async () => {
+        const { client } = await import('@/lib/auth-client')
+        const [orgsResponse, activeOrgResponse, billingResponse] = await Promise.all([
+          client.organization.list(),
+          client.organization.getFullOrganization(),
+          fetch('/api/billing?context=user').then((r) => r.json()),
+        ])
+
+        return {
+          organizations: orgsResponse.data || [],
+          activeOrganization: activeOrgResponse.data,
+          billingData: billingResponse,
+        }
+      },
+      staleTime: 30 * 1000,
+    })
+  }
+
+  const prefetchSSO = () => {
+    queryClient.prefetchQuery({
+      queryKey: ssoKeys.providers(),
+      queryFn: async () => {
+        const response = await fetch('/api/auth/sso/providers')
+        if (!response.ok) {
+          throw new Error('Failed to fetch SSO providers')
+        }
+        return response.json()
+      },
+      staleTime: 5 * 60 * 1000, // 5 minutes
+    })
+  }
 
   const handleHomepageClick = () => {
     window.location.href = '/?from=settings'
   }
 
   return (
-    <div className='flex h-full flex-col'>
-      <div className='flex-1 overflow-y-auto px-2 py-4'>
-        {navigationItems.map((item) => (
-          <div key={item.id} className='mb-1'>
-            <button
-              onMouseEnter={() => {
-                switch (item.id) {
-                  case 'general':
-                    useGeneralStore.getState().loadSettings()
-                    break
-                  case 'subscription':
-                    useSubscriptionStore.getState().loadData()
-                    break
-                  case 'team':
-                    useOrganizationStore.getState().loadData()
-                    break
-                  default:
-                    break
-                }
-              }}
-              onClick={() => onSectionChange(item.id)}
-              data-section={item.id}
+    <div className='h-full overflow-y-auto px-2 py-4'>
+      {navigationItems.map((item) => (
+        <div key={item.id} className='mb-1'>
+          <button
+            onMouseEnter={() => {
+              switch (item.id) {
+                case 'general':
+                  prefetchGeneral()
+                  break
+                case 'subscription':
+                  prefetchSubscription()
+                  break
+                case 'team':
+                  prefetchOrganization()
+                  break
+                case 'sso':
+                  prefetchSSO()
+                  break
+                default:
+                  break
+              }
+            }}
+            onClick={() => onSectionChange(item.id)}
+            data-section={item.id}
+            className={cn(
+              'group flex h-9 w-full cursor-pointer items-center rounded-[8px] px-2 py-2 font-medium font-sans text-sm transition-colors',
+              activeSection === item.id ? 'bg-muted' : 'hover:bg-muted'
+            )}
+          >
+            <item.icon
               className={cn(
-                'group flex h-9 w-full cursor-pointer items-center rounded-[8px] px-2 py-2 font-medium font-sans text-sm transition-colors',
-                activeSection === item.id ? 'bg-muted' : 'hover:bg-muted'
+                'mr-2 h-[14px] w-[14px] flex-shrink-0 transition-colors',
+                activeSection === item.id
+                  ? 'text-foreground'
+                  : 'text-muted-foreground group-hover:text-foreground'
+              )}
+            />
+            <span
+              className={cn(
+                'min-w-0 flex-1 select-none truncate pr-1 text-left transition-colors',
+                activeSection === item.id
+                  ? 'text-foreground'
+                  : 'text-muted-foreground group-hover:text-foreground'
               )}
             >
-              <item.icon
-                className={cn(
-                  'mr-2 h-[14px] w-[14px] flex-shrink-0 transition-colors',
-                  activeSection === item.id
-                    ? 'text-foreground'
-                    : 'text-muted-foreground group-hover:text-foreground'
-                )}
-              />
-              <span
-                className={cn(
-                  'min-w-0 flex-1 select-none truncate pr-1 text-left transition-colors',
-                  activeSection === item.id
-                    ? 'text-foreground'
-                    : 'text-muted-foreground group-hover:text-foreground'
-                )}
-              >
-                {item.label}
-              </span>
-            </button>
-          </div>
-        ))}
-      </div>
+              {item.label}
+            </span>
+          </button>
+        </div>
+      ))}
 
       {/* Homepage link */}
       {isHosted && (
-        <div className='px-2 pb-4'>
+        <div className='mb-1'>
           <button
             onClick={handleHomepageClick}
             className='group flex h-9 w-full cursor-pointer items-center rounded-[8px] px-2 py-2 font-medium font-sans text-sm transition-colors hover:bg-muted'

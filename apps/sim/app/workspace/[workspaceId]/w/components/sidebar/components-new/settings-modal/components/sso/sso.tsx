@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Check, ChevronDown, Copy, Eye, EyeOff } from 'lucide-react'
 import { Button, Combobox } from '@/components/emcn'
 import { Alert, AlertDescription, Input, Label } from '@/components/ui'
@@ -8,9 +8,13 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { useSession } from '@/lib/auth-client'
 import { isBillingEnabled } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console/logger'
+import { getUserRole } from '@/lib/organization/helpers'
+import { getSubscriptionStatus } from '@/lib/subscription/helpers'
 import { getBaseUrl } from '@/lib/urls/utils'
 import { cn } from '@/lib/utils'
-import { useOrganizationStore } from '@/stores/organization'
+import { useOrganizations } from '@/hooks/queries/organization'
+import { useConfigureSSO, useSSOProviders } from '@/hooks/queries/sso'
+import { useSubscriptionData } from '@/hooks/queries/subscription'
 
 const logger = createLogger('SSO')
 
@@ -71,13 +75,33 @@ interface SSOProvider {
 
 export function SSO() {
   const { data: session } = useSession()
-  const { activeOrganization, getUserRole, hasEnterprisePlan } = useOrganizationStore()
-  const [isLoading, setIsLoading] = useState(false)
+  const { data: orgsData } = useOrganizations()
+  const { data: subscriptionData } = useSubscriptionData()
+  const activeOrganization = orgsData?.activeOrganization
+
+  // Determine if we should fetch SSO providers
+  const userEmail = session?.user?.email
+  const userId = session?.user?.id
+  const userRole = getUserRole(activeOrganization, userEmail)
+  const isOwner = userRole === 'owner'
+  const isAdmin = userRole === 'admin'
+  const canManageSSO = isOwner || isAdmin
+  const subscriptionStatus = getSubscriptionStatus(subscriptionData?.data)
+  const hasEnterprisePlan = subscriptionStatus.isEnterprise
+
+  // Use React Query to fetch SSO providers
+  const { data: providersData, isLoading: isLoadingProviders } = useSSOProviders()
+
+  const providers = providersData?.providers || []
+  const isSSOProviderOwner =
+    !isBillingEnabled && userId ? providers.some((p: any) => p.userId === userId) : null
+
+  // Use mutation hook for configuring SSO
+  const configureSSOMutation = useConfigureSSO()
+
   const [error, setError] = useState<string | null>(null)
   const [showClientSecret, setShowClientSecret] = useState(false)
   const [copied, setCopied] = useState(false)
-  const [providers, setProviders] = useState<SSOProvider[]>([])
-  const [isLoadingProviders, setIsLoadingProviders] = useState(true)
   const [showConfigForm, setShowConfigForm] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
 
@@ -115,52 +139,6 @@ export function SSO() {
     audience: [],
   })
   const [showErrors, setShowErrors] = useState(false)
-
-  const userEmail = session?.user?.email
-  const userId = session?.user?.id
-  const userRole = getUserRole(userEmail)
-  const isOwner = userRole === 'owner'
-  const isAdmin = userRole === 'admin'
-  const canManageSSO = isOwner || isAdmin
-
-  const [isSSOProviderOwner, setIsSSOProviderOwner] = useState<boolean | null>(null)
-
-  useEffect(() => {
-    const fetchProviders = async () => {
-      try {
-        const response = await fetch('/api/auth/sso/providers')
-        if (!response.ok) {
-          throw new Error(`Failed to fetch providers: ${response.statusText}`)
-        }
-
-        const data = await response.json()
-        setProviders(data.providers || [])
-
-        if (!isBillingEnabled && userId) {
-          const ownsProvider = data.providers.some((p: any) => p.userId === userId)
-          setIsSSOProviderOwner(ownsProvider)
-        } else {
-          setIsSSOProviderOwner(null)
-        }
-      } catch (error) {
-        logger.error('Failed to fetch SSO providers', { error })
-        setProviders([])
-        setIsSSOProviderOwner(false)
-      } finally {
-        setIsLoadingProviders(false)
-      }
-    }
-
-    const shouldFetch = !isBillingEnabled
-      ? true
-      : canManageSSO && activeOrganization && hasEnterprisePlan
-
-    if (shouldFetch) {
-      fetchProviders()
-    } else {
-      setIsLoadingProviders(false)
-    }
-  }, [canManageSSO, activeOrganization, hasEnterprisePlan, userId, isBillingEnabled])
 
   if (isBillingEnabled) {
     if (!activeOrganization) {
@@ -311,13 +289,11 @@ export function SSO() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setIsLoading(true)
     setError(null)
 
     setShowErrors(true)
     const validation = validateAll(formData)
     if (hasAnyErrors(validation)) {
-      setIsLoading(false)
       return
     }
 
@@ -327,6 +303,7 @@ export function SSO() {
         issuer: formData.issuerUrl,
         domain: formData.domain,
         providerType: formData.providerType,
+        orgId: activeOrganization?.id,
         mapping: {
           id: 'sub',
           email: 'email',
@@ -354,22 +331,12 @@ export function SSO() {
         }
       }
 
-      const response = await fetch('/api/auth/sso/register', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(requestBody),
-      })
+      // Use the mutation hook - this will automatically invalidate the cache
+      await configureSSOMutation.mutateAsync(requestBody)
 
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.details || 'Failed to configure SSO provider')
-      }
+      logger.info('SSO provider configured', { providerId: formData.providerId })
 
-      const result = await response.json()
-      logger.info('SSO provider configured', { providerId: result.providerId })
-
+      // Reset form
       setFormData({
         providerType: 'oidc',
         providerId: '',
@@ -387,25 +354,12 @@ export function SSO() {
         showAdvanced: false,
       })
 
-      const providersResponse = await fetch('/api/auth/sso/providers')
-      if (providersResponse.ok) {
-        const providersData = await providersResponse.json()
-        setProviders(providersData.providers || [])
-
-        if (!isBillingEnabled && userId) {
-          const ownsProvider = providersData.providers.some((p: any) => p.userId === userId)
-          setIsSSOProviderOwner(ownsProvider)
-        }
-      }
-
       setShowConfigForm(false)
       setIsEditing(false)
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unknown error occurred'
       setError(message)
       logger.error('Failed to configure SSO provider', { error: err })
-    } finally {
-      setIsLoading(false)
     }
   }
 
@@ -535,7 +489,7 @@ export function SSO() {
           {showStatus ? (
             // SSO Provider Status View
             <div className='space-y-4'>
-              {providers.map((provider) => (
+              {providers.map((provider: SSOProvider) => (
                 <div key={provider.id} className='rounded-[8px] bg-muted/30 p-4'>
                   <div className='flex items-start justify-between gap-3'>
                     <div className='flex-1'>
@@ -1013,9 +967,11 @@ export function SSO() {
                 <Button
                   type='submit'
                   className='h-9 w-full'
-                  disabled={isLoading || hasAnyErrors(errors) || !isFormValid()}
+                  disabled={
+                    configureSSOMutation.isPending || hasAnyErrors(errors) || !isFormValid()
+                  }
                 >
-                  {isLoading
+                  {configureSSOMutation.isPending
                     ? isEditing
                       ? 'Updating...'
                       : 'Configuring...'
@@ -1056,50 +1012,53 @@ function SsoSkeleton() {
   return (
     <div className='flex h-full flex-col'>
       <div className='flex-1 overflow-y-auto px-6 pt-4 pb-4'>
-        <div className='space-y-4'>
+        <div className='space-y-3'>
           {/* Provider type toggle */}
           <div className='space-y-1'>
             <Skeleton className='h-4 w-28' />
-            <div className='flex items-center gap-2'>
-              <Skeleton className='h-9 w-20 rounded-[8px]' />
-              <Skeleton className='h-9 w-20 rounded-[8px]' />
+            <Skeleton className='h-10 w-full rounded-[10px]' />
+            <Skeleton className='h-3 w-64' />
+          </div>
+
+          {/* Provider ID */}
+          <div className='space-y-1'>
+            <Skeleton className='h-4 w-24' />
+            <Skeleton className='h-9 w-full rounded-[10px]' />
+            <Skeleton className='h-3 w-80' />
+          </div>
+
+          {/* Issuer URL */}
+          <div className='space-y-1'>
+            <Skeleton className='h-4 w-24' />
+            <Skeleton className='h-9 w-full rounded-[10px]' />
+          </div>
+
+          {/* Domain */}
+          <div className='space-y-1'>
+            <Skeleton className='h-4 w-16' />
+            <Skeleton className='h-9 w-full rounded-[10px]' />
+          </div>
+
+          {/* Client ID */}
+          <div className='space-y-1'>
+            <Skeleton className='h-4 w-20' />
+            <Skeleton className='h-9 w-full rounded-[10px]' />
+          </div>
+
+          {/* Client Secret */}
+          <div className='space-y-1'>
+            <Skeleton className='h-4 w-24' />
+            <div className='relative'>
+              <Skeleton className='h-9 w-full rounded-[10px]' />
+              <Skeleton className='-translate-y-1/2 absolute top-1/2 right-3 h-4 w-4 rounded' />
             </div>
+          </div>
+
+          {/* Scopes */}
+          <div className='space-y-1'>
+            <Skeleton className='h-4 w-16' />
+            <Skeleton className='h-9 w-full rounded-[10px]' />
             <Skeleton className='h-3 w-56' />
-          </div>
-
-          {/* Core fields */}
-          <div className='space-y-3'>
-            <div className='space-y-1'>
-              <Skeleton className='h-4 w-24' />
-              <Skeleton className='h-9 w-full rounded-[10px]' />
-            </div>
-            <div className='space-y-1'>
-              <Skeleton className='h-4 w-24' />
-              <Skeleton className='h-9 w-full rounded-[10px]' />
-            </div>
-            <div className='space-y-1'>
-              <Skeleton className='h-4 w-16' />
-              <Skeleton className='h-9 w-full rounded-[10px]' />
-            </div>
-          </div>
-
-          {/* OIDC section (client id/secret/scopes) */}
-          <div className='space-y-3'>
-            <div className='space-y-1'>
-              <Skeleton className='h-4 w-20' />
-              <Skeleton className='h-9 w-full rounded-[10px]' />
-            </div>
-            <div className='space-y-1'>
-              <Skeleton className='h-4 w-24' />
-              <div className='relative'>
-                <Skeleton className='h-9 w-full rounded-[10px]' />
-                <Skeleton className='-translate-y-1/2 absolute top-1/2 right-3 h-4 w-4 rounded' />
-              </div>
-            </div>
-            <div className='space-y-1'>
-              <Skeleton className='h-4 w-16' />
-              <Skeleton className='h-9 w-full rounded-[10px]' />
-            </div>
           </div>
 
           {/* Submit button */}
@@ -1107,10 +1066,10 @@ function SsoSkeleton() {
 
           {/* Callback URL */}
           <div className='space-y-1'>
-            <Skeleton className='h-4 w-20' />
-            <div className='relative'>
-              <Skeleton className='h-9 w-full rounded-[10px]' />
-              <Skeleton className='-translate-y-1/2 absolute top-1/2 right-3 h-4 w-4 rounded' />
+            <Skeleton className='h-4 w-24' />
+            <Skeleton className='h-3 w-96' />
+            <div className='relative flex h-9 items-center rounded-[8px] bg-muted px-3'>
+              <Skeleton className='h-3 w-64' />
             </div>
           </div>
         </div>

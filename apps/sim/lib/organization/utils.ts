@@ -1,5 +1,5 @@
 import { quickValidateEmail } from '@/lib/email/validation'
-import type { Organization } from '@/stores/organization/types'
+import type { Organization } from '@/lib/organization/types'
 
 /**
  * Calculate seat usage for an organization

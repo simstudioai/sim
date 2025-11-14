@@ -28,8 +28,8 @@ import {
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/components/sub-block/components/env-var-dropdown'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/components/sub-block/components/formatted-text'
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
+import { useCreateMcpServer } from '@/hooks/queries/mcp'
 import { useMcpServerTest } from '@/hooks/use-mcp-server-test'
-import { useMcpServersStore } from '@/stores/mcp-servers/store'
 
 const logger = createLogger('McpServerModal')
 
@@ -61,7 +61,7 @@ export function McpServerModal({
     url: '',
     headers: { '': '' },
   })
-  const { createServer, isLoading, error: storeError, clearError } = useMcpServersStore()
+  const createServerMutation = useCreateMcpServer()
   const [localError, setLocalError] = useState<string | null>(null)
 
   // MCP server testing
@@ -79,7 +79,7 @@ export function McpServerModal({
   const [urlScrollLeft, setUrlScrollLeft] = useState(0)
   const [headerScrollLeft, setHeaderScrollLeft] = useState<Record<string, number>>({})
 
-  const error = localError || storeError
+  const error = localError || createServerMutation.error?.message
 
   const resetForm = () => {
     setFormData({
@@ -89,7 +89,7 @@ export function McpServerModal({
       headers: { '': '' },
     })
     setLocalError(null)
-    clearError()
+    createServerMutation.reset()
     setShowEnvVars(false)
     setActiveInputField(null)
     setActiveHeaderIndex(null)
@@ -210,7 +210,7 @@ export function McpServerModal({
     }
 
     setLocalError(null)
-    clearError()
+    createServerMutation.reset()
 
     try {
       // If no test has been done, test first
@@ -242,13 +242,16 @@ export function McpServerModal({
         )
       )
 
-      await createServer(workspaceId, {
-        name: formData.name.trim(),
-        transport: formData.transport,
-        url: formData.url,
-        timeout: 30000,
-        headers: cleanHeaders,
-        enabled: true,
+      await createServerMutation.mutateAsync({
+        workspaceId,
+        config: {
+          name: formData.name.trim(),
+          transport: formData.transport,
+          url: formData.url,
+          timeout: 30000,
+          headers: cleanHeaders,
+          enabled: true,
+        },
       })
 
       logger.info(`Added MCP server: ${formData.name}`)
@@ -267,8 +270,7 @@ export function McpServerModal({
     testConnection,
     onOpenChange,
     onServerCreated,
-    createServer,
-    clearError,
+    createServerMutation,
     workspaceId,
   ])
 
@@ -563,16 +565,18 @@ export function McpServerModal({
                     resetForm()
                     onOpenChange(false)
                   }}
-                  disabled={isLoading}
+                  disabled={createServerMutation.isPending}
                 >
                   Cancel
                 </Button>
                 <Button
                   size='sm'
                   onClick={handleSubmit}
-                  disabled={isLoading || !formData.name.trim() || !formData.url?.trim()}
+                  disabled={
+                    createServerMutation.isPending || !formData.name.trim() || !formData.url?.trim()
+                  }
                 >
-                  {isLoading ? 'Adding...' : 'Add Server'}
+                  {createServerMutation.isPending ? 'Adding...' : 'Add Server'}
                 </Button>
               </div>
             </div>

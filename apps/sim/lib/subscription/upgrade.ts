@@ -1,7 +1,8 @@
 import { useCallback } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { client, useSession, useSubscription } from '@/lib/auth-client'
 import { createLogger } from '@/lib/logs/console/logger'
-import { useOrganizationStore } from '@/stores/organization'
+import { organizationKeys } from '@/hooks/queries/organization'
 
 const logger = createLogger('SubscriptionUpgrade')
 
@@ -17,7 +18,7 @@ const CONSTANTS = {
 export function useSubscriptionUpgrade() {
   const { data: session } = useSession()
   const betterAuthSubscription = useSubscription()
-  const { loadData: loadOrganizationData } = useOrganizationStore()
+  const queryClient = useQueryClient()
 
   const handleUpgrade = useCallback(
     async (targetPlan: TargetPlan) => {
@@ -139,7 +140,7 @@ export function useSubscriptionUpgrade() {
         // For team plans, refresh organization data to ensure UI updates
         if (targetPlan === 'team') {
           try {
-            await loadOrganizationData()
+            await queryClient.invalidateQueries({ queryKey: organizationKeys.lists() })
             logger.info('Refreshed organization data after team upgrade')
           } catch (error) {
             logger.warn('Failed to refresh organization data after upgrade', error)
@@ -167,7 +168,7 @@ export function useSubscriptionUpgrade() {
         )
       }
     },
-    [session?.user?.id, betterAuthSubscription, loadOrganizationData]
+    [session?.user?.id, betterAuthSubscription, queryClient]
   )
 
   return { handleUpgrade }

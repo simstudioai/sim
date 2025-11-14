@@ -1,17 +1,19 @@
-import { useCallback, useEffect, useRef } from 'react'
+import { useCallback, useRef } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { AlertCircle } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useActiveOrganization } from '@/lib/auth-client'
 import { createLogger } from '@/lib/logs/console/logger'
+import { getSubscriptionStatus } from '@/lib/subscription/helpers'
 import { getBaseUrl } from '@/lib/urls/utils'
 import { UsageHeader } from '@/app/workspace/[workspaceId]/w/components/sidebar/components-new/settings-modal/components/shared/usage-header'
 import {
   UsageLimit,
   type UsageLimitRef,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/components-new/settings-modal/components/subscription/components'
-import { useOrganizationStore } from '@/stores/organization'
-import { useSubscriptionStore } from '@/stores/subscription/store'
+import { organizationKeys, useOrganizationBilling } from '@/hooks/queries/organization'
+import { useSubscriptionData } from '@/hooks/queries/subscription'
 
 const logger = createLogger('TeamUsage')
 
@@ -21,29 +23,27 @@ interface TeamUsageProps {
 
 export function TeamUsage({ hasAdminAccess }: TeamUsageProps) {
   const { data: activeOrg } = useActiveOrganization()
-  const { getSubscriptionStatus } = useSubscriptionStore()
+  const { data: subscriptionData } = useSubscriptionData()
+  const queryClient = useQueryClient()
+  const subscriptionStatus = getSubscriptionStatus(subscriptionData?.data)
 
+  // Fetch organization billing data using React Query
   const {
-    organizationBillingData: billingData,
-    loadOrganizationBillingData,
-    isLoadingOrgBilling,
+    data: billingData,
+    isLoading: isLoadingOrgBilling,
     error,
-  } = useOrganizationStore()
-
-  useEffect(() => {
-    if (activeOrg?.id) {
-      loadOrganizationBillingData(activeOrg.id)
-    }
-  }, [activeOrg?.id, loadOrganizationBillingData])
+  } = useOrganizationBilling(activeOrg?.id || '')
 
   const handleLimitUpdated = useCallback(
     async (newLimit: number) => {
-      // Reload the organization billing data to reflect the new limit
+      // Invalidate the billing query to refetch with the new limit
       if (activeOrg?.id) {
-        await loadOrganizationBillingData(activeOrg.id, true)
+        await queryClient.invalidateQueries({
+          queryKey: organizationKeys.billing(activeOrg.id),
+        })
       }
     },
-    [activeOrg?.id, loadOrganizationBillingData]
+    [activeOrg?.id, queryClient]
   )
 
   const usageLimitRef = useRef<UsageLimitRef | null>(null)
@@ -74,7 +74,9 @@ export function TeamUsage({ hasAdminAccess }: TeamUsageProps) {
       <Alert variant='destructive'>
         <AlertCircle className='h-4 w-4' />
         <AlertTitle>Error</AlertTitle>
-        <AlertDescription>{error}</AlertDescription>
+        <AlertDescription>
+          {error instanceof Error ? error.message : 'Failed to load billing data'}
+        </AlertDescription>
       </Alert>
     )
   }
@@ -92,7 +94,7 @@ export function TeamUsage({ hasAdminAccess }: TeamUsageProps) {
   const status: 'ok' | 'warning' | 'exceeded' =
     percentUsed >= 100 ? 'exceeded' : percentUsed >= 80 ? 'warning' : 'ok'
 
-  const subscription = getSubscriptionStatus()
+  const subscription = subscriptionStatus
   const title = subscription.isEnterprise
     ? 'Enterprise'
     : subscription.isTeam

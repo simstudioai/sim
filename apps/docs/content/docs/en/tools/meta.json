@@ -2,6 +2,7 @@
   "pages": [
     "index",
     "airtable",
+    "apollo",
     "arxiv",
     "asana",
     "browser_use",

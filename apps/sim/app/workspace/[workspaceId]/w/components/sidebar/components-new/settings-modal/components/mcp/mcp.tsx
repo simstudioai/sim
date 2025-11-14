@@ -1,15 +1,20 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { AlertCircle, Plus, Search } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { Button } from '@/components/emcn'
 import { Alert, AlertDescription, Input, Skeleton } from '@/components/ui'
 import { createLogger } from '@/lib/logs/console/logger'
 import { checkEnvVarTrigger } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/components/sub-block/components/env-var-dropdown'
+import {
+  useCreateMcpServer,
+  useDeleteMcpServer,
+  useMcpServers,
+  useMcpToolsQuery,
+} from '@/hooks/queries/mcp'
 import { useMcpServerTest } from '@/hooks/use-mcp-server-test'
 import { useMcpTools } from '@/hooks/use-mcp-tools'
-import { useMcpServersStore } from '@/stores/mcp-servers/store'
 import { AddServerForm } from './components/add-server-form'
 import type { McpServerFormData } from './types'
 
@@ -18,15 +23,19 @@ const logger = createLogger('McpSettings')
 export function MCP() {
   const params = useParams()
   const workspaceId = params.workspaceId as string
-  const { mcpTools, error: toolsError, refreshTools } = useMcpTools(workspaceId)
+
+  // React Query hooks
   const {
-    servers,
+    data: servers = [],
     isLoading: serversLoading,
     error: serversError,
-    fetchServers,
-    createServer,
-    deleteServer,
-  } = useMcpServersStore()
+  } = useMcpServers(workspaceId)
+  const { data: mcpToolsData = [], error: toolsError } = useMcpToolsQuery(workspaceId)
+  const createServerMutation = useCreateMcpServer()
+  const deleteServerMutation = useDeleteMcpServer()
+
+  // Keep the old hook for backward compatibility with other features that use it
+  const { refreshTools } = useMcpTools(workspaceId)
 
   const [showAddForm, setShowAddForm] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
@@ -162,13 +171,16 @@ export function MCP() {
         return
       }
 
-      await createServer(workspaceId, {
-        name: formData.name.trim(),
-        transport: formData.transport,
-        url: formData.url,
-        timeout: formData.timeout || 30000,
-        headers: formData.headers,
-        enabled: true,
+      await createServerMutation.mutateAsync({
+        workspaceId,
+        config: {
+          name: formData.name.trim(),
+          transport: formData.transport,
+          url: formData.url,
+          timeout: formData.timeout || 30000,
+          headers: formData.headers,
+          enabled: true,
+        },
       })
 
       logger.info(`Added MCP server: ${formData.name}`)
@@ -196,7 +208,7 @@ export function MCP() {
     formData,
     testResult,
     testConnection,
-    createServer,
+    createServerMutation,
     refreshTools,
     clearTestResult,
     workspaceId,
@@ -207,7 +219,7 @@ export function MCP() {
       setDeletingServers((prev) => new Set(prev).add(serverId))
 
       try {
-        await deleteServer(workspaceId, serverId)
+        await deleteServerMutation.mutateAsync({ workspaceId, serverId })
         await refreshTools(true)
 
         logger.info(`Removed MCP server: ${serverId}`)
@@ -226,15 +238,10 @@ export function MCP() {
         })
       }
     },
-    [deleteServer, refreshTools, workspaceId]
+    [deleteServerMutation, refreshTools, workspaceId]
   )
 
-  useEffect(() => {
-    fetchServers(workspaceId)
-    refreshTools()
-  }, [fetchServers, refreshTools, workspaceId])
-
-  const toolsByServer = (mcpTools || []).reduce(
+  const toolsByServer = (mcpToolsData || []).reduce(
     (acc, tool) => {
       if (!tool || !tool.serverId) {
         return acc
@@ -245,7 +252,7 @@ export function MCP() {
       acc[tool.serverId].push(tool)
       return acc
     },
-    {} as Record<string, typeof mcpTools>
+    {} as Record<string, typeof mcpToolsData>
   )
 
   const filteredServers = (servers || []).filter((server) =>
@@ -275,7 +282,13 @@ export function MCP() {
         {(toolsError || serversError) && (
           <Alert variant='destructive' className='mt-4'>
             <AlertCircle className='h-4 w-4' />
-            <AlertDescription>{toolsError || serversError}</AlertDescription>
+            <AlertDescription>
+              {toolsError instanceof Error
+                ? toolsError.message
+                : serversError instanceof Error
+                  ? serversError.message
+                  : 'An error occurred'}
+            </AlertDescription>
           </Alert>
         )}
       </div>

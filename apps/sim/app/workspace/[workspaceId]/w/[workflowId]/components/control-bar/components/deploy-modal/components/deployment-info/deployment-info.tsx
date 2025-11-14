@@ -45,6 +45,7 @@ interface DeploymentInfoProps {
   getInputFormatExample?: (includeStreaming?: boolean) => string
   selectedStreamingOutputs: string[]
   onSelectedStreamingOutputsChange: (outputs: string[]) => void
+  onLoadDeploymentComplete: () => void
 }
 
 export function DeploymentInfo({
@@ -60,6 +61,7 @@ export function DeploymentInfo({
   getInputFormatExample,
   selectedStreamingOutputs,
   onSelectedStreamingOutputsChange,
+  onLoadDeploymentComplete,
 }: DeploymentInfoProps) {
   const [isViewingDeployed, setIsViewingDeployed] = useState(false)
 
@@ -174,6 +176,7 @@ export function DeploymentInfo({
           needsRedeployment={deploymentInfo.needsRedeployment}
           activeDeployedState={deployedState}
           workflowId={workflowId}
+          onLoadDeploymentComplete={onLoadDeploymentComplete}
         />
       )}
     </>

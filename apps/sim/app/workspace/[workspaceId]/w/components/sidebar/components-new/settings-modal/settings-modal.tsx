@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import * as VisuallyHidden from '@radix-ui/react-visually-hidden'
 import { Modal, ModalContent, ModalDescription, ModalTitle } from '@/components/emcn'
 import { getEnv, isTruthy } from '@/lib/env'
@@ -22,8 +22,8 @@ import {
   TeamManagement,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/components-new/settings-modal/components'
 import { CreatorProfile } from '@/app/workspace/[workspaceId]/w/components/sidebar/components-new/settings-modal/components/creator-profile/creator-profile'
-import { useOrganizationStore } from '@/stores/organization'
-import { useGeneralStore } from '@/stores/settings/general/store'
+import { useGeneralSettings } from '@/hooks/queries/general-settings'
+import { useOrganizations } from '@/hooks/queries/organization'
 
 const logger = createLogger('SettingsModal')
 
@@ -52,38 +52,23 @@ type SettingsSection =
 
 export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
   const [activeSection, setActiveSection] = useState<SettingsSection>('general')
-  const [isLoading, setIsLoading] = useState(true)
-  const loadSettings = useGeneralStore((state) => state.loadSettings)
-  const { activeOrganization } = useOrganizationStore()
-  const hasLoadedInitialData = useRef(false)
-  const hasLoadedGeneral = useRef(false)
+  const { data: organizationsData } = useOrganizations()
+  const activeOrganization = organizationsData?.activeOrganization
   const environmentCloseHandler = useRef<((open: boolean) => void) | null>(null)
   const credentialsCloseHandler = useRef<((open: boolean) => void) | null>(null)
 
-  useEffect(() => {
-    async function loadGeneralIfNeeded() {
-      if (!open) return
-      if (activeSection !== 'general') return
-      if (hasLoadedGeneral.current) return
-      setIsLoading(true)
-      try {
-        await loadSettings()
-        hasLoadedGeneral.current = true
-        hasLoadedInitialData.current = true
-      } catch (error) {
-        logger.error('Error loading general settings:', error)
-      } finally {
-        setIsLoading(false)
-      }
-    }
+  // Memoized callbacks to prevent infinite loops in child components
+  const registerEnvironmentCloseHandler = useCallback((handler: (open: boolean) => void) => {
+    environmentCloseHandler.current = handler
+  }, [])
 
-    if (open) {
-      void loadGeneralIfNeeded()
-    } else {
-      hasLoadedInitialData.current = false
-      hasLoadedGeneral.current = false
-    }
-  }, [open, activeSection, loadSettings])
+  const registerCredentialsCloseHandler = useCallback((handler: (open: boolean) => void) => {
+    credentialsCloseHandler.current = handler
+  }, [])
+
+  // React Query hook automatically loads and syncs settings
+  // No need for manual loading logic - placeholderData provides instant UI
+  useGeneralSettings()
 
   useEffect(() => {
     const handleOpenSettings = (event: CustomEvent<{ tab: SettingsSection }>) => {
@@ -110,8 +95,6 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
       setActiveSection('general')
     }
   }, [activeSection])
-
-  const isSubscriptionEnabled = isBillingEnabled
 
   // Handle dialog close - delegate to environment component if it's active
   const handleDialogOpenChange = (newOpen: boolean) => {
@@ -162,9 +145,7 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
               <div className='h-full'>
                 <EnvironmentVariables
                   onOpenChange={onOpenChange}
-                  registerCloseHandler={(handler) => {
-                    environmentCloseHandler.current = handler
-                  }}
+                  registerCloseHandler={registerEnvironmentCloseHandler}
                 />
               </div>
             )}
@@ -182,9 +163,7 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
               <div className='h-full'>
                 <Credentials
                   onOpenChange={onOpenChange}
-                  registerCloseHandler={(handler) => {
-                    credentialsCloseHandler.current = handler
-                  }}
+                  registerCloseHandler={registerCredentialsCloseHandler}
                 />
               </div>
             )}
@@ -198,7 +177,7 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
                 <FileUploads />
               </div>
             )}
-            {isSubscriptionEnabled && activeSection === 'subscription' && (
+            {isBillingEnabled && activeSection === 'subscription' && (
               <div className='h-full'>
                 <Subscription onOpenChange={onOpenChange} />
               </div>

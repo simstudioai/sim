@@ -43,7 +43,6 @@ import { useDebounce } from '@/hooks/use-debounce'
 import { useFolderStore } from '@/stores/folders/store'
 import { useOperationQueueStore } from '@/stores/operation-queue/store'
 import { usePanelStore } from '@/stores/panel/store'
-import { useSubscriptionStore } from '@/stores/subscription/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
@@ -81,11 +80,8 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
   const { lastSaved, setNeedsRedeploymentFlag, blocks } = useWorkflowStore()
   const {
     workflows,
-    updateWorkflow,
     activeWorkflowId,
-    removeWorkflow,
     duplicateWorkflow,
-    setDeploymentStatus,
     isLoading: isRegistryLoading,
   } = useWorkflowRegistry()
   const { isExecuting, handleRunWorkflow, handleCancelExecution } = useWorkflowExecution()
@@ -100,7 +96,7 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
     useWorkflowExecution()
 
   // Local state
-  const [mounted, setMounted] = useState(false)
+  const [, setMounted] = useState(false)
   const [, forceUpdate] = useState({})
   const [isExpanded, setIsExpanded] = useState(false)
   const [isWebhookSettingsOpen, setIsWebhookSettingsOpen] = useState(false)
@@ -332,7 +328,7 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
   /**
    * Check user usage limits and cache results
    */
-  async function checkUserUsage(userId: string, forceRefresh = false): Promise<any | null> {
+  async function checkUserUsage(_userId: string, forceRefresh = false): Promise<any | null> {
     const now = Date.now()
     const cacheAge = now - usageDataCache.timestamp
 
@@ -355,14 +351,8 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
         return usage
       }
 
-      // Fallback: use store if API not available
-      const { getUsage, refresh } = useSubscriptionStore.getState()
-      if (forceRefresh) await refresh()
-      const usage = getUsage()
-
-      // Update cache
-      usageDataCache = { data: usage, timestamp: now, expirationMs: usageDataCache.expirationMs }
-      return usage
+      // No fallback needed anymore - React Query handles this
+      return null
     } catch (error) {
       logger.error('Error checking usage limits:', { error })
       return null
@@ -1113,6 +1103,7 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
             <Play className={cn('h-3.5 w-3.5', 'fill-current stroke-current')} />
           </Button>
         </Tooltip.Trigger>
+        <Tooltip.Content>{getTooltipContent()}</Tooltip.Content>
       </Tooltip.Root>
     )
   }
