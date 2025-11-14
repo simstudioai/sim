@@ -212,9 +212,9 @@ export function useSubBlockValue<T = any>(
   // Determine the effective value: diff value takes precedence if in diff mode
   const effectiveValue = hasSnapshotValue
     ? snapshotValue
-    : storeValue !== undefined
-      ? storeValue
-      : initialValue
+      : storeValue !== undefined
+        ? storeValue
+        : initialValue
 
   // Initialize valueRef on first render
   useEffect(() => {

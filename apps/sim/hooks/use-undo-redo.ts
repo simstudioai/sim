@@ -790,6 +790,18 @@ export function useUndoRedo() {
               }
             )
             useSubBlockStore.getState().setWorkflowValues(activeWorkflowId, subBlockValues)
+
+            // Broadcast state change to other users
+            addToQueue({
+              id: opId,
+              operation: {
+                operation: 'replace-workflow-state',
+                target: 'workflow',
+                payload: { workflowState: baselineSnapshot, isUndo: true },
+              },
+              workflowId: activeWorkflowId,
+              userId,
+            })
           }
 
           // Clear diff state
@@ -832,6 +844,18 @@ export function useUndoRedo() {
             )
           })
           useSubBlockStore.getState().setWorkflowValues(activeWorkflowId, subBlockValues)
+
+          // Broadcast state change to other users
+          addToQueue({
+            id: opId,
+            operation: {
+              operation: 'replace-workflow-state',
+              target: 'workflow',
+              payload: { workflowState: beforeAccept, isUndo: true },
+            },
+            workflowId: activeWorkflowId,
+            userId,
+          })
 
           // Get baseline from the original apply-diff operation
           const { baselineSnapshot: originalBaseline } = acceptDiffOp.data
@@ -1321,15 +1345,54 @@ export function useUndoRedo() {
       case 'apply-diff': {
         // Redo apply-diff means re-applying the proposed state with diff markers
         const applyDiffOp = entry.operation as any
-        const { proposedState, diffAnalysis } = applyDiffOp.data
+        const { proposedState, diffAnalysis, baselineSnapshot } = applyDiffOp.data
         const { useWorkflowDiffStore } = await import('@/stores/workflow-diff/store')
+        const { useWorkflowStore } = await import('@/stores/workflows/workflow/store')
+        const { useSubBlockStore } = await import('@/stores/workflows/subblock/store')
 
         // Set flag to skip recording during this operation
 
         ;(window as any).__skipDiffRecording = true
         try {
-          // Re-apply the proposed changes
-          await useWorkflowDiffStore.getState().setProposedChanges(proposedState, diffAnalysis)
+          // Manually apply the proposed state and set up diff store (similar to setProposedChanges but with original baseline)
+          const diffStore = useWorkflowDiffStore.getState()
+
+          // Apply proposed state to main store
+          useWorkflowStore.getState().replaceWorkflowState(proposedState)
+
+          // Extract and set subblock values
+          const subBlockValues: Record<string, Record<string, any>> = {}
+          Object.entries(proposedState.blocks || {}).forEach(([blockId, block]: [string, any]) => {
+            subBlockValues[blockId] = {}
+            Object.entries(block.subBlocks || {}).forEach(
+              ([subBlockId, subBlock]: [string, any]) => {
+                subBlockValues[blockId][subBlockId] = subBlock.value
+              }
+            )
+          })
+          useSubBlockStore.getState().setWorkflowValues(activeWorkflowId, subBlockValues)
+
+          // Broadcast state change to other users
+          addToQueue({
+            id: opId,
+            operation: {
+              operation: 'replace-workflow-state',
+              target: 'workflow',
+              payload: { workflowState: proposedState, isRedo: true },
+            },
+            workflowId: activeWorkflowId,
+            userId,
+          })
+
+          // Restore diff state with original baseline
+          diffStore._batchedStateUpdate({
+            hasActiveDiff: true,
+            isShowingDiff: true,
+            isDiffReady: true,
+            baselineWorkflow: baselineSnapshot,
+            baselineWorkflowId: activeWorkflowId,
+            diffAnalysis: diffAnalysis,
+          })
         } finally {
           ;(window as any).__skipDiffRecording = false
         }
@@ -1363,6 +1426,18 @@ export function useUndoRedo() {
             )
           })
           useSubBlockStore.getState().setWorkflowValues(activeWorkflowId, subBlockValues)
+
+          // Broadcast state change to other users
+          addToQueue({
+            id: opId,
+            operation: {
+              operation: 'replace-workflow-state',
+              target: 'workflow',
+              payload: { workflowState: afterAccept, isRedo: true },
+            },
+            workflowId: activeWorkflowId,
+            userId,
+          })
 
           // Clear diff state
           await useWorkflowDiffStore.getState().clearDiff({ restoreBaseline: false })
