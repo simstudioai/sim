@@ -99,7 +99,9 @@ export interface OneDriveToolParams {
   pageToken?: string
   exportMimeType?: string
   // Optional Excel write parameters (used when creating an .xlsx without file content)
-  values?: (string | number | boolean | null)[][]
+  values?:
+    | (string | number | boolean | null)[][]
+    | Array<Record<string, string | number | boolean | null>>
 }
 
 export type OneDriveResponse =
