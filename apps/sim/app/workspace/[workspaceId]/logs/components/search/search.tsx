@@ -84,11 +84,13 @@ export function AutocompleteSearch({
     getSuggestions: (input) => suggestionEngine.getSuggestions(input),
   })
 
+  // Initialize from external value (URL params) - only on mount
   useEffect(() => {
     if (value) {
       const parsed = parseQuery(value)
       initializeFromQuery(parsed.textSearch, parsed.filters)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const [dropdownWidth, setDropdownWidth] = useState(500)
@@ -123,12 +125,6 @@ export function AutocompleteSearch({
 
   return (
     <div className={cn('relative', className)}>
-      <style jsx>{`
-        .scrollable-badges::-webkit-scrollbar {
-          display: none;
-        }
-      `}</style>
-
       {/* Search Input with Inline Badges */}
       <Popover
         open={isOpen}
@@ -147,13 +143,7 @@ export function AutocompleteSearch({
             />
 
             {/* Scrollable container for badges */}
-            <div
-              className='scrollable-badges flex flex-1 items-center gap-1.5 overflow-x-auto px-2'
-              style={{
-                scrollbarWidth: 'none',
-                msOverflowStyle: 'none',
-              }}
-            >
+            <div className='flex flex-1 items-center gap-1.5 overflow-x-auto px-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'>
               {/* Applied Filter Badges */}
               {appliedFilters.map((filter, index) => (
                 <Button
@@ -239,8 +229,8 @@ export function AutocompleteSearch({
                     data-index={0}
                     className={cn(
                       'w-full px-3 py-1.5 text-left transition-colors focus:outline-none',
-                      'hover:bg-[var(--surface-7)] dark:hover:bg-[var(--surface-10)]',
-                      highlightedIndex === 0 && 'bg-[var(--surface-7)] dark:bg-[var(--surface-10)]'
+                      'hover:bg-[var(--surface-9)] dark:hover:bg-[var(--surface-9)]',
+                      highlightedIndex === 0 && 'bg-[var(--surface-9)] dark:bg-[var(--surface-9)]'
                     )}
                     onMouseEnter={() => setHighlightedIndex(0)}
                     onMouseDown={(e) => {
@@ -269,8 +259,8 @@ export function AutocompleteSearch({
                           data-index={index}
                           className={cn(
                             'w-full px-3 py-1.5 text-left transition-colors focus:outline-none',
-                            'hover:bg-[var(--surface-7)] dark:hover:bg-[var(--surface-10)]',
-                            isHighlighted && 'bg-[var(--surface-7)] dark:bg-[var(--surface-10)]'
+                            'hover:bg-[var(--surface-9)] dark:hover:bg-[var(--surface-9)]',
+                            isHighlighted && 'bg-[var(--surface-9)] dark:bg-[var(--surface-9)]'
                           )}
                           onMouseEnter={() => setHighlightedIndex(index)}
                           onMouseDown={(e) => {
@@ -312,9 +302,9 @@ export function AutocompleteSearch({
                     data-index={index}
                     className={cn(
                       'w-full px-3 py-1.5 text-left transition-colors focus:outline-none',
-                      'hover:bg-[var(--surface-7)] dark:hover:bg-[var(--surface-10)]',
+                      'hover:bg-[var(--surface-9)] dark:hover:bg-[var(--surface-9)]',
                       index === highlightedIndex &&
-                        'bg-[var(--surface-7)] dark:bg-[var(--surface-10)]'
+                        'bg-[var(--surface-9)] dark:bg-[var(--surface-9)]'
                     )}
                     onMouseEnter={() => setHighlightedIndex(index)}
                     onMouseDown={(e) => {
