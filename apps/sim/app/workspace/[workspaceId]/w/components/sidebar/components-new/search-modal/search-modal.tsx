@@ -1,11 +1,11 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import * as DialogPrimitive from '@radix-ui/react-dialog'
 import * as VisuallyHidden from '@radix-ui/react-visually-hidden'
 import { BookOpen, Layout, RepeatIcon, ScrollText, Search, SplitIcon } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
-import { Dialog, DialogOverlay, DialogPortal, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogPortal, DialogTitle } from '@/components/ui/dialog'
 import { useBrandConfig } from '@/lib/branding/branding'
 import { cn } from '@/lib/utils'
 import { getTriggersForSidebar, hasTriggerCapability } from '@/lib/workflows/trigger-utils'
@@ -411,6 +411,13 @@ export function SearchModal({
     [router, onOpenChange]
   )
 
+  /**
+   * Tracks whether the user has manually navigated the results list.
+   * This is used to avoid triggering smooth scrolling on initial open,
+   * which can introduce a small but noticeable delay.
+   */
+  const hasUserNavigatedRef = useRef(false)
+
   // Handle keyboard navigation
   useEffect(() => {
     if (!open) return
@@ -419,10 +426,12 @@ export function SearchModal({
       switch (e.key) {
         case 'ArrowDown':
           e.preventDefault()
+          hasUserNavigatedRef.current = true
           setSelectedIndex((prev) => Math.min(prev + 1, filteredItems.length - 1))
           break
         case 'ArrowUp':
           e.preventDefault()
+          hasUserNavigatedRef.current = true
           setSelectedIndex((prev) => Math.max(prev - 1, 0))
           break
         case 'Enter':
@@ -447,7 +456,10 @@ export function SearchModal({
     if (open && selectedIndex >= 0) {
       const element = document.querySelector(`[data-search-item-index="${selectedIndex}"]`)
       if (element) {
-        element.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+        element.scrollIntoView({
+          block: 'nearest',
+          behavior: hasUserNavigatedRef.current ? 'smooth' : 'auto',
+        })
       }
     }
   }, [selectedIndex, open])
@@ -487,10 +499,7 @@ export function SearchModal({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogPortal>
-        <DialogOverlay
-          className='z-40 bg-white/80 dark:bg-[#1b1b1b]/90'
-          style={{ backdropFilter: 'blur(4px)' }}
-        />
+        <DialogPrimitive.Overlay className='fixed inset-0 z-40 bg-black/40 dark:bg-black/60' />
         <DialogPrimitive.Content className='fixed top-[15%] left-[50%] z-50 flex w-[500px] translate-x-[-50%] flex-col gap-[12px] p-0 focus:outline-none focus-visible:outline-none'>
           <VisuallyHidden.Root>
             <DialogTitle>Search</DialogTitle>
