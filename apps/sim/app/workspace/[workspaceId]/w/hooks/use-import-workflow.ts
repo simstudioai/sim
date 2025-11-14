@@ -1,4 +1,5 @@
 import { useCallback, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
 import { createLogger } from '@/lib/logs/console/logger'
 import {
@@ -6,7 +7,7 @@ import {
   extractWorkflowsFromFiles,
   extractWorkflowsFromZip,
 } from '@/lib/workflows/import-export'
-import { useFolderStore } from '@/stores/folders/store'
+import { folderKeys, useCreateFolder } from '@/hooks/queries/folders'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 import { parseWorkflowJson } from '@/stores/workflows/json/importer'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -30,6 +31,8 @@ interface UseImportWorkflowProps {
 export function useImportWorkflow({ workspaceId }: UseImportWorkflowProps) {
   const router = useRouter()
   const { createWorkflow, loadWorkflows } = useWorkflowRegistry()
+  const queryClient = useQueryClient()
+  const createFolderMutation = useCreateFolder()
   const [isImporting, setIsImporting] = useState(false)
 
   /**
@@ -119,9 +122,11 @@ export function useImportWorkflow({ workspaceId }: UseImportWorkflowProps) {
           const zipFile = fileArray[0]
           const { workflows: extractedWorkflows, metadata } = await extractWorkflowsFromZip(zipFile)
 
-          const { createFolder } = useFolderStore.getState()
           const folderName = metadata?.workspaceName || zipFile.name.replace(/\.zip$/i, '')
-          const importFolder = await createFolder({ name: folderName, workspaceId })
+          const importFolder = await createFolderMutation.mutateAsync({
+            name: folderName,
+            workspaceId,
+          })
           const folderMap = new Map<string, string>()
 
           for (const workflow of extractedWorkflows) {
@@ -139,7 +144,7 @@ export function useImportWorkflow({ workspaceId }: UseImportWorkflowProps) {
                     const pathSegment = workflow.folderPath.slice(0, i + 1).join('/')
 
                     if (!folderMap.has(pathSegment)) {
-                      const subFolder = await createFolder({
+                      const subFolder = await createFolderMutation.mutateAsync({
                         name: workflow.folderPath[i],
                         workspaceId,
                         parentId,
@@ -181,7 +186,7 @@ export function useImportWorkflow({ workspaceId }: UseImportWorkflowProps) {
 
         // Reload workflows to show newly imported ones
         await loadWorkflows(workspaceId)
-        await useFolderStore.getState().fetchFolders(workspaceId)
+        await queryClient.invalidateQueries({ queryKey: folderKeys.list(workspaceId) })
 
         logger.info(`Import complete. Imported ${importedWorkflowIds.length} workflow(s)`)
 
@@ -200,7 +205,7 @@ export function useImportWorkflow({ workspaceId }: UseImportWorkflowProps) {
         }
       }
     },
-    [importSingleWorkflow, workspaceId, loadWorkflows, router]
+    [importSingleWorkflow, workspaceId, loadWorkflows, router, createFolderMutation, queryClient]
   )
 
   return {

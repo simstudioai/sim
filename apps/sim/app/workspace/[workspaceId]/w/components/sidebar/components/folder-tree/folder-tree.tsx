@@ -7,7 +7,8 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { createLogger } from '@/lib/logs/console/logger'
 import { FolderItem } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/folder-tree/components/folder-item'
 import { WorkflowItem } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/folder-tree/components/workflow-item'
-import { type FolderTreeNode, useFolderStore } from '@/stores/folders/store'
+import { useFolders, useUpdateFolder } from '@/hooks/queries/folders'
+import { type FolderTreeNode, useFolderStore, type WorkflowFolder } from '@/stores/folders/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
 
@@ -390,24 +391,18 @@ export function FolderTree({
   const params = useParams()
   const workspaceId = params.workspaceId as string
   const workflowId = params.workflowId as string
-  const {
-    getFolderTree,
-    expandedFolders,
-    fetchFolders,
-    isLoading: foldersLoading,
-    clearSelection,
-    updateFolderAPI,
-    getFolderPath,
-    setExpanded,
-  } = useFolderStore()
+  const foldersQuery = useFolders(workspaceId)
+  const updateFolder = useUpdateFolder()
+  const { getFolderTree, expandedFolders, clearSelection, getFolderPath, setExpanded } =
+    useFolderStore()
   const { updateWorkflow } = useWorkflowRegistry()
 
   // Memoize the active workflow's folder ID to avoid unnecessary re-runs
   const activeWorkflowFolderId = useMemo(() => {
-    if (!workflowId || isLoading || foldersLoading) return null
+    if (!workflowId || isLoading || foldersQuery.isLoading) return null
     const activeWorkflow = regularWorkflows.find((workflow) => workflow.id === workflowId)
     return activeWorkflow?.folderId || null
-  }, [workflowId, regularWorkflows, isLoading, foldersLoading])
+  }, [workflowId, regularWorkflows, isLoading, foldersQuery.isLoading])
 
   // Auto-expand folders when a workflow is active
   useEffect(() => {
@@ -426,7 +421,7 @@ export function FolderTree({
 
   // Clean up any existing folders with 3+ levels of nesting
   const cleanupDeepNesting = useCallback(async () => {
-    const { getFolderTree, updateFolderAPI } = useFolderStore.getState()
+    const { getFolderTree } = useFolderStore.getState()
     const folderTree = getFolderTree(workspaceId)
 
     const findDeepFolders = (nodes: FolderTreeNode[], currentLevel = 0): FolderTreeNode[] => {
@@ -452,23 +447,24 @@ export function FolderTree({
     // Move deeply nested folders to root level
     for (const folder of deepFolders) {
       try {
-        await updateFolderAPI(folder.id, { parentId: null })
+        await updateFolder.mutateAsync({
+          workspaceId,
+          id: folder.id,
+          updates: { parentId: null },
+        })
         logger.info(`Moved deeply nested folder "${folder.name}" to root level`)
       } catch (error) {
         logger.error(`Failed to move folder "${folder.name}":`, error)
       }
     }
-  }, [workspaceId])
+  }, [workspaceId, updateFolder])
 
   // Fetch folders when workspace changes
   useEffect(() => {
-    if (workspaceId) {
-      fetchFolders(workspaceId).then(() => {
-        // Clean up any existing deep nesting after folders are loaded
-        cleanupDeepNesting()
-      })
+    if (workspaceId && foldersQuery.data) {
+      cleanupDeepNesting()
     }
-  }, [workspaceId, fetchFolders, cleanupDeepNesting])
+  }, [workspaceId, foldersQuery.data, cleanupDeepNesting])
 
   useEffect(() => {
     clearSelection()
@@ -487,13 +483,19 @@ export function FolderTree({
     {} as Record<string, WorkflowMetadata[]>
   )
 
+  const updateFolderFn = useCallback(
+    (id: string, updates: Partial<WorkflowFolder>) =>
+      updateFolder.mutateAsync({ workspaceId, id, updates }),
+    [updateFolder, workspaceId]
+  )
+
   const {
     isDragOver: rootDragOver,
     isInvalidDrop: rootInvalidDrop,
     handleDragOver: handleRootDragOver,
     handleDragLeave: handleRootDragLeave,
     handleDrop: handleRootDrop,
-  } = useDragHandlers(updateWorkflow, updateFolderAPI, null, 'Moved workflow(s) to root')
+  } = useDragHandlers(updateWorkflow, updateFolderFn, null, 'Moved workflow(s) to root')
 
   const renderFolderTree = (
     nodes: FolderTreeNode[],
@@ -510,7 +512,7 @@ export function FolderTree({
         expandedFolders={expandedFolders}
         pathname={pathname}
         updateWorkflow={updateWorkflow}
-        updateFolder={updateFolderAPI}
+        updateFolder={updateFolderFn}
         renderFolderTree={renderFolderTree}
         parentDragOver={parentDragOver}
         isFirstItem={level === 0 && index === 0}
@@ -518,7 +520,7 @@ export function FolderTree({
     ))
   }
 
-  const showLoading = isLoading || foldersLoading
+  const showLoading = isLoading || foldersQuery.isLoading
   const rootWorkflows = workflowsByFolder.root || []
 
   // Render skeleton loading state

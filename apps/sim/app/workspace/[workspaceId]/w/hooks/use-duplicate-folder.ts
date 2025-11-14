@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react'
 import { createLogger } from '@/lib/logs/console/logger'
+import { useDuplicateFolderMutation } from '@/hooks/queries/folders'
 import { useFolderStore } from '@/stores/folders/store'
 
 const logger = createLogger('useDuplicateFolder')
@@ -38,7 +39,7 @@ export function useDuplicateFolder({
   getFolderIds,
   onSuccess,
 }: UseDuplicateFolderProps) {
-  const { duplicateFolder } = useFolderStore()
+  const duplicateFolderMutation = useDuplicateFolderMutation()
   const [isDuplicating, setIsDuplicating] = useState(false)
 
   /**
@@ -64,7 +65,8 @@ export function useDuplicateFolder({
 
       // Duplicate each folder sequentially
       for (const folderId of folderIdsToDuplicate) {
-        const newFolderId = await duplicateFolder(folderId)
+        const result = await duplicateFolderMutation.mutateAsync({ id: folderId, workspaceId })
+        const newFolderId = result?.id
         if (newFolderId) {
           duplicatedIds.push(newFolderId)
         }
@@ -86,7 +88,7 @@ export function useDuplicateFolder({
     } finally {
       setIsDuplicating(false)
     }
-  }, [getFolderIds, isDuplicating, duplicateFolder, onSuccess])
+  }, [getFolderIds, isDuplicating, duplicateFolderMutation, workspaceId, onSuccess])
 
   return {
     isDuplicating,

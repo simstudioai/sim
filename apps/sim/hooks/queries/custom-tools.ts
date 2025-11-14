@@ -1,5 +1,7 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createLogger } from '@/lib/logs/console/logger'
+import { useCustomToolsStore } from '@/stores/custom-tools/store'
+import type { CustomToolDefinition, CustomToolSchema } from '@/stores/custom-tools/types'
 
 const logger = createLogger('CustomToolsQueries')
 const API_ENDPOINT = '/api/tools/custom'
@@ -14,32 +16,62 @@ export const customToolsKeys = {
   detail: (toolId: string) => [...customToolsKeys.all, 'detail', toolId] as const,
 }
 
-/**
- * Custom Tool Types
- */
-export interface CustomToolSchema {
-  function?: {
-    name?: string
-    description?: string
-    parameters?: any
+export type CustomTool = CustomToolDefinition
+
+type ApiCustomTool = Partial<CustomToolDefinition> & {
+  id: string
+  title: string
+  schema: Partial<CustomToolSchema> & {
+    function?: Partial<CustomToolSchema['function']> & {
+      parameters?: Partial<CustomToolSchema['function']['parameters']>
+    }
+  }
+  code?: string
+}
+
+function normalizeCustomTool(tool: ApiCustomTool, workspaceId: string): CustomToolDefinition {
+  const fallbackName = tool.schema.function?.name || tool.id
+  const parameters = tool.schema.function?.parameters ?? {
+    type: 'object',
+    properties: {},
+  }
+
+  return {
+    id: tool.id,
+    title: tool.title,
+    code: typeof tool.code === 'string' ? tool.code : '',
+    workspaceId: tool.workspaceId ?? workspaceId ?? null,
+    userId: tool.userId ?? null,
+    createdAt:
+      typeof tool.createdAt === 'string'
+        ? tool.createdAt
+        : tool.updatedAt && typeof tool.updatedAt === 'string'
+          ? tool.updatedAt
+          : new Date().toISOString(),
+    updatedAt: typeof tool.updatedAt === 'string' ? tool.updatedAt : undefined,
+    schema: {
+      type: tool.schema.type ?? 'function',
+      function: {
+        name: fallbackName,
+        description: tool.schema.function?.description,
+        parameters: {
+          type: parameters.type ?? 'object',
+          properties: parameters.properties ?? {},
+          required: parameters.required,
+        },
+      },
+    },
   }
 }
 
-export interface CustomTool {
-  id: string
-  title: string
-  schema?: CustomToolSchema
-  code: string
-  workspaceId?: string
-  userId?: string
-  createdAt?: string
-  updatedAt?: string
+function syncCustomToolsToStore(tools: CustomToolDefinition[]) {
+  useCustomToolsStore.getState().setTools(tools)
 }
 
 /**
  * Fetch custom tools for a workspace
  */
-async function fetchCustomTools(workspaceId: string): Promise<CustomTool[]> {
+async function fetchCustomTools(workspaceId: string): Promise<CustomToolDefinition[]> {
   const response = await fetch(`${API_ENDPOINT}?workspaceId=${workspaceId}`)
 
   if (!response.ok) {
@@ -53,45 +85,68 @@ async function fetchCustomTools(workspaceId: string): Promise<CustomTool[]> {
     throw new Error('Invalid response format')
   }
 
-  // Filter and validate tools
-  const validTools = data.filter((tool, index) => {
+  const normalizedTools: CustomToolDefinition[] = []
+
+  data.forEach((tool, index) => {
     if (!tool || typeof tool !== 'object') {
       logger.warn(`Skipping invalid tool at index ${index}: not an object`)
-      return false
+      return
     }
     if (!tool.id || typeof tool.id !== 'string') {
       logger.warn(`Skipping invalid tool at index ${index}: missing or invalid id`)
-      return false
+      return
     }
     if (!tool.title || typeof tool.title !== 'string') {
       logger.warn(`Skipping invalid tool at index ${index}: missing or invalid title`)
-      return false
+      return
     }
     if (!tool.schema || typeof tool.schema !== 'object') {
       logger.warn(`Skipping invalid tool at index ${index}: missing or invalid schema`)
-      return false
+      return
     }
-    if (!tool.code || typeof tool.code !== 'string') {
-      logger.warn(`Tool at index ${index} missing code field, defaulting to empty string`)
-      tool.code = ''
+    if (!tool.schema.function || typeof tool.schema.function !== 'object') {
+      logger.warn(`Skipping invalid tool at index ${index}: missing function schema`)
+      return
     }
-    return true
+
+    const apiTool: ApiCustomTool = {
+      id: tool.id,
+      title: tool.title,
+      schema: tool.schema,
+      code: typeof tool.code === 'string' ? tool.code : '',
+      workspaceId: tool.workspaceId ?? null,
+      userId: tool.userId ?? null,
+      createdAt: tool.createdAt ?? undefined,
+      updatedAt: tool.updatedAt ?? undefined,
+    }
+
+    try {
+      normalizedTools.push(normalizeCustomTool(apiTool, workspaceId))
+    } catch (error) {
+      logger.warn(`Failed to normalize custom tool at index ${index}`, { error })
+    }
   })
 
-  return validTools
+  return normalizedTools
 }
 
 /**
  * Hook to fetch custom tools
  */
 export function useCustomTools(workspaceId: string) {
-  return useQuery({
+  const query = useQuery<CustomToolDefinition[]>({
     queryKey: customToolsKeys.list(workspaceId),
     queryFn: () => fetchCustomTools(workspaceId),
     enabled: !!workspaceId,
     staleTime: 60 * 1000, // 1 minute - tools don't change frequently
     placeholderData: keepPreviousData,
   })
+
+  if (query.data) {
+    syncCustomToolsToStore(query.data)
+  }
+
+  return query
 }
 
 /**
@@ -169,7 +224,9 @@ export function useUpdateCustomTool() {
       logger.info(`Updating custom tool: ${toolId} in workspace ${workspaceId}`)
 
       // Get the current tool to merge with updates
-      const currentTools = queryClient.getQueryData<CustomTool[]>(customToolsKeys.list(workspaceId))
+      const currentTools = queryClient.getQueryData<CustomToolDefinition[]>(
+        customToolsKeys.list(workspaceId)
+      )
       const currentTool = currentTools?.find((t) => t.id === toolId)
 
       if (!currentTool) {
@@ -210,13 +267,13 @@ export function useUpdateCustomTool() {
       await queryClient.cancelQueries({ queryKey: customToolsKeys.list(workspaceId) })
 
       // Snapshot the previous value
-      const previousTools = queryClient.getQueryData<CustomTool[]>(
+      const previousTools = queryClient.getQueryData<CustomToolDefinition[]>(
         customToolsKeys.list(workspaceId)
       )
 
       // Optimistically update to the new value
       if (previousTools) {
-        queryClient.setQueryData<CustomTool[]>(
+        queryClient.setQueryData<CustomToolDefinition[]>(
           customToolsKeys.list(workspaceId),
           previousTools.map((tool) =>
             tool.id === toolId
@@ -285,13 +342,13 @@ export function useDeleteCustomTool() {
       await queryClient.cancelQueries({ queryKey: customToolsKeys.list(workspaceId) })
 
       // Snapshot the previous value
-      const previousTools = queryClient.getQueryData<CustomTool[]>(
+      const previousTools = queryClient.getQueryData<CustomToolDefinition[]>(
         customToolsKeys.list(workspaceId)
       )
 
       // Optimistically update to the new value
       if (previousTools) {
-        queryClient.setQueryData<CustomTool[]>(
+        queryClient.setQueryData<CustomToolDefinition[]>(
           customToolsKeys.list(workspaceId),
           previousTools.filter((tool) => tool.id !== toolId)
         )

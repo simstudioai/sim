@@ -12,6 +12,7 @@ import { AutocompleteSearch } from '@/app/workspace/[workspaceId]/logs/component
 import { Sidebar } from '@/app/workspace/[workspaceId]/logs/components/sidebar/sidebar'
 import Dashboard from '@/app/workspace/[workspaceId]/logs/dashboard'
 import { formatDate } from '@/app/workspace/[workspaceId]/logs/utils'
+import { useFolders } from '@/hooks/queries/folders'
 import { useDebounce } from '@/hooks/use-debounce'
 import { useFolderStore } from '@/stores/folders/store'
 import { useFilterStore } from '@/stores/logs/filters/store'
@@ -120,7 +121,8 @@ export default function Logs() {
     setSearchQuery(storeSearchQuery)
   }, [storeSearchQuery])
 
-  const { fetchFolders, getFolderTree } = useFolderStore()
+  const foldersQuery = useFolders(workspaceId)
+  const { getFolderTree } = useFolderStore()
 
   useEffect(() => {
     let cancelled = false
@@ -138,7 +140,6 @@ export default function Logs() {
           if (!cancelled) setAvailableWorkflows([])
         }
 
-        await fetchFolders(workspaceId)
         const tree = getFolderTree(workspaceId)
 
         const flatten = (nodes: any[], parentPath = ''): string[] => {
@@ -168,7 +169,7 @@ export default function Logs() {
     return () => {
       cancelled = true
     }
-  }, [workspaceId, fetchFolders, getFolderTree])
+  }, [workspaceId, getFolderTree, foldersQuery.data])
 
   useEffect(() => {
     if (isInitialized.current && debouncedSearchQuery !== storeSearchQuery) {
