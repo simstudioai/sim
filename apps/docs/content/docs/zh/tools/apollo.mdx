@@ -1,0 +1,574 @@
+---
+title: Apollo
+description: 使用 Apollo.io 搜索、丰富和管理联系人
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="apollo"
+  color="#EBF212"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Apollo.io](https://apollo.io/) 是一个领先的销售情报和互动平台，帮助用户大规模地查找、丰富和互动联系人及公司。Apollo.io 将广泛的联系人数据库与强大的数据丰富和工作流自动化工具相结合，帮助销售、市场营销和招聘团队加速增长。
+
+使用 Apollo.io，您可以：
+
+- **搜索数百万联系人和公司**：使用高级筛选器找到精准的潜在客户
+- **丰富潜在客户和账户信息**：用经过验证的数据和最新信息补充缺失的细节
+- **管理和组织 CRM 记录**：保持人员和公司数据的准确性和可操作性
+- **自动化外联**：直接从 Apollo.io 将联系人添加到序列中并创建后续任务
+
+在 Sim 中，Apollo.io 集成允许您的代理以编程方式执行核心 Apollo 操作：
+
+- **搜索人员和公司**：使用 `apollo_people_search` 通过灵活的筛选器发现新的潜在客户。
+- **丰富人员数据**：使用 `apollo_people_enrich` 为联系人补充经过验证的信息。
+- **批量丰富人员数据**：使用 `apollo_people_bulk_enrich` 一次性大规模丰富多个联系人。
+- **搜索和丰富公司信息**：使用 `apollo_company_search` 和 `apollo_company_enrich` 发现和更新关键的公司信息。
+
+这使您的代理能够构建强大的工作流，用于潜在客户开发、CRM 数据丰富和自动化，而无需手动输入数据或切换标签页。将 Apollo.io 集成为动态数据源和 CRM 引擎，帮助您的代理在日常操作中无缝识别、筛选和联系潜在客户。
+{/* MANUAL-CONTENT-END */}
+
+## 使用说明
+
+将 Apollo.io 集成到工作流程中。搜索人员和公司，丰富联系数据，管理您的 CRM 联系人和账户，将联系人添加到序列中，并创建任务。
+
+## 工具
+
+### `apollo_people_search`
+
+搜索 Apollo
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Apollo API 密钥 |
+| `person_titles` | array | 否 | 要搜索的职位 \(例如，\["CEO", "VP of Sales"\]\) |
+| `person_locations` | array | 否 | 要搜索的地点 \(例如，\["San Francisco, CA", "New York, NY"\]\) |
+| `person_seniorities` | array | 否 | 职级 \(例如，\["senior", "executive", "manager"\]\) |
+| `organization_names` | array | 否 | 要搜索的公司名称 |
+| `q_keywords` | string | 否 | 要搜索的关键词 |
+| `page` | number | 否 | 分页的页码 \(默认值：1\) |
+| `per_page` | number | 否 | 每页的结果数 \(默认值：25，最大值：100\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `people` | json | 符合搜索条件的人员数组 |
+| `metadata` | json | 包括页码、每页条目数和总条目数的分页信息 |
+
+### `apollo_people_enrich`
+
+使用 Apollo 丰富单个人的数据
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Apollo API 密钥 |
+| `first_name` | string | 否 | 该人的名字 |
+| `last_name` | string | 否 | 该人的姓氏 |
+| `email` | string | 否 | 该人的电子邮件地址 |
+| `organization_name` | string | 否 | 该人工作的公司名称 |
+| `domain` | string | 否 | 公司域名 \(例如，apollo.io\) |
+| `linkedin_url` | string | 否 | LinkedIn 个人资料 URL |
+| `reveal_personal_emails` | boolean | 否 | 显示个人电子邮件地址 \(使用积分\) |
+| `reveal_phone_number` | boolean | 否 | 显示电话号码 \(使用积分\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `person` | json | 来自 Apollo 的丰富人员数据 |
+| `metadata` | json | 包括丰富状态的元数据 |
+
+### `apollo_people_bulk_enrich`
+
+使用 Apollo 一次丰富最多 10 人的数据
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Apollo API 密钥 |
+| `people` | array | 是 | 要丰富的人员数组（最多 10 人） |
+| `reveal_personal_emails` | boolean | 否 | 显示个人电子邮件地址（使用积分） |
+| `reveal_phone_number` | boolean | 否 | 显示电话号码（使用积分） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `people` | json | 丰富的人员数据数组 |
+| `metadata` | json | 批量丰富元数据，包括总数和丰富计数 |
+
+### `apollo_organization_search`
+
+搜索 Apollo
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Apollo API 密钥 |
+| `organization_locations` | array | 否 | 要搜索的公司位置 |
+| `organization_num_employees_ranges` | array | 否 | 员工数量范围（例如，\["1-10", "11-50"\]） |
+| `q_organization_keyword_tags` | array | 否 | 行业或关键词标签 |
+| `q_organization_name` | string | 否 | 要搜索的组织名称 |
+| `page` | number | 否 | 分页的页码 |
+| `per_page` | number | 否 | 每页结果数（最多：100） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `organizations` | json | 符合搜索条件的组织数组 |
+| `metadata` | json | 分页信息，包括页面、每页条目数和总条目数 |
+
+### `apollo_organization_enrich`
+
+使用 Apollo 为单个组织丰富数据
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Apollo API 密钥 |
+| `organization_name` | string | 否 | 组织名称（组织名称或域名至少需要一个） |
+| `domain` | string | 否 | 公司域名（例如，apollo.io）（域名或组织名称至少需要一个） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `organization` | json | 来自 Apollo 的丰富组织数据 |
+| `metadata` | json | 丰富的元数据，包括丰富状态 |
+
+### `apollo_organization_bulk_enrich`
+
+使用 Apollo 一次为最多 10 个组织丰富数据
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Apollo API 密钥 |
+| `organizations` | array | 是 | 要丰富的组织数组（最多 10 个） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `organizations` | json | 丰富的组织数据数组 |
+| `metadata` | json | 批量丰富的元数据，包括总数和丰富的计数 |
+
+### `apollo_contact_create`
+
+在您的 Apollo 数据库中创建一个新联系人
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Apollo API 密钥 |
+| `first_name` | string | 是 | 联系人的名字 |
+| `last_name` | string | 是 | 联系人的姓氏 |
+| `email` | string | 否 | 联系人的电子邮件地址 |
+| `title` | string | 否 | 职位名称 |
+| `account_id` | string | 否 | 要关联的 Apollo 账户 ID |
+| `owner_id` | string | 否 | 联系人所有者的用户 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `contact` | json | 从 Apollo 创建的联系人数据 |
+| `metadata` | json | 创建元数据，包括创建状态 |
+
+### `apollo_contact_update`
+
+更新您 Apollo 数据库中的现有联系人
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Apollo API 密钥 |
+| `contact_id` | string | 是 | 要更新的联系人的 ID |
+| `first_name` | string | 否 | 联系人的名字 |
+| `last_name` | string | 否 | 联系人的姓氏 |
+| `email` | string | 否 | 电子邮件地址 |
+| `title` | string | 否 | 职位名称 |
+| `account_id` | string | 否 | Apollo 账户 ID |
+| `owner_id` | string | 否 | 联系人所有者的用户 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `contact` | json | 来自 Apollo 的更新联系人数据 |
+| `metadata` | json | 更新元数据，包括更新状态 |
+
+### `apollo_contact_search`
+
+搜索您的团队
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Apollo API 密钥 |
+| `q_keywords` | string | 否 | 要搜索的关键字 |
+| `contact_stage_ids` | array | 否 | 按联系人阶段 ID 过滤 |
+| `page` | number | 否 | 分页的页码 |
+| `per_page` | number | 否 | 每页结果数 \(最大值：100\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `contacts` | json | 符合搜索条件的联系人数组 |
+| `metadata` | json | 分页信息，包括页码、每页条目数和总条目数 |
+
+### `apollo_contact_bulk_create`
+
+在您的 Apollo 数据库中一次创建最多 100 个联系人。支持去重以防止创建重复联系人。需要主密钥。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Apollo API 密钥 \(需要主密钥\) |
+| `contacts` | array | 是 | 要创建的联系人数组 \(最多 100 个\)。每个联系人应包括 first_name、last_name，以及可选的 email、title、account_id、owner_id |
+| `run_dedupe` | boolean | 否 | 启用去重以防止创建重复联系人。当为 true 时，返回现有联系人而不进行修改 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `created_contacts` | json | 新创建联系人数组 |
+| `existing_contacts` | json | 已存在联系人数组（当启用去重时） |
+| `metadata` | json | 批量创建元数据，包括创建和已存在联系人的计数 |
+
+### `apollo_contact_bulk_update`
+
+一次更新最多 100 个现有联系人到您的 Apollo 数据库中。每个联系人必须包含一个 id 字段。需要主密钥。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Apollo API 密钥（需要主密钥） |
+| `contacts` | array | 是 | 要更新的联系人数组（最多 100 个）。每个联系人必须包含 id 字段，并可选包含 first_name、last_name、email、title、account_id、owner_id |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `updated_contacts` | json | 成功更新的联系人数组 |
+| `failed_contacts` | json | 更新失败的联系人数组 |
+| `metadata` | json | 批量更新元数据，包括更新和失败联系人的计数 |
+
+### `apollo_account_create`
+
+在您的 Apollo 数据库中创建一个新账户（公司）
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Apollo API 密钥 |
+| `name` | string | 是 | 公司名称 |
+| `website_url` | string | 否 | 公司网站 URL |
+| `phone` | string | 否 | 公司电话号码 |
+| `owner_id` | string | 否 | 账户所有者的用户 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `account` | json | 从 Apollo 创建的账户数据 |
+| `metadata` | json | 包括创建状态的元数据 |
+
+### `apollo_account_update`
+
+更新 Apollo 数据库中的现有账户
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Apollo API 密钥 |
+| `account_id` | string | 是 | 要更新的账户 ID |
+| `name` | string | 否 | 公司名称 |
+| `website_url` | string | 否 | 公司网站 URL |
+| `phone` | string | 否 | 公司电话号码 |
+| `owner_id` | string | 否 | 账户所有者的用户 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `account` | json | 从 Apollo 更新的账户数据 |
+| `metadata` | json | 包括更新状态的元数据 |
+
+### `apollo_account_search`
+
+搜索您的团队
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Apollo API 密钥（需要主密钥） |
+| `q_keywords` | string | 否 | 在账户数据中搜索的关键字 |
+| `owner_id` | string | 否 | 按账户所有者用户 ID 过滤 |
+| `account_stage_ids` | array | 否 | 按账户阶段 ID 过滤 |
+| `page` | number | 否 | 分页的页码 |
+| `per_page` | number | 否 | 每页结果数（最大值：100） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `accounts` | json | 符合搜索条件的账户数组 |
+| `metadata` | json | 分页信息，包括页面、每页条目数和总条目数 |
+
+### `apollo_account_bulk_create`
+
+在您的 Apollo 数据库中一次最多创建 100 个账户。注意：Apollo 不会进行去重处理——如果条目具有相似的名称或域名，可能会创建重复账户。需要主密钥。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Apollo API 密钥（需要主密钥） |
+| `accounts` | array | 是 | 要创建的账户数组（最多 100 个）。每个账户应包括名称（必需），以及可选的 website_url、phone、owner_id |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `created_accounts` | json | 新创建账户的数组 |
+| `failed_accounts` | json | 创建失败的账户数组 |
+| `metadata` | json | 批量创建的元数据，包括创建和失败账户的计数 |
+
+### `apollo_account_bulk_update`
+
+在您的 Apollo 数据库中一次最多更新 1000 个现有账户（比联系人限制更高！）。每个账户必须包含一个 id 字段。需要主密钥。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Apollo API 密钥（需要主密钥） |
+| `accounts` | array | 是 | 要更新的账户数组（最多 1000 个）。每个账户必须包含 id 字段，以及可选的 name、website_url、phone、owner_id |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `updated_accounts` | json | 成功更新的账户数组 |
+| `failed_accounts` | json | 更新失败的账户数组 |
+| `metadata` | json | 批量更新的元数据，包括更新和失败账户的计数 |
+
+### `apollo_opportunity_create`
+
+在您的 Apollo 数据库中为一个账户创建一个新交易（需要主密钥）
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Apollo API 密钥（需要主密钥） |
+| `name` | string | 是 | 机会/交易的名称 |
+| `account_id` | string | 是 | 此机会所属账户的 ID |
+| `amount` | number | 否 | 机会的货币价值 |
+| `stage_id` | string | 否 | 交易阶段的 ID |
+| `owner_id` | string | 否 | 机会所有者的用户 ID |
+| `close_date` | string | 否 | 预期的关闭日期（ISO 8601 格式） |
+| `description` | string | 否 | 关于机会的描述或备注 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `opportunity` | json | 来自 Apollo 的已创建机会数据 |
+| `metadata` | json | 创建元数据，包括创建状态 |
+
+### `apollo_opportunity_search`
+
+搜索并列出您团队中的所有交易/机会
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Apollo API 密钥 |
+| `q_keywords` | string | 否 | 在机会名称中搜索的关键字 |
+| `account_ids` | array | 否 | 按特定账户 ID 过滤 |
+| `stage_ids` | array | 否 | 按交易阶段 ID 过滤 |
+| `owner_ids` | array | 否 | 按机会所有者 ID 过滤 |
+| `page` | number | 否 | 分页的页码 |
+| `per_page` | number | 否 | 每页结果数 \(最大值: 100\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `opportunities` | json | 符合搜索条件的机会数组 |
+| `metadata` | json | 分页信息，包括页码、每页条目数和总条目数 |
+
+### `apollo_opportunity_get`
+
+通过 ID 检索特定交易/机会的完整详细信息
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Apollo API 密钥 |
+| `opportunity_id` | string | 是 | 要检索的机会 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `opportunity` | json | Apollo 提供的完整机会数据 |
+| `metadata` | json | 检索元数据，包括找到的状态 |
+
+### `apollo_opportunity_update`
+
+更新 Apollo 数据库中现有的交易/机会
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Apollo API 密钥 |
+| `opportunity_id` | string | 是 | 要更新的机会 ID |
+| `name` | string | 否 | 机会/交易的名称 |
+| `amount` | number | 否 | 机会的货币价值 |
+| `stage_id` | string | 否 | 交易阶段的 ID |
+| `owner_id` | string | 否 | 机会所有者的用户 ID |
+| `close_date` | string | 否 | 预期的结束日期（ISO 8601 格式） |
+| `description` | string | 否 | 关于机会的描述或备注 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `opportunity` | json | 来自 Apollo 的更新机会数据 |
+| `metadata` | json | 更新的元数据，包括更新状态 |
+
+### `apollo_sequence_search`
+
+在您的团队中搜索序列/活动
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Apollo API 密钥（需要主密钥） |
+| `q_name` | string | 否 | 按名称搜索序列 |
+| `active` | boolean | 否 | 按活动状态筛选（true 表示活动序列，false 表示非活动序列） |
+| `page` | number | 否 | 分页的页码 |
+| `per_page` | number | 否 | 每页结果数（最大值：100） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `sequences` | json | 符合搜索条件的序列/活动数组 |
+| `metadata` | json | 分页信息，包括页面、每页条目数和总条目数 |
+
+### `apollo_sequence_add_contacts`
+
+将联系人添加到 Apollo 序列
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Apollo API 密钥（需要主密钥） |
+| `sequence_id` | string | 是 | 要添加联系人的序列 ID |
+| `contact_ids` | array | 是 | 要添加到序列的联系人 ID 数组 |
+| `emailer_campaign_id` | string | 否 | 可选的电子邮件活动 ID |
+| `send_email_from_user_id` | string | 否 | 发送电子邮件的用户 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `contacts_added` | json | 添加到序列的联系人 ID 数组 |
+| `metadata` | json | 序列元数据，包括 sequence_id 和 total_added 计数 |
+
+### `apollo_task_create`
+
+在 Apollo 中创建新任务
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Apollo API 密钥（需要主密钥） |
+| `note` | string | 是 | 任务备注/描述 |
+| `contact_id` | string | 否 | 要关联的联系人 ID |
+| `account_id` | string | 否 | 要关联的账户 ID |
+| `due_at` | string | 否 | ISO 格式的截止日期 |
+| `priority` | string | 否 | 任务优先级 |
+| `type` | string | 否 | 任务类型 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `task` | json | 从 Apollo 创建的任务数据 |
+| `metadata` | json | 包括创建状态的元数据 |
+
+### `apollo_task_search`
+
+在 Apollo 中搜索任务
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Apollo API 密钥（需要主密钥） |
+| `contact_id` | string | 否 | 按联系人 ID 过滤 |
+| `account_id` | string | 否 | 按账户 ID 过滤 |
+| `completed` | boolean | 否 | 按完成状态过滤 |
+| `page` | number | 否 | 分页的页码 |
+| `per_page` | number | 否 | 每页结果数（最大值：100） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `tasks` | json | 符合搜索条件的任务数组 |
+| `metadata` | json | 分页信息，包括页码、每页数量和总条目数 |
+
+### `apollo_email_accounts`
+
+获取团队列表
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Apollo API 密钥（需要主密钥） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `email_accounts` | json | 在 Apollo 中链接的团队电子邮件账户数组 |
+| `metadata` | json | 元数据，包括电子邮件账户的总数 |
+
+## 注意事项
+
+- 类别：`tools`
+- 类型：`apollo`
