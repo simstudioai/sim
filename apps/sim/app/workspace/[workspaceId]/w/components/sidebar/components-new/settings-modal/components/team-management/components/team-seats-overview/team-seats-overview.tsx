@@ -128,7 +128,7 @@ export function TeamSeatsOverview({
                 key={i}
                 className={cn(
                   'h-[6px] flex-1 rounded-full transition-colors',
-                  isFilled ? 'bg-[#4285F4]' : 'bg-[#2C2C2C]'
+                  isFilled ? 'bg-[#34B5FF]' : 'bg-[#2C2C2C]'
                 )}
               />
             )
