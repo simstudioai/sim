@@ -49,8 +49,8 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
   const sidebarWidth = useSidebarStore((state) => state.sidebarWidth)
 
   /**
-   * Calculate pill count based on sidebar width
-   * Starts at MIN_PILL_COUNT at minimum width, adds 1 pill per WIDTH_PER_PILL increase
+   * Calculate pill count based on sidebar width (6-8 pills dynamically)
+   * This provides responsive feedback as the sidebar width changes
    */
   const pillCount = useMemo(() => {
     const widthDelta = sidebarWidth - MIN_SIDEBAR_WIDTH
@@ -100,6 +100,8 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
 
   /**
    * Calculate which pills should be filled based on usage percentage
+   * Uses shared Math.ceil heuristic but with dynamic pill count (6-8)
+   * This ensures consistent calculation logic while maintaining responsive pill count
    */
   const filledPillsCount = Math.ceil((progressPercentage / 100) * pillCount)
   const isAlmostOut = filledPillsCount === pillCount
