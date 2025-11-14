@@ -9,7 +9,7 @@ export const SnowflakeBlock: BlockConfig<SnowflakeResponse> = {
   description: 'Execute queries on Snowflake data warehouse',
   authMode: AuthMode.OAuth,
   longDescription:
-    'Integrate Snowflake into your workflow. Execute SQL queries, list databases, schemas, and tables, and describe table structures in your Snowflake data warehouse.',
+    'Integrate Snowflake into your workflow. Execute SQL queries, insert, update, and delete rows, list databases, schemas, and tables, and describe table structures in your Snowflake data warehouse.',
   docsLink: 'https://docs.sim.ai/tools/snowflake',
   category: 'tools',
   bgColor: '#E0E0E0',
@@ -21,6 +21,9 @@ export const SnowflakeBlock: BlockConfig<SnowflakeResponse> = {
       type: 'dropdown',
       options: [
         { label: 'Execute Query', id: 'execute_query' },
+        { label: 'Insert Rows', id: 'insert_rows' },
+        { label: 'Update Rows', id: 'update_rows' },
+        { label: 'Delete Rows', id: 'delete_rows' },
         { label: 'List Databases', id: 'list_databases' },
         { label: 'List Schemas', id: 'list_schemas' },
         { label: 'List Tables', id: 'list_tables' },
@@ -36,7 +39,6 @@ export const SnowflakeBlock: BlockConfig<SnowflakeResponse> = {
       id: 'credential',
       title: 'Snowflake Account',
       type: 'oauth-input',
-      provider: 'snowflake',
       serviceId: 'snowflake',
       requiredScopes: [],
       placeholder: 'Select Snowflake account',
@@ -235,6 +237,9 @@ Return ONLY the SQL query - no explanations, no markdown code blocks, no extra t
           'list_file_formats',
           'list_stages',
           'describe_table',
+          'insert_rows',
+          'update_rows',
+          'delete_rows',
         ],
       },
     },
@@ -246,7 +251,16 @@ Return ONLY the SQL query - no explanations, no markdown code blocks, no extra t
       required: true,
       condition: {
         field: 'operation',
-        value: ['list_tables', 'list_views', 'list_file_formats', 'list_stages', 'describe_table'],
+        value: [
+          'list_tables',
+          'list_views',
+          'list_file_formats',
+          'list_stages',
+          'describe_table',
+          'insert_rows',
+          'update_rows',
+          'delete_rows',
+        ],
       },
     },
     {
@@ -257,7 +271,51 @@ Return ONLY the SQL query - no explanations, no markdown code blocks, no extra t
       required: true,
       condition: {
         field: 'operation',
-        value: 'describe_table',
+        value: ['describe_table', 'insert_rows', 'update_rows', 'delete_rows'],
+      },
+    },
+    {
+      id: 'columns',
+      title: 'Columns',
+      type: 'long-input',
+      placeholder: '["column1", "column2", "column3"]',
+      required: true,
+      condition: {
+        field: 'operation',
+        value: 'insert_rows',
+      },
+    },
+    {
+      id: 'values',
+      title: 'Values',
+      type: 'long-input',
+      placeholder: '[["value1", "value2", "value3"], ["value4", "value5", "value6"]]',
+      required: true,
+      condition: {
+        field: 'operation',
+        value: 'insert_rows',
+      },
+    },
+    {
+      id: 'updates',
+      title: 'Updates',
+      type: 'long-input',
+      placeholder: '{"column1": "new_value", "column2": 123, "updated_at": "2024-01-01"}',
+      required: true,
+      condition: {
+        field: 'operation',
+        value: 'update_rows',
+      },
+    },
+    {
+      id: 'whereClause',
+      title: 'WHERE Clause',
+      type: 'long-input',
+      placeholder: 'id = 123 (leave empty to update/delete ALL rows)',
+      required: false,
+      condition: {
+        field: 'operation',
+        value: ['update_rows', 'delete_rows'],
       },
     },
     {
@@ -274,6 +332,9 @@ Return ONLY the SQL query - no explanations, no markdown code blocks, no extra t
   tools: {
     access: [
       'snowflake_execute_query',
+      'snowflake_insert_rows',
+      'snowflake_update_rows',
+      'snowflake_delete_rows',
       'snowflake_list_databases',
       'snowflake_list_schemas',
       'snowflake_list_tables',
@@ -288,6 +349,12 @@ Return ONLY the SQL query - no explanations, no markdown code blocks, no extra t
         switch (params.operation) {
           case 'execute_query':
             return 'snowflake_execute_query'
+          case 'insert_rows':
+            return 'snowflake_insert_rows'
+          case 'update_rows':
+            return 'snowflake_update_rows'
+          case 'delete_rows':
+            return 'snowflake_delete_rows'
           case 'list_databases':
             return 'snowflake_list_databases'
           case 'list_schemas':
@@ -405,6 +472,83 @@ Return ONLY the SQL query - no explanations, no markdown code blocks, no extra t
             break
           }
 
+          case 'insert_rows': {
+            if (!params.database || !params.schema || !params.table) {
+              throw new Error('Database, Schema, and Table are required for insert_rows operation')
+            }
+            if (!params.columns || !params.values) {
+              throw new Error('Columns and Values are required for insert_rows operation')
+            }
+
+            // Parse columns and values if they are strings
+            let columns = params.columns
+            let values = params.values
+
+            if (typeof columns === 'string') {
+              try {
+                columns = JSON.parse(columns)
+              } catch (e) {
+                throw new Error('Columns must be a valid JSON array')
+              }
+            }
+
+            if (typeof values === 'string') {
+              try {
+                values = JSON.parse(values)
+              } catch (e) {
+                throw new Error('Values must be a valid JSON array of arrays')
+              }
+            }
+
+            baseParams.database = params.database
+            baseParams.schema = params.schema
+            baseParams.table = params.table
+            baseParams.columns = columns
+            baseParams.values = values
+            if (params.timeout) baseParams.timeout = Number.parseInt(params.timeout)
+            break
+          }
+
+          case 'update_rows': {
+            if (!params.database || !params.schema || !params.table) {
+              throw new Error('Database, Schema, and Table are required for update_rows operation')
+            }
+            if (!params.updates) {
+              throw new Error('Updates object is required for update_rows operation')
+            }
+
+            // Parse updates if it's a string
+            let updates = params.updates
+            if (typeof updates === 'string') {
+              try {
+                updates = JSON.parse(updates)
+              } catch (e) {
+                throw new Error('Updates must be a valid JSON object')
+              }
+            }
+
+            baseParams.database = params.database
+            baseParams.schema = params.schema
+            baseParams.table = params.table
+            baseParams.updates = updates
+            if (params.whereClause) baseParams.whereClause = params.whereClause
+            if (params.timeout) baseParams.timeout = Number.parseInt(params.timeout)
+            break
+          }
+
+          case 'delete_rows': {
+            if (!params.database || !params.schema || !params.table) {
+              throw new Error('Database, Schema, and Table are required for delete_rows operation')
+            }
+
+            baseParams.database = params.database
+            baseParams.schema = params.schema
+            baseParams.table = params.table
+            if (params.whereClause) baseParams.whereClause = params.whereClause
+            if (params.timeout) baseParams.timeout = Number.parseInt(params.timeout)
+            break
+          }
+
           default:
             throw new Error(`Unknown operation: ${operation}`)
         }
@@ -426,6 +570,13 @@ Return ONLY the SQL query - no explanations, no markdown code blocks, no extra t
     database: { type: 'string', description: 'Database name' },
     schema: { type: 'string', description: 'Schema name' },
     table: { type: 'string', description: 'Table name' },
+    columns: { type: 'json', description: 'Array of column names for insert operation' },
+    values: { type: 'json', description: 'Array of arrays containing values for insert operation' },
+    updates: {
+      type: 'json',
+      description: 'Object containing column-value pairs for update operation',
+    },
+    whereClause: { type: 'string', description: 'WHERE clause for update/delete operations' },
     timeout: { type: 'string', description: 'Query timeout in seconds' },
   },
   outputs: {

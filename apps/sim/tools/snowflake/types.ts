@@ -248,6 +248,83 @@ export interface SnowflakeListStagesResponse extends ToolResponse {
 }
 
 /**
+ * Parameters for inserting rows
+ */
+export interface SnowflakeInsertRowsParams extends SnowflakeBaseParams {
+  database: string
+  schema: string
+  table: string
+  columns: string[]
+  values: any[][]
+  warehouse?: string
+  role?: string
+  timeout?: number
+}
+
+/**
+ * Parameters for updating rows
+ */
+export interface SnowflakeUpdateRowsParams extends SnowflakeBaseParams {
+  database: string
+  schema: string
+  table: string
+  updates: Record<string, any>
+  whereClause?: string
+  warehouse?: string
+  role?: string
+  timeout?: number
+}
+
+/**
+ * Parameters for deleting rows
+ */
+export interface SnowflakeDeleteRowsParams extends SnowflakeBaseParams {
+  database: string
+  schema: string
+  table: string
+  whereClause?: string
+  warehouse?: string
+  role?: string
+  timeout?: number
+}
+
+/**
+ * Response for insert rows operation
+ */
+export interface SnowflakeInsertRowsResponse extends ToolResponse {
+  output: {
+    statementHandle?: string
+    rowsInserted?: number
+    message?: string
+    ts: string
+  }
+}
+
+/**
+ * Response for update rows operation
+ */
+export interface SnowflakeUpdateRowsResponse extends ToolResponse {
+  output: {
+    statementHandle?: string
+    rowsUpdated?: number | string
+    message?: string
+    ts: string
+  }
+}
+
+/**
+ * Response for delete rows operation
+ */
+export interface SnowflakeDeleteRowsResponse extends ToolResponse {
+  output: {
+    statementHandle?: string
+    rowsDeleted?: number | string
+    message?: string
+    ts: string
+  }
+}
+
+/**
  * Generic Snowflake response type for the block
  */
 export type SnowflakeResponse =
@@ -260,3 +337,6 @@ export type SnowflakeResponse =
   | SnowflakeListWarehousesResponse
   | SnowflakeListFileFormatsResponse
   | SnowflakeListStagesResponse
+  | SnowflakeInsertRowsResponse
+  | SnowflakeUpdateRowsResponse
+  | SnowflakeDeleteRowsResponse

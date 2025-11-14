@@ -1011,8 +1011,10 @@ import {
 import { smsSendTool } from '@/tools/sms'
 import { smtpSendMailTool } from '@/tools/smtp'
 import {
+  snowflakeDeleteRowsTool,
   snowflakeDescribeTableTool,
   snowflakeExecuteQueryTool,
+  snowflakeInsertRowsTool,
   snowflakeListDatabasesTool,
   snowflakeListFileFormatsTool,
   snowflakeListSchemasTool,
@@ -1020,6 +1022,7 @@ import {
   snowflakeListTablesTool,
   snowflakeListViewsTool,
   snowflakeListWarehousesTool,
+  snowflakeUpdateRowsTool,
 } from '@/tools/snowflake'
 import {
   checkCommandExistsTool as sshCheckCommandExistsTool,
@@ -2437,6 +2440,9 @@ export const tools: Record<string, ToolConfig> = {
   zoom_delete_recording: zoomDeleteRecordingTool,
   zoom_list_past_participants: zoomListPastParticipantsTool,
   snowflake_execute_query: snowflakeExecuteQueryTool,
+  snowflake_insert_rows: snowflakeInsertRowsTool,
+  snowflake_update_rows: snowflakeUpdateRowsTool,
+  snowflake_delete_rows: snowflakeDeleteRowsTool,
   snowflake_list_databases: snowflakeListDatabasesTool,
   snowflake_list_schemas: snowflakeListSchemasTool,
   snowflake_list_tables: snowflakeListTablesTool,
