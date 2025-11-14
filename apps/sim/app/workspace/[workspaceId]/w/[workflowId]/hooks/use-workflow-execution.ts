@@ -85,7 +85,7 @@ export function useWorkflowExecution() {
   const currentWorkflow = useCurrentWorkflow()
   const { activeWorkflowId, workflows } = useWorkflowRegistry()
   const { toggleConsole, addConsole } = useTerminalConsoleStore()
-  const { getAllVariables, loadWorkspaceEnvironment } = useEnvironmentStore()
+  const { getAllVariables } = useEnvironmentStore()
   const { getVariablesByWorkflowId, variables } = useVariablesStore()
   const {
     isExecuting,
@@ -650,7 +650,6 @@ export function useWorkflowExecution() {
       currentWorkflow,
       toggleConsole,
       getAllVariables,
-      loadWorkspaceEnvironment,
       getVariablesByWorkflowId,
       setIsExecuting,
       setIsDebugging,

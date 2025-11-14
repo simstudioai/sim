@@ -1,5 +1,6 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createLogger } from '@/lib/logs/console/logger'
+import { useCustomToolsStore } from '@/stores/custom-tools/store'
 
 const logger = createLogger('CustomToolsQueries')
 const API_ENDPOINT = '/api/tools/custom'
@@ -34,6 +35,10 @@ export interface CustomTool {
   userId?: string
   createdAt?: string
   updatedAt?: string
+}
+
+function syncCustomToolsToStore(tools: CustomTool[]) {
+  useCustomToolsStore.getState().setTools(tools)
 }
 
 /**
@@ -85,13 +90,19 @@ async function fetchCustomTools(workspaceId: string): Promise<CustomTool[]> {
  * Hook to fetch custom tools
  */
 export function useCustomTools(workspaceId: string) {
-  return useQuery({
+  const query = useQuery({
     queryKey: customToolsKeys.list(workspaceId),
     queryFn: () => fetchCustomTools(workspaceId),
     enabled: !!workspaceId,
     staleTime: 60 * 1000, // 1 minute - tools don't change frequently
     placeholderData: keepPreviousData,
   })
+
+  if (query.data) {
+    syncCustomToolsToStore(query.data)
+  }
+
+  return query
 }
 
 /**

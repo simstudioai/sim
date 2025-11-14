@@ -10,6 +10,7 @@ import {
   useWorkflowSelection,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import { useImportWorkflow } from '@/app/workspace/[workspaceId]/w/hooks/use-import-workflow'
+import { useFolders } from '@/hooks/queries/folders'
 import { type FolderTreeNode, useFolderStore } from '@/stores/folders/store'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
 
@@ -56,14 +57,9 @@ export function WorkflowList({
   const workspaceId = params.workspaceId as string
   const workflowId = params.workflowId as string
 
-  const {
-    getFolderTree,
-    expandedFolders,
-    fetchFolders,
-    isLoading: foldersLoading,
-    getFolderPath,
-    setExpanded,
-  } = useFolderStore()
+  const { isLoading: foldersLoading } = useFolders(workspaceId)
+
+  const { getFolderTree, expandedFolders, getFolderPath, setExpanded } = useFolderStore()
 
   const {
     dropTargetId,
@@ -168,15 +164,6 @@ export function WorkflowList({
       selectOnly(workflowId)
     }
   }, [workflowId, activeWorkflowFolderId, isLoading, foldersLoading, getFolderPath, setExpanded])
-
-  /**
-   * Fetch folders when workspace changes
-   */
-  useEffect(() => {
-    if (workspaceId) {
-      fetchFolders(workspaceId)
-    }
-  }, [workspaceId, fetchFolders])
 
   const renderWorkflowItem = useCallback(
     (workflow: WorkflowMetadata, level: number, parentFolderId: string | null = null) => (

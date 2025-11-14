@@ -13,7 +13,8 @@ import {
   useItemRename,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import { useDeleteFolder, useDuplicateFolder } from '@/app/workspace/[workspaceId]/w/hooks'
-import { type FolderTreeNode, useFolderStore } from '@/stores/folders/store'
+import { useUpdateFolder } from '@/hooks/queries/folders'
+import type { FolderTreeNode } from '@/stores/folders/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 interface FolderItemProps {
@@ -37,7 +38,7 @@ export function FolderItem({ folder, level, hoverHandlers }: FolderItemProps) {
   const params = useParams()
   const router = useRouter()
   const workspaceId = params.workspaceId as string
-  const { updateFolderAPI } = useFolderStore()
+  const updateFolderMutation = useUpdateFolder()
   const { createWorkflow } = useWorkflowRegistry()
 
   // Delete modal state
@@ -125,7 +126,11 @@ export function FolderItem({ folder, level, hoverHandlers }: FolderItemProps) {
   } = useItemRename({
     initialName: folder.name,
     onSave: async (newName) => {
-      await updateFolderAPI(folder.id, { name: newName })
+      await updateFolderMutation.mutateAsync({
+        workspaceId,
+        id: folder.id,
+        updates: { name: newName },
+      })
     },
     itemType: 'folder',
     itemId: folder.id,
