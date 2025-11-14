@@ -412,13 +412,11 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
                 ? organizationBillingData?.totalUsageLimit &&
                   organizationBillingData.totalUsageLimit > 0 &&
                   organizationBillingData.totalCurrentUsage !== undefined
-                  ? Math.round(
-                      (organizationBillingData.totalCurrentUsage /
-                        organizationBillingData.totalUsageLimit) *
-                        100
-                    )
-                  : Math.round(usage.percentUsed)
-                : Math.round(usage.percentUsed)
+                  ? (organizationBillingData.totalCurrentUsage /
+                      organizationBillingData.totalUsageLimit) *
+                    100
+                  : usage.percentUsed
+                : usage.percentUsed
             }
             onResolvePayment={async () => {
               try {
@@ -466,7 +464,7 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
                 />
               ) : undefined
             }
-            progressValue={Math.min(Math.round(usage.percentUsed), 100)}
+            progressValue={Math.min(usage.percentUsed, 100)}
           />
         </div>
 
