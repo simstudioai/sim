@@ -34,6 +34,7 @@ import {
   getSubscriptionPermissions,
   getVisiblePlans,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/components-new/settings-modal/components/subscription/subscription-permissions'
+import { useUpdateGeneralSetting } from '@/hooks/queries/general-settings'
 import { useOrganizationBilling, useOrganizations } from '@/hooks/queries/organization'
 import { useSubscriptionData, useUsageLimitData } from '@/hooks/queries/subscription'
 import { useUpdateWorkspaceSettings, useWorkspaceSettings } from '@/hooks/queries/workspace'
@@ -626,9 +627,9 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
 }
 
 function BillingUsageNotificationsToggle() {
-  const isLoading = useGeneralStore((s) => s.isBillingUsageNotificationsLoading)
   const enabled = useGeneralStore((s) => s.isBillingUsageNotificationsEnabled)
-  const setEnabled = useGeneralStore((s) => s.setBillingUsageNotificationsEnabled)
+  const updateSetting = useUpdateGeneralSetting()
+  const isLoading = updateSetting.isPending
 
   // Settings are automatically loaded by SettingsLoader provider
   // No need to load here - Zustand is synced from React Query
@@ -643,7 +644,9 @@ function BillingUsageNotificationsToggle() {
         checked={!!enabled}
         disabled={isLoading}
         onCheckedChange={(v: boolean) => {
-          void setEnabled(v)
+          if (v !== enabled) {
+            updateSetting.mutate({ key: 'billingUsageNotificationsEnabled', value: v })
+          }
         }}
       />
     </div>

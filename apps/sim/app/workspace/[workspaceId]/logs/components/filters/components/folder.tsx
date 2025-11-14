@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Check, ChevronDown } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { Button } from '@/components/emcn'
@@ -22,7 +22,8 @@ import {
   filterButtonClass,
   folderDropdownListStyle,
 } from '@/app/workspace/[workspaceId]/logs/components/filters/components/shared'
-import { useFolderStore } from '@/stores/folders/store'
+import { useFolders } from '@/hooks/queries/folders'
+import { type FolderTreeNode, useFolderStore } from '@/stores/folders/store'
 import { useFilterStore } from '@/stores/logs/filters/store'
 
 const logger = createLogger('LogsFolderFilter')
@@ -36,56 +37,37 @@ interface FolderOption {
 
 export default function FolderFilter() {
   const { folderIds, toggleFolderId, setFolderIds } = useFilterStore()
-  const { getFolderTree, fetchFolders } = useFolderStore()
+  const { getFolderTree } = useFolderStore()
   const params = useParams()
   const workspaceId = params.workspaceId as string
-  const [folders, setFolders] = useState<FolderOption[]>([])
-  const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
+  const { isLoading: foldersLoading } = useFolders(workspaceId)
 
-  // Fetch all available folders from the API
-  useEffect(() => {
-    const fetchFoldersData = async () => {
-      try {
-        setLoading(true)
-        if (workspaceId) {
-          await fetchFolders(workspaceId)
-          const folderTree = getFolderTree(workspaceId)
+  const folderTree = workspaceId ? getFolderTree(workspaceId) : []
 
-          // Flatten the folder tree and create options with full paths
-          const flattenFolders = (nodes: any[], parentPath = ''): FolderOption[] => {
-            const result: FolderOption[] = []
+  const folders: FolderOption[] = useMemo(() => {
+    const flattenFolders = (nodes: FolderTreeNode[], parentPath = ''): FolderOption[] => {
+      const result: FolderOption[] = []
 
-            for (const node of nodes) {
-              const currentPath = parentPath ? `${parentPath} / ${node.name}` : node.name
-              result.push({
-                id: node.id,
-                name: node.name,
-                color: node.color || '#6B7280',
-                path: currentPath,
-              })
+      for (const node of nodes) {
+        const currentPath = parentPath ? `${parentPath} / ${node.name}` : node.name
+        result.push({
+          id: node.id,
+          name: node.name,
+          color: node.color || '#6B7280',
+          path: currentPath,
+        })
 
-              // Add children recursively
-              if (node.children && node.children.length > 0) {
-                result.push(...flattenFolders(node.children, currentPath))
-              }
-            }
-
-            return result
-          }
-
-          const folderOptions = flattenFolders(folderTree)
-          setFolders(folderOptions)
+        if (node.children && node.children.length > 0) {
+          result.push(...flattenFolders(node.children, currentPath))
         }
-      } catch (error) {
-        logger.error('Failed to fetch folders', { error })
-      } finally {
-        setLoading(false)
       }
+
+      return result
     }
 
-    fetchFoldersData()
-  }, [workspaceId, fetchFolders, getFolderTree])
+    return flattenFolders(folderTree)
+  }, [folderTree])
 
   // Get display text for the dropdown button
   const getSelectedFoldersText = () => {
@@ -111,7 +93,7 @@ export default function FolderFilter() {
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button variant='outline' className={filterButtonClass}>
-          {loading ? 'Loading folders...' : getSelectedFoldersText()}
+          {foldersLoading ? 'Loading folders...' : getSelectedFoldersText()}
           <ChevronDown className='ml-2 h-4 w-4 text-muted-foreground' />
         </Button>
       </DropdownMenuTrigger>
@@ -125,7 +107,9 @@ export default function FolderFilter() {
         <Command>
           <CommandInput placeholder='Search folders...' onValueChange={(v) => setSearch(v)} />
           <CommandList className={commandListClass} style={folderDropdownListStyle}>
-            <CommandEmpty>{loading ? 'Loading folders...' : 'No folders found.'}</CommandEmpty>
+            <CommandEmpty>
+              {foldersLoading ? 'Loading folders...' : 'No folders found.'}
+            </CommandEmpty>
             <CommandGroup>
               <CommandItem
                 value='all-folders'

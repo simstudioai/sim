@@ -44,8 +44,12 @@ import {
   SearchInput,
 } from '@/app/workspace/[workspaceId]/knowledge/components'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
-import { useKnowledgeBase, useKnowledgeBaseDocuments } from '@/hooks/use-knowledge'
-import { type DocumentData, useKnowledgeStore } from '@/stores/knowledge/store'
+import {
+  useKnowledgeBase,
+  useKnowledgeBaseDocuments,
+  useKnowledgeBasesList,
+} from '@/hooks/use-knowledge'
+import type { DocumentData } from '@/stores/knowledge/store'
 
 const logger = createLogger('KnowledgeBase')
 
@@ -125,10 +129,10 @@ export function KnowledgeBase({
   id,
   knowledgeBaseName: passedKnowledgeBaseName,
 }: KnowledgeBaseProps) {
-  const { removeKnowledgeBase } = useKnowledgeStore()
-  const userPermissions = useUserPermissionsContext()
   const params = useParams()
   const workspaceId = params.workspaceId as string
+  const { removeKnowledgeBase } = useKnowledgeBasesList(workspaceId, { enabled: false })
+  const userPermissions = useUserPermissionsContext()
 
   const [searchQuery, setSearchQuery] = useState('')
 

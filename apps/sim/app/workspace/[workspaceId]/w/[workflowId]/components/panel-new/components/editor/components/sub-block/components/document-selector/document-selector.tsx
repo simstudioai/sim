@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Check, ChevronDown, FileText, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -15,8 +15,9 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { useDependsOnGate } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/components/sub-block/hooks/use-depends-on-gate'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/components/sub-block/hooks/use-sub-block-value'
 import type { SubBlockConfig } from '@/blocks/types'
+import { useKnowledgeBaseDocuments } from '@/hooks/use-knowledge'
 import { useDisplayNamesStore } from '@/stores/display-names/store'
-import { type DocumentData, useKnowledgeStore } from '@/stores/knowledge/store'
+import type { DocumentData } from '@/stores/knowledge/store'
 
 interface DocumentSelectorProps {
   blockId: string
@@ -45,68 +46,29 @@ export function DocumentSelector({
       ? knowledgeBaseId
       : null
 
-  const documentsCache = useKnowledgeStore(
-    useCallback(
-      (state) =>
-        normalizedKnowledgeBaseId ? state.documents[normalizedKnowledgeBaseId] : undefined,
-      [normalizedKnowledgeBaseId]
-    )
-  )
-
-  const isDocumentsLoading = useKnowledgeStore(
-    useCallback(
-      (state) =>
-        normalizedKnowledgeBaseId ? state.isDocumentsLoading(normalizedKnowledgeBaseId) : false,
-      [normalizedKnowledgeBaseId]
-    )
-  )
-
-  const getDocuments = useKnowledgeStore((state) => state.getDocuments)
-
   const value = isPreview ? previewValue : storeValue
 
   const { finalDisabled } = useDependsOnGate(blockId, subBlock, { disabled, isPreview })
   const isDisabled = finalDisabled
 
-  const documents = useMemo<DocumentData[]>(() => {
-    if (!documentsCache) return []
-    return documentsCache.documents ?? []
-  }, [documentsCache])
-
-  const loadDocuments = useCallback(async () => {
-    if (!normalizedKnowledgeBaseId) {
-      setError('No knowledge base selected')
-      return
-    }
-
-    setError(null)
-
-    try {
-      const fetchedDocuments = await getDocuments(normalizedKnowledgeBaseId)
-
-      if (fetchedDocuments.length > 0) {
-        const documentMap = fetchedDocuments.reduce<Record<string, string>>((acc, doc) => {
-          acc[doc.id] = doc.filename
-          return acc
-        }, {})
-
-        useDisplayNamesStore
-          .getState()
-          .setDisplayNames('documents', normalizedKnowledgeBaseId, documentMap)
-      }
-    } catch (err) {
-      if (err instanceof Error && err.name === 'AbortError') return
-      setError(err instanceof Error ? err.message : 'Failed to fetch documents')
-    }
-  }, [normalizedKnowledgeBaseId, getDocuments])
+  const {
+    documents,
+    isLoading: documentsLoading,
+    error: documentsError,
+    refreshDocuments,
+  } = useKnowledgeBaseDocuments(normalizedKnowledgeBaseId ?? '', {
+    limit: 500,
+    offset: 0,
+    enabled: open && Boolean(normalizedKnowledgeBaseId),
+  })
 
   const handleOpenChange = (isOpen: boolean) => {
     if (isPreview || isDisabled) return
 
     setOpen(isOpen)
 
-    if (isOpen && (!documentsCache || !documentsCache.documents.length)) {
-      void loadDocuments()
+    if (isOpen && normalizedKnowledgeBaseId) {
+      void refreshDocuments()
     }
   }
 
@@ -119,8 +81,14 @@ export function DocumentSelector({
   }
 
   useEffect(() => {
-    setError(null)
+    if (!normalizedKnowledgeBaseId) {
+      setError(null)
+    }
   }, [normalizedKnowledgeBaseId])
+
+  useEffect(() => {
+    setError(documentsError)
+  }, [documentsError])
 
   useEffect(() => {
     if (!normalizedKnowledgeBaseId || documents.length === 0) return
@@ -152,7 +120,7 @@ export function DocumentSelector({
   }
 
   const label = subBlock.placeholder || 'Select document'
-  const isLoading = isDocumentsLoading && !error
+  const isLoading = documentsLoading && !error
 
   // Always use cached display name
   const displayName = useDisplayNamesStore(

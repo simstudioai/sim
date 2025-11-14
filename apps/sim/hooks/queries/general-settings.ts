@@ -57,11 +57,9 @@ async function fetchGeneralSettings(): Promise<GeneralSettings> {
  * This ensures the rest of the app (which uses Zustand) stays in sync
  */
 function syncSettingsToZustand(settings: GeneralSettings) {
-  const store = useGeneralStore.getState()
+  const { setSettings } = useGeneralStore.getState()
 
-  // Update Zustand store to match React Query cache
-  // This allows the rest of the app to continue using Zustand for reading values
-  useGeneralStore.setState({
+  setSettings({
     isAutoConnectEnabled: settings.autoConnect,
     isAutoPanEnabled: settings.autoPan,
     isConsoleExpandedByDefault: settings.consoleExpandedByDefault,
