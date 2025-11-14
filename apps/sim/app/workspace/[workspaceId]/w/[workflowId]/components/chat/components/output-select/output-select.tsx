@@ -288,9 +288,11 @@ export function OutputSelect({
       <PopoverContent
         ref={popoverRef}
         side='bottom'
-        align='start'
+        align='end'
         sideOffset={4}
-        maxHeight={280}
+        maxHeight={140}
+        maxWidth={140}
+        minWidth={140}
         onOpenAutoFocus={(e) => e.preventDefault()}
         onCloseAutoFocus={(e) => e.preventDefault()}
       >
@@ -298,26 +300,29 @@ export function OutputSelect({
           {Object.entries(groupedOutputs).map(([blockName, outputs]) => (
             <div key={blockName}>
               <PopoverSection>{blockName}</PopoverSection>
-              {outputs.map((output) => (
-                <PopoverItem
-                  key={output.id}
-                  active={isSelectedValue(output)}
-                  onClick={() => handleOutputSelection(output.label)}
-                >
-                  <div
-                    className='flex h-[14px] w-[14px] flex-shrink-0 items-center justify-center rounded'
-                    style={{
-                      backgroundColor: getOutputColor(output.blockId, output.blockType),
-                    }}
+
+              <div className='flex flex-col gap-[2px]'>
+                {outputs.map((output) => (
+                  <PopoverItem
+                    key={output.id}
+                    active={isSelectedValue(output)}
+                    onClick={() => handleOutputSelection(output.label)}
                   >
-                    <span className='font-bold text-[10px] text-white'>
-                      {blockName.charAt(0).toUpperCase()}
-                    </span>
-                  </div>
-                  <span className='min-w-0 flex-1 truncate'>{output.path}</span>
-                  {isSelectedValue(output) && <Check className='h-3 w-3 flex-shrink-0' />}
-                </PopoverItem>
-              ))}
+                    <div
+                      className='flex h-[14px] w-[14px] flex-shrink-0 items-center justify-center rounded'
+                      style={{
+                        backgroundColor: getOutputColor(output.blockId, output.blockType),
+                      }}
+                    >
+                      <span className='font-bold text-[10px] text-white'>
+                        {blockName.charAt(0).toUpperCase()}
+                      </span>
+                    </div>
+                    <span className='min-w-0 flex-1 truncate'>{output.path}</span>
+                    {isSelectedValue(output) && <Check className='h-3 w-3 flex-shrink-0' />}
+                  </PopoverItem>
+                ))}
+              </div>
             </div>
           ))}
         </PopoverScrollArea>

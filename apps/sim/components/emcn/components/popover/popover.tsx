@@ -206,6 +206,15 @@ export interface PopoverContentProps
    */
   maxHeight?: number
   /**
+   * Maximum width for the popover content in pixels.
+   * When provided, Popover will also enable default truncation for inner text and section headers.
+   */
+  maxWidth?: number
+  /**
+   * Minimum width for the popover content in pixels
+   */
+  minWidth?: number
+  /**
    * Preferred side to display the popover
    * @default 'bottom'
    */
@@ -249,6 +258,8 @@ const PopoverContent = React.forwardRef<
       style,
       children,
       maxHeight,
+      maxWidth,
+      minWidth,
       side = 'bottom',
       align = 'start',
       sideOffset,
@@ -264,7 +275,11 @@ const PopoverContent = React.forwardRef<
     // When present, we enable default text truncation behavior for inner flexible items,
     // so callers don't need to manually pass 'truncate' to every label.
     const hasUserWidthConstraint =
-      style?.minWidth !== undefined || style?.maxWidth !== undefined || style?.width !== undefined
+      maxWidth !== undefined ||
+      minWidth !== undefined ||
+      style?.minWidth !== undefined ||
+      style?.maxWidth !== undefined ||
+      style?.width !== undefined
 
     return (
       <PopoverPrimitive.Portal>
@@ -278,15 +293,21 @@ const PopoverContent = React.forwardRef<
           sticky='partial'
           {...restProps}
           className={cn(
-            'z-[10000001] flex flex-col overflow-hidden rounded-[8px] bg-[var(--surface-3)] px-[5.5px] py-[5px] text-foreground outline-none dark:bg-[var(--surface-3)]',
-            // If width is constrained by the caller, ensure inner flexible text truncates by default.
-            hasUserWidthConstraint && '[&_.flex-1]:truncate',
-            className
+            'z-[10000001] flex flex-col overflow-auto rounded-[8px] bg-[var(--surface-3)] px-[5.5px] py-[5px] text-foreground outline-none dark:bg-[var(--surface-3)]',
+            // If width is constrained by the caller (prop or style), ensure inner flexible text truncates by default,
+            // and also truncate section headers.
+            hasUserWidthConstraint && '[&_.flex-1]:truncate [&_[data-popover-section]]:truncate',
           )}
           style={{
             maxHeight: `${maxHeight || 400}px`,
-            maxWidth: 'calc(100vw - 16px)',
-            minWidth: '160px',
+            maxWidth: maxWidth !== undefined ? `${maxWidth}px` : 'calc(100vw - 16px)',
+            // Only enforce default min width when the user hasn't set width constraints
+            minWidth:
+              minWidth !== undefined
+                ? `${minWidth}px`
+                : hasUserWidthConstraint
+                  ? undefined
+                  : '160px',
             ...style,
           }}
         >
@@ -319,7 +340,7 @@ const PopoverScrollArea = React.forwardRef<HTMLDivElement, PopoverScrollAreaProp
   ({ className, ...props }, ref) => {
     return (
       <div
-        className={cn('min-h-0 flex-1 overflow-auto overscroll-contain', className)}
+        className={cn('min-h-0 overflow-auto overscroll-contain', className)}
         ref={ref}
         {...props}
       />
@@ -415,9 +436,10 @@ const PopoverSection = React.forwardRef<HTMLDivElement, PopoverSectionProps>(
     return (
       <div
         className={cn(
-          'px-[6px] py-[4px] font-base text-[12px] text-[var(--text-tertiary)] dark:text-[var(--text-tertiary)]',
+          'min-w-0 px-[6px] py-[4px] font-base text-[12px] text-[var(--text-tertiary)] dark:text-[var(--text-tertiary)]',
           className
         )}
+        data-popover-section=''
         ref={ref}
         {...props}
       />

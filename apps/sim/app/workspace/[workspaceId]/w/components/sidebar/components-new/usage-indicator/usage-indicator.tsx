@@ -62,11 +62,14 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
 
   if (isLoading) {
     return (
-      <div className='flex flex-shrink-0 flex-col gap-[10px] border-t px-[13.5px] pt-[10px] pb-[8px] dark:border-[var(--border)]'>
+      <div className='flex flex-shrink-0 flex-col gap-[8px] border-t pt-[12px] pr-[13.5px] pb-[10px] pl-[12px] dark:border-[var(--border)]'>
         {/* Top row skeleton */}
         <div className='flex items-center justify-between'>
-          <Skeleton className='h-[16px] w-[120px] rounded-[4px]' />
-          <Skeleton className='h-[16px] w-[50px] rounded-[4px]' />
+          <div className='flex items-center gap-[6px]'>
+            <Skeleton className='h-[14px] w-[40px] rounded-[4px]' />
+            <Skeleton className='h-[14px] w-[70px] rounded-[4px]' />
+          </div>
+          <Skeleton className='h-[12px] w-[50px] rounded-[4px]' />
         </div>
 
         {/* Pills skeleton */}
@@ -121,25 +124,25 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
   }
 
   return (
-    <div className='flex flex-shrink-0 flex-col gap-[10px] border-t px-[13.5px] pt-[8px] pb-[8px] dark:border-[var(--border)]'>
+    <div className='flex flex-shrink-0 flex-col gap-[8px] border-t px-[13.5px] pt-[8px] pb-[10px] dark:border-[var(--border)]'>
       {/* Top row */}
       <div className='flex items-center justify-between'>
         <div className='flex items-center gap-[6px]'>
           <span className='font-medium text-[#FFFFFF] text-[12px]'>{PLAN_NAMES[planType]}</span>
-          <div className='h-[14px] w-[1.5px] bg-[#4A4A4A]' />
+          <div className='h-[14px] w-[1.5px] bg-[var(--divider)]' />
           <div className='flex items-center gap-[4px]'>
             {isBlocked ? (
               <>
-                <span className='font-medium text-[#B1B1B1] text-[12px]'>Over</span>
-                <span className='font-medium text-[#B1B1B1] text-[12px]'>limit</span>
+                <span className='font-medium text-[12px] text-[var(--text-tertiary)]'>Over</span>
+                <span className='font-medium text-[12px] text-[var(--text-tertiary)]'>limit</span>
               </>
             ) : (
               <>
-                <span className='font-medium text-[#B1B1B1] text-[12px] tabular-nums'>
+                <span className='font-medium text-[12px] text-[var(--text-tertiary)] tabular-nums'>
                   ${usage.current.toFixed(2)}
                 </span>
-                <span className='font-medium text-[#B1B1B1] text-[12px]'>/</span>
-                <span className='font-medium text-[#B1B1B1] text-[12px] tabular-nums'>
+                <span className='font-medium text-[12px] text-[var(--text-tertiary)]'>/</span>
+                <span className='font-medium text-[12px] text-[var(--text-tertiary)] tabular-nums'>
                   ${usage.limit}
                 </span>
               </>
@@ -149,7 +152,7 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
         {showUpgradeButton && (
           <Button
             variant='ghost'
-            className='!h-auto !px-1 !py-0 -mx-1 mt-[-2px] text-[#D4D4D4]'
+            className='!h-auto !px-1 !py-0 -mx-1 mt-[-2px] text-[var(--text-secondary)]'
             onClick={handleClick}
           >
             Upgrade
