@@ -1002,6 +1002,51 @@ export default function Dashboard() {
                     const totalRate =
                       totalExecutions > 0 ? (totalSuccess / totalExecutions) * 100 : 100
 
+                    // Calculate overall time range across all selected workflows
+                    let multiWorkflowTimeRange: { start: Date; end: Date } | null = null
+                    if (sortedIndices.length > 0) {
+                      const firstIdx = sortedIndices[0]
+                      const lastIdx = sortedIndices[sortedIndices.length - 1]
+
+                      // Find earliest start time
+                      let earliestStart: Date | null = null
+                      for (const wfId of selectedWorkflowIds) {
+                        const wf = executions.find((w) => w.workflowId === wfId)
+                        const segment = wf?.segments[firstIdx]
+                        if (segment) {
+                          const start = new Date(segment.timestamp)
+                          if (!earliestStart || start < earliestStart) {
+                            earliestStart = start
+                          }
+                        }
+                      }
+
+                      // Find latest end time
+                      let latestEnd: Date | null = null
+                      for (const wfId of selectedWorkflowIds) {
+                        const wf = executions.find((w) => w.workflowId === wfId)
+                        const segment = wf?.segments[lastIdx]
+                        if (segment) {
+                          const end = new Date(new Date(segment.timestamp).getTime() + segMs)
+                          if (!latestEnd || end > latestEnd) {
+                            latestEnd = end
+                          }
+                        }
+                      }
+
+                      if (earliestStart && latestEnd) {
+                        multiWorkflowTimeRange = {
+                          start: earliestStart,
+                          end: latestEnd,
+                        }
+                      }
+                    }
+
+                    // Get workflow names
+                    const workflowNames = selectedWorkflowIds
+                      .map((id) => executions.find((w) => w.workflowId === id)?.workflowName)
+                      .filter(Boolean) as string[]
+
                     return (
                       <WorkflowDetails
                         workspaceId={workspaceId}
@@ -1022,10 +1067,11 @@ export default function Dashboard() {
                             allLogs: allLogs,
                           } as any
                         }
-                        selectedSegmentIndex={[]}
+                        selectedSegmentIndex={sortedIndices}
                         selectedSegment={null}
-                        selectedSegmentTimeRange={null}
-                        segmentDurationMs={undefined}
+                        selectedSegmentTimeRange={multiWorkflowTimeRange}
+                        selectedWorkflowNames={workflowNames}
+                        segmentDurationMs={segMs}
                         clearSegmentSelection={() => {
                           setSelectedSegments({})
                           setLastAnchorIndices({})
@@ -1207,6 +1253,7 @@ export default function Dashboard() {
                             : null
                         }
                         selectedSegmentTimeRange={timeRange}
+                        selectedWorkflowNames={undefined}
                         segmentDurationMs={segMs}
                         clearSegmentSelection={() => {
                           setSelectedSegments({})
@@ -1242,6 +1289,7 @@ export default function Dashboard() {
                       selectedSegmentIndex={[]}
                       selectedSegment={null}
                       selectedSegmentTimeRange={null}
+                      selectedWorkflowNames={undefined}
                       segmentDurationMs={undefined}
                       clearSegmentSelection={() => {
                         setSelectedSegments({})

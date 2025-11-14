@@ -79,6 +79,7 @@ export function WorkflowDetails({
   selectedSegmentIndex,
   selectedSegment,
   selectedSegmentTimeRange,
+  selectedWorkflowNames,
   segmentDurationMs,
   clearSegmentSelection,
   formatCost,
@@ -94,6 +95,7 @@ export function WorkflowDetails({
   selectedSegmentIndex: number[] | null
   selectedSegment: { timestamp: string; totalExecutions: number } | null
   selectedSegmentTimeRange?: { start: Date; end: Date } | null
+  selectedWorkflowNames?: string[]
   segmentDurationMs?: number
   clearSegmentSelection: () => void
   formatCost: (n: number) => string
@@ -186,7 +188,7 @@ export function WorkflowDetails({
             )}
             {Array.isArray(selectedSegmentIndex) &&
               selectedSegmentIndex.length > 0 &&
-              selectedSegment &&
+              (selectedSegment || selectedSegmentTimeRange || expandedWorkflowId === '__multi__') &&
               (() => {
                 let tsLabel = 'Selected segment'
                 if (selectedSegmentTimeRange) {
@@ -217,11 +219,27 @@ export function WorkflowDetails({
                     })
                   }
                 }
+
+                const isMultiWorkflow =
+                  expandedWorkflowId === '__multi__' &&
+                  selectedWorkflowNames &&
+                  selectedWorkflowNames.length > 0
+                const workflowLabel = isMultiWorkflow
+                  ? selectedWorkflowNames.length <= 2
+                    ? selectedWorkflowNames.join(', ')
+                    : `${selectedWorkflowNames.slice(0, 2).join(', ')} +${selectedWorkflowNames.length - 2}`
+                  : null
+
                 return (
                   <div className='inline-flex h-7 items-center gap-1.5 rounded-md border bg-muted/50 px-2.5'>
+                    {isMultiWorkflow && workflowLabel && (
+                      <span className='font-medium text-[11px] text-muted-foreground'>
+                        {workflowLabel}
+                      </span>
+                    )}
                     <span className='font-medium text-[11px] text-foreground'>
                       {tsLabel}
-                      {selectedSegmentIndex.length > 1
+                      {selectedSegmentIndex.length > 1 && !isMultiWorkflow
                         ? ` (+${selectedSegmentIndex.length - 1})`
                         : ''}
                     </span>
