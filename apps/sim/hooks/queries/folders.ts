@@ -79,6 +79,9 @@ interface DeleteFolderVariables {
 interface DuplicateFolderVariables {
   workspaceId: string
   id: string
+  name: string
+  parentId?: string | null
+  color?: string
 }
 
 export function useCreateFolder() {
@@ -160,11 +163,16 @@ export function useDuplicateFolderMutation() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async ({ id, workspaceId }: DuplicateFolderVariables) => {
+    mutationFn: async ({ id, workspaceId, name, parentId, color }: DuplicateFolderVariables) => {
       const response = await fetch(`/api/folders/${id}/duplicate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ workspaceId }),
+        body: JSON.stringify({
+          workspaceId,
+          name,
+          parentId: parentId ?? null,
+          color,
+        }),
       })
 
       if (!response.ok) {

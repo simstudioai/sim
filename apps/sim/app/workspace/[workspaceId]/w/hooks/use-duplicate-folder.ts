@@ -42,6 +42,19 @@ export function useDuplicateFolder({
   const duplicateFolderMutation = useDuplicateFolderMutation()
   const [isDuplicating, setIsDuplicating] = useState(false)
 
+  const generateDuplicateName = useCallback((baseName: string, siblingNames: Set<string>) => {
+    const trimmedName = (baseName || 'Untitled Folder').trim()
+    let candidate = `${trimmedName} Copy`
+    let counter = 2
+
+    while (siblingNames.has(candidate)) {
+      candidate = `${trimmedName} Copy ${counter}`
+      counter += 1
+    }
+
+    return candidate
+  }, [])
+
   /**
    * Duplicate the folder(s)
    */
@@ -62,10 +75,32 @@ export function useDuplicateFolder({
       const folderIdsToDuplicate = Array.isArray(folderIdsOrId) ? folderIdsOrId : [folderIdsOrId]
 
       const duplicatedIds: string[] = []
+      const folderStore = useFolderStore.getState()
 
       // Duplicate each folder sequentially
       for (const folderId of folderIdsToDuplicate) {
-        const result = await duplicateFolderMutation.mutateAsync({ id: folderId, workspaceId })
+        const folder = folderStore.getFolderById(folderId)
+
+        if (!folder) {
+          logger.warn('Attempted to duplicate folder that no longer exists', { folderId })
+          continue
+        }
+
+        const siblingNames = new Set(
+          folderStore.getChildFolders(folder.parentId).map((sibling) => sibling.name)
+        )
+        // Avoid colliding with the original folder name
+        siblingNames.add(folder.name)
+
+        const duplicateName = generateDuplicateName(folder.name, siblingNames)
+
+        const result = await duplicateFolderMutation.mutateAsync({
+          id: folderId,
+          workspaceId,
+          name: duplicateName,
+          parentId: folder.parentId,
+          color: folder.color,
+        })
         const newFolderId = result?.id
         if (newFolderId) {
           duplicatedIds.push(newFolderId)
@@ -88,7 +123,14 @@ export function useDuplicateFolder({
     } finally {
       setIsDuplicating(false)
     }
-  }, [getFolderIds, isDuplicating, duplicateFolderMutation, workspaceId, onSuccess])
+  }, [
+    getFolderIds,
+    generateDuplicateName,
+    isDuplicating,
+    duplicateFolderMutation,
+    workspaceId,
+    onSuccess,
+  ])
 
   return {
     isDuplicating,
