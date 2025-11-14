@@ -8,7 +8,6 @@ export const subscriptionKeys = {
   all: ['subscription'] as const,
   user: () => [...subscriptionKeys.all, 'user'] as const,
   usage: () => [...subscriptionKeys.all, 'usage'] as const,
-  usageLimit: () => [...subscriptionKeys.all, 'usageLimit'] as const,
 }
 
 /**
@@ -46,9 +45,9 @@ async function fetchUsageData() {
 }
 
 /**
- * Hook to fetch user usage data
+ * Base hook to fetch user usage data (single query)
  */
-export function useUsageData() {
+function useUsageDataBase() {
   return useQuery({
     queryKey: subscriptionKeys.usage(),
     queryFn: fetchUsageData,
@@ -58,26 +57,17 @@ export function useUsageData() {
 }
 
 /**
- * Fetch usage limit data
+ * Hook to fetch user usage data
  */
-async function fetchUsageLimitData() {
-  const response = await fetch('/api/usage?context=user')
-  if (!response.ok) {
-    throw new Error('Failed to fetch usage limit data')
-  }
-  return response.json()
+export function useUsageData() {
+  return useUsageDataBase()
 }
 
 /**
  * Hook to fetch usage limit data
  */
 export function useUsageLimitData() {
-  return useQuery({
-    queryKey: subscriptionKeys.usageLimit(),
-    queryFn: fetchUsageLimitData,
-    staleTime: 30 * 1000,
-    placeholderData: keepPreviousData,
-  })
+  return useUsageDataBase()
 }
 
 /**
@@ -109,7 +99,6 @@ export function useUpdateUsageLimit() {
       // Invalidate all subscription-related queries
       queryClient.invalidateQueries({ queryKey: subscriptionKeys.user() })
       queryClient.invalidateQueries({ queryKey: subscriptionKeys.usage() })
-      queryClient.invalidateQueries({ queryKey: subscriptionKeys.usageLimit() })
     },
   })
 }
