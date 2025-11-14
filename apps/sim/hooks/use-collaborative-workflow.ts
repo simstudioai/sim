@@ -57,13 +57,28 @@ export function useCollaborativeWorkflow() {
       skipEdgeRecording.current = skip
     }
 
+    const diffOperationHandler = (e: any) => {
+      const { type, baselineSnapshot, proposedState, diffAnalysis, beforeAccept, afterAccept } =
+        e.detail || {}
+      // Don't record during undo/redo operations
+      if (isUndoRedoInProgress.current) return
+
+      if (type === 'apply-diff' && baselineSnapshot && proposedState) {
+        undoRedo.recordApplyDiff(baselineSnapshot, proposedState, diffAnalysis)
+      } else if (type === 'accept-diff' && beforeAccept && afterAccept) {
+        undoRedo.recordAcceptDiff(beforeAccept, afterAccept, diffAnalysis, baselineSnapshot)
+      }
+    }
+
     window.addEventListener('workflow-record-move', moveHandler)
     window.addEventListener('workflow-record-parent-update', parentUpdateHandler)
     window.addEventListener('skip-edge-recording', skipEdgeHandler)
+    window.addEventListener('record-diff-operation', diffOperationHandler)
     return () => {
       window.removeEventListener('workflow-record-move', moveHandler)
       window.removeEventListener('workflow-record-parent-update', parentUpdateHandler)
       window.removeEventListener('skip-edge-recording', skipEdgeHandler)
+      window.removeEventListener('record-diff-operation', diffOperationHandler)
     }
   }, [undoRedo])
   const {
@@ -1635,19 +1650,21 @@ export function useCollaborativeWorkflow() {
     subBlockStore,
 
     // Undo/Redo operations (wrapped to prevent recording moves during undo/redo)
-    undo: useCallback(() => {
+    undo: useCallback(async () => {
       isUndoRedoInProgress.current = true
-      undoRedo.undo()
-      queueMicrotask(() => {
+      await undoRedo.undo()
+      // Use a longer delay to ensure all async operations complete
+      setTimeout(() => {
         isUndoRedoInProgress.current = false
-      })
+      }, 100)
     }, [undoRedo]),
-    redo: useCallback(() => {
+    redo: useCallback(async () => {
       isUndoRedoInProgress.current = true
-      undoRedo.redo()
-      queueMicrotask(() => {
+      await undoRedo.redo()
+      // Use a longer delay to ensure all async operations complete
+      setTimeout(() => {
         isUndoRedoInProgress.current = false
-      })
+      }, 100)
     }, [undoRedo]),
     getUndoRedoSizes: undoRedo.getStackSizes,
     clearUndoRedo: undoRedo.clearStacks,

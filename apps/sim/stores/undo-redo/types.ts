@@ -12,6 +12,8 @@ export type OperationType =
   | 'move-subflow'
   | 'duplicate-block'
   | 'update-parent'
+  | 'apply-diff'
+  | 'accept-diff'
 
 export interface BaseOperation {
   id: string
@@ -122,6 +124,24 @@ export interface UpdateParentOperation extends BaseOperation {
   }
 }
 
+export interface ApplyDiffOperation extends BaseOperation {
+  type: 'apply-diff'
+  data: {
+    baselineSnapshot: any // WorkflowState snapshot before diff
+    proposedState: any // WorkflowState with diff applied
+    diffAnalysis: any // DiffAnalysis for re-applying markers
+  }
+}
+
+export interface AcceptDiffOperation extends BaseOperation {
+  type: 'accept-diff'
+  data: {
+    beforeAccept: any // WorkflowState with diff markers
+    afterAccept: any // WorkflowState without diff markers
+    diffAnalysis: any // DiffAnalysis to restore markers on undo
+  }
+}
+
 export type Operation =
   | AddBlockOperation
   | RemoveBlockOperation
@@ -133,6 +153,8 @@ export type Operation =
   | MoveSubflowOperation
   | DuplicateBlockOperation
   | UpdateParentOperation
+  | ApplyDiffOperation
+  | AcceptDiffOperation
 
 export interface OperationEntry {
   id: string

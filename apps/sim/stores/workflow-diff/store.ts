@@ -306,6 +306,20 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
               _triggerMessageId: triggerMessageId ?? null,
             })
 
+            // Emit event for undo/redo recording (unless we're in an undo/redo operation)
+            if (!(window as any).__skipDiffRecording) {
+              window.dispatchEvent(
+                new CustomEvent('record-diff-operation', {
+                  detail: {
+                    type: 'apply-diff',
+                    baselineSnapshot: baselineWorkflow,
+                    proposedState: candidateState,
+                    diffAnalysis: diffResult.diff.diffAnalysis,
+                  },
+                })
+              )
+            }
+
             logger.info('Workflow diff applied and persisted to main store', {
               workflowId: activeWorkflowId,
               blocks: Object.keys(candidateState.blocks || {}).length,
@@ -400,7 +414,29 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
             ...(validation.sanitizedState || cleanState),
             lastSaved: useWorkflowStore.getState().lastSaved,
           }
+
+          // Capture state before accept for undo
+          const beforeAccept = cloneWorkflowState(mergedState)
+          const afterAccept = cloneWorkflowState(stateToApply)
+          const diffAnalysisForUndo = get().diffAnalysis
+          const baselineForUndo = get().baselineWorkflow
+
           applyWorkflowStateToStores(activeWorkflowId, stateToApply)
+
+          // Emit event for undo/redo recording (unless we're in an undo/redo operation)
+          if (!(window as any).__skipDiffRecording) {
+            window.dispatchEvent(
+              new CustomEvent('record-diff-operation', {
+                detail: {
+                  type: 'accept-diff',
+                  beforeAccept,
+                  afterAccept,
+                  diffAnalysis: diffAnalysisForUndo,
+                  baselineSnapshot: baselineForUndo,
+                },
+              })
+            )
+          }
 
           const triggerMessageId = get()._triggerMessageId
           if (triggerMessageId) {
