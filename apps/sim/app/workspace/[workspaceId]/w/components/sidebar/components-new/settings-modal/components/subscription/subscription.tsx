@@ -35,7 +35,7 @@ import {
   getVisiblePlans,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/components-new/settings-modal/components/subscription/subscription-permissions'
 import { useOrganizationBilling, useOrganizations } from '@/hooks/queries/organization'
-import { useSubscriptionData, useUsageData, useUsageLimitData } from '@/hooks/queries/subscription'
+import { useSubscriptionData, useUsageLimitData } from '@/hooks/queries/subscription'
 import { useUpdateWorkspaceSettings, useWorkspaceSettings } from '@/hooks/queries/workspace'
 import { useGeneralStore } from '@/stores/settings/general/store'
 
@@ -170,7 +170,6 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
 
   // React Query hooks for data fetching
   const { data: subscriptionData, isLoading: isSubscriptionLoading } = useSubscriptionData()
-  const { data: usageResponse, isLoading: isUsageLoading } = useUsageData()
   const { data: usageLimitResponse, isLoading: isUsageLimitLoading } = useUsageLimitData()
   const { data: workspaceData, isLoading: isWorkspaceLoading } = useWorkspaceSettings(workspaceId)
   const updateWorkspaceMutation = useUpdateWorkspaceSettings()
@@ -188,38 +187,38 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
   const usageLimitRef = useRef<UsageLimitRef | null>(null)
 
   // Combine all loading states
-  const isLoading =
-    isSubscriptionLoading || isUsageLoading || isUsageLimitLoading || isWorkspaceLoading
+  const isLoading = isSubscriptionLoading || isUsageLimitLoading || isWorkspaceLoading
 
-  // Extract subscription status from data
+  // Extract subscription status from subscriptionData.data
   const subscription = {
-    isFree: subscriptionData?.plan === 'free' || !subscriptionData?.plan,
-    isPro: subscriptionData?.plan === 'pro',
-    isTeam: subscriptionData?.plan === 'team',
-    isEnterprise: subscriptionData?.plan === 'enterprise',
+    isFree: subscriptionData?.data?.plan === 'free' || !subscriptionData?.data?.plan,
+    isPro: subscriptionData?.data?.plan === 'pro',
+    isTeam: subscriptionData?.data?.plan === 'team',
+    isEnterprise: subscriptionData?.data?.plan === 'enterprise',
     isPaid:
-      subscriptionData?.plan &&
-      ['pro', 'team', 'enterprise'].includes(subscriptionData.plan) &&
-      subscriptionData?.status === 'active',
-    plan: subscriptionData?.plan || 'free',
-    status: subscriptionData?.status || 'inactive',
-    seats: subscriptionData?.seats || 1,
+      subscriptionData?.data?.plan &&
+      ['pro', 'team', 'enterprise'].includes(subscriptionData.data.plan) &&
+      subscriptionData?.data?.status === 'active',
+    plan: subscriptionData?.data?.plan || 'free',
+    status: subscriptionData?.data?.status || 'inactive',
+    seats: subscriptionData?.data?.seats || 1,
   }
 
-  // Extract usage data
+  // Extract usage data from subscriptionData.data.usage (same source as panel usage indicator)
   const usage = {
-    current: usageResponse?.usage?.current || 0,
-    limit: usageResponse?.usage?.limit || 0,
-    percentUsed: usageResponse?.usage?.percentUsed || 0,
+    current: subscriptionData?.data?.usage?.current || 0,
+    limit: subscriptionData?.data?.usage?.limit || 0,
+    percentUsed: subscriptionData?.data?.usage?.percentUsed || 0,
   }
 
+  // Extract usage limit metadata from usageLimitResponse.data
   const usageLimitData = {
-    currentLimit: usageLimitResponse?.usage?.limit || 0,
-    minimumLimit: usageLimitResponse?.usage?.minimumLimit || (subscription.isPro ? 20 : 40),
+    currentLimit: usageLimitResponse?.data?.currentLimit || 0,
+    minimumLimit: usageLimitResponse?.data?.minimumLimit || (subscription.isPro ? 20 : 40),
   }
 
   // Extract billing status
-  const billingStatus = subscriptionData?.billingBlocked ? 'blocked' : 'ok'
+  const billingStatus = subscriptionData?.data?.billingBlocked ? 'blocked' : 'ok'
 
   // Extract workspace settings
   const billedAccountUserId = workspaceData?.settings?.workspace?.billedAccountUserId ?? null
@@ -406,7 +405,7 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
                   ? usage.current // placeholder; rightContent will render UsageLimit
                   : usage.limit
             }
-            isBlocked={Boolean(subscriptionData?.billingBlocked)}
+            isBlocked={Boolean(subscriptionData?.data?.billingBlocked)}
             status={billingStatus}
             percentUsed={
               subscription.isEnterprise || subscription.isTeam
@@ -544,11 +543,11 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
         )}
 
         {/* Next Billing Date */}
-        {subscription.isPaid && subscriptionData?.periodEnd && (
+        {subscription.isPaid && subscriptionData?.data?.periodEnd && (
           <div className='mt-4 flex items-center justify-between'>
             <span className='font-medium text-sm'>Next Billing Date</span>
             <span className='text-muted-foreground text-sm'>
-              {new Date(subscriptionData.periodEnd).toLocaleDateString()}
+              {new Date(subscriptionData.data.periodEnd).toLocaleDateString()}
             </span>
           </div>
         )}
@@ -574,8 +573,8 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
                 isPaid: subscription.isPaid,
               }}
               subscriptionData={{
-                periodEnd: subscriptionData?.periodEnd || null,
-                cancelAtPeriodEnd: subscriptionData?.cancelAtPeriodEnd,
+                periodEnd: subscriptionData?.data?.periodEnd || null,
+                cancelAtPeriodEnd: subscriptionData?.data?.cancelAtPeriodEnd,
               }}
             />
           </div>
