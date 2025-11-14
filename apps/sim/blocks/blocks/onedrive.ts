@@ -2,45 +2,10 @@ import { MicrosoftOneDriveIcon } from '@/components/icons'
 import { createLogger } from '@/lib/logs/console/logger'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
-import type { OneDriveResponse, OneDriveToolParams } from '@/tools/onedrive/types'
+import type { OneDriveResponse } from '@/tools/onedrive/types'
+import { normalizeExcelValuesForToolParams } from '@/tools/onedrive/utils'
 
 const logger = createLogger('OneDriveBlock')
-
-type ExcelValues = OneDriveToolParams['values']
-
-/**
- * Normalizes Excel values so that downstream tooling always receives an array.
- */
-function normalizeExcelValues(values: unknown): ExcelValues | undefined {
-  if (values === null || values === undefined || values === '') {
-    return undefined
-  }
-
-  if (Array.isArray(values)) {
-    return values as ExcelValues
-  }
-
-  if (typeof values === 'string') {
-    const trimmed = values.trim()
-    if (!trimmed) {
-      return undefined
-    }
-
-    try {
-      const parsed = JSON.parse(trimmed)
-
-      if (!Array.isArray(parsed)) {
-        throw new Error('Excel values must be an array of rows or array of objects')
-      }
-
-      return parsed as ExcelValues
-    } catch (_error) {
-      throw new Error('Invalid JSON format for values')
-    }
-  }
-
-  throw new Error('Excel values must be an array of rows or array of objects')
-}
 
 export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
   type: 'onedrive',
@@ -387,9 +352,9 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
       params: (params) => {
         const { credential, folderId, fileId, mimeType, values, downloadFileName, ...rest } = params
 
-        let normalizedValues: ExcelValues | undefined
+        let normalizedValues: ReturnType<typeof normalizeExcelValuesForToolParams>
         if (values !== undefined) {
-          normalizedValues = normalizeExcelValues(values)
+          normalizedValues = normalizeExcelValuesForToolParams(values)
         }
 
         return {
