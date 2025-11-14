@@ -151,7 +151,9 @@ export function queryToApiParams(parsedQuery: ParsedQuery): Record<string, strin
       case 'level':
       case 'status':
         if (filter.operator === '=') {
-          params.level = filter.value as string
+          const existing = params.level ? params.level.split(',') : []
+          existing.push(filter.value as string)
+          params.level = existing.join(',')
         }
         break
 

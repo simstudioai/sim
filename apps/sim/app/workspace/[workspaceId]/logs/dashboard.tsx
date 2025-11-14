@@ -606,10 +606,25 @@ export default function Dashboard() {
 
         setLastAnchorIndices((prev) => ({ ...prev, [workflowId]: segmentIndex }))
       } else if (mode === 'single') {
-        // Single mode: Clear all selections and select only this segment
-        setExpandedWorkflowId(workflowId)
-        setSelectedSegments({ [workflowId]: [segmentIndex] })
-        setLastAnchorIndices({ [workflowId]: segmentIndex })
+        // Single mode: Select this segment, or deselect if already selected
+        setSelectedSegments((prev) => {
+          const currentSegments = prev[workflowId] || []
+          const isOnlySelectedSegment =
+            currentSegments.length === 1 && currentSegments[0] === segmentIndex
+          const isOnlyWorkflowSelected = Object.keys(prev).length === 1 && prev[workflowId]
+
+          // If this is the only selected segment in the only selected workflow, deselect it
+          if (isOnlySelectedSegment && isOnlyWorkflowSelected) {
+            setExpandedWorkflowId(null)
+            setLastAnchorIndices({})
+            return {}
+          }
+
+          // Otherwise, select only this segment
+          setExpandedWorkflowId(workflowId)
+          setLastAnchorIndices({ [workflowId]: segmentIndex })
+          return { [workflowId]: [segmentIndex] }
+        })
       } else if (mode === 'range') {
         // Range mode: Expand selection within the current workflow
         if (expandedWorkflowId === workflowId) {
@@ -1009,6 +1024,8 @@ export default function Dashboard() {
                         }
                         selectedSegmentIndex={[]}
                         selectedSegment={null}
+                        selectedSegmentTimeRange={null}
+                        segmentDurationMs={undefined}
                         clearSegmentSelection={() => {
                           setSelectedSegments({})
                           setLastAnchorIndices({})
@@ -1121,6 +1138,9 @@ export default function Dashboard() {
                       const idxSet = new Set(workflowSelectedIndices)
                       const selectedSegs = wf.segments.filter((_, i) => idxSet.has(i))
                       ;(details as any).__filtered = buildSeriesFromSegments(selectedSegs as any)
+                    } else if (details) {
+                      // Clear filtered data when no segments are selected
+                      ;(details as any).__filtered = undefined
                     }
 
                     const detailsWithFilteredLogs = details
@@ -1148,6 +1168,28 @@ export default function Dashboard() {
                         ? wf.segments[workflowSelectedIndices[0]]
                         : null
 
+                    // Calculate time range for selected segments
+                    const segMs =
+                      (endTime.getTime() - getStartTime().getTime()) / Math.max(1, segmentCount)
+                    const selectedSegmentsData = workflowSelectedIndices
+                      .map((idx) => wf.segments[idx])
+                      .filter(Boolean)
+                    const timeRange =
+                      selectedSegmentsData.length > 0
+                        ? (() => {
+                            const sortedIndices = [...workflowSelectedIndices].sort((a, b) => a - b)
+                            const firstSegment = wf.segments[sortedIndices[0]]
+                            const lastSegment = wf.segments[sortedIndices[sortedIndices.length - 1]]
+                            if (!firstSegment || !lastSegment) return null
+                            const rangeStart = new Date(firstSegment.timestamp)
+                            const rangeEnd = new Date(lastSegment.timestamp).getTime() + segMs
+                            return {
+                              start: rangeStart,
+                              end: new Date(rangeEnd),
+                            }
+                          })()
+                        : null
+
                     return (
                       <WorkflowDetails
                         workspaceId={workspaceId}
@@ -1164,6 +1206,8 @@ export default function Dashboard() {
                               }
                             : null
                         }
+                        selectedSegmentTimeRange={timeRange}
+                        segmentDurationMs={segMs}
                         clearSegmentSelection={() => {
                           setSelectedSegments({})
                           setLastAnchorIndices({})
@@ -1197,6 +1241,8 @@ export default function Dashboard() {
                       details={globalDetails as any}
                       selectedSegmentIndex={[]}
                       selectedSegment={null}
+                      selectedSegmentTimeRange={null}
+                      segmentDurationMs={undefined}
                       clearSegmentSelection={() => {
                         setSelectedSegments({})
                         setLastAnchorIndices({})

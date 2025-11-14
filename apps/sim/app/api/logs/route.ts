@@ -126,9 +126,14 @@ export async function GET(request: NextRequest) {
       // Build additional conditions for the query
       let conditions: SQL | undefined
 
-      // Filter by level
+      // Filter by level (supports comma-separated for OR conditions)
       if (params.level && params.level !== 'all') {
-        conditions = and(conditions, eq(workflowExecutionLogs.level, params.level))
+        const levels = params.level.split(',').filter(Boolean)
+        if (levels.length === 1) {
+          conditions = and(conditions, eq(workflowExecutionLogs.level, levels[0]))
+        } else if (levels.length > 1) {
+          conditions = and(conditions, inArray(workflowExecutionLogs.level, levels))
+        }
       }
 
       // Filter by specific workflow IDs
