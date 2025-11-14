@@ -69,8 +69,10 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
+| `message` | object | 包含 Slack 返回的所有属性的完整消息对象 |
 | `ts` | string | 消息时间戳 |
-| `channel` | string | 消息发送的频道 ID |
+| `channel` | string | 发送消息的频道 ID |
+| `fileCount` | number | 上传的文件数量（当附加文件时） |
 
 ### `slack_canvas`
 
@@ -153,8 +155,9 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
+| `message` | object | 包含 Slack 返回的所有属性的完整更新消息对象 |
 | `content` | string | 成功消息 |
-| `metadata` | object | 更新后的消息元数据 |
+| `metadata` | object | 更新的消息元数据 |
 
 ### `slack_delete_message`
 
