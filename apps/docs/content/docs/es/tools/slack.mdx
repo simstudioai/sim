@@ -71,8 +71,10 @@ Envía mensajes a canales o usuarios de Slack a través de la API de Slack. Comp
 
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
+| `message` | object | Objeto de mensaje completo con todas las propiedades devueltas por Slack |
 | `ts` | string | Marca de tiempo del mensaje |
 | `channel` | string | ID del canal donde se envió el mensaje |
+| `fileCount` | number | Número de archivos subidos (cuando se adjuntan archivos) |
 
 ### `slack_canvas`
 
@@ -155,6 +157,7 @@ Actualizar un mensaje enviado previamente por el bot en Slack
 
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
+| `message` | object | Objeto de mensaje actualizado completo con todas las propiedades devueltas por Slack |
 | `content` | string | Mensaje de éxito |
 | `metadata` | object | Metadatos del mensaje actualizado |
 

@@ -71,8 +71,10 @@ Envoyez des messages aux canaux ou utilisateurs Slack via l'API Slack. Prend en 
 
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
+| `message` | objet | Objet de message complet avec toutes les propriétés renvoyées par Slack |
 | `ts` | chaîne | Horodatage du message |
 | `channel` | chaîne | ID du canal où le message a été envoyé |
+| `fileCount` | nombre | Nombre de fichiers téléchargés \(lorsque des fichiers sont joints\) |
 
 ### `slack_canvas`
 
@@ -155,6 +157,7 @@ Mettre à jour un message précédemment envoyé par le bot dans Slack
 
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
+| `message` | objet | Objet de message mis à jour complet avec toutes les propriétés renvoyées par Slack |
 | `content` | chaîne | Message de succès |
 | `metadata` | objet | Métadonnées du message mis à jour |
 
