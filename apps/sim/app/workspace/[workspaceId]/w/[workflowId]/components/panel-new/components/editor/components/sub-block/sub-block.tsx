@@ -190,7 +190,7 @@ const renderLabel = (
       <div className='flex items-center gap-[6px] whitespace-nowrap'>
         {config.title}
         {required && <span className='ml-0.5'>*</span>}
-        {config.id === 'responseFormat' && (
+        {config.type === 'code' && config.language === 'json' && (
           <Tooltip.Root>
             <Tooltip.Trigger asChild>
               <AlertTriangle
