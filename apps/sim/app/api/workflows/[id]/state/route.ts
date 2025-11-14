@@ -10,6 +10,8 @@ import { extractAndPersistCustomTools } from '@/lib/workflows/custom-tools-persi
 import { saveWorkflowToNormalizedTables } from '@/lib/workflows/db-helpers'
 import { getWorkflowAccessContext } from '@/lib/workflows/utils'
 import { sanitizeAgentToolsInBlocks } from '@/lib/workflows/validation'
+import type { BlockState } from '@/stores/workflows/workflow/types'
+import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
 
 const logger = createLogger('WorkflowStateAPI')
 
@@ -175,11 +177,15 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       {} as typeof state.blocks
     )
 
+    const typedBlocks = filteredBlocks as Record<string, BlockState>
+    const canonicalLoops = generateLoopBlocks(typedBlocks)
+    const canonicalParallels = generateParallelBlocks(typedBlocks)
+
     const workflowState = {
       blocks: filteredBlocks,
       edges: state.edges,
-      loops: state.loops || {},
-      parallels: state.parallels || {},
+      loops: canonicalLoops,
+      parallels: canonicalParallels,
       lastSaved: state.lastSaved || Date.now(),
       isDeployed: state.isDeployed || false,
       deployedAt: state.deployedAt,

@@ -5,6 +5,7 @@ import { getBlock } from '@/blocks'
 import type { SubBlockConfig } from '@/blocks/types'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 import type { BlockState, Loop, Parallel } from '@/stores/workflows/workflow/types'
+import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
 import { getTool } from '@/tools/utils'
 
 const logger = createLogger('Serializer')
@@ -41,12 +42,15 @@ export class Serializer {
   serializeWorkflow(
     blocks: Record<string, BlockState>,
     edges: Edge[],
-    loops: Record<string, Loop>,
+    loops?: Record<string, Loop>,
     parallels?: Record<string, Parallel>,
     validateRequired = false
   ): SerializedWorkflow {
-    const safeLoops = loops || {}
-    const safeParallels = parallels || {}
+    const canonicalLoops = generateLoopBlocks(blocks)
+    const canonicalParallels = generateParallelBlocks(blocks)
+    const safeLoops = Object.keys(canonicalLoops).length > 0 ? canonicalLoops : loops || {}
+    const safeParallels =
+      Object.keys(canonicalParallels).length > 0 ? canonicalParallels : parallels || {}
     const accessibleBlocksMap = this.computeAccessibleBlockIds(
       blocks,
       edges,

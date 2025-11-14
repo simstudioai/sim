@@ -1,6 +1,7 @@
 import type { Edge } from 'reactflow'
 import { sanitizeWorkflowForSharing } from '@/lib/workflows/credential-extractor'
 import type { BlockState, Loop, Parallel, WorkflowState } from '@/stores/workflows/workflow/types'
+import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
 import { TRIGGER_PERSISTED_SUBBLOCK_IDS } from '@/triggers/consts'
 
 /**
@@ -384,12 +385,15 @@ export function sanitizeForCopilot(state: WorkflowState): CopilotWorkflowState {
  * Users need positions to restore the visual layout when importing
  */
 export function sanitizeForExport(state: WorkflowState): ExportWorkflowState {
+  const canonicalLoops = generateLoopBlocks(state.blocks || {})
+  const canonicalParallels = generateParallelBlocks(state.blocks || {})
+
   // Preserve edges, loops, parallels, metadata, and variables
   const fullState = {
     blocks: state.blocks,
     edges: state.edges,
-    loops: state.loops || {},
-    parallels: state.parallels || {},
+    loops: canonicalLoops,
+    parallels: canonicalParallels,
     metadata: state.metadata,
     variables: state.variables,
   }
