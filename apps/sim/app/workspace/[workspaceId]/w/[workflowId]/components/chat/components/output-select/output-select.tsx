@@ -288,7 +288,7 @@ export function OutputSelect({
       <PopoverContent
         ref={popoverRef}
         side='bottom'
-        align='end'
+        align='start'
         sideOffset={4}
         maxHeight={140}
         maxWidth={140}
