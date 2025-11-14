@@ -109,7 +109,7 @@ interface ChatState {
 }
 
 /**
- * Calculate default center position based on available canvas space
+ * Calculate default position in top right of canvas, 32px from top and right of panel
  */
 const calculateDefaultPosition = (): ChatPosition => {
   if (typeof window === 'undefined') {
@@ -117,23 +117,13 @@ const calculateDefaultPosition = (): ChatPosition => {
   }
 
   // Get current layout dimensions
-  const sidebarWidth = Number.parseInt(
-    getComputedStyle(document.documentElement).getPropertyValue('--sidebar-width') || '0'
-  )
   const panelWidth = Number.parseInt(
     getComputedStyle(document.documentElement).getPropertyValue('--panel-width') || '0'
   )
-  const terminalHeight = Number.parseInt(
-    getComputedStyle(document.documentElement).getPropertyValue('--terminal-height') || '0'
-  )
 
-  // Calculate available space
-  const availableWidth = window.innerWidth - sidebarWidth - panelWidth
-  const availableHeight = window.innerHeight - terminalHeight
-
-  // Center in available space
-  const x = sidebarWidth + (availableWidth - DEFAULT_WIDTH) / 2
-  const y = (availableHeight - DEFAULT_HEIGHT) / 2
+  // Position in top right of canvas, 32px from top and 32px from right of panel
+  const x = window.innerWidth - panelWidth - 32 - DEFAULT_WIDTH
+  const y = 32
 
   return { x, y }
 }

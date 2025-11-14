@@ -42,7 +42,7 @@ import { useOutputPanelResize, useTerminalFilters, useTerminalResize } from './h
  */
 const MIN_HEIGHT = 30
 const NEAR_MIN_THRESHOLD = 40
-const DEFAULT_EXPANDED_HEIGHT = 300
+const DEFAULT_EXPANDED_HEIGHT = 196
 
 /**
  * Column width constants - numeric values for calculations
