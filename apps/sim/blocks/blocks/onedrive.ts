@@ -79,9 +79,11 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
     {
       id: 'values',
       title: 'Values',
-      type: 'long-input',
+      type: 'code',
+      language: 'json',
+      generationType: 'json-object',
       placeholder:
-        'Enter values as JSON array of arrays (e.g., [["A1","B1"],["A2","B2"]]) or an array of objects',
+        'Enter a JSON array of rows (e.g., [["A1","B1"],["A2","B2"]]) or use a reference like {{block_1.rows}}',
       condition: {
         field: 'operation',
         value: 'create_file',
@@ -89,6 +91,13 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
           field: 'mimeType',
           value: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         },
+      },
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate a JSON array of arrays that can be written directly into an Excel worksheet.',
+        placeholder: 'Describe the table you want to generate...',
+        generationType: 'json-object',
       },
       required: false,
     },
@@ -379,7 +388,7 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
     fileReference: { type: 'json', description: 'File reference from previous block' },
     content: { type: 'string', description: 'Text content to upload' },
     mimeType: { type: 'string', description: 'MIME type of file to create' },
-    values: { type: 'string', description: 'Cell values for new Excel as JSON' },
+    values: { type: 'json', description: 'Cell values for new Excel as JSON' },
     fileId: { type: 'string', description: 'File ID to download' },
     downloadFileName: { type: 'string', description: 'File name override for download' },
     folderId: { type: 'string', description: 'Folder ID' },

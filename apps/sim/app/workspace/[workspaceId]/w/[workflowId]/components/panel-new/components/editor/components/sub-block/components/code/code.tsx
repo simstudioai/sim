@@ -221,17 +221,26 @@ export function Code({
   // Derived state
   const effectiveLanguage = (languageValue as 'javascript' | 'python' | 'json') || language
 
+  const trimmedCode = code.trim()
+  const containsReferencePlaceholders =
+    trimmedCode.includes('{{') ||
+    trimmedCode.includes('}}') ||
+    trimmedCode.includes('<') ||
+    trimmedCode.includes('>')
+
+  const shouldValidateJson = effectiveLanguage === 'json' && !containsReferencePlaceholders
+
   const isValidJson = useMemo(() => {
-    if (subBlockId !== 'responseFormat' || !code.trim()) {
+    if (!shouldValidateJson || !trimmedCode) {
       return true
     }
     try {
-      JSON.parse(code)
+      JSON.parse(trimmedCode)
       return true
     } catch {
       return false
     }
-  }, [subBlockId, code])
+  }, [shouldValidateJson, trimmedCode])
 
   const gutterWidthPx = useMemo(() => {
     const lineCount = code.split('\n').length
@@ -309,14 +318,29 @@ export function Code({
         : storeValue
 
   // Effects: JSON validation
+  const lastValidationStatus = useRef<boolean>(true)
+
   useEffect(() => {
-    if (onValidationChange && subBlockId === 'responseFormat') {
-      const timeoutId = setTimeout(() => {
-        onValidationChange(isValidJson)
-      }, 150)
-      return () => clearTimeout(timeoutId)
+    if (!onValidationChange) return
+
+    const nextStatus = shouldValidateJson ? isValidJson : true
+    if (lastValidationStatus.current === nextStatus) {
+      return
     }
-  }, [isValidJson, onValidationChange, subBlockId])
+
+    lastValidationStatus.current = nextStatus
+
+    if (!shouldValidateJson) {
+      onValidationChange(nextStatus)
+      return
+    }
+
+    const timeoutId = setTimeout(() => {
+      onValidationChange(nextStatus)
+    }, 150)
+
+    return () => clearTimeout(timeoutId)
+  }, [isValidJson, onValidationChange, shouldValidateJson])
 
   // Effects: AI stream handlers setup
   useEffect(() => {
