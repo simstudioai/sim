@@ -16,8 +16,14 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { createLogger } from '@/lib/logs/console/logger'
-import { useEnvironmentStore } from '@/stores/settings/environment/store'
-import type { EnvironmentVariable as StoreEnvironmentVariable } from '@/stores/settings/environment/types'
+import {
+  usePersonalEnvironment,
+  useRemoveWorkspaceEnvironment,
+  useSavePersonalEnvironment,
+  useUpsertWorkspaceEnvironment,
+  useWorkspaceEnvironment,
+  type WorkspaceEnvironmentData,
+} from '@/hooks/queries/environment'
 
 const logger = createLogger('EnvironmentVariables')
 
@@ -37,7 +43,9 @@ const createEmptyEnvVar = (): UIEnvironmentVariable => ({
   id: generateRowId(),
 })
 
-interface UIEnvironmentVariable extends StoreEnvironmentVariable {
+interface UIEnvironmentVariable {
+  key: string
+  value: string
   id?: number
 }
 
@@ -50,15 +58,30 @@ export function EnvironmentVariables({
   onOpenChange,
   registerCloseHandler,
 }: EnvironmentVariablesProps) {
-  const {
-    variables,
-    isLoading,
-    loadWorkspaceEnvironment,
-    upsertWorkspaceEnvironment,
-    removeWorkspaceEnvironmentKeys,
-  } = useEnvironmentStore()
   const params = useParams()
   const workspaceId = (params?.workspaceId as string) || ''
+
+  // React Query hooks
+  const { data: personalEnvData, isLoading: isPersonalLoading } = usePersonalEnvironment()
+  const { data: workspaceEnvData, isLoading: isWorkspaceLoading } = useWorkspaceEnvironment(
+    workspaceId,
+    {
+      select: useCallback(
+        (data: WorkspaceEnvironmentData): WorkspaceEnvironmentData => ({
+          workspace: data.workspace || {},
+          personal: data.personal || {},
+          conflicts: data.conflicts || [],
+        }),
+        []
+      ),
+    }
+  )
+  const savePersonalMutation = useSavePersonalEnvironment()
+  const upsertWorkspaceMutation = useUpsertWorkspaceEnvironment()
+  const removeWorkspaceMutation = useRemoveWorkspaceEnvironment()
+
+  const isLoading = isPersonalLoading || isWorkspaceLoading
+  const variables = personalEnvData || {}
 
   const [envVars, setEnvVars] = useState<UIEnvironmentVariable[]>([])
   const [searchTerm, setSearchTerm] = useState('')
@@ -69,7 +92,6 @@ export function EnvironmentVariables({
   const [conflicts, setConflicts] = useState<string[]>([])
   const [renamingKey, setRenamingKey] = useState<string | null>(null)
   const [pendingKeyValue, setPendingKeyValue] = useState<string>('')
-  const [isWorkspaceLoading, setIsWorkspaceLoading] = useState(true)
   const initialWorkspaceVarsRef = useRef<Record<string, string>>({})
 
   const scrollContainerRef = useRef<HTMLDivElement>(null)
@@ -132,14 +154,25 @@ export function EnvironmentVariables({
     return envVars.some((envVar) => !!envVar.key && Object.hasOwn(workspaceVars, envVar.key))
   }, [envVars, workspaceVars])
 
-  const handleModalClose = (open: boolean) => {
-    if (!open && hasChanges) {
-      setShowUnsavedChanges(true)
-      pendingClose.current = true
-    } else {
-      onOpenChange(open)
-    }
-  }
+  // Use ref to track hasChanges to break dependency chain
+  const hasChangesRef = useRef(false)
+
+  useEffect(() => {
+    hasChangesRef.current = hasChanges
+  }, [hasChanges])
+
+  // Memoize handleModalClose to prevent infinite loops
+  const handleModalClose = useCallback(
+    (open: boolean) => {
+      if (!open && hasChangesRef.current) {
+        setShowUnsavedChanges(true)
+        pendingClose.current = true
+      } else {
+        onOpenChange(open)
+      }
+    },
+    [onOpenChange]
+  )
 
   useEffect(() => {
     const existingVars = Object.values(variables)
@@ -155,35 +188,19 @@ export function EnvironmentVariables({
   }, [variables])
 
   useEffect(() => {
-    let mounted = true
-    ;(async () => {
-      if (!workspaceId) {
-        setIsWorkspaceLoading(false)
-        return
-      }
-      setIsWorkspaceLoading(true)
-      try {
-        const data = await loadWorkspaceEnvironment(workspaceId)
-        if (!mounted) return
-        setWorkspaceVars(data.workspace || {})
-        initialWorkspaceVarsRef.current = data.workspace || {}
-        setConflicts(data.conflicts || [])
-      } finally {
-        if (mounted) {
-          setIsWorkspaceLoading(false)
-        }
-      }
-    })()
-    return () => {
-      mounted = false
+    if (workspaceEnvData) {
+      setWorkspaceVars(workspaceEnvData?.workspace || {})
+      initialWorkspaceVarsRef.current = workspaceEnvData?.workspace || {}
+      setConflicts(workspaceEnvData?.conflicts || [])
     }
-  }, [workspaceId, loadWorkspaceEnvironment])
+  }, [workspaceEnvData])
 
+  // Register the close handler - now with stable dependencies
   useEffect(() => {
     if (registerCloseHandler) {
       registerCloseHandler(handleModalClose)
     }
-  }, [registerCloseHandler, hasChanges])
+  }, [registerCloseHandler, handleModalClose])
 
   useEffect(() => {
     if (shouldScrollToBottom && scrollContainerRef.current) {
@@ -351,7 +368,7 @@ export function EnvironmentVariables({
           }),
           {}
         )
-      await useEnvironmentStore.getState().saveEnvironmentVariables(validVariables)
+      await savePersonalMutation.mutateAsync({ variables: validVariables })
 
       const before = initialWorkspaceVarsRef.current
       const after = workspaceVars
@@ -369,10 +386,10 @@ export function EnvironmentVariables({
 
       if (workspaceId) {
         if (Object.keys(toUpsert).length) {
-          await upsertWorkspaceEnvironment(workspaceId, toUpsert)
+          await upsertWorkspaceMutation.mutateAsync({ workspaceId, variables: toUpsert })
         }
         if (toDelete.length) {
-          await removeWorkspaceEnvironmentKeys(workspaceId, toDelete)
+          await removeWorkspaceMutation.mutateAsync({ workspaceId, keys: toDelete })
         }
       }
 
@@ -529,7 +546,7 @@ export function EnvironmentVariables({
       {/* Scrollable Content */}
       <div ref={scrollContainerRef} className='min-h-0 flex-1 overflow-y-auto px-6'>
         <div className='space-y-2 pt-2 pb-6'>
-          {isLoading || isWorkspaceLoading ? (
+          {isLoading ? (
             <>
               {/* Show 3 skeleton rows */}
               {[1, 2, 3].map((index) => (

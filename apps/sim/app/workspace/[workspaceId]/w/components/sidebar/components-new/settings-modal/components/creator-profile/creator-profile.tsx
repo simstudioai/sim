@@ -6,27 +6,17 @@ import { Camera, Check, User, Users } from 'lucide-react'
 import Image from 'next/image'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
-import { Button, Input, Textarea } from '@/components/emcn'
+import { Button, Combobox, Input, Textarea } from '@/components/emcn'
 import { AgentIcon } from '@/components/icons'
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-  RadioGroup,
-  RadioGroupItem,
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-  Skeleton,
-} from '@/components/ui'
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui'
 import { useSession } from '@/lib/auth-client'
 import { createLogger } from '@/lib/logs/console/logger'
 import { useProfilePictureUpload } from '@/app/workspace/[workspaceId]/w/components/sidebar/components-new/settings-modal/components/account/hooks/use-profile-picture-upload'
+import {
+  useCreatorProfile,
+  useOrganizations,
+  useSaveCreatorProfile,
+} from '@/hooks/queries/creator-profile'
 import type { CreatorProfileDetails } from '@/types/creator-profile'
 
 const logger = createLogger('CreatorProfile')
@@ -47,18 +37,17 @@ const creatorProfileSchema = z.object({
 
 type CreatorProfileFormData = z.infer<typeof creatorProfileSchema>
 
-interface Organization {
-  id: string
-  name: string
-  role: string
-}
-
 export function CreatorProfile() {
   const { data: session } = useSession()
-  const [loading, setLoading] = useState(false)
+  const userId = session?.user?.id || ''
+
+  // React Query hooks - with placeholderData to show cached data immediately (no skeleton loading!)
+  const { data: organizations = [] } = useOrganizations()
+  const { data: existingProfile } = useCreatorProfile(userId)
+  const saveProfile = useSaveCreatorProfile()
+
+  // Local UI state
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle')
-  const [organizations, setOrganizations] = useState<Organization[]>([])
-  const [existingProfile, setExistingProfile] = useState<any>(null)
   const [uploadError, setUploadError] = useState<string | null>(null)
 
   const form = useForm<CreatorProfileFormData>({
@@ -98,72 +87,32 @@ export function CreatorProfile() {
 
   const referenceType = form.watch('referenceType')
 
-  // Fetch organizations
+  // Update form when profile data loads
   useEffect(() => {
-    const fetchOrganizations = async () => {
-      if (!session?.user?.id) return
-
-      try {
-        const response = await fetch('/api/organizations')
-        if (response.ok) {
-          const data = await response.json()
-          const orgs = (data.organizations || []).filter(
-            (org: any) => org.role === 'owner' || org.role === 'admin'
-          )
-          setOrganizations(orgs)
-        }
-      } catch (error) {
-        logger.error('Error fetching organizations:', error)
-      }
+    if (existingProfile) {
+      const details = existingProfile.details as CreatorProfileDetails | null
+      form.reset({
+        referenceType: existingProfile.referenceType,
+        referenceId: existingProfile.referenceId,
+        name: existingProfile.name || '',
+        profileImageUrl: existingProfile.profileImageUrl || '',
+        about: details?.about || '',
+        xUrl: details?.xUrl || '',
+        linkedinUrl: details?.linkedinUrl || '',
+        websiteUrl: details?.websiteUrl || '',
+        contactEmail: details?.contactEmail || '',
+      })
     }
-
-    fetchOrganizations()
-  }, [session?.user?.id])
-
-  // Load existing profile
-  useEffect(() => {
-    const loadProfile = async () => {
-      if (!session?.user?.id) return
-
-      setLoading(true)
-      try {
-        const response = await fetch(`/api/creator-profiles?userId=${session.user.id}`)
-        if (response.ok) {
-          const data = await response.json()
-          if (data.profiles && data.profiles.length > 0) {
-            const profile = data.profiles[0]
-            const details = profile.details as CreatorProfileDetails | null
-            setExistingProfile(profile)
-            form.reset({
-              referenceType: profile.referenceType,
-              referenceId: profile.referenceId,
-              name: profile.name || '',
-              profileImageUrl: profile.profileImageUrl || '',
-              about: details?.about || '',
-              xUrl: details?.xUrl || '',
-              linkedinUrl: details?.linkedinUrl || '',
-              websiteUrl: details?.websiteUrl || '',
-              contactEmail: details?.contactEmail || '',
-            })
-          }
-        }
-      } catch (error) {
-        logger.error('Error loading profile:', error)
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    loadProfile()
-  }, [session?.user?.id, form])
+  }, [existingProfile, form])
 
   const [saveError, setSaveError] = useState<string | null>(null)
 
   const onSubmit = async (data: CreatorProfileFormData) => {
-    if (!session?.user?.id) return
+    if (!userId) return
 
     setSaveStatus('saving')
     setSaveError(null)
+
     try {
       const details: CreatorProfileDetails = {}
       if (data.about) details.about = data.about
@@ -172,62 +121,27 @@ export function CreatorProfile() {
       if (data.websiteUrl) details.websiteUrl = data.websiteUrl
       if (data.contactEmail) details.contactEmail = data.contactEmail
 
-      const payload = {
+      await saveProfile.mutateAsync({
         referenceType: data.referenceType,
         referenceId: data.referenceId,
         name: data.name,
         profileImageUrl: data.profileImageUrl,
         details: Object.keys(details).length > 0 ? details : undefined,
-      }
-
-      const url = existingProfile
-        ? `/api/creator-profiles/${existingProfile.id}`
-        : '/api/creator-profiles'
-      const method = existingProfile ? 'PUT' : 'POST'
-
-      const response = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+        existingProfileId: existingProfile?.id,
       })
 
-      if (response.ok) {
-        const result = await response.json()
-        setExistingProfile(result.data)
-        logger.info('Creator profile saved successfully')
-        setSaveStatus('saved')
+      setSaveStatus('saved')
 
-        // Dispatch event to notify that a creator profile was saved
-        window.dispatchEvent(new CustomEvent('creator-profile-saved'))
-
-        // Reset to idle after 2 seconds
-        setTimeout(() => {
-          setSaveStatus('idle')
-        }, 2000)
-      } else {
-        const errorData = await response.json().catch(() => ({}))
-        const errorMessage = errorData.error || 'Failed to save creator profile'
-        logger.error('Failed to save creator profile')
-        setSaveError(errorMessage)
+      // Reset to idle after 2 seconds
+      setTimeout(() => {
         setSaveStatus('idle')
-      }
+      }, 2000)
     } catch (error) {
       logger.error('Error saving creator profile:', error)
-      setSaveError('Failed to save creator profile. Please check your connection and try again.')
+      const errorMessage = error instanceof Error ? error.message : 'Failed to save creator profile'
+      setSaveError(errorMessage)
       setSaveStatus('idle')
     }
-  }
-
-  if (loading) {
-    return (
-      <div className='flex h-full items-center justify-center'>
-        <div className='space-y-2'>
-          <Skeleton className='h-9 w-64 rounded-[8px]' />
-          <Skeleton className='h-9 w-64 rounded-[8px]' />
-          <Skeleton className='h-9 w-64 rounded-[8px]' />
-        </div>
-      </div>
-    )
   }
 
   return (
@@ -243,35 +157,29 @@ export function CreatorProfile() {
                   control={form.control}
                   name='referenceType'
                   render={({ field }) => (
-                    <FormItem className='space-y-3'>
-                      <FormLabel>Profile Type</FormLabel>
+                    <FormItem className='space-y-2'>
+                      <FormLabel className='font-[360] text-sm'>Profile Type</FormLabel>
                       <FormControl>
-                        <RadioGroup
-                          onValueChange={field.onChange}
-                          defaultValue={field.value}
-                          className='flex flex-col space-y-1'
-                        >
-                          <div className='flex items-center space-x-3'>
-                            <RadioGroupItem value='user' id='user' />
-                            <label
-                              htmlFor='user'
-                              className='flex cursor-pointer items-center gap-2 font-normal text-sm'
-                            >
-                              <User className='h-4 w-4' />
-                              Personal Profile
-                            </label>
-                          </div>
-                          <div className='flex items-center space-x-3'>
-                            <RadioGroupItem value='organization' id='organization' />
-                            <label
-                              htmlFor='organization'
-                              className='flex cursor-pointer items-center gap-2 font-normal text-sm'
-                            >
-                              <Users className='h-4 w-4' />
-                              Organization Profile
-                            </label>
-                          </div>
-                        </RadioGroup>
+                        <div className='flex gap-2'>
+                          <Button
+                            type='button'
+                            variant={field.value === 'user' ? 'outline' : 'default'}
+                            onClick={() => field.onChange('user')}
+                            className='h-8'
+                          >
+                            <User className='mr-1.5 h-3.5 w-3.5' />
+                            Personal
+                          </Button>
+                          <Button
+                            type='button'
+                            variant={field.value === 'organization' ? 'outline' : 'default'}
+                            onClick={() => field.onChange('organization')}
+                            className='h-8'
+                          >
+                            <Users className='mr-1.5 h-3.5 w-3.5' />
+                            Organization
+                          </Button>
+                        </div>
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -286,21 +194,19 @@ export function CreatorProfile() {
                   name='referenceId'
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Organization</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder='Select organization' />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {organizations.map((org) => (
-                            <SelectItem key={org.id} value={org.id}>
-                              {org.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <FormLabel className='font-[360] text-sm'>Organization</FormLabel>
+                      <FormControl>
+                        <Combobox
+                          options={organizations.map((org) => ({
+                            label: org.name,
+                            value: org.id,
+                          }))}
+                          value={field.value}
+                          onChange={field.onChange}
+                          placeholder='Select organization'
+                          editable={false}
+                        />
+                      </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}

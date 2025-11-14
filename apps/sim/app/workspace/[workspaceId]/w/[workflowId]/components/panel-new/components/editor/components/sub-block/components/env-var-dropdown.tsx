@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
+import { Plus } from 'lucide-react'
 import {
   Popover,
   PopoverAnchor,
@@ -8,7 +9,11 @@ import {
   PopoverSection,
 } from '@/components/emcn'
 import { cn } from '@/lib/utils'
-import { useEnvironmentStore } from '@/stores/settings/environment/store'
+import {
+  usePersonalEnvironment,
+  useWorkspaceEnvironment,
+  type WorkspaceEnvironmentData,
+} from '@/hooks/queries/environment'
 
 /**
  * Props for the EnvVarDropdown component
@@ -113,28 +118,27 @@ export const EnvVarDropdown: React.FC<EnvVarDropdownProps> = ({
   maxHeight = 'none',
   inputRef,
 }) => {
-  const loadWorkspaceEnvironment = useEnvironmentStore((state) => state.loadWorkspaceEnvironment)
-  const userEnvVars = useEnvironmentStore((state) => Object.keys(state.variables))
-  const [workspaceEnvData, setWorkspaceEnvData] = useState<{
-    workspace: Record<string, string>
-    personal: Record<string, string>
-    conflicts: string[]
-  }>({ workspace: {}, personal: {}, conflicts: [] })
-  const [selectedIndex, setSelectedIndex] = useState(0)
+  // React Query hooks for environment variables
+  const { data: personalEnv = {} } = usePersonalEnvironment()
+  const { data: workspaceEnvData } = useWorkspaceEnvironment(workspaceId || '', {
+    select: useCallback(
+      (data: WorkspaceEnvironmentData): WorkspaceEnvironmentData => ({
+        workspace: data.workspace || {},
+        personal: data.personal || {},
+        conflicts: data.conflicts || [],
+      }),
+      []
+    ),
+  })
 
-  useEffect(() => {
-    if (workspaceId && visible) {
-      loadWorkspaceEnvironment(workspaceId).then((data) => {
-        setWorkspaceEnvData(data)
-      })
-    }
-  }, [workspaceId, visible, loadWorkspaceEnvironment])
+  const userEnvVars = Object.keys(personalEnv)
+  const [selectedIndex, setSelectedIndex] = useState(0)
 
   const envVarGroups: EnvVarGroup[] = []
 
-  if (workspaceId) {
-    const workspaceVars = Object.keys(workspaceEnvData.workspace)
-    const personalVars = Object.keys(workspaceEnvData.personal)
+  if (workspaceId && workspaceEnvData) {
+    const workspaceVars = Object.keys(workspaceEnvData?.workspace || {})
+    const personalVars = Object.keys(workspaceEnvData?.personal || {})
 
     envVarGroups.push({ label: 'Workspace', variables: workspaceVars })
     envVarGroups.push({ label: 'Personal', variables: personalVars })
@@ -162,6 +166,11 @@ export const EnvVarDropdown: React.FC<EnvVarDropdownProps> = ({
   useEffect(() => {
     setSelectedIndex(0)
   }, [searchTerm])
+
+  const openEnvironmentSettings = () => {
+    window.dispatchEvent(new CustomEvent('open-settings', { detail: { tab: 'environment' } }))
+    onClose?.()
+  }
 
   const handleEnvVarSelect = (envVar: string) => {
     const textBeforeCursor = inputValue.slice(0, cursorPosition)
@@ -284,9 +293,17 @@ export const EnvVarDropdown: React.FC<EnvVarDropdownProps> = ({
         onCloseAutoFocus={(e) => e.preventDefault()}
       >
         {filteredEnvVars.length === 0 ? (
-          <div className='px-[6px] py-[8px] text-[12px] text-[var(--white)]/60'>
-            No matching environment variables
-          </div>
+          <PopoverScrollArea>
+            <PopoverItem
+              onMouseDown={(e) => {
+                e.preventDefault()
+                openEnvironmentSettings()
+              }}
+            >
+              <Plus className='h-3 w-3' />
+              <span>Create environment variable</span>
+            </PopoverItem>
+          </PopoverScrollArea>
         ) : (
           <PopoverScrollArea>
             {filteredGroups.map((group) => (

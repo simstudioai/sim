@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Check, ChevronDown, RefreshCw } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
@@ -15,7 +15,7 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/components/sub-block/hooks/use-sub-block-value'
 import type { SubBlockConfig } from '@/blocks/types'
-import { useEnabledServers, useMcpServersStore } from '@/stores/mcp-servers/store'
+import { useMcpServers } from '@/hooks/queries/mcp'
 
 interface McpServerSelectorProps {
   blockId: string
@@ -36,8 +36,8 @@ export function McpServerSelector({
   const workspaceId = params.workspaceId as string
   const [open, setOpen] = useState(false)
 
-  const { fetchServers, isLoading, error } = useMcpServersStore()
-  const enabledServers = useEnabledServers()
+  const { data: servers = [], isLoading, error } = useMcpServers(workspaceId)
+  const enabledServers = servers.filter((s) => s.enabled && !s.deletedAt)
 
   const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlock.id)
 
@@ -48,15 +48,9 @@ export function McpServerSelector({
 
   const selectedServer = enabledServers.find((server) => server.id === selectedServerId)
 
-  useEffect(() => {
-    fetchServers(workspaceId)
-  }, [fetchServers, workspaceId])
-
   const handleOpenChange = (isOpen: boolean) => {
     setOpen(isOpen)
-    if (isOpen) {
-      fetchServers(workspaceId)
-    }
+    // React Query automatically keeps server list fresh
   }
 
   const handleSelect = (serverId: string) => {
@@ -102,7 +96,9 @@ export function McpServerSelector({
               ) : error ? (
                 <div className='p-4 text-center'>
                   <p className='font-medium text-destructive text-sm'>Error loading servers</p>
-                  <p className='text-muted-foreground text-xs'>{error}</p>
+                  <p className='text-muted-foreground text-xs'>
+                    {error instanceof Error ? error.message : 'Unknown error'}
+                  </p>
                 </div>
               ) : (
                 <div className='p-4 text-center'>

@@ -1,11 +1,17 @@
 'use client'
 
-import { useEffect, useMemo } from 'react'
+import { useMemo } from 'react'
 import { Button } from '@/components/emcn'
 import { Skeleton } from '@/components/ui'
 import { createLogger } from '@/lib/logs/console/logger'
+import {
+  canUpgrade,
+  getBillingStatus,
+  getSubscriptionStatus,
+  getUsage,
+} from '@/lib/subscription/helpers'
+import { useSubscriptionData } from '@/hooks/queries/subscription'
 import { MIN_SIDEBAR_WIDTH, useSidebarStore } from '@/stores/sidebar/store'
-import { useSubscriptionStore } from '@/stores/subscription/store'
 
 const logger = createLogger('UsageIndicator')
 
@@ -39,12 +45,8 @@ interface UsageIndicatorProps {
 }
 
 export function UsageIndicator({ onClick }: UsageIndicatorProps) {
-  const { getUsage, getSubscriptionStatus, isLoading } = useSubscriptionStore()
+  const { data: subscriptionData, isLoading } = useSubscriptionData()
   const sidebarWidth = useSidebarStore((state) => state.sidebarWidth)
-
-  useEffect(() => {
-    useSubscriptionStore.getState().loadData()
-  }, [])
 
   /**
    * Calculate pill count based on sidebar width
@@ -57,8 +59,8 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
     return Math.max(MIN_PILL_COUNT, Math.min(MAX_PILL_COUNT, calculatedCount))
   }, [sidebarWidth])
 
-  const usage = getUsage()
-  const subscription = getSubscriptionStatus()
+  const usage = getUsage(subscriptionData?.data)
+  const subscription = getSubscriptionStatus(subscriptionData?.data)
 
   if (isLoading) {
     return (
@@ -92,7 +94,7 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
         ? 'pro'
         : 'free'
 
-  const billingStatus = useSubscriptionStore.getState().getBillingStatus()
+  const billingStatus = getBillingStatus(subscriptionData?.data)
   const isBlocked = billingStatus === 'blocked'
   const showUpgradeButton = planType === 'free' || isBlocked
 
@@ -109,14 +111,13 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
         return
       }
 
-      const subscriptionStore = useSubscriptionStore.getState()
-      const blocked = subscriptionStore.getBillingStatus() === 'blocked'
-      const canUpgrade = subscriptionStore.canUpgrade()
+      const blocked = getBillingStatus(subscriptionData?.data) === 'blocked'
+      const canUpg = canUpgrade(subscriptionData?.data)
 
       // Open Settings modal to the subscription tab (upgrade UI lives there)
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('open-settings', { detail: { tab: 'subscription' } }))
-        logger.info('Opened settings to subscription tab', { blocked, canUpgrade })
+        logger.info('Opened settings to subscription tab', { blocked, canUpgrade: canUpg })
       }
     } catch (error) {
       logger.error('Failed to handle usage indicator click', { error })

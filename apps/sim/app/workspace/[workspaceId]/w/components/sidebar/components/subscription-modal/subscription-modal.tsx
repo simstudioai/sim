@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect } from 'react'
+import { useCallback } from 'react'
 import {
   Building2,
   Check,
@@ -25,10 +25,11 @@ import {
 import { Button } from '@/components/ui/button'
 import { useSession } from '@/lib/auth-client'
 import { createLogger } from '@/lib/logs/console/logger'
+import { getSubscriptionStatus } from '@/lib/subscription/helpers'
 import { useSubscriptionUpgrade } from '@/lib/subscription/upgrade'
 import { cn } from '@/lib/utils'
-import { useOrganizationStore } from '@/stores/organization'
-import { useSubscriptionStore } from '@/stores/subscription/store'
+import { useOrganizations } from '@/hooks/queries/organization'
+import { useSubscriptionData } from '@/hooks/queries/subscription'
 
 const logger = createLogger('SubscriptionModal')
 
@@ -46,17 +47,10 @@ interface PlanFeature {
 export function SubscriptionModal({ open, onOpenChange }: SubscriptionModalProps) {
   const { data: session } = useSession()
   const { handleUpgrade } = useSubscriptionUpgrade()
-  const { activeOrganization } = useOrganizationStore()
-  const { loadData, getSubscriptionStatus, isLoading } = useSubscriptionStore()
-
-  // Load subscription data when modal opens
-  useEffect(() => {
-    if (open) {
-      loadData()
-    }
-  }, [open, loadData])
-
-  const subscription = getSubscriptionStatus()
+  const { data: orgsData } = useOrganizations()
+  const { data: subscriptionData, isLoading } = useSubscriptionData()
+  const activeOrganization = orgsData?.activeOrganization
+  const subscription = getSubscriptionStatus(subscriptionData?.data)
 
   const handleUpgradeWithErrorHandling = useCallback(
     async (targetPlan: 'pro' | 'team') => {

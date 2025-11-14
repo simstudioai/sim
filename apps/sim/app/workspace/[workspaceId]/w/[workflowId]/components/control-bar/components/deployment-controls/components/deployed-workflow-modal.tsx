@@ -35,6 +35,7 @@ interface DeployedWorkflowModalProps {
   selectedVersionLabel?: string
   workflowId: string
   isSelectedVersionActive?: boolean
+  onLoadDeploymentComplete?: () => void
 }
 
 export function DeployedWorkflowModal({
@@ -49,6 +50,7 @@ export function DeployedWorkflowModal({
   selectedVersionLabel,
   workflowId,
   isSelectedVersionActive,
+  onLoadDeploymentComplete,
 }: DeployedWorkflowModalProps) {
   const [showRevertDialog, setShowRevertDialog] = useState(false)
   const activeWorkflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
@@ -82,6 +84,7 @@ export function DeployedWorkflowModal({
 
       setShowRevertDialog(false)
       onClose()
+      onLoadDeploymentComplete?.()
     } catch (error) {
       logger.error('Failed to revert workflow:', error)
     }
@@ -91,7 +94,7 @@ export function DeployedWorkflowModal({
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent
         className='max-h-[100vh] overflow-y-auto sm:max-w-[1100px]'
-        style={{ zIndex: 1000 }}
+        style={{ zIndex: 10000020 }}
         hideCloseButton={true}
       >
         <div className='sr-only'>
@@ -136,7 +139,7 @@ export function DeployedWorkflowModal({
                 <AlertDialogTrigger asChild>
                   <Button variant='outline'>Load Deployment</Button>
                 </AlertDialogTrigger>
-                <AlertDialogContent style={{ zIndex: 1001 }} className='sm:max-w-[425px]'>
+                <AlertDialogContent className='sm:max-w-[425px]'>
                   <AlertDialogHeader>
                     <AlertDialogTitle>Load this Deployment?</AlertDialogTitle>
                     <AlertDialogDescription>
