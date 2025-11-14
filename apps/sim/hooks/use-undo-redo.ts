@@ -335,6 +335,12 @@ export function useUndoRedo() {
       return
     }
 
+    logger.info('Processing undo', {
+      operationType: entry.operation.type,
+      inverseType: entry.inverse.type,
+      workflowId: activeWorkflowId,
+    })
+
     const opId = crypto.randomUUID()
 
     switch (entry.inverse.type) {

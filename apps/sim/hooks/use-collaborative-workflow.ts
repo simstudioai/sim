@@ -65,8 +65,21 @@ export function useCollaborativeWorkflow() {
       if (isUndoRedoInProgress.current) return
 
       // Generate a unique ID for this diff operation to prevent duplicates
-      const operationId = type + '-' + Date.now() + '-' + JSON.stringify(baselineSnapshot?.blocks ? Object.keys(baselineSnapshot.blocks) : [])
+      // Use block keys from the relevant states for each operation type
+      let stateForId
+      if (type === 'apply-diff') {
+        stateForId = proposedState
+      } else if (type === 'accept-diff') {
+        stateForId = afterAccept
+      } else if (type === 'reject-diff') {
+        stateForId = afterReject
+      }
+      
+      const blockKeys = stateForId?.blocks ? Object.keys(stateForId.blocks).sort().join(',') : ''
+      const operationId = `${type}-${blockKeys}`
+      
       if (lastDiffOperationId.current === operationId) {
+        logger.debug('Skipping duplicate diff operation', { type, operationId })
         return // Skip duplicate
       }
       lastDiffOperationId.current = operationId
