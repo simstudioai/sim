@@ -196,7 +196,7 @@ export function ExampleCommand({
                       <ChevronDown className='ml-1 h-3 w-3 flex-shrink-0' />
                     </Button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align='end'>
+                  <DropdownMenuContent align='end' className='z-[10000050]'>
                     <DropdownMenuItem
                       className='cursor-pointer'
                       onClick={() => setExampleType('execute')}

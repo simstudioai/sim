@@ -607,7 +607,7 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
                 <SelectTrigger className='h-8 w-[200px] justify-between text-left text-xs'>
                   <SelectValue placeholder='Select admin' />
                 </SelectTrigger>
-                <SelectContent align='start' className='z-50'>
+                <SelectContent align='start' className='z-[10000050]'>
                   <SelectGroup>
                     <SelectLabel className='px-3 py-1 text-[11px] text-muted-foreground uppercase'>
                       Workspace admins
