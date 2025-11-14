@@ -2,9 +2,45 @@ import { MicrosoftOneDriveIcon } from '@/components/icons'
 import { createLogger } from '@/lib/logs/console/logger'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
-import type { OneDriveResponse } from '@/tools/onedrive/types'
+import type { OneDriveResponse, OneDriveToolParams } from '@/tools/onedrive/types'
 
 const logger = createLogger('OneDriveBlock')
+
+type ExcelValues = OneDriveToolParams['values']
+
+/**
+ * Normalizes Excel values so that downstream tooling always receives an array.
+ */
+function normalizeExcelValues(values: unknown): ExcelValues | undefined {
+  if (values === null || values === undefined || values === '') {
+    return undefined
+  }
+
+  if (Array.isArray(values)) {
+    return values as ExcelValues
+  }
+
+  if (typeof values === 'string') {
+    const trimmed = values.trim()
+    if (!trimmed) {
+      return undefined
+    }
+
+    try {
+      const parsed = JSON.parse(trimmed)
+
+      if (!Array.isArray(parsed)) {
+        throw new Error('Excel values must be an array of rows or array of objects')
+      }
+
+      return parsed as ExcelValues
+    } catch (_error) {
+      throw new Error('Invalid JSON format for values')
+    }
+  }
+
+  throw new Error('Excel values must be an array of rows or array of objects')
+}
 
 export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
   type: 'onedrive',
@@ -351,17 +387,15 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
       params: (params) => {
         const { credential, folderId, fileId, mimeType, values, downloadFileName, ...rest } = params
 
-        let parsedValues
-        try {
-          parsedValues = values ? JSON.parse(values as string) : undefined
-        } catch (error) {
-          throw new Error('Invalid JSON format for values')
+        let normalizedValues: ExcelValues | undefined
+        if (values !== undefined) {
+          normalizedValues = normalizeExcelValues(values)
         }
 
         return {
           credential,
           ...rest,
-          values: parsedValues,
+          values: normalizedValues,
           folderId: folderId || undefined,
           fileId: fileId || undefined,
           pageSize: rest.pageSize ? Number.parseInt(rest.pageSize as string, 10) : undefined,
