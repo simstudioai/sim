@@ -110,7 +110,7 @@ const WorkflowContent = React.memo(() => {
   // Hooks
   const params = useParams()
   const router = useRouter()
-  const { project, getNodes, fitView } = useReactFlow()
+  const { screenToFlowPosition, getNodes, fitView } = useReactFlow()
   const { emitCursorUpdate } = useSocket()
 
   // Get workspace ID from the params
@@ -170,7 +170,7 @@ const WorkflowContent = React.memo(() => {
   // Get diff analysis for edge reconstruction
   const { diffAnalysis, isShowingDiff, isDiffReady } = useWorkflowDiffStore()
 
-  // Reconstruct deleted edges when viewing original workflow and filter trigger edges
+  // Reconstruct deleted edges when viewing original workflow and filter out invalid edges
   const edgesForDisplay = useMemo(() => {
     let edgesToFilter = edges
 
@@ -237,7 +237,21 @@ const WorkflowContent = React.memo(() => {
       // Combine existing edges with reconstructed deleted edges
       edgesToFilter = [...edges, ...reconstructedEdges]
     }
-    return edgesToFilter
+
+    // Filter out edges that connect to/from annotation-only blocks (note blocks)
+    // These blocks don't have handles and shouldn't have connections
+    return edgesToFilter.filter((edge) => {
+      const sourceBlock = blocks[edge.source]
+      const targetBlock = blocks[edge.target]
+
+      // Remove edge if either source or target is an annotation-only block
+      if (!sourceBlock || !targetBlock) return false
+      if (isAnnotationOnlyBlock(sourceBlock.type) || isAnnotationOnlyBlock(targetBlock.type)) {
+        return false
+      }
+
+      return true
+    })
   }, [edges, isShowingDiff, isDiffReady, diffAnalysis, blocks])
 
   // User permissions - get current user's specific permissions from context
@@ -680,7 +694,11 @@ const WorkflowContent = React.memo(() => {
           // Auto-connect logic for blocks inside containers
           const isAutoConnectEnabled = useGeneralStore.getState().isAutoConnectEnabled
           let autoConnectEdge
-          if (isAutoConnectEnabled && data.type !== 'starter') {
+          if (
+            isAutoConnectEnabled &&
+            data.type !== 'starter' &&
+            !isAnnotationOnlyBlock(data.type)
+          ) {
             if (existingChildBlocks.length > 0) {
               // Connect to the nearest existing child block within the container
               const closestBlock = existingChildBlocks
@@ -694,7 +712,7 @@ const WorkflowContent = React.memo(() => {
                 .sort((a, b) => a.distance - b.distance)[0]?.block
 
               if (closestBlock) {
-                // Don't create edges into trigger blocks
+                // Don't create edges into trigger blocks or annotation blocks
                 const targetBlockConfig = getBlock(data.type)
                 const isTargetTrigger =
                   data.enableTriggerMode === true || targetBlockConfig?.category === 'triggers'
@@ -769,10 +787,14 @@ const WorkflowContent = React.memo(() => {
           // Regular auto-connect logic
           const isAutoConnectEnabled = useGeneralStore.getState().isAutoConnectEnabled
           let autoConnectEdge
-          if (isAutoConnectEnabled && data.type !== 'starter') {
+          if (
+            isAutoConnectEnabled &&
+            data.type !== 'starter' &&
+            !isAnnotationOnlyBlock(data.type)
+          ) {
             const closestBlock = findClosestOutput(position)
             if (closestBlock) {
-              // Don't create edges into trigger blocks
+              // Don't create edges into trigger blocks or annotation blocks
               const targetBlockConfig = getBlock(data.type)
               const isTargetTrigger =
                 data.enableTriggerMode === true || targetBlockConfig?.category === 'triggers'
@@ -842,7 +864,7 @@ const WorkflowContent = React.memo(() => {
         const baseName = type === 'loop' ? 'Loop' : 'Parallel'
         const name = getUniqueBlockName(baseName, blocks)
 
-        const centerPosition = project({
+        const centerPosition = screenToFlowPosition({
           x: window.innerWidth / 2,
           y: window.innerHeight / 2,
         })
@@ -891,7 +913,7 @@ const WorkflowContent = React.memo(() => {
       }
 
       // Calculate the center position of the viewport
-      const centerPosition = project({
+      const centerPosition = screenToFlowPosition({
         x: window.innerWidth / 2,
         y: window.innerHeight / 2,
       })
@@ -906,11 +928,11 @@ const WorkflowContent = React.memo(() => {
       // Auto-connect logic
       const isAutoConnectEnabled = useGeneralStore.getState().isAutoConnectEnabled
       let autoConnectEdge
-      if (isAutoConnectEnabled && type !== 'starter') {
+      if (isAutoConnectEnabled && type !== 'starter' && !isAnnotationOnlyBlock(type)) {
         const closestBlock = findClosestOutput(centerPosition)
         logger.info('Closest block found:', closestBlock)
         if (closestBlock) {
-          // Don't create edges into trigger blocks
+          // Don't create edges into trigger blocks or annotation blocks
           const targetBlockConfig = blockConfig
           const isTargetTrigger = enableTriggerMode || targetBlockConfig?.category === 'triggers'
 
@@ -977,7 +999,7 @@ const WorkflowContent = React.memo(() => {
       )
     }
   }, [
-    project,
+    screenToFlowPosition,
     blocks,
     addBlock,
     addEdge,
@@ -1014,7 +1036,7 @@ const WorkflowContent = React.memo(() => {
         }
 
         const bounds = canvasElement.getBoundingClientRect()
-        const position = project({
+        const position = screenToFlowPosition({
           x: detail.clientX - bounds.left,
           y: detail.clientY - bounds.top,
         })
@@ -1041,7 +1063,7 @@ const WorkflowContent = React.memo(() => {
         'toolbar-drop-on-empty-workflow-overlay',
         handleOverlayToolbarDrop as EventListener
       )
-  }, [project, handleToolbarDrop])
+  }, [screenToFlowPosition, handleToolbarDrop])
 
   /**
    * Recenter canvas when diff appears
@@ -1090,7 +1112,7 @@ const WorkflowContent = React.memo(() => {
         if (!data?.type) return
 
         const reactFlowBounds = event.currentTarget.getBoundingClientRect()
-        const position = project({
+        const position = screenToFlowPosition({
           x: event.clientX - reactFlowBounds.left,
           y: event.clientY - reactFlowBounds.top,
         })
@@ -1106,7 +1128,7 @@ const WorkflowContent = React.memo(() => {
         logger.error('Error dropping block on ReactFlow canvas:', { err })
       }
     },
-    [project, handleToolbarDrop]
+    [screenToFlowPosition, handleToolbarDrop]
   )
 
   const handleCanvasPointerMove = useCallback(
@@ -1114,14 +1136,14 @@ const WorkflowContent = React.memo(() => {
       const target = event.currentTarget as HTMLElement
       const bounds = target.getBoundingClientRect()
 
-      const position = project({
+      const position = screenToFlowPosition({
         x: event.clientX - bounds.left,
         y: event.clientY - bounds.top,
       })
 
       emitCursorUpdate(position)
     },
-    [project, emitCursorUpdate]
+    [screenToFlowPosition, emitCursorUpdate]
   )
 
   const handleCanvasPointerLeave = useCallback(() => {
@@ -1144,7 +1166,7 @@ const WorkflowContent = React.memo(() => {
 
       try {
         const reactFlowBounds = event.currentTarget.getBoundingClientRect()
-        const position = project({
+        const position = screenToFlowPosition({
           x: event.clientX - reactFlowBounds.left,
           y: event.clientY - reactFlowBounds.top,
         })
@@ -1188,7 +1210,7 @@ const WorkflowContent = React.memo(() => {
         logger.error('Error in onDragOver', { err })
       }
     },
-    [project, isPointInLoopNode, getNodes]
+    [screenToFlowPosition, isPointInLoopNode, getNodes]
   )
 
   // Initialize workflow when it exists in registry and isn't active
@@ -1584,8 +1606,8 @@ const WorkflowContent = React.memo(() => {
       // Store currently dragged node ID
       setDraggedNodeId(node.id)
 
-      // Emit collaborative position update during drag for smooth real-time movement
-      collaborativeUpdateBlockPosition(node.id, node.position, false)
+      // Note: We don't emit position updates during drag to avoid flooding socket events.
+      // The final position is sent in onNodeDragStop for collaborative updates.
 
       // Get the current parent ID of the node being dragged
       const currentParentId = blocks[node.id]?.data?.parentId || null
@@ -1721,14 +1743,7 @@ const WorkflowContent = React.memo(() => {
         }
       }
     },
-    [
-      getNodes,
-      potentialParentId,
-      blocks,
-      getNodeAbsolutePosition,
-      getNodeDepth,
-      collaborativeUpdateBlockPosition,
-    ]
+    [getNodes, potentialParentId, blocks, getNodeAbsolutePosition, getNodeDepth]
   )
 
   // Add in a nodeDrag start event to set the dragStartParentId
@@ -1855,7 +1870,8 @@ const WorkflowContent = React.memo(() => {
 
         // Auto-connect when moving an existing block into a container
         const isAutoConnectEnabled = useGeneralStore.getState().isAutoConnectEnabled
-        if (isAutoConnectEnabled) {
+        // Don't auto-connect annotation blocks (like note blocks)
+        if (isAutoConnectEnabled && !isAnnotationOnlyBlock(node.data?.type)) {
           // Existing children in the target container (excluding the moved node)
           const existingChildBlocks = Object.values(blocks).filter(
             (b) => b.data?.parentId === potentialParentId && b.id !== node.id
