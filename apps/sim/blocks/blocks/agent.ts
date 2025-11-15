@@ -210,6 +210,7 @@ Create a system prompt appropriately detailed for the request, using clear langu
       type: 'dropdown',
       placeholder: 'Select reasoning effort...',
       options: [
+        { label: 'none', id: 'none' },
         { label: 'minimal', id: 'minimal' },
         { label: 'low', id: 'low' },
         { label: 'medium', id: 'medium' },
