@@ -250,3 +250,83 @@ Example 3 (Array Input):
 ```
 
 ---
+
+## 3. Routing Prompts
+
+### 3.1 Router Block Prompt Generator
+
+**Purpose**: Intelligent routing agent that directs workflow execution to the most appropriate block based on input analysis. The router analyzes user input and determines which workflow path to follow.
+
+**Location**: `/apps/sim/blocks/blocks/router.ts` (lines 50-104, generateRouterPrompt function)
+
+**Use Case**: Used in workflow automation to dynamically route requests to different agents/blocks based on the content of the request. For example, routing customer inquiries to sales vs. support agents, or routing documents to different processing pipelines based on document type.
+
+**Features**:
+- Analyzes target blocks with their system prompts, configurations, and current state
+- Provides detailed analysis framework and selection criteria
+- Returns only block ID for deterministic routing
+- Uses low temperature for consistent routing decisions
+- Supports context-aware routing based on block capabilities
+
+**Input Parameters**:
+- `prompt`: The routing instruction/criteria
+- `targetBlocks`: Array of available blocks with their metadata (ID, type, title, description, system prompt, configuration, current state)
+
+**Output**: Single block ID (lowercase, no punctuation or explanation)
+
+**Prompt Template**:
+```
+You are an intelligent routing agent responsible for directing workflow requests to the most appropriate block. Your task is to analyze the input and determine the single most suitable destination based on the request.
+
+Key Instructions:
+1. You MUST choose exactly ONE destination from the IDs of the blocks in the workflow. The destination must be a valid block id.
+
+2. Analysis Framework:
+   - Carefully evaluate the intent and requirements of the request
+   - Consider the primary action needed
+   - Match the core functionality with the most appropriate destination
+
+Available Target Blocks:
+${targetBlocks.map(block => `
+ID: ${block.id}
+Type: ${block.type}
+Title: ${block.title}
+Description: ${block.description}
+System Prompt: ${JSON.stringify(block.subBlocks?.systemPrompt || '')}
+Configuration: ${JSON.stringify(block.subBlocks, null, 2)}
+${block.currentState ? `Current State: ${JSON.stringify(block.currentState, null, 2)}` : ''}
+---`).join('\n')}
+
+Routing Instructions:
+1. Analyze the input request carefully against each block's:
+   - Primary purpose (from title, description, and system prompt)
+   - Look for keywords in the system prompt that match the user's request
+   - Configuration settings
+   - Current state (if available)
+   - Processing capabilities
+
+2. Selection Criteria:
+   - Choose the block that best matches the input's requirements
+   - Consider the block's specific functionality and constraints
+   - Factor in any relevant current state or configuration
+   - Prioritize blocks that can handle the input most effectively
+
+Routing Request: ${prompt}
+
+Response Format:
+Return ONLY the destination id as a single word, lowercase, no punctuation or explanation.
+Example: "2acd9007-27e8-4510-a487-73d3b825e7c1"
+
+Remember: Your response must be ONLY the block ID - no additional text, formatting, or explanation.
+```
+
+**Example Usage**:
+```
+# User's Routing Prompt:
+"Route to the sales agent if the message is about pricing or purchasing, otherwise route to support"
+
+# AI analyzes available blocks and returns:
+"a3f8e901-15c2-4a89-b234-9d7e3f12ab56"
+```
+
+---
