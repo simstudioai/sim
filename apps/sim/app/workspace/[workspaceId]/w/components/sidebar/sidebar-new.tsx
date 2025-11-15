@@ -5,7 +5,6 @@ import { ArrowDown, Plus, Search } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import { Button, FolderPlus, Tooltip } from '@/components/emcn'
 import { useSession } from '@/lib/auth-client'
-import { getEnv, isTruthy } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import {
@@ -33,7 +32,8 @@ import { MIN_SIDEBAR_WIDTH, useSidebarStore } from '@/stores/sidebar/store'
 const logger = createLogger('SidebarNew')
 
 // Feature flag: Billing usage indicator visibility (matches legacy sidebar behavior)
-const isBillingEnabled = isTruthy(getEnv('NEXT_PUBLIC_BILLING_ENABLED'))
+// const isBillingEnabled = isTruthy(getEnv('NEXT_PUBLIC_BILLING_ENABLED'))
+const isBillingEnabled = true
 
 /**
  * Sidebar component with resizable width that persists across page refreshes.
