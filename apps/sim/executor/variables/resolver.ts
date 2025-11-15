@@ -9,6 +9,7 @@ import { ParallelResolver } from '@/executor/variables/resolvers/parallel'
 import type { ResolutionContext, Resolver } from '@/executor/variables/resolvers/reference'
 import { WorkflowResolver } from '@/executor/variables/resolvers/workflow'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
+import { replaceValidReferences } from '@/executor/utils/reference-validation'
 
 const logger = createLogger('VariableResolver')
 
@@ -147,21 +148,17 @@ export class VariableResolver {
     loopScope?: LoopScope,
     block?: SerializedBlock
   ): string {
-    let result = template
     const resolutionContext: ResolutionContext = {
       executionContext: ctx,
       executionState: this.state,
       currentNodeId,
       loopScope,
     }
-    const referenceRegex = new RegExp(
-      `${REFERENCE.START}([^${REFERENCE.END}]+)${REFERENCE.END}`,
-      'g'
-    )
 
     let replacementError: Error | null = null
 
-    result = result.replace(referenceRegex, (match) => {
+    // Use generic utility for smart variable reference replacement
+    let result = replaceValidReferences(template, (match) => {
       if (replacementError) return match
 
       try {
@@ -202,21 +199,17 @@ export class VariableResolver {
     template: string,
     loopScope?: LoopScope
   ): string {
-    let result = template
     const resolutionContext: ResolutionContext = {
       executionContext: ctx,
       executionState: this.state,
       currentNodeId,
       loopScope,
     }
-    const referenceRegex = new RegExp(
-      `${REFERENCE.START}([^${REFERENCE.END}]+)${REFERENCE.END}`,
-      'g'
-    )
 
     let replacementError: Error | null = null
 
-    result = result.replace(referenceRegex, (match) => {
+    // Use generic utility for smart variable reference replacement
+    let result = replaceValidReferences(template, (match) => {
       if (replacementError) return match
 
       try {

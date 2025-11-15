@@ -13,6 +13,10 @@ import {
   languages,
 } from '@/components/emcn/components/code/code'
 import { Button } from '@/components/ui/button'
+import {
+  createEnvVarPattern,
+  createReferencePattern,
+} from '@/executor/utils/reference-validation'
 import { CodeLanguage } from '@/lib/execution/languages'
 import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
@@ -99,14 +103,15 @@ const createHighlightFunction = (
     let processedCode = codeToHighlight
 
     // Replace environment variables with placeholders
-    processedCode = processedCode.replace(/\{\{([^}]+)\}\}/g, (match) => {
+    processedCode = processedCode.replace(createEnvVarPattern(), (match) => {
       const placeholder = `__ENV_VAR_${placeholders.length}__`
       placeholders.push({ placeholder, original: match, type: 'env' })
       return placeholder
     })
 
     // Replace variable references with placeholders
-    processedCode = processedCode.replace(/<([^>]+)>/g, (match) => {
+    // Use [^<>]+ to prevent matching across nested brackets (e.g., "<3 <real.ref>" should match separately)
+    processedCode = processedCode.replace(createReferencePattern(), (match) => {
       if (shouldHighlightReference(match)) {
         const placeholder = `__VAR_REF_${placeholders.length}__`
         placeholders.push({ placeholder, original: match, type: 'var' })

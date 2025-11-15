@@ -1,6 +1,10 @@
 import { useCallback, useRef, useState } from 'react'
 import { highlight, languages } from '@/components/emcn'
 import {
+  createEnvVarPattern,
+  createReferencePattern,
+} from '@/executor/utils/reference-validation'
+import {
   isLikelyReferenceSegment,
   SYSTEM_REFERENCE_PREFIXES,
   splitReferenceSegment,
@@ -133,13 +137,14 @@ export function useSubflowEditor(currentBlock: BlockState | null, currentBlockId
 
       let processedCode = code
 
-      processedCode = processedCode.replace(/\{\{([^}]+)\}\}/g, (match) => {
+      processedCode = processedCode.replace(createEnvVarPattern(), (match) => {
         const placeholder = `__ENV_VAR_${placeholders.length}__`
         placeholders.push({ placeholder, original: match, type: 'env' })
         return placeholder
       })
 
-      processedCode = processedCode.replace(/<[^>]+>/g, (match) => {
+      // Use [^<>]+ to prevent matching across nested brackets (e.g., "<3 <real.ref>" should match separately)
+      processedCode = processedCode.replace(createReferencePattern(), (match) => {
         if (shouldHighlightReference(match)) {
           const placeholder = `__VAR_REF_${placeholders.length}__`
           placeholders.push({ placeholder, original: match, type: 'var' })

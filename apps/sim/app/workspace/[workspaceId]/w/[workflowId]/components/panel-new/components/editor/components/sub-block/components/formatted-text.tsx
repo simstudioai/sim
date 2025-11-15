@@ -1,6 +1,8 @@
 'use client'
 
 import type { ReactNode } from 'react'
+import { REFERENCE } from '@/executor/consts'
+import { createCombinedPattern } from '@/executor/utils/reference-validation'
 import { splitReferenceSegment } from '@/lib/workflows/references'
 import { normalizeBlockName } from '@/stores/workflows/utils'
 
@@ -43,7 +45,9 @@ export function formatDisplayText(text: string, context?: HighlightContext): Rea
   }
 
   const nodes: ReactNode[] = []
-  const regex = /<[^>]+>|\{\{[^}]+\}\}/g
+  // Match variable references without allowing nested brackets to prevent matching across references
+  // e.g., "<3. text <real.ref>" should match "<3" and "<real.ref>", not the whole string
+  const regex = createCombinedPattern()
   let lastIndex = 0
   let key = 0
 
@@ -61,7 +65,7 @@ export function formatDisplayText(text: string, context?: HighlightContext): Rea
       pushPlainText(text.slice(lastIndex, index))
     }
 
-    if (matchText.startsWith('{{')) {
+    if (matchText.startsWith(REFERENCE.ENV_VAR_START)) {
       nodes.push(
         <span key={key++} className='text-[#34B5FF] dark:text-[#34B5FF]'>
           {matchText}

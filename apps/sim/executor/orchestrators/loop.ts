@@ -12,6 +12,7 @@ import {
 } from '@/executor/utils/subflow-utils'
 import type { VariableResolver } from '@/executor/variables/resolver'
 import type { SerializedLoop } from '@/serializer/types'
+import { replaceValidReferences } from '@/executor/utils/reference-validation'
 
 const logger = createLogger('LoopOrchestrator')
 
@@ -271,16 +272,14 @@ export class LoopOrchestrator {
     }
 
     try {
-      const referencePattern = /<([^>]+)>/g
-      let evaluatedCondition = condition
-
       logger.info('Evaluating loop condition', {
         originalCondition: condition,
         iteration: scope.iteration,
         workflowVariables: ctx.workflowVariables,
       })
 
-      evaluatedCondition = evaluatedCondition.replace(referencePattern, (match) => {
+      // Use generic utility for smart variable reference replacement
+      const evaluatedCondition = replaceValidReferences(condition, (match) => {
         const resolved = this.resolver.resolveSingleReference(ctx, '', match, scope)
         logger.info('Resolved variable reference in loop condition', {
           reference: match,
