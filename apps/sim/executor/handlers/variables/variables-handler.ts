@@ -127,33 +127,22 @@ export class VariablesBlockHandler implements BlockHandler {
     }
 
     if (type === 'object' || type === 'array') {
+      // If value is already an object or array, accept it as-is
+      // The type hint is for UI purposes and string parsing, not runtime validation
       if (typeof value === 'object' && value !== null) {
-        if (type === 'array' && !Array.isArray(value)) {
-          throw new Error(
-            `Invalid array value for variable "${variableName || 'unknown'}": expected an array, got an object`
-          )
-        }
-        if (type === 'object' && Array.isArray(value)) {
-          throw new Error(
-            `Invalid object value for variable "${variableName || 'unknown'}": expected an object, got an array`
-          )
-        }
         return value
       }
+      // If it's a string, try to parse it as JSON
       if (typeof value === 'string' && value.trim()) {
         try {
           const parsed = JSON.parse(value)
-          if (type === 'array' && !Array.isArray(parsed)) {
-            throw new Error(
-              `Invalid array value for variable "${variableName || 'unknown'}": parsed value is not an array`
-            )
+          // Accept any valid JSON object or array
+          if (typeof parsed === 'object' && parsed !== null) {
+            return parsed
           }
-          if (type === 'object' && (Array.isArray(parsed) || typeof parsed !== 'object')) {
-            throw new Error(
-              `Invalid object value for variable "${variableName || 'unknown'}": parsed value is not an object`
-            )
-          }
-          return parsed
+          throw new Error(
+            `Invalid JSON for variable "${variableName || 'unknown'}": parsed value is not an object or array`
+          )
         } catch (error: any) {
           throw new Error(
             `Invalid JSON for variable "${variableName || 'unknown'}": ${error.message}`
