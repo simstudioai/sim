@@ -330,3 +330,121 @@ Remember: Your response must be ONLY the block ID - no additional text, formatti
 ```
 
 ---
+
+## 4. Evaluation Prompts
+
+### 4.1 Evaluator Block Prompt Generator
+
+**Purpose**: Objective evaluation agent that assesses content quality using customizable metrics and scoring criteria. Analyzes content against defined metrics and provides numeric scores.
+
+**Location**: `/apps/sim/blocks/blocks/evaluator.ts` (lines 48-117, generateEvaluatorPrompt function)
+
+**Use Case**: Used to evaluate AI-generated content, user submissions, or workflow outputs against specific quality criteria. Common applications include:
+- Content quality assessment (clarity, accuracy, completeness)
+- Response evaluation (relevance, helpfulness, tone)
+- Code quality scoring (readability, efficiency, correctness)
+- Document analysis (structure, grammar, compliance)
+
+**Features**:
+- Customizable evaluation metrics with configurable score ranges
+- JSON-only output for structured scoring
+- Automatic formatting of content (JSON pretty-printing)
+- Detailed scoring rubric in prompt
+- Example output format generation
+- Low temperature (0.1) for consistent evaluation
+
+**Input Parameters**:
+- `metrics`: Array of metric objects with `name`, `description`, and `range` (min/max)
+- `content`: The content to be evaluated (text, JSON, or any string data)
+
+**Output**: JSON object with lowercase metric names as keys and numeric scores as values
+
+**Prompt Template**:
+```
+You are an objective evaluation agent. Analyze the content against the provided metrics and provide detailed scoring.
+
+Evaluation Instructions:
+- You MUST evaluate the content against each metric
+- For each metric, provide a numeric score within the specified range
+- Your response MUST be a valid JSON object with each metric name as a key and a numeric score as the value
+- IMPORTANT: Use lowercase versions of the metric names as keys in your JSON response
+- Follow the exact schema of the response format provided to you
+- Do not include explanations in the JSON - only numeric scores
+- Do not add any additional fields not specified in the schema
+- Do not include ANY text before or after the JSON object
+
+Metrics to evaluate:
+${metrics.map(m => `"${m.name}" (${m.range.min}-${m.range.max}): ${m.description}`).join('\n')}
+
+Content to evaluate:
+${formattedContent}
+
+Example of expected response format (with different scores):
+${JSON.stringify(exampleOutput, null, 2)}
+
+Remember: Your response MUST be a valid JSON object containing only the lowercase metric names as keys with their numeric scores as values. No text explanations.
+```
+
+**Example Configuration**:
+```javascript
+// Metrics configuration
+const metrics = [
+  {
+    name: "Clarity",
+    description: "How clear and understandable is the content",
+    range: { min: 0, max: 10 }
+  },
+  {
+    name: "Accuracy",
+    description: "How factually accurate is the information",
+    range: { min: 0, max: 10 }
+  },
+  {
+    name: "Relevance",
+    description: "How relevant is the content to the topic",
+    range: { min: 0, max: 10 }
+  }
+]
+
+// Content to evaluate
+const content = "This is a well-written article about climate change..."
+```
+
+**Example Output**:
+```json
+{
+  "clarity": 8,
+  "accuracy": 9,
+  "relevance": 10
+}
+```
+
+**Response Format Schema**:
+The evaluator automatically generates a JSON schema based on the metrics:
+```json
+{
+  "name": "evaluation_response",
+  "strict": true,
+  "schema": {
+    "type": "object",
+    "properties": {
+      "clarity": {
+        "type": "number",
+        "description": "How clear and understandable is the content (Score between 0-10)"
+      },
+      "accuracy": {
+        "type": "number",
+        "description": "How factually accurate is the information (Score between 0-10)"
+      },
+      "relevance": {
+        "type": "number",
+        "description": "How relevant is the content to the topic (Score between 0-10)"
+      }
+    },
+    "required": ["clarity", "accuracy", "relevance"],
+    "additionalProperties": false
+  }
+}
+```
+
+---
