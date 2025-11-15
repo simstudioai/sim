@@ -111,7 +111,8 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
 
   const billingStatus = getBillingStatus(subscriptionData?.data)
   const isBlocked = billingStatus === 'blocked'
-  const showUpgradeButton = planType === 'free' || isBlocked
+  const showUpgradeButton =
+    (planType === 'free' || isBlocked || progressPercentage >= 80) && planType !== 'enterprise'
 
   /**
    * Calculate which pills should be filled based on usage percentage.
