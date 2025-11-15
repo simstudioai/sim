@@ -31,6 +31,7 @@ import {
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/components/sub-block/components/tag-dropdown/tag-dropdown'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/components/sub-block/hooks/use-sub-block-value'
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
+import { createEnvVarPattern, createReferencePattern } from '@/executor/utils/reference-validation'
 import { useTagSelection } from '@/hooks/use-tag-selection'
 import { normalizeBlockName } from '@/stores/workflows/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
@@ -869,7 +870,7 @@ export function ConditionInput({
                           let processedCode = codeToHighlight
 
                           // Replace environment variables with placeholders
-                          processedCode = processedCode.replace(/\{\{([^}]+)\}\}/g, (match) => {
+                          processedCode = processedCode.replace(createEnvVarPattern(), (match) => {
                             const placeholder = `__ENV_VAR_${placeholders.length}__`
                             placeholders.push({
                               placeholder,
@@ -881,20 +882,24 @@ export function ConditionInput({
                           })
 
                           // Replace variable references with placeholders
-                          processedCode = processedCode.replace(/<([^>]+)>/g, (match) => {
-                            const shouldHighlight = shouldHighlightReference(match)
-                            if (shouldHighlight) {
-                              const placeholder = `__VAR_REF_${placeholders.length}__`
-                              placeholders.push({
-                                placeholder,
-                                original: match,
-                                type: 'var',
-                                shouldHighlight: true,
-                              })
-                              return placeholder
+                          // Use [^<>]+ to prevent matching across nested brackets (e.g., "<3 <real.ref>" should match separately)
+                          processedCode = processedCode.replace(
+                            createReferencePattern(),
+                            (match) => {
+                              const shouldHighlight = shouldHighlightReference(match)
+                              if (shouldHighlight) {
+                                const placeholder = `__VAR_REF_${placeholders.length}__`
+                                placeholders.push({
+                                  placeholder,
+                                  original: match,
+                                  type: 'var',
+                                  shouldHighlight: true,
+                                })
+                                return placeholder
+                              }
+                              return match
                             }
-                            return match
-                          })
+                          )
 
                           // Apply Prism syntax highlighting
                           let highlightedCode = highlight(

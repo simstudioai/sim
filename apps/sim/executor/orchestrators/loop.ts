@@ -5,6 +5,7 @@ import type { LoopScope } from '@/executor/execution/state'
 import type { BlockStateController } from '@/executor/execution/types'
 import type { ExecutionContext, NormalizedBlockOutput } from '@/executor/types'
 import type { LoopConfigWithNodes } from '@/executor/types/loop'
+import { replaceValidReferences } from '@/executor/utils/reference-validation'
 import {
   buildSentinelEndId,
   buildSentinelStartId,
@@ -271,16 +272,14 @@ export class LoopOrchestrator {
     }
 
     try {
-      const referencePattern = /<([^>]+)>/g
-      let evaluatedCondition = condition
-
       logger.info('Evaluating loop condition', {
         originalCondition: condition,
         iteration: scope.iteration,
         workflowVariables: ctx.workflowVariables,
       })
 
-      evaluatedCondition = evaluatedCondition.replace(referencePattern, (match) => {
+      // Use generic utility for smart variable reference replacement
+      const evaluatedCondition = replaceValidReferences(condition, (match) => {
         const resolved = this.resolver.resolveSingleReference(ctx, '', match, scope)
         logger.info('Resolved variable reference in loop condition', {
           reference: match,

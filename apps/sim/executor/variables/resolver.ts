@@ -2,6 +2,7 @@ import { createLogger } from '@/lib/logs/console/logger'
 import { BlockType, REFERENCE } from '@/executor/consts'
 import type { ExecutionState, LoopScope } from '@/executor/execution/state'
 import type { ExecutionContext } from '@/executor/types'
+import { replaceValidReferences } from '@/executor/utils/reference-validation'
 import { BlockResolver } from '@/executor/variables/resolvers/block'
 import { EnvResolver } from '@/executor/variables/resolvers/env'
 import { LoopResolver } from '@/executor/variables/resolvers/loop'
@@ -147,21 +148,17 @@ export class VariableResolver {
     loopScope?: LoopScope,
     block?: SerializedBlock
   ): string {
-    let result = template
     const resolutionContext: ResolutionContext = {
       executionContext: ctx,
       executionState: this.state,
       currentNodeId,
       loopScope,
     }
-    const referenceRegex = new RegExp(
-      `${REFERENCE.START}([^${REFERENCE.END}]+)${REFERENCE.END}`,
-      'g'
-    )
 
     let replacementError: Error | null = null
 
-    result = result.replace(referenceRegex, (match) => {
+    // Use generic utility for smart variable reference replacement
+    let result = replaceValidReferences(template, (match) => {
       if (replacementError) return match
 
       try {
@@ -202,21 +199,17 @@ export class VariableResolver {
     template: string,
     loopScope?: LoopScope
   ): string {
-    let result = template
     const resolutionContext: ResolutionContext = {
       executionContext: ctx,
       executionState: this.state,
       currentNodeId,
       loopScope,
     }
-    const referenceRegex = new RegExp(
-      `${REFERENCE.START}([^${REFERENCE.END}]+)${REFERENCE.END}`,
-      'g'
-    )
 
     let replacementError: Error | null = null
 
-    result = result.replace(referenceRegex, (match) => {
+    // Use generic utility for smart variable reference replacement
+    let result = replaceValidReferences(template, (match) => {
       if (replacementError) return match
 
       try {
