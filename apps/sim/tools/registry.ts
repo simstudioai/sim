@@ -527,6 +527,7 @@ import {
   slackDeleteMessageTool,
   slackDownloadTool,
   slackMessageReaderTool,
+  slackThreadReaderTool,
   slackMessageTool,
   slackUpdateMessageTool,
 } from '@/tools/slack'
@@ -740,6 +741,7 @@ export const tools: Record<string, ToolConfig> = {
   jira_remove_watcher: jiraRemoveWatcherTool,
   slack_message: slackMessageTool,
   slack_message_reader: slackMessageReaderTool,
+  slack_thread_reader: slackThreadReaderTool,
   slack_canvas: slackCanvasTool,
   slack_download: slackDownloadTool,
   slack_update_message: slackUpdateMessageTool,
