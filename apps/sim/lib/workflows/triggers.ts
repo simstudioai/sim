@@ -177,6 +177,11 @@ export function resolveStartCandidates<T extends MinimalBlock>(
   const candidates: StartBlockCandidate<T>[] = []
 
   for (const [blockId, block] of entries) {
+    // Skip disabled blocks - they cannot be used as triggers
+    if ('enabled' in block && block.enabled === false) {
+      continue
+    }
+
     const path = classifyStartBlock(block)
     if (!path) continue
 

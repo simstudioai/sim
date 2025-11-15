@@ -682,10 +682,10 @@ export function useWorkflowExecution() {
     const workflowEdges = (executionWorkflowState?.edges ??
       latestWorkflowState.edges) as typeof currentWorkflow.edges
 
-    // Filter out blocks without type (these are layout-only blocks)
+    // Filter out blocks without type (these are layout-only blocks) and disabled blocks
     const validBlocks = Object.entries(workflowBlocks).reduce(
       (acc, [blockId, block]) => {
-        if (block?.type) {
+        if (block?.type && block.enabled !== false) {
           acc[blockId] = block
         }
         return acc
@@ -725,11 +725,16 @@ export function useWorkflowExecution() {
       }
     })
 
-    // Do not filter out trigger blocks; executor may need to start from them
+    // Filter out blocks without type and disabled blocks
     const filteredStates = Object.entries(mergedStates).reduce(
       (acc, [id, block]) => {
         if (!block || !block.type) {
           logger.warn(`Skipping block with undefined type: ${id}`, block)
+          return acc
+        }
+        // Skip disabled blocks to prevent them from being passed to executor
+        if (block.enabled === false) {
+          logger.warn(`Skipping disabled block: ${id}`)
           return acc
         }
         acc[id] = block
