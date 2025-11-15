@@ -190,6 +190,21 @@ Copilot is a Sim-managed service. To use Copilot on a self-hosted instance:
 - Go to https://sim.ai → Settings → Copilot and generate a Copilot API key
 - Set `COPILOT_API_KEY` environment variable in your self-hosted apps/sim/.env file to that value
 
+## Hosted MCP Servers
+
+Sim can now author and deploy Model Context Protocol servers without leaving the workspace:
+
+1. Scaffold a starter project locally (Reddit search + arXiv summaries included) with  
+   ```bash
+   simstudio mcp init my-research-server
+   ```
+2. Push the code to your repo or automation pipeline, then open `/workspace/<id>/mcp` to create a hosted
+   project, track versions, and trigger deployments.
+3. Each deployment spins up a managed MCP endpoint, stores credentials in your workspace, and immediately
+   appears inside the workflow tool picker.
+
+> **Note:** Set `HOSTED_MCP_BASE_URL` in your `.env` to route hosted deployments through your own reverse
+> proxy or edge network.
 ## Tech Stack
 
 - **Framework**: [Next.js](https://nextjs.org/) (App Router)
@@ -214,3 +229,4 @@ We welcome contributions! Please see our [Contributing Guide](.github/CONTRIBUTI
 This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details.
 
 <p align="center">Made with ❤️ by the Sim Team</p>
+

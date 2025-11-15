@@ -18,6 +18,15 @@ To start Sim, simply run:
 simstudio
 ```
 
+### Scaffold a hosted MCP project
+
+```bash
+simstudio mcp init my-research-server
+```
+
+This creates a ready-to-run MCP server template (with Reddit and arXiv tools) that you can deploy
+through the new hosted MCP workspace view.
+
 ### Options
 
 - `-p, --port <port>`: Specify the port to run Sim on (default: 3000).

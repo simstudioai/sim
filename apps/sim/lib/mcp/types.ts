@@ -5,11 +5,14 @@
 // MCP Transport Types
 // Modern MCP uses Streamable HTTP which handles both HTTP POST and SSE responses
 export type McpTransport = 'streamable-http'
+export type McpServerKind = 'external' | 'hosted'
 
 export interface McpServerConfig {
   id: string
   name: string
   description?: string
+  kind?: McpServerKind
+  projectId?: string
   transport: McpTransport
 
   // HTTP/SSE transport config
@@ -122,6 +125,7 @@ export class McpConnectionError extends McpError {
 export interface McpServerSummary {
   id: string
   name: string
+  kind?: McpServerKind
   url?: string
   transport?: McpTransport
   status: 'connected' | 'disconnected' | 'error'
@@ -143,4 +147,113 @@ export interface McpToolDiscoveryResponse {
   tools: McpTool[]
   totalCount: number
   byServer: Record<string, number>
+}
+
+// Hosted server authoring types
+export type McpServerProjectVisibility = 'private' | 'workspace' | 'public'
+export type McpServerProjectStatus =
+  | 'draft'
+  | 'building'
+  | 'deploying'
+  | 'active'
+  | 'failed'
+  | 'archived'
+
+export interface McpServerProject {
+  id: string
+  workspaceId: string
+  createdBy?: string | null
+  name: string
+  slug: string
+  description?: string | null
+  visibility: McpServerProjectVisibility
+  runtime: string
+  entryPoint: string
+  template?: string | null
+  sourceType: 'inline' | 'repo' | 'package'
+  repositoryUrl?: string | null
+  repositoryBranch?: string | null
+  environmentVariables: Record<string, string>
+  metadata: Record<string, any>
+  status: McpServerProjectStatus
+  currentVersionNumber?: number | null
+  lastDeployedVersionId?: string | null
+  lastDeployedAt?: string | null
+  createdAt?: string
+  updatedAt?: string
+}
+
+export type McpServerVersionStatus = 'queued' | 'building' | 'ready' | 'failed' | 'deprecated'
+
+export interface McpServerVersion {
+  id: string
+  projectId: string
+  versionNumber: number
+  sourceHash?: string | null
+  manifest: Record<string, any>
+  buildConfig: Record<string, any>
+  artifactUrl?: string | null
+  runtimeMetadata: Record<string, any>
+  status: McpServerVersionStatus
+  buildLogsUrl?: string | null
+  changelog?: string | null
+  promotedBy?: string | null
+  promotedAt?: string | null
+  createdAt?: string
+  updatedAt?: string
+}
+
+export type McpServerDeploymentStatus =
+  | 'pending'
+  | 'deploying'
+  | 'active'
+  | 'failed'
+  | 'decommissioned'
+
+export interface McpServerDeployment {
+  id: string
+  projectId: string
+  versionId?: string | null
+  serverId?: string | null
+  workspaceId: string
+  environment: string
+  region?: string | null
+  endpointUrl?: string | null
+  status: McpServerDeploymentStatus
+  logsUrl?: string | null
+  deployedBy?: string | null
+  deployedAt?: string | null
+  rolledBackAt?: string | null
+  createdAt?: string
+  updatedAt?: string
+}
+
+export type McpServerTokenScope = 'deploy' | 'runtime' | 'logs'
+
+export interface McpServerToken {
+  id: string
+  projectId: string
+  name: string
+  scope: McpServerTokenScope
+  lastUsedAt?: string | null
+  expiresAt?: string | null
+  createdAt?: string
+  updatedAt?: string
+}
+
+export interface CreateMcpServerProjectInput {
+  workspaceId: string
+  createdBy: string
+  name: string
+  slug?: string
+  description?: string
+  visibility?: McpServerProjectVisibility
+  runtime?: string
+  entryPoint?: string
+  template?: string
+  sourceType?: 'inline' | 'repo' | 'package'
+  repositoryUrl?: string
+  repositoryBranch?: string
+  environmentVariables?: Record<string, string>
+  metadata?: Record<string, any>
 }

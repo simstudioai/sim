@@ -1,4 +1,4 @@
-import { HelpCircle, LibraryBig, ScrollText, Settings, Shapes } from 'lucide-react'
+import { HelpCircle, LibraryBig, ScrollText, ServerCog, Settings, Shapes } from 'lucide-react'
 import { NavigationItem } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/navigation-item/navigation-item'
 
 interface FloatingNavigationProps {
@@ -50,6 +50,13 @@ export const FloatingNavigation = ({
       href: `/workspace/${workspaceId}/templates`,
       tooltip: 'Templates',
       active: pathname === `/workspace/${workspaceId}/templates`,
+    },
+    {
+      id: 'mcp',
+      icon: ServerCog,
+      href: `/workspace/${workspaceId}/mcp`,
+      tooltip: 'MCP Projects',
+      active: pathname === `/workspace/${workspaceId}/mcp`,
     },
   ]
 

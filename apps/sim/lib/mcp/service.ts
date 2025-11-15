@@ -290,12 +290,14 @@ class McpService {
       .from(mcpServers)
       .where(and(...whereConditions))
 
-    return servers.map((server) => ({
-      id: server.id,
-      name: server.name,
-      description: server.description || undefined,
-      transport: server.transport as McpTransport,
-      url: server.url || undefined,
+      return servers.map((server) => ({
+        id: server.id,
+        name: server.name,
+        description: server.description || undefined,
+        kind: (server.kind as McpServerConfig['kind']) || 'external',
+        projectId: server.projectId || undefined,
+        transport: server.transport as McpTransport,
+        url: server.url || undefined,
       headers: (server.headers as Record<string, string>) || {},
       timeout: server.timeout || 30000,
       retries: server.retries || 3,
@@ -489,6 +491,7 @@ class McpService {
           summaries.push({
             id: config.id,
             name: config.name,
+            kind: config.kind,
             url: config.url,
             transport: config.transport,
             status: 'connected',
@@ -500,6 +503,7 @@ class McpService {
           summaries.push({
             id: config.id,
             name: config.name,
+            kind: config.kind,
             url: config.url,
             transport: config.transport,
             status: 'error',
