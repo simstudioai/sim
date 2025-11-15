@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { Badge } from '@/components/emcn'
 import { Input } from '@/components/emcn/components/input/input'
 import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
@@ -50,12 +51,13 @@ interface InputMappingFieldProps {
   value: string
   onChange: (value: string) => void
   blockId: string
-  subBlockId: string
   disabled: boolean
   accessiblePrefixes: Set<string> | undefined
   inputController: ReturnType<typeof useSubBlockInput>
-  inputRefs: React.MutableRefObject<Map<string, HTMLInputElement>>
-  overlayRefs: React.MutableRefObject<Map<string, HTMLDivElement>>
+  inputRefs: React.RefObject<Map<string, HTMLInputElement>>
+  overlayRefs: React.RefObject<Map<string, HTMLDivElement>>
+  collapsed: boolean
+  onToggleCollapse: () => void
 }
 
 /**
@@ -169,6 +171,7 @@ export function InputMapping({
 
   const [childInputFields, setChildInputFields] = useState<InputFormatField[]>([])
   const [isLoading, setIsLoading] = useState(false)
+  const [collapsedFields, setCollapsedFields] = useState<Record<string, boolean>>({})
 
   useEffect(() => {
     let isMounted = true
@@ -245,6 +248,13 @@ export function InputMapping({
     setMapping(updated)
   }
 
+  const toggleCollapse = (fieldName: string) => {
+    setCollapsedFields((prev) => ({
+      ...prev,
+      [fieldName]: !prev[fieldName],
+    }))
+  }
+
   if (!selectedWorkflowId) {
     return (
       <div className='flex flex-col items-center justify-center rounded-[4px] border border-[var(--border-strong)] bg-[#1F1F1F] p-8 text-center'>
@@ -278,12 +288,13 @@ export function InputMapping({
           value=''
           onChange={() => {}}
           blockId={blockId}
-          subBlockId={subBlockId}
           disabled={true}
           accessiblePrefixes={accessiblePrefixes}
           inputController={inputController}
           inputRefs={inputRefs}
           overlayRefs={overlayRefs}
+          collapsed={false}
+          onToggleCollapse={() => {}}
         />
       </div>
     )
@@ -303,12 +314,13 @@ export function InputMapping({
           value={valueObj[field.name] || ''}
           onChange={(value) => handleFieldUpdate(field.name, value)}
           blockId={blockId}
-          subBlockId={subBlockId}
           disabled={isPreview || disabled}
           accessiblePrefixes={accessiblePrefixes}
           inputController={inputController}
           inputRefs={inputRefs}
           overlayRefs={overlayRefs}
+          collapsed={collapsedFields[field.name] || false}
+          onToggleCollapse={() => toggleCollapse(field.name)}
         />
       ))}
     </div>
@@ -326,12 +338,13 @@ function InputMappingField({
   value,
   onChange,
   blockId,
-  subBlockId,
   disabled,
   accessiblePrefixes,
   inputController,
   inputRefs,
   overlayRefs,
+  collapsed,
+  onToggleCollapse,
 }: InputMappingFieldProps) {
   const fieldId = fieldName
   const fieldState = inputController.fieldHelpers.getFieldState(fieldId)
@@ -354,64 +367,91 @@ function InputMappingField({
   }
 
   return (
-    <div className='group relative overflow-visible rounded-[4px] border border-[var(--border-strong)] bg-[#1F1F1F]'>
-      <div className='flex items-center justify-between bg-transparent px-[10px] py-[5px]'>
-        <Label className='font-medium text-[14px] text-[var(--text-tertiary)]'>{fieldName}</Label>
-        {fieldType && (
-          <span className='rounded-md bg-[#2A2A2A] px-1.5 py-0.5 font-mono text-[10px] text-[var(--text-tertiary)]'>
-            {fieldType}
+    <div
+      className={cn(
+        'rounded-[4px] border border-[var(--border-strong)] bg-[#1F1F1F]',
+        collapsed ? 'overflow-hidden' : 'overflow-visible'
+      )}
+    >
+      <div
+        className='flex cursor-pointer items-center justify-between bg-transparent px-[10px] py-[5px]'
+        onClick={onToggleCollapse}
+      >
+        <div className='flex min-w-0 flex-1 items-center gap-[8px]'>
+          <span className='block truncate font-medium text-[14px] text-[var(--text-tertiary)]'>
+            {fieldName}
           </span>
-        )}
+          {fieldType && <Badge className='h-[20px] text-[13px]'>{fieldType}</Badge>}
+        </div>
       </div>
-      <div className='relative w-full border-[var(--border-strong)] border-t bg-transparent'>
-        <Input
-          ref={(el) => {
-            if (el) inputRefs.current.set(fieldId, el)
-          }}
-          className={cn(
-            'allow-scroll !bg-transparent w-full overflow-auto rounded-none border-0 px-[10px] py-[8px] text-transparent caret-white [-ms-overflow-style:none] [scrollbar-width:none] placeholder:text-[var(--text-muted)] focus-visible:ring-0 focus-visible:ring-offset-0 [&::-webkit-scrollbar]:hidden'
-          )}
-          type='text'
-          value={value}
-          onChange={handlers.onChange}
-          onKeyDown={handlers.onKeyDown}
-          onScroll={handleScroll}
-          onDrop={handlers.onDrop}
-          onDragOver={handlers.onDragOver}
-          autoComplete='off'
-          disabled={disabled}
-        />
-        <div
-          ref={(el) => {
-            if (el) overlayRefs.current.set(fieldId, el)
-          }}
-          className='pointer-events-none absolute inset-0 flex items-center overflow-x-auto bg-transparent px-[10px] py-[8px] font-medium font-sans text-[#eeeeee] text-sm [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
-        >
-          <div className='min-w-fit whitespace-pre'>
-            {formatDisplayText(value, {
-              accessiblePrefixes,
-              highlightAll: !accessiblePrefixes,
-            })}
+
+      {!collapsed && (
+        <div className='flex flex-col gap-[6px] border-[var(--border-strong)] border-t px-[10px] pt-[6px] pb-[10px]'>
+          <div className='space-y-[4px]'>
+            <Label className='text-[13px]'>Value</Label>
+            <div className='relative'>
+              <Input
+                ref={(el) => {
+                  if (el) inputRefs.current.set(fieldId, el)
+                }}
+                name='value'
+                value={value}
+                onChange={handlers.onChange}
+                onKeyDown={handlers.onKeyDown}
+                onDrop={handlers.onDrop}
+                onDragOver={handlers.onDragOver}
+                onScroll={(e) => handleScroll(e)}
+                onPaste={() =>
+                  setTimeout(() => {
+                    const input = inputRefs.current.get(fieldId)
+                    input && handleScroll({ currentTarget: input } as any)
+                  }, 0)
+                }
+                placeholder='Enter value or reference'
+                disabled={disabled}
+                autoComplete='off'
+                className={cn(
+                  'allow-scroll w-full overflow-auto text-transparent caret-foreground'
+                )}
+                style={{ overflowX: 'auto' }}
+              />
+              <div
+                ref={(el) => {
+                  if (el) overlayRefs.current.set(fieldId, el)
+                }}
+                className='pointer-events-none absolute inset-0 flex items-center overflow-x-auto bg-transparent px-[8px] py-[6px] font-medium font-sans text-sm'
+                style={{ overflowX: 'auto' }}
+              >
+                <div
+                  className='w-full whitespace-pre'
+                  style={{ scrollbarWidth: 'none', minWidth: 'fit-content' }}
+                >
+                  {formatDisplayText(
+                    value,
+                    accessiblePrefixes ? { accessiblePrefixes } : { highlightAll: true }
+                  )}
+                </div>
+              </div>
+              {fieldState.showTags && (
+                <TagDropdown
+                  visible={fieldState.showTags}
+                  onSelect={tagSelectHandler}
+                  blockId={blockId}
+                  activeSourceBlockId={fieldState.activeSourceBlockId}
+                  inputValue={value}
+                  cursorPosition={fieldState.cursorPosition}
+                  onClose={() => inputController.fieldHelpers.hideFieldDropdowns(fieldId)}
+                  inputRef={
+                    {
+                      current: inputRefs.current.get(fieldId) || null,
+                    } as React.RefObject<HTMLInputElement>
+                  }
+                />
+              )}
+            </div>
           </div>
         </div>
-
-        {fieldState.showTags && (
-          <TagDropdown
-            visible={fieldState.showTags}
-            onSelect={tagSelectHandler}
-            blockId={blockId}
-            activeSourceBlockId={fieldState.activeSourceBlockId}
-            inputValue={value}
-            cursorPosition={fieldState.cursorPosition}
-            onClose={() => inputController.fieldHelpers.hideFieldDropdowns(fieldId)}
-            inputRef={
-              {
-                current: inputRefs.current.get(fieldId) || null,
-              } as React.RefObject<HTMLInputElement>
-            }
-          />
-        )}
-      </div>
+      )}
     </div>
   )
 }
