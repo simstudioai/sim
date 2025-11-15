@@ -5,7 +5,6 @@ import { ArrowDown, Plus, Search } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import { Button, FolderPlus, Tooltip } from '@/components/emcn'
 import { useSession } from '@/lib/auth-client'
-import { getEnv, isTruthy } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import {
@@ -27,12 +26,14 @@ import {
   useImportWorkspace,
 } from '@/app/workspace/[workspaceId]/w/hooks'
 import { useFolderStore } from '@/stores/folders/store'
+import { useSearchModalStore } from '@/stores/search-modal/store'
 import { MIN_SIDEBAR_WIDTH, useSidebarStore } from '@/stores/sidebar/store'
 
 const logger = createLogger('SidebarNew')
 
 // Feature flag: Billing usage indicator visibility (matches legacy sidebar behavior)
-const isBillingEnabled = isTruthy(getEnv('NEXT_PUBLIC_BILLING_ENABLED'))
+// const isBillingEnabled = isTruthy(getEnv('NEXT_PUBLIC_BILLING_ENABLED'))
+const isBillingEnabled = true
 
 /**
  * Sidebar component with resizable width that persists across page refreshes.
@@ -84,8 +85,12 @@ export function SidebarNew() {
   // Workspace popover state
   const [isWorkspaceMenuOpen, setIsWorkspaceMenuOpen] = useState(false)
 
-  // Search modal state
-  const [isSearchModalOpen, setIsSearchModalOpen] = useState(false)
+  // Global search modal state
+  const {
+    isOpen: isSearchModalOpen,
+    setOpen: setIsSearchModalOpen,
+    open: openSearchModal,
+  } = useSearchModalStore()
 
   // Workspace management hook
   const {
@@ -452,8 +457,7 @@ export function SidebarNew() {
       shortcut: 'Mod+K',
       allowInEditable: true,
       handler: () => {
-        setIsSearchModalOpen(true)
-        logger.info('Search modal opened')
+        openSearchModal()
       },
     },
   ])

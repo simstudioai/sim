@@ -513,7 +513,7 @@ function SignupFormContent({
             disabled={isLoading}
           >
             <span className='flex items-center gap-1'>
-              {isLoading ? 'Creating account...' : 'Create account'}
+              {isLoading ? 'Creating account' : 'Create account'}
               <span className='inline-flex transition-transform duration-200 group-hover:translate-x-0.5'>
                 {isButtonHovered ? (
                   <ArrowRight className='h-4 w-4' aria-hidden='true' />

@@ -75,6 +75,30 @@
 }
 
 /**
+ * Active block ring animation - cycles through gray tones using box-shadow
+ */
+@keyframes ring-pulse-colors {
+  0%,
+  100% {
+    box-shadow: 0 0 0 4px var(--surface-14);
+  }
+  33% {
+    box-shadow: 0 0 0 4px var(--surface-12);
+  }
+  66% {
+    box-shadow: 0 0 0 4px var(--surface-15);
+  }
+}
+
+.dark .animate-ring-pulse {
+  animation: ring-pulse-colors 2s ease-in-out infinite !important;
+}
+
+.light .animate-ring-pulse {
+  animation: ring-pulse-colors 2s ease-in-out infinite !important;
+}
+
+/**
  * Dark color tokens - single source of truth for all colors (dark-only)
  */
 @layer base {
