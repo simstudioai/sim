@@ -592,7 +592,9 @@ export class Serializer {
       const accessibleIds = new Set<string>(ancestorIds)
       accessibleIds.add(blockId)
 
-      if (starterBlock) {
+      // Only add starter block if it's actually upstream (already in ancestorIds)
+      // Don't add it just because it exists on the canvas
+      if (starterBlock && ancestorIds.includes(starterBlock.id)) {
         accessibleIds.add(starterBlock.id)
       }
 
