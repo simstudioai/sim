@@ -24,13 +24,6 @@ interface UseDuplicateFolderProps {
 /**
  * Hook for managing folder duplication.
  *
- * Handles:
- * - Single or bulk folder duplication
- * - Calling duplicate API for each folder
- * - Loading state management
- * - Error handling and logging
- * - Clearing selection after duplication
- *
  * @param props - Hook configuration
  * @returns Duplicate folder handlers and state
  */
