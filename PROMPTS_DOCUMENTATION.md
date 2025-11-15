@@ -530,3 +530,135 @@ Output: "Es regnet in Strömen draußen!"
 **Note**: The prompt defaults to "English" if no target language is specified.
 
 ---
+
+## 6. Validation & Guardrails Prompts
+
+### 6.1 Hallucination Detection Prompt (RAG-based Confidence Scoring)
+
+**Purpose**: Confidence scoring system that evaluates how well a user's input is supported by reference context from a knowledge base. Used to detect hallucinations and unsupported claims in AI-generated content.
+
+**Location**: `/apps/sim/lib/guardrails/validate_hallucination.ts` (lines 88-179, scoreHallucinationWithLLM function)
+
+**Use Case**: Critical for RAG (Retrieval-Augmented Generation) workflows to ensure AI responses are grounded in actual knowledge base content. Applications include:
+- Validating AI-generated answers against source documents
+- Detecting unsupported claims in content generation
+- Quality control for customer support responses
+- Fact-checking workflows
+- Compliance validation (ensuring responses cite actual policies)
+
+**Features**:
+- Uses RAG to retrieve relevant context from knowledge base
+- Scores confidence on 0-10 scale
+- Provides detailed scoring rubric
+- Low temperature (0.1) for consistent scoring
+- Returns both numeric score and reasoning
+- JSON-only output for structured validation
+
+**Input Parameters**:
+- `userInput`: The content to validate
+- `ragContext`: Array of relevant context chunks from knowledge base
+- `model`: AI model to use for scoring
+- `requestId`: Request tracking ID
+
+**Output**: JSON object with `score` (0-10) and `reasoning` (explanation)
+
+**Scoring Scale**:
+- **0-2**: Full hallucination - completely unsupported by context, contradicts the context
+- **3-4**: Low confidence - mostly unsupported, significant claims not in context
+- **5-6**: Medium confidence - partially supported, some claims not in context
+- **7-8**: High confidence - mostly supported, minor details not in context
+- **9-10**: Very high confidence - fully supported by context, all claims verified
+
+**System Prompt**:
+```
+You are a confidence scoring system. Your job is to evaluate how well a user's input is supported by the provided reference context from a knowledge base.
+
+Score the input on a confidence scale from 0 to 10:
+- 0-2: Full hallucination - completely unsupported by context, contradicts the context
+- 3-4: Low confidence - mostly unsupported, significant claims not in context
+- 5-6: Medium confidence - partially supported, some claims not in context
+- 7-8: High confidence - mostly supported, minor details not in context
+- 9-10: Very high confidence - fully supported by context, all claims verified
+
+Respond ONLY with valid JSON in this exact format:
+{
+  "score": <number between 0-10>,
+  "reasoning": "<brief explanation of your score>"
+}
+
+Do not include any other text, markdown formatting, or code blocks. Only output the raw JSON object. Be strict - only give high scores (7+) if the input is well-supported by the context.
+```
+
+**User Prompt Template**:
+```
+Reference Context:
+${contextText}
+
+User Input to Evaluate:
+${userInput}
+
+Evaluate the consistency and provide your score and reasoning in JSON format.
+```
+
+**Example Usage**:
+
+**Scenario 1: High Confidence (Score: 9)**
+```
+Reference Context:
+"Our company offers a 30-day money-back guarantee on all products.
+Customers can request a refund within 30 days of purchase."
+
+User Input:
+"We have a 30-day refund policy for all purchases."
+
+AI Response:
+{
+  "score": 9,
+  "reasoning": "The user input is fully supported by the reference context. The 30-day refund policy is explicitly stated in the knowledge base."
+}
+```
+
+**Scenario 2: Low Confidence (Score: 3)**
+```
+Reference Context:
+"Our standard shipping takes 5-7 business days."
+
+User Input:
+"We offer free express shipping that delivers within 24 hours."
+
+AI Response:
+{
+  "score": 3,
+  "reasoning": "The user input claims free express 24-hour shipping, which is not mentioned in the reference context. The context only mentions standard 5-7 day shipping."
+}
+```
+
+**Scenario 3: Medium Confidence (Score: 6)**
+```
+Reference Context:
+"Our basic plan includes email support and our premium plan includes 24/7 phone support."
+
+User Input:
+"We offer email support on all plans and phone support on premium plans with live chat available."
+
+AI Response:
+{
+  "score": 6,
+  "reasoning": "Email and phone support claims are supported by context, but the live chat mention is not found in the reference material."
+}
+```
+
+**Workflow Integration**:
+1. User input is received
+2. RAG system queries knowledge base with `topK` parameter (default: 10 chunks)
+3. Retrieved context chunks are passed to LLM with user input
+4. LLM scores confidence and provides reasoning
+5. If score < threshold (default: 3), validation fails
+6. Workflow can branch based on validation result
+
+**Configuration Parameters**:
+- `threshold`: Minimum acceptable score (default: 3)
+- `topK`: Number of knowledge base chunks to retrieve (default: 10)
+- `temperature`: 0.1 (low for consistent scoring)
+
+---
