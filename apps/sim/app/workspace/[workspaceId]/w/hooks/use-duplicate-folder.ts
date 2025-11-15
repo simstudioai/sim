@@ -6,18 +6,8 @@ import { useFolderStore } from '@/stores/folders/store'
 const logger = createLogger('useDuplicateFolder')
 
 interface UseDuplicateFolderProps {
-  /**
-   * Current workspace ID
-   */
   workspaceId: string
-  /**
-   * Function that returns the folder ID(s) to duplicate
-   * This function is called when duplication occurs to get fresh selection state
-   */
   getFolderIds: () => string | string[]
-  /**
-   * Optional callback after successful duplication
-   */
   onSuccess?: () => void
 }
 
