@@ -99,6 +99,7 @@ export function useWorkflowExecution() {
     setExecutor,
     setDebugContext,
     setActiveBlocks,
+    setBlockRunStatus,
   } = useExecutionStore()
   const [executionResult, setExecutionResult] = useState<ExecutionResult | null>(null)
   const executionStream = useExecutionStream()
@@ -900,6 +901,9 @@ export function useWorkflowExecution() {
               // Create a new Set to trigger React re-render
               setActiveBlocks(new Set(activeBlocksSet))
 
+              // Track successful block execution in run path
+              setBlockRunStatus(data.blockId, 'success')
+
               // Add to console
               addConsole({
                 input: data.input || {},
@@ -931,6 +935,9 @@ export function useWorkflowExecution() {
               activeBlocksSet.delete(data.blockId)
               // Create a new Set to trigger React re-render
               setActiveBlocks(new Set(activeBlocksSet))
+
+              // Track failed block execution in run path
+              setBlockRunStatus(data.blockId, 'error')
 
               // Add error to console
               addConsole({
