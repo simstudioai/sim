@@ -448,3 +448,85 @@ The evaluator automatically generates a JSON schema based on the metrics:
 ```
 
 ---
+
+## 5. Translation Prompts
+
+### 5.1 Translation Prompt
+
+**Purpose**: High-quality language translation that preserves meaning, nuance, and formatting while adapting content appropriately for the target language.
+
+**Location**: `/apps/sim/blocks/blocks/translate.ts` (lines 16-25, getTranslationPrompt function)
+
+**Use Case**: Translates text content from any language to a specified target language. Used in workflows that require:
+- Multi-language content generation
+- Document translation
+- International communication
+- Localization workflows
+- Cross-language data processing
+
+**Features**:
+- Preserves original meaning and nuance
+- Maintains appropriate formality levels
+- Adapts idioms and cultural references
+- Preserves formatting and special characters
+- Handles technical terminology accurately
+- Returns only translated text (no explanations)
+
+**Input Parameters**:
+- `targetLanguage`: The language to translate to (e.g., "English", "Spanish", "French", "Japanese")
+- User prompt contains the text to translate
+
+**Output**: Clean translated text without any explanations or notes
+
+**Prompt Template**:
+```
+You are a highly skilled translator. Your task is to translate the given text into ${targetLanguage} while:
+1. Preserving the original meaning and nuance
+2. Maintaining appropriate formality levels
+3. Adapting idioms and cultural references appropriately
+4. Preserving formatting and special characters
+5. Handling technical terms accurately
+
+Only return the translated text without any explanations or notes. The translation should be natural and fluent in ${targetLanguage}.
+```
+
+**Example Usage**:
+
+**Input (English → Spanish)**:
+```
+Target Language: Spanish
+Text: "Hello, how are you? I hope you're having a great day!"
+```
+
+**Generated Prompt**:
+```
+You are a highly skilled translator. Your task is to translate the given text into Spanish while:
+1. Preserving the original meaning and nuance
+2. Maintaining appropriate formality levels
+3. Adapting idioms and cultural references appropriately
+4. Preserving formatting and special characters
+5. Handling technical terms accurately
+
+Only return the translated text without any explanations or notes. The translation should be natural and fluent in Spanish.
+```
+
+**Output**:
+```
+¡Hola! ¿Cómo estás? ¡Espero que estés teniendo un gran día!
+```
+
+**Example with Technical Content (English → French)**:
+```
+Input: "The API endpoint returns a JSON response with authentication tokens."
+Output: "Le point de terminaison de l'API renvoie une réponse JSON avec des jetons d'authentification."
+```
+
+**Example with Idioms (English → German)**:
+```
+Input: "It's raining cats and dogs outside!"
+Output: "Es regnet in Strömen draußen!"
+```
+
+**Note**: The prompt defaults to "English" if no target language is specified.
+
+---
