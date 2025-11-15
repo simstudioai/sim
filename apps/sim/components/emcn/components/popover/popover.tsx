@@ -296,7 +296,8 @@ const PopoverContent = React.forwardRef<
             'z-[10000001] flex flex-col overflow-auto rounded-[8px] bg-[var(--surface-3)] px-[5.5px] py-[5px] text-foreground outline-none dark:bg-[var(--surface-3)]',
             // If width is constrained by the caller (prop or style), ensure inner flexible text truncates by default,
             // and also truncate section headers.
-            hasUserWidthConstraint && '[&_.flex-1]:truncate [&_[data-popover-section]]:truncate'
+            hasUserWidthConstraint && '[&_.flex-1]:truncate [&_[data-popover-section]]:truncate',
+            className
           )}
           style={{
             maxHeight: `${maxHeight || 400}px`,
