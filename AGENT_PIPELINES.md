@@ -1009,3 +1009,462 @@ Remember: Your response must be ONLY the block ID - no additional text, formatti
 ```
 
 ---
+
+## 5. Complete Workflow Example
+
+This section demonstrates a complete end-to-end workflow execution showing how all pipelines connect together.
+
+### Workflow Structure
+
+```
+[Trigger] → [Knowledge Search] → [Agent] → [Evaluator] → [Router] → [Response A | Response B]
+```
+
+**Use Case**: Customer support system that retrieves policy information, generates responses, evaluates quality, and routes based on confidence.
+
+### Step-by-Step Execution Trace
+
+#### **Block 1: Trigger**
+
+**Input** (from user/API):
+```json
+{
+  "query": "What is your refund policy?"
+}
+```
+
+**Output**:
+```json
+{
+  "query": "What is your refund policy?",
+  "timestamp": "2025-11-15T10:00:00.000Z"
+}
+```
+
+**Execution Time**: 0ms
+
+---
+
+#### **Block 2: Knowledge Search**
+
+**Prompt Construction**:
+- **Input Query**: `blockData["trigger-1"].query` → "What is your refund policy?"
+- **Knowledge Base**: "kb-policies"
+- **TopK**: 5
+- **Tag Filters**: `category=policies`
+
+**Execution**:
+1. **Generate Embedding**: Query → 1536-dimensional vector
+2. **Vector Search**: Cosine similarity against all policy documents
+3. **Filter & Rank**: Apply tag filter, sort by similarity
+4. **Return Top 5**
+
+**Output**:
+```json
+{
+  "results": [
+    {
+      "documentName": "refund_policy.pdf",
+      "content": "Customers can request a full refund within 30 days of purchase. Refunds are processed within 5-7 business days after we receive the returned item.",
+      "similarity": 0.92,
+      "chunkIndex": 0
+    },
+    {
+      "documentName": "refund_policy.pdf",
+      "content": "To initiate a refund, contact our support team at support@company.com with your order number.",
+      "similarity": 0.87,
+      "chunkIndex": 1
+    },
+    {
+      "documentName": "refund_policy.pdf",
+      "content": "Items must be in original condition with tags attached for refund eligibility.",
+      "similarity": 0.81,
+      "chunkIndex": 2
+    }
+  ],
+  "query": "What is your refund policy?",
+  "totalResults": 3,
+  "cost": { "total": 0.00002 }
+}
+```
+
+**Execution Time**: 450ms
+
+---
+
+#### **Block 3: Agent (Customer Support)**
+
+**Prompt Construction**:
+
+**System Prompt**:
+```
+You are a customer support assistant. Use the provided knowledge base context to answer user questions accurately. Always base your response on the context provided.
+```
+
+**User Prompt** (built from previous blocks):
+```
+User Query: What is your refund policy?
+
+Knowledge Base Context:
+Customers can request a full refund within 30 days of purchase. Refunds are processed within 5-7 business days after we receive the returned item.
+---
+To initiate a refund, contact our support team at support@company.com with your order number.
+---
+Items must be in original condition with tags attached for refund eligibility.
+
+Please provide a helpful response based on the context above.
+```
+
+**Messages Array**:
+```typescript
+[
+  {
+    role: "system",
+    content: "You are a customer support assistant..."
+  },
+  {
+    role: "user",
+    content: "User Query: What is your refund policy?\n\nKnowledge Base Context:\n..."
+  }
+]
+```
+
+**Execution**:
+1. **Initial API Call** → OpenAI GPT-4o
+2. **No Tool Calls** (none configured)
+3. **Response Generated**
+
+**Output**:
+```json
+{
+  "content": "Our refund policy allows customers to request a full refund within 30 days of purchase. To be eligible, items must be in original condition with tags attached. Refunds are processed within 5-7 business days after we receive the returned item. To initiate a refund, please contact our support team at support@company.com with your order number.",
+  "model": "gpt-4o",
+  "tokens": {
+    "prompt": 245,
+    "completion": 58,
+    "total": 303
+  },
+  "cost": {
+    "input": 0.00245,
+    "output": 0.00116,
+    "total": 0.00361
+  }
+}
+```
+
+**Execution Time**: 1250ms
+
+---
+
+#### **Block 4: Evaluator**
+
+**Prompt Construction**:
+
+**Metrics Configuration**:
+```json
+[
+  {
+    "name": "Accuracy",
+    "description": "Factually correct based on source material",
+    "range": { "min": 0, "max": 10 }
+  },
+  {
+    "name": "Completeness",
+    "description": "Addresses all aspects of the question",
+    "range": { "min": 0, "max": 10 }
+  },
+  {
+    "name": "Clarity",
+    "description": "Easy to understand",
+    "range": { "min": 0, "max": 10 }
+  }
+]
+```
+
+**System Prompt**:
+```
+You are an objective evaluation agent. Analyze the content against the provided metrics and provide detailed scoring.
+
+Metrics to evaluate:
+- Accuracy (0-10): Factually correct based on source material
+- Completeness (0-10): Addresses all aspects of the question
+- Clarity (0-10): Easy to understand
+
+Content to evaluate:
+Our refund policy allows customers to request a full refund within 30 days of purchase. To be eligible, items must be in original condition with tags attached. Refunds are processed within 5-7 business days after we receive the returned item. To initiate a refund, please contact our support team at support@company.com with your order number.
+
+Return JSON only with metric scores. No explanations.
+```
+
+**Response Format**:
+```json
+{
+  "name": "evaluation_response",
+  "strict": true,
+  "schema": {
+    "type": "object",
+    "properties": {
+      "accuracy": { "type": "number" },
+      "completeness": { "type": "number" },
+      "clarity": { "type": "number" }
+    },
+    "required": ["accuracy", "completeness", "clarity"],
+    "additionalProperties": false
+  }
+}
+```
+
+**Output**:
+```json
+{
+  "content": "Our refund policy allows...",
+  "model": "gpt-4o",
+  "accuracy": 9,
+  "completeness": 8,
+  "clarity": 9,
+  "tokens": { "prompt": 180, "completion": 12, "total": 192 },
+  "cost": { "total": 0.00204 }
+}
+```
+
+**Execution Time**: 800ms
+
+---
+
+#### **Block 5: Router**
+
+**Prompt Construction**:
+
+**Routing Instruction**:
+```
+Route to "Standard Response" if accuracy >= 8, otherwise route to "Needs Review"
+```
+
+**Target Blocks**:
+```json
+[
+  {
+    "id": "response-standard",
+    "type": "response",
+    "title": "Standard Response",
+    "description": "Send standard response to user",
+    "systemPrompt": null
+  },
+  {
+    "id": "response-review",
+    "type": "response",
+    "title": "Needs Review",
+    "description": "Flag for human review",
+    "systemPrompt": null
+  }
+]
+```
+
+**System Prompt** (auto-generated):
+```
+You are an intelligent routing agent responsible for directing workflow requests to the most appropriate block.
+
+Available Target Blocks:
+
+ID: response-standard
+Type: response
+Title: Standard Response
+Description: Send standard response to user
+---
+
+ID: response-review
+Type: response
+Title: Needs Review
+Description: Flag for human review
+---
+
+Routing Request: Route to "Standard Response" if accuracy >= 8, otherwise route to "Needs Review"
+
+Response Format:
+Return ONLY the destination id as a single word, lowercase, no punctuation or explanation.
+```
+
+**AI Analysis**:
+- Evaluator output shows `accuracy: 9`
+- Condition: accuracy >= 8 → **TRUE**
+- Selected block: "Standard Response"
+
+**Output**:
+```json
+{
+  "selectedPath": {
+    "blockId": "response-standard",
+    "blockType": "response",
+    "blockTitle": "Standard Response"
+  },
+  "selectedRoute": "response-standard",
+  "model": "gpt-4o",
+  "tokens": { "prompt": 320, "completion": 8, "total": 328 },
+  "cost": { "total": 0.00336 }
+}
+```
+
+**Execution Time**: 600ms
+
+**Decision Update**:
+```typescript
+ctx.decisions.router.set("router-1", "response-standard")
+// Only "Standard Response" block will execute
+// "Needs Review" block will be skipped
+```
+
+---
+
+#### **Block 6: Standard Response** (Chosen Path)
+
+**Input** (from previous blocks):
+```typescript
+{
+  message: blockData["agent-1"].content,
+  metadata: {
+    accuracy: blockData["evaluator-1"].accuracy,
+    completeness: blockData["evaluator-1"].completeness,
+    clarity: blockData["evaluator-1"].clarity,
+    sources: blockData["knowledge-1"].results.map(r => r.documentName)
+  }
+}
+```
+
+**Output**:
+```json
+{
+  "message": "Our refund policy allows customers to request a full refund within 30 days of purchase. To be eligible, items must be in original condition with tags attached. Refunds are processed within 5-7 business days after we receive the returned item. To initiate a refund, please contact our support team at support@company.com with your order number.",
+  "confidence": 0.9,
+  "qualityScores": {
+    "accuracy": 9,
+    "completeness": 8,
+    "clarity": 9
+  },
+  "sources": ["refund_policy.pdf"],
+  "timestamp": "2025-11-15T10:00:03.100Z"
+}
+```
+
+**Execution Time**: 50ms
+
+---
+
+### Workflow Summary
+
+**Total Execution Time**: 3150ms (3.15 seconds)
+
+**Block Execution Order**:
+1. Trigger → 0ms
+2. Knowledge Search → 450ms
+3. Agent → 1250ms
+4. Evaluator → 800ms
+5. Router → 600ms
+6. Standard Response → 50ms
+
+**Total AI Costs**: $0.00901
+
+**Token Usage**:
+- Knowledge embedding: ~20 tokens
+- Agent: 303 tokens
+- Evaluator: 192 tokens
+- Router: 328 tokens
+- **Total**: 843 tokens
+
+**Data Flow Summary**:
+```
+User Query
+    ↓
+Knowledge Base → Retrieved Context
+    ↓
+Agent (receives context) → AI Response
+    ↓
+Evaluator (receives response) → Quality Scores
+    ↓
+Router (receives scores) → Path Selection
+    ↓
+Standard Response (receives everything) → Final Output
+```
+
+**Block Data Available at Each Step**:
+
+```typescript
+// At Agent block:
+blockData = {
+  "trigger-1": { query: "What is your refund policy?" },
+  "knowledge-1": { results: [...], query: "..." }
+}
+
+// At Evaluator block:
+blockData = {
+  "trigger-1": { query: "..." },
+  "knowledge-1": { results: [...] },
+  "agent-1": { content: "Our refund policy...", tokens: {...} }
+}
+
+// At Router block:
+blockData = {
+  "trigger-1": { query: "..." },
+  "knowledge-1": { results: [...] },
+  "agent-1": { content: "...", tokens: {...} },
+  "evaluator-1": { accuracy: 9, completeness: 8, clarity: 9 }
+}
+
+// At Final Response block:
+blockData = {
+  // All previous blocks available
+  "trigger-1": { ... },
+  "knowledge-1": { ... },
+  "agent-1": { ... },
+  "evaluator-1": { ... },
+  "router-1": { selectedPath: {...} }
+}
+```
+
+---
+
+## Key Concepts
+
+### 1. Block Data Collection
+
+All previous block outputs are automatically collected and made available to subsequent blocks via `blockData` and `blockNameMapping`:
+
+```typescript
+// Access by ID
+const prevOutput = blockData["block-id-123"]
+
+// Access by name
+const prevOutput = blockData[blockNameMapping["My Block Name"]]
+```
+
+### 2. Tool Execution Context
+
+Tools receive comprehensive context:
+- `blockData`: All previous outputs
+- `environmentVariables`: Env vars
+- `workflowVariables`: Workflow-specific vars
+- `workflowId`, `workspaceId`: Metadata
+
+### 3. Prompt Construction Patterns
+
+1. **Static Prompts**: Defined in block configuration
+2. **Dynamic Prompts**: Generated from previous block data
+3. **Meta-Prompts**: Prompts that generate other prompts (wand feature)
+
+### 4. Routing & Branching
+
+- **Router Block**: AI-powered path selection
+- **Condition Block**: Boolean logic branching
+- **Loop Block**: Iterative execution
+- **Parallel Block**: Concurrent execution
+
+### 5. Structured Outputs
+
+Use `responseFormat` (JSON Schema) to enforce structured data:
+- Agent responses → structured fields
+- Evaluator scores → numeric metrics
+- Tool results → typed outputs
+
+---
+
+*Documentation generated on 2025-11-15*
+
