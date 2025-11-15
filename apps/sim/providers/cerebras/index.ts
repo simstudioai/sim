@@ -14,6 +14,7 @@ import {
   trackForcedToolUsage,
 } from '@/providers/utils'
 import { executeTool } from '@/tools'
+import type { CerebrasResponse } from './types'
 
 const logger = createLogger('CerebrasProvider')
 
