@@ -918,7 +918,8 @@ export function trackForcedToolUsage(
       } else {
         // All forced tools have been used, switch to auto mode
         if (provider === 'anthropic') {
-          nextToolChoice = null // Anthropic requires null to remove the parameter
+          // Anthropic: return null to signal the parameter should be deleted/omitted
+          nextToolChoice = null
         } else if (provider === 'google') {
           nextToolConfig = { functionCallingConfig: { mode: 'AUTO' } }
         } else {

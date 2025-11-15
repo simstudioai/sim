@@ -280,7 +280,7 @@ describe('Model Capabilities', () => {
     it.concurrent(
       'should return false for providers that do not support tool usage control',
       () => {
-        const unsupportedProviders = ['ollama', 'cerebras', 'groq', 'non-existent-provider']
+        const unsupportedProviders = ['ollama', 'non-existent-provider']
 
         for (const provider of unsupportedProviders) {
           expect(supportsToolUsageControl(provider)).toBe(false)

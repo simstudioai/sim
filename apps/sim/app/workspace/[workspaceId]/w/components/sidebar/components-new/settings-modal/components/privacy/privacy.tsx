@@ -13,7 +13,7 @@ const TOOLTIPS = {
 }
 
 export function Privacy() {
-  // React Query hooks - with placeholderData to show cached data immediately (no skeleton loading!)
+  // React Query hooks - with placeholderData to show cached data immediately
   const { data: settings } = useGeneralSettings()
   const updateSetting = useUpdateGeneralSetting()
 
