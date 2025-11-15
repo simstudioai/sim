@@ -1,4 +1,5 @@
 import { getBlock } from '@/blocks'
+import type { BlockState } from '@/stores/workflows/workflow/types'
 
 /**
  * Unified trigger type definitions
@@ -62,14 +63,9 @@ const START_CONFLICT_TYPES: TriggerType[] = [
   TRIGGER_TYPES.STARTER, // Legacy starter also conflicts with start_trigger
 ]
 
-type BlockWithType = { type: string; subBlocks?: Record<string, unknown> | undefined }
+type MinimalBlock = { type: string; subBlocks?: Record<string, unknown> | undefined }
 
-type BlockWithMetadata = BlockWithType & {
-  category?: string
-  triggers?: { enabled?: boolean }
-}
-
-export interface StartBlockCandidate<T extends BlockWithType> {
+export interface StartBlockCandidate<T extends MinimalBlock> {
   blockId: string
   block: T
   path: StartBlockPath
@@ -108,20 +104,18 @@ export function classifyStartBlockType(
   }
 }
 
-export function classifyStartBlock<T extends BlockWithType>(block: T): StartBlockPath | null {
-  const blockWithMetadata = block as BlockWithMetadata
+export function classifyStartBlock<T extends MinimalBlock>(block: T): StartBlockPath | null {
+  const blockState = block as Partial<BlockState>
 
   // Try to get metadata from the block itself first
-  let category = blockWithMetadata.category
-  let triggerModeEnabled = Boolean(blockWithMetadata.triggers?.enabled)
+  let category: string | undefined
+  const triggerModeEnabled = Boolean(blockState.triggerMode)
 
   // If not available on the block, fetch from registry
-  if (!category || triggerModeEnabled === undefined) {
-    const blockConfig = getBlock(block.type)
-    if (blockConfig) {
-      category = category || blockConfig.category
-      triggerModeEnabled = triggerModeEnabled || Boolean(blockConfig.triggers?.enabled)
-    }
+  const blockConfig = getBlock(block.type)
+
+  if (blockConfig) {
+    category = blockConfig.category
   }
 
   return classifyStartBlockType(block.type, { category, triggerModeEnabled })
@@ -131,7 +125,7 @@ export function isLegacyStartPath(path: StartBlockPath): boolean {
   return path !== StartBlockPath.UNIFIED
 }
 
-function toEntries<T extends BlockWithType>(blocks: Record<string, T> | T[]): Array<[string, T]> {
+function toEntries<T extends MinimalBlock>(blocks: Record<string, T> | T[]): Array<[string, T]> {
   if (Array.isArray(blocks)) {
     return blocks.map((block, index) => {
       const potentialId = (block as { id?: unknown }).id
@@ -169,7 +163,7 @@ function supportsExecution(path: StartBlockPath, execution: StartExecutionKind):
   )
 }
 
-export function resolveStartCandidates<T extends BlockWithType>(
+export function resolveStartCandidates<T extends MinimalBlock>(
   blocks: Record<string, T> | T[],
   options: ResolveStartOptions
 ): StartBlockCandidate<T>[] {
