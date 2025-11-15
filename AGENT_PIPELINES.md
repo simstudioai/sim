@@ -703,3 +703,309 @@ Remember: Your response must be ONLY the block ID - no additional text, formatti
 **Next Block**: Only "Sales Agent" block executes; "Support Agent" is skipped.
 
 ---
+
+## 3. Evaluator Block Pipeline
+
+**Handler**: `/apps/sim/executor/handlers/evaluator/evaluator-handler.ts`
+
+**Purpose**: Evaluates content against customizable metrics using AI-powered scoring with structured JSON output.
+
+### Data Flow Diagram
+
+```
+┌─────────────┐
+│   INPUT     │ Content, Metrics, Model
+└──────┬──────┘
+       │
+       ↓
+┌──────────────────────────────────────────────────────────┐
+│ PHASE 1: Content Processing                              │
+│                                                           │
+│  Normalize content:                                       │
+│    - If string + JSON → pretty-print                     │
+│    - If object → stringify                               │
+│    - Preserve formatting                                  │
+│                                                           │
+│  Parse metrics array:                                     │
+│  [                                                        │
+│    {                                                      │
+│      name: "Clarity",                                    │
+│      description: "How clear and understandable",        │
+│      range: { min: 0, max: 10 }                          │
+│    },                                                     │
+│    {                                                      │
+│      name: "Accuracy",                                   │
+│      description: "Factually correct information",       │
+│      range: { min: 0, max: 10 }                          │
+│    }                                                      │
+│  ]                                                        │
+└──────┬───────────────────────────────────────────────────┘
+       │
+       ↓
+┌──────────────────────────────────────────────────────────┐
+│ PHASE 2: Response Schema Generation                      │
+│                                                           │
+│  Build JSON schema for structured scoring:               │
+│  {                                                        │
+│    name: "evaluation_response",                          │
+│    strict: true,                                         │
+│    schema: {                                             │
+│      type: "object",                                     │
+│      properties: {                                       │
+│        "clarity": {                                      │
+│          type: "number",                                 │
+│          description: "How clear... (0-10)"             │
+│        },                                                │
+│        "accuracy": {                                     │
+│          type: "number",                                 │
+│          description: "Factually... (0-10)"             │
+│        }                                                 │
+│      },                                                  │
+│      required: ["clarity", "accuracy"],                 │
+│      additionalProperties: false                        │
+│    }                                                     │
+│  }                                                       │
+└──────┬───────────────────────────────────────────────────┘
+       │
+       ↓
+┌──────────────────────────────────────────────────────────┐
+│ PHASE 3: System Prompt Construction                      │
+│                                                           │
+│  Generate evaluation prompt:                             │
+│  ┌──────────────────────────────────────┐               │
+│  │ "You are an objective evaluation     │               │
+│  │  agent. Analyze the content against  │               │
+│  │  the provided metrics and provide    │               │
+│  │  detailed scoring.                   │               │
+│  │                                       │               │
+│  │  Metrics to evaluate:                │               │
+│  │  - Clarity (0-10): How clear...      │               │
+│  │  - Accuracy (0-10): Factually...     │               │
+│  │                                       │               │
+│  │  Content to evaluate:                │               │
+│  │  [formatted content here]            │               │
+│  │                                       │               │
+│  │  Return JSON only with metric        │               │
+│  │  scores. No explanations."           │               │
+│  └──────────────────────────────────────┘               │
+└──────┬───────────────────────────────────────────────────┘
+       │
+       ↓
+┌──────────────────────────────────────────────────────────┐
+│ PHASE 4: AI Model Execution                              │
+│                                                           │
+│  POST /api/providers                                     │
+│  {                                                        │
+│    provider: "openai",                                   │
+│    model: "gpt-4o",                                      │
+│    systemPrompt: [generated prompt],                    │
+│    responseFormat: [generated schema],                  │
+│    temperature: 0.1  // Low for consistency             │
+│  }                                                       │
+│                                                           │
+│  Response:                                               │
+│  {                                                        │
+│    content: '{"clarity": 8, "accuracy": 9}'            │
+│  }                                                       │
+└──────┬───────────────────────────────────────────────────┘
+       │
+       ↓
+┌──────────────────────────────────────────────────────────┐
+│ PHASE 5: Score Extraction & Mapping                      │
+│                                                           │
+│  Parse JSON response:                                    │
+│  parsed = JSON.parse(response.content)                  │
+│  // { clarity: 8, accuracy: 9 }                         │
+│                                                           │
+│  Map to lowercase metric names:                          │
+│  metricScores = {                                        │
+│    clarity: 8,                                           │
+│    accuracy: 9                                           │
+│  }                                                       │
+└──────┬───────────────────────────────────────────────────┘
+       │
+       ↓
+┌─────────────┐
+│   OUTPUT    │ Spread scores + metadata
+└─────────────┘
+```
+
+### Output Data Structure
+
+```typescript
+{
+  content: any,                 // Original content evaluated
+  model: string,                // Model used
+  tokens: object,               // Token usage
+  cost: object,                 // Cost breakdown
+
+  // Dynamic metric scores (lowercase)
+  clarity: 8,
+  accuracy: 9,
+  relevance: 7
+}
+```
+
+---
+
+## 4. Knowledge Base (RAG) Pipeline
+
+**Files**: `/apps/sim/tools/knowledge/search.ts`, `/apps/sim/lib/guardrails/validate_hallucination.ts`
+
+**Purpose**: Retrieves relevant information from vector knowledge bases using semantic search and validates AI responses against source material.
+
+### Data Flow Diagram
+
+```
+┌─────────────┐
+│   INPUT     │ Query, Knowledge Base ID, TopK, Filters
+└──────┬──────┘
+       │
+       ↓
+┌──────────────────────────────────────────────────────────┐
+│ PHASE 1: Search Request Construction                     │
+│                                                           │
+│  Parse parameters:                                        │
+│    - knowledgeBaseId: "kb-123"                           │
+│    - query: "What is our refund policy?"                 │
+│    - topK: 5 (number of results)                         │
+│    - tagFilters: [                                       │
+│        { tagName: "category", tagValue: "policies" }    │
+│      ]                                                    │
+│                                                           │
+│  Convert tag filters to OR logic:                        │
+│    filters = {                                           │
+│      "category": "policies|OR|legal"                     │
+│    }                                                      │
+└──────┬───────────────────────────────────────────────────┘
+       │
+       ↓
+┌──────────────────────────────────────────────────────────┐
+│ PHASE 2: Vector Embedding                                │
+│                                                           │
+│  Generate query embedding:                               │
+│  ┌──────────────────────────────────────┐               │
+│  │ POST /v1/embeddings                   │               │
+│  │ {                                     │               │
+│  │   model: "text-embedding-3-small",   │               │
+│  │   input: "What is our refund policy?"│               │
+│  │ }                                     │               │
+│  └──────────────────────────────────────┘               │
+│         │                                                 │
+│         ↓                                                 │
+│  embedding = [0.123, -0.456, 0.789, ...]                │
+│  // 1536-dimensional vector                              │
+└──────┬───────────────────────────────────────────────────┘
+       │
+       ↓
+┌──────────────────────────────────────────────────────────┐
+│ PHASE 3: Similarity Search                               │
+│                                                           │
+│  Apply tag filters:                                       │
+│  filteredDocs = documents.filter(doc =>                 │
+│    doc.tags.category in ["policies", "legal"]           │
+│  )                                                        │
+│                                                           │
+│  Compute cosine similarity for each chunk:               │
+│  for chunk in filteredDocs:                              │
+│    similarity = cosineSimilarity(                        │
+│      queryEmbedding,                                     │
+│      chunk.embedding                                     │
+│    )                                                      │
+│    results.push({                                        │
+│      content: chunk.content,                             │
+│      similarity: similarity,                             │
+│      metadata: chunk.metadata                            │
+│    })                                                     │
+│                                                           │
+│  Sort by similarity (descending):                        │
+│  results.sort((a, b) => b.similarity - a.similarity)    │
+│                                                           │
+│  Take top K results:                                     │
+│  topResults = results.slice(0, topK)                    │
+└──────┬───────────────────────────────────────────────────┘
+       │
+       ↓
+┌──────────────────────────────────────────────────────────┐
+│ PHASE 4 (Optional): Hallucination Validation             │
+│                                                           │
+│  If guardrails enabled:                                  │
+│                                                           │
+│  Build context from retrieved chunks:                    │
+│  contextText = topResults                                │
+│    .map(r => r.content)                                  │
+│    .join('\n\n---\n\n')                                  │
+│                                                           │
+│  Construct validation prompt:                            │
+│  ┌──────────────────────────────────────┐               │
+│  │ System:                               │               │
+│  │ "You are a confidence scoring system. │               │
+│  │  Score input on 0-10 scale:          │               │
+│  │  - 0-2: Full hallucination            │               │
+│  │  - 3-4: Low confidence                │               │
+│  │  - 5-6: Medium confidence             │               │
+│  │  - 7-8: High confidence               │               │
+│  │  - 9-10: Very high confidence         │               │
+│  │                                       │               │
+│  │  Return JSON: {score, reasoning}"    │               │
+│  │                                       │               │
+│  │ User:                                 │               │
+│  │ "Reference Context:                   │               │
+│  │  [contextText]                        │               │
+│  │                                       │               │
+│  │  User Input to Evaluate:              │               │
+│  │  [AI response to validate]"          │               │
+│  └──────────────────────────────────────┘               │
+│         │                                                 │
+│         ↓                                                 │
+│  AI Response:                                            │
+│  {                                                        │
+│    score: 9,                                             │
+│    reasoning: "The response is fully supported..."      │
+│  }                                                       │
+│                                                           │
+│  If score < threshold (default: 3):                      │
+│    validation.passed = false                             │
+│    → Workflow can branch to error handling              │
+└──────┬───────────────────────────────────────────────────┘
+       │
+       ↓
+┌─────────────┐
+│   OUTPUT    │
+└─────────────┘
+```
+
+### Output Data Structure
+
+**Knowledge Search Output**:
+```typescript
+{
+  results: [{
+    documentId: string,
+    documentName: string,
+    content: string,              // Chunk text
+    chunkIndex: number,
+    similarity: number,           // 0-1 cosine similarity
+    metadata: {
+      tags: object,
+      chunkId: string,
+      createdAt: string
+    }
+  }],
+  query: string,
+  totalResults: number,
+  cost: object
+}
+```
+
+**Hallucination Validation Output**:
+```typescript
+{
+  passed: boolean,               // true if score >= threshold
+  score: number,                 // 0-10 confidence score
+  reasoning: string,             // AI explanation
+  error?: string                 // If validation failed
+}
+```
+
+---
