@@ -174,55 +174,48 @@ export function LineChart({
       ref={containerRef}
       className='w-full overflow-hidden rounded-[11px] border bg-card p-4 shadow-sm'
     >
-      <div className='mb-3 flex items-center justify-between'>
-        <div className='flex items-center gap-3'>
-          <h4 className='font-medium text-foreground text-sm'>{label}</h4>
-          {allSeries.length > 1 && (
-            <div className='flex items-center gap-2'>
-              {scaledSeries.slice(1).map((s) => {
-                const isActive = activeSeriesId ? activeSeriesId === s.id : true
-                const isHovered = hoverSeriesId === s.id
-                const dimmed = activeSeriesId ? !isActive : false
-                return (
-                  <button
-                    key={`legend-${s.id}`}
-                    type='button'
-                    aria-pressed={activeSeriesId === s.id}
-                    aria-label={`Toggle ${s.label}`}
-                    className='inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px]'
-                    style={{
-                      color: s.color,
-                      opacity: dimmed ? 0.4 : isHovered ? 1 : 0.9,
-                      border: '1px solid hsl(var(--border))',
-                      background: 'transparent',
-                    }}
-                    onMouseEnter={() => setHoverSeriesId(s.id || null)}
-                    onMouseLeave={() => setHoverSeriesId((prev) => (prev === s.id ? null : prev))}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.preventDefault()
-                        setActiveSeriesId((prev) => (prev === s.id ? null : s.id || null))
-                      }
-                    }}
-                    onClick={() =>
+      <div className='mb-3 flex items-center gap-3'>
+        <h4 className='font-medium text-foreground text-sm'>{label}</h4>
+        {allSeries.length > 1 && (
+          <div className='flex items-center gap-2'>
+            {scaledSeries.slice(1).map((s) => {
+              const isActive = activeSeriesId ? activeSeriesId === s.id : true
+              const isHovered = hoverSeriesId === s.id
+              const dimmed = activeSeriesId ? !isActive : false
+              return (
+                <button
+                  key={`legend-${s.id}`}
+                  type='button'
+                  aria-pressed={activeSeriesId === s.id}
+                  aria-label={`Toggle ${s.label}`}
+                  className='inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px]'
+                  style={{
+                    color: s.color,
+                    opacity: dimmed ? 0.4 : isHovered ? 1 : 0.9,
+                    border: '1px solid hsl(var(--border))',
+                    background: 'transparent',
+                  }}
+                  onMouseEnter={() => setHoverSeriesId(s.id || null)}
+                  onMouseLeave={() => setHoverSeriesId((prev) => (prev === s.id ? null : prev))}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault()
                       setActiveSeriesId((prev) => (prev === s.id ? null : s.id || null))
                     }
-                  >
-                    <span
-                      aria-hidden='true'
-                      className='inline-block h-[6px] w-[6px] rounded-full'
-                      style={{ backgroundColor: s.color }}
-                    />
-                    <span style={{ color: 'hsl(var(--muted-foreground))' }}>{s.label}</span>
-                  </button>
-                )
-              })}
-            </div>
-          )}
-        </div>
-        {currentHoverDate ? (
-          <div className='text-[10px] text-muted-foreground'>{currentHoverDate}</div>
-        ) : null}
+                  }}
+                  onClick={() => setActiveSeriesId((prev) => (prev === s.id ? null : s.id || null))}
+                >
+                  <span
+                    aria-hidden='true'
+                    className='inline-block h-[6px] w-[6px] rounded-full'
+                    style={{ backgroundColor: s.color }}
+                  />
+                  <span style={{ color: 'hsl(var(--muted-foreground))' }}>{s.label}</span>
+                </button>
+              )
+            })}
+          </div>
+        )}
       </div>
       <div className='relative' style={{ width, height }}>
         <svg
@@ -556,6 +549,9 @@ export function LineChart({
                 className='pointer-events-none absolute rounded-md bg-background/80 px-2 py-1 font-medium text-[11px] shadow-sm ring-1 ring-border backdrop-blur'
                 style={{ left, top }}
               >
+                {currentHoverDate && (
+                  <div className='mb-1 text-[10px] text-muted-foreground'>{currentHoverDate}</div>
+                )}
                 {toDisplay.map((s) => {
                   const seriesIndex = allSeries.findIndex((x) => x.id === s.id)
                   const val = allSeries[seriesIndex]?.data?.[hoverIndex]?.value

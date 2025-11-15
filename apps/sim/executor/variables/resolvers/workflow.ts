@@ -1,7 +1,11 @@
 import { createLogger } from '@/lib/logs/console/logger'
 import { VariableManager } from '@/lib/variables/variable-manager'
 import { isReference, parseReferencePath, REFERENCE } from '@/executor/consts'
-import type { ResolutionContext, Resolver } from '@/executor/variables/resolvers/reference'
+import {
+  navigatePath,
+  type ResolutionContext,
+  type Resolver,
+} from '@/executor/variables/resolvers/reference'
 
 const logger = createLogger('WorkflowResolver')
 
@@ -27,7 +31,7 @@ export class WorkflowResolver implements Resolver {
       return undefined
     }
 
-    const [_, variableName] = parts
+    const [_, variableName, ...pathParts] = parts
 
     const workflowVars = context.executionContext.workflowVariables || this.workflowVariables
 
@@ -35,15 +39,23 @@ export class WorkflowResolver implements Resolver {
       const v = varObj as any
       if (v && (v.name === variableName || v.id === variableName)) {
         const normalizedType = (v.type === 'string' ? 'plain' : v.type) || 'plain'
+        let value: any
         try {
-          return VariableManager.resolveForExecution(v.value, normalizedType)
+          value = VariableManager.resolveForExecution(v.value, normalizedType)
         } catch (error) {
           logger.warn('Failed to resolve workflow variable, returning raw value', {
             variableName,
             error: (error as Error).message,
           })
-          return v.value
+          value = v.value
         }
+
+        // If there are additional path parts, navigate deeper
+        if (pathParts.length > 0) {
+          return navigatePath(value, pathParts)
+        }
+
+        return value
       }
     }
 

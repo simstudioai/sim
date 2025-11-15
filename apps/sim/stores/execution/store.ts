@@ -55,11 +55,20 @@ export const useExecutionStore = create<ExecutionState & ExecutionActions>()((se
     // Reset auto-pan disabled state when starting execution
     if (isExecuting) {
       set({ autoPanDisabled: false })
+      // Clear run path when starting a new execution
+      set({ lastRunPath: new Map() })
     }
   },
   setIsDebugging: (isDebugging) => set({ isDebugging }),
   setExecutor: (executor) => set({ executor }),
   setDebugContext: (debugContext) => set({ debugContext }),
   setAutoPanDisabled: (disabled) => set({ autoPanDisabled: disabled }),
+  setBlockRunStatus: (blockId, status) => {
+    const { lastRunPath } = get()
+    const newRunPath = new Map(lastRunPath)
+    newRunPath.set(blockId, status)
+    set({ lastRunPath: newRunPath })
+  },
+  clearRunPath: () => set({ lastRunPath: new Map() }),
   reset: () => set(initialState),
 }))

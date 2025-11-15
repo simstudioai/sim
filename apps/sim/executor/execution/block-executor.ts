@@ -72,6 +72,9 @@ export class BlockExecutor {
 
     try {
       resolvedInputs = this.resolver.resolveInputs(ctx, node.id, block.config.params, block)
+      if (blockLog) {
+        blockLog.input = resolvedInputs
+      }
     } catch (error) {
       cleanupSelfReference?.()
       return this.handleBlockError(

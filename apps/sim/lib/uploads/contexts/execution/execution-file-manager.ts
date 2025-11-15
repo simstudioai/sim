@@ -1,5 +1,4 @@
 import { createLogger } from '@/lib/logs/console/logger'
-import { getBaseUrl } from '@/lib/urls/utils'
 import { isUserFile } from '@/lib/utils'
 import type { UserFile } from '@/executor/types'
 import type { ExecutionContext } from './execution-file-helpers'
@@ -90,7 +89,9 @@ export async function uploadExecutionFile(
   }
 
   try {
-    const { uploadFile } = await import('@/lib/uploads/core/storage-service')
+    const { uploadFile, generatePresignedDownloadUrl } = await import(
+      '@/lib/uploads/core/storage-service'
+    )
     const fileInfo = await uploadFile({
       file: fileBuffer,
       fileName: storageKey,
@@ -101,16 +102,15 @@ export async function uploadExecutionFile(
       metadata, // Pass metadata for cloud storage and database tracking
     })
 
-    // Generate full URL for file access (useful for passing to external services)
-    const baseUrl = getBaseUrl()
-    const fullUrl = `${baseUrl}/api/files/serve/${fileInfo.key}`
+    // Generate presigned URL for file access (10 minutes expiration)
+    const fullUrl = await generatePresignedDownloadUrl(fileInfo.key, 'execution', 600)
 
     const userFile: UserFile = {
       id: fileId,
       name: fileName,
       size: fileBuffer.length,
       type: contentType,
-      url: fullUrl, // Full URL for external access and downstream workflow usage
+      url: fullUrl, // Presigned URL for external access and downstream workflow usage
       key: fileInfo.key,
       context: 'execution', // Preserve context in file object
     }

@@ -18,6 +18,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { createLogger } from '@/lib/logs/console/logger'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
+import { useDeleteFolderMutation, useUpdateFolder } from '@/hooks/queries/folders'
 import { type FolderTreeNode, useFolderStore } from '@/stores/folders/store'
 
 const logger = createLogger('FolderItem')
@@ -45,7 +46,9 @@ export function FolderItem({
   isFirstItem = false,
   level,
 }: FolderItemProps) {
-  const { expandedFolders, toggleExpanded, updateFolderAPI, deleteFolder } = useFolderStore()
+  const { expandedFolders, toggleExpanded } = useFolderStore()
+  const updateFolderMutation = useUpdateFolder()
+  const deleteFolderMutation = useDeleteFolderMutation()
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
@@ -127,7 +130,11 @@ export function FolderItem({
 
     setIsRenaming(true)
     try {
-      await updateFolderAPI(folder.id, { name: editValue.trim() })
+      await updateFolderMutation.mutateAsync({
+        workspaceId,
+        id: folder.id,
+        updates: { name: editValue.trim() },
+      })
       logger.info(`Successfully renamed folder from "${folder.name}" to "${editValue.trim()}"`)
       setIsEditing(false)
     } catch (error) {
@@ -171,7 +178,7 @@ export function FolderItem({
     setShowDeleteDialog(false)
 
     try {
-      await deleteFolder(folder.id, workspaceId)
+      await deleteFolderMutation.mutateAsync({ id: folder.id, workspaceId })
     } catch (error) {
       logger.error('Failed to delete folder:', { error })
     }

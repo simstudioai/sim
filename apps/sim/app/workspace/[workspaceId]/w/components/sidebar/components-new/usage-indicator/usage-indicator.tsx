@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Button } from '@/components/emcn'
 import { Skeleton } from '@/components/ui'
 import { createLogger } from '@/lib/logs/console/logger'
@@ -31,6 +31,14 @@ const MAX_PILL_COUNT = 8
 const WIDTH_PER_PILL = 50
 
 /**
+ * Animation configuration for usage pills
+ * Controls how smoothly and quickly the highlight progresses across pills
+ */
+const PILL_ANIMATION_TICK_MS = 30
+const PILLS_PER_SECOND = 1.8
+const PILL_STEP_PER_TICK = (PILLS_PER_SECOND * PILL_ANIMATION_TICK_MS) / 1000
+
+/**
  * Plan name mapping
  */
 const PLAN_NAMES = {
@@ -49,8 +57,8 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
   const sidebarWidth = useSidebarStore((state) => state.sidebarWidth)
 
   /**
-   * Calculate pill count based on sidebar width
-   * Starts at MIN_PILL_COUNT at minimum width, adds 1 pill per WIDTH_PER_PILL increase
+   * Calculate pill count based on sidebar width (6-8 pills dynamically)
+   * This provides responsive feedback as the sidebar width changes
    */
   const pillCount = useMemo(() => {
     const widthDelta = sidebarWidth - MIN_SIDEBAR_WIDTH
@@ -61,6 +69,67 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
 
   const usage = getUsage(subscriptionData?.data)
   const subscription = getSubscriptionStatus(subscriptionData?.data)
+
+  const progressPercentage = Math.min(usage.percentUsed, 100)
+
+  const planType = subscription.isEnterprise
+    ? 'enterprise'
+    : subscription.isTeam
+      ? 'team'
+      : subscription.isPro
+        ? 'pro'
+        : 'free'
+
+  const billingStatus = getBillingStatus(subscriptionData?.data)
+  const isBlocked = billingStatus === 'blocked'
+  const showUpgradeButton = planType === 'free' || isBlocked
+
+  /**
+   * Calculate which pills should be filled based on usage percentage
+   * Uses shared Math.ceil heuristic but with dynamic pill count (6-8)
+   * This ensures consistent calculation logic while maintaining responsive pill count
+   */
+  const filledPillsCount = Math.ceil((progressPercentage / 100) * pillCount)
+  const isAlmostOut = filledPillsCount === pillCount
+
+  const [isHovered, setIsHovered] = useState(false)
+  const [wavePosition, setWavePosition] = useState<number | null>(null)
+  const [hasWrapped, setHasWrapped] = useState(false)
+
+  const startAnimationIndex = pillCount === 0 ? 0 : Math.min(filledPillsCount, pillCount - 1)
+
+  useEffect(() => {
+    if (!isHovered || pillCount <= 0) {
+      setWavePosition(null)
+      setHasWrapped(false)
+      return
+    }
+
+    const totalSpan = pillCount
+    let wrapped = false
+    setHasWrapped(false)
+    setWavePosition(0)
+
+    const interval = window.setInterval(() => {
+      setWavePosition((prev) => {
+        const current = prev ?? 0
+        const next = current + PILL_STEP_PER_TICK
+
+        // Mark as wrapped after first complete cycle
+        if (next >= totalSpan && !wrapped) {
+          wrapped = true
+          setHasWrapped(true)
+        }
+
+        // Return continuous value, never reset (seamless loop)
+        return next
+      })
+    }, PILL_ANIMATION_TICK_MS)
+
+    return () => {
+      window.clearInterval(interval)
+    }
+  }, [isHovered, pillCount, startAnimationIndex])
 
   if (isLoading) {
     return (
@@ -84,26 +153,6 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
     )
   }
 
-  const progressPercentage = Math.min(usage.percentUsed, 100)
-
-  const planType = subscription.isEnterprise
-    ? 'enterprise'
-    : subscription.isTeam
-      ? 'team'
-      : subscription.isPro
-        ? 'pro'
-        : 'free'
-
-  const billingStatus = getBillingStatus(subscriptionData?.data)
-  const isBlocked = billingStatus === 'blocked'
-  const showUpgradeButton = planType === 'free' || isBlocked
-
-  /**
-   * Calculate which pills should be filled based on usage percentage
-   */
-  const filledPillsCount = Math.ceil((progressPercentage / 100) * pillCount)
-  const isAlmostOut = filledPillsCount === pillCount
-
   const handleClick = () => {
     try {
       if (onClick) {
@@ -125,7 +174,12 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
   }
 
   return (
-    <div className='flex flex-shrink-0 flex-col gap-[8px] border-t px-[13.5px] pt-[8px] pb-[10px] dark:border-[var(--border)]'>
+    <div
+      className='group flex flex-shrink-0 cursor-pointer flex-col gap-[8px] border-t px-[13.5px] pt-[8px] pb-[10px]'
+      onClick={handleClick}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+    >
       {/* Top row */}
       <div className='flex items-center justify-between'>
         <div className='flex items-center gap-[6px]'>
@@ -153,10 +207,10 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
         {showUpgradeButton && (
           <Button
             variant='ghost'
-            className='!h-auto !px-1 !py-0 -mx-1 mt-[-2px] text-[var(--text-secondary)]'
+            className='-mx-1 !h-auto !px-1 !py-0 !text-[#F473B7] group-hover:!text-[#F789C4] mt-[-2px] transition-colors duration-100'
             onClick={handleClick}
           >
-            Upgrade
+            <span className='font-medium text-[12px]'>Upgrade</span>
           </Button>
         )}
       </div>
@@ -165,12 +219,75 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
       <div className='flex items-center gap-[4px]'>
         {Array.from({ length: pillCount }).map((_, i) => {
           const isFilled = i < filledPillsCount
+
+          const baseColor = isFilled ? (isAlmostOut ? '#ef4444' : '#34B5FF') : '#414141'
+
+          let backgroundColor = baseColor
+          let backgroundImage: string | undefined
+
+          if (isHovered && wavePosition !== null && pillCount > 0) {
+            const totalSpan = pillCount
+            const grayColor = '#414141'
+            const activeColor = isAlmostOut ? '#ef4444' : '#34B5FF'
+
+            if (!hasWrapped) {
+              // First pass: respect original fill state, start from startAnimationIndex
+              const headIndex = Math.floor(wavePosition)
+              const progress = wavePosition - headIndex
+
+              const pillOffsetFromStart =
+                i >= startAnimationIndex
+                  ? i - startAnimationIndex
+                  : totalSpan - startAnimationIndex + i
+
+              if (pillOffsetFromStart < headIndex) {
+                backgroundColor = baseColor
+                backgroundImage = `linear-gradient(to right, ${activeColor} 0%, ${activeColor} 100%)`
+              } else if (pillOffsetFromStart === headIndex) {
+                const fillPercent = Math.max(0, Math.min(1, progress)) * 100
+                backgroundColor = baseColor
+                backgroundImage = `linear-gradient(to right, ${activeColor} 0%, ${activeColor} ${fillPercent}%, ${baseColor} ${fillPercent}%, ${baseColor} 100%)`
+              }
+            } else {
+              // Subsequent passes: render wave at BOTH current and next-cycle positions for seamless wrap
+              const wrappedPosition = wavePosition % totalSpan
+              const currentHead = Math.floor(wrappedPosition)
+              const progress = wrappedPosition - currentHead
+
+              // Primary wave position
+              const primaryFilled = i < currentHead
+              const primaryActive = i === currentHead
+
+              // Secondary wave position (one full cycle ahead, wraps to beginning)
+              const secondaryHead = Math.floor(wavePosition + totalSpan) % totalSpan
+              const secondaryProgress =
+                wavePosition + totalSpan - Math.floor(wavePosition + totalSpan)
+              const secondaryFilled = i < secondaryHead
+              const secondaryActive = i === secondaryHead
+
+              // Render: pill is filled if either wave position has filled it
+              if (primaryFilled || secondaryFilled) {
+                backgroundColor = grayColor
+                backgroundImage = `linear-gradient(to right, ${activeColor} 0%, ${activeColor} 100%)`
+              } else if (primaryActive || secondaryActive) {
+                const activeProgress = primaryActive ? progress : secondaryProgress
+                const fillPercent = Math.max(0, Math.min(1, activeProgress)) * 100
+                backgroundColor = grayColor
+                backgroundImage = `linear-gradient(to right, ${activeColor} 0%, ${activeColor} ${fillPercent}%, ${grayColor} ${fillPercent}%, ${grayColor} 100%)`
+              } else {
+                backgroundColor = grayColor
+              }
+            }
+          }
+
           return (
             <div
               key={i}
               className='h-[6px] flex-1 rounded-[2px]'
               style={{
-                backgroundColor: isFilled ? (isAlmostOut ? '#ef4444' : '#34B5FF') : '#414141',
+                backgroundColor,
+                backgroundImage,
+                transition: isHovered ? 'none' : 'background-color 200ms',
               }}
             />
           )

@@ -14,7 +14,7 @@ import {
   extractWorkflowsFromZip,
 } from '@/lib/workflows/import-export'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
-import { useFolderStore } from '@/stores/folders/store'
+import { useCreateFolder } from '@/hooks/queries/folders'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 import { parseWorkflowJson } from '@/stores/workflows/json/importer'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -43,7 +43,7 @@ export function CreateMenu({ onCreateWorkflow, isCreatingWorkflow = false }: Cre
   const params = useParams()
   const router = useRouter()
   const workspaceId = params.workspaceId as string
-  const { createFolder } = useFolderStore()
+  const createFolderMutation = useCreateFolder()
   const { createWorkflow } = useWorkflowRegistry()
   const userPermissions = useUserPermissionsContext()
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -110,14 +110,14 @@ export function CreateMenu({ onCreateWorkflow, isCreatingWorkflow = false }: Cre
     try {
       setIsCreating(true)
       const folderName = await generateFolderName(workspaceId)
-      await createFolder({ name: folderName, workspaceId })
+      await createFolderMutation.mutateAsync({ name: folderName, workspaceId })
       logger.info(`Created folder: ${folderName}`)
     } catch (error) {
       logger.error('Failed to create folder:', { error })
     } finally {
       setIsCreating(false)
     }
-  }, [createFolder, workspaceId, isCreating])
+  }, [createFolderMutation, workspaceId, isCreating])
 
   const handleImportWorkflow = useCallback(() => {
     setIsOpen(false)
@@ -143,9 +143,8 @@ export function CreateMenu({ onCreateWorkflow, isCreatingWorkflow = false }: Cre
           const { workflows: extractedWorkflows, metadata } = await extractWorkflowsFromZip(zipFile)
           importedWorkflows = extractedWorkflows
 
-          const { createFolder } = useFolderStore.getState()
           const folderName = metadata?.workspaceName || zipFile.name.replace(/\.zip$/i, '')
-          const importFolder = await createFolder({
+          const importFolder = await createFolderMutation.mutateAsync({
             name: folderName,
             workspaceId,
           })
@@ -175,7 +174,7 @@ export function CreateMenu({ onCreateWorkflow, isCreatingWorkflow = false }: Cre
                     const pathSegment = workflow.folderPath.slice(0, i + 1).join('/')
 
                     if (!folderMap.has(pathSegment)) {
-                      const subFolder = await createFolder({
+                      const subFolder = await createFolderMutation.mutateAsync({
                         name: workflow.folderPath[i],
                         workspaceId,
                         parentId,
@@ -302,9 +301,6 @@ export function CreateMenu({ onCreateWorkflow, isCreatingWorkflow = false }: Cre
 
         const { loadWorkflows } = useWorkflowRegistry.getState()
         await loadWorkflows(workspaceId)
-
-        const { fetchFolders } = useFolderStore.getState()
-        await fetchFolders(workspaceId)
       } catch (error) {
         logger.error('Failed to import workflows:', error)
       } finally {
@@ -314,7 +310,7 @@ export function CreateMenu({ onCreateWorkflow, isCreatingWorkflow = false }: Cre
         }
       }
     },
-    [workspaceId, createWorkflow]
+    [workspaceId, createWorkflow, createFolderMutation]
   )
 
   // Button event handlers

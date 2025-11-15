@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { devtools, persist } from 'zustand/middleware'
 import { redactApiKeys } from '@/lib/utils'
 import type { NormalizedBlockOutput } from '@/executor/types'
+import { useExecutionStore } from '@/stores/execution/store'
 import type { ConsoleEntry, ConsoleStore, ConsoleUpdate } from './types'
 
 /**
@@ -98,17 +99,19 @@ export const useTerminalConsoleStore = create<ConsoleStore>()(
         },
 
         /**
-         * Clears console entries for a specific workflow
+         * Clears console entries for a specific workflow and clears the run path
          * @param workflowId - The workflow ID to clear entries for
          */
         clearWorkflowConsole: (workflowId: string) => {
           set((state) => ({
             entries: state.entries.filter((entry) => entry.workflowId !== workflowId),
           }))
+          // Clear run path indicators when console is cleared
+          useExecutionStore.getState().clearRunPath()
         },
 
         /**
-         * Clears all console entries or entries for a specific workflow
+         * Clears all console entries or entries for a specific workflow and clears the run path
          * @param workflowId - The workflow ID to clear entries for, or null to clear all
          * @deprecated Use clearWorkflowConsole for clearing specific workflows
          */
@@ -118,6 +121,8 @@ export const useTerminalConsoleStore = create<ConsoleStore>()(
               ? state.entries.filter((entry) => entry.workflowId !== workflowId)
               : [],
           }))
+          // Clear run path indicators when console is cleared
+          useExecutionStore.getState().clearRunPath()
         },
 
         exportConsoleCSV: (workflowId: string) => {

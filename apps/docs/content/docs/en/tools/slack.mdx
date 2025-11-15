@@ -73,8 +73,10 @@ Send messages to Slack channels or users through the Slack API. Supports Slack m
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
+| `message` | object | Complete message object with all properties returned by Slack |
 | `ts` | string | Message timestamp |
 | `channel` | string | Channel ID where message was sent |
+| `fileCount` | number | Number of files uploaded \(when files are attached\) |
 
 ### `slack_canvas`
 
@@ -157,6 +159,7 @@ Update a message previously sent by the bot in Slack
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
+| `message` | object | Complete updated message object with all properties returned by Slack |
 | `content` | string | Success message |
 | `metadata` | object | Updated message metadata |
 

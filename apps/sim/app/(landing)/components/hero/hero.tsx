@@ -215,7 +215,7 @@ export default function Hero() {
     { key: 'linear', icon: LinearIcon, label: 'Linear', style: { color: '#5E6AD2' } },
     { key: 'discord', icon: DiscordIcon, label: 'Discord', style: { color: '#5765F2' } },
     { key: 'airtable', icon: AirtableIcon, label: 'Airtable' },
-    { key: 'stripe', icon: StripeIcon, label: 'Stripe' },
+    { key: 'stripe', icon: StripeIcon, label: 'Stripe', style: { color: '#635BFF' } },
     { key: 'notion', icon: NotionIcon, label: 'Notion' },
     { key: 'googleSheets', icon: GoogleSheetsIcon, label: 'Google Sheets' },
     { key: 'googleDrive', icon: GoogleDriveIcon, label: 'Google Drive' },

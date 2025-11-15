@@ -1,7 +1,7 @@
 import { useCallback, useState } from 'react'
 import { createLogger } from '@/lib/logs/console/logger'
 import { generateFolderName } from '@/lib/naming'
-import { useFolderStore } from '@/stores/folders/store'
+import { useCreateFolder } from '@/hooks/queries/folders'
 
 const logger = createLogger('useFolderOperations')
 
@@ -17,7 +17,7 @@ interface UseFolderOperationsProps {
  * @returns Folder operations state and handlers
  */
 export function useFolderOperations({ workspaceId }: UseFolderOperationsProps) {
-  const { createFolder } = useFolderStore()
+  const createFolderMutation = useCreateFolder()
   const [isCreatingFolder, setIsCreatingFolder] = useState(false)
 
   /**
@@ -32,7 +32,7 @@ export function useFolderOperations({ workspaceId }: UseFolderOperationsProps) {
     try {
       setIsCreatingFolder(true)
       const folderName = await generateFolderName(workspaceId)
-      const folder = await createFolder({ name: folderName, workspaceId })
+      const folder = await createFolderMutation.mutateAsync({ name: folderName, workspaceId })
       logger.info(`Created folder: ${folderName}`)
       return folder.id
     } catch (error) {
@@ -41,7 +41,7 @@ export function useFolderOperations({ workspaceId }: UseFolderOperationsProps) {
     } finally {
       setIsCreatingFolder(false)
     }
-  }, [createFolder, workspaceId, isCreatingFolder])
+  }, [createFolderMutation, workspaceId, isCreatingFolder])
 
   return {
     // State
