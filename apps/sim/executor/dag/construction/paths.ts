@@ -28,6 +28,25 @@ export class PathConstructor {
       const block = workflow.blocks.find((b) => b.id === triggerBlockId)
 
       if (block) {
+        // Validate that the trigger block is enabled
+        if (!block.enabled) {
+          logger.error('Provided triggerBlockId is disabled, finding alternative', {
+            triggerBlockId,
+            blockEnabled: block.enabled,
+          })
+          // Try to find an alternative enabled trigger instead of failing
+          const alternativeTrigger = this.findExplicitTrigger(workflow)
+          if (alternativeTrigger) {
+            logger.info('Using alternative enabled trigger', {
+              disabledTriggerId: triggerBlockId,
+              alternativeTriggerId: alternativeTrigger,
+            })
+            return alternativeTrigger
+          }
+          throw new Error(
+            `Trigger block ${triggerBlockId} is disabled and no alternative enabled trigger found`
+          )
+        }
         return triggerBlockId
       }
 
@@ -95,8 +114,16 @@ export class PathConstructor {
 
   private buildAdjacencyMap(workflow: SerializedWorkflow): Map<string, string[]> {
     const adjacency = new Map<string, string[]>()
+    // Build a set of enabled block IDs for quick lookup
+    const enabledBlocks = new Set(workflow.blocks.filter((b) => b.enabled).map((b) => b.id))
 
     for (const connection of workflow.connections) {
+      // Only include edges where both source and target are enabled
+      // This prevents disabled blocks from being included in reachability
+      if (!enabledBlocks.has(connection.source) || !enabledBlocks.has(connection.target)) {
+        continue
+      }
+
       const neighbors = adjacency.get(connection.source) ?? []
       neighbors.push(connection.target)
       adjacency.set(connection.source, neighbors)
