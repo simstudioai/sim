@@ -100,6 +100,7 @@ export function useWorkflowExecution() {
     setDebugContext,
     setActiveBlocks,
     setBlockRunStatus,
+    setEdgeRunStatus,
   } = useExecutionStore()
   const [executionResult, setExecutionResult] = useState<ExecutionResult | null>(null)
   const executionStream = useExecutionStream()
@@ -892,6 +893,12 @@ export function useWorkflowExecution() {
               activeBlocksSet.add(data.blockId)
               // Create a new Set to trigger React re-render
               setActiveBlocks(new Set(activeBlocksSet))
+
+              // Track edges that led to this block as soon as execution starts
+              const incomingEdges = workflowEdges.filter((edge) => edge.target === data.blockId)
+              incomingEdges.forEach((edge) => {
+                setEdgeRunStatus(edge.id, 'success')
+              })
             },
 
             onBlockCompleted: (data) => {
@@ -903,6 +910,8 @@ export function useWorkflowExecution() {
 
               // Track successful block execution in run path
               setBlockRunStatus(data.blockId, 'success')
+
+              // Edges already tracked in onBlockStarted, no need to track again
 
               // Add to console
               addConsole({
@@ -938,7 +947,6 @@ export function useWorkflowExecution() {
 
               // Track failed block execution in run path
               setBlockRunStatus(data.blockId, 'error')
-
               // Add error to console
               addConsole({
                 input: data.input || {},

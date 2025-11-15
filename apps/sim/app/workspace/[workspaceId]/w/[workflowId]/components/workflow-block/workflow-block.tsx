@@ -343,6 +343,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
     handleClick,
     hasRing,
     ringStyles,
+    runPathStatus,
   } = useBlockCore({ blockId: id, data, isPending })
 
   const currentBlock = currentWorkflow.getBlockById(id)
@@ -750,21 +751,26 @@ export const WorkflowBlock = memo(function WorkflowBlock({
             e.stopPropagation()
           }}
         >
-          <div className='flex min-w-0 flex-1 items-center gap-[10px]'>
+          <div className='relative z-10 flex min-w-0 flex-1 items-center gap-[10px]'>
             <div
               className='flex h-[24px] w-[24px] flex-shrink-0 items-center justify-center rounded-[6px]'
-              style={{ backgroundColor: isEnabled ? config.bgColor : 'gray' }}
+              style={{
+                backgroundColor: isEnabled ? config.bgColor : 'gray',
+              }}
             >
               <config.icon className='h-[16px] w-[16px] text-white' />
             </div>
             <span
-              className={cn('truncate font-medium text-[16px]', !isEnabled && 'text-[#808080]')}
+              className={cn(
+                'truncate font-medium text-[16px]',
+                !isEnabled && runPathStatus !== 'success' && 'text-[#808080]'
+              )}
               title={name}
             >
               {name}
             </span>
           </div>
-          <div className='flex flex-shrink-0 items-center gap-2'>
+          <div className='relative z-10 flex flex-shrink-0 items-center gap-2'>
             {isWorkflowSelector && childWorkflowId && (
               <>
                 {typeof childIsDeployed === 'boolean' ? (
@@ -890,6 +896,14 @@ export const WorkflowBlock = memo(function WorkflowBlock({
                 </Tooltip.Content>
               </Tooltip.Root>
             )}
+            {/* {isActive && (
+              <div className='mr-[2px] ml-2 flex h-[16px] w-[16px] items-center justify-center'>
+                <div
+                  className='h-full w-full animate-spin-slow rounded-full border-[2.5px] border-[rgba(255,102,0,0.25)] border-t-[var(--warning)]'
+                  aria-hidden='true'
+                />
+              </div>
+            )} */}
           </div>
         </div>
 

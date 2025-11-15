@@ -144,10 +144,10 @@ export default {
         },
         'ring-pulse': {
           '0%, 100%': {
-            opacity: '1',
+            'box-shadow': '0 0 0 1.5px var(--border-success)',
           },
           '50%': {
-            opacity: '0.6',
+            'box-shadow': '0 0 0 4px var(--border-success)',
           },
         },
       },
