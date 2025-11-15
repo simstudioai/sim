@@ -75,7 +75,7 @@ const nextConfig: NextConfig = {
   turbopack: {
     resolveExtensions: ['.tsx', '.ts', '.jsx', '.js', '.mjs', '.json'],
   },
-  serverExternalPackages: ['pdf-parse'],
+  serverExternalPackages: ['unpdf'],
   experimental: {
     optimizeCss: true,
     turbopackSourceMaps: false,

@@ -28,29 +28,23 @@ export class PdfParser implements FileParser {
     try {
       logger.info('Starting to parse buffer, size:', dataBuffer.length)
 
-      const { PDFParse } = await import('pdf-parse')
+      const { extractText, getDocumentProxy } = await import('unpdf')
 
-      const parser = new PDFParse({ data: dataBuffer })
-      const textResult = await parser.getText()
-      const infoResult = await parser.getInfo()
-      await parser.destroy()
+      const uint8Array = new Uint8Array(dataBuffer)
 
-      logger.info(
-        'PDF parsed successfully, pages:',
-        textResult.total,
-        'text length:',
-        textResult.text.length
-      )
+      const pdf = await getDocumentProxy(uint8Array)
 
-      const cleanContent = textResult.text.replace(/\u0000/g, '')
+      const { totalPages, text } = await extractText(pdf, { mergePages: true })
+
+      logger.info('PDF parsed successfully, pages:', totalPages, 'text length:', text.length)
+
+      const cleanContent = text.replace(/\u0000/g, '')
 
       return {
         content: cleanContent,
         metadata: {
-          pageCount: textResult.total,
-          info: infoResult.info,
-          version: infoResult.metadata?.get('pdf:PDFVersion'),
-          source: 'pdf-parse',
+          pageCount: totalPages,
+          source: 'unpdf',
         },
       }
     } catch (error) {
