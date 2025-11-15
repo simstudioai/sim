@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import { Check } from 'lucide-react'
 import { Button } from '@/components/emcn/components/button/button'
 import {
@@ -10,6 +11,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { client } from '@/lib/auth-client'
 import { createLogger } from '@/lib/logs/console/logger'
 import {
@@ -246,6 +249,9 @@ export function OAuthRequiredModal({
   serviceId,
   newScopes = [],
 }: OAuthRequiredModalProps) {
+  const [snowflakeAccountUrl, setSnowflakeAccountUrl] = useState('')
+  const [accountUrlError, setAccountUrlError] = useState('')
+
   const effectiveServiceId = serviceId || getServiceIdFromScopes(provider, requiredScopes)
   const { baseProvider } = parseProvider(provider)
   const baseProviderConfig = OAUTH_PROVIDERS[baseProvider]
@@ -275,6 +281,23 @@ export function OAuthRequiredModal({
   const handleConnectDirectly = async () => {
     try {
       const providerId = getProviderIdFromServiceId(effectiveServiceId)
+
+      // Special handling for Snowflake - requires account URL
+      if (providerId === 'snowflake') {
+        if (!snowflakeAccountUrl.trim()) {
+          setAccountUrlError('Account URL is required')
+          return
+        }
+        
+        onClose()
+        
+        logger.info('Initiating Snowflake OAuth:', {
+          accountUrl: snowflakeAccountUrl,
+        })
+        
+        window.location.href = `/api/auth/snowflake/authorize?accountUrl=${encodeURIComponent(snowflakeAccountUrl)}`
+        return
+      }
 
       onClose()
 
@@ -319,6 +342,30 @@ export function OAuthRequiredModal({
               </p>
             </div>
           </div>
+
+          {getProviderIdFromServiceId(effectiveServiceId) === 'snowflake' && (
+            <div className='flex flex-col gap-2'>
+              <Label htmlFor='snowflake-account-url' className='text-sm font-medium'>
+                Snowflake Account URL
+              </Label>
+              <Input
+                id='snowflake-account-url'
+                placeholder='xy12345.us-east-1.snowflakecomputing.com'
+                value={snowflakeAccountUrl}
+                onChange={(e) => {
+                  setSnowflakeAccountUrl(e.target.value)
+                  setAccountUrlError('')
+                }}
+                className='font-mono text-sm'
+              />
+              {accountUrlError && (
+                <p className='text-destructive text-xs'>{accountUrlError}</p>
+              )}
+              <p className='text-muted-foreground text-xs'>
+                Enter your Snowflake account URL (e.g., myorg-account123.us-east-1.snowflakecomputing.com)
+              </p>
+            </div>
+          )}
 
           {displayScopes.length > 0 && (
             <div className='rounded-md border bg-muted/50'>
