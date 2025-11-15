@@ -13,10 +13,6 @@ import {
   languages,
 } from '@/components/emcn/components/code/code'
 import { Button } from '@/components/ui/button'
-import {
-  createEnvVarPattern,
-  createReferencePattern,
-} from '@/executor/utils/reference-validation'
 import { CodeLanguage } from '@/lib/execution/languages'
 import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
@@ -39,6 +35,7 @@ import { WandPromptBar } from '@/app/workspace/[workspaceId]/w/[workflowId]/comp
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
 import { useWand } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-wand'
 import type { GenerationType } from '@/blocks/types'
+import { createEnvVarPattern, createReferencePattern } from '@/executor/utils/reference-validation'
 import { useTagSelection } from '@/hooks/use-tag-selection'
 import { normalizeBlockName } from '@/stores/workflows/utils'
 

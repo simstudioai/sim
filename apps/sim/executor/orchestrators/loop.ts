@@ -5,6 +5,7 @@ import type { LoopScope } from '@/executor/execution/state'
 import type { BlockStateController } from '@/executor/execution/types'
 import type { ExecutionContext, NormalizedBlockOutput } from '@/executor/types'
 import type { LoopConfigWithNodes } from '@/executor/types/loop'
+import { replaceValidReferences } from '@/executor/utils/reference-validation'
 import {
   buildSentinelEndId,
   buildSentinelStartId,
@@ -12,7 +13,6 @@ import {
 } from '@/executor/utils/subflow-utils'
 import type { VariableResolver } from '@/executor/variables/resolver'
 import type { SerializedLoop } from '@/serializer/types'
-import { replaceValidReferences } from '@/executor/utils/reference-validation'
 
 const logger = createLogger('LoopOrchestrator')
 

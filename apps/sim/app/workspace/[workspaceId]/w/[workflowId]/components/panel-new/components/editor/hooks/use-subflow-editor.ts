@@ -1,16 +1,13 @@
 import { useCallback, useRef, useState } from 'react'
 import { highlight, languages } from '@/components/emcn'
 import {
-  createEnvVarPattern,
-  createReferencePattern,
-} from '@/executor/utils/reference-validation'
-import {
   isLikelyReferenceSegment,
   SYSTEM_REFERENCE_PREFIXES,
   splitReferenceSegment,
 } from '@/lib/workflows/references'
 import { checkTagTrigger } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/components/sub-block/components/tag-dropdown/tag-dropdown'
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
+import { createEnvVarPattern, createReferencePattern } from '@/executor/utils/reference-validation'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { normalizeBlockName } from '@/stores/workflows/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'

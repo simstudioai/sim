@@ -2,6 +2,7 @@ import { createLogger } from '@/lib/logs/console/logger'
 import { BlockType, REFERENCE } from '@/executor/consts'
 import type { ExecutionState, LoopScope } from '@/executor/execution/state'
 import type { ExecutionContext } from '@/executor/types'
+import { replaceValidReferences } from '@/executor/utils/reference-validation'
 import { BlockResolver } from '@/executor/variables/resolvers/block'
 import { EnvResolver } from '@/executor/variables/resolvers/env'
 import { LoopResolver } from '@/executor/variables/resolvers/loop'
@@ -9,7 +10,6 @@ import { ParallelResolver } from '@/executor/variables/resolvers/parallel'
 import type { ResolutionContext, Resolver } from '@/executor/variables/resolvers/reference'
 import { WorkflowResolver } from '@/executor/variables/resolvers/workflow'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
-import { replaceValidReferences } from '@/executor/utils/reference-validation'
 
 const logger = createLogger('VariableResolver')
 

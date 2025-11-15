@@ -1,9 +1,9 @@
 'use client'
 
 import type { ReactNode } from 'react'
+import { splitReferenceSegment } from '@/lib/workflows/references'
 import { REFERENCE } from '@/executor/consts'
 import { createCombinedPattern } from '@/executor/utils/reference-validation'
-import { splitReferenceSegment } from '@/lib/workflows/references'
 import { normalizeBlockName } from '@/stores/workflows/utils'
 
 export interface HighlightContext {

@@ -1,5 +1,5 @@
-import { REFERENCE } from '@/executor/consts'
 import { isLikelyReferenceSegment } from '@/lib/workflows/references'
+import { REFERENCE } from '@/executor/consts'
 
 /**
  * Creates a regex pattern for matching variable references in the format <reference>
@@ -9,7 +9,10 @@ import { isLikelyReferenceSegment } from '@/lib/workflows/references'
 export function createReferencePattern(): RegExp {
   // Match < followed by content that doesn't contain < or >, followed by >
   // This prevents matching "<3. text <real.reference>" as one big match
-  return new RegExp(`${REFERENCE.START}([^${REFERENCE.START}${REFERENCE.END}]+)${REFERENCE.END}`, 'g')
+  return new RegExp(
+    `${REFERENCE.START}([^${REFERENCE.START}${REFERENCE.END}]+)${REFERENCE.END}`,
+    'g'
+  )
 }
 
 /**
@@ -26,7 +29,7 @@ export function createEnvVarPattern(): RegExp {
 export function createCombinedPattern(): RegExp {
   return new RegExp(
     `${REFERENCE.START}[^${REFERENCE.START}${REFERENCE.END}]+${REFERENCE.END}|` +
-    `\\${REFERENCE.ENV_VAR_START}[^}]+\\${REFERENCE.ENV_VAR_END}`,
+      `\\${REFERENCE.ENV_VAR_START}[^}]+\\${REFERENCE.ENV_VAR_END}`,
     'g'
   )
 }
@@ -34,13 +37,13 @@ export function createCombinedPattern(): RegExp {
 /**
  * Validates if a matched string is a likely variable reference using smart detection.
  * This prevents treating operators like "<5" or "< 10" as variable references.
- * 
+ *
  * Rules:
  * - Must contain a valid block/variable name before the first dot (if dot exists)
  * - Cannot start with spaces
  * - Cannot contain invalid characters like +, *, /, =, <, >, ! in the wrong positions
  * - Must follow variable reference syntax: <blockName.field> or <variable.name>
- * 
+ *
  * @param match - The matched string (e.g., "<blockName.field>")
  * @returns true if this is likely a variable reference, false otherwise
  */
@@ -52,11 +55,11 @@ export function isValidVariableReference(match: string): boolean {
  * Replaces variable references in a template string with a callback function.
  * Only processes matches that pass smart validation to avoid treating operators
  * like "<" as variable reference opening brackets.
- * 
+ *
  * @param template - The template string containing potential variable references
  * @param replacer - Callback function that receives the match and returns the replacement
  * @returns The template with valid variable references replaced
- * 
+ *
  * @example
  * ```ts
  * const result = replaceValidReferences(
@@ -71,15 +74,14 @@ export function replaceValidReferences(
   replacer: (match: string) => string
 ): string {
   const pattern = createReferencePattern()
-  
+
   return template.replace(pattern, (match) => {
     // Smart validation: only process if this looks like a valid variable reference
     // This prevents treating things like "<5" or "< 10" as variable references
     if (!isValidVariableReference(match)) {
       return match
     }
-    
+
     return replacer(match)
   })
 }
-
