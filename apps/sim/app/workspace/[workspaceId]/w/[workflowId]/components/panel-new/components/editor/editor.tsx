@@ -210,9 +210,14 @@ export function Editor() {
             />
           ) : (
             <h2
-              className='min-w-0 flex-1 cursor-pointer truncate pr-[8px] font-medium text-[14px] text-[var(--white)] dark:text-[var(--white)]'
+              className='min-w-0 flex-1 cursor-pointer select-none truncate pr-[8px] font-medium text-[14px] text-[var(--white)] dark:text-[var(--white)]'
               title={title}
               onDoubleClick={handleStartRename}
+              onMouseDown={(e) => {
+                if (e.detail === 2) {
+                  e.preventDefault()
+                }
+              }}
             >
               {title}
             </h2>
