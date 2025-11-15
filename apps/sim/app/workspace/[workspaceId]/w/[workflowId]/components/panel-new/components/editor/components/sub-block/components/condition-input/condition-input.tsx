@@ -864,21 +864,33 @@ export function ConditionInput({
                             placeholder: string
                             original: string
                             type: 'var' | 'env'
+                            shouldHighlight: boolean
                           }[] = []
                           let processedCode = codeToHighlight
 
                           // Replace environment variables with placeholders
                           processedCode = processedCode.replace(/\{\{([^}]+)\}\}/g, (match) => {
                             const placeholder = `__ENV_VAR_${placeholders.length}__`
-                            placeholders.push({ placeholder, original: match, type: 'env' })
+                            placeholders.push({
+                              placeholder,
+                              original: match,
+                              type: 'env',
+                              shouldHighlight: true,
+                            })
                             return placeholder
                           })
 
                           // Replace variable references with placeholders
                           processedCode = processedCode.replace(/<([^>]+)>/g, (match) => {
-                            if (shouldHighlightReference(match)) {
+                            const shouldHighlight = shouldHighlightReference(match)
+                            if (shouldHighlight) {
                               const placeholder = `__VAR_REF_${placeholders.length}__`
-                              placeholders.push({ placeholder, original: match, type: 'var' })
+                              placeholders.push({
+                                placeholder,
+                                original: match,
+                                type: 'var',
+                                shouldHighlight: true,
+                              })
                               return placeholder
                             }
                             return match
@@ -892,21 +904,25 @@ export function ConditionInput({
                           )
 
                           // Restore and highlight the placeholders
-                          placeholders.forEach(({ placeholder, original, type }) => {
-                            if (type === 'env') {
-                              highlightedCode = highlightedCode.replace(
-                                placeholder,
-                                `<span class="text-blue-500">${original}</span>`
-                              )
-                            } else if (type === 'var') {
-                              // Escape the < and > for display
-                              const escaped = original.replace(/</g, '&lt;').replace(/>/g, '&gt;')
-                              highlightedCode = highlightedCode.replace(
-                                placeholder,
-                                `<span class="text-blue-500">${escaped}</span>`
-                              )
+                          placeholders.forEach(
+                            ({ placeholder, original, type, shouldHighlight }) => {
+                              if (!shouldHighlight) return
+
+                              if (type === 'env') {
+                                highlightedCode = highlightedCode.replace(
+                                  placeholder,
+                                  `<span class="text-blue-500">${original}</span>`
+                                )
+                              } else if (type === 'var') {
+                                // Escape the < and > for display
+                                const escaped = original.replace(/</g, '&lt;').replace(/>/g, '&gt;')
+                                highlightedCode = highlightedCode.replace(
+                                  placeholder,
+                                  `<span class="text-blue-500">${escaped}</span>`
+                                )
+                              }
                             }
-                          })
+                          )
 
                           return highlightedCode
                         }}
