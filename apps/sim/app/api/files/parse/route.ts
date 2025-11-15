@@ -588,6 +588,8 @@ async function handleLocalFile(
 
 /**
  * Handle a PDF buffer directly in memory
+ * Priority: Azure Mistral OCR → Mistral OCR → pdf-parse
+ * Falls back gracefully if any method fails
  */
 async function handlePdfBuffer(
   fileBuffer: Buffer,
@@ -595,8 +597,36 @@ async function handlePdfBuffer(
   fileType?: string,
   originalPath?: string
 ): Promise<ParseResult> {
+  const { env } = await import('@/lib/env')
+
+  const hasAzureMistralOCR =
+    env.OCR_AZURE_API_KEY && env.OCR_AZURE_ENDPOINT && env.OCR_AZURE_MODEL_NAME
+  const hasMistralOCR = env.MISTRAL_API_KEY
+
+  if (hasAzureMistralOCR) {
+    try {
+      logger.info(`Attempting Azure Mistral OCR for PDF: ${filename}`)
+      const azureResult = await parseBufferWithAzureMistralOCR(fileBuffer, filename, originalPath)
+      return azureResult
+    } catch (azureError) {
+      logger.warn('Azure Mistral OCR failed, trying regular Mistral:', azureError)
+      // Fall through to regular Mistral or pdf-parse
+    }
+  }
+
+  if (hasMistralOCR) {
+    try {
+      logger.info(`Attempting Mistral OCR for PDF: ${filename}`)
+      const mistralResult = await parseBufferWithMistralOCR(fileBuffer, filename, originalPath)
+      return mistralResult
+    } catch (mistralError) {
+      logger.warn('Mistral OCR failed, falling back to pdf-parse:', mistralError)
+      // Fall through to pdf-parse
+    }
+  }
+
   try {
-    logger.info(`Parsing PDF in memory: ${filename}`)
+    logger.info(`Parsing PDF with pdf-parse: ${filename}`)
 
     const result = await parseBufferAsPdf(fileBuffer)
 
@@ -769,6 +799,179 @@ function handleGenericBuffer(
       hash: createHash('md5').update(fileBuffer).digest('hex'),
       processingTime: 0,
     },
+  }
+}
+
+/**
+ * Parse a PDF buffer using Azure Mistral OCR
+ * Uses base64 data URI instead of presigned URL
+ */
+async function parseBufferWithAzureMistralOCR(
+  buffer: Buffer,
+  filename: string,
+  originalPath?: string
+): Promise<ParseResult> {
+  try {
+    const { env } = await import('@/lib/env')
+    if (!env.OCR_AZURE_API_KEY || !env.OCR_AZURE_ENDPOINT || !env.OCR_AZURE_MODEL_NAME) {
+      throw new Error('Azure Mistral OCR not fully configured')
+    }
+
+    logger.info(`Using Azure Mistral OCR for PDF: ${filename}`)
+
+    // Convert buffer to base64 data URI
+    const base64Data = buffer.toString('base64')
+    const dataUri = `data:application/pdf;base64,${base64Data}`
+
+    // Call Azure Mistral OCR API
+    const azureResponse = await fetch(env.OCR_AZURE_ENDPOINT, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${env.OCR_AZURE_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model: env.OCR_AZURE_MODEL_NAME,
+        document: {
+          type: 'document_url',
+          document_url: dataUri,
+        },
+        include_image_base64: false,
+      }),
+    })
+
+    if (!azureResponse.ok) {
+      const errorText = await azureResponse.text()
+      throw new Error(
+        `Azure Mistral API error: ${azureResponse.status} ${azureResponse.statusText} - ${errorText}`
+      )
+    }
+
+    const azureData = await azureResponse.json()
+
+    // Extract content from pages
+    const content =
+      azureData.pages
+        ?.map((page: { markdown?: string }) => page.markdown || '')
+        .filter(Boolean)
+        .join('\n\n') || JSON.stringify(azureData, null, 2)
+
+    if (!content.trim()) {
+      throw new Error('Azure Mistral OCR returned empty content')
+    }
+
+    logger.info(`Azure Mistral OCR completed successfully for ${filename}`)
+
+    return {
+      success: true,
+      content,
+      filePath: originalPath || filename,
+      metadata: {
+        fileType: 'application/pdf',
+        size: buffer.length,
+        hash: createHash('md5').update(buffer).digest('hex'),
+        processingTime: 0,
+      },
+    }
+  } catch (error) {
+    logger.error('Azure Mistral OCR parsing failed:', error)
+    throw error // Re-throw to trigger fallback
+  }
+}
+
+/**
+ * Parse a PDF buffer using Mistral OCR
+ */
+async function parseBufferWithMistralOCR(
+  buffer: Buffer,
+  filename: string,
+  originalPath?: string
+): Promise<ParseResult> {
+  try {
+    const { env } = await import('@/lib/env')
+    if (!env.MISTRAL_API_KEY) {
+      throw new Error('Mistral API key not configured')
+    }
+
+    logger.info(`Uploading PDF to cloud storage for Mistral OCR: ${filename}`)
+
+    const timestamp = Date.now()
+    const uniqueId = Math.random().toString(36).substring(2, 9)
+    const safeFileName = filename.replace(/[^a-zA-Z0-9.-]/g, '_')
+    const customKey = `execution/${timestamp}-${uniqueId}-${safeFileName}`
+
+    const uploadResult = await StorageService.uploadFile({
+      file: buffer,
+      fileName: filename,
+      contentType: 'application/pdf',
+      context: 'execution',
+      customKey,
+      metadata: {
+        originalName: filename,
+        uploadedAt: new Date().toISOString(),
+        purpose: 'pdf-parsing',
+      },
+    })
+
+    const presignedUrl = await StorageService.generatePresignedDownloadUrl(
+      uploadResult.key,
+      'execution',
+      900 // 15 minutes
+    )
+
+    logger.info(`Generated presigned URL for Mistral OCR: ${uploadResult.key}`)
+
+    const mistralResponse = await fetch('https://api.mistral.ai/v1/ocr', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+        Authorization: `Bearer ${env.MISTRAL_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model: 'mistral-ocr-latest',
+        document: {
+          type: 'document_url',
+          document_url: presignedUrl,
+        },
+      }),
+    })
+
+    if (!mistralResponse.ok) {
+      const errorText = await mistralResponse.text()
+      throw new Error(
+        `Mistral API error: ${mistralResponse.status} ${mistralResponse.statusText} - ${errorText}`
+      )
+    }
+
+    const mistralData = await mistralResponse.json()
+
+    const content =
+      mistralData.pages
+        ?.map((page: { markdown?: string }) => page.markdown || '')
+        .filter(Boolean)
+        .join('\n\n') || ''
+
+    if (!content.trim()) {
+      throw new Error('Mistral OCR returned empty content')
+    }
+
+    logger.info(`Mistral OCR completed successfully for ${filename}`)
+
+    return {
+      success: true,
+      content,
+      filePath: originalPath || filename,
+      metadata: {
+        fileType: 'application/pdf',
+        size: buffer.length,
+        hash: createHash('md5').update(buffer).digest('hex'),
+        processingTime: 0,
+      },
+    }
+  } catch (error) {
+    logger.error('Mistral OCR parsing failed:', error)
+    throw error // Re-throw to trigger fallback
   }
 }
 
