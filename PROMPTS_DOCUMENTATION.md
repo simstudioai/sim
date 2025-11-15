@@ -662,3 +662,213 @@ AI Response:
 - `temperature`: 0.1 (low for consistent scoring)
 
 ---
+
+## 7. Vision & Browser Automation Prompts
+
+These blocks accept user-defined prompts for specialized tasks involving image analysis and web automation.
+
+### 7.1 Vision Block (Image Analysis)
+
+**Purpose**: Analyzes images using vision-capable AI models. Users provide custom prompts to guide the analysis.
+
+**Location**: `/apps/sim/blocks/blocks/vision.ts`
+
+**Use Case**: Enables visual AI capabilities in workflows. Applications include:
+- Image content description
+- Object detection and identification
+- OCR (text extraction from images)
+- Image classification
+- Visual quality assessment
+- Chart/graph data extraction
+- Document analysis
+
+**Supported Models**:
+- `gpt-4o` (OpenAI)
+- `claude-3-opus-20240229` (Anthropic)
+- `claude-3-sonnet-20240229` (Anthropic)
+
+**Input Parameters**:
+- `imageFile`: Uploaded image file (JPG, PNG, GIF, WebP)
+- `imageFileReference`: Reference to image from previous block
+- `imageUrl`: Publicly accessible image URL
+- `prompt`: User-defined analysis instructions
+- `model`: Vision model to use
+- `apiKey`: Provider API key
+
+**Output**: Analysis result as text
+
+**Example Prompts**:
+
+```
+# OCR Example
+"Extract all text from this image and format it as markdown."
+
+# Object Detection
+"List all objects visible in this image with their approximate locations."
+
+# Data Extraction
+"This is a screenshot of a chart. Extract the data points and return them as a JSON array."
+
+# Quality Assessment
+"Analyze this product image for quality. Check lighting, focus, composition, and suggest improvements."
+
+# Document Analysis
+"This is a receipt. Extract the merchant name, date, total amount, and all line items."
+```
+
+---
+
+### 7.2 Browser Use Block (Browser Automation)
+
+**Purpose**: Autonomous browser agent that performs web navigation and interaction tasks using natural language instructions.
+
+**Location**: `/apps/sim/blocks/blocks/browser_use.ts`
+
+**Use Case**: Automates web browsing tasks as if a real user was interacting with the browser. Applications include:
+- Web scraping and data extraction
+- Form filling and submission
+- Multi-step web workflows
+- Testing web applications
+- Automated research
+- Account management tasks
+
+**Supported Models**:
+- `gpt-4o` (OpenAI)
+- `gemini-2.0-flash` (Google)
+- `gemini-2.0-flash-lite` (Google)
+- `claude-3-7-sonnet-20250219` (Anthropic)
+- `llama-4-maverick-17b-128e-instruct` (Meta)
+
+**Input Parameters**:
+- `task`: Natural language description of the task
+- `variables`: Key-value pairs for sensitive data (credentials, tokens)
+- `model`: AI model to use
+- `save_browser_data`: Persist browser state (cookies, local storage)
+- `apiKey`: BrowserUse API key
+
+**Output**:
+- `id`: Task execution identifier
+- `success`: Task completion status
+- `output`: Structured task results
+- `steps`: Detailed execution steps
+
+**Example Tasks**:
+
+```
+# Web Scraping
+"Navigate to news.ycombinator.com and extract the top 10 post titles and URLs."
+
+# Form Submission
+"Go to the contact form at example.com/contact and fill it with name: %name%, email: %email%, message: %message%, then submit."
+
+# Multi-step Workflow
+"1. Go to Amazon.com
+2. Search for 'wireless headphones'
+3. Filter by 4+ stars and under $100
+4. Extract the top 5 results with title, price, and rating"
+
+# Account Management
+"Log into dashboard.example.com using username %username% and password %password%, navigate to settings, and download the export file."
+
+# Research
+"Search Google for 'latest AI research papers 2025', open the first 3 results, and summarize the key findings from each."
+```
+
+---
+
+### 7.3 Stagehand Agent Block (Autonomous Web Browsing)
+
+**Purpose**: Autonomous web browsing agent powered by Anthropic models that can navigate websites and perform complex tasks.
+
+**Location**: `/apps/sim/blocks/blocks/stagehand_agent.ts`
+
+**Use Case**: Task-based autonomous web agent for structured data extraction and web automation. Similar to Browser Use but specifically uses Anthropic models. Applications include:
+- Structured web data extraction
+- Complex multi-page workflows
+- API-less web integrations
+- Automated data collection
+- Web-based testing
+
+**Model**: Uses Anthropic API (Claude models)
+
+**Input Parameters**:
+- `startUrl`: Starting URL for the agent
+- `task`: Natural language task description (supports `%variable%` syntax)
+- `variables`: Key-value pairs for task variables
+- `apiKey`: Anthropic API key
+- `outputSchema`: JSON schema for structured output
+
+**Output**:
+- `agentResult`: Raw agent execution result
+- `structuredOutput`: Data matching the output schema
+
+**Example Tasks**:
+
+```
+# E-commerce Data Extraction (with schema)
+Task: "Extract product information for %product_name%"
+Variables: { "product_name": "iPhone 15 Pro" }
+Output Schema:
+{
+  "type": "object",
+  "properties": {
+    "name": { "type": "string" },
+    "price": { "type": "number" },
+    "availability": { "type": "string" },
+    "rating": { "type": "number" },
+    "reviewCount": { "type": "number" }
+  }
+}
+
+# Job Listings Extraction
+Task: "Find all job listings for %job_title% positions"
+Variables: { "job_title": "Software Engineer" }
+Output Schema:
+{
+  "type": "object",
+  "properties": {
+    "jobs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "title": { "type": "string" },
+          "company": { "type": "string" },
+          "location": { "type": "string" },
+          "salary": { "type": "string" },
+          "url": { "type": "string" }
+        }
+      }
+    }
+  }
+}
+```
+
+---
+
+## Summary
+
+This documentation covers all AI prompts used in Sim Studio:
+
+1. **Copilot Prompts** (3 prompts): Core assistant functionality and title generation
+2. **Agent Block Meta-Prompts** (2 prompts): System prompt and JSON schema generators
+3. **Routing Prompts** (1 prompt): Intelligent workflow routing
+4. **Evaluation Prompts** (1 prompt): Content quality assessment
+5. **Translation Prompts** (1 prompt): Multi-language translation
+6. **Validation & Guardrails** (1 prompt): Hallucination detection via RAG
+7. **Vision & Browser Automation** (3 blocks): User-defined prompts for specialized tasks
+
+**Total**: 9 system-level prompts + 3 user-prompt-driven blocks
+
+All prompts follow best practices:
+- Clear role definitions
+- Structured instructions
+- Examples where applicable
+- JSON-only output for structured data
+- Appropriate temperature settings
+- Detailed scoring rubrics for evaluation tasks
+
+---
+
+*Documentation generated on 2025-11-15*
+
