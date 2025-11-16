@@ -129,7 +129,7 @@ export function SelectorCombobox({
             placeholder={placeholder || subBlock.placeholder || 'Select an option'}
             disabled={disabled || readOnly}
             editable={allowSearch}
-            filterOptions={!allowSearch}
+            filterOptions={true}
             inputRef={ref as React.RefObject<HTMLInputElement>}
             inputProps={{
               onDrop: onDrop as (e: React.DragEvent<HTMLInputElement>) => void,
