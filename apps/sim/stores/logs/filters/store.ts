@@ -1,7 +1,6 @@
 import { create } from 'zustand'
 import type { FilterState, LogLevel, TimeRange, TriggerType } from '@/stores/logs/filters/types'
 
-// Helper functions for URL synchronization
 const getSearchParams = () => {
   if (typeof window === 'undefined') return new URLSearchParams()
   return new URLSearchParams(window.location.search)
@@ -96,8 +95,6 @@ export const useFilterStore = create<FilterState>((set, get) => ({
   folderIds: [],
   searchQuery: '',
   triggers: [],
-  loading: true,
-  error: null,
   page: 1,
   hasMore: true,
   isFetchingMore: false,
@@ -109,7 +106,7 @@ export const useFilterStore = create<FilterState>((set, get) => ({
       const newLogs = [...currentLogs, ...logs]
       set({ logs: newLogs })
     } else {
-      set({ logs, loading: false })
+      set({ logs })
     }
   },
 
@@ -216,10 +213,6 @@ export const useFilterStore = create<FilterState>((set, get) => ({
     }
   },
 
-  setLoading: (loading) => set({ loading }),
-
-  setError: (error) => set({ error }),
-
   setPage: (page) => set({ page }),
 
   setHasMore: (hasMore) => set({ hasMore }),
@@ -228,9 +221,7 @@ export const useFilterStore = create<FilterState>((set, get) => ({
 
   resetPagination: () => set({ page: 1, hasMore: true }),
 
-  // URL synchronization methods
   initializeFromURL: () => {
-    // Set initialization flag to prevent URL sync during init
     set({ _isInitializing: true })
 
     const params = getSearchParams()
@@ -252,7 +243,6 @@ export const useFilterStore = create<FilterState>((set, get) => ({
       _isInitializing: false, // Clear the flag after initialization
     })
 
-    // Ensure URL reflects the initialized state
     get().syncWithURL()
   },
 
@@ -260,7 +250,6 @@ export const useFilterStore = create<FilterState>((set, get) => ({
     const { timeRange, level, workflowIds, folderIds, triggers, searchQuery } = get()
     const params = new URLSearchParams()
 
-    // Only add non-default values to keep URL clean
     if (timeRange !== DEFAULT_TIME_RANGE) {
       params.set('timeRange', timeRangeToURL(timeRange))
     }
@@ -286,82 +275,5 @@ export const useFilterStore = create<FilterState>((set, get) => ({
     }
 
     updateURL(params)
-  },
-
-  // Build query parameters for server-side filtering
-  buildQueryParams: (page: number, limit: number) => {
-    const { workspaceId, timeRange, level, workflowIds, folderIds, searchQuery, triggers } = get()
-    const params = new URLSearchParams()
-    params.set('limit', limit.toString())
-    params.set('offset', ((page - 1) * limit).toString())
-
-    params.set('workspaceId', workspaceId)
-
-    // Add level filter
-    if (level !== 'all') {
-      params.set('level', level)
-    }
-
-    // Add trigger filter
-    if (triggers.length > 0) {
-      params.set('triggers', triggers.join(','))
-    }
-
-    // Add workflow filter
-    if (workflowIds.length > 0) {
-      params.set('workflowIds', workflowIds.join(','))
-    }
-
-    // Add folder filter
-    if (folderIds.length > 0) {
-      params.set('folderIds', folderIds.join(','))
-    }
-
-    // Add time range filter
-    if (timeRange !== 'All time') {
-      const now = new Date()
-      let startDate: Date
-
-      switch (timeRange) {
-        case 'Past 30 minutes':
-          startDate = new Date(now.getTime() - 30 * 60 * 1000)
-          break
-        case 'Past hour':
-          startDate = new Date(now.getTime() - 60 * 60 * 1000)
-          break
-        case 'Past 6 hours':
-          startDate = new Date(now.getTime() - 6 * 60 * 60 * 1000)
-          break
-        case 'Past 12 hours':
-          startDate = new Date(now.getTime() - 12 * 60 * 60 * 1000)
-          break
-        case 'Past 24 hours':
-          startDate = new Date(now.getTime() - 24 * 60 * 60 * 1000)
-          break
-        case 'Past 3 days':
-          startDate = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000)
-          break
-        case 'Past 7 days':
-          startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
-          break
-        case 'Past 14 days':
-          startDate = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000)
-          break
-        case 'Past 30 days':
-          startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
-          break
-        default:
-          startDate = new Date(0)
-      }
-
-      params.set('startDate', startDate.toISOString())
-    }
-
-    // Add search filter
-    if (searchQuery.trim()) {
-      params.set('search', searchQuery.trim())
-    }
-
-    return params.toString()
   },
 }))

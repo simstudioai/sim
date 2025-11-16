@@ -184,10 +184,6 @@ export interface FilterState {
   searchQuery: string
   triggers: TriggerType[]
 
-  // Loading state
-  loading: boolean
-  error: string | null
-
   // Pagination state
   page: number
   hasMore: boolean
@@ -209,8 +205,6 @@ export interface FilterState {
   setSearchQuery: (query: string) => void
   setTriggers: (triggers: TriggerType[]) => void
   toggleTrigger: (trigger: TriggerType) => void
-  setLoading: (loading: boolean) => void
-  setError: (error: string | null) => void
   setPage: (page: number) => void
   setHasMore: (hasMore: boolean) => void
   setIsFetchingMore: (isFetchingMore: boolean) => void
@@ -219,7 +213,4 @@ export interface FilterState {
   // URL synchronization methods
   initializeFromURL: () => void
   syncWithURL: () => void
-
-  // Build query parameters for server-side filtering
-  buildQueryParams: (page: number, limit: number) => string
 }

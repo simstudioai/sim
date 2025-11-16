@@ -1,7 +1,6 @@
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import { createLogger } from '@/lib/logs/console/logger'
-import { generateCreativeWorkflowName } from '@/lib/naming'
 import { withOptimisticUpdate } from '@/lib/utils'
 import { buildDefaultWorkflowArtifacts } from '@/lib/workflows/defaults'
 import { API_ENDPOINTS } from '@/stores/constants'
@@ -249,9 +248,16 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
         set({ isLoading: loading })
       },
 
-      // Simple method to load workflows (replaces sync system)
-      loadWorkflows: async (workspaceId?: string) => {
-        await fetchWorkflowsFromDB(workspaceId)
+      setWorkflows: (workflows: WorkflowMetadata[]) => {
+        set({
+          workflows: workflows.reduce(
+            (acc, w) => {
+              acc[w.id] = w
+              return acc
+            },
+            {} as Record<string, WorkflowMetadata>
+          ),
+        })
       },
 
       // Switch to workspace - just clear state, let sidebar handle workflow loading
@@ -495,113 +501,6 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
         )
 
         logger.info(`Switched to workflow ${id}`)
-      },
-
-      /**
-       * Creates a new workflow with appropriate metadata and initial blocks
-       * @param options - Optional configuration for workflow creation
-       * @returns The ID of the newly created workflow
-       */
-      createWorkflow: async (options = {}) => {
-        // Use provided workspace ID (must be provided since we no longer track active workspace)
-        const workspaceId = options.workspaceId
-
-        if (!workspaceId) {
-          logger.error('Cannot create workflow without workspaceId')
-          set({ error: 'Workspace ID is required to create a workflow' })
-          throw new Error('Workspace ID is required to create a workflow')
-        }
-
-        logger.info(`Creating new workflow in workspace: ${workspaceId || 'none'}`)
-
-        // Create the workflow on the server first to get the server-generated ID
-        try {
-          const response = await fetch('/api/workflows', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              name: options.name || generateCreativeWorkflowName(),
-              description: options.description || 'New workflow',
-              color: getNextWorkflowColor(),
-              workspaceId,
-              folderId: options.folderId || null,
-            }),
-          })
-
-          if (!response.ok) {
-            const errorData = await response.json()
-            throw new Error(`Failed to create workflow: ${errorData.error || response.statusText}`)
-          }
-
-          const createdWorkflow = await response.json()
-          const serverWorkflowId = createdWorkflow.id
-
-          logger.info(`Successfully created workflow ${serverWorkflowId} on server`)
-
-          // Generate workflow metadata with server-generated ID
-          const newWorkflow: WorkflowMetadata = {
-            id: serverWorkflowId,
-            name: createdWorkflow.name,
-            lastModified: new Date(),
-            createdAt: new Date(),
-            description: createdWorkflow.description,
-            color: createdWorkflow.color,
-            workspaceId,
-            folderId: createdWorkflow.folderId,
-          }
-
-          // Add workflow to registry with server-generated ID
-          set((state) => ({
-            workflows: {
-              ...state.workflows,
-              [serverWorkflowId]: newWorkflow,
-            },
-            error: null,
-          }))
-
-          // Initialize subblock values to ensure they're available for sync
-          const { workflowState, subBlockValues } = buildDefaultWorkflowArtifacts()
-
-          useSubBlockStore.setState((state) => ({
-            workflowValues: {
-              ...state.workflowValues,
-              [serverWorkflowId]: subBlockValues,
-            },
-          }))
-
-          try {
-            logger.info(`Persisting default Start block for new workflow ${serverWorkflowId}`)
-            const response = await fetch(`/api/workflows/${serverWorkflowId}/state`, {
-              method: 'PUT',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify(workflowState),
-            })
-
-            if (!response.ok) {
-              logger.error('Failed to persist default Start block:', await response.text())
-            } else {
-              logger.info('Successfully persisted default Start block')
-            }
-          } catch (error) {
-            logger.error('Error persisting default Start block:', error)
-          }
-
-          // Don't set as active workflow here - let the navigation/URL change handle that
-          // This prevents race conditions and flickering
-          logger.info(
-            `Created new workflow with ID ${serverWorkflowId} in workspace ${workspaceId || 'none'}`
-          )
-
-          return serverWorkflowId
-        } catch (error) {
-          logger.error(`Failed to create new workflow:`, error)
-          set({
-            error: `Failed to create workflow: ${error instanceof Error ? error.message : 'Unknown error'}`,
-          })
-          throw error
-        }
       },
 
       /**

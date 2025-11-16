@@ -7,10 +7,7 @@ import PaymentFailedEmail from '@/components/emails/billing/payment-failed-email
 import { calculateSubscriptionOverage } from '@/lib/billing/core/billing'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
 import { sendEmail } from '@/lib/email/mailer'
-<<<<<<< HEAD
 import { quickValidateEmail } from '@/lib/email/validation'
-=======
->>>>>>> 2eb3df14f (feat(billing): add notif for first failed payment, added upgrade email from free, updated providers that supported granular tool control to support them, fixed envvar popover, fixed redirect to wrong workspace after oauth connect)
 import { createLogger } from '@/lib/logs/console/logger'
 import { getBaseUrl } from '@/lib/urls/utils'
 

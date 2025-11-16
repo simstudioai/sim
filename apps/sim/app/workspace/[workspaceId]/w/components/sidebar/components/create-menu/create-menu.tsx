@@ -6,18 +6,18 @@ import { useParams, useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { createLogger } from '@/lib/logs/console/logger'
-import { generateFolderName } from '@/lib/naming'
 import { cn } from '@/lib/utils'
 import {
   extractWorkflowName,
   extractWorkflowsFromFiles,
   extractWorkflowsFromZip,
 } from '@/lib/workflows/import-export'
+import { generateFolderName } from '@/lib/workspaces/naming'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { useCreateFolder } from '@/hooks/queries/folders'
+import { useCreateWorkflow } from '@/hooks/queries/workflows'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 import { parseWorkflowJson } from '@/stores/workflows/json/importer'
-import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 const logger = createLogger('CreateMenu')
 
@@ -44,7 +44,7 @@ export function CreateMenu({ onCreateWorkflow, isCreatingWorkflow = false }: Cre
   const router = useRouter()
   const workspaceId = params.workspaceId as string
   const createFolderMutation = useCreateFolder()
-  const { createWorkflow } = useWorkflowRegistry()
+  const createWorkflowMutation = useCreateWorkflow()
   const userPermissions = useUserPermissionsContext()
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -194,12 +194,13 @@ export function CreateMenu({ onCreateWorkflow, isCreatingWorkflow = false }: Cre
               const { clearDiff } = useWorkflowDiffStore.getState()
               clearDiff()
 
-              const newWorkflowId = await createWorkflow({
+              const result = await createWorkflowMutation.mutateAsync({
                 name: workflowName,
                 description: 'Imported from workspace export',
                 workspaceId,
                 folderId: targetFolderId,
               })
+              const newWorkflowId = result.id
 
               const response = await fetch(`/api/workflows/${newWorkflowId}/state`, {
                 method: 'PUT',
@@ -255,11 +256,12 @@ export function CreateMenu({ onCreateWorkflow, isCreatingWorkflow = false }: Cre
               const { clearDiff } = useWorkflowDiffStore.getState()
               clearDiff()
 
-              const newWorkflowId = await createWorkflow({
+              const result = await createWorkflowMutation.mutateAsync({
                 name: workflowName,
                 description: 'Imported from JSON',
                 workspaceId,
               })
+              const newWorkflowId = result.id
 
               const response = await fetch(`/api/workflows/${newWorkflowId}/state`, {
                 method: 'PUT',
@@ -299,8 +301,8 @@ export function CreateMenu({ onCreateWorkflow, isCreatingWorkflow = false }: Cre
           }
         }
 
-        const { loadWorkflows } = useWorkflowRegistry.getState()
-        await loadWorkflows(workspaceId)
+        // Invalidate workflow queries to reload the list
+        // The useWorkflows hook in the sidebar will automatically refetch
       } catch (error) {
         logger.error('Failed to import workflows:', error)
       } finally {
@@ -310,7 +312,7 @@ export function CreateMenu({ onCreateWorkflow, isCreatingWorkflow = false }: Cre
         }
       }
     },
-    [workspaceId, createWorkflow, createFolderMutation]
+    [workspaceId, createWorkflowMutation, createFolderMutation]
   )
 
   // Button event handlers

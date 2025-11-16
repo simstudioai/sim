@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createLogger } from '@/lib/logs/console/logger'
+import { useCreateWorkflow, useWorkflows } from '@/hooks/queries/workflows'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
@@ -25,12 +26,9 @@ export function useWorkflowOperations({
   onWorkspaceInvalid,
 }: UseWorkflowOperationsProps) {
   const router = useRouter()
-  const {
-    workflows,
-    isLoading: workflowsLoading,
-    loadWorkflows,
-    createWorkflow,
-  } = useWorkflowRegistry()
+  const { workflows } = useWorkflowRegistry()
+  const workflowsQuery = useWorkflows(workspaceId)
+  const createWorkflowMutation = useCreateWorkflow()
   const [isCreatingWorkflow, setIsCreatingWorkflow] = useState(false)
 
   /**
@@ -45,6 +43,7 @@ export function useWorkflowOperations({
 
   /**
    * Create workflow handler - creates workflow and navigates to it
+   * Now uses React Query mutation for better performance and caching
    */
   const handleCreateWorkflow = useCallback(async (): Promise<string | null> => {
     if (isCreatingWorkflow) {
@@ -59,14 +58,15 @@ export function useWorkflowOperations({
       const { clearDiff } = useWorkflowDiffStore.getState()
       clearDiff()
 
-      const workflowId = await createWorkflow({
-        workspaceId: workspaceId || undefined,
+      // Use React Query mutation for creation
+      const result = await createWorkflowMutation.mutateAsync({
+        workspaceId: workspaceId,
       })
 
       // Navigate to the newly created workflow
-      if (workflowId) {
-        router.push(`/workspace/${workspaceId}/w/${workflowId}`)
-        return workflowId
+      if (result.id) {
+        router.push(`/workspace/${workspaceId}/w/${result.id}`)
+        return result.id
       }
       return null
     } catch (error) {
@@ -75,34 +75,16 @@ export function useWorkflowOperations({
     } finally {
       setIsCreatingWorkflow(false)
     }
-  }, [isCreatingWorkflow, createWorkflow, workspaceId, router])
-
-  /**
-   * Load workflows for the current workspace when workspaceId changes
-   */
-  useEffect(() => {
-    if (workspaceId) {
-      // Validate workspace exists before loading workflows
-      isWorkspaceValid(workspaceId).then((valid) => {
-        if (valid) {
-          loadWorkflows(workspaceId)
-        } else {
-          logger.warn(`Workspace ${workspaceId} no longer exists, triggering workspace refresh`)
-          onWorkspaceInvalid()
-        }
-      })
-    }
-  }, [workspaceId, loadWorkflows, isWorkspaceValid, onWorkspaceInvalid])
+  }, [isCreatingWorkflow, createWorkflowMutation, workspaceId, router])
 
   return {
     // State
     workflows,
     regularWorkflows,
-    workflowsLoading,
+    workflowsLoading: workflowsQuery.isLoading,
     isCreatingWorkflow,
 
     // Operations
     handleCreateWorkflow,
-    loadWorkflows,
   }
 }
