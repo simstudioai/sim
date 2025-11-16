@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AlertCircle, ArrowUpRight, Info, Loader2 } from 'lucide-react'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
-import { createLogger } from '@/lib/logs/console/logger'
 import { parseQuery, queryToApiParams } from '@/lib/logs/query-parser'
 import { cn } from '@/lib/utils'
 import Controls from '@/app/workspace/[workspaceId]/logs/components/dashboard/controls'
@@ -19,7 +18,6 @@ import { useFolderStore } from '@/stores/folders/store'
 import { useFilterStore } from '@/stores/logs/filters/store'
 import type { WorkflowLog } from '@/stores/logs/filters/types'
 
-const logger = createLogger('Logs')
 const LOGS_PER_PAGE = 50
 
 /**
@@ -64,13 +62,7 @@ export default function Logs() {
   const workspaceId = params.workspaceId as string
 
   const {
-    logs,
     setWorkspaceId,
-    page,
-    setPage,
-    hasMore,
-    isFetchingMore,
-    setIsFetchingMore,
     initializeFromURL,
     timeRange,
     level,
@@ -98,14 +90,12 @@ export default function Logs() {
   const [searchQuery, setSearchQuery] = useState(storeSearchQuery)
   const debouncedSearchQuery = useDebounce(searchQuery, 300)
 
-  const [availableWorkflows, setAvailableWorkflows] = useState<string[]>([])
-  const [availableFolders, setAvailableFolders] = useState<string[]>([])
+  const [, setAvailableWorkflows] = useState<string[]>([])
+  const [, setAvailableFolders] = useState<string[]>([])
 
-  // Live and refresh state
   const [isLive, setIsLive] = useState(false)
   const isSearchOpenRef = useRef<boolean>(false)
 
-  // Build filters object for React Query
   const logFilters = useMemo(
     () => ({
       timeRange,
@@ -114,13 +104,11 @@ export default function Logs() {
       folderIds,
       triggers,
       searchQuery: debouncedSearchQuery,
-      page,
       limit: LOGS_PER_PAGE,
     }),
-    [timeRange, level, workflowIds, folderIds, triggers, debouncedSearchQuery, page]
+    [timeRange, level, workflowIds, folderIds, triggers, debouncedSearchQuery]
   )
 
-  // React Query hooks for logs
   const logsQuery = useLogsList(workspaceId, logFilters, {
     enabled: Boolean(workspaceId) && isInitialized.current,
     refetchInterval: isLive ? 5000 : false,
@@ -128,7 +116,11 @@ export default function Logs() {
 
   const logDetailQuery = useLogDetail(selectedLog?.id)
 
-  // Sync local search query with store search query
+  const logs = useMemo(() => {
+    if (!logsQuery.data?.pages) return []
+    return logsQuery.data.pages.flatMap((page) => page.logs)
+  }, [logsQuery.data?.pages])
+
   useEffect(() => {
     setSearchQuery(storeSearchQuery)
   }, [storeSearchQuery])
@@ -194,7 +186,6 @@ export default function Logs() {
     const index = logs.findIndex((l) => l.id === log.id)
     setSelectedLogIndex(index)
     setIsSidebarOpen(true)
-    // React Query will automatically fetch details via logDetailQuery
   }
 
   const handleNavigateNext = useCallback(() => {
@@ -203,7 +194,6 @@ export default function Logs() {
       setSelectedLogIndex(nextIndex)
       const nextLog = logs[nextIndex]
       setSelectedLog(nextLog)
-      // React Query will automatically fetch details via logDetailQuery
     }
   }, [selectedLogIndex, logs])
 
@@ -213,7 +203,6 @@ export default function Logs() {
       setSelectedLogIndex(prevIndex)
       const prevLog = logs[prevIndex]
       setSelectedLog(prevLog)
-      // React Query will automatically fetch details via logDetailQuery
     }
   }, [selectedLogIndex, logs])
 
@@ -237,10 +226,6 @@ export default function Logs() {
     if (selectedLog?.id) {
       await logDetailQuery.refetch()
     }
-  }
-
-  const toggleLive = () => {
-    setIsLive(!isLive)
   }
 
   const handleExport = async () => {
@@ -280,22 +265,14 @@ export default function Logs() {
     return () => window.removeEventListener('popstate', handlePopState)
   }, [initializeFromURL])
 
-  // Reset to page 1 when filters change
-  useEffect(() => {
-    if (isInitialized.current) {
-      setPage(1)
-    }
-  }, [timeRange, level, workflowIds, folderIds, debouncedSearchQuery, triggers])
-
   const loadMoreLogs = useCallback(() => {
-    if (!logsQuery.isFetching && hasMore) {
-      const nextPage = page + 1
-      setPage(nextPage)
+    if (!logsQuery.isFetching && logsQuery.hasNextPage) {
+      logsQuery.fetchNextPage()
     }
-  }, [logsQuery.isFetching, hasMore, page, setPage])
+  }, [logsQuery])
 
   useEffect(() => {
-    if (logsQuery.isLoading || !hasMore) return
+    if (logsQuery.isLoading || !logsQuery.hasNextPage) return
 
     const scrollContainer = scrollContainerRef.current
     if (!scrollContainer) return
@@ -307,7 +284,7 @@ export default function Logs() {
 
       const scrollPercentage = (scrollTop / (scrollHeight - clientHeight)) * 100
 
-      if (scrollPercentage > 60 && !isFetchingMore && hasMore) {
+      if (scrollPercentage > 60 && !logsQuery.isFetchingNextPage && logsQuery.hasNextPage) {
         loadMoreLogs()
       }
     }
@@ -317,13 +294,14 @@ export default function Logs() {
     return () => {
       scrollContainer.removeEventListener('scroll', handleScroll)
     }
-  }, [logsQuery.isLoading, hasMore, isFetchingMore, loadMoreLogs])
+  }, [logsQuery.isLoading, logsQuery.hasNextPage, logsQuery.isFetchingNextPage, loadMoreLogs])
 
   useEffect(() => {
     const currentLoaderRef = loaderRef.current
     const scrollContainer = scrollContainerRef.current
 
-    if (!currentLoaderRef || !scrollContainer || logsQuery.isLoading || !hasMore) return
+    if (!currentLoaderRef || !scrollContainer || logsQuery.isLoading || !logsQuery.hasNextPage)
+      return
 
     const observer = new IntersectionObserver(
       (entries) => {
@@ -331,7 +309,7 @@ export default function Logs() {
         if (!e?.isIntersecting) return
         const { scrollTop, scrollHeight, clientHeight } = scrollContainer
         const pct = (scrollTop / (scrollHeight - clientHeight)) * 100
-        if (pct > 70 && !isFetchingMore) {
+        if (pct > 70 && !logsQuery.isFetchingNextPage) {
           loadMoreLogs()
         }
       },
@@ -347,7 +325,7 @@ export default function Logs() {
     return () => {
       observer.unobserve(currentLoaderRef)
     }
-  }, [logsQuery.isLoading, hasMore, isFetchingMore, loadMoreLogs])
+  }, [logsQuery.isLoading, logsQuery.hasNextPage, logsQuery.isFetchingNextPage, loadMoreLogs])
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -381,7 +359,6 @@ export default function Logs() {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [logs, selectedLogIndex, isSidebarOpen, selectedLog, handleNavigateNext, handleNavigatePrev])
 
-  // If in dashboard mode, show the dashboard
   if (viewMode === 'dashboard') {
     return <Dashboard />
   }
@@ -445,7 +422,7 @@ export default function Logs() {
 
             {/* Table body - scrollable */}
             <div className='flex-1 overflow-y-auto overflow-x-hidden' ref={scrollContainerRef}>
-              {logsQuery.isLoading && page === 1 ? (
+              {logsQuery.isLoading && !logsQuery.data ? (
                 <div className='flex h-full items-center justify-center'>
                   <div className='flex items-center gap-[8px] text-[var(--text-secondary)] dark:text-[var(--text-secondary)]'>
                     <Loader2 className='h-[16px] w-[16px] animate-spin' />
@@ -475,7 +452,6 @@ export default function Logs() {
                     const isSelected = selectedLog?.id === log.id
                     const baseLevel = (log.level || 'info').toLowerCase()
                     const isError = baseLevel === 'error'
-                    // If it's an error, don't treat it as pending even if hasPendingPause is true
                     const isPending = !isError && log.hasPendingPause === true
                     const statusLabel = isPending
                       ? 'Pending'
@@ -603,13 +579,13 @@ export default function Logs() {
                   })}
 
                   {/* Infinite scroll loader */}
-                  {hasMore && (
+                  {logsQuery.hasNextPage && (
                     <div className='flex items-center justify-center py-[16px]'>
                       <div
                         ref={loaderRef}
                         className='flex items-center gap-[8px] text-[var(--text-secondary)] dark:text-[var(--text-secondary)]'
                       >
-                        {isFetchingMore ? (
+                        {logsQuery.isFetchingNextPage ? (
                           <>
                             <Loader2 className='h-[16px] w-[16px] animate-spin' />
                             <span className='text-[13px]'>Loading more...</span>

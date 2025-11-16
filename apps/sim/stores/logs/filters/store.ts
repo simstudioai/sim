@@ -86,7 +86,6 @@ const timeRangeToURL = (timeRange: TimeRange): string => {
 }
 
 export const useFilterStore = create<FilterState>((set, get) => ({
-  logs: [],
   workspaceId: '',
   viewMode: 'logs',
   timeRange: DEFAULT_TIME_RANGE,
@@ -95,20 +94,7 @@ export const useFilterStore = create<FilterState>((set, get) => ({
   folderIds: [],
   searchQuery: '',
   triggers: [],
-  page: 1,
-  hasMore: true,
-  isFetchingMore: false,
   _isInitializing: false, // Internal flag to prevent URL sync during initialization
-
-  setLogs: (logs, append = false) => {
-    if (append) {
-      const currentLogs = [...get().logs]
-      const newLogs = [...currentLogs, ...logs]
-      set({ logs: newLogs })
-    } else {
-      set({ logs })
-    }
-  },
 
   setWorkspaceId: (workspaceId) => set({ workspaceId }),
 
@@ -116,7 +102,6 @@ export const useFilterStore = create<FilterState>((set, get) => ({
 
   setTimeRange: (timeRange) => {
     set({ timeRange })
-    get().resetPagination()
     if (!get()._isInitializing) {
       get().syncWithURL()
     }
@@ -124,7 +109,6 @@ export const useFilterStore = create<FilterState>((set, get) => ({
 
   setLevel: (level) => {
     set({ level })
-    get().resetPagination()
     if (!get()._isInitializing) {
       get().syncWithURL()
     }
@@ -132,7 +116,6 @@ export const useFilterStore = create<FilterState>((set, get) => ({
 
   setWorkflowIds: (workflowIds) => {
     set({ workflowIds })
-    get().resetPagination()
     if (!get()._isInitializing) {
       get().syncWithURL()
     }
@@ -149,7 +132,6 @@ export const useFilterStore = create<FilterState>((set, get) => ({
     }
 
     set({ workflowIds: currentWorkflowIds })
-    get().resetPagination()
     if (!get()._isInitializing) {
       get().syncWithURL()
     }
@@ -157,7 +139,6 @@ export const useFilterStore = create<FilterState>((set, get) => ({
 
   setFolderIds: (folderIds) => {
     set({ folderIds })
-    get().resetPagination()
     if (!get()._isInitializing) {
       get().syncWithURL()
     }
@@ -174,7 +155,6 @@ export const useFilterStore = create<FilterState>((set, get) => ({
     }
 
     set({ folderIds: currentFolderIds })
-    get().resetPagination()
     if (!get()._isInitializing) {
       get().syncWithURL()
     }
@@ -182,7 +162,6 @@ export const useFilterStore = create<FilterState>((set, get) => ({
 
   setSearchQuery: (searchQuery) => {
     set({ searchQuery })
-    get().resetPagination()
     if (!get()._isInitializing) {
       get().syncWithURL()
     }
@@ -190,7 +169,6 @@ export const useFilterStore = create<FilterState>((set, get) => ({
 
   setTriggers: (triggers: TriggerType[]) => {
     set({ triggers })
-    get().resetPagination()
     if (!get()._isInitializing) {
       get().syncWithURL()
     }
@@ -207,19 +185,10 @@ export const useFilterStore = create<FilterState>((set, get) => ({
     }
 
     set({ triggers: currentTriggers })
-    get().resetPagination()
     if (!get()._isInitializing) {
       get().syncWithURL()
     }
   },
-
-  setPage: (page) => set({ page }),
-
-  setHasMore: (hasMore) => set({ hasMore }),
-
-  setIsFetchingMore: (isFetchingMore) => set({ isFetchingMore }),
-
-  resetPagination: () => set({ page: 1, hasMore: true }),
 
   initializeFromURL: () => {
     set({ _isInitializing: true })
