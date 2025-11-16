@@ -123,7 +123,6 @@ export class EdgeConstructor {
       }
     }
 
-    // Only generate router handle if not already set (e.g., error port)
     if (metadata.routerBlockIds.has(source) && !handle) {
       handle = `${EDGE.ROUTER_PREFIX}${target}`
     }
