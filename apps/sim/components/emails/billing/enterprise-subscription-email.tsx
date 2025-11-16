@@ -5,36 +5,40 @@ import {
   Head,
   Html,
   Img,
+  Link,
   Preview,
   Row,
   Section,
   Text,
 } from '@react-email/components'
 import { format } from 'date-fns'
+import { baseStyles } from '@/components/emails/base-styles'
+import EmailFooter from '@/components/emails/footer'
 import { getBrandConfig } from '@/lib/branding/branding'
 import { getBaseUrl } from '@/lib/urls/utils'
-import { baseStyles } from './base-styles'
-import EmailFooter from './footer'
 
-interface CareersConfirmationEmailProps {
-  name: string
-  position: string
-  submittedDate?: Date
+interface EnterpriseSubscriptionEmailProps {
+  userName?: string
+  userEmail?: string
+  loginLink?: string
+  createdDate?: Date
 }
 
-export const CareersConfirmationEmail = ({
-  name,
-  position,
-  submittedDate = new Date(),
-}: CareersConfirmationEmailProps) => {
+export const EnterpriseSubscriptionEmail = ({
+  userName = 'Valued User',
+  userEmail = '',
+  loginLink,
+  createdDate = new Date(),
+}: EnterpriseSubscriptionEmailProps) => {
   const brand = getBrandConfig()
   const baseUrl = getBaseUrl()
+  const effectiveLoginLink = loginLink || `${baseUrl}/login`
 
   return (
     <Html>
       <Head />
       <Body style={baseStyles.main}>
-        <Preview>Your application to {brand.name} has been received</Preview>
+        <Preview>Your Enterprise Plan is now active on Sim</Preview>
         <Container style={baseStyles.container}>
           <Section style={{ padding: '30px 0', textAlign: 'center' }}>
             <Row>
@@ -60,39 +64,38 @@ export const CareersConfirmationEmail = ({
           </Section>
 
           <Section style={baseStyles.content}>
-            <Text style={baseStyles.paragraph}>Hello {name},</Text>
+            <Text style={baseStyles.paragraph}>Hello {userName},</Text>
             <Text style={baseStyles.paragraph}>
-              Thank you for your interest in joining the {brand.name} team! We've received your
-              application for the <strong>{position}</strong> position.
+              Great news! Your <strong>Enterprise Plan</strong> has been activated on Sim. You now
+              have access to advanced features and increased capacity for your workflows.
             </Text>
 
             <Text style={baseStyles.paragraph}>
-              Our team carefully reviews every application and will get back to you within the next
-              few weeks. If your qualifications match what we're looking for, we'll reach out to
-              schedule an initial conversation.
+              Your account has been set up with full access to your organization. Click below to log
+              in and start exploring your new Enterprise features:
+            </Text>
+
+            <Link href={effectiveLoginLink} style={{ textDecoration: 'none' }}>
+              <Text style={baseStyles.button}>Access Your Enterprise Account</Text>
+            </Link>
+
+            <Text style={baseStyles.paragraph}>
+              <strong>What's next?</strong>
+            </Text>
+            <Text style={baseStyles.paragraph}>
+              • Invite team members to your organization
+              <br />• Begin building your workflows
             </Text>
 
             <Text style={baseStyles.paragraph}>
-              In the meantime, feel free to explore our{' '}
-              <a
-                href='https://docs.sim.ai'
-                target='_blank'
-                rel='noopener noreferrer'
-                style={{ color: '#6F3DFA', textDecoration: 'none' }}
-              >
-                documentation
-              </a>{' '}
-              to learn more about what we're building, or check out our{' '}
-              <a href={`${baseUrl}/studio`} style={{ color: '#6F3DFA', textDecoration: 'none' }}>
-                blog
-              </a>{' '}
-              for the latest updates.
+              If you have any questions or need assistance getting started, our support team is here
+              to help.
             </Text>
 
             <Text style={baseStyles.paragraph}>
               Best regards,
               <br />
-              The {brand.name} Team
+              The Sim Team
             </Text>
 
             <Text
@@ -103,8 +106,8 @@ export const CareersConfirmationEmail = ({
                 color: '#666666',
               }}
             >
-              This confirmation was sent on {format(submittedDate, 'MMMM do, yyyy')} at{' '}
-              {format(submittedDate, 'h:mm a')}.
+              This email was sent on {format(createdDate, 'MMMM do, yyyy')} to {userEmail}
+              regarding your Enterprise plan activation on Sim.
             </Text>
           </Section>
         </Container>
@@ -115,4 +118,4 @@ export const CareersConfirmationEmail = ({
   )
 }
 
-export default CareersConfirmationEmail
+export default EnterpriseSubscriptionEmail

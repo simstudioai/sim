@@ -123,7 +123,7 @@ export function useOAuthConnections() {
     queryFn: fetchOAuthConnections,
     staleTime: 30 * 1000, // 30 seconds - connections don't change often
     retry: false, // Don't retry on 404
-    placeholderData: keepPreviousData, // Show cached data immediately (no skeleton loading!)
+    placeholderData: keepPreviousData, // Show cached data immediately
   })
 }
 

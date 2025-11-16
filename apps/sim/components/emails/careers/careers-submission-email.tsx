@@ -11,9 +11,9 @@ import {
   Text,
 } from '@react-email/components'
 import { format } from 'date-fns'
+import { baseStyles } from '@/components/emails/base-styles'
 import { getBrandConfig } from '@/lib/branding/branding'
 import { getBaseUrl } from '@/lib/urls/utils'
-import { baseStyles } from './base-styles'
 
 interface CareersSubmissionEmailProps {
   name: string

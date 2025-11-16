@@ -41,7 +41,7 @@ export function CreatorProfile() {
   const { data: session } = useSession()
   const userId = session?.user?.id || ''
 
-  // React Query hooks - with placeholderData to show cached data immediately (no skeleton loading!)
+  // React Query hooks - with placeholderData to show cached data immediately
   const { data: organizations = [] } = useOrganizations()
   const { data: existingProfile } = useCreatorProfile(userId)
   const saveProfile = useSaveCreatorProfile()

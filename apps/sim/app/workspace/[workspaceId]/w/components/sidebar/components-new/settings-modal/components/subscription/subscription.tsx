@@ -469,6 +469,15 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
           />
         </div>
 
+        {/* Enterprise Usage Limit Notice */}
+        {subscription.isEnterprise && (
+          <div className='text-center'>
+            <p className='text-muted-foreground text-xs'>
+              Contact enterprise for support usage limit changes
+            </p>
+          </div>
+        )}
+
         {/* Cost Breakdown */}
         {/* TODO: Re-enable CostBreakdown component in the next billing period
             once sufficient copilot cost data has been collected for accurate display.
@@ -554,14 +563,6 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
         {/* Billing usage notifications toggle */}
         {subscription.isPaid && <BillingUsageNotificationsToggle />}
 
-        {subscription.isEnterprise && (
-          <div className='text-center'>
-            <p className='text-muted-foreground text-xs'>
-              Contact enterprise for support usage limit changes
-            </p>
-          </div>
-        )}
-
         {/* Cancel Subscription */}
         {permissions.canCancelSubscription && (
           <div className='mt-2'>
@@ -630,9 +631,6 @@ function BillingUsageNotificationsToggle() {
   const enabled = useGeneralStore((s) => s.isBillingUsageNotificationsEnabled)
   const updateSetting = useUpdateGeneralSetting()
   const isLoading = updateSetting.isPending
-
-  // Settings are automatically loaded by SettingsLoader provider
-  // No need to load here - Zustand is synced from React Query
 
   return (
     <div className='mt-4 flex items-center justify-between'>

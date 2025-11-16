@@ -9,6 +9,7 @@ import {
   ResetPasswordEmail,
   UsageThresholdEmail,
 } from '@/components/emails'
+import FreeTierUpgradeEmail from '@/components/emails/billing/free-tier-upgrade-email'
 import { getBrandConfig } from '@/lib/branding/branding'
 import { getBaseUrl } from '@/lib/urls/utils'
 
@@ -124,6 +125,25 @@ export async function renderUsageThresholdEmail(params: {
   )
 }
 
+export async function renderFreeTierUpgradeEmail(params: {
+  userName?: string
+  percentUsed: number
+  currentUsage: number
+  limit: number
+  upgradeLink: string
+}): Promise<string> {
+  return await render(
+    FreeTierUpgradeEmail({
+      userName: params.userName,
+      percentUsed: params.percentUsed,
+      currentUsage: params.currentUsage,
+      limit: params.limit,
+      upgradeLink: params.upgradeLink,
+      updatedDate: new Date(),
+    })
+  )
+}
+
 export function getEmailSubject(
   type:
     | 'sign-in'
@@ -135,6 +155,7 @@ export function getEmailSubject(
     | 'help-confirmation'
     | 'enterprise-subscription'
     | 'usage-threshold'
+    | 'free-tier-upgrade'
     | 'plan-welcome-pro'
     | 'plan-welcome-team'
 ): string {
@@ -159,6 +180,8 @@ export function getEmailSubject(
       return `Your Enterprise Plan is now active on ${brandName}`
     case 'usage-threshold':
       return `You're nearing your monthly budget on ${brandName}`
+    case 'free-tier-upgrade':
+      return `You're at 90% of your free credits on ${brandName}`
     case 'plan-welcome-pro':
       return `Your Pro plan is now active on ${brandName}`
     case 'plan-welcome-team':

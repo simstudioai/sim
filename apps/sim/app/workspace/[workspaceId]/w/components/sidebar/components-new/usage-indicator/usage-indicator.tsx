@@ -184,7 +184,7 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
     )
   }
 
-  const handleClick = () => {
+  const handleClick = async () => {
     try {
       if (onClick) {
         onClick()
@@ -194,7 +194,35 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
       const blocked = getBillingStatus(subscriptionData?.data) === 'blocked'
       const canUpg = canUpgrade(subscriptionData?.data)
 
-      // Open Settings modal to the subscription tab (upgrade UI lives there)
+      // If blocked, try to open billing portal directly for faster recovery
+      if (blocked) {
+        try {
+          const context = subscription.isTeam || subscription.isEnterprise ? 'organization' : 'user'
+          const organizationId =
+            subscription.isTeam || subscription.isEnterprise
+              ? subscriptionData?.data?.organization?.id
+              : undefined
+
+          const response = await fetch('/api/billing/portal', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ context, organizationId }),
+          })
+
+          if (response.ok) {
+            const { url } = await response.json()
+            window.open(url, '_blank')
+            logger.info('Opened billing portal for blocked account', { context, organizationId })
+            return
+          }
+        } catch (portalError) {
+          logger.warn('Failed to open billing portal, falling back to settings', {
+            error: portalError,
+          })
+        }
+      }
+
+      // Fallback: Open Settings modal to the subscription tab
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('open-settings', { detail: { tab: 'subscription' } }))
         logger.info('Opened settings to subscription tab', { blocked, canUpgrade: canUpg })
@@ -206,7 +234,9 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
 
   return (
     <div
-      className='group flex flex-shrink-0 cursor-pointer flex-col gap-[8px] border-t px-[13.5px] pt-[8px] pb-[10px]'
+      className={`group flex flex-shrink-0 cursor-pointer flex-col gap-[8px] border-t px-[13.5px] pt-[8px] pb-[10px] ${
+        isBlocked ? 'border-red-500/50 bg-red-950/20' : ''
+      }`}
       onClick={handleClick}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
@@ -219,8 +249,8 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
           <div className='flex items-center gap-[4px]'>
             {isBlocked ? (
               <>
-                <span className='font-medium text-[12px] text-[var(--text-tertiary)]'>Over</span>
-                <span className='font-medium text-[12px] text-[var(--text-tertiary)]'>limit</span>
+                <span className='font-medium text-[12px] text-red-400'>Payment</span>
+                <span className='font-medium text-[12px] text-red-400'>Required</span>
               </>
             ) : (
               <>
@@ -238,10 +268,14 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
         {showUpgradeButton && (
           <Button
             variant='ghost'
-            className='-mx-1 !h-auto !px-1 !py-0 !text-[#F473B7] group-hover:!text-[#F789C4] mt-[-2px] transition-colors duration-100'
+            className={`-mx-1 !h-auto !px-1 !py-0 mt-[-2px] transition-colors duration-100 ${
+              isBlocked
+                ? '!text-red-400 group-hover:!text-red-300'
+                : '!text-[#F473B7] group-hover:!text-[#F789C4]'
+            }`}
             onClick={handleClick}
           >
-            <span className='font-medium text-[12px]'>Upgrade</span>
+            <span className='font-medium text-[12px]'>{isBlocked ? 'Fix Now' : 'Upgrade'}</span>
           </Button>
         )}
       </div>
@@ -251,7 +285,11 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
         {Array.from({ length: pillCount }).map((_, i) => {
           const isFilled = i < filledPillsCount
 
-          const baseColor = isFilled ? (isAlmostOut ? '#ef4444' : '#34B5FF') : '#414141'
+          const baseColor = isFilled
+            ? isBlocked || isAlmostOut
+              ? '#ef4444'
+              : '#34B5FF'
+            : '#414141'
 
           let backgroundColor = baseColor
           let backgroundImage: string | undefined

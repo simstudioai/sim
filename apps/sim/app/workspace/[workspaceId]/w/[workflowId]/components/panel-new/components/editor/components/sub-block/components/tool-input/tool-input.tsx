@@ -1642,19 +1642,19 @@ export function ToolInput({
                           <p className='text-xs'>
                             {tool.usageControl === 'auto' && (
                               <span>
-                                <span className='font-medium'>Auto:</span> The model decides when to
-                                use the tool
+                                <span className='font-medium' /> The model decides when to use the
+                                tool
                               </span>
                             )}
                             {tool.usageControl === 'force' && (
                               <span>
-                                <span className='font-medium'>Force:</span> Always use this tool in
-                                the response
+                                <span className='font-medium' /> Always use this tool in the
+                                response
                               </span>
                             )}
                             {tool.usageControl === 'none' && (
                               <span>
-                                <span className='font-medium'>Deny:</span> Never use this tool
+                                <span className='font-medium' /> Never use this tool
                               </span>
                             )}
                           </p>

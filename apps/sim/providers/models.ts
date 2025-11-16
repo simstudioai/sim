@@ -766,7 +766,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
     modelPatterns: [/^cerebras/],
     icon: CerebrasIcon,
     capabilities: {
-      toolUsageControl: false,
+      toolUsageControl: true,
     },
     models: [
       {
@@ -815,7 +815,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
     modelPatterns: [/^groq/],
     icon: GroqIcon,
     capabilities: {
-      toolUsageControl: false,
+      toolUsageControl: true,
     },
     models: [
       {
@@ -1093,6 +1093,9 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
     defaultModel: '',
     modelPatterns: [],
     icon: OllamaIcon,
+    capabilities: {
+      toolUsageControl: false, // Ollama does not support tool_choice parameter
+    },
     models: [], // Populated dynamically
   },
 }
