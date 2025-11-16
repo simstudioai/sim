@@ -1,4 +1,5 @@
 import { Loader2, MinusCircle, Play, XCircle } from 'lucide-react'
+import { v4 as uuidv4 } from 'uuid'
 import {
   BaseClientTool,
   type BaseClientToolMetadata,
@@ -12,7 +13,7 @@ import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 interface RunWorkflowArgs {
   workflowId?: string
   description?: string
-  workflow_input?: string
+  workflow_input?: Record<string, any>
 }
 
 export class RunWorkflowClientTool extends BaseClientTool {
@@ -103,10 +104,11 @@ export class RunWorkflowClientTool extends BaseClientTool {
       }
       logger.debug('Using active workflow', { activeWorkflowId })
 
-      const workflowInput = params.workflow_input ? { input: params.workflow_input } : undefined
-      if (workflowInput?.input) {
+      const workflowInput = params.workflow_input || undefined
+      if (workflowInput) {
         logger.debug('Workflow input provided', {
-          inputPreview: String(workflowInput.input).slice(0, 120),
+          inputFields: Object.keys(workflowInput),
+          inputPreview: JSON.stringify(workflowInput).slice(0, 120),
         })
       }
 
@@ -114,15 +116,17 @@ export class RunWorkflowClientTool extends BaseClientTool {
       logger.debug('Set isExecuting(true) and switching state to executing')
       this.setState(ClientToolCallState.executing)
 
+      const executionId = uuidv4()
       const executionStartTime = new Date().toISOString()
       logger.debug('Starting workflow execution', {
         executionStartTime,
-        executionId: this.toolCallId,
+        executionId,
+        toolCallId: this.toolCallId,
       })
 
       const result = await executeWorkflowWithFullLogging({
         workflowInput,
-        executionId: this.toolCallId,
+        executionId,
       })
 
       setIsExecuting(false)
