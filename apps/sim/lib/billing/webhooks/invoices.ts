@@ -7,6 +7,7 @@ import PaymentFailedEmail from '@/components/emails/billing/payment-failed-email
 import { calculateSubscriptionOverage } from '@/lib/billing/core/billing'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
 import { sendEmail } from '@/lib/email/mailer'
+import { quickValidateEmail } from '@/lib/email/validation'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getBaseUrl } from '@/lib/urls/utils'
 
@@ -164,8 +165,7 @@ async function sendPaymentFailureEmails(
           .from(user)
           .where(inArray(user.id, ownerAdminIds))
 
-        // Filter out invalid email addresses
-        usersToNotify = users.filter((u) => u.email?.includes('@') && u.email.length > 3)
+        usersToNotify = users.filter((u) => u.email && quickValidateEmail(u.email).isValid)
       }
     } else {
       // For individual plans, notify the user
@@ -176,8 +176,7 @@ async function sendPaymentFailureEmails(
         .limit(1)
 
       if (users.length > 0) {
-        // Filter out invalid email addresses
-        usersToNotify = users.filter((u) => u.email?.includes('@') && u.email.length > 3)
+        usersToNotify = users.filter((u) => u.email && quickValidateEmail(u.email).isValid)
       }
     }
 
