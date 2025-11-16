@@ -13,9 +13,10 @@ import {
   useBlockDimensions,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-block-dimensions'
 import { SELECTOR_TYPES_HYDRATION_REQUIRED, type SubBlockConfig } from '@/blocks/types'
+import { useCredentialName } from '@/hooks/queries/oauth-credentials'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
-import { useCredentialDisplay } from '@/hooks/use-credential-display'
-import { useDisplayName } from '@/hooks/use-display-name'
+import { useKnowledgeBaseName } from '@/hooks/use-knowledge-base-name'
+import { useSelectorDisplayName } from '@/hooks/use-selector-display-name'
 import { useVariablesStore } from '@/stores/panel/variables/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
@@ -230,9 +231,12 @@ const SubBlockRow = ({
     }, {})
   }, [getStringValue, subBlock?.dependsOn])
 
-  const { displayName: credentialName } = useCredentialDisplay(
-    subBlock?.type === 'oauth-input' && typeof rawValue === 'string' ? rawValue : undefined,
-    subBlock?.provider
+  const credentialSourceId =
+    subBlock?.type === 'oauth-input' && typeof rawValue === 'string' ? rawValue : undefined
+  const { displayName: credentialName } = useCredentialName(
+    credentialSourceId,
+    subBlock?.provider,
+    workflowId
   )
 
   const credentialId = dependencyValues.credential
@@ -253,16 +257,34 @@ const SubBlockRow = ({
     return typeof option === 'string' ? option : option.label
   }, [subBlock, rawValue])
 
-  const genericDisplayName = useDisplayName(subBlock, rawValue, {
-    workspaceId,
-    provider: subBlock?.provider,
+  const domainValue = getStringValue('domain')
+  const teamIdValue = getStringValue('teamId')
+  const projectIdValue = getStringValue('projectId')
+  const planIdValue = getStringValue('planId')
+
+  const { displayName: selectorDisplayName } = useSelectorDisplayName({
+    subBlock,
+    value: rawValue,
+    workflowId,
     credentialId: typeof credentialId === 'string' ? credentialId : undefined,
     knowledgeBaseId: typeof knowledgeBaseId === 'string' ? knowledgeBaseId : undefined,
-    domain: getStringValue('domain'),
-    teamId: getStringValue('teamId'),
-    projectId: getStringValue('projectId'),
-    planId: getStringValue('planId'),
+    domain: domainValue,
+    teamId: teamIdValue,
+    projectId: projectIdValue,
+    planId: planIdValue,
   })
+
+  const knowledgeBaseDisplayName = useKnowledgeBaseName(
+    subBlock?.type === 'knowledge-base-selector' && typeof rawValue === 'string'
+      ? rawValue
+      : undefined
+  )
+
+  const workflowMap = useWorkflowRegistry((state) => state.workflows)
+  const workflowSelectionName =
+    subBlock?.id === 'workflowId' && typeof rawValue === 'string'
+      ? (workflowMap[rawValue]?.name ?? null)
+      : null
 
   // Subscribe to variables store to reactively update when variables change
   const allVariables = useVariablesStore((state) => state.variables)
@@ -300,7 +322,12 @@ const SubBlockRow = ({
 
   const isSelectorType = subBlock?.type && SELECTOR_TYPES_HYDRATION_REQUIRED.includes(subBlock.type)
   const hydratedName =
-    credentialName || dropdownLabel || variablesDisplayValue || genericDisplayName
+    credentialName ||
+    dropdownLabel ||
+    variablesDisplayValue ||
+    knowledgeBaseDisplayName ||
+    workflowSelectionName ||
+    selectorDisplayName
   const displayValue = maskedValue || hydratedName || (isSelectorType && value ? '-' : value)
 
   return (

@@ -1,16 +1,14 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { Tooltip } from '@/components/emcn'
-import {
-  type SlackChannelInfo,
-  SlackChannelSelector,
-} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/components/sub-block/components/channel-selector/components/slack-channel-selector'
+import { SelectorCombobox } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/components/sub-block/components/selector-combobox/selector-combobox'
 import { useDependsOnGate } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/components/sub-block/hooks/use-depends-on-gate'
 import { useForeignCredential } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/components/sub-block/hooks/use-foreign-credential'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/components/sub-block/hooks/use-sub-block-value'
 import type { SubBlockConfig } from '@/blocks/types'
+import type { SelectorContext } from '@/hooks/selectors/types'
 
 interface ChannelSelectorInputProps {
   blockId: string
@@ -41,14 +39,12 @@ export function ChannelSelectorInput({
   const effectiveAuthMethod = previewContextValues?.authMethod ?? authMethod
   const effectiveBotToken = previewContextValues?.botToken ?? botToken
   const effectiveCredential = previewContextValues?.credential ?? connectedCredential
-  const [selectedChannelId, setSelectedChannelId] = useState<string>('')
-  const [_channelInfo, setChannelInfo] = useState<SlackChannelInfo | null>(null)
+  const [_channelInfo, setChannelInfo] = useState<string | null>(null)
 
-  // Get provider-specific values
   const provider = subBlock.provider || 'slack'
   const isSlack = provider === 'slack'
   // Central dependsOn gating
-  const { finalDisabled, dependsOn, dependencyValues } = useDependsOnGate(blockId, subBlock, {
+  const { finalDisabled, dependsOn } = useDependsOnGate(blockId, subBlock, {
     disabled,
     isPreview,
     previewContextValues,
@@ -69,70 +65,60 @@ export function ChannelSelectorInput({
   // Get the current value from the store or prop value if in preview mode (same pattern as file-selector)
   useEffect(() => {
     const val = isPreview && previewValue !== undefined ? previewValue : storeValue
-    if (val && typeof val === 'string') {
-      setSelectedChannelId(val)
+    if (typeof val === 'string') {
+      setChannelInfo(val)
     }
   }, [isPreview, previewValue, storeValue])
 
-  // Clear channel when any declared dependency changes (e.g., authMethod/credential)
-  const prevDepsSigRef = useRef<string>('')
-  useEffect(() => {
-    if (dependsOn.length === 0) return
-    const currentSig = JSON.stringify(dependencyValues)
-    if (prevDepsSigRef.current && prevDepsSigRef.current !== currentSig) {
-      if (!isPreview) {
-        setSelectedChannelId('')
-        setChannelInfo(null)
-        setStoreValue('')
-      }
-    }
-    prevDepsSigRef.current = currentSig
-  }, [dependsOn, dependencyValues, isPreview, setStoreValue])
+  const requiresCredential = dependsOn.includes('credential')
+  const missingCredential = !credential || credential.trim().length === 0
+  const shouldForceDisable = requiresCredential && (missingCredential || isForeignCredential)
 
-  // Handle channel selection (same pattern as file-selector)
-  const handleChannelChange = (channelId: string, info?: SlackChannelInfo) => {
-    setSelectedChannelId(channelId)
-    setChannelInfo(info || null)
-    if (!isPreview) {
-      setStoreValue(channelId)
-    }
-    onChannelSelect?.(channelId)
-  }
+  const context: SelectorContext = useMemo(
+    () => ({
+      credentialId: credential,
+      workflowId: workflowIdFromUrl,
+    }),
+    [credential, workflowIdFromUrl]
+  )
 
-  // Render Slack channel selector
-  if (isSlack) {
+  if (!isSlack) {
     return (
       <Tooltip.Root>
         <Tooltip.Trigger asChild>
-          <div className='w-full'>
-            <SlackChannelSelector
-              value={selectedChannelId}
-              onChange={(channelId: string, channelInfo?: SlackChannelInfo) => {
-                handleChannelChange(channelId, channelInfo)
-              }}
-              credential={credential}
-              label={subBlock.placeholder || 'Select Slack channel'}
-              disabled={finalDisabled}
-              workflowId={workflowIdFromUrl}
-              isForeignCredential={isForeignCredential}
-            />
+          <div className='w-full rounded border border-dashed p-4 text-center text-muted-foreground text-sm'>
+            Channel selector not supported for provider: {provider}
           </div>
         </Tooltip.Trigger>
+        <Tooltip.Content side='top'>
+          <p>This channel selector is not yet implemented for {provider}</p>
+        </Tooltip.Content>
       </Tooltip.Root>
     )
   }
 
-  // Default fallback for unsupported providers
   return (
     <Tooltip.Root>
       <Tooltip.Trigger asChild>
-        <div className='w-full rounded border border-dashed p-4 text-center text-muted-foreground text-sm'>
-          Channel selector not supported for provider: {provider}
+        <div className='w-full'>
+          <SelectorCombobox
+            blockId={blockId}
+            subBlock={subBlock}
+            selectorKey='slack.channels'
+            selectorContext={context}
+            disabled={finalDisabled || shouldForceDisable || isForeignCredential}
+            isPreview={isPreview}
+            previewValue={previewValue ?? null}
+            placeholder={subBlock.placeholder || 'Select Slack channel'}
+            onOptionChange={(value) => {
+              setChannelInfo(value)
+              if (!isPreview) {
+                onChannelSelect?.(value)
+              }
+            }}
+          />
         </div>
       </Tooltip.Trigger>
-      <Tooltip.Content side='top'>
-        <p>This channel selector is not yet implemented for {provider}</p>
-      </Tooltip.Content>
     </Tooltip.Root>
   )
 }
