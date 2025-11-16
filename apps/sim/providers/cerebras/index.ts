@@ -8,8 +8,13 @@ import type {
   ProviderResponse,
   TimeSegment,
 } from '@/providers/types'
-import { prepareToolExecution } from '@/providers/utils'
+import {
+  prepareToolExecution,
+  prepareToolsWithUsageControl,
+  trackForcedToolUsage,
+} from '@/providers/utils'
 import { executeTool } from '@/tools'
+import type { CerebrasResponse } from './types'
 
 const logger = createLogger('CerebrasProvider')
 
@@ -116,29 +121,29 @@ export const cerebrasProvider: ProviderConfig = {
         }
       }
 
-      // Add tools if provided
-      if (tools?.length) {
-        // Filter out any tools with usageControl='none', treat 'force' as 'auto' since Cerebras only supports 'auto'
-        const filteredTools = tools.filter((tool) => {
-          const toolId = tool.function?.name
-          const toolConfig = request.tools?.find((t) => t.id === toolId)
-          // Only filter out tools with usageControl='none'
-          return toolConfig?.usageControl !== 'none'
-        })
+      // Handle tools and tool usage control
+      // Cerebras supports full OpenAI-compatible tool_choice including forcing specific tools
+      let originalToolChoice: any
+      let forcedTools: string[] = []
+      let hasFilteredTools = false
 
-        if (filteredTools?.length) {
-          payload.tools = filteredTools
-          // Always use 'auto' for Cerebras, explicitly converting any 'force' usageControl to 'auto'
-          payload.tool_choice = 'auto'
+      if (tools?.length) {
+        const preparedTools = prepareToolsWithUsageControl(tools, request.tools, logger, 'openai')
+
+        if (preparedTools.tools?.length) {
+          payload.tools = preparedTools.tools
+          payload.tool_choice = preparedTools.toolChoice || 'auto'
+          originalToolChoice = preparedTools.toolChoice
+          forcedTools = preparedTools.forcedTools || []
+          hasFilteredTools = preparedTools.hasFilteredTools
 
           logger.info('Cerebras request configuration:', {
-            toolCount: filteredTools.length,
-            toolChoice: 'auto', // Cerebras always uses auto, 'force' is treated as 'auto'
+            toolCount: preparedTools.tools.length,
+            toolChoice: payload.tool_choice,
+            forcedToolsCount: forcedTools.length,
+            hasFilteredTools,
             model: request.model,
           })
-        } else if (tools.length > 0 && filteredTools.length === 0) {
-          // Handle case where all tools are filtered out
-          logger.info(`All tools have usageControl='none', removing tools from request`)
         }
       }
 
@@ -356,6 +361,29 @@ export const cerebrasProvider: ProviderConfig = {
           // Calculate tool call time for this iteration
           const thisToolsTime = Date.now() - toolsStartTime
           toolsTime += thisToolsTime
+
+          // Check if we used any forced tools and update tool_choice for the next iteration
+          let usedForcedTools: string[] = []
+          if (typeof originalToolChoice === 'object' && forcedTools.length > 0) {
+            const toolTracking = trackForcedToolUsage(
+              currentResponse.choices[0]?.message?.tool_calls,
+              originalToolChoice,
+              logger,
+              'openai',
+              forcedTools,
+              usedForcedTools
+            )
+            usedForcedTools = toolTracking.usedForcedTools
+            const nextToolChoice = toolTracking.nextToolChoice
+
+            // Update tool_choice for next iteration if we're still forcing tools
+            if (nextToolChoice && typeof nextToolChoice === 'object') {
+              payload.tool_choice = nextToolChoice
+            } else if (nextToolChoice === 'auto' || !nextToolChoice) {
+              // All forced tools have been used, switch to auto
+              payload.tool_choice = 'auto'
+            }
+          }
 
           // After processing tool calls, get a final response
           if (processedAnyToolCall || hasRepeatedToolCalls) {

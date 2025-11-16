@@ -53,7 +53,7 @@ export function useUserProfile() {
     queryKey: userProfileKeys.profile(),
     queryFn: fetchUserProfile,
     staleTime: 5 * 60 * 1000, // 5 minutes - profile data doesn't change often
-    placeholderData: keepPreviousData, // Show cached data immediately (no skeleton loading!)
+    placeholderData: keepPreviousData, // Show cached data immediately
   })
 }
 

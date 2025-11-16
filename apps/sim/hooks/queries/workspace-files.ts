@@ -49,7 +49,7 @@ export function useWorkspaceFiles(workspaceId: string) {
     queryFn: () => fetchWorkspaceFiles(workspaceId),
     enabled: !!workspaceId,
     staleTime: 30 * 1000, // 30 seconds - files can change frequently
-    placeholderData: keepPreviousData, // Show cached data immediately (no skeleton loading!)
+    placeholderData: keepPreviousData, // Show cached data immediately
   })
 }
 
