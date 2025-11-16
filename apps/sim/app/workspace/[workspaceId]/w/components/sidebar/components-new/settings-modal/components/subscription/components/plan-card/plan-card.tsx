@@ -107,12 +107,11 @@ export function PlanCard({
         <Button
           onClick={onButtonClick}
           className={cn(
-            'h-9 rounded-[8px] text-xs transition-colors',
+            'h-9 rounded-[8px] text-xs',
             isHorizontal ? 'px-4' : 'w-full',
-            isError &&
-              'border-red-500 bg-transparent text-red-500 hover:bg-red-500 hover:text-white dark:border-red-500 dark:text-red-500 dark:hover:bg-red-500'
+            isError && 'border-red-500 text-red-500 dark:border-red-500 dark:text-red-500'
           )}
-          variant={isError ? 'outline' : 'default'}
+          variant='outline'
           aria-label={`${buttonText} ${name} plan`}
         >
           {isError ? 'Error' : buttonText}

@@ -116,8 +116,7 @@ const WorkflowContent = React.memo(() => {
   // Get workspace ID from the params
   const workspaceId = params.workspaceId as string
 
-  const { workflows, activeWorkflowId, isLoading, setActiveWorkflow, createWorkflow } =
-    useWorkflowRegistry()
+  const { workflows, activeWorkflowId, isLoading, setActiveWorkflow } = useWorkflowRegistry()
 
   // Use the clean abstraction for current workflow state
   const currentWorkflow = useCurrentWorkflow()

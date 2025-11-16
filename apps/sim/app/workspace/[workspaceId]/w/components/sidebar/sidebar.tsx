@@ -7,8 +7,8 @@ import { ScrollArea } from '@/components/ui'
 import { useSession } from '@/lib/auth-client'
 import { getEnv, isTruthy } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
-import { generateWorkspaceName } from '@/lib/naming'
 import { canUpgrade, getBillingStatus } from '@/lib/subscription/helpers'
+import { generateWorkspaceName } from '@/lib/workspaces/naming'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import {
   CreateMenu,
@@ -28,7 +28,6 @@ import { InviteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/
 import { useAutoScroll } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks/use-auto-scroll'
 import { useSubscriptionData } from '@/hooks/queries/subscription'
 import { useKnowledgeBasesList } from '@/hooks/use-knowledge'
-import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
 
@@ -82,13 +81,7 @@ interface TemplateData {
 export function Sidebar() {
   // useGlobalShortcuts()
 
-  const {
-    workflows,
-    createWorkflow,
-    isLoading: workflowsLoading,
-    loadWorkflows,
-    switchToWorkspace,
-  } = useWorkflowRegistry()
+  const { workflows, isLoading: workflowsLoading, switchToWorkspace } = useWorkflowRegistry()
   const { data: sessionData, isPending: sessionLoading } = useSession()
   const userPermissions = useUserPermissionsContext()
   const isLoading = workflowsLoading || sessionLoading
@@ -605,19 +598,20 @@ export function Sidebar() {
   }
 
   // Load workflows for the current workspace when workspaceId changes
-  useEffect(() => {
-    if (workspaceId) {
-      // Validate workspace exists before loading workflows
-      isWorkspaceValid(workspaceId).then((valid) => {
-        if (valid) {
-          loadWorkflows(workspaceId)
-        } else {
-          logger.warn(`Workspace ${workspaceId} no longer exists, triggering workspace refresh`)
-          fetchWorkspaces() // This will handle the redirect through the fallback logic
-        }
-      })
-    }
-  }, [workspaceId, loadWorkflows]) // Removed isWorkspaceValid and fetchWorkspaces dependencies
+  // NOTE: This useEffect is disabled - workflows now loaded via React Query in sidebar-new
+  // useEffect(() => {
+  //   if (workspaceId) {
+  //     // Validate workspace exists before loading workflows
+  //     isWorkspaceValid(workspaceId).then((valid) => {
+  //       if (valid) {
+  //         loadWorkflows(workspaceId)
+  //       } else {
+  //         logger.warn(`Workspace ${workspaceId} no longer exists, triggering workspace refresh`)
+  //         fetchWorkspaces() // This will handle the redirect through the fallback logic
+  //       }
+  //     })
+  //   }
+  // }, [workspaceId, loadWorkflows]) // Removed isWorkspaceValid and fetchWorkspaces dependencies
 
   // Initialize workspace data on mount (uses full validation with URL handling)
   useEffect(() => {
@@ -736,30 +730,33 @@ export function Sidebar() {
   }, [knowledgeBases, workspaceId, knowledgeBaseId])
 
   // Create workflow handler
+  // NOTE: This is disabled - workflow creation now handled via React Query in sidebar-new
   const handleCreateWorkflow = async (folderId?: string): Promise<string> => {
-    if (isCreatingWorkflow) {
-      logger.info('Workflow creation already in progress, ignoring request')
-      throw new Error('Workflow creation already in progress')
-    }
+    logger.warn('Old sidebar handleCreateWorkflow called - should use sidebar-new')
+    return ''
+    // if (isCreatingWorkflow) {
+    //   logger.info('Workflow creation already in progress, ignoring request')
+    //   throw new Error('Workflow creation already in progress')
+    // }
 
-    try {
-      setIsCreatingWorkflow(true)
+    // try {
+    //   setIsCreatingWorkflow(true)
 
-      // Clear workflow diff store when creating a new workflow
-      const { clearDiff } = useWorkflowDiffStore.getState()
-      clearDiff()
+    //   // Clear workflow diff store when creating a new workflow
+    //   const { clearDiff } = useWorkflowDiffStore.getState()
+    //   clearDiff()
 
-      const id = await createWorkflow({
-        workspaceId: workspaceId || undefined,
-        folderId: folderId || undefined,
-      })
-      return id
-    } catch (error) {
-      logger.error('Error creating workflow:', error)
-      throw error
-    } finally {
-      setIsCreatingWorkflow(false)
-    }
+    //   const id = await createWorkflow({
+    //     workspaceId: workspaceId || undefined,
+    //     folderId: folderId || undefined,
+    //   })
+    //   return id
+    // } catch (error) {
+    //   logger.error('Error creating workflow:', error)
+    //   throw error
+    // } finally {
+    //   setIsCreatingWorkflow(false)
+    // }
   }
 
   // Toggle workspace selector visibility

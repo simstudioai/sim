@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Braces, Square } from 'lucide-react'
+import { ArrowDown, Braces, Square } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import {
   BubbleChatPreview,
@@ -22,12 +22,13 @@ import {
   PopoverTrigger,
   Trash,
 } from '@/components/emcn'
+import { VariableIcon } from '@/components/icons'
 import { createLogger } from '@/lib/logs/console/logger'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { Variables } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/variables/variables'
 import { useWorkflowExecution } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-workflow-execution'
-import { useDeleteWorkflow } from '@/app/workspace/[workspaceId]/w/hooks'
+import { useDeleteWorkflow, useImportWorkflow } from '@/app/workspace/[workspaceId]/w/hooks'
 import { useChatStore } from '@/stores/chat/store'
 import { usePanelStore } from '@/stores/panel-new/store'
 import type { PanelTab } from '@/stores/panel-new/types'
@@ -62,6 +63,7 @@ export function Panel() {
   const workspaceId = params.workspaceId as string
 
   const panelRef = useRef<HTMLElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const { activeTab, setActiveTab, panelWidth, _hasHydrated, setHasHydrated } = usePanelStore()
   const copilotRef = useRef<{
     createNewChat: () => void
@@ -77,6 +79,7 @@ export function Panel() {
 
   // Hooks
   const userPermissions = useUserPermissionsContext()
+  const { isImporting, handleFileChange } = useImportWorkflow({ workspaceId })
   const {
     workflows,
     activeWorkflowId,
@@ -262,6 +265,14 @@ export function Panel() {
     workspaceId,
   ])
 
+  /**
+   * Handles triggering file input for workflow import
+   */
+  const handleImportWorkflow = useCallback(() => {
+    setIsMenuOpen(false)
+    fileInputRef.current?.click()
+  }, [])
+
   // Compute run button state
   const canRun = userPermissions.canRead // Running only requires read permissions
   const isLoadingPermissions = userPermissions.isLoading
@@ -314,7 +325,7 @@ export function Panel() {
                   </PopoverItem>
                   {
                     <PopoverItem onClick={() => setVariablesOpen(!isVariablesOpen)}>
-                      <Braces className='h-3 w-3' />
+                      <VariableIcon className='h-3 w-3' />
                       <span>Variables</span>
                     </PopoverItem>
                   }
@@ -331,7 +342,14 @@ export function Panel() {
                     disabled={isExporting || !currentWorkflow}
                   >
                     <Braces className='h-3 w-3' />
-                    <span>Export JSON</span>
+                    <span>Export workflow</span>
+                  </PopoverItem>
+                  <PopoverItem
+                    onClick={handleImportWorkflow}
+                    disabled={isImporting || !userPermissions.canEdit}
+                  >
+                    <ArrowDown className='h-3 w-3' />
+                    <span>Import workflow</span>
                   </PopoverItem>
                   <PopoverItem
                     onClick={handleDuplicateWorkflow}
@@ -499,6 +517,16 @@ export function Panel() {
 
       {/* Floating Variables Modal */}
       <Variables />
+
+      {/* Hidden file input for workflow import */}
+      <input
+        ref={fileInputRef}
+        type='file'
+        accept='.json,.zip'
+        multiple
+        style={{ display: 'none' }}
+        onChange={handleFileChange}
+      />
     </>
   )
 }
