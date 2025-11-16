@@ -3,14 +3,14 @@ export const COPILOT_TOOLS = [
   {
     id: 'run_workflow',
     description:
-      'Execute the current workflow. Use this to run workflows that require manual execution or chat input.',
+      'Execute the current workflow. Use this to run workflows that require manual execution or input fields.',
     parameters: {
       type: 'object',
       properties: {
         workflow_input: {
-          type: 'string',
+          type: 'object',
           description:
-            'Optional chat or message to include with the workflow execution. If the workflow requires chat input, you must supply a chat message here.',
+            'JSON object with key-value mappings where each key is an input field name required by the workflow. For example: {"message": "Hello", "temperature": 0.7}',
         },
       },
       required: [],
