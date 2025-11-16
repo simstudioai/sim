@@ -1,5 +1,5 @@
 /**
- * Utility functions for generating names for all entities (workspaces, folders, workflows)
+ * Utility functions for generating names for workspaces and folders
  */
 
 import type { Workspace } from '@/lib/organization/types'
@@ -16,148 +16,6 @@ interface WorkspacesApiResponse {
 interface FoldersApiResponse {
   folders: WorkflowFolder[]
 }
-
-const ADJECTIVES = [
-  'Blazing',
-  'Crystal',
-  'Golden',
-  'Silver',
-  'Mystic',
-  'Cosmic',
-  'Electric',
-  'Frozen',
-  'Burning',
-  'Shining',
-  'Dancing',
-  'Flying',
-  'Roaring',
-  'Whispering',
-  'Glowing',
-  'Sparkling',
-  'Thunder',
-  'Lightning',
-  'Storm',
-  'Ocean',
-  'Mountain',
-  'Forest',
-  'Desert',
-  'Arctic',
-  'Tropical',
-  'Midnight',
-  'Dawn',
-  'Sunset',
-  'Rainbow',
-  'Diamond',
-  'Ruby',
-  'Emerald',
-  'Sapphire',
-  'Pearl',
-  'Jade',
-  'Amber',
-  'Coral',
-  'Ivory',
-  'Obsidian',
-  'Marble',
-  'Velvet',
-  'Silk',
-  'Satin',
-  'Linen',
-  'Cotton',
-  'Wool',
-  'Cashmere',
-  'Denim',
-  'Neon',
-  'Pastel',
-  'Vibrant',
-  'Muted',
-  'Bold',
-  'Subtle',
-  'Bright',
-  'Dark',
-]
-
-const NOUNS = [
-  'Phoenix',
-  'Dragon',
-  'Eagle',
-  'Wolf',
-  'Lion',
-  'Tiger',
-  'Panther',
-  'Falcon',
-  'Hawk',
-  'Raven',
-  'Swan',
-  'Dove',
-  'Butterfly',
-  'Firefly',
-  'Dragonfly',
-  'Hummingbird',
-  'Galaxy',
-  'Nebula',
-  'Comet',
-  'Meteor',
-  'Star',
-  'Moon',
-  'Sun',
-  'Planet',
-  'Asteroid',
-  'Constellation',
-  'Aurora',
-  'Eclipse',
-  'Solstice',
-  'Equinox',
-  'Horizon',
-  'Zenith',
-  'Castle',
-  'Tower',
-  'Bridge',
-  'Garden',
-  'Fountain',
-  'Palace',
-  'Temple',
-  'Cathedral',
-  'Lighthouse',
-  'Windmill',
-  'Waterfall',
-  'Canyon',
-  'Valley',
-  'Peak',
-  'Ridge',
-  'Cliff',
-  'Ocean',
-  'River',
-  'Lake',
-  'Stream',
-  'Pond',
-  'Bay',
-  'Cove',
-  'Harbor',
-  'Island',
-  'Peninsula',
-  'Archipelago',
-  'Atoll',
-  'Reef',
-  'Lagoon',
-  'Fjord',
-  'Delta',
-  'Cake',
-  'Cookie',
-  'Muffin',
-  'Cupcake',
-  'Pie',
-  'Tart',
-  'Brownie',
-  'Donut',
-  'Pancake',
-  'Waffle',
-  'Croissant',
-  'Bagel',
-  'Pretzel',
-  'Biscuit',
-  'Scone',
-  'Crumpet',
-]
 
 /**
  * Generates the next incremental name for entities following pattern: "{prefix} {number}"
@@ -225,14 +83,4 @@ export async function generateSubfolderName(
   const subfolders = folders.filter((folder) => folder.parentId === parentFolderId)
 
   return generateIncrementalName(subfolders, 'Subfolder')
-}
-
-/**
- * Generates a creative workflow name using random adjectives and nouns
- * @returns A creative workflow name like "blazing-phoenix" or "crystal-dragon"
- */
-export function generateCreativeWorkflowName(): string {
-  const adjective = ADJECTIVES[Math.floor(Math.random() * ADJECTIVES.length)]
-  const noun = NOUNS[Math.floor(Math.random() * NOUNS.length)]
-  return `${adjective.toLowerCase()}-${noun.toLowerCase()}`
 }

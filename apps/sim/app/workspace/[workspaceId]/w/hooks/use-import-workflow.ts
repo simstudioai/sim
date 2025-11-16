@@ -8,9 +8,9 @@ import {
   extractWorkflowsFromZip,
 } from '@/lib/workflows/import-export'
 import { folderKeys, useCreateFolder } from '@/hooks/queries/folders'
+import { useCreateWorkflow, workflowKeys } from '@/hooks/queries/workflows'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 import { parseWorkflowJson } from '@/stores/workflows/json/importer'
-import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 const logger = createLogger('useImportWorkflow')
 
@@ -30,7 +30,7 @@ interface UseImportWorkflowProps {
  */
 export function useImportWorkflow({ workspaceId }: UseImportWorkflowProps) {
   const router = useRouter()
-  const { createWorkflow, loadWorkflows } = useWorkflowRegistry()
+  const createWorkflowMutation = useCreateWorkflow()
   const queryClient = useQueryClient()
   const createFolderMutation = useCreateFolder()
   const [isImporting, setIsImporting] = useState(false)
@@ -55,12 +55,13 @@ export function useImportWorkflow({ workspaceId }: UseImportWorkflowProps) {
       const workflowColor =
         parsedContent.state?.metadata?.color || parsedContent.metadata?.color || '#3972F6'
 
-      const newWorkflowId = await createWorkflow({
+      const result = await createWorkflowMutation.mutateAsync({
         name: workflowName,
         description: workflowData.metadata?.description || 'Imported from JSON',
         workspaceId,
         folderId: folderId || undefined,
       })
+      const newWorkflowId = result.id
 
       // Update workflow color if we extracted one
       if (workflowColor !== '#3972F6') {
@@ -98,7 +99,7 @@ export function useImportWorkflow({ workspaceId }: UseImportWorkflowProps) {
       logger.info(`Imported workflow: ${workflowName}`)
       return newWorkflowId
     },
-    [createWorkflow, workspaceId]
+    [createWorkflowMutation, workspaceId]
   )
 
   /**
@@ -184,8 +185,8 @@ export function useImportWorkflow({ workspaceId }: UseImportWorkflowProps) {
           }
         }
 
-        // Reload workflows to show newly imported ones
-        await loadWorkflows(workspaceId)
+        // Reload workflows and folders to show newly imported ones
+        await queryClient.invalidateQueries({ queryKey: workflowKeys.list(workspaceId) })
         await queryClient.invalidateQueries({ queryKey: folderKeys.list(workspaceId) })
 
         logger.info(`Import complete. Imported ${importedWorkflowIds.length} workflow(s)`)
@@ -205,7 +206,7 @@ export function useImportWorkflow({ workspaceId }: UseImportWorkflowProps) {
         }
       }
     },
-    [importSingleWorkflow, workspaceId, loadWorkflows, router, createFolderMutation, queryClient]
+    [importSingleWorkflow, workspaceId, router, createFolderMutation, queryClient]
   )
 
   return {

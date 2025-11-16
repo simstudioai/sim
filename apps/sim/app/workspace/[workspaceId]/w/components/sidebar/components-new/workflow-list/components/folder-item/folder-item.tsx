@@ -14,8 +14,8 @@ import {
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import { useDeleteFolder, useDuplicateFolder } from '@/app/workspace/[workspaceId]/w/hooks'
 import { useUpdateFolder } from '@/hooks/queries/folders'
+import { useCreateWorkflow } from '@/hooks/queries/workflows'
 import type { FolderTreeNode } from '@/stores/folders/store'
-import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 interface FolderItemProps {
   folder: FolderTreeNode
@@ -39,7 +39,7 @@ export function FolderItem({ folder, level, hoverHandlers }: FolderItemProps) {
   const router = useRouter()
   const workspaceId = params.workspaceId as string
   const updateFolderMutation = useUpdateFolder()
-  const { createWorkflow } = useWorkflowRegistry()
+  const createWorkflowMutation = useCreateWorkflow()
 
   // Delete modal state
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
@@ -58,18 +58,18 @@ export function FolderItem({ folder, level, hoverHandlers }: FolderItemProps) {
   })
 
   /**
-   * Handle create workflow in folder
+   * Handle create workflow in folder using React Query mutation
    */
   const handleCreateWorkflowInFolder = useCallback(async () => {
-    const workflowId = await createWorkflow({
+    const result = await createWorkflowMutation.mutateAsync({
       workspaceId,
       folderId: folder.id,
     })
 
-    if (workflowId) {
-      router.push(`/workspace/${workspaceId}/w/${workflowId}`)
+    if (result.id) {
+      router.push(`/workspace/${workspaceId}/w/${result.id}`)
     }
-  }, [createWorkflow, workspaceId, folder.id, router])
+  }, [createWorkflowMutation, workspaceId, folder.id, router])
 
   // Folder expand hook
   const {
