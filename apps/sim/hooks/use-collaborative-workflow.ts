@@ -439,7 +439,13 @@ export function useCollaborativeWorkflow() {
           switch (operation) {
             case 'replace-state':
               if (payload.state) {
-                logger.info('Received workflow state replacement from remote user')
+                logger.info('Received workflow state replacement from remote user', {
+                  userId,
+                  blockCount: Object.keys(payload.state.blocks || {}).length,
+                  edgeCount: (payload.state.edges || []).length,
+                  hasActiveDiff,
+                  isShowingDiff,
+                })
                 workflowStore.replaceWorkflowState(payload.state)
                 
                 // Extract and apply subblock values
@@ -457,6 +463,8 @@ export function useCollaborativeWorkflow() {
                 if (activeWorkflowId) {
                   subBlockStore.setWorkflowValues(activeWorkflowId, subBlockValues)
                 }
+                
+                logger.info('Successfully applied remote workflow state replacement')
               }
               break
           }

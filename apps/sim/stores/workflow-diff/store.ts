@@ -531,6 +531,12 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
           const sessionResult = await client.getSession()
           const userId = sessionResult.data?.user?.id || 'unknown'
 
+          logger.info('Broadcasting reject to other users', {
+            workflowId: activeWorkflowId,
+            userId,
+            blockCount: Object.keys(baselineWorkflow.blocks).length,
+          })
+
           addToQueue({
             id: crypto.randomUUID(),
             operation: {
@@ -540,6 +546,7 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
             },
             workflowId: activeWorkflowId,
             userId,
+            immediate: true, // Mark as immediate to ensure it's not debounced
           })
 
           // Persist to database
