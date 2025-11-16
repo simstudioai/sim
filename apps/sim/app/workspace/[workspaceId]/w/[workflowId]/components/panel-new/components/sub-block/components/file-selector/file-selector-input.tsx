@@ -8,7 +8,7 @@ import { useDependsOnGate } from '@/app/workspace/[workspaceId]/w/[workflowId]/c
 import { useForeignCredential } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/components/sub-block/hooks/use-foreign-credential'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/components/sub-block/hooks/use-sub-block-value'
 import type { SubBlockConfig } from '@/blocks/types'
-import { resolveSelectorForSubBlock, type SelectorResolution } from '@/hooks/selectors/resolution'
+import type { SelectorContext, SelectorKey } from '@/hooks/selectors/types'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
@@ -64,19 +64,24 @@ export function FileSelectorInput({
     normalizedCredentialId
   )
 
-  const selectorResolution = useMemo<SelectorResolution | null>(() => {
-    return resolveSelectorForSubBlock(subBlock, {
-      workflowId: workflowIdFromUrl,
+  const selectorResolution = useMemo(() => {
+    return resolveSelector({
+      provider: subBlock.provider || '',
+      serviceId: subBlock.serviceId,
+      mimeType: subBlock.mimeType,
       credentialId: normalizedCredentialId,
-      domain: (domainValue as string) || undefined,
-      projectId: (projectIdValue as string) || undefined,
-      planId: (planIdValue as string) || undefined,
-      teamId: (teamIdValue as string) || undefined,
+      workflowId: workflowIdFromUrl,
+      domain: (domainValue as string) || '',
+      projectId: (projectIdValue as string) || '',
+      planId: (planIdValue as string) || '',
+      teamId: (teamIdValue as string) || '',
     })
   }, [
-    subBlock,
-    workflowIdFromUrl,
+    subBlock.provider,
+    subBlock.serviceId,
+    subBlock.mimeType,
     normalizedCredentialId,
+    workflowIdFromUrl,
     domainValue,
     projectIdValue,
     planIdValue,
@@ -85,15 +90,15 @@ export function FileSelectorInput({
 
   const missingCredential = !normalizedCredentialId
   const missingDomain =
-    selectorResolution?.key &&
+    selectorResolution.key &&
     (selectorResolution.key === 'confluence.pages' || selectorResolution.key === 'jira.issues') &&
     !selectorResolution.context.domain
   const missingProject =
-    selectorResolution?.key === 'jira.issues' &&
+    selectorResolution.key === 'jira.issues' &&
     subBlock.dependsOn?.includes('projectId') &&
     !selectorResolution.context.projectId
   const missingPlan =
-    selectorResolution?.key === 'microsoft.planner' && !selectorResolution.context.planId
+    selectorResolution.key === 'microsoft.planner' && !selectorResolution.context.planId
 
   const disabledReason =
     finalDisabled ||
@@ -102,9 +107,9 @@ export function FileSelectorInput({
     missingDomain ||
     missingProject ||
     missingPlan ||
-    !selectorResolution?.key
+    selectorResolution.key === null
 
-  if (!selectorResolution?.key) {
+  if (selectorResolution.key === null) {
     return (
       <Tooltip.Root>
         <Tooltip.Trigger asChild>
@@ -137,4 +142,70 @@ export function FileSelectorInput({
       }}
     />
   )
+}
+
+interface SelectorParams {
+  provider: string
+  serviceId?: string
+  mimeType?: string
+  credentialId: string
+  workflowId: string
+  domain?: string
+  projectId?: string
+  planId?: string
+  teamId?: string
+}
+
+function resolveSelector(params: SelectorParams): {
+  key: SelectorKey | null
+  context: SelectorContext
+  allowSearch: boolean
+} {
+  const baseContext: SelectorContext = {
+    credentialId: params.credentialId,
+    workflowId: params.workflowId,
+    domain: params.domain,
+    projectId: params.projectId,
+    planId: params.planId,
+    teamId: params.teamId,
+    mimeType: params.mimeType,
+  }
+
+  switch (params.provider) {
+    case 'google-calendar':
+      return { key: 'google.calendar', context: baseContext, allowSearch: false }
+    case 'confluence':
+      return { key: 'confluence.pages', context: baseContext, allowSearch: true }
+    case 'jira':
+      return { key: 'jira.issues', context: baseContext, allowSearch: true }
+    case 'microsoft-teams':
+      return { key: 'microsoft.teams', context: baseContext, allowSearch: true }
+    case 'wealthbox':
+      return { key: 'wealthbox.contacts', context: baseContext, allowSearch: true }
+    case 'microsoft-planner':
+      return { key: 'microsoft.planner', context: baseContext, allowSearch: true }
+    case 'microsoft-excel':
+      return { key: 'microsoft.excel', context: baseContext, allowSearch: true }
+    case 'microsoft-word':
+      return { key: 'microsoft.word', context: baseContext, allowSearch: true }
+    case 'google-drive':
+      return { key: 'google.drive', context: baseContext, allowSearch: true }
+    default:
+      break
+  }
+
+  if (params.serviceId === 'onedrive') {
+    const key: SelectorKey = params.mimeType === 'file' ? 'onedrive.files' : 'onedrive.folders'
+    return { key, context: baseContext, allowSearch: true }
+  }
+
+  if (params.serviceId === 'sharepoint') {
+    return { key: 'sharepoint.sites', context: baseContext, allowSearch: true }
+  }
+
+  if (params.serviceId === 'google-drive') {
+    return { key: 'google.drive', context: baseContext, allowSearch: true }
+  }
+
+  return { key: null, context: baseContext, allowSearch: true }
 }

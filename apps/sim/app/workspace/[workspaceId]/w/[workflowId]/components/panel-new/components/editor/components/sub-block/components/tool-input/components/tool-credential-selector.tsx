@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Check, ChevronDown, ExternalLink, Plus, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/emcn/components/button/button'
 import {
@@ -11,7 +11,6 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { createLogger } from '@/lib/logs/console/logger'
 import {
-  type Credential,
   getCanonicalScopesForProvider,
   getProviderIdFromServiceId,
   OAUTH_PROVIDERS,
@@ -20,8 +19,8 @@ import {
   parseProvider,
 } from '@/lib/oauth'
 import { OAuthRequiredModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/components/sub-block/components/credential-selector/components/oauth-required-modal'
+import { useOAuthCredentialDetail, useOAuthCredentials } from '@/hooks/queries/oauth-credentials'
 import { getMissingRequiredScopes } from '@/hooks/use-oauth-scope-status'
-import { useDisplayNamesStore } from '@/stores/display-names/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 const logger = createLogger('ToolCredentialSelector')
@@ -70,8 +69,6 @@ export function ToolCredentialSelector({
   disabled = false,
 }: ToolCredentialSelectorProps) {
   const [open, setOpen] = useState(false)
-  const [credentials, setCredentials] = useState<Credential[]>([])
-  const [isLoading, setIsLoading] = useState(false)
   const [showOAuthModal, setShowOAuthModal] = useState(false)
   const [selectedId, setSelectedId] = useState('')
   const { activeWorkflowId } = useWorkflowRegistry()
@@ -80,80 +77,43 @@ export function ToolCredentialSelector({
     setSelectedId(value)
   }, [value])
 
-  const fetchCredentials = useCallback(async () => {
-    setIsLoading(true)
-    try {
-      const response = await fetch(`/api/auth/oauth/credentials?provider=${provider}`)
-      if (response.ok) {
-        const data = await response.json()
-        setCredentials(data.credentials || [])
+  const {
+    data: fetchedCredentials = [],
+    isFetching: credentialsLoading,
+    refetch: refetchCredentials,
+  } = useOAuthCredentials(provider, true)
 
-        // Cache credential names for block previews
-        if (provider) {
-          const credentialMap = (data.credentials || []).reduce(
-            (acc: Record<string, string>, cred: Credential) => {
-              acc[cred.id] = cred.name
-              return acc
-            },
-            {}
-          )
-          useDisplayNamesStore.getState().setDisplayNames('credentials', provider, credentialMap)
-        }
+  const shouldFetchDetail =
+    Boolean(value) &&
+    !fetchedCredentials.some((cred) => cred.id === value) &&
+    Boolean(activeWorkflowId)
 
-        if (
-          value &&
-          !(data.credentials || []).some((cred: Credential) => cred.id === value) &&
-          activeWorkflowId
-        ) {
-          try {
-            const metaResp = await fetch(
-              `/api/auth/oauth/credentials?credentialId=${value}&workflowId=${activeWorkflowId}`
-            )
-            if (metaResp.ok) {
-              const meta = await metaResp.json()
-              if (meta.credentials?.length) {
-                const combinedCredentials = [meta.credentials[0], ...(data.credentials || [])]
-                setCredentials(combinedCredentials)
+  const { data: collaboratorCredentials = [], isFetching: collaboratorLoading } =
+    useOAuthCredentialDetail(
+      shouldFetchDetail ? value : undefined,
+      activeWorkflowId || undefined,
+      shouldFetchDetail
+    )
 
-                const credentialMap = combinedCredentials.reduce(
-                  (acc: Record<string, string>, cred: Credential) => {
-                    acc[cred.id] = cred.name
-                    return acc
-                  },
-                  {}
-                )
-                useDisplayNamesStore
-                  .getState()
-                  .setDisplayNames('credentials', provider, credentialMap)
-              }
-            }
-          } catch {
-            // ignore
-          }
-        }
-      } else {
-        logger.error('Error fetching credentials:', { error: await response.text() })
-        setCredentials([])
-      }
-    } catch (error) {
-      logger.error('Error fetching credentials:', { error })
-      setCredentials([])
-    } finally {
-      setIsLoading(false)
+  const credentials = useMemo(() => {
+    if (collaboratorCredentials.length === 0) {
+      return fetchedCredentials
     }
-  }, [provider, value, onChange])
-
-  // Fetch credentials on initial mount only
-  useEffect(() => {
-    fetchCredentials()
-    // This effect should only run once on mount
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+    const collaborator = collaboratorCredentials[0]
+    if (!collaborator) {
+      return fetchedCredentials
+    }
+    const alreadyIncluded = fetchedCredentials.some((cred) => cred.id === collaborator.id)
+    if (alreadyIncluded) {
+      return fetchedCredentials
+    }
+    return [collaborator, ...fetchedCredentials]
+  }, [fetchedCredentials, collaboratorCredentials])
 
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
-        fetchCredentials()
+        void refetchCredentials()
       }
     }
 
@@ -162,7 +122,7 @@ export function ToolCredentialSelector({
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange)
     }
-  }, [fetchCredentials])
+  }, [refetchCredentials])
 
   const handleSelect = (credentialId: string) => {
     setSelectedId(credentialId)
@@ -172,13 +132,13 @@ export function ToolCredentialSelector({
 
   const handleOAuthClose = () => {
     setShowOAuthModal(false)
-    fetchCredentials()
+    void refetchCredentials()
   }
 
   const handleOpenChange = (isOpen: boolean) => {
     setOpen(isOpen)
     if (isOpen) {
-      fetchCredentials()
+      void refetchCredentials()
     }
   }
 
@@ -190,7 +150,8 @@ export function ToolCredentialSelector({
   const missingRequiredScopes = hasSelection
     ? getMissingRequiredScopes(selectedCredential, requiredScopes || [])
     : []
-  const needsUpdate = hasSelection && missingRequiredScopes.length > 0 && !disabled && !isLoading
+  const needsUpdate =
+    hasSelection && missingRequiredScopes.length > 0 && !disabled && !credentialsLoading
 
   return (
     <>
@@ -224,7 +185,7 @@ export function ToolCredentialSelector({
           <Command>
             <CommandList>
               <CommandEmpty>
-                {isLoading ? (
+                {credentialsLoading || collaboratorLoading ? (
                   <div className='flex items-center justify-center p-4'>
                     <RefreshCw className='h-4 w-4 animate-spin' />
                     <span className='ml-2'>Loading...</span>

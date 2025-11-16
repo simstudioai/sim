@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Check, ChevronDown, ExternalLink, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/emcn/components/button/button'
 import {
@@ -14,7 +14,6 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { createLogger } from '@/lib/logs/console/logger'
 import {
-  type Credential,
   getCanonicalScopesForProvider,
   getProviderIdFromServiceId,
   getServiceIdFromScopes,
@@ -25,9 +24,9 @@ import {
 import { OAuthRequiredModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/components/sub-block/components/credential-selector/components/oauth-required-modal'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/components/sub-block/hooks/use-sub-block-value'
 import type { SubBlockConfig } from '@/blocks/types'
+import { useOAuthCredentialDetail, useOAuthCredentials } from '@/hooks/queries/oauth-credentials'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { getMissingRequiredScopes } from '@/hooks/use-oauth-scope-status'
-import { useDisplayNamesStore } from '@/stores/display-names/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 const logger = createLogger('CredentialSelector')
@@ -48,11 +47,8 @@ export function CredentialSelector({
   previewValue,
 }: CredentialSelectorProps) {
   const [open, setOpen] = useState(false)
-  const [credentials, setCredentials] = useState<Credential[]>([])
-  const [isLoading, setIsLoading] = useState(false)
   const [showOAuthModal, setShowOAuthModal] = useState(false)
   const [selectedId, setSelectedId] = useState('')
-  const [hasForeignMeta, setHasForeignMeta] = useState(false)
   const { activeWorkflowId } = useWorkflowRegistry()
   const { collaborativeSetSubblockValue } = useCollaborativeWorkflow()
 
@@ -82,127 +78,53 @@ export function CredentialSelector({
     return getProviderIdFromServiceId(effectiveServiceId)
   }, [effectiveServiceId])
 
-  // Fetch available credentials for this provider
-  const fetchCredentials = useCallback(async () => {
-    setIsLoading(true)
-    try {
-      const response = await fetch(`/api/auth/oauth/credentials?provider=${effectiveProviderId}`)
-      if (response.ok) {
-        const data = await response.json()
-        const creds = data.credentials as Credential[]
-        let foreignMetaFound = false
+  const {
+    data: credentials = [],
+    isFetching: credentialsLoading,
+    refetch: refetchCredentials,
+  } = useOAuthCredentials(effectiveProviderId, Boolean(effectiveProviderId))
 
-        // If persisted selection is not among viewer's credentials, attempt to fetch its metadata
-        if (
-          selectedId &&
-          !(creds || []).some((cred: Credential) => cred.id === selectedId) &&
-          activeWorkflowId
-        ) {
-          try {
-            const metaResp = await fetch(
-              `/api/auth/oauth/credentials?credentialId=${selectedId}&workflowId=${activeWorkflowId}`
-            )
-            if (metaResp.ok) {
-              const meta = await metaResp.json()
-              if (meta.credentials?.length) {
-                // Mark as foreign, but do NOT merge into list to avoid leaking owner email
-                foreignMetaFound = true
-              }
-            }
-          } catch {
-            // ignore meta errors
-          }
-        }
+  const selectedCredential = credentials.find((cred) => cred.id === selectedId)
 
-        setHasForeignMeta(foreignMetaFound)
-        setCredentials(creds)
+  const shouldFetchForeignMeta =
+    Boolean(selectedId) &&
+    !selectedCredential &&
+    Boolean(activeWorkflowId) &&
+    Boolean(effectiveProviderId)
 
-        // Cache credential names in display names store
-        if (effectiveProviderId) {
-          const credentialMap = creds.reduce((acc: Record<string, string>, cred: Credential) => {
-            acc[cred.id] = cred.name
-            return acc
-          }, {})
-          useDisplayNamesStore
-            .getState()
-            .setDisplayNames('credentials', effectiveProviderId, credentialMap)
-        }
+  const { data: foreignCredentials = [], isFetching: foreignMetaLoading } =
+    useOAuthCredentialDetail(
+      shouldFetchForeignMeta ? selectedId : undefined,
+      activeWorkflowId || undefined,
+      shouldFetchForeignMeta
+    )
 
-        // Check if the currently selected credential still exists
-        const selectedCredentialStillExists = (creds || []).some(
-          (cred: Credential) => cred.id === selectedId
-        )
-        const shouldClearPersistedSelection =
-          !isPreview && selectedId && !selectedCredentialStillExists && !foreignMetaFound
+  const hasForeignMeta = foreignCredentials.length > 0
 
-        if (shouldClearPersistedSelection) {
-          logger.info('Clearing invalid credential selection - credential was disconnected', {
-            selectedId,
-            provider: effectiveProviderId,
-          })
-
-          // Clear via setStoreValue to trigger cascade
-          setStoreValue('')
-          setSelectedId('')
-
-          if (effectiveProviderId) {
-            useDisplayNamesStore
-              .getState()
-              .removeDisplayName('credentials', effectiveProviderId, selectedId)
-          }
-        }
-      }
-    } catch (error) {
-      logger.error('Error fetching credentials:', { error })
-    } finally {
-      setIsLoading(false)
-    }
-  }, [effectiveProviderId, selectedId, activeWorkflowId, isPreview, setStoreValue])
-
-  // Fetch credentials on initial mount and whenever the subblock value changes externally
   useEffect(() => {
-    fetchCredentials()
-  }, [fetchCredentials, effectiveValue])
-
-  // When the selectedId changes (e.g., collaborator saved a credential), determine if it's foreign
-  useEffect(() => {
-    let aborted = false
-    ;(async () => {
-      try {
-        if (!selectedId) {
-          setHasForeignMeta(false)
-          return
-        }
-        // If the selected credential exists in viewer's list, it's not foreign
-        if ((credentials || []).some((cred) => cred.id === selectedId)) {
-          setHasForeignMeta(false)
-          return
-        }
-        if (!activeWorkflowId) return
-        const metaResp = await fetch(
-          `/api/auth/oauth/credentials?credentialId=${selectedId}&workflowId=${activeWorkflowId}`
-        )
-        if (aborted) return
-        if (metaResp.ok) {
-          const meta = await metaResp.json()
-          setHasForeignMeta(!!meta.credentials?.length)
-        }
-      } catch {
-        // ignore
-      }
-    })()
-    return () => {
-      aborted = true
+    if (!isPreview && selectedId && !selectedCredential && !hasForeignMeta && !credentialsLoading) {
+      logger.info('Clearing invalid credential selection - credential was disconnected', {
+        selectedId,
+        provider: effectiveProviderId,
+      })
+      setStoreValue('')
+      setSelectedId('')
     }
-  }, [selectedId, credentials, activeWorkflowId])
-
-  // This effect is no longer needed since we're using effectiveValue directly
+  }, [
+    isPreview,
+    selectedId,
+    selectedCredential,
+    hasForeignMeta,
+    credentialsLoading,
+    effectiveProviderId,
+    setStoreValue,
+  ])
 
   // Listen for visibility changes to update credentials when user returns from settings
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
-        fetchCredentials()
+        void refetchCredentials()
       }
     }
 
@@ -211,20 +133,20 @@ export function CredentialSelector({
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange)
     }
-  }, [fetchCredentials])
+  }, [refetchCredentials])
 
   // Also handle BFCache restores (back/forward navigation) where visibility change may not fire reliably
   useEffect(() => {
     const handlePageShow = (event: any) => {
       if (event?.persisted) {
-        fetchCredentials()
+        void refetchCredentials()
       }
     }
     window.addEventListener('pageshow', handlePageShow)
     return () => {
       window.removeEventListener('pageshow', handlePageShow)
     }
-  }, [fetchCredentials])
+  }, [refetchCredentials])
 
   // Listen for credential disconnection events from settings modal
   useEffect(() => {
@@ -233,7 +155,7 @@ export function CredentialSelector({
       const { providerId } = customEvent.detail
       // Re-fetch if this disconnection affects our provider
       if (providerId && (providerId === effectiveProviderId || providerId.startsWith(provider))) {
-        fetchCredentials()
+        void refetchCredentials()
       }
     }
 
@@ -242,19 +164,16 @@ export function CredentialSelector({
     return () => {
       window.removeEventListener('credential-disconnected', handleCredentialDisconnected)
     }
-  }, [fetchCredentials, effectiveProviderId, provider])
+  }, [refetchCredentials, effectiveProviderId, provider])
 
   // Handle popover open to fetch fresh credentials
   const handleOpenChange = (isOpen: boolean) => {
     setOpen(isOpen)
     if (isOpen) {
-      // Fetch fresh credentials when opening the dropdown
-      fetchCredentials()
+      void refetchCredentials()
     }
   }
 
-  // Get the selected credential
-  const selectedCredential = credentials.find((cred) => cred.id === selectedId)
   const isForeign = !!(selectedId && !selectedCredential && hasForeignMeta)
 
   // If the list doesn’t contain the effective value but meta says it exists, synthesize a non-leaky placeholder to render stable UI
@@ -270,7 +189,11 @@ export function CredentialSelector({
     ? getMissingRequiredScopes(selectedCredential, requiredScopes || [])
     : []
   const needsUpdate =
-    hasSelection && missingRequiredScopes.length > 0 && !disabled && !isPreview && !isLoading
+    hasSelection &&
+    missingRequiredScopes.length > 0 &&
+    !disabled &&
+    !isPreview &&
+    !credentialsLoading
 
   // Handle selection
   const handleSelect = (credentialId: string) => {
@@ -347,7 +270,7 @@ export function CredentialSelector({
             />
             <CommandList>
               <CommandEmpty>
-                {isLoading ? (
+                {credentialsLoading ? (
                   <div className='flex items-center justify-center p-4'>
                     <RefreshCw className='h-4 w-4 animate-spin' />
                     <span className='ml-2'>Loading credentials...</span>
