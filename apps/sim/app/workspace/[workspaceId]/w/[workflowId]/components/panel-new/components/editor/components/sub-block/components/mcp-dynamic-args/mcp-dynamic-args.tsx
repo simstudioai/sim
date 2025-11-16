@@ -1,17 +1,8 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import { useParams } from 'next/navigation'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+import { Combobox, Input, Label, Textarea } from '@/components/emcn/components'
 import { Slider } from '@/components/ui/slider'
 import { Switch } from '@/components/ui/switch'
-import { Textarea } from '@/components/ui/textarea'
 import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/components/sub-block/components/formatted-text'
@@ -174,7 +165,6 @@ function McpTextareaWithTags({
     onChange(newValue)
     setCursorPosition(newCursorPosition)
 
-    // Check for tag trigger
     const tagTrigger = checkTagTrigger(newValue, newCursorPosition)
     setShowTags(tagTrigger.show)
   }
@@ -308,7 +298,6 @@ export function McpDynamicArgs({
       if (disabled) return
 
       const current = currentArgs()
-      // Store the value as-is, preserving types (number, boolean, etc.)
       const updated = { ...current, [paramName]: value }
       setToolArgs(updated)
     },
@@ -357,29 +346,38 @@ export function McpDynamicArgs({
           </div>
         )
 
-      case 'dropdown':
+      case 'dropdown': {
+        const dropdownOptions = useMemo(
+          () =>
+            (paramSchema.enum || []).map((option: any) => ({
+              label: String(option),
+              value: String(option),
+            })),
+          [paramSchema.enum]
+        )
+
         return (
           <div key={`${paramName}-dropdown`}>
-            <Select
+            <Combobox
+              options={dropdownOptions}
               value={value || ''}
-              onValueChange={(selectedValue) => updateParameter(paramName, selectedValue)}
+              selectedValue={value || ''}
+              onChange={(selectedValue) => {
+                const matchedOption = dropdownOptions.find(
+                  (opt: { label: string; value: string }) => opt.value === selectedValue
+                )
+                if (matchedOption) {
+                  updateParameter(paramName, selectedValue)
+                }
+              }}
+              placeholder={`Select ${formatParameterLabel(paramName).toLowerCase()}`}
               disabled={disabled}
-            >
-              <SelectTrigger className='w-full'>
-                <SelectValue
-                  placeholder={`Select ${formatParameterLabel(paramName).toLowerCase()}`}
-                />
-              </SelectTrigger>
-              <SelectContent>
-                {paramSchema.enum?.map((option: any) => (
-                  <SelectItem key={String(option)} value={String(option)}>
-                    {String(option)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              editable={false}
+              filterOptions={true}
+            />
           </div>
         )
+      }
 
       case 'slider': {
         const minValue = paramSchema.minimum ?? 0
