@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { ChevronsUpDown, Plus } from 'lucide-react'
+import { ChevronDown, ChevronsUpDown, ChevronUp, Plus } from 'lucide-react'
 import { Button, Popover, PopoverContent, PopoverItem, PopoverTrigger } from '@/components/emcn'
 import { Trash } from '@/components/emcn/icons/trash'
 import { cn } from '@/lib/utils'
@@ -158,6 +158,40 @@ export function MessagesInput({
 
       const newMessages = [...localMessages]
       newMessages.splice(index, 1)
+      setLocalMessages(newMessages)
+      setMessages(newMessages)
+    },
+    [localMessages, setMessages, isPreview, disabled]
+  )
+
+  /**
+   * Moves a message up in the list
+   */
+  const moveMessageUp = useCallback(
+    (index: number) => {
+      if (isPreview || disabled || index === 0) return
+
+      const newMessages = [...localMessages]
+      const temp = newMessages[index]
+      newMessages[index] = newMessages[index - 1]
+      newMessages[index - 1] = temp
+      setLocalMessages(newMessages)
+      setMessages(newMessages)
+    },
+    [localMessages, setMessages, isPreview, disabled]
+  )
+
+  /**
+   * Moves a message down in the list
+   */
+  const moveMessageDown = useCallback(
+    (index: number) => {
+      if (isPreview || disabled || index === localMessages.length - 1) return
+
+      const newMessages = [...localMessages]
+      const temp = newMessages[index]
+      newMessages[index] = newMessages[index + 1]
+      newMessages[index + 1] = temp
       setLocalMessages(newMessages)
       setMessages(newMessages)
     },
@@ -358,18 +392,44 @@ export function MessagesInput({
                   {!isPreview && !disabled && (
                     <div className='flex items-center'>
                       {currentMessages.length > 1 && (
-                        <Button
-                          variant='ghost'
-                          onClick={(e: React.MouseEvent) => {
-                            e.stopPropagation()
-                            deleteMessage(index)
-                          }}
-                          disabled={disabled}
-                          className='-my-1 -mr-1 h-6 w-6 p-0'
-                          aria-label='Delete message'
-                        >
-                          <Trash className='h-3 w-3' />
-                        </Button>
+                        <>
+                          <Button
+                            variant='ghost'
+                            onClick={(e: React.MouseEvent) => {
+                              e.stopPropagation()
+                              deleteMessage(index)
+                            }}
+                            disabled={disabled}
+                            className='-my-1 -mr-1 h-6 w-6 p-0'
+                            aria-label='Delete message'
+                          >
+                            <Trash className='h-3 w-3' />
+                          </Button>
+                          <Button
+                            variant='ghost'
+                            onClick={(e: React.MouseEvent) => {
+                              e.stopPropagation()
+                              moveMessageUp(index)
+                            }}
+                            disabled={disabled || index === 0}
+                            className='-my-1 -mr-1 h-6 w-6 p-0'
+                            aria-label='Move message up'
+                          >
+                            <ChevronUp className='h-3 w-3' />
+                          </Button>
+                          <Button
+                            variant='ghost'
+                            onClick={(e: React.MouseEvent) => {
+                              e.stopPropagation()
+                              moveMessageDown(index)
+                            }}
+                            disabled={disabled || index === currentMessages.length - 1}
+                            className='-my-1 -mr-1 h-6 w-6 p-0'
+                            aria-label='Move message down'
+                          >
+                            <ChevronDown className='h-3 w-3' />
+                          </Button>
+                        </>
                       )}
                       <Button
                         variant='ghost'
