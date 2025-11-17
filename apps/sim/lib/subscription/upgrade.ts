@@ -76,7 +76,7 @@ export function useSubscriptionUpgrade() {
           try {
             await client.organization.setActive({ organizationId: result.organizationId })
 
-            logger.info('Set organization as active and updated referenceId', {
+            logger.info('Set organization as active', {
               organizationId: result.organizationId,
               oldReferenceId: userId,
               newReferenceId: referenceId,
@@ -90,6 +90,11 @@ export function useSubscriptionUpgrade() {
           }
 
           if (currentSubscriptionId) {
+            logger.info('Transferring personal subscription to organization', {
+              subscriptionId: currentSubscriptionId,
+              organizationId: referenceId,
+            })
+
             const transferResponse = await fetch(
               `/api/users/me/subscription/${currentSubscriptionId}/transfer`,
               {
@@ -101,8 +106,18 @@ export function useSubscriptionUpgrade() {
 
             if (!transferResponse.ok) {
               const text = await transferResponse.text()
+              logger.error('Failed to transfer subscription to organization', {
+                subscriptionId: currentSubscriptionId,
+                organizationId: referenceId,
+                error: text,
+              })
               throw new Error(text || 'Failed to transfer subscription to organization')
             }
+
+            logger.info('Successfully transferred subscription to organization', {
+              subscriptionId: currentSubscriptionId,
+              organizationId: referenceId,
+            })
           }
         } catch (error) {
           logger.error('Failed to create organization for team plan', error)
