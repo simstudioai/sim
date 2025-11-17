@@ -59,7 +59,7 @@ export function useOrganizations() {
     queryKey: creatorProfileKeys.organizations(),
     queryFn: fetchOrganizations,
     staleTime: 5 * 60 * 1000, // 5 minutes - organizations don't change often
-    placeholderData: keepPreviousData, // Show cached data immediately (no skeleton loading!)
+    placeholderData: keepPreviousData, // Show cached data immediately
   })
 }
 
@@ -97,7 +97,7 @@ export function useCreatorProfile(userId: string) {
     enabled: !!userId,
     retry: false, // Don't retry on 404
     staleTime: 60 * 1000, // 1 minute
-    placeholderData: keepPreviousData, // Show cached data immediately (no skeleton loading!)
+    placeholderData: keepPreviousData, // Show cached data immediately
   })
 }
 

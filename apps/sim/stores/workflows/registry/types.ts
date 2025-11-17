@@ -26,18 +26,11 @@ export interface WorkflowRegistryState {
 
 export interface WorkflowRegistryActions {
   setLoading: (loading: boolean) => void
+  setWorkflows: (workflows: WorkflowMetadata[]) => void
   setActiveWorkflow: (id: string) => Promise<void>
   switchToWorkspace: (id: string) => Promise<void>
-  loadWorkflows: (workspaceId?: string) => Promise<void>
   removeWorkflow: (id: string) => Promise<void>
   updateWorkflow: (id: string, metadata: Partial<WorkflowMetadata>) => Promise<void>
-  createWorkflow: (options?: {
-    isInitial?: boolean
-    name?: string
-    description?: string
-    workspaceId?: string
-    folderId?: string | null
-  }) => Promise<string>
   duplicateWorkflow: (sourceId: string) => Promise<string | null>
   getWorkflowDeploymentStatus: (workflowId: string | null) => DeploymentStatus | null
   setDeploymentStatus: (

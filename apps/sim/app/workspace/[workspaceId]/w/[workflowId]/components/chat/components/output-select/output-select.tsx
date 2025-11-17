@@ -7,7 +7,6 @@ import {
   Popover,
   PopoverContent,
   PopoverItem,
-  PopoverScrollArea,
   PopoverSection,
   PopoverTrigger,
 } from '@/components/emcn'
@@ -24,6 +23,7 @@ interface OutputSelectProps {
   disabled?: boolean
   placeholder?: string
   valueMode?: 'id' | 'label'
+  align?: 'start' | 'end' | 'center'
 }
 
 export function OutputSelect({
@@ -33,10 +33,13 @@ export function OutputSelect({
   disabled = false,
   placeholder = 'Select outputs',
   valueMode = 'id',
+  align = 'start',
 }: OutputSelectProps) {
   const [open, setOpen] = useState(false)
+  const [highlightedIndex, setHighlightedIndex] = useState(-1)
   const triggerRef = useRef<HTMLDivElement>(null)
   const popoverRef = useRef<HTMLDivElement>(null)
+  const contentRef = useRef<HTMLDivElement>(null)
   const blocks = useWorkflowStore((state) => state.blocks)
   const { isShowingDiff, isDiffReady, diffWorkflow } = useWorkflowDiffStore()
   const subBlockValues = useSubBlockStore((state) =>
@@ -231,6 +234,13 @@ export function OutputSelect({
   }
 
   /**
+   * Flattened outputs for keyboard navigation
+   */
+  const flattenedOutputs = useMemo(() => {
+    return Object.values(groupedOutputs).flat()
+  }, [groupedOutputs])
+
+  /**
    * Handles output selection - toggle selection
    */
   const handleOutputSelection = (value: string) => {
@@ -245,6 +255,75 @@ export function OutputSelect({
 
     onOutputSelect(newSelectedOutputs)
   }
+
+  /**
+   * Keyboard navigation handler
+   */
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (flattenedOutputs.length === 0) return
+
+    switch (e.key) {
+      case 'ArrowDown':
+        e.preventDefault()
+        setHighlightedIndex((prev) => {
+          const next = prev < flattenedOutputs.length - 1 ? prev + 1 : 0
+          return next
+        })
+        break
+
+      case 'ArrowUp':
+        e.preventDefault()
+        setHighlightedIndex((prev) => {
+          const next = prev > 0 ? prev - 1 : flattenedOutputs.length - 1
+          return next
+        })
+        break
+
+      case 'Enter':
+        e.preventDefault()
+        if (highlightedIndex >= 0 && highlightedIndex < flattenedOutputs.length) {
+          handleOutputSelection(flattenedOutputs[highlightedIndex].label)
+        }
+        break
+
+      case 'Escape':
+        e.preventDefault()
+        setOpen(false)
+        break
+    }
+  }
+
+  /**
+   * Reset highlighted index when popover opens/closes
+   */
+  useEffect(() => {
+    if (open) {
+      // Find first selected item, or start at -1
+      const firstSelectedIndex = flattenedOutputs.findIndex((output) => isSelectedValue(output))
+      setHighlightedIndex(firstSelectedIndex >= 0 ? firstSelectedIndex : -1)
+
+      // Focus the content for keyboard navigation
+      setTimeout(() => {
+        contentRef.current?.focus()
+      }, 0)
+    } else {
+      setHighlightedIndex(-1)
+    }
+  }, [open, flattenedOutputs])
+
+  /**
+   * Scroll highlighted item into view
+   */
+  useEffect(() => {
+    if (highlightedIndex >= 0 && contentRef.current) {
+      const highlightedElement = contentRef.current.querySelector(
+        `[data-option-index="${highlightedIndex}"]`
+      )
+      if (highlightedElement) {
+        highlightedElement.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+      }
+    }
+  }, [highlightedIndex])
 
   /**
    * Closes popover when clicking outside
@@ -288,44 +367,57 @@ export function OutputSelect({
       <PopoverContent
         ref={popoverRef}
         side='bottom'
-        align='start'
+        align={align}
         sideOffset={4}
-        maxHeight={140}
-        maxWidth={140}
-        minWidth={140}
-        onOpenAutoFocus={(e) => e.preventDefault()}
-        onCloseAutoFocus={(e) => e.preventDefault()}
+        maxHeight={300}
+        maxWidth={300}
+        minWidth={200}
+        onKeyDown={handleKeyDown}
+        tabIndex={0}
+        style={{ outline: 'none' }}
       >
-        <PopoverScrollArea className='space-y-[2px]'>
-          {Object.entries(groupedOutputs).map(([blockName, outputs]) => (
-            <div key={blockName}>
-              <PopoverSection>{blockName}</PopoverSection>
+        <div ref={contentRef} className='space-y-[2px]'>
+          {Object.entries(groupedOutputs).map(([blockName, outputs]) => {
+            // Calculate the starting index for this group
+            const startIndex = flattenedOutputs.findIndex((o) => o.blockName === blockName)
 
-              <div className='flex flex-col gap-[2px]'>
-                {outputs.map((output) => (
-                  <PopoverItem
-                    key={output.id}
-                    active={isSelectedValue(output)}
-                    onClick={() => handleOutputSelection(output.label)}
-                  >
-                    <div
-                      className='flex h-[14px] w-[14px] flex-shrink-0 items-center justify-center rounded'
-                      style={{
-                        backgroundColor: getOutputColor(output.blockId, output.blockType),
-                      }}
-                    >
-                      <span className='font-bold text-[10px] text-white'>
-                        {blockName.charAt(0).toUpperCase()}
-                      </span>
-                    </div>
-                    <span className='min-w-0 flex-1 truncate'>{output.path}</span>
-                    {isSelectedValue(output) && <Check className='h-3 w-3 flex-shrink-0' />}
-                  </PopoverItem>
-                ))}
+            return (
+              <div key={blockName}>
+                <PopoverSection>{blockName}</PopoverSection>
+
+                <div className='flex flex-col gap-[2px]'>
+                  {outputs.map((output, localIndex) => {
+                    const globalIndex = startIndex + localIndex
+                    const isHighlighted = globalIndex === highlightedIndex
+
+                    return (
+                      <PopoverItem
+                        key={output.id}
+                        active={isSelectedValue(output) || isHighlighted}
+                        data-option-index={globalIndex}
+                        onClick={() => handleOutputSelection(output.label)}
+                        onMouseEnter={() => setHighlightedIndex(globalIndex)}
+                      >
+                        <div
+                          className='flex h-[14px] w-[14px] flex-shrink-0 items-center justify-center rounded'
+                          style={{
+                            backgroundColor: getOutputColor(output.blockId, output.blockType),
+                          }}
+                        >
+                          <span className='font-bold text-[10px] text-white'>
+                            {blockName.charAt(0).toUpperCase()}
+                          </span>
+                        </div>
+                        <span className='min-w-0 flex-1 truncate'>{output.path}</span>
+                        {isSelectedValue(output) && <Check className='h-3 w-3 flex-shrink-0' />}
+                      </PopoverItem>
+                    )
+                  })}
+                </div>
               </div>
-            </div>
-          ))}
-        </PopoverScrollArea>
+            )
+          })}
+        </div>
       </PopoverContent>
     </Popover>
   )

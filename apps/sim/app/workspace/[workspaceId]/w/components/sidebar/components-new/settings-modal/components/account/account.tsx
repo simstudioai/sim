@@ -26,7 +26,7 @@ export function Account(_props: AccountProps) {
   const router = useRouter()
   const brandConfig = useBrandConfig()
 
-  // React Query hooks - with placeholderData to show cached data immediately (no skeleton loading!)
+  // React Query hooks - with placeholderData to show cached data immediately
   const { data: profile } = useUserProfile()
   const updateProfile = useUpdateUserProfile()
 

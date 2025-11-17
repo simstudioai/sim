@@ -34,7 +34,7 @@ export function General() {
   const [isSuperUser, setIsSuperUser] = useState(false)
   const [loadingSuperUser, setLoadingSuperUser] = useState(true)
 
-  // React Query hooks - with placeholderData to show cached data immediately (no skeleton loading!)
+  // React Query hooks - with placeholderData to show cached data immediately
   const { data: settings, isLoading } = useGeneralSettings()
   const updateSetting = useUpdateGeneralSetting()
 

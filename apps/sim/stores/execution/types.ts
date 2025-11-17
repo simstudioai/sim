@@ -6,6 +6,11 @@ import type { ExecutionContext } from '@/executor/types'
  */
 export type BlockRunStatus = 'success' | 'error'
 
+/**
+ * Represents the execution result of an edge in the last run
+ */
+export type EdgeRunStatus = 'success' | 'error'
+
 export interface ExecutionState {
   activeBlockIds: Set<string>
   isExecuting: boolean
@@ -16,9 +21,14 @@ export interface ExecutionState {
   autoPanDisabled: boolean
   /**
    * Tracks blocks from the last execution run and their success/error status.
-   * Cleared when a new run starts. Used to show run path indicators (green/red rings).
+   * Cleared when a new run starts. Used to show run path indicators (rings on blocks).
    */
   lastRunPath: Map<string, BlockRunStatus>
+  /**
+   * Tracks edges from the last execution run and their success/error status.
+   * Cleared when a new run starts. Used to show run path indicators on edges.
+   */
+  lastRunEdges: Map<string, EdgeRunStatus>
 }
 
 export interface ExecutionActions {
@@ -30,6 +40,7 @@ export interface ExecutionActions {
   setDebugContext: (context: ExecutionContext | null) => void
   setAutoPanDisabled: (disabled: boolean) => void
   setBlockRunStatus: (blockId: string, status: BlockRunStatus) => void
+  setEdgeRunStatus: (edgeId: string, status: EdgeRunStatus) => void
   clearRunPath: () => void
   reset: () => void
 }
@@ -43,6 +54,7 @@ export const initialState: ExecutionState = {
   debugContext: null,
   autoPanDisabled: false,
   lastRunPath: new Map(),
+  lastRunEdges: new Map(),
 }
 
 // Types for panning functionality

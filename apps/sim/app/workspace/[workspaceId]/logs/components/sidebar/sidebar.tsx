@@ -23,6 +23,7 @@ import '@/components/emcn/components/code/code.css'
 interface LogSidebarProps {
   log: WorkflowLog | null
   isOpen: boolean
+  isLoadingDetails?: boolean
   onClose: () => void
   onNavigateNext?: () => void
   onNavigatePrev?: () => void
@@ -192,6 +193,7 @@ const BlockContentDisplay = ({
 export function Sidebar({
   log,
   isOpen,
+  isLoadingDetails = false,
   onClose,
   onNavigateNext,
   onNavigatePrev,
@@ -218,15 +220,6 @@ export function Sidebar({
       setIsTraceExpanded(false)
     }
   }, [log?.id])
-
-  const isLoadingDetails = useMemo(() => {
-    if (!log) return false
-    // Only show while we expect details to arrive (has executionId)
-    if (!log.executionId) return false
-    const hasEnhanced = !!log.executionData?.enhanced
-    const hasAnyDetails = hasEnhanced || !!log.cost || Array.isArray(log.executionData?.traceSpans)
-    return !hasAnyDetails
-  }, [log])
 
   const formattedContent = useMemo(() => {
     if (!log) return null

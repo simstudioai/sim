@@ -15,6 +15,7 @@ import { executeWorkflowCore } from '@/lib/workflows/executor/execution-core'
 import { type ExecutionEvent, encodeSSEEvent } from '@/lib/workflows/executor/execution-events'
 import { PauseResumeManager } from '@/lib/workflows/executor/human-in-the-loop-manager'
 import { createStreamingResponse } from '@/lib/workflows/streaming'
+import { createHttpResponseFromBlock, workflowHasResponseBlock } from '@/lib/workflows/utils'
 import { validateWorkflowAccess } from '@/app/api/workflows/middleware'
 import { type ExecutionMetadata, ExecutionSnapshot } from '@/executor/execution/snapshot'
 import type { StreamingExecution } from '@/executor/types'
@@ -494,6 +495,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           callbacks: {},
           loggingSession,
         })
+
+        const hasResponseBlock = workflowHasResponseBlock(result)
+        if (hasResponseBlock) {
+          return createHttpResponseFromBlock(result)
+        }
 
         const filteredResult = {
           success: result.success,

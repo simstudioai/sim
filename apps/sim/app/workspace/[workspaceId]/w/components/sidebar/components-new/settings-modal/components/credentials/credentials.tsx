@@ -5,7 +5,6 @@ import { Check, ChevronDown, ExternalLink, Search } from 'lucide-react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Button } from '@/components/emcn'
 import { Input, Label } from '@/components/ui'
-import { useSession } from '@/lib/auth-client'
 import { createLogger } from '@/lib/logs/console/logger'
 import { OAUTH_PROVIDERS } from '@/lib/oauth/oauth'
 import { cn } from '@/lib/utils'
@@ -26,11 +25,9 @@ interface CredentialsProps {
 export function Credentials({ onOpenChange, registerCloseHandler }: CredentialsProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const { data: session } = useSession()
-  const userId = session?.user?.id
   const pendingServiceRef = useRef<HTMLDivElement>(null)
 
-  // React Query hooks - with placeholderData to show cached data immediately (no skeleton loading!)
+  // React Query hooks - with placeholderData to show cached data immediately
   const { data: services = [] } = useOAuthConnections()
   const connectService = useConnectOAuthService()
   const disconnectService = useDisconnectOAuthService()
@@ -38,51 +35,28 @@ export function Credentials({ onOpenChange, registerCloseHandler }: CredentialsP
   // Local UI state
   const [searchTerm, setSearchTerm] = useState('')
   const [pendingService, setPendingService] = useState<string | null>(null)
-  const [_pendingScopes, setPendingScopes] = useState<string[]>([])
   const [authSuccess, setAuthSuccess] = useState(false)
   const [showActionRequired, setShowActionRequired] = useState(false)
   const prevConnectedIdsRef = useRef<Set<string>>(new Set())
   const connectionAddedRef = useRef<boolean>(false)
 
-  // Check for OAuth callback
+  // Check for OAuth callback - just show success message
   useEffect(() => {
     const code = searchParams.get('code')
     const state = searchParams.get('state')
     const error = searchParams.get('error')
 
-    // Handle OAuth callback
     if (code && state) {
-      // This is an OAuth callback - try to restore state from localStorage
-      try {
-        const stored = localStorage.getItem('pending_oauth_state')
-        if (stored) {
-          const oauthState = JSON.parse(stored)
-          logger.info('OAuth callback with restored state:', oauthState)
-
-          // Mark as pending if we have context about what service was being connected
-          if (oauthState.serviceId) {
-            setPendingService(oauthState.serviceId)
-            setShowActionRequired(true)
-          }
-
-          // Clean up the state (one-time use)
-          localStorage.removeItem('pending_oauth_state')
-        } else {
-          logger.warn('OAuth callback but no state found in localStorage')
-        }
-      } catch (error) {
-        logger.error('Error loading OAuth state from localStorage:', error)
-        localStorage.removeItem('pending_oauth_state') // Clean up corrupted state
-      }
-
-      // Set success flag
+      logger.info('OAuth callback successful')
       setAuthSuccess(true)
 
-      // Clear the URL parameters
-      router.replace('/workspace')
+      // Clear URL parameters without changing the page
+      const url = new URL(window.location.href)
+      url.searchParams.delete('code')
+      url.searchParams.delete('state')
+      router.replace(url.pathname + url.search)
     } else if (error) {
       logger.error('OAuth error:', { error })
-      router.replace('/workspace')
     }
   }, [searchParams, router])
 
@@ -132,6 +106,7 @@ export function Credentials({ onOpenChange, registerCloseHandler }: CredentialsP
         scopes: service.scopes,
       })
 
+      // better-auth will automatically redirect back to this URL after OAuth
       await connectService.mutateAsync({
         providerId: service.providerId,
         callbackURL: window.location.href,

@@ -1,8 +1,8 @@
 import { useEffect } from 'react'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createLogger } from '@/lib/logs/console/logger'
+import { workflowKeys } from '@/hooks/queries/workflows'
 import { useFolderStore, type WorkflowFolder } from '@/stores/folders/store'
-import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 const logger = createLogger('FolderQueries')
 
@@ -150,11 +150,8 @@ export function useDeleteFolderMutation() {
     },
     onSuccess: async (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: folderKeys.list(variables.workspaceId) })
-      try {
-        await useWorkflowRegistry.getState().loadWorkflows(variables.workspaceId)
-      } catch (error) {
-        logger.error('Failed to reload workflows after folder delete', { error })
-      }
+      // Invalidate workflow queries to reload workflows after folder changes
+      queryClient.invalidateQueries({ queryKey: workflowKeys.list(variables.workspaceId) })
     },
   })
 }
@@ -184,11 +181,8 @@ export function useDuplicateFolderMutation() {
     },
     onSuccess: async (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: folderKeys.list(variables.workspaceId) })
-      try {
-        await useWorkflowRegistry.getState().loadWorkflows(variables.workspaceId)
-      } catch (error) {
-        logger.error('Failed to reload workflows after folder duplicate', { error })
-      }
+      // Invalidate workflow queries to reload workflows after folder changes
+      queryClient.invalidateQueries({ queryKey: workflowKeys.list(variables.workspaceId) })
     },
   })
 }

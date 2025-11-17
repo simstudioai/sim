@@ -1,10 +1,10 @@
 import { useCallback, useMemo } from 'react'
-import { cn } from '@/lib/utils'
 import { useExecutionStore } from '@/stores/execution/store'
 import { usePanelEditorStore } from '@/stores/panel-new/editor/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useBlockState } from '../components/workflow-block/hooks'
 import type { WorkflowBlockProps } from '../components/workflow-block/types'
+import { getBlockRingStyles } from '../utils/block-ring-utils'
 import { useCurrentWorkflow } from './use-current-workflow'
 
 interface UseBlockCoreOptions {
@@ -43,60 +43,19 @@ export function useBlockCore({ blockId, data, isPending = false }: UseBlockCoreO
   }, [blockId, setCurrentBlockId])
 
   // Ring styling based on all states
-  // Priority: active (animated) > pending > focused > deleted > diff > run path
-  const { hasRing, ringStyles } = useMemo(() => {
-    const hasRing =
-      isActive ||
-      isPending ||
-      isFocused ||
-      diffStatus === 'new' ||
-      diffStatus === 'edited' ||
-      isDeletedBlock ||
-      !!runPathStatus
-
-    const ringStyles = cn(
-      // Executing block: animated ring cycling through gray tones (animation handles all styling)
-      isActive && 'animate-ring-pulse',
-      // Non-active states use standard ring utilities
-      !isActive && hasRing && 'ring-[1.75px]',
-      // Pending state: warning ring
-      !isActive && isPending && 'ring-[var(--warning)]',
-      // Focused (selected) state: brand ring
-      !isActive && !isPending && isFocused && 'ring-[var(--brand-secondary)]',
-      // Deleted state (highest priority after active/pending/focused)
-      !isActive && !isPending && !isFocused && isDeletedBlock && 'ring-[var(--text-error)]',
-      // Diff states
-      !isActive &&
-        !isPending &&
-        !isFocused &&
-        !isDeletedBlock &&
-        diffStatus === 'new' &&
-        'ring-[#22C55E]',
-      !isActive &&
-        !isPending &&
-        !isFocused &&
-        !isDeletedBlock &&
-        diffStatus === 'edited' &&
-        'ring-[var(--warning)]',
-      // Run path states (lowest priority - only show if no other states active)
-      !isActive &&
-        !isPending &&
-        !isFocused &&
-        !isDeletedBlock &&
-        !diffStatus &&
-        runPathStatus === 'success' &&
-        'ring-[var(--surface-14)]',
-      !isActive &&
-        !isPending &&
-        !isFocused &&
-        !isDeletedBlock &&
-        !diffStatus &&
-        runPathStatus === 'error' &&
-        'ring-[var(--text-error)]'
-    )
-
-    return { hasRing, ringStyles }
-  }, [isActive, isPending, isFocused, diffStatus, isDeletedBlock, runPathStatus])
+  // Priority: active (executing) > pending > focused > deleted > diff > run path
+  const { hasRing, ringClassName: ringStyles } = useMemo(
+    () =>
+      getBlockRingStyles({
+        isActive,
+        isPending,
+        isFocused,
+        isDeletedBlock,
+        diffStatus,
+        runPathStatus,
+      }),
+    [isActive, isPending, isFocused, isDeletedBlock, diffStatus, runPathStatus]
+  )
 
   return {
     // Workflow context
@@ -116,5 +75,6 @@ export function useBlockCore({ blockId, data, isPending = false }: UseBlockCoreO
     // Ring styling
     hasRing,
     ringStyles,
+    runPathStatus,
   }
 }

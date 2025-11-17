@@ -55,7 +55,7 @@ export function Files() {
   const params = useParams()
   const workspaceId = params?.workspaceId as string
 
-  // React Query hooks - with placeholderData to show cached data immediately (no skeleton loading!)
+  // React Query hooks - with placeholderData to show cached data immediately
   const { data: files = [] } = useWorkspaceFiles(workspaceId)
   const { data: storageInfo } = useStorageInfo(isBillingEnabled)
   const uploadFile = useUploadWorkspaceFile()

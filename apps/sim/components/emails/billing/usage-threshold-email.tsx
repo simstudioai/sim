@@ -12,10 +12,10 @@ import {
   Section,
   Text,
 } from '@react-email/components'
+import { baseStyles } from '@/components/emails/base-styles'
 import EmailFooter from '@/components/emails/footer'
 import { getBrandConfig } from '@/lib/branding/branding'
 import { getBaseUrl } from '@/lib/urls/utils'
-import { baseStyles } from './base-styles'
 
 interface UsageThresholdEmailProps {
   userName?: string

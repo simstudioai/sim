@@ -6,30 +6,13 @@ import { useFolderStore } from '@/stores/folders/store'
 const logger = createLogger('useDuplicateFolder')
 
 interface UseDuplicateFolderProps {
-  /**
-   * Current workspace ID
-   */
   workspaceId: string
-  /**
-   * Function that returns the folder ID(s) to duplicate
-   * This function is called when duplication occurs to get fresh selection state
-   */
   getFolderIds: () => string | string[]
-  /**
-   * Optional callback after successful duplication
-   */
   onSuccess?: () => void
 }
 
 /**
  * Hook for managing folder duplication.
- *
- * Handles:
- * - Single or bulk folder duplication
- * - Calling duplicate API for each folder
- * - Loading state management
- * - Error handling and logging
- * - Clearing selection after duplication
  *
  * @param props - Hook configuration
  * @returns Duplicate folder handlers and state

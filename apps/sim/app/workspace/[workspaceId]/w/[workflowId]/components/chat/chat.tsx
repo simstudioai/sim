@@ -600,6 +600,7 @@ export function Chat() {
             onOutputSelect={handleOutputSelection}
             disabled={!activeWorkflowId}
             placeholder='Select outputs'
+            align='end'
           />
         </div>
 
