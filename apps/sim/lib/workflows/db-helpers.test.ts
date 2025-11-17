@@ -1358,4 +1358,316 @@ describe('Database Helpers', () => {
       expect(loadedState?.blocks['block-1'].advancedMode).toBe(true)
     })
   })
+
+  describe('migrateAgentBlocksToMessagesFormat', () => {
+    it('should migrate agent block with both systemPrompt and userPrompt', () => {
+      const blocks = {
+        'agent-1': {
+          id: 'agent-1',
+          type: 'agent',
+          name: 'Test Agent',
+          position: { x: 0, y: 0 },
+          subBlocks: {
+            systemPrompt: {
+              id: 'systemPrompt',
+              type: 'textarea',
+              value: 'You are a helpful assistant',
+            },
+            userPrompt: {
+              id: 'userPrompt',
+              type: 'textarea',
+              value: 'Hello world',
+            },
+          },
+          outputs: {},
+        } as any,
+      }
+
+      const migrated = dbHelpers.migrateAgentBlocksToMessagesFormat(blocks)
+
+      expect(migrated['agent-1'].subBlocks.messages).toBeDefined()
+      expect(migrated['agent-1'].subBlocks.messages?.value).toEqual([
+        { role: 'system', content: 'You are a helpful assistant' },
+        { role: 'user', content: 'Hello world' },
+      ])
+      // Old format should be preserved
+      expect(migrated['agent-1'].subBlocks.systemPrompt).toBeDefined()
+      expect(migrated['agent-1'].subBlocks.userPrompt).toBeDefined()
+    })
+
+    it('should migrate agent block with only systemPrompt', () => {
+      const blocks = {
+        'agent-1': {
+          id: 'agent-1',
+          type: 'agent',
+          subBlocks: {
+            systemPrompt: {
+              id: 'systemPrompt',
+              type: 'textarea',
+              value: 'You are helpful',
+            },
+          },
+          outputs: {},
+        } as any,
+      }
+
+      const migrated = dbHelpers.migrateAgentBlocksToMessagesFormat(blocks)
+
+      expect(migrated['agent-1'].subBlocks.messages?.value).toEqual([
+        { role: 'system', content: 'You are helpful' },
+      ])
+    })
+
+    it('should migrate agent block with only userPrompt', () => {
+      const blocks = {
+        'agent-1': {
+          id: 'agent-1',
+          type: 'agent',
+          subBlocks: {
+            userPrompt: {
+              id: 'userPrompt',
+              type: 'textarea',
+              value: 'Hello',
+            },
+          },
+          outputs: {},
+        } as any,
+      }
+
+      const migrated = dbHelpers.migrateAgentBlocksToMessagesFormat(blocks)
+
+      expect(migrated['agent-1'].subBlocks.messages?.value).toEqual([
+        { role: 'user', content: 'Hello' },
+      ])
+    })
+
+    it('should handle userPrompt as object with input field', () => {
+      const blocks = {
+        'agent-1': {
+          id: 'agent-1',
+          type: 'agent',
+          subBlocks: {
+            userPrompt: {
+              id: 'userPrompt',
+              type: 'textarea',
+              value: { input: 'Hello from object' },
+            },
+          },
+          outputs: {},
+        } as any,
+      }
+
+      const migrated = dbHelpers.migrateAgentBlocksToMessagesFormat(blocks)
+
+      expect(migrated['agent-1'].subBlocks.messages?.value).toEqual([
+        { role: 'user', content: 'Hello from object' },
+      ])
+    })
+
+    it('should stringify userPrompt object without input field', () => {
+      const blocks = {
+        'agent-1': {
+          id: 'agent-1',
+          type: 'agent',
+          subBlocks: {
+            userPrompt: {
+              id: 'userPrompt',
+              type: 'textarea',
+              value: { foo: 'bar', baz: 123 },
+            },
+          },
+          outputs: {},
+        } as any,
+      }
+
+      const migrated = dbHelpers.migrateAgentBlocksToMessagesFormat(blocks)
+
+      expect(migrated['agent-1'].subBlocks.messages?.value).toEqual([
+        { role: 'user', content: '{"foo":"bar","baz":123}' },
+      ])
+    })
+
+    it('should not migrate if messages array already exists', () => {
+      const existingMessages = [{ role: 'user', content: 'Existing message' }]
+      const blocks = {
+        'agent-1': {
+          id: 'agent-1',
+          type: 'agent',
+          subBlocks: {
+            systemPrompt: {
+              id: 'systemPrompt',
+              type: 'textarea',
+              value: 'Old system',
+            },
+            userPrompt: {
+              id: 'userPrompt',
+              type: 'textarea',
+              value: 'Old user',
+            },
+            messages: {
+              id: 'messages',
+              type: 'messages-input',
+              value: existingMessages,
+            },
+          },
+          outputs: {},
+        } as any,
+      }
+
+      const migrated = dbHelpers.migrateAgentBlocksToMessagesFormat(blocks)
+
+      // Should not change existing messages
+      expect(migrated['agent-1'].subBlocks.messages?.value).toEqual(existingMessages)
+    })
+
+    it('should not migrate if no old format prompts exist', () => {
+      const blocks = {
+        'agent-1': {
+          id: 'agent-1',
+          type: 'agent',
+          subBlocks: {
+            model: {
+              id: 'model',
+              type: 'select',
+              value: 'gpt-4o',
+            },
+          },
+          outputs: {},
+        } as any,
+      }
+
+      const migrated = dbHelpers.migrateAgentBlocksToMessagesFormat(blocks)
+
+      // Should not add messages if no old format
+      expect(migrated['agent-1'].subBlocks.messages).toBeUndefined()
+    })
+
+    it('should handle non-agent blocks without modification', () => {
+      const blocks = {
+        'api-1': {
+          id: 'api-1',
+          type: 'api',
+          subBlocks: {
+            url: {
+              id: 'url',
+              type: 'input',
+              value: 'https://example.com',
+            },
+          },
+          outputs: {},
+        } as any,
+      }
+
+      const migrated = dbHelpers.migrateAgentBlocksToMessagesFormat(blocks)
+
+      // Non-agent block should remain unchanged
+      expect(migrated['api-1']).toEqual(blocks['api-1'])
+      expect(migrated['api-1'].subBlocks.messages).toBeUndefined()
+    })
+
+    it('should handle multiple blocks with mixed types', () => {
+      const blocks = {
+        'agent-1': {
+          id: 'agent-1',
+          type: 'agent',
+          subBlocks: {
+            systemPrompt: { id: 'systemPrompt', type: 'textarea', value: 'System 1' },
+          },
+          outputs: {},
+        } as any,
+        'api-1': {
+          id: 'api-1',
+          type: 'api',
+          subBlocks: {},
+          outputs: {},
+        } as any,
+        'agent-2': {
+          id: 'agent-2',
+          type: 'agent',
+          subBlocks: {
+            userPrompt: { id: 'userPrompt', type: 'textarea', value: 'User 2' },
+          },
+          outputs: {},
+        } as any,
+      }
+
+      const migrated = dbHelpers.migrateAgentBlocksToMessagesFormat(blocks)
+
+      // First agent should be migrated
+      expect(migrated['agent-1'].subBlocks.messages?.value).toEqual([
+        { role: 'system', content: 'System 1' },
+      ])
+
+      // API block unchanged
+      expect(migrated['api-1']).toEqual(blocks['api-1'])
+
+      // Second agent should be migrated
+      expect(migrated['agent-2'].subBlocks.messages?.value).toEqual([
+        { role: 'user', content: 'User 2' },
+      ])
+    })
+
+    it('should handle empty string prompts by not migrating', () => {
+      const blocks = {
+        'agent-1': {
+          id: 'agent-1',
+          type: 'agent',
+          subBlocks: {
+            systemPrompt: { id: 'systemPrompt', type: 'textarea', value: '' },
+            userPrompt: { id: 'userPrompt', type: 'textarea', value: '' },
+          },
+          outputs: {},
+        } as any,
+      }
+
+      const migrated = dbHelpers.migrateAgentBlocksToMessagesFormat(blocks)
+
+      // Empty strings are falsy, so migration should not occur
+      expect(migrated['agent-1'].subBlocks.messages).toBeUndefined()
+    })
+
+    it('should handle numeric prompt values by converting to string', () => {
+      const blocks = {
+        'agent-1': {
+          id: 'agent-1',
+          type: 'agent',
+          subBlocks: {
+            systemPrompt: { id: 'systemPrompt', type: 'textarea', value: 123 },
+          },
+          outputs: {},
+        } as any,
+      }
+
+      const migrated = dbHelpers.migrateAgentBlocksToMessagesFormat(blocks)
+
+      expect(migrated['agent-1'].subBlocks.messages?.value).toEqual([
+        { role: 'system', content: '123' },
+      ])
+    })
+
+    it('should be idempotent - running twice should not double migrate', () => {
+      const blocks = {
+        'agent-1': {
+          id: 'agent-1',
+          type: 'agent',
+          subBlocks: {
+            systemPrompt: { id: 'systemPrompt', type: 'textarea', value: 'System' },
+          },
+          outputs: {},
+        } as any,
+      }
+
+      // First migration
+      const migrated1 = dbHelpers.migrateAgentBlocksToMessagesFormat(blocks)
+      const messages1 = migrated1['agent-1'].subBlocks.messages?.value
+
+      // Second migration on already migrated blocks
+      const migrated2 = dbHelpers.migrateAgentBlocksToMessagesFormat(migrated1)
+      const messages2 = migrated2['agent-1'].subBlocks.messages?.value
+
+      // Should be identical - no double migration
+      expect(messages2).toEqual(messages1)
+      expect(messages2).toEqual([{ role: 'system', content: 'System' }])
+    })
+  })
 })

@@ -193,75 +193,40 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Check if memory with the same key already exists for this workflow
-    const existingMemory = await db
-      .select()
-      .from(memory)
-      .where(and(eq(memory.key, key), eq(memory.workflowId, workflowId), isNull(memory.deletedAt)))
-      .limit(1)
+    // Use atomic UPSERT with JSONB append to prevent race conditions
+    // If data is an array, insert it directly; if single message, wrap in array
+    const initialData = Array.isArray(data) ? data : [data]
+    const now = new Date()
+    const id = `mem_${crypto.randomUUID().replace(/-/g, '')}`
 
-    let statusCode = 201 // Default status code for new memory
+    // Import sql helper for raw SQL in Drizzle
+    const { sql } = await import('drizzle-orm')
 
-    if (existingMemory.length > 0) {
-      logger.info(`[${requestId}] Memory with key ${key} exists, checking if we can append`)
-
-      // Check if types match
-      if (existingMemory[0].type !== type) {
-        logger.warn(
-          `[${requestId}] Memory type mismatch: existing=${existingMemory[0].type}, new=${type}`
-        )
-        return NextResponse.json(
-          {
-            success: false,
-            error: {
-              message: `Cannot append memory of type '${type}' to existing memory of type '${existingMemory[0].type}'`,
-            },
-          },
-          { status: 400 }
-        )
-      }
-
-      // Handle appending for agent type
-      let updatedData
-
-      // For agent type
-      const newMessage = data
-      const existingData = existingMemory[0].data
-
-      // If existing data is an array, append to it
-      if (Array.isArray(existingData)) {
-        updatedData = [...existingData, newMessage]
-      }
-      // If existing data is a single message object, convert to array
-      else {
-        updatedData = [existingData, newMessage]
-      }
-
-      // Update the existing memory with appended data
-      await db
-        .update(memory)
-        .set({
-          data: updatedData,
-          updatedAt: new Date(),
-        })
-        .where(and(eq(memory.key, key), eq(memory.workflowId, workflowId)))
-
-      statusCode = 200 // Status code for updated memory
-    } else {
-      // Insert the new memory
-      const newMemory = {
-        id: `mem_${crypto.randomUUID().replace(/-/g, '')}`,
+    // Atomically insert or append using PostgreSQL JSONB concatenation
+    await db
+      .insert(memory)
+      .values({
+        id,
         workflowId,
         key,
         type,
-        data: Array.isArray(data) ? data : [data],
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      }
+        data: initialData,
+        createdAt: now,
+        updatedAt: now,
+      })
+      .onConflictDoUpdate({
+        target: [memory.workflowId, memory.key],
+        set: {
+          // Atomically append: data = data || '[new_message]'::jsonb
+          // This prevents lost updates in concurrent scenarios
+          data: sql`${memory.data} || ${JSON.stringify(initialData)}::jsonb`,
+          updatedAt: now,
+        },
+      })
 
-      await db.insert(memory).values(newMemory)
-      logger.info(`[${requestId}] Memory created successfully: ${key} for workflow: ${workflowId}`)
-    }
+    logger.info(
+      `[${requestId}] Memory operation successful (atomic): ${key} for workflow: ${workflowId}`
+    )
 
     // Fetch all memories with the same key for this workflow to return the complete list
     const allMemories = await db
@@ -287,13 +252,12 @@ export async function POST(request: NextRequest) {
     // Get the memory object to return
     const memoryRecord = allMemories[0]
 
-    logger.info(`[${requestId}] Memory operation successful: ${key} for workflow: ${workflowId}`)
     return NextResponse.json(
       {
         success: true,
         data: memoryRecord,
       },
-      { status: statusCode }
+      { status: 200 }
     )
   } catch (error: any) {
     // Handle unique constraint violation

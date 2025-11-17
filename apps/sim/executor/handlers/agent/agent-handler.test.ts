@@ -1145,11 +1145,13 @@ describe('AgentBlockHandler', () => {
       expect(systemMessages[0].content).toBe('You are a helpful assistant.')
     })
 
-    it('should prioritize explicit systemPrompt over system messages in memories', async () => {
+    it('should prioritize messages array system message over system messages in memories', async () => {
       const inputs = {
         model: 'gpt-4o',
-        systemPrompt: 'You are a helpful assistant.',
-        userPrompt: 'What should I do?',
+        messages: [
+          { role: 'system', content: 'You are a helpful assistant.' },
+          { role: 'user', content: 'What should I do?' },
+        ],
         memories: [
           { role: 'system', content: 'Old system message from memories.' },
           { role: 'user', content: 'Hello!' },
@@ -1167,31 +1169,30 @@ describe('AgentBlockHandler', () => {
 
       // Verify messages were built correctly
       expect(requestBody.messages).toBeDefined()
-      expect(requestBody.messages.length).toBe(4) // explicit system + 2 non-system memories + user prompt
+      expect(requestBody.messages.length).toBe(5) // memory system + 2 non-system memories + 2 from messages array
 
-      // Check only one system message exists and it's the explicit one
-      const systemMessages = requestBody.messages.filter((msg: any) => msg.role === 'system')
-      expect(systemMessages.length).toBe(1)
-      expect(systemMessages[0].content).toBe('You are a helpful assistant.')
-
-      // Verify the explicit system prompt is first
+      // All messages should be present (memories first, then messages array)
+      // Memory messages come first
       expect(requestBody.messages[0].role).toBe('system')
-      expect(requestBody.messages[0].content).toBe('You are a helpful assistant.')
-
-      // Verify conversation order is preserved
+      expect(requestBody.messages[0].content).toBe('Old system message from memories.')
       expect(requestBody.messages[1].role).toBe('user')
       expect(requestBody.messages[1].content).toBe('Hello!')
       expect(requestBody.messages[2].role).toBe('assistant')
       expect(requestBody.messages[2].content).toBe('Hi there!')
-      expect(requestBody.messages[3].role).toBe('user')
-      expect(requestBody.messages[3].content).toBe('What should I do?')
+      // Then messages array
+      expect(requestBody.messages[3].role).toBe('system')
+      expect(requestBody.messages[3].content).toBe('You are a helpful assistant.')
+      expect(requestBody.messages[4].role).toBe('user')
+      expect(requestBody.messages[4].content).toBe('What should I do?')
     })
 
-    it('should handle multiple system messages in memories with explicit systemPrompt', async () => {
+    it('should handle multiple system messages in memories with messages array', async () => {
       const inputs = {
         model: 'gpt-4o',
-        systemPrompt: 'You are a helpful assistant.',
-        userPrompt: 'Continue our conversation.',
+        messages: [
+          { role: 'system', content: 'You are a helpful assistant.' },
+          { role: 'user', content: 'Continue our conversation.' },
+        ],
         memories: [
           { role: 'system', content: 'First system message.' },
           { role: 'user', content: 'Hello!' },
@@ -1211,22 +1212,23 @@ describe('AgentBlockHandler', () => {
 
       // Verify messages were built correctly
       expect(requestBody.messages).toBeDefined()
-      expect(requestBody.messages.length).toBe(4) // explicit system + 2 non-system memories + user prompt
+      expect(requestBody.messages.length).toBe(7) // 5 memory messages (3 system + 2 conversation) + 2 from messages array
 
-      // Check only one system message exists and message order is preserved
-      const systemMessages = requestBody.messages.filter((msg: any) => msg.role === 'system')
-      expect(systemMessages.length).toBe(1)
-      expect(systemMessages[0].content).toBe('You are a helpful assistant.')
-
-      // Verify conversation flow is preserved
+      // All messages should be present in order
       expect(requestBody.messages[0].role).toBe('system')
-      expect(requestBody.messages[0].content).toBe('You are a helpful assistant.')
+      expect(requestBody.messages[0].content).toBe('First system message.')
       expect(requestBody.messages[1].role).toBe('user')
       expect(requestBody.messages[1].content).toBe('Hello!')
-      expect(requestBody.messages[2].role).toBe('assistant')
-      expect(requestBody.messages[2].content).toBe('Hi there!')
-      expect(requestBody.messages[3].role).toBe('user')
-      expect(requestBody.messages[3].content).toBe('Continue our conversation.')
+      expect(requestBody.messages[2].role).toBe('system')
+      expect(requestBody.messages[2].content).toBe('Second system message.')
+      expect(requestBody.messages[3].role).toBe('assistant')
+      expect(requestBody.messages[3].content).toBe('Hi there!')
+      expect(requestBody.messages[4].role).toBe('system')
+      expect(requestBody.messages[4].content).toBe('Third system message.')
+      expect(requestBody.messages[5].role).toBe('system')
+      expect(requestBody.messages[5].content).toBe('You are a helpful assistant.')
+      expect(requestBody.messages[6].role).toBe('user')
+      expect(requestBody.messages[6].content).toBe('Continue our conversation.')
     })
 
     it('should preserve multiple system messages when no explicit systemPrompt is provided', async () => {

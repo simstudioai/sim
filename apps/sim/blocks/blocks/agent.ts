@@ -186,7 +186,7 @@ export const AgentBlock: BlockConfig<AgentResponse> = {
           }),
     },
     {
-      id: 'memory',
+      id: 'memoryType',
       title: 'Memory',
       type: 'dropdown',
       placeholder: 'Select memory...',
@@ -204,7 +204,7 @@ export const AgentBlock: BlockConfig<AgentResponse> = {
       type: 'short-input',
       placeholder: 'user-1234',
       condition: {
-        field: 'memory',
+        field: 'memoryType',
         value: ['conversation_id'],
       },
     },
@@ -214,7 +214,7 @@ export const AgentBlock: BlockConfig<AgentResponse> = {
       type: 'short-input',
       placeholder: 'Enter number of messages (e.g., 10)...',
       condition: {
-        field: 'memory',
+        field: 'memoryType',
         value: ['sliding_window'],
       },
     },
