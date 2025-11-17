@@ -1300,18 +1300,34 @@ export async function refreshOAuthToken(
     const data = await response.json()
 
     // Extract token and expiration (different providers may use different field names)
-    const accessToken = data.access_token
+    // Slack returns user tokens in a nested authed_user object
+    let accessToken: string
+    let newRefreshToken: string | null = null
+    let expiresIn: number
 
-    // Handle refresh token rotation for providers that support it
-    let newRefreshToken = null
-    if (config.supportsRefreshTokenRotation && data.refresh_token) {
-      newRefreshToken = data.refresh_token
-      logger.info(`Received new refresh token from ${provider}`)
+    if (provider === 'slack' && data.authed_user) {
+      // Slack user tokens with rotation are nested in authed_user
+      accessToken = data.authed_user.access_token
+      expiresIn = data.authed_user.expires_in || 43200 // Default to 12 hours for Slack
+
+      // Handle refresh token rotation for Slack user tokens
+      if (config.supportsRefreshTokenRotation && data.authed_user.refresh_token) {
+        newRefreshToken = data.authed_user.refresh_token
+        logger.info(`Received new refresh token from ${provider} (user token)`)
+      }
+    } else {
+      // Standard OAuth response structure (root level tokens)
+      accessToken = data.access_token
+
+      // Handle refresh token rotation for providers that support it
+      if (config.supportsRefreshTokenRotation && data.refresh_token) {
+        newRefreshToken = data.refresh_token
+        logger.info(`Received new refresh token from ${provider}`)
+      }
+
+      // Get expiration time - use provider's value or default to 1 hour (3600 seconds)
+      expiresIn = data.expires_in || data.expiresIn || 3600
     }
-
-    // Get expiration time - use provider's value or default to 1 hour (3600 seconds)
-    // Different providers use different names for this field
-    const expiresIn = data.expires_in || data.expiresIn || 3600
 
     if (!accessToken) {
       logger.warn('No access token found in refresh response', data)
