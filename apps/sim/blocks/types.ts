@@ -71,6 +71,7 @@ export type SubBlockType =
   | 'file-upload' // File uploader
   | 'input-mapping' // Map parent variables to child workflow input schema
   | 'variables-input' // Variable assignments for updating workflow variables
+  | 'messages-input' // Multiple message inputs with role and content for LLM message history
   | 'text' // Read-only text display
 
 /**

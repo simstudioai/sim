@@ -75,81 +75,10 @@ export const AgentBlock: BlockConfig<AgentResponse> = {
   icon: AgentIcon,
   subBlocks: [
     {
-      id: 'systemPrompt',
-      title: 'System Prompt',
-      type: 'long-input',
-      placeholder: 'Enter system prompt...',
-      rows: 5,
-      wandConfig: {
-        enabled: true,
-        maintainHistory: true, // Enable conversation history for iterative improvements
-        prompt: `You are an expert system prompt engineer. Create a system prompt based on the user's request.
-
-### CONTEXT
-{context}
-
-### INSTRUCTIONS
-Write a system prompt following best practices. Match the complexity level the user requests.
-
-### CORE PRINCIPLES
-1. **Role Definition**: Start with "You are..." to establish identity and function
-2. **Direct Commands**: Use action verbs like "Analyze", "Generate", "Classify"
-3. **Be Specific**: Include output format, quality standards, behaviors, target audience
-4. **Clear Boundaries**: Define focus areas and priorities
-5. **Examples**: Add concrete examples when helpful
-
-### STRUCTURE
-- **Primary Role**: Clear identity statement
-- **Core Capabilities**: Main functions and expertise
-- **Behavioral Guidelines**: Task approach and interaction style
-- **Output Requirements**: Format, style, quality expectations
-- **Tool Integration**: Specific tool usage instructions
-
-### TOOL INTEGRATION
-When users mention tools, include explicit instructions:
-- **Web Search**: "Use Exa to gather current information from authoritative sources"
-- **Communication**: "Send messages via Slack/Discord/Teams with appropriate tone"
-- **Email**: "Compose emails through Gmail with professional formatting"
-- **Data**: "Query databases, analyze spreadsheets, call APIs as needed"
-
-### EXAMPLES
-
-**Simple**: "Create a customer service agent"
-→ You are a professional customer service representative. Respond to inquiries about orders, returns, and products with empathy and efficiency. Maintain a helpful tone while providing accurate information and clear next steps.
-
-**Detailed**: "Build a research assistant for market analysis"
-→ You are an expert market research analyst specializing in competitive intelligence and industry trends. Conduct thorough market analysis using systematic methodologies.
-
-Use Exa to gather information from industry sources, financial reports, and market research firms. Cross-reference findings across multiple credible sources.
-
-For each request, follow this structure:
-1. Define research scope and key questions
-2. Identify market segments and competitors
-3. Gather quantitative data (market size, growth rates)
-4. Collect qualitative insights (trends, consumer behavior)
-5. Synthesize findings into actionable recommendations
-
-Present findings in executive-ready formats with source citations, highlight key insights, and provide specific recommendations with rationale.
-
-### FINAL INSTRUCTION
-Create a system prompt appropriately detailed for the request, using clear language and relevant tool instructions.`,
-        placeholder: 'Describe the AI agent you want to create...',
-        generationType: 'system-prompt',
-      },
-    },
-    {
-      id: 'userPrompt',
-      title: 'User Prompt',
-      type: 'long-input',
-      placeholder: 'Enter context or user message...',
-      rows: 5,
-    },
-    {
-      id: 'memories',
-      title: 'Memories',
-      type: 'short-input',
-      placeholder: 'Connect memory block output...',
-      mode: 'advanced',
+      id: 'messages',
+      // title: 'Messages',
+      type: 'messages-input',
+      placeholder: 'Enter messages...',
     },
     {
       id: 'model',
@@ -168,6 +97,125 @@ Create a system prompt appropriately detailed for the request, using clear langu
           const icon = getProviderIcon(model)
           return { label: model, id: model, ...(icon && { icon }) }
         })
+      },
+    },
+
+    {
+      id: 'reasoningEffort',
+      title: 'Reasoning Effort',
+      type: 'dropdown',
+      placeholder: 'Select reasoning effort...',
+      options: [
+        { label: 'none', id: 'none' },
+        { label: 'minimal', id: 'minimal' },
+        { label: 'low', id: 'low' },
+        { label: 'medium', id: 'medium' },
+        { label: 'high', id: 'high' },
+      ],
+      value: () => 'medium',
+      condition: {
+        field: 'model',
+        value: MODELS_WITH_REASONING_EFFORT,
+      },
+    },
+    {
+      id: 'verbosity',
+      title: 'Verbosity',
+      type: 'dropdown',
+      placeholder: 'Select verbosity...',
+      options: [
+        { label: 'low', id: 'low' },
+        { label: 'medium', id: 'medium' },
+        { label: 'high', id: 'high' },
+      ],
+      value: () => 'medium',
+      condition: {
+        field: 'model',
+        value: MODELS_WITH_VERBOSITY,
+      },
+    },
+
+    {
+      id: 'azureEndpoint',
+      title: 'Azure OpenAI Endpoint',
+      type: 'short-input',
+      password: true,
+      placeholder: 'https://your-resource.openai.azure.com',
+      connectionDroppable: false,
+      condition: {
+        field: 'model',
+        value: providers['azure-openai'].models,
+      },
+    },
+    {
+      id: 'azureApiVersion',
+      title: 'Azure API Version',
+      type: 'short-input',
+      placeholder: '2024-07-01-preview',
+      connectionDroppable: false,
+      condition: {
+        field: 'model',
+        value: providers['azure-openai'].models,
+      },
+    },
+    {
+      id: 'tools',
+      title: 'Tools',
+      type: 'tool-input',
+      defaultValue: [],
+    },
+    {
+      id: 'apiKey',
+      title: 'API Key',
+      type: 'short-input',
+      placeholder: 'Enter your API key',
+      password: true,
+      connectionDroppable: false,
+      required: true,
+      // Hide API key for hosted models and Ollama models
+      condition: isHosted
+        ? {
+            field: 'model',
+            value: getHostedModels(),
+            not: true, // Show for all models EXCEPT those listed
+          }
+        : () => ({
+            field: 'model',
+            value: getCurrentOllamaModels(),
+            not: true, // Show for all models EXCEPT Ollama models
+          }),
+    },
+    {
+      id: 'memory',
+      title: 'Memory',
+      type: 'dropdown',
+      placeholder: 'Select memory...',
+      options: [
+        { label: 'None', id: 'none' },
+        { label: 'Conversation ID', id: 'conversation_id' },
+        { label: 'All conversations', id: 'all_conversations' },
+        { label: 'All conversations sliding', id: 'sliding_window' },
+      ],
+      defaultValue: 'none',
+    },
+    {
+      id: 'conversationId',
+      title: 'Conversation ID',
+      type: 'short-input',
+      placeholder: 'user-1234',
+      condition: {
+        field: 'memory',
+        value: ['conversation_id'],
+      },
+    },
+    {
+      id: 'slidingWindowSize',
+      title: 'Sliding Window Size',
+      type: 'short-input',
+      placeholder: 'Enter number of messages (e.g., 10)...',
+      condition: {
+        field: 'memory',
+        value: ['sliding_window'],
       },
     },
     {
@@ -203,90 +251,6 @@ Create a system prompt appropriately detailed for the request, using clear langu
           )
         })(),
       }),
-    },
-    {
-      id: 'reasoningEffort',
-      title: 'Reasoning Effort',
-      type: 'dropdown',
-      placeholder: 'Select reasoning effort...',
-      options: [
-        { label: 'none', id: 'none' },
-        { label: 'minimal', id: 'minimal' },
-        { label: 'low', id: 'low' },
-        { label: 'medium', id: 'medium' },
-        { label: 'high', id: 'high' },
-      ],
-      value: () => 'medium',
-      condition: {
-        field: 'model',
-        value: MODELS_WITH_REASONING_EFFORT,
-      },
-    },
-    {
-      id: 'verbosity',
-      title: 'Verbosity',
-      type: 'dropdown',
-      placeholder: 'Select verbosity...',
-      options: [
-        { label: 'low', id: 'low' },
-        { label: 'medium', id: 'medium' },
-        { label: 'high', id: 'high' },
-      ],
-      value: () => 'medium',
-      condition: {
-        field: 'model',
-        value: MODELS_WITH_VERBOSITY,
-      },
-    },
-    {
-      id: 'apiKey',
-      title: 'API Key',
-      type: 'short-input',
-      placeholder: 'Enter your API key',
-      password: true,
-      connectionDroppable: false,
-      required: true,
-      // Hide API key for hosted models and Ollama models
-      condition: isHosted
-        ? {
-            field: 'model',
-            value: getHostedModels(),
-            not: true, // Show for all models EXCEPT those listed
-          }
-        : () => ({
-            field: 'model',
-            value: getCurrentOllamaModels(),
-            not: true, // Show for all models EXCEPT Ollama models
-          }),
-    },
-    {
-      id: 'azureEndpoint',
-      title: 'Azure OpenAI Endpoint',
-      type: 'short-input',
-      password: true,
-      placeholder: 'https://your-resource.openai.azure.com',
-      connectionDroppable: false,
-      condition: {
-        field: 'model',
-        value: providers['azure-openai'].models,
-      },
-    },
-    {
-      id: 'azureApiVersion',
-      title: 'Azure API Version',
-      type: 'short-input',
-      placeholder: '2024-07-01-preview',
-      connectionDroppable: false,
-      condition: {
-        field: 'model',
-        value: providers['azure-openai'].models,
-      },
-    },
-    {
-      id: 'tools',
-      title: 'Tools',
-      type: 'tool-input',
-      defaultValue: [],
     },
     {
       id: 'responseFormat',
@@ -450,9 +414,25 @@ Example 3 (Array Input):
     },
   },
   inputs: {
-    systemPrompt: { type: 'string', description: 'Initial system instructions' },
-    userPrompt: { type: 'string', description: 'User message or context' },
-    memories: { type: 'json', description: 'Agent memory data' },
+    messages: {
+      type: 'json',
+      description:
+        'Array of message objects with role and content: [{ role: "system", content: "..." }, { role: "user", content: "..." }]',
+    },
+    memoryType: {
+      type: 'string',
+      description: 'Type of memory to use: conversation_id, all_conversations, or sliding_window',
+    },
+    conversationId: {
+      type: 'string',
+      description:
+        'Specific conversation ID to retrieve memories from (when memoryType is conversation_id)',
+    },
+    slidingWindowSize: {
+      type: 'string',
+      description:
+        'Number of recent messages to include (when memoryType is sliding_window, e.g., "10")',
+    },
     model: { type: 'string', description: 'AI model to use' },
     apiKey: { type: 'string', description: 'Provider API key' },
     azureEndpoint: { type: 'string', description: 'Azure OpenAI endpoint URL' },

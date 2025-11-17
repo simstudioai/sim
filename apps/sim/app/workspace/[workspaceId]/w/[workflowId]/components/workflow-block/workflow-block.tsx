@@ -98,10 +98,37 @@ const isVariableAssignmentsArray = (
 }
 
 /**
+ * Type guard for agent messages array
+ */
+const isMessagesArray = (value: unknown): value is Array<{ role: string; content: string }> => {
+  return (
+    Array.isArray(value) &&
+    value.length > 0 &&
+    value.every(
+      (item) =>
+        typeof item === 'object' &&
+        item !== null &&
+        'role' in item &&
+        'content' in item &&
+        typeof item.role === 'string' &&
+        typeof item.content === 'string'
+    )
+  )
+}
+
+/**
  * Formats a subblock value for display, intelligently handling nested objects and arrays.
  */
 const getDisplayValue = (value: unknown): string => {
   if (value == null || value === '') return '-'
+
+  if (isMessagesArray(value)) {
+    const firstMessage = value[0]
+    if (!firstMessage?.content || firstMessage.content.trim() === '') return '-'
+    const content = firstMessage.content.trim()
+    // Show first 50 characters of the first message content
+    return content.length > 50 ? `${content.slice(0, 50)}...` : content
+  }
 
   if (isVariableAssignmentsArray(value)) {
     const names = value.map((a) => a.variableName).filter((name): name is string => !!name)
@@ -332,7 +359,10 @@ const SubBlockRow = ({
 
   return (
     <div className='flex items-center gap-[8px]'>
-      <span className='min-w-0 truncate text-[14px] text-[var(--text-tertiary)]' title={title}>
+      <span
+        className='min-w-0 truncate text-[14px] text-[var(--text-tertiary)] capitalize'
+        title={title}
+      >
         {title}
       </span>
       {displayValue !== undefined && (

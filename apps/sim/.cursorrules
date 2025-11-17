@@ -563,6 +563,32 @@ logger.error('Operation failed', { error })
 
 ---
 
+## Linting and Formatting
+
+### Automated Linting
+
+**Do not manually fix linting errors.** The project uses automated linting tools that should handle formatting and style issues.
+
+### Rules
+
+1. **No Manual Fixes**: Do not attempt to manually reorder CSS classes, fix formatting, or address linter warnings
+2. **Use Automated Tools**: If linting errors need to be fixed, run `bun run lint` to let the automated tools handle it
+3. **Focus on Logic**: Concentrate on functionality, TypeScript correctness, and architectural patterns
+4. **Let Tools Handle Style**: Biome and other linters will automatically format code according to project standards
+
+### When Linting Matters
+
+- **Syntax Errors**: Fix actual syntax errors that prevent compilation
+- **Type Errors**: Address TypeScript type errors that indicate logic issues
+- **Ignore Style Warnings**: CSS class order, formatting preferences, etc. will be handled by tooling
+
+```bash
+# If linting is required
+bun run lint
+```
+
+---
+
 ## Code Quality Checklist
 
 Before considering a component/hook complete, verify:
