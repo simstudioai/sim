@@ -30,6 +30,7 @@ import { OAuthRequestAccessClientTool } from '@/lib/copilot/tools/client/other/o
 import { PlanClientTool } from '@/lib/copilot/tools/client/other/plan'
 import { SearchDocumentationClientTool } from '@/lib/copilot/tools/client/other/search-documentation'
 import { SearchOnlineClientTool } from '@/lib/copilot/tools/client/other/search-online'
+import { SearchPatternsClientTool } from '@/lib/copilot/tools/client/other/search-patterns'
 import { createExecutionContext, getTool } from '@/lib/copilot/tools/client/registry'
 import { GetEnvironmentVariablesClientTool } from '@/lib/copilot/tools/client/user/get-environment-variables'
 import { GetOAuthCredentialsClientTool } from '@/lib/copilot/tools/client/user/get-oauth-credentials'
@@ -73,6 +74,7 @@ const CLIENT_TOOL_INSTANTIATORS: Record<string, (id: string) => any> = {
   get_trigger_blocks: (id) => new GetTriggerBlocksClientTool(id),
   search_online: (id) => new SearchOnlineClientTool(id),
   search_documentation: (id) => new SearchDocumentationClientTool(id),
+  search_patterns: (id) => new SearchPatternsClientTool(id),
   get_environment_variables: (id) => new GetEnvironmentVariablesClientTool(id),
   set_environment_variables: (id) => new SetEnvironmentVariablesClientTool(id),
   list_gdrive_files: (id) => new ListGDriveFilesClientTool(id),
@@ -105,6 +107,7 @@ export const CLASS_TOOL_METADATA: Record<string, BaseClientToolMetadata | undefi
   get_trigger_blocks: (GetTriggerBlocksClientTool as any)?.metadata,
   search_online: (SearchOnlineClientTool as any)?.metadata,
   search_documentation: (SearchDocumentationClientTool as any)?.metadata,
+  search_patterns: (SearchPatternsClientTool as any)?.metadata,
   get_environment_variables: (GetEnvironmentVariablesClientTool as any)?.metadata,
   set_environment_variables: (SetEnvironmentVariablesClientTool as any)?.metadata,
   list_gdrive_files: (ListGDriveFilesClientTool as any)?.metadata,
@@ -159,7 +162,30 @@ function resolveToolDisplay(
     const meta = def?.metadata?.displayNames || CLASS_TOOL_METADATA[toolName]?.displayNames || {}
     // Exact state first
     const ds = meta?.[state]
-    if (ds?.text || ds?.icon) return { text: ds.text, icon: ds.icon }
+    if (ds?.text || ds?.icon) {
+      // Special handling for search_patterns to show the first query
+      if (toolName === 'search_patterns' && params?.queries && Array.isArray(params.queries)) {
+        const firstQuery = params.queries[0]
+        if (firstQuery && typeof firstQuery === 'string') {
+          const truncatedQuery = firstQuery.length > 50 ? `${firstQuery.slice(0, 50)}...` : firstQuery
+          const capitalizedQuery = truncatedQuery.charAt(0).toUpperCase() + truncatedQuery.slice(1)
+          let dynamicText = ds.text
+          if (state === ClientToolCallState.success) {
+            dynamicText = `Searched ${capitalizedQuery}`
+          } else if (state === ClientToolCallState.executing || state === ClientToolCallState.generating || state === ClientToolCallState.pending) {
+            dynamicText = `Searching ${capitalizedQuery}`
+          } else if (state === ClientToolCallState.error) {
+            dynamicText = `Failed to search ${capitalizedQuery}`
+          } else if (state === ClientToolCallState.aborted) {
+            dynamicText = `Aborted searching ${capitalizedQuery}`
+          } else if (state === ClientToolCallState.rejected) {
+            dynamicText = `Skipped searching ${capitalizedQuery}`
+          }
+          return { text: dynamicText, icon: ds.icon }
+        }
+      }
+      return { text: ds.text, icon: ds.icon }
+    }
     // Fallback order (prefer pre-execution states for unknown states like pending)
     const fallbackOrder: ClientToolCallState[] = [
       (ClientToolCallState as any).generating,
