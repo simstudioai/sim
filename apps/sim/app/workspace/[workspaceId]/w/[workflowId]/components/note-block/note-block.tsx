@@ -35,51 +35,64 @@ const NoteMarkdown = memo(function NoteMarkdown({ content }: { content: string }
     <ReactMarkdown
       remarkPlugins={[remarkGfm]}
       components={{
-        p: ({ children }) => (
-          <p className='!mt-0 !-mb-4 text-[#E5E5E5] text-sm leading-tight'>{children}</p>
+        p: ({ children }: any) => (
+          <p className='mb-2 break-words text-[#E5E5E5] text-sm'>{children}</p>
         ),
-        h1: ({ children }) => (
-          <h1 className='!mt-0 !-mb-4 font-semibold text-[#E5E5E5] text-lg leading-tight'>
+        h1: ({ children }: any) => (
+          <h1 className='mt-3 mb-1 break-words font-semibold text-[#E5E5E5] text-lg first:mt-0'>
             {children}
           </h1>
         ),
-        h2: ({ children }) => (
-          <h2 className='!mt-0 !-mb-4 font-semibold text-[#E5E5E5] text-base leading-tight'>
+        h2: ({ children }: any) => (
+          <h2 className='mt-3 mb-1 break-words font-semibold text-[#E5E5E5] text-base first:mt-0'>
             {children}
           </h2>
         ),
-        h3: ({ children }) => (
-          <h3 className='!mt-0 !-mb-4 font-semibold text-[#E5E5E5] text-sm leading-tight'>
+        h3: ({ children }: any) => (
+          <h3 className='mt-3 mb-1 break-words font-semibold text-[#E5E5E5] text-sm first:mt-0'>
             {children}
           </h3>
         ),
-        h4: ({ children }) => (
-          <h4 className='!mt-0 !-mb-4 font-semibold text-[#E5E5E5] text-xs leading-tight'>
+        h4: ({ children }: any) => (
+          <h4 className='mt-3 mb-1 break-words font-semibold text-[#E5E5E5] text-xs first:mt-0'>
             {children}
           </h4>
         ),
-        ul: ({ children }) => (
-          <ul className='!-mt-4 !-mb-4 [&_li>ul]:!mt-0 [&_li>ul]:!mb-0 [&_li>ol]:!mt-0 [&_li>ol]:!mb-0 list-disc pl-4 text-[#E5E5E5] text-sm leading-tight'>
+        ul: ({ children }: any) => (
+          <ul className='mt-1 mb-2 list-disc break-words pl-4 text-[#E5E5E5] text-sm'>
             {children}
           </ul>
         ),
-        ol: ({ children }) => (
-          <ol className='!-mt-4 !-mb-4 [&_li>ul]:!mt-0 [&_li>ul]:!mb-0 [&_li>ol]:!mt-0 [&_li>ol]:!mb-0 list-decimal pl-4 text-[#E5E5E5] text-sm leading-tight'>
+        ol: ({ children }: any) => (
+          <ol className='mt-1 mb-2 list-decimal break-words pl-4 text-[#E5E5E5] text-sm'>
             {children}
           </ol>
         ),
-        li: ({ children }) => <li className='!mb-0 leading-tight'>{children}</li>,
-        code: ({ inline, children }: any) =>
-          inline ? (
-            <code className='break-words rounded bg-[var(--divider)] px-1 py-0.5 text-[#F59E0B] text-xs'>
+        li: ({ children }: any) => <li className='mb-0 break-words'>{children}</li>,
+        code: ({ inline, className, children, ...props }: any) => {
+          const isInline = inline || !className?.includes('language-')
+
+          if (isInline) {
+            return (
+              <code
+                {...props}
+                className='whitespace-normal rounded bg-gray-200 px-1 py-0.5 font-mono text-[#F59E0B] text-xs dark:bg-[var(--surface-11)] dark:text-[#F59E0B]'
+              >
+                {children}
+              </code>
+            )
+          }
+
+          return (
+            <code
+              {...props}
+              className='block whitespace-pre-wrap break-words rounded bg-[#1A1A1A] p-2 text-[#E5E5E5] text-xs'
+            >
               {children}
             </code>
-          ) : (
-            <code className='block whitespace-pre-wrap break-words rounded bg-[#1A1A1A] p-2 text-[#E5E5E5] text-xs'>
-              {children}
-            </code>
-          ),
-        a: ({ href, children }) => (
+          )
+        },
+        a: ({ href, children }: any) => (
           <a
             href={href}
             target='_blank'
@@ -89,10 +102,12 @@ const NoteMarkdown = memo(function NoteMarkdown({ content }: { content: string }
             {children}
           </a>
         ),
-        strong: ({ children }) => <strong className='font-semibold text-white'>{children}</strong>,
-        em: ({ children }) => <em className='text-[#B8B8B8]'>{children}</em>,
-        blockquote: ({ children }) => (
-          <blockquote className='!mt-0 !-mb-4 border-[#F59E0B] border-l-2 pl-3 text-[#B8B8B8] italic'>
+        strong: ({ children }: any) => (
+          <strong className='break-words font-semibold text-white'>{children}</strong>
+        ),
+        em: ({ children }: any) => <em className='break-words text-[#B8B8B8]'>{children}</em>,
+        blockquote: ({ children }: any) => (
+          <blockquote className='mt-1 mb-2 break-words border-[#F59E0B] border-l-2 pl-3 text-[#B8B8B8] italic'>
             {children}
           </blockquote>
         ),
@@ -195,7 +210,7 @@ export const NoteBlock = memo(function NoteBlock({ id, data }: NodeProps<NoteBlo
         </div>
 
         <div className='relative px-[12px] pt-[6px] pb-[8px]'>
-          <div className='relative whitespace-pre-wrap break-words'>
+          <div className='relative break-words'>
             {isEmpty ? (
               <p className='text-[#868686] text-sm italic'>Add a note...</p>
             ) : showMarkdown ? (
