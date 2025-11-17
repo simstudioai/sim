@@ -74,10 +74,10 @@ export const ActionBar = memo(
     return (
       <div
         className={cn(
-          '-right-20 absolute top-0',
-          'flex flex-col items-center',
+          '-top-[46px] absolute right-0',
+          'flex flex-row items-center',
           'opacity-0 transition-opacity duration-200 group-hover:opacity-100',
-          'gap-[6px] rounded-[10px] bg-[var(--surface-3)] p-[6px]'
+          'gap-[5px] rounded-[10px] bg-[var(--surface-3)] p-[5px]'
         )}
       >
         <Tooltip.Root>
@@ -90,17 +90,17 @@ export const ActionBar = memo(
                   collaborativeToggleBlockEnabled(blockId)
                 }
               }}
-              className='h-[30px] w-[30px] rounded-[8px] bg-[var(--surface-9)] p-0 text-[#868686] hover:bg-[var(--brand-secondary)] hover:text-[var(--bg)] dark:text-[#868686] dark:hover:bg-[var(--brand-secondary)] dark:hover:text-[var(--bg)]'
+              className='h-[23px] w-[23px] rounded-[8px] bg-[var(--surface-9)] p-0 text-[#868686] hover:bg-[var(--brand-secondary)] hover:text-[var(--bg)] dark:text-[#868686] dark:hover:bg-[var(--brand-secondary)] dark:hover:text-[var(--bg)]'
               disabled={disabled}
             >
               {isEnabled ? (
-                <Circle className='h-[14px] w-[14px]' />
+                <Circle className='h-[11px] w-[11px]' />
               ) : (
-                <CircleOff className='h-[14px] w-[14px]' />
+                <CircleOff className='h-[11px] w-[11px]' />
               )}
             </Button>
           </Tooltip.Trigger>
-          <Tooltip.Content side='right'>
+          <Tooltip.Content side='top'>
             {getTooltipMessage(isEnabled ? 'Disable Block' : 'Enable Block')}
           </Tooltip.Content>
         </Tooltip.Root>
@@ -116,13 +116,13 @@ export const ActionBar = memo(
                     collaborativeDuplicateBlock(blockId)
                   }
                 }}
-                className='h-[30px] w-[30px] rounded-[8px] bg-[var(--surface-9)] p-0 text-[#868686] hover:bg-[var(--brand-secondary)] hover:text-[var(--bg)] dark:text-[#868686] dark:hover:bg-[var(--brand-secondary)] dark:hover:text-[var(--bg)]'
+                className='h-[23px] w-[23px] rounded-[8px] bg-[var(--surface-9)] p-0 text-[#868686] hover:bg-[var(--brand-secondary)] hover:text-[var(--bg)] dark:text-[#868686] dark:hover:bg-[var(--brand-secondary)] dark:hover:text-[var(--bg)]'
                 disabled={disabled}
               >
-                <Duplicate className='h-[14px] w-[14px]' />
+                <Duplicate className='h-[11px] w-[11px]' />
               </Button>
             </Tooltip.Trigger>
-            <Tooltip.Content side='right'>{getTooltipMessage('Duplicate Block')}</Tooltip.Content>
+            <Tooltip.Content side='top'>{getTooltipMessage('Duplicate Block')}</Tooltip.Content>
           </Tooltip.Root>
         )}
 
@@ -139,15 +139,13 @@ export const ActionBar = memo(
                     )
                   }
                 }}
-                className='h-[30px] w-[30px] rounded-[8px] bg-[var(--surface-9)] p-0 text-[#868686] hover:bg-[var(--brand-secondary)] hover:text-[var(--bg)] dark:text-[#868686] dark:hover:bg-[var(--brand-secondary)] dark:hover:text-[var(--bg)]'
+                className='h-[23px] w-[23px] rounded-[8px] bg-[var(--surface-9)] p-0 text-[#868686] hover:bg-[var(--brand-secondary)] hover:text-[var(--bg)] dark:text-[#868686] dark:hover:bg-[var(--brand-secondary)] dark:hover:text-[var(--bg)]'
                 disabled={disabled || !userPermissions.canEdit}
               >
-                <LogOut className='h-[14px] w-[14px]' />
+                <LogOut className='h-[11px] w-[11px]' />
               </Button>
             </Tooltip.Trigger>
-            <Tooltip.Content side='right'>
-              {getTooltipMessage('Remove From Subflow')}
-            </Tooltip.Content>
+            <Tooltip.Content side='top'>{getTooltipMessage('Remove from Subflow')}</Tooltip.Content>
           </Tooltip.Root>
         )}
 
@@ -161,17 +159,17 @@ export const ActionBar = memo(
                   collaborativeToggleBlockHandles(blockId)
                 }
               }}
-              className='h-[30px] w-[30px] rounded-[8px] bg-[var(--surface-9)] p-0 text-[#868686] hover:bg-[var(--brand-secondary)] hover:text-[var(--bg)] dark:text-[#868686] dark:hover:bg-[var(--brand-secondary)] dark:hover:text-[var(--bg)]'
+              className='h-[23px] w-[23px] rounded-[8px] bg-[var(--surface-9)] p-0 text-[#868686] hover:bg-[var(--brand-secondary)] hover:text-[var(--bg)] dark:text-[#868686] dark:hover:bg-[var(--brand-secondary)] dark:hover:text-[var(--bg)]'
               disabled={disabled}
             >
               {horizontalHandles ? (
-                <ArrowLeftRight className='h-[14px] w-[14px]' />
+                <ArrowLeftRight className='h-[11px] w-[11px]' />
               ) : (
-                <ArrowUpDown className='h-[14px] w-[14px]' />
+                <ArrowUpDown className='h-[11px] w-[11px]' />
               )}
             </Button>
           </Tooltip.Trigger>
-          <Tooltip.Content side='right'>
+          <Tooltip.Content side='top'>
             {getTooltipMessage(horizontalHandles ? 'Vertical Ports' : 'Horizontal Ports')}
           </Tooltip.Content>
         </Tooltip.Root>
@@ -186,13 +184,13 @@ export const ActionBar = memo(
                   collaborativeRemoveBlock(blockId)
                 }
               }}
-              className='h-[30px] w-[30px] rounded-[8px] bg-[var(--surface-9)] p-0 text-[#868686] hover:bg-[var(--brand-secondary)] hover:text-[var(--bg)] dark:text-[#868686] dark:hover:bg-[var(--brand-secondary)] dark:hover:text-[var(--bg)] '
+              className='h-[23px] w-[23px] rounded-[8px] bg-[var(--surface-9)] p-0 text-[#868686] hover:bg-[var(--brand-secondary)] hover:text-[var(--bg)] dark:text-[#868686] dark:hover:bg-[var(--brand-secondary)] dark:hover:text-[var(--bg)] '
               disabled={disabled}
             >
-              <Trash2 className='h-[14px] w-[14px]' />
+              <Trash2 className='h-[11px] w-[11px]' />
             </Button>
           </Tooltip.Trigger>
-          <Tooltip.Content side='right'>{getTooltipMessage('Delete Block')}</Tooltip.Content>
+          <Tooltip.Content side='top'>{getTooltipMessage('Delete Block')}</Tooltip.Content>
         </Tooltip.Root>
       </div>
     )

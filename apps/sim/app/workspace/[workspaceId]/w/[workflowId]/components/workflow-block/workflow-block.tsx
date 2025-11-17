@@ -723,9 +723,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
 
         <ActionBar blockId={id} blockType={type} disabled={!userPermissions.canEdit} />
 
-        {shouldShowDefaultHandles && (
-          <Connections blockId={id} horizontalHandles={horizontalHandles} />
-        )}
+        {shouldShowDefaultHandles && <Connections blockId={id} />}
 
         {shouldShowDefaultHandles && (
           <Handle
