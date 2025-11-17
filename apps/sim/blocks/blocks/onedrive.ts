@@ -3,6 +3,7 @@ import { createLogger } from '@/lib/logs/console/logger'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
 import type { OneDriveResponse } from '@/tools/onedrive/types'
+import { normalizeExcelValuesForToolParams } from '@/tools/onedrive/utils'
 
 const logger = createLogger('OneDriveBlock')
 
@@ -78,9 +79,10 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
     {
       id: 'values',
       title: 'Values',
-      type: 'long-input',
-      placeholder:
-        'Enter values as JSON array of arrays (e.g., [["A1","B1"],["A2","B2"]]) or an array of objects',
+      type: 'code',
+      language: 'json',
+      generationType: 'json-object',
+      placeholder: 'Enter a JSON array of rows (e.g., [["A1","B1"],["A2","B2"]])',
       condition: {
         field: 'operation',
         value: 'create_file',
@@ -88,6 +90,13 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
           field: 'mimeType',
           value: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         },
+      },
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate a JSON array of arrays that can be written directly into an Excel worksheet.',
+        placeholder: 'Describe the table you want to generate...',
+        generationType: 'json-object',
       },
       required: false,
     },
@@ -351,17 +360,15 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
       params: (params) => {
         const { credential, folderId, fileId, mimeType, values, downloadFileName, ...rest } = params
 
-        let parsedValues
-        try {
-          parsedValues = values ? JSON.parse(values as string) : undefined
-        } catch (error) {
-          throw new Error('Invalid JSON format for values')
+        let normalizedValues: ReturnType<typeof normalizeExcelValuesForToolParams>
+        if (values !== undefined) {
+          normalizedValues = normalizeExcelValuesForToolParams(values)
         }
 
         return {
           credential,
           ...rest,
-          values: parsedValues,
+          values: normalizedValues,
           folderId: folderId || undefined,
           fileId: fileId || undefined,
           pageSize: rest.pageSize ? Number.parseInt(rest.pageSize as string, 10) : undefined,
@@ -380,7 +387,7 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
     fileReference: { type: 'json', description: 'File reference from previous block' },
     content: { type: 'string', description: 'Text content to upload' },
     mimeType: { type: 'string', description: 'MIME type of file to create' },
-    values: { type: 'string', description: 'Cell values for new Excel as JSON' },
+    values: { type: 'json', description: 'Cell values for new Excel as JSON' },
     fileId: { type: 'string', description: 'File ID to download' },
     downloadFileName: { type: 'string', description: 'File name override for download' },
     folderId: { type: 'string', description: 'Folder ID' },

@@ -2,13 +2,11 @@
 
 import type { ReactNode } from 'react'
 import { Badge } from '@/components/emcn'
+import { calculateFilledPills, USAGE_PILL_COUNT } from '@/lib/subscription/usage-visualization'
 import { cn } from '@/lib/utils'
 
 const GRADIENT_BADGE_STYLES =
   'gradient-text h-[1.125rem] rounded-[6px] border-gradient-primary/20 bg-gradient-to-b from-gradient-primary via-gradient-secondary to-gradient-primary px-2 py-0 font-medium text-xs cursor-pointer'
-
-// Constants matching UsageIndicator
-const PILL_COUNT = 8
 
 interface UsageHeaderProps {
   title: string
@@ -45,9 +43,9 @@ export function UsageHeader({
 }: UsageHeaderProps) {
   const progress = progressValue ?? (limit > 0 ? Math.min((current / limit) * 100, 100) : 0)
 
-  // Calculate filled pills based on usage percentage
-  const filledPillsCount = Math.ceil((progress / 100) * PILL_COUNT)
-  const isAlmostOut = filledPillsCount === PILL_COUNT
+  // Calculate filled pills based on usage percentage using shared utility (fixed 8 pills)
+  const filledPillsCount = calculateFilledPills(progress)
+  const isAlmostOut = filledPillsCount === USAGE_PILL_COUNT
 
   return (
     <div className='rounded-[8px] border bg-background p-3 shadow-xs'>
@@ -93,9 +91,9 @@ export function UsageHeader({
           </div>
         </div>
 
-        {/* Pills row - matching UsageIndicator */}
+        {/* Pills row - fixed 8 pills with shared heuristic */}
         <div className='flex items-center gap-[4px]'>
-          {Array.from({ length: PILL_COUNT }).map((_, i) => {
+          {Array.from({ length: USAGE_PILL_COUNT }).map((_, i) => {
             const isFilled = i < filledPillsCount
             return (
               <div

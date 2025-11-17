@@ -34,40 +34,30 @@ export function useSubscriptionData() {
 }
 
 /**
- * Fetch user usage data
+ * Fetch user usage limit metadata
+ * Note: This endpoint returns limit information (currentLimit, minimumLimit, canEdit, etc.)
+ * For actual usage data (current, limit, percentUsed), use useSubscriptionData() instead
  */
-async function fetchUsageData() {
+async function fetchUsageLimitData() {
   const response = await fetch('/api/usage?context=user')
   if (!response.ok) {
-    throw new Error('Failed to fetch usage data')
+    throw new Error('Failed to fetch usage limit data')
   }
   return response.json()
 }
 
 /**
- * Base hook to fetch user usage data (single query)
+ * Hook to fetch usage limit metadata
+ * Returns: currentLimit, minimumLimit, canEdit, plan, updatedAt
+ * Use this for editing usage limits, not for displaying current usage
  */
-function useUsageDataBase() {
+export function useUsageLimitData() {
   return useQuery({
     queryKey: subscriptionKeys.usage(),
-    queryFn: fetchUsageData,
+    queryFn: fetchUsageLimitData,
     staleTime: 30 * 1000,
     placeholderData: keepPreviousData,
   })
-}
-
-/**
- * Hook to fetch user usage data
- */
-export function useUsageData() {
-  return useUsageDataBase()
-}
-
-/**
- * Hook to fetch usage limit data
- */
-export function useUsageLimitData() {
-  return useUsageDataBase()
 }
 
 /**

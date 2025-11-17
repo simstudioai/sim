@@ -1,10 +1,16 @@
 'use client'
 
+import { useCallback } from 'react'
 import { Layout, LibraryBig, Search } from 'lucide-react'
 import Image from 'next/image'
+import { useParams, useRouter } from 'next/navigation'
 import { Button } from '@/components/emcn'
 import { AgentIcon } from '@/components/icons'
+import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
+import { useSearchModalStore } from '@/stores/search-modal/store'
+
+const logger = createLogger('WorkflowCommandList')
 
 /**
  * Command item data structure
@@ -49,13 +55,131 @@ const commands: CommandItem[] = [
  * Centered on the screen for empty workflows
  */
 export function CommandList() {
+  const params = useParams()
+  const router = useRouter()
+  const { open: openSearchModal } = useSearchModalStore()
+
+  const workspaceId = params.workspaceId as string | undefined
+
+  /**
+   * Handle click on a command row.
+   *
+   * Mirrors the behavior of the corresponding global keyboard shortcuts:
+   * - Templates: navigate to workspace templates
+   * - New Agent: add an agent block to the canvas
+   * - Logs: navigate to workspace logs
+   * - Search Blocks: open the universal search modal
+   *
+   * @param label - Command label that was clicked.
+   */
+  const handleCommandClick = useCallback(
+    (label: string) => {
+      try {
+        switch (label) {
+          case 'Templates': {
+            if (!workspaceId) {
+              logger.warn('No workspace ID found, cannot navigate to templates from command list')
+              return
+            }
+            router.push(`/workspace/${workspaceId}/templates`)
+            return
+          }
+          case 'New Agent': {
+            const event = new CustomEvent('add-block-from-toolbar', {
+              detail: { type: 'agent', enableTriggerMode: false },
+            })
+            window.dispatchEvent(event)
+            return
+          }
+          case 'Logs': {
+            if (!workspaceId) {
+              logger.warn('No workspace ID found, cannot navigate to logs from command list')
+              return
+            }
+            router.push(`/workspace/${workspaceId}/logs`)
+            return
+          }
+          case 'Search Blocks': {
+            openSearchModal()
+            return
+          }
+          default:
+            logger.warn('Unknown command label clicked in command list', { label })
+        }
+      } catch (error) {
+        logger.error('Failed to handle command click in command list', { error, label })
+      }
+    },
+    [router, workspaceId, openSearchModal]
+  )
+
+  /**
+   * Handle drag-over events from the toolbar.
+   *
+   * When a toolbar item is dragged over the command list, mark the drop as valid
+   * so the browser shows the appropriate drop cursor. Only reacts to toolbar
+   * drags that carry the expected JSON payload.
+   *
+   * @param event - Drag event from the browser.
+   */
+  const handleDragOver = useCallback((event: React.DragEvent<HTMLDivElement>) => {
+    if (!event.dataTransfer?.types.includes('application/json')) {
+      return
+    }
+    event.preventDefault()
+    event.dataTransfer.dropEffect = 'move'
+  }, [])
+
+  /**
+   * Handle drops of toolbar items onto the command list.
+   *
+   * This forwards the drop information (block type and cursor position)
+   * to the workflow canvas via a custom event. The workflow component
+   * then reuses its existing drop logic to place the block precisely
+   * under the cursor, including container/subflow handling.
+   *
+   * @param event - Drop event from the browser.
+   */
+  const handleDrop = useCallback((event: React.DragEvent<HTMLDivElement>) => {
+    if (!event.dataTransfer?.types.includes('application/json')) {
+      return
+    }
+
+    event.preventDefault()
+
+    try {
+      const raw = event.dataTransfer.getData('application/json')
+      if (!raw) return
+
+      const data = JSON.parse(raw) as { type?: string; enableTriggerMode?: boolean }
+      if (!data?.type || data.type === 'connectionBlock') return
+
+      const overlayDropEvent = new CustomEvent('toolbar-drop-on-empty-workflow-overlay', {
+        detail: {
+          type: data.type,
+          enableTriggerMode: data.enableTriggerMode ?? false,
+          clientX: event.clientX,
+          clientY: event.clientY,
+        },
+      })
+
+      window.dispatchEvent(overlayDropEvent)
+    } catch (error) {
+      logger.error('Failed to handle drop on command list', { error })
+    }
+  }, [])
+
   return (
     <div
       className={cn(
         'pointer-events-none absolute inset-0 mb-[50px] flex items-center justify-center'
       )}
     >
-      <div className='pointer-events-none flex flex-col gap-[8px]'>
+      <div
+        className='pointer-events-auto flex flex-col gap-[8px]'
+        onDragOver={handleDragOver}
+        onDrop={handleDrop}
+      >
         {/* Logo */}
         <div className='mb-[20px] flex justify-center'>
           <Image
@@ -79,6 +203,7 @@ export function CommandList() {
             <div
               key={command.label}
               className='group flex cursor-pointer items-center justify-between gap-[60px]'
+              onClick={() => handleCommandClick(command.label)}
             >
               {/* Left side: Icon and Label */}
               <div className='flex items-center gap-[8px]'>
@@ -91,7 +216,7 @@ export function CommandList() {
               {/* Right side: Keyboard Shortcut */}
               <div className='flex items-center gap-[4px]'>
                 <Button
-                  className='group-hover:-translate-y-0.5 w-[26px] py-[3px] text-[12px] hover:translate-y-0 hover:text-[var(--text-tertiary)] hover:shadow-[0_2px_0_0] group-hover:text-[var(--text-primary)] group-hover:shadow-[0_4px_0_0]'
+                  className='group-hover:-translate-y-0.5 w-[26px] py-[3px] text-[12px] hover:translate-y-0 hover:text-[var(--text-tertiary)] hover:shadow-[0_2px_0_0_rgba(48,48,48,1)] group-hover:text-[var(--text-primary)] group-hover:shadow-[0_4px_0_0_rgba(48,48,48,1)]'
                   variant='3d'
                 >
                   <span>⌘</span>
@@ -99,7 +224,7 @@ export function CommandList() {
                 {shortcuts.map((key, index) => (
                   <Button
                     key={index}
-                    className='group-hover:-translate-y-0.5 w-[26px] py-[3px] text-[12px] hover:translate-y-0 hover:text-[var(--text-tertiary)] hover:shadow-[0_2px_0_0] group-hover:text-[var(--text-primary)] group-hover:shadow-[0_4px_0_0]'
+                    className='group-hover:-translate-y-0.5 w-[26px] py-[3px] text-[12px] hover:translate-y-0 hover:text-[var(--text-tertiary)] hover:shadow-[0_2px_0_0_rgba(48,48,48,1)] group-hover:text-[var(--text-primary)] group-hover:shadow-[0_4px_0_0_rgba(48,48,48,1)]'
                     variant='3d'
                   >
                     {key}

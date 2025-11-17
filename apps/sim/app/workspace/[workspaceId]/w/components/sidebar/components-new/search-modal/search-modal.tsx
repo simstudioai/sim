@@ -5,7 +5,7 @@ import * as DialogPrimitive from '@radix-ui/react-dialog'
 import * as VisuallyHidden from '@radix-ui/react-visually-hidden'
 import { BookOpen, Layout, RepeatIcon, ScrollText, Search, SplitIcon } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
-import { Dialog, DialogOverlay, DialogPortal, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogPortal, DialogTitle } from '@/components/ui/dialog'
 import { useBrandConfig } from '@/lib/branding/branding'
 import { cn } from '@/lib/utils'
 import { getTriggersForSidebar, hasTriggerCapability } from '@/lib/workflows/trigger-utils'
@@ -332,7 +332,7 @@ export function SearchModal({
   }, [workspaces, workflows, pages, blocks, triggers, tools, docs])
 
   const sectionOrder = useMemo<SearchItem['type'][]>(
-    () => ['workspace', 'workflow', 'page', 'tool', 'trigger', 'block', 'doc'],
+    () => ['block', 'tool', 'trigger', 'workflow', 'workspace', 'page', 'doc'],
     []
   )
 
@@ -447,7 +447,10 @@ export function SearchModal({
     if (open && selectedIndex >= 0) {
       const element = document.querySelector(`[data-search-item-index="${selectedIndex}"]`)
       if (element) {
-        element.scrollIntoView({ block: 'nearest' })
+        element.scrollIntoView({
+          block: 'nearest',
+          behavior: 'auto',
+        })
       }
     }
   }, [selectedIndex, open])
@@ -481,16 +484,13 @@ export function SearchModal({
     trigger: 'Triggers',
     block: 'Blocks',
     tool: 'Tools',
-    doc: 'Documentation',
+    doc: 'Docs',
   }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogPortal>
-        <DialogOverlay
-          className='z-40 bg-white/80 dark:bg-[#1b1b1b]/90'
-          style={{ backdropFilter: 'blur(4px)' }}
-        />
+        <DialogPrimitive.Overlay className='fixed inset-0 z-40 backdrop-blur-md' />
         <DialogPrimitive.Content className='fixed top-[15%] left-[50%] z-50 flex w-[500px] translate-x-[-50%] flex-col gap-[12px] p-0 focus:outline-none focus-visible:outline-none'>
           <VisuallyHidden.Root>
             <DialogTitle>Search</DialogTitle>
@@ -498,13 +498,13 @@ export function SearchModal({
 
           {/* Search input container */}
           <div className='flex items-center gap-[8px] rounded-[10px] border border-[var(--border)] bg-[var(--surface-5)] px-[12px] py-[8px] shadow-sm dark:border-[var(--border)] dark:bg-[var(--surface-5)]'>
-            <Search className='h-[16px] w-[16px] flex-shrink-0 text-[var(--text-subtle)] dark:text-[var(--text-subtle)]' />
+            <Search className='h-[15px] w-[15px] flex-shrink-0 text-[var(--text-subtle)] dark:text-[var(--text-subtle)]' />
             <input
               type='text'
               placeholder='Search anything...'
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className='w-full border-0 bg-transparent font-base text-[18px] text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] focus:outline-none dark:text-[var(--text-primary)] dark:placeholder:text-[var(--text-secondary)]'
+              className='w-full border-0 bg-transparent font-base text-[15px] text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] focus:outline-none dark:text-[var(--text-primary)] dark:placeholder:text-[var(--text-secondary)]'
               autoFocus
             />
           </div>

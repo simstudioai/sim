@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { Loader2, RefreshCw, Search } from 'lucide-react'
+import { ArrowUp, Loader2, RefreshCw, Search } from 'lucide-react'
 import { Button, Tooltip } from '@/components/emcn'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
@@ -16,7 +16,6 @@ export function Controls({
   viewMode,
   setViewMode,
   searchComponent,
-  showExport = true,
   onExport,
 }: {
   searchQuery?: string
@@ -72,6 +71,23 @@ export function Controls({
       )}
 
       <div className='ml-auto flex flex-shrink-0 items-center gap-3'>
+        {viewMode !== 'dashboard' && (
+          <Tooltip.Root>
+            <Tooltip.Trigger asChild>
+              <Button
+                variant='ghost'
+                onClick={onExport}
+                className='h-9 w-9 p-0 hover:bg-secondary'
+                aria-label='Export CSV'
+              >
+                <ArrowUp className='h-4 w-4' />
+                <span className='sr-only'>Export CSV</span>
+              </Button>
+            </Tooltip.Trigger>
+            <Tooltip.Content>Export CSV</Tooltip.Content>
+          </Tooltip.Root>
+        )}
+
         <Tooltip.Root>
           <Tooltip.Trigger asChild>
             <Button
@@ -81,40 +97,14 @@ export function Controls({
               disabled={isRefetching}
             >
               {isRefetching ? (
-                <Loader2 className='h-5 w-5 animate-spin' />
+                <Loader2 className='h-4 w-4 animate-spin' />
               ) : (
-                <RefreshCw className='h-5 w-5' />
+                <RefreshCw className='h-4 w-4' />
               )}
               <span className='sr-only'>Refresh</span>
             </Button>
           </Tooltip.Trigger>
           <Tooltip.Content>{isRefetching ? 'Refreshing...' : 'Refresh'}</Tooltip.Content>
-        </Tooltip.Root>
-
-        <Tooltip.Root>
-          <Tooltip.Trigger asChild>
-            <Button
-              variant='ghost'
-              onClick={onExport}
-              className='h-9 w-9 p-0 hover:bg-secondary'
-              aria-label='Export CSV'
-            >
-              <svg
-                xmlns='http://www.w3.org/2000/svg'
-                viewBox='0 0 24 24'
-                fill='none'
-                stroke='currentColor'
-                strokeWidth='2'
-                className='h-5 w-5'
-              >
-                <path d='M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4' />
-                <polyline points='7 10 12 15 17 10' />
-                <line x1='12' y1='15' x2='12' y2='3' />
-              </svg>
-              <span className='sr-only'>Export CSV</span>
-            </Button>
-          </Tooltip.Trigger>
-          <Tooltip.Content>Export CSV</Tooltip.Content>
         </Tooltip.Root>
 
         <div className='inline-flex h-9 items-center rounded-[11px] border bg-card p-1 shadow-sm'>

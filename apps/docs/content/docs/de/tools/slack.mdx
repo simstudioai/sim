@@ -71,8 +71,10 @@ Senden Sie Nachrichten an Slack-Kanäle oder Benutzer über die Slack-API. Unter
 
 | Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
-| `ts` | string | Zeitstempel der Nachricht |
-| `channel` | string | Kanal-ID, wohin die Nachricht gesendet wurde |
+| `message` | object | Vollständiges Nachrichtenobjekt mit allen von Slack zurückgegebenen Eigenschaften |
+| `ts` | string | Nachrichtenzeitstempel |
+| `channel` | string | Kanal-ID, in dem die Nachricht gesendet wurde |
+| `fileCount` | number | Anzahl der hochgeladenen Dateien \(wenn Dateien angehängt sind\) |
 
 ### `slack_canvas`
 
@@ -155,6 +157,7 @@ Eine zuvor vom Bot in Slack gesendete Nachricht aktualisieren
 
 | Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
+| `message` | object | Vollständiges aktualisiertes Nachrichtenobjekt mit allen von Slack zurückgegebenen Eigenschaften |
 | `content` | string | Erfolgsmeldung |
 | `metadata` | object | Metadaten der aktualisierten Nachricht |
 

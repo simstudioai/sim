@@ -464,24 +464,42 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
     thread_ts: { type: 'string', description: 'Thread timestamp for reply' },
   },
   outputs: {
-    // slack_message outputs
+    // slack_message outputs (send operation)
+    message: {
+      type: 'json',
+      description:
+        'Complete message object with all properties: ts, text, user, channel, reactions, threads, files, attachments, blocks, stars, pins, and edit history',
+    },
+    // Legacy properties for send operation (backward compatibility)
     ts: { type: 'string', description: 'Message timestamp returned by Slack API' },
     channel: { type: 'string', description: 'Channel identifier where message was sent' },
+    fileCount: {
+      type: 'number',
+      description: 'Number of files uploaded (when files are attached)',
+    },
 
     // slack_canvas outputs
     canvas_id: { type: 'string', description: 'Canvas identifier for created canvases' },
     title: { type: 'string', description: 'Canvas title' },
 
-    // slack_message_reader outputs
+    // slack_message_reader outputs (read operation)
     messages: {
       type: 'json',
-      description: 'Array of message objects with text, user, timestamp, and file attachments',
+      description:
+        'Array of message objects with comprehensive properties: text, user, timestamp, reactions, threads, files, attachments, blocks, stars, pins, and edit history',
     },
 
     // slack_download outputs
     file: {
       type: 'json',
       description: 'Downloaded file stored in execution files',
+    },
+
+    // slack_update_message outputs (update operation)
+    content: { type: 'string', description: 'Success message for update operation' },
+    metadata: {
+      type: 'json',
+      description: 'Updated message metadata (legacy, use message object instead)',
     },
 
     // Trigger outputs (when used as webhook trigger)

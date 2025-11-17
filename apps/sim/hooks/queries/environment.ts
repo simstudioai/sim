@@ -1,6 +1,14 @@
+import { useEffect } from 'react'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import type { WorkspaceEnvironmentData } from '@/lib/environment/api'
+import { fetchPersonalEnvironment, fetchWorkspaceEnvironment } from '@/lib/environment/api'
 import { createLogger } from '@/lib/logs/console/logger'
 import { API_ENDPOINTS } from '@/stores/constants'
+import { useEnvironmentStore } from '@/stores/settings/environment/store'
+import type { EnvironmentVariable } from '@/stores/settings/environment/types'
+
+export type { WorkspaceEnvironmentData } from '@/lib/environment/api'
+export type { EnvironmentVariable } from '@/stores/settings/environment/types'
 
 const logger = createLogger('EnvironmentQueries')
 
@@ -16,65 +24,26 @@ export const environmentKeys = {
 /**
  * Environment Variable Types
  */
-export interface EnvironmentVariable {
-  key: string
-  value: string
-}
-
-export interface WorkspaceEnvironmentData {
-  workspace: Record<string, string>
-  personal: Record<string, string>
-  conflicts: string[]
-}
-
-/**
- * Fetch personal environment variables
- */
-async function fetchPersonalEnvironment(): Promise<Record<string, EnvironmentVariable>> {
-  const response = await fetch(API_ENDPOINTS.ENVIRONMENT)
-
-  if (!response.ok) {
-    throw new Error(`Failed to load environment variables: ${response.statusText}`)
-  }
-
-  const { data } = await response.json()
-
-  if (data && typeof data === 'object') {
-    return data
-  }
-
-  return {}
-}
-
 /**
  * Hook to fetch personal environment variables
  */
 export function usePersonalEnvironment() {
-  return useQuery({
+  const setVariables = useEnvironmentStore((state) => state.setVariables)
+
+  const query = useQuery({
     queryKey: environmentKeys.personal(),
     queryFn: fetchPersonalEnvironment,
     staleTime: 60 * 1000, // 1 minute
     placeholderData: keepPreviousData,
   })
-}
 
-/**
- * Fetch workspace environment variables
- */
-async function fetchWorkspaceEnvironment(workspaceId: string): Promise<WorkspaceEnvironmentData> {
-  const response = await fetch(API_ENDPOINTS.WORKSPACE_ENVIRONMENT(workspaceId))
+  useEffect(() => {
+    if (query.data) {
+      setVariables(query.data)
+    }
+  }, [query.data, setVariables])
 
-  if (!response.ok) {
-    throw new Error(`Failed to load workspace environment: ${response.statusText}`)
-  }
-
-  const { data } = await response.json()
-
-  return {
-    workspace: data.workspace || {},
-    personal: data.personal || {},
-    conflicts: data.conflicts || [],
-  }
+  return query
 }
 
 /**
