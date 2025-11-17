@@ -23,6 +23,7 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
         { label: 'Read Page', id: 'notion_read' },
         { label: 'Read Database', id: 'notion_read_database' },
         { label: 'Create Page', id: 'notion_create_page' },
+        { label: 'Create Page in Database', id: 'notion_create_page_in_database' },
         { label: 'Create Database', id: 'notion_create_database' },
         { label: 'Append Content', id: 'notion_write' },
         { label: 'Query Database', id: 'notion_query_database' },
@@ -115,6 +116,36 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
         value: 'notion_create_page',
       },
       required: true,
+    },
+    // Create Page in Database Fields
+    {
+      id: 'databaseId',
+      title: 'Database ID',
+      type: 'short-input',
+      placeholder: 'Enter Notion database ID',
+      condition: { field: 'operation', value: 'notion_create_page_in_database' },
+      required: true,
+    },
+    {
+      id: 'title',
+      title: 'Page Title',
+      type: 'short-input',
+      placeholder: 'Title for the new page',
+      condition: {
+        field: 'operation',
+        value: 'notion_create_page_in_database',
+      },
+      required: true,
+    },
+    {
+      id: 'content',
+      title: 'Content',
+      type: 'long-input',
+      placeholder: 'Enter content to add to the page',
+      condition: {
+        field: 'operation',
+        value: 'notion_create_page_in_database',
+      },
     },
     // Query Database Fields
     {
@@ -212,6 +243,8 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
             return 'notion_write'
           case 'notion_create_page':
             return 'notion_create_page'
+          case 'notion_create_page_in_database':
+            return 'notion_create_page'
           case 'notion_query_database':
             return 'notion_query_database'
           case 'notion_search':
@@ -223,12 +256,24 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
         }
       },
       params: (params) => {
-        const { credential, operation, properties, filter, sorts, ...rest } = params
+        const { credential, operation, properties, filter, sorts, databaseId, ...rest } = params
+
+        // Handle different parent types for page creation
+        let parentId: string | undefined
+        let parentType: 'page_id' | 'database_id' | undefined
+
+        if (operation === 'notion_create_page_in_database') {
+          parentId = databaseId
+          parentType = 'database_id'
+        } else if (operation === 'notion_create_page') {
+          parentId = rest.parentId
+          parentType = 'page_id'
+        }
 
         // Parse properties from JSON string for create operations
         let parsedProperties
         if (
-          (operation === 'notion_create_page' || operation === 'notion_create_database') &&
+          (operation === 'notion_create_page' || operation === 'notion_create_page_in_database' || operation === 'notion_create_database') &&
           properties
         ) {
           try {
@@ -267,6 +312,8 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
         return {
           ...rest,
           credential,
+          ...(parentId ? { parentId } : {}),
+          ...(parentType ? { parentType } : {}),
           ...(parsedProperties ? { properties: parsedProperties } : {}),
           ...(parsedFilter ? { filter: JSON.stringify(parsedFilter) } : {}),
           ...(parsedSorts ? { sorts: JSON.stringify(parsedSorts) } : {}),
