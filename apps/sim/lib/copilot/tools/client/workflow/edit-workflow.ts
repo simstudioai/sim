@@ -103,6 +103,31 @@ export class EditWorkflowClientTool extends BaseClientTool {
       [ClientToolCallState.aborted]: { text: 'Aborted editing your workflow', icon: MinusCircle },
       [ClientToolCallState.pending]: { text: 'Editing your workflow', icon: Loader2 },
     },
+    getDynamicText: (params, state) => {
+      const workflowId = params?.workflowId || useWorkflowRegistry.getState().activeWorkflowId
+      if (workflowId) {
+        const workflowName = useWorkflowRegistry.getState().workflows[workflowId]?.name
+        if (workflowName) {
+          switch (state) {
+            case ClientToolCallState.success:
+              return `Edited ${workflowName}`
+            case ClientToolCallState.executing:
+            case ClientToolCallState.generating:
+            case ClientToolCallState.pending:
+              return `Editing ${workflowName}`
+            case ClientToolCallState.error:
+              return `Failed to edit ${workflowName}`
+            case ClientToolCallState.review:
+              return `Review changes to ${workflowName}`
+            case ClientToolCallState.rejected:
+              return `Rejected changes to ${workflowName}`
+            case ClientToolCallState.aborted:
+              return `Aborted editing ${workflowName}`
+          }
+        }
+      }
+      return undefined
+    },
   }
 
   async handleAccept(): Promise<void> {

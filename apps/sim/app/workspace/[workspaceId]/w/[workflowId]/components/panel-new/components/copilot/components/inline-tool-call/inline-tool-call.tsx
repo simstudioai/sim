@@ -52,8 +52,11 @@ const ACTION_VERBS = [
   'Editing',
   'Edited',
   'Running',
+  'Ran',
   'Designing',
   'Designed',
+  'Searching',
+  'Searched',
   'Summarizing',
   'Summarized',
   'Marking',
@@ -70,6 +73,11 @@ const ACTION_VERBS = [
   'Evaluating',
   'Evaluated',
   'Finished',
+  'Setting',
+  'Set',
+  'Applied',
+  'Applying',
+  'Rejected',
 ] as const
 
 /**

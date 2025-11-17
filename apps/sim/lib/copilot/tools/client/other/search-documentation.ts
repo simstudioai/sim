@@ -30,6 +30,28 @@ export class SearchDocumentationClientTool extends BaseClientTool {
       [ClientToolCallState.aborted]: { text: 'Aborted documentation search', icon: XCircle },
       [ClientToolCallState.rejected]: { text: 'Skipped documentation search', icon: MinusCircle },
     },
+    getDynamicText: (params, state) => {
+      if (params?.query && typeof params.query === 'string') {
+        const query = params.query
+        const truncated = query.length > 50 ? `${query.slice(0, 50)}...` : query
+        
+        switch (state) {
+          case ClientToolCallState.success:
+            return `Searched docs for ${truncated}`
+          case ClientToolCallState.executing:
+          case ClientToolCallState.generating:
+          case ClientToolCallState.pending:
+            return `Searching docs for ${truncated}`
+          case ClientToolCallState.error:
+            return `Failed to search docs for ${truncated}`
+          case ClientToolCallState.aborted:
+            return `Aborted searching docs for ${truncated}`
+          case ClientToolCallState.rejected:
+            return `Skipped searching docs for ${truncated}`
+        }
+      }
+      return undefined
+    },
   }
 
   async execute(args?: SearchDocumentationArgs): Promise<void> {

@@ -27,13 +27,36 @@ export class GetUserWorkflowClientTool extends BaseClientTool {
 
   static readonly metadata: BaseClientToolMetadata = {
     displayNames: {
-      [ClientToolCallState.generating]: { text: 'Analyzing your workflow', icon: Loader2 },
-      [ClientToolCallState.pending]: { text: 'Analyzing your workflow', icon: WorkflowIcon },
-      [ClientToolCallState.executing]: { text: 'Analyzing your workflow', icon: Loader2 },
-      [ClientToolCallState.aborted]: { text: 'Aborted analyzing your workflow', icon: XCircle },
-      [ClientToolCallState.success]: { text: 'Analyzed your workflow', icon: WorkflowIcon },
-      [ClientToolCallState.error]: { text: 'Failed to analyze your workflow', icon: X },
-      [ClientToolCallState.rejected]: { text: 'Skipped analyzing your workflow', icon: XCircle },
+      [ClientToolCallState.generating]: { text: 'Reading your workflow', icon: Loader2 },
+      [ClientToolCallState.pending]: { text: 'Reading your workflow', icon: WorkflowIcon },
+      [ClientToolCallState.executing]: { text: 'Reading your workflow', icon: Loader2 },
+      [ClientToolCallState.aborted]: { text: 'Aborted reading your workflow', icon: XCircle },
+      [ClientToolCallState.success]: { text: 'Read your workflow', icon: WorkflowIcon },
+      [ClientToolCallState.error]: { text: 'Failed to read your workflow', icon: X },
+      [ClientToolCallState.rejected]: { text: 'Skipped reading your workflow', icon: XCircle },
+    },
+    getDynamicText: (params, state) => {
+      const workflowId = params?.workflowId || useWorkflowRegistry.getState().activeWorkflowId
+      if (workflowId) {
+        const workflowName = useWorkflowRegistry.getState().workflows[workflowId]?.name
+        if (workflowName) {
+          switch (state) {
+            case ClientToolCallState.success:
+              return `Read ${workflowName}`
+            case ClientToolCallState.executing:
+            case ClientToolCallState.generating:
+            case ClientToolCallState.pending:
+              return `Reading ${workflowName}`
+            case ClientToolCallState.error:
+              return `Failed to read ${workflowName}`
+            case ClientToolCallState.aborted:
+              return `Aborted reading ${workflowName}`
+            case ClientToolCallState.rejected:
+              return `Skipped reading ${workflowName}`
+          }
+        }
+      }
+      return undefined
     },
   }
 

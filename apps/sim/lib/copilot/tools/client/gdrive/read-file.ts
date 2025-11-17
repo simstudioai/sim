@@ -34,6 +34,28 @@ export class ReadGDriveFileClientTool extends BaseClientTool {
         icon: MinusCircle,
       },
     },
+    getDynamicText: (params, state) => {
+      if (params?.fileId && typeof params.fileId === 'string') {
+        const fileId = params.fileId
+        const fileType = params?.type ? ` (${params.type})` : ''
+        
+        switch (state) {
+          case ClientToolCallState.success:
+            return `Read file ${fileId}${fileType}`
+          case ClientToolCallState.executing:
+          case ClientToolCallState.generating:
+          case ClientToolCallState.pending:
+            return `Reading file ${fileId}${fileType}`
+          case ClientToolCallState.error:
+            return `Failed to read file ${fileId}${fileType}`
+          case ClientToolCallState.aborted:
+            return `Aborted reading file ${fileId}${fileType}`
+          case ClientToolCallState.rejected:
+            return `Skipped reading file ${fileId}${fileType}`
+        }
+      }
+      return undefined
+    },
   }
 
   async execute(args?: ReadGDriveFileArgs): Promise<void> {

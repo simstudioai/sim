@@ -24,16 +24,42 @@ export class GetBlocksMetadataClientTool extends BaseClientTool {
 
   static readonly metadata: BaseClientToolMetadata = {
     displayNames: {
-      [ClientToolCallState.generating]: { text: 'Evaluating block choices', icon: Loader2 },
-      [ClientToolCallState.pending]: { text: 'Evaluating block choices', icon: Loader2 },
-      [ClientToolCallState.executing]: { text: 'Evaluating block choices', icon: Loader2 },
-      [ClientToolCallState.success]: { text: 'Evaluated block choices', icon: ListFilter },
-      [ClientToolCallState.error]: { text: 'Failed to evaluate block choices', icon: XCircle },
-      [ClientToolCallState.aborted]: { text: 'Aborted evaluating block choices', icon: XCircle },
+      [ClientToolCallState.generating]: { text: 'Searching block choices', icon: Loader2 },
+      [ClientToolCallState.pending]: { text: 'Searching block choices', icon: Loader2 },
+      [ClientToolCallState.executing]: { text: 'Searching block choices', icon: Loader2 },
+      [ClientToolCallState.success]: { text: 'Searched block choices', icon: ListFilter },
+      [ClientToolCallState.error]: { text: 'Failed to search block choices', icon: XCircle },
+      [ClientToolCallState.aborted]: { text: 'Aborted searching block choices', icon: XCircle },
       [ClientToolCallState.rejected]: {
-        text: 'Skipped evaluating block choices',
+        text: 'Skipped searching block choices',
         icon: MinusCircle,
       },
+    },
+    getDynamicText: (params, state) => {
+      if (params?.blockIds && Array.isArray(params.blockIds) && params.blockIds.length > 0) {
+        const blockList = params.blockIds
+          .slice(0, 3)
+          .map((blockId) => blockId.replace(/_/g, ' '))
+          .join(', ')
+        const more = params.blockIds.length > 3 ? '...' : ''
+        const blocks = `${blockList}${more}`
+        
+        switch (state) {
+          case ClientToolCallState.success:
+            return `Searched ${blocks}`
+          case ClientToolCallState.executing:
+          case ClientToolCallState.generating:
+          case ClientToolCallState.pending:
+            return `Searching ${blocks}`
+          case ClientToolCallState.error:
+            return `Failed to search ${blocks}`
+          case ClientToolCallState.aborted:
+            return `Aborted searching ${blocks}`
+          case ClientToolCallState.rejected:
+            return `Skipped searching ${blocks}`
+        }
+      }
+      return undefined
     },
   }
 

@@ -159,33 +159,27 @@ function resolveToolDisplay(
   try {
     if (!toolName) return undefined
     const def = getTool(toolName) as any
-    const meta = def?.metadata?.displayNames || CLASS_TOOL_METADATA[toolName]?.displayNames || {}
+    const toolMetadata = def?.metadata || CLASS_TOOL_METADATA[toolName]
+    const meta = toolMetadata?.displayNames || {}
+    
     // Exact state first
     const ds = meta?.[state]
     if (ds?.text || ds?.icon) {
-      // Special handling for search_patterns to show the first query
-      if (toolName === 'search_patterns' && params?.queries && Array.isArray(params.queries)) {
-        const firstQuery = params.queries[0]
-        if (firstQuery && typeof firstQuery === 'string') {
-          const truncatedQuery = firstQuery.length > 50 ? `${firstQuery.slice(0, 50)}...` : firstQuery
-          const capitalizedQuery = truncatedQuery.charAt(0).toUpperCase() + truncatedQuery.slice(1)
-          let dynamicText = ds.text
-          if (state === ClientToolCallState.success) {
-            dynamicText = `Searched ${capitalizedQuery}`
-          } else if (state === ClientToolCallState.executing || state === ClientToolCallState.generating || state === ClientToolCallState.pending) {
-            dynamicText = `Searching ${capitalizedQuery}`
-          } else if (state === ClientToolCallState.error) {
-            dynamicText = `Failed to search ${capitalizedQuery}`
-          } else if (state === ClientToolCallState.aborted) {
-            dynamicText = `Aborted searching ${capitalizedQuery}`
-          } else if (state === ClientToolCallState.rejected) {
-            dynamicText = `Skipped searching ${capitalizedQuery}`
+      // Check if tool has a dynamic text formatter
+      const getDynamicText = toolMetadata?.getDynamicText
+      if (getDynamicText && params) {
+        try {
+          const dynamicText = getDynamicText(params, state)
+          if (dynamicText) {
+            return { text: dynamicText, icon: ds.icon }
           }
-          return { text: dynamicText, icon: ds.icon }
+        } catch (e) {
+          // Fall back to static text if formatter fails
         }
       }
       return { text: ds.text, icon: ds.icon }
     }
+    
     // Fallback order (prefer pre-execution states for unknown states like pending)
     const fallbackOrder: ClientToolCallState[] = [
       (ClientToolCallState as any).generating,

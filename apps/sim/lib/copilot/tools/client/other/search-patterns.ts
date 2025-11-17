@@ -23,6 +23,28 @@ export class SearchPatternsClientTool extends BaseClientTool {
       [ClientToolCallState.rejected]: { text: 'Skipped pattern search', icon: MinusCircle },
     },
     interrupt: undefined,
+    getDynamicText: (params, state) => {
+      if (params?.queries && Array.isArray(params.queries) && params.queries.length > 0) {
+        const firstQuery = String(params.queries[0])
+        const truncated = firstQuery.length > 50 ? `${firstQuery.slice(0, 50)}...` : firstQuery
+        
+        switch (state) {
+          case ClientToolCallState.success:
+            return `Searched ${truncated}`
+          case ClientToolCallState.executing:
+          case ClientToolCallState.generating:
+          case ClientToolCallState.pending:
+            return `Searching ${truncated}`
+          case ClientToolCallState.error:
+            return `Failed to search ${truncated}`
+          case ClientToolCallState.aborted:
+            return `Aborted searching ${truncated}`
+          case ClientToolCallState.rejected:
+            return `Skipped searching ${truncated}`
+        }
+      }
+      return undefined
+    },
   }
 
   async execute(): Promise<void> {
