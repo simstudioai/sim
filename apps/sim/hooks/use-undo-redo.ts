@@ -2,6 +2,7 @@ import { useCallback } from 'react'
 import type { Edge } from 'reactflow'
 import { useSession } from '@/lib/auth-client'
 import { createLogger } from '@/lib/logs/console/logger'
+import { enqueueReplaceWorkflowState } from '@/lib/workflows/socket-operations'
 import { useOperationQueue } from '@/stores/operation-queue/store'
 import {
   createOperationEntry,
@@ -771,13 +772,13 @@ export function useUndoRedo() {
         // Undo apply-diff means clearing the diff and restoring baseline
         const applyDiffInverse = entry.inverse as any
         const { baselineSnapshot } = applyDiffInverse.data
-        
+
         logger.info('Undoing apply-diff operation', {
           hasBaseline: !!baselineSnapshot,
           baselineBlockCount: Object.keys(baselineSnapshot?.blocks || {}).length,
           activeWorkflowId,
         })
-        
+
         const { useWorkflowDiffStore } = await import('@/stores/workflow-diff/store')
         const { useWorkflowStore } = await import('@/stores/workflows/workflow/store')
         const { useSubBlockStore } = await import('@/stores/workflows/subblock/store')
@@ -791,7 +792,7 @@ export function useUndoRedo() {
             logger.info('Restoring baseline state', {
               blockCount: Object.keys(baselineSnapshot.blocks || {}).length,
             })
-            
+
             useWorkflowStore.getState().replaceWorkflowState(baselineSnapshot)
 
             // Extract and set subblock values
@@ -810,15 +811,10 @@ export function useUndoRedo() {
 
             // Broadcast state change to other users
             logger.info('Broadcasting baseline state to other users')
-            addToQueue({
-              id: opId,
-              operation: {
-                operation: 'replace-state',
-                target: 'workflow',
-                payload: { state: baselineSnapshot },
-              },
+            await enqueueReplaceWorkflowState({
               workflowId: activeWorkflowId,
-              userId,
+              state: baselineSnapshot,
+              operationId: opId,
             })
           }
 
@@ -867,15 +863,10 @@ export function useUndoRedo() {
           // Broadcast clean state to other users (without markers)
           const { stripWorkflowDiffMarkers } = await import('@/lib/workflows/diff')
           const cleanState = stripWorkflowDiffMarkers(beforeAccept)
-          addToQueue({
-            id: opId,
-            operation: {
-              operation: 'replace-state',
-              target: 'workflow',
-              payload: { state: cleanState },
-            },
+          await enqueueReplaceWorkflowState({
             workflowId: activeWorkflowId,
-            userId,
+            state: cleanState,
+            operationId: opId,
           })
 
           // Get baseline from the original apply-diff operation
@@ -926,15 +917,10 @@ export function useUndoRedo() {
           // Broadcast clean state to other users (without markers)
           const { stripWorkflowDiffMarkers } = await import('@/lib/workflows/diff')
           const cleanState = stripWorkflowDiffMarkers(beforeReject)
-          addToQueue({
-            id: opId,
-            operation: {
-              operation: 'replace-state',
-              target: 'workflow',
-              payload: { state: cleanState },
-            },
+          await enqueueReplaceWorkflowState({
             workflowId: activeWorkflowId,
-            userId,
+            state: cleanState,
+            operationId: opId,
           })
 
           // Restore diff state with baseline (local UI only)
@@ -1453,15 +1439,10 @@ export function useUndoRedo() {
           // Broadcast clean state to other users (without markers)
           const { stripWorkflowDiffMarkers } = await import('@/lib/workflows/diff')
           const cleanState = stripWorkflowDiffMarkers(proposedState)
-          addToQueue({
-            id: opId,
-            operation: {
-              operation: 'replace-state',
-              target: 'workflow',
-              payload: { state: cleanState },
-            },
+          await enqueueReplaceWorkflowState({
             workflowId: activeWorkflowId,
-            userId,
+            state: cleanState,
+            operationId: opId,
           })
 
           // Restore diff state with original baseline (local UI only)
@@ -1508,15 +1489,10 @@ export function useUndoRedo() {
           useSubBlockStore.getState().setWorkflowValues(activeWorkflowId, subBlockValues)
 
           // Broadcast state change to other users
-          addToQueue({
-            id: opId,
-            operation: {
-              operation: 'replace-state',
-              target: 'workflow',
-              payload: { state: afterAccept },
-            },
+          await enqueueReplaceWorkflowState({
             workflowId: activeWorkflowId,
-            userId,
+            state: afterAccept,
+            operationId: opId,
           })
 
           // Clear diff state (local UI only)
@@ -1554,15 +1530,10 @@ export function useUndoRedo() {
           useSubBlockStore.getState().setWorkflowValues(activeWorkflowId, subBlockValues)
 
           // Broadcast state change to other users
-          addToQueue({
-            id: opId,
-            operation: {
-              operation: 'replace-state',
-              target: 'workflow',
-              payload: { state: afterReject },
-            },
+          await enqueueReplaceWorkflowState({
             workflowId: activeWorkflowId,
-            userId,
+            state: afterReject,
+            operationId: opId,
           })
 
           // Clear diff state (local UI only)
@@ -1626,7 +1597,7 @@ export function useUndoRedo() {
       const entry = createOperationEntry(operation, inverse)
       undoRedoStore.push(activeWorkflowId, userId, entry)
 
-      logger.info('Recorded apply-diff operation', { 
+      logger.info('Recorded apply-diff operation', {
         workflowId: activeWorkflowId,
         hasBaseline: !!baselineSnapshot,
         hasProposed: !!proposedState,
@@ -1712,7 +1683,7 @@ export function useUndoRedo() {
       const entry = createOperationEntry(operation, inverse)
       undoRedoStore.push(activeWorkflowId, userId, entry)
 
-      logger.info('Recorded reject-diff operation', { 
+      logger.info('Recorded reject-diff operation', {
         workflowId: activeWorkflowId,
         beforeBlockCount: Object.keys(beforeReject?.blocks || {}).length,
         afterBlockCount: Object.keys(afterReject?.blocks || {}).length,

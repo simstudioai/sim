@@ -8,6 +8,7 @@ import {
   type WorkflowDiff,
   WorkflowDiffEngine,
 } from '@/lib/workflows/diff'
+import { enqueueReplaceWorkflowState } from '@/lib/workflows/socket-operations'
 import { validateWorkflowState } from '@/lib/workflows/validation'
 import { Serializer } from '@/serializer'
 import { useWorkflowRegistry } from '../workflows/registry/store'
@@ -279,24 +280,9 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
 
             // Broadcast state change to other users (without markers)
             const cleanState = stripWorkflowDiffMarkers(cloneWorkflowState(candidateState))
-            const { useOperationQueueStore } = await import('../operation-queue/store')
-            const { client } = await import('@/lib/auth-client')
-            
-            const { addToQueue } = useOperationQueueStore.getState()
-            
-            // Get userId from auth client session
-            const sessionResult = await client.getSession()
-            const userId = sessionResult.data?.user?.id || 'unknown'
-
-            addToQueue({
-              id: crypto.randomUUID(),
-              operation: {
-                operation: 'replace-state',
-                target: 'workflow',
-                payload: { state: cleanState },
-              },
+            await enqueueReplaceWorkflowState({
               workflowId: activeWorkflowId,
-              userId,
+              state: cleanState,
             })
 
             // Persist to database
@@ -524,29 +510,15 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
           applyWorkflowStateToStores(baselineWorkflowId, baselineWorkflow)
 
           // Broadcast to other users
-          const { useOperationQueueStore } = await import('../operation-queue/store')
-          const { client } = await import('@/lib/auth-client')
-          
-          const { addToQueue } = useOperationQueueStore.getState()
-          const sessionResult = await client.getSession()
-          const userId = sessionResult.data?.user?.id || 'unknown'
-
           logger.info('Broadcasting reject to other users', {
             workflowId: activeWorkflowId,
-            userId,
             blockCount: Object.keys(baselineWorkflow.blocks).length,
           })
 
-          addToQueue({
-            id: crypto.randomUUID(),
-            operation: {
-              operation: 'replace-state',
-              target: 'workflow',
-              payload: { state: baselineWorkflow },
-            },
+          await enqueueReplaceWorkflowState({
             workflowId: activeWorkflowId,
-            userId,
-            immediate: true, // Mark as immediate to ensure it's not debounced
+            state: baselineWorkflow,
+            immediate: true,
           })
 
           // Persist to database
