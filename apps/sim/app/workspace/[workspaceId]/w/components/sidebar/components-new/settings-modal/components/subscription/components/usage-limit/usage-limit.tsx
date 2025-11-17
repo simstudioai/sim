@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
 import { useUsageLimits } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/hooks'
+import { useUpdateUsageLimit } from '@/hooks/queries/subscription'
 
 const logger = createLogger('UsageLimit')
 
@@ -42,12 +43,15 @@ export const UsageLimit = forwardRef<UsageLimitRef, UsageLimitProps>(
     const [isEditing, setIsEditing] = useState(false)
     const inputRef = useRef<HTMLInputElement>(null)
 
-    // Use centralized usage limits hook
-    const { updateLimit, isUpdating } = useUsageLimits({
+    const { updateLimit, isUpdating: isOrgUpdating } = useUsageLimits({
       context,
       organizationId,
       autoRefresh: false, // Don't auto-refresh, we receive values via props
     })
+
+    const updateUsageLimitMutation = useUpdateUsageLimit()
+    const isUpdating =
+      context === 'organization' ? isOrgUpdating : updateUsageLimitMutation.isPending
 
     const handleStartEdit = () => {
       if (!canEdit) return
@@ -55,7 +59,6 @@ export const UsageLimit = forwardRef<UsageLimitRef, UsageLimitProps>(
       setInputValue(currentLimit.toString())
     }
 
-    // Expose startEdit method through ref
     useImperativeHandle(
       ref,
       () => ({
@@ -68,7 +71,6 @@ export const UsageLimit = forwardRef<UsageLimitRef, UsageLimitProps>(
       setInputValue(currentLimit.toString())
     }, [currentLimit])
 
-    // Focus input when entering edit mode
     useEffect(() => {
       if (isEditing && inputRef.current) {
         inputRef.current.focus()
@@ -76,7 +78,6 @@ export const UsageLimit = forwardRef<UsageLimitRef, UsageLimitProps>(
       }
     }, [isEditing])
 
-    // Clear error after 2 seconds
     useEffect(() => {
       if (hasError) {
         const timer = setTimeout(() => {
@@ -96,11 +97,9 @@ export const UsageLimit = forwardRef<UsageLimitRef, UsageLimitProps>(
         return
       }
 
-      // Check if new limit is below current usage
       if (newLimit < currentUsage) {
         setHasError(true)
         setErrorType('belowUsage')
-        // Don't reset input value - let user see what they typed
         return
       }
 
@@ -109,20 +108,43 @@ export const UsageLimit = forwardRef<UsageLimitRef, UsageLimitProps>(
         return
       }
 
-      // Use the centralized hook to update the limit
-      const result = await updateLimit(newLimit)
+      try {
+        if (context === 'organization') {
+          const result = await updateLimit(newLimit)
 
-      if (result.success) {
+          if (result.success) {
+            setInputValue(newLimit.toString())
+            onLimitUpdated?.(newLimit)
+            setIsEditing(false)
+            setErrorType(null)
+            setHasError(false)
+          } else {
+            logger.error('Failed to update usage limit', { error: result.error })
+
+            if (result.error?.includes('below current usage')) {
+              setErrorType('belowUsage')
+            } else {
+              setErrorType('general')
+            }
+
+            setHasError(true)
+          }
+
+          return
+        }
+
+        await updateUsageLimitMutation.mutateAsync({ limit: newLimit })
+
         setInputValue(newLimit.toString())
         onLimitUpdated?.(newLimit)
         setIsEditing(false)
         setErrorType(null)
         setHasError(false)
-      } else {
-        logger.error('Failed to update usage limit', { error: result.error })
+      } catch (err) {
+        logger.error('Failed to update usage limit', { error: err })
 
-        // Check if the error is about being below current usage
-        if (result.error?.includes('below current usage')) {
+        const message = err instanceof Error ? err.message : String(err)
+        if (message.includes('below current usage')) {
           setErrorType('belowUsage')
         } else {
           setErrorType('general')
@@ -161,7 +183,6 @@ export const UsageLimit = forwardRef<UsageLimitRef, UsageLimitProps>(
               onChange={(e) => setInputValue(e.target.value)}
               onKeyDown={handleKeyDown}
               onBlur={(e) => {
-                // Don't submit if clicking on the button (it will handle submission)
                 const relatedTarget = e.relatedTarget as HTMLElement
                 if (relatedTarget?.closest('button')) {
                   return
