@@ -21,6 +21,7 @@ export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
       type: 'dropdown',
       layout: 'full',
       options: [
+        { label: 'Get File', id: 'get_content' },
         { label: 'Create Folder', id: 'create_folder' },
         { label: 'Create File', id: 'create_file' },
         { label: 'Upload File', id: 'upload' },
@@ -133,47 +134,51 @@ export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
       mode: 'advanced',
       condition: { field: 'operation', value: ['create_file', 'upload'] },
     },
-    // Get Content Fields
-    // {
-    //   id: 'fileId',
-    //   title: 'Select File',
-    //   type: 'file-selector',
-    //   layout: 'full',
-    //   provider: 'google-drive',
-    //   serviceId: 'google-drive',
-    //   requiredScopes: [],
-    //   placeholder: 'Select a file',
-    //   condition: { field: 'operation', value: 'get_content' },
-    // },
-    // // Manual File ID input (shown only when no file is selected)
-    // {
-    //   id: 'fileId',
-    //   title: 'Or Enter File ID Manually',
-    //   type: 'short-input',
-    //   layout: 'full',
-    //   placeholder: 'ID of the file to get content from',
-    //   condition: {
-    //     field: 'operation',
-    //     value: 'get_content',
-    //     and: {
-    //       field: 'fileId',
-    //       value: '',
-    //     },
-    //   },
-    // },
+    // Get Content Fields - File Selector (basic mode)
+    {
+      id: 'fileSelector',
+      title: 'Select File',
+      type: 'file-selector',
+      layout: 'full',
+      canonicalParamId: 'fileId',
+      provider: 'google-drive',
+      serviceId: 'google-drive',
+      requiredScopes: [
+        'https://www.googleapis.com/auth/drive.readonly',
+        'https://www.googleapis.com/auth/drive.file',
+      ],
+      placeholder: 'Select a file to get content from',
+      mode: 'basic',
+      dependsOn: ['credential'],
+      condition: { field: 'operation', value: 'get_content' },
+      required: true,
+    },
+    // Manual File ID input (advanced mode)
+    {
+      id: 'manualFileId',
+      title: 'File ID',
+      type: 'short-input',
+      layout: 'full',
+      canonicalParamId: 'fileId',
+      placeholder: 'Enter file ID manually',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'get_content' },
+    },
     // Export format for Google Workspace files
-    // {
-    //   id: 'mimeType',
-    //   title: 'Export Format',
-    //   type: 'dropdown',
-    //   layout: 'full',
-    //   options: [
-    //     { label: 'Plain Text', id: 'text/plain' },
-    //     { label: 'HTML', id: 'text/html' },
-    //   ],
-    //   placeholder: 'Optional: Choose export format for Google Workspace files',
-    //   condition: { field: 'operation', value: 'get_content' },
-    // },
+    {
+      id: 'mimeType',
+      title: 'Export Format',
+      type: 'dropdown',
+      layout: 'full',
+      options: [
+        { label: 'Plain Text', id: 'text/plain' },
+        { label: 'HTML', id: 'text/html' },
+        { label: 'PDF', id: 'application/pdf' },
+        { label: 'Microsoft Word', id: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' },
+      ],
+      placeholder: 'Optional: Choose export format for Google Workspace files',
+      condition: { field: 'operation', value: 'get_content' },
+    },
     // Create Folder Fields
     {
       id: 'fileName',
@@ -261,10 +266,12 @@ export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
     },
   ],
   tools: {
-    access: ['google_drive_upload', 'google_drive_create_folder', 'google_drive_list'],
+    access: ['google_drive_get_content', 'google_drive_upload', 'google_drive_create_folder', 'google_drive_list'],
     config: {
       tool: (params) => {
         switch (params.operation) {
+          case 'get_content':
+            return 'google_drive_get_content'
           case 'create_file':
           case 'upload':
             return 'google_drive_upload'
@@ -277,14 +284,18 @@ export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
         }
       },
       params: (params) => {
-        const { credential, folderSelector, manualFolderId, mimeType, ...rest } = params
+        const { credential, folderSelector, manualFolderId, fileSelector, manualFileId, mimeType, ...rest } = params
 
         // Use folderSelector if provided, otherwise use manualFolderId
         const effectiveFolderId = (folderSelector || manualFolderId || '').trim()
 
+        // Use fileSelector if provided, otherwise use manualFileId
+        const effectiveFileId = (fileSelector || manualFileId || '').trim()
+
         return {
           credential,
           folderId: effectiveFolderId || undefined,
+          fileId: effectiveFileId || undefined,
           pageSize: rest.pageSize ? Number.parseInt(rest.pageSize as string, 10) : undefined,
           mimeType: mimeType,
           ...rest,
@@ -295,6 +306,7 @@ export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
   inputs: {
     operation: { type: 'string', description: 'Operation to perform' },
     credential: { type: 'string', description: 'Google Drive access token' },
+    fileId: { type: 'string', description: 'File identifier for get_content operation' },
     // Upload and Create Folder operation inputs
     fileName: { type: 'string', description: 'File or folder name' },
     file: { type: 'json', description: 'File to upload (UserFile object)' },
