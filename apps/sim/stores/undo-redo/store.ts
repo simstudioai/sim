@@ -13,7 +13,7 @@ import type {
 } from './types'
 
 const logger = createLogger('UndoRedoStore')
-const DEFAULT_CAPACITY = 15
+const DEFAULT_CAPACITY = 100
 
 function getStackKey(workflowId: string, userId: string): string {
   return `${workflowId}:${userId}`
