@@ -434,6 +434,7 @@ const WorkflowContent = React.memo(() => {
         activeElement?.hasAttribute('contenteditable')
 
       if (isEditableElement) {
+        event.stopPropagation()
         return
       }
 
