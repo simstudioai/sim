@@ -42,6 +42,5 @@ export {
   PopoverTrigger,
   usePopoverContext,
 } from './popover/popover'
-export { RotatingDigit } from './rotating-digit/rotating-digit'
 export { Textarea } from './textarea/textarea'
 export { Tooltip } from './tooltip/tooltip'
