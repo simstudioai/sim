@@ -1214,16 +1214,29 @@ const WorkflowContent = React.memo(() => {
 
   // Initialize workflow when it exists in registry and isn't active
   useEffect(() => {
+    let cancelled = false
     const currentId = params.workflowId as string
-    if (!currentId || !workflows[currentId]) return
+
+    // Wait for registry to be ready to prevent race conditions
+    // Don't proceed if: no workflowId, registry is loading, or workflow not in registry
+    if (!currentId || isLoading || !workflows[currentId]) return
 
     if (activeWorkflowId !== currentId) {
       // Clear diff and set as active
       const { clearDiff } = useWorkflowDiffStore.getState()
       clearDiff()
-      setActiveWorkflow(currentId)
+
+      setActiveWorkflow(currentId).catch((error) => {
+        if (!cancelled) {
+          logger.error(`Failed to set active workflow ${currentId}:`, error)
+        }
+      })
     }
-  }, [params.workflowId, workflows, activeWorkflowId, setActiveWorkflow])
+
+    return () => {
+      cancelled = true
+    }
+  }, [params.workflowId, workflows, activeWorkflowId, setActiveWorkflow, isLoading])
 
   // Track when workflow is ready for rendering
   useEffect(() => {
@@ -1233,11 +1246,15 @@ const WorkflowContent = React.memo(() => {
     // 1. We have an active workflow that matches the URL
     // 2. The workflow exists in the registry
     // 3. Workflows are not currently loading
+    // 4. The workflow store has been initialized (lastSaved exists means state was loaded)
     const shouldBeReady =
-      activeWorkflowId === currentId && Boolean(workflows[currentId]) && !isLoading
+      activeWorkflowId === currentId &&
+      Boolean(workflows[currentId]) &&
+      !isLoading &&
+      lastSaved !== undefined
 
     setIsWorkflowReady(shouldBeReady)
-  }, [activeWorkflowId, params.workflowId, workflows, isLoading])
+  }, [activeWorkflowId, params.workflowId, workflows, isLoading, lastSaved])
 
   // Preload workspace environment - React Query handles caching automatically
   useWorkspaceEnvironment(workspaceId)

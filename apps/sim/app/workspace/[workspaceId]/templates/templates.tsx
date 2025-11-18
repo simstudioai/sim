@@ -9,6 +9,7 @@ import {
   TemplateCard,
   TemplateCardSkeleton,
 } from '@/app/workspace/[workspaceId]/templates/components/template-card'
+import { useDebounce } from '@/hooks/use-debounce'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 import type { CreatorProfileDetails } from '@/types/creator-profile'
 
@@ -70,30 +71,19 @@ export default function Templates({
   isSuperUser,
 }: TemplatesProps) {
   const [searchQuery, setSearchQuery] = useState('')
+  const debouncedSearchQuery = useDebounce(searchQuery, 300)
   const [activeTab, setActiveTab] = useState('gallery')
   const [templates, setTemplates] = useState<Template[]>(initialTemplates)
   const [loading, setLoading] = useState(false)
-
-  /**
-   * Update star status for a template
-   */
-  const handleStarChange = (templateId: string, isStarred: boolean, newStarCount: number) => {
-    setTemplates((prevTemplates) =>
-      prevTemplates.map((template) =>
-        template.id === templateId ? { ...template, isStarred, stars: newStarCount } : template
-      )
-    )
-  }
 
   /**
    * Filter templates based on active tab and search query
    * Memoized to prevent unnecessary recalculations on render
    */
   const filteredTemplates = useMemo(() => {
-    const query = searchQuery.toLowerCase()
+    const query = debouncedSearchQuery.toLowerCase()
 
     return templates.filter((template) => {
-      // Filter by tab
       const tabMatch =
         activeTab === 'your'
           ? template.userId === currentUserId || template.isStarred
@@ -103,7 +93,6 @@ export default function Templates({
 
       if (!tabMatch) return false
 
-      // Filter by search query
       if (!query) return true
 
       const searchableText = [
@@ -119,14 +108,14 @@ export default function Templates({
 
       return searchableText.includes(query)
     })
-  }, [templates, activeTab, searchQuery, currentUserId])
+  }, [templates, activeTab, debouncedSearchQuery, currentUserId])
 
   /**
    * Get empty state message based on current filters
    * Memoized to prevent unnecessary recalculations on render
    */
   const emptyState = useMemo(() => {
-    if (searchQuery) {
+    if (debouncedSearchQuery) {
       return {
         title: 'No templates found',
         description: 'Try a different search term',
@@ -149,7 +138,7 @@ export default function Templates({
     }
 
     return messages[activeTab as keyof typeof messages] || messages.gallery
-  }, [searchQuery, activeTab])
+  }, [debouncedSearchQuery, activeTab])
 
   return (
     <div className='flex h-[100vh] flex-col pl-64'>
@@ -228,17 +217,12 @@ export default function Templates({
                     key={template.id}
                     id={template.id}
                     title={template.name}
-                    description={template.description || template.details?.tagline || ''}
                     author={author}
                     authorImageUrl={authorImageUrl}
                     usageCount={template.views.toString()}
                     stars={template.stars}
-                    icon={template.icon}
-                    iconColor={template.color}
                     state={template.state}
                     isStarred={template.isStarred}
-                    onStarChange={handleStarChange}
-                    isAuthenticated={true}
                   />
                 )
               })

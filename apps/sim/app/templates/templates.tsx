@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { createLogger } from '@/lib/logs/console/logger'
 import type { CredentialRequirement } from '@/lib/workflows/credential-extractor'
 import { TemplateCard, TemplateCardSkeleton } from '@/app/templates/components/template-card'
+import { useDebounce } from '@/hooks/use-debounce'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 import type { CreatorProfileDetails } from '@/types/creator-profile'
 
@@ -55,11 +56,11 @@ export default function Templates({
 }: TemplatesProps) {
   const router = useRouter()
   const [searchQuery, setSearchQuery] = useState('')
+  const debouncedSearchQuery = useDebounce(searchQuery, 300)
   const [activeTab, setActiveTab] = useState('gallery')
   const [templates, setTemplates] = useState<Template[]>(initialTemplates)
   const [loading, setLoading] = useState(false)
 
-  // Redirect authenticated users to workspace templates
   useEffect(() => {
     if (currentUserId) {
       const redirectToWorkspace = async () => {
@@ -81,31 +82,18 @@ export default function Templates({
   }, [currentUserId, router])
 
   /**
-   * Update star status for a template
-   */
-  const handleStarChange = (templateId: string, isStarred: boolean, newStarCount: number) => {
-    setTemplates((prevTemplates) =>
-      prevTemplates.map((template) =>
-        template.id === templateId ? { ...template, isStarred, stars: newStarCount } : template
-      )
-    )
-  }
-
-  /**
    * Filter templates based on active tab and search query
    * Memoized to prevent unnecessary recalculations on render
    */
   const filteredTemplates = useMemo(() => {
-    const query = searchQuery.toLowerCase()
+    const query = debouncedSearchQuery.toLowerCase()
 
     return templates.filter((template) => {
-      // Filter by tab - only gallery and pending for public page
       const tabMatch =
         activeTab === 'gallery' ? template.status === 'approved' : template.status === 'pending'
 
       if (!tabMatch) return false
 
-      // Filter by search query
       if (!query) return true
 
       const searchableText = [template.name, template.details?.tagline, template.creator?.name]
@@ -115,14 +103,14 @@ export default function Templates({
 
       return searchableText.includes(query)
     })
-  }, [templates, activeTab, searchQuery])
+  }, [templates, activeTab, debouncedSearchQuery])
 
   /**
    * Get empty state message based on current filters
    * Memoized to prevent unnecessary recalculations on render
    */
   const emptyState = useMemo(() => {
-    if (searchQuery) {
+    if (debouncedSearchQuery) {
       return {
         title: 'No templates found',
         description: 'Try a different search term',
@@ -141,7 +129,7 @@ export default function Templates({
     }
 
     return messages[activeTab as keyof typeof messages] || messages.gallery
-  }, [searchQuery, activeTab])
+  }, [debouncedSearchQuery, activeTab])
 
   return (
     <div className='flex h-[100vh] flex-col'>
@@ -209,15 +197,12 @@ export default function Templates({
                   key={template.id}
                   id={template.id}
                   title={template.name}
-                  description={template.details?.tagline || ''}
                   author={template.creator?.name || 'Unknown'}
                   authorImageUrl={template.creator?.profileImageUrl || null}
                   usageCount={template.views.toString()}
                   stars={template.stars}
                   state={template.state}
                   isStarred={template.isStarred}
-                  onStarChange={handleStarChange}
-                  isAuthenticated={!!currentUserId}
                 />
               ))
             )}

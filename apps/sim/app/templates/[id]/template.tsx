@@ -34,9 +34,9 @@ import { createLogger } from '@/lib/logs/console/logger'
 import { getBaseUrl } from '@/lib/urls/utils'
 import { cn } from '@/lib/utils'
 import type { CredentialRequirement } from '@/lib/workflows/credential-extractor'
-import type { Template } from '@/app/templates/templates'
 import { WorkflowPreview } from '@/app/workspace/[workspaceId]/w/components/workflow-preview/workflow-preview'
 import { getBlock } from '@/blocks/registry'
+import { useStarTemplate, useTemplate } from '@/hooks/queries/templates'
 
 const logger = createLogger('TemplateDetails')
 
@@ -52,16 +52,14 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
   const workspaceId = isWorkspaceContext ? (params?.workspaceId as string) : null
   const { data: session } = useSession()
 
-  const [template, setTemplate] = useState<Template | null>(null)
+  const { data: template, isLoading: loading } = useTemplate(templateId)
+  const starTemplate = useStarTemplate()
+
   const [currentUserOrgs, setCurrentUserOrgs] = useState<string[]>([])
   const [currentUserOrgRoles, setCurrentUserOrgRoles] = useState<
     Array<{ organizationId: string; role: string }>
   >([])
   const [isSuperUser, setIsSuperUser] = useState(false)
-  const [loading, setLoading] = useState(true)
-  const [isStarred, setIsStarred] = useState(false)
-  const [starCount, setStarCount] = useState(0)
-  const [isStarring, setIsStarring] = useState(false)
   const [isUsing, setIsUsing] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
   const [isApproving, setIsApproving] = useState(false)
@@ -76,29 +74,7 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
 
   const currentUserId = session?.user?.id || null
 
-  // Fetch template data on client side
   useEffect(() => {
-    if (!templateId) {
-      setLoading(false)
-      return
-    }
-
-    const fetchTemplate = async () => {
-      try {
-        const response = await fetch(`/api/templates/${templateId}`)
-        if (response.ok) {
-          const data = await response.json()
-          setTemplate(data.data)
-          setIsStarred(data.data.isStarred || false)
-          setStarCount(data.data.stars || 0)
-        }
-      } catch (error) {
-        logger.error('Error fetching template:', error)
-      } finally {
-        setLoading(false)
-      }
-    }
-
     const fetchUserOrganizations = async () => {
       if (!currentUserId) return
 
@@ -134,12 +110,10 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
       }
     }
 
-    fetchTemplate()
     fetchSuperUserStatus()
     fetchUserOrganizations()
-  }, [templateId, currentUserId])
+  }, [currentUserId])
 
-  // Fetch workspaces when user is logged in
   useEffect(() => {
     if (!currentUserId) return
 
@@ -149,7 +123,6 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
         const response = await fetch('/api/workspaces')
         if (response.ok) {
           const data = await response.json()
-          // Filter workspaces where user has write/admin permissions
           const availableWorkspaces = data.workspaces
             .filter((ws: any) => ws.permissions === 'write' || ws.permissions === 'admin')
             .map((ws: any) => ({
@@ -169,7 +142,6 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
     fetchWorkspaces()
   }, [currentUserId])
 
-  // Clean up URL when returning from login
   useEffect(() => {
     if (template && searchParams?.get('use') === 'true' && currentUserId) {
       if (isWorkspaceContext && workspaceId) {
@@ -181,26 +153,20 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
     }
   }, [searchParams, currentUserId, template, isWorkspaceContext, workspaceId, router])
 
-  // Check if user can edit template
   const canEditTemplate = (() => {
     if (!currentUserId || !template?.creator) return false
 
-    // For user creator profiles: must be the user themselves
     if (template.creator.referenceType === 'user') {
       return template.creator.referenceId === currentUserId
     }
 
-    // For organization creator profiles:
     if (template.creator.referenceType === 'organization' && template.creator.referenceId) {
       const isOrgMember = currentUserOrgs.includes(template.creator.referenceId)
 
-      // If template has a connected workflow, any org member with workspace access can edit
       if (template.workflowId) {
         return isOrgMember
       }
 
-      // If template is orphaned, only admin/owner can edit
-      // We need to check the user's role in the organization
       const orgMembership = currentUserOrgRoles.find(
         (org) => org.organizationId === template.creator?.referenceId
       )
@@ -212,7 +178,6 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
     return false
   })()
 
-  // Check workspace access for connected workflow
   useEffect(() => {
     const checkWorkspaceAccess = async () => {
       if (!template?.workflowId || !currentUserId || !canEditTemplate) {
@@ -227,7 +192,6 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
         } else if (checkResponse.ok) {
           setHasWorkspaceAccess(true)
         } else {
-          // Workflow doesn't exist
           setHasWorkspaceAccess(null)
         }
       } catch (error) {
@@ -319,32 +283,20 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
    * @param event - The wheel event fired when the user scrolls over the preview area.
    */
   const handleCanvasWheelCapture = (event: React.WheelEvent<HTMLDivElement>) => {
-    // Allow pinch/zoom gestures (e.g., ctrl/cmd + wheel) to continue to the canvas.
     if (event.ctrlKey || event.metaKey) {
       return
     }
 
-    // Prevent React Flow from handling the wheel; let the page scroll naturally.
     event.stopPropagation()
   }
 
   const handleStarToggle = async () => {
-    if (isStarring || !currentUserId) return
+    if (!currentUserId || !template) return
 
-    setIsStarring(true)
-    try {
-      const method = isStarred ? 'DELETE' : 'POST'
-      const response = await fetch(`/api/templates/${template.id}/star`, { method })
-
-      if (response.ok) {
-        setIsStarred(!isStarred)
-        setStarCount((prev) => (isStarred ? prev - 1 : prev + 1))
-      }
-    } catch (error) {
-      logger.error('Error toggling star:', error)
-    } finally {
-      setIsStarring(false)
-    }
+    starTemplate.mutate({
+      templateId: template.id,
+      action: template.isStarred ? 'remove' : 'add',
+    })
   }
 
   const handleUseTemplate = () => {
@@ -357,7 +309,6 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
       return
     }
 
-    // In workspace context, use current workspace directly
     if (isWorkspaceContext && workspaceId) {
       handleWorkspaceSelectForUse(workspaceId)
     }
@@ -366,7 +317,6 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
   const handleEditTemplate = async () => {
     if (!currentUserId || !template) return
 
-    // In workspace context with existing workflow, navigate directly
     if (isWorkspaceContext && workspaceId && template.workflowId) {
       setIsEditing(true)
       try {
@@ -381,10 +331,8 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
       } finally {
         setIsEditing(false)
       }
-      // If workflow doesn't exist, fall through to workspace selector
     }
 
-    // Check if workflow exists and user has access (global context)
     if (template.workflowId && !isWorkspaceContext) {
       setIsEditing(true)
       try {
@@ -410,7 +358,6 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
       }
     }
 
-    // Workflow doesn't exist - show workspace selector or use current workspace
     if (isWorkspaceContext && workspaceId) {
       handleWorkspaceSelectForEdit(workspaceId)
     } else {
@@ -435,7 +382,6 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
 
       const { workflowId } = await response.json()
 
-      // Navigate to the new workflow with full page load
       window.location.href = `/workspace/${workspaceId}/w/${workflowId}`
     } catch (error) {
       logger.error('Error using template:', error)
@@ -450,7 +396,6 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
     setIsUsing(true)
     setShowWorkspaceSelectorForEdit(false)
     try {
-      // Import template as a new workflow and connect it to the template
       const response = await fetch(`/api/templates/${template.id}/use`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -463,7 +408,6 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
 
       const { workflowId } = await response.json()
 
-      // Navigate to the new workflow with full page load
       window.location.href = `/workspace/${workspaceId}/w/${workflowId}`
     } catch (error) {
       logger.error('Error importing template for editing:', error)
@@ -482,9 +426,6 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
       })
 
       if (response.ok) {
-        // Update template status optimistically
-        setTemplate({ ...template, status: 'approved' })
-        // Redirect back to templates page after approval
         if (isWorkspaceContext && workspaceId) {
           router.push(`/workspace/${workspaceId}/templates`)
         } else {
@@ -508,9 +449,6 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
       })
 
       if (response.ok) {
-        // Update template status optimistically
-        setTemplate({ ...template, status: 'rejected' })
-        // Redirect back to templates page after rejection
         if (isWorkspaceContext && workspaceId) {
           router.push(`/workspace/${workspaceId}/templates`)
         } else {
@@ -752,11 +690,11 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
               onClick={handleStarToggle}
               className={cn(
                 'h-[14px] w-[14px] cursor-pointer transition-colors',
-                isStarred ? 'fill-yellow-500 text-yellow-500' : 'text-[#888888]',
-                isStarring && 'opacity-50'
+                template.isStarred ? 'fill-yellow-500 text-yellow-500' : 'text-[#888888]',
+                starTemplate.isPending && 'opacity-50'
               )}
             />
-            <span className='font-medium text-[#888888] text-[14px]'>{starCount}</span>
+            <span className='font-medium text-[#888888] text-[14px]'>{template.stars || 0}</span>
 
             {/* Users icon and count */}
             <ChartNoAxesColumn className='h-[16px] w-[16px] text-[#888888]' />
