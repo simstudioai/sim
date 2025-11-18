@@ -930,7 +930,6 @@ interface ProviderAuthConfig {
   clientSecret: string
   useBasicAuth: boolean
   additionalHeaders?: Record<string, string>
-  additionalBodyParams?: Record<string, string>
   supportsRefreshTokenRotation?: boolean
 }
 
@@ -991,7 +990,6 @@ function getProviderAuthConfig(provider: string): ProviderAuthConfig {
         clientSecret,
         useBasicAuth: true,
         supportsRefreshTokenRotation: true,
-        additionalBodyParams: { audience: 'api.atlassian.com' },
       }
     }
     case 'jira': {
@@ -1002,7 +1000,6 @@ function getProviderAuthConfig(provider: string): ProviderAuthConfig {
         clientSecret,
         useBasicAuth: true,
         supportsRefreshTokenRotation: true,
-        additionalBodyParams: { audience: 'api.atlassian.com' },
       }
     }
     case 'airtable': {
@@ -1237,7 +1234,6 @@ function buildAuthRequest(
   const bodyParams: Record<string, string> = {
     grant_type: 'refresh_token',
     refresh_token: refreshToken,
-    ...config.additionalBodyParams,
   }
 
   if (config.useBasicAuth) {
