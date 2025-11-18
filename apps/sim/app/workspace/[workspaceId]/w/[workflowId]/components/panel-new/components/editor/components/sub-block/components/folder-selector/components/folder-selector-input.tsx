@@ -31,7 +31,7 @@ export function FolderSelectorInput({
   const { activeWorkflowId } = useWorkflowRegistry()
   const [selectedFolderId, setSelectedFolderId] = useState<string>('')
   const providerKey = (subBlock.provider ?? subBlock.serviceId ?? '').toLowerCase()
-  const credentialProvider = subBlock.provider ?? subBlock.serviceId
+  const credentialProvider = subBlock.serviceId ?? subBlock.provider
   const isCopyDestinationSelector =
     subBlock.canonicalParamId === 'copyDestinationId' ||
     subBlock.id === 'copyDestinationFolder' ||
