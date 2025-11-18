@@ -17,9 +17,8 @@ export const ToolIds = z.enum([
   'search_errors',
   'remember_debug',
   'make_api_request',
-  'get_environment_variables',
   'set_environment_variables',
-  'get_oauth_credentials',
+  'get_credentials',
   'gdrive_request_access',
   'list_gdrive_files',
   'read_gdrive_file',
@@ -174,13 +173,11 @@ export const ToolArgSchemas = {
     body: z.union([z.record(z.any()), z.string()]).optional(),
   }),
 
-  get_environment_variables: z.object({}),
-
   set_environment_variables: z.object({
     variables: z.record(z.string()),
   }),
 
-  get_oauth_credentials: z.object({}),
+  get_credentials: z.object({}),
 
   gdrive_request_access: z.object({}),
 
@@ -250,18 +247,11 @@ export const ToolSSESchemas = {
   search_errors: toolCallSSEFor('search_errors', ToolArgSchemas.search_errors),
   remember_debug: toolCallSSEFor('remember_debug', ToolArgSchemas.remember_debug),
   make_api_request: toolCallSSEFor('make_api_request', ToolArgSchemas.make_api_request),
-  get_environment_variables: toolCallSSEFor(
-    'get_environment_variables',
-    ToolArgSchemas.get_environment_variables
-  ),
   set_environment_variables: toolCallSSEFor(
     'set_environment_variables',
     ToolArgSchemas.set_environment_variables
   ),
-  get_oauth_credentials: toolCallSSEFor(
-    'get_oauth_credentials',
-    ToolArgSchemas.get_oauth_credentials
-  ),
+  get_credentials: toolCallSSEFor('get_credentials', ToolArgSchemas.get_credentials),
   gdrive_request_access: toolCallSSEFor(
     'gdrive_request_access',
     ToolArgSchemas.gdrive_request_access as any
@@ -419,14 +409,20 @@ export const ToolResultSchemas = {
     headers: z.record(z.string()).optional(),
     body: z.any().optional(),
   }),
-  get_environment_variables: z.object({ variables: z.record(z.string()) }),
   set_environment_variables: z
     .object({ variables: z.record(z.string()) })
     .or(z.object({ message: z.any().optional(), data: z.any().optional() })),
-  get_oauth_credentials: z.object({
-    credentials: z.array(
-      z.object({ id: z.string(), provider: z.string(), isDefault: z.boolean().optional() })
-    ),
+  get_credentials: z.object({
+    oauth: z.object({
+      credentials: z.array(
+        z.object({ id: z.string(), provider: z.string(), isDefault: z.boolean().optional() })
+      ),
+      total: z.number(),
+    }),
+    environment: z.object({
+      variableNames: z.array(z.string()),
+      count: z.number(),
+    }),
   }),
   gdrive_request_access: z.object({
     granted: z.boolean().optional(),

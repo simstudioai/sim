@@ -8,6 +8,7 @@ import { ExecuteResponseSuccessSchema } from '@/lib/copilot/tools/shared/schemas
 import { createLogger } from '@/lib/logs/console/logger'
 import { useCopilotStore } from '@/stores/panel-new/copilot/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import { getInputFormatExample } from '@/lib/workflows/deployment-utils'
 
 interface DeployWorkflowArgs {
   action: 'deploy' | 'undeploy'
@@ -245,8 +246,11 @@ export class DeployWorkflowClientTool extends BaseClientTool {
         const endpoint = `${appUrl}/api/workflows/${workflowId}/execute`
         const apiKeyPlaceholder = '$SIM_API_KEY'
         
-        // Match the exact format from deploy modal (no line breaks, simple input example)
-        const curlCommand = `curl -X POST -H "X-API-Key: ${apiKeyPlaceholder}" -H "Content-Type: application/json" -d '{"input": "your input here"}' ${endpoint}`
+        // Get input format example (returns empty string if no inputs, or -d flag with example data)
+        const inputExample = getInputFormatExample(false)
+        
+        // Match the exact format from deploy modal
+        const curlCommand = `curl -X POST -H "X-API-Key: ${apiKeyPlaceholder}" -H "Content-Type: application/json"${inputExample} ${endpoint}`
 
         successMessage = 'Workflow deployed successfully. You can now call it via the API.'
         

@@ -34,8 +34,7 @@ import { SearchPatternsClientTool } from '@/lib/copilot/tools/client/other/searc
 import { SearchErrorsClientTool } from '@/lib/copilot/tools/client/other/search-errors'
 import { RememberDebugClientTool } from '@/lib/copilot/tools/client/other/remember-debug'
 import { createExecutionContext, getTool } from '@/lib/copilot/tools/client/registry'
-import { GetEnvironmentVariablesClientTool } from '@/lib/copilot/tools/client/user/get-environment-variables'
-import { GetOAuthCredentialsClientTool } from '@/lib/copilot/tools/client/user/get-oauth-credentials'
+import { GetCredentialsClientTool } from '@/lib/copilot/tools/client/user/get-credentials'
 import { SetEnvironmentVariablesClientTool } from '@/lib/copilot/tools/client/user/set-environment-variables'
 import { EditWorkflowClientTool } from '@/lib/copilot/tools/client/workflow/edit-workflow'
 import { GetGlobalWorkflowVariablesClientTool } from '@/lib/copilot/tools/client/workflow/get-global-workflow-variables'
@@ -82,11 +81,10 @@ const CLIENT_TOOL_INSTANTIATORS: Record<string, (id: string) => any> = {
   search_patterns: (id) => new SearchPatternsClientTool(id),
   search_errors: (id) => new SearchErrorsClientTool(id),
   remember_debug: (id) => new RememberDebugClientTool(id),
-  get_environment_variables: (id) => new GetEnvironmentVariablesClientTool(id),
   set_environment_variables: (id) => new SetEnvironmentVariablesClientTool(id),
   list_gdrive_files: (id) => new ListGDriveFilesClientTool(id),
   read_gdrive_file: (id) => new ReadGDriveFileClientTool(id),
-  get_oauth_credentials: (id) => new GetOAuthCredentialsClientTool(id),
+  get_credentials: (id) => new GetCredentialsClientTool(id),
   make_api_request: (id) => new MakeApiRequestClientTool(id),
   plan: (id) => new PlanClientTool(id),
   checkoff_todo: (id) => new CheckoffTodoClientTool(id),
@@ -120,11 +118,10 @@ export const CLASS_TOOL_METADATA: Record<string, BaseClientToolMetadata | undefi
   search_patterns: (SearchPatternsClientTool as any)?.metadata,
   search_errors: (SearchErrorsClientTool as any)?.metadata,
   remember_debug: (RememberDebugClientTool as any)?.metadata,
-  get_environment_variables: (GetEnvironmentVariablesClientTool as any)?.metadata,
   set_environment_variables: (SetEnvironmentVariablesClientTool as any)?.metadata,
   list_gdrive_files: (ListGDriveFilesClientTool as any)?.metadata,
   read_gdrive_file: (ReadGDriveFileClientTool as any)?.metadata,
-  get_oauth_credentials: (GetOAuthCredentialsClientTool as any)?.metadata,
+  get_credentials: (GetCredentialsClientTool as any)?.metadata,
   make_api_request: (MakeApiRequestClientTool as any)?.metadata,
   plan: (PlanClientTool as any)?.metadata,
   checkoff_todo: (CheckoffTodoClientTool as any)?.metadata,
