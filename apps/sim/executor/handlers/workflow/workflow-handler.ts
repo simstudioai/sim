@@ -12,6 +12,7 @@ import type {
 } from '@/executor/types'
 import { buildAPIUrl, buildAuthHeaders } from '@/executor/utils/http'
 import { parseJSON } from '@/executor/utils/json'
+import { lazyCleanupInputMapping } from '@/executor/utils/lazy-cleanup'
 import { Serializer } from '@/serializer'
 import type { SerializedBlock } from '@/serializer/types'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -86,7 +87,15 @@ export class WorkflowBlockHandler implements BlockHandler {
         const normalized = parseJSON(inputs.inputMapping, inputs.inputMapping)
 
         if (normalized && typeof normalized === 'object' && !Array.isArray(normalized)) {
-          childWorkflowInput = normalized as Record<string, any>
+          // Perform lazy cleanup: remove orphaned fields from inputMapping
+          // that no longer exist in the child workflow's inputFormat
+          const cleanedMapping = await lazyCleanupInputMapping(
+            ctx.workflowId || 'unknown',
+            block.id,
+            normalized,
+            childWorkflow.rawBlocks || {}
+          )
+          childWorkflowInput = cleanedMapping as Record<string, any>
         } else {
           childWorkflowInput = {}
         }
@@ -209,6 +218,7 @@ export class WorkflowBlockHandler implements BlockHandler {
       name: workflowData.name,
       serializedState: serializedWorkflow,
       variables: workflowVariables,
+      rawBlocks: workflowState.blocks,
     }
   }
 
@@ -281,6 +291,7 @@ export class WorkflowBlockHandler implements BlockHandler {
       name: wfData?.name || DEFAULTS.WORKFLOW_NAME,
       serializedState: serializedWorkflow,
       variables: workflowVariables,
+      rawBlocks: deployedState.blocks,
     }
   }
 
