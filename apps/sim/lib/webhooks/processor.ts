@@ -250,7 +250,7 @@ export async function verifyProviderAuth(
   const rawProviderConfig = (foundWebhook.providerConfig as Record<string, any>) || {}
   const providerConfig = resolveProviderConfigEnvVars(rawProviderConfig, decryptedEnvVars)
 
-  if (foundWebhook.provider === 'microsoftteams') {
+  if (foundWebhook.provider === 'microsoft-teams') {
     if (providerConfig.hmacSecret) {
       const authHeader = request.headers.get('authorization')
 
@@ -556,7 +556,7 @@ export async function checkRateLimits(
         traceSpans: [],
       })
 
-      if (foundWebhook.provider === 'microsoftteams') {
+      if (foundWebhook.provider === 'microsoft-teams') {
         return NextResponse.json(
           {
             type: 'message',
@@ -634,7 +634,7 @@ export async function checkUsageLimits(
         traceSpans: [],
       })
 
-      if (foundWebhook.provider === 'microsoftteams') {
+      if (foundWebhook.provider === 'microsoft-teams') {
         return NextResponse.json(
           {
             type: 'message',
@@ -783,7 +783,7 @@ export async function queueWebhookExecution(
 
     // For Microsoft Teams Graph notifications, extract unique identifiers for idempotency
     if (
-      foundWebhook.provider === 'microsoftteams' &&
+      foundWebhook.provider === 'microsoft-teams' &&
       body?.value &&
       Array.isArray(body.value) &&
       body.value.length > 0
@@ -835,7 +835,7 @@ export async function queueWebhookExecution(
       )
     }
 
-    if (foundWebhook.provider === 'microsoftteams') {
+    if (foundWebhook.provider === 'microsoft-teams') {
       const providerConfig = (foundWebhook.providerConfig as Record<string, any>) || {}
       const triggerId = providerConfig.triggerId as string | undefined
 
@@ -886,7 +886,7 @@ export async function queueWebhookExecution(
   } catch (error: any) {
     logger.error(`[${options.requestId}] Failed to queue webhook execution:`, error)
 
-    if (foundWebhook.provider === 'microsoftteams') {
+    if (foundWebhook.provider === 'microsoft-teams') {
       return NextResponse.json(
         {
           type: 'message',
