@@ -1,7 +1,8 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { Button } from '@/components/emcn'
+import { useQueryClient } from '@tanstack/react-query'
+import { Button, RotatingDigit } from '@/components/emcn'
 import { Skeleton } from '@/components/ui'
 import { createLogger } from '@/lib/logs/console/logger'
 import {
@@ -11,7 +12,8 @@ import {
   getUsage,
 } from '@/lib/subscription/helpers'
 import { isUsageAtLimit, USAGE_PILL_COLORS } from '@/lib/subscription/usage-visualization'
-import { useSubscriptionData } from '@/hooks/queries/subscription'
+import { useSocket } from '@/contexts/socket-context'
+import { subscriptionKeys, useSubscriptionData } from '@/hooks/queries/subscription'
 import { MIN_SIDEBAR_WIDTH, useSidebarStore } from '@/stores/sidebar/store'
 
 const logger = createLogger('UsageIndicator')
@@ -85,6 +87,20 @@ interface UsageIndicatorProps {
 export function UsageIndicator({ onClick }: UsageIndicatorProps) {
   const { data: subscriptionData, isLoading } = useSubscriptionData()
   const sidebarWidth = useSidebarStore((state) => state.sidebarWidth)
+  const { onOperationConfirmed } = useSocket()
+  const queryClient = useQueryClient()
+
+  // Listen for completed operations to update usage
+  useEffect(() => {
+    const handleOperationConfirmed = () => {
+      // Small delay to ensure backend has updated usage
+      setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: subscriptionKeys.user() })
+      }, 1000)
+    }
+
+    onOperationConfirmed(handleOperationConfirmed)
+  }, [onOperationConfirmed, queryClient])
 
   /**
    * Calculate pill count based on sidebar width (6-8 pills dynamically).
@@ -130,9 +146,8 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
   const startAnimationIndex = pillCount === 0 ? 0 : Math.min(filledPillsCount, pillCount - 1)
 
   useEffect(() => {
-    const isFreePlan = subscription.isFree
-
-    if (!isHovered || pillCount <= 0 || !isFreePlan) {
+    // Animation enabled for all plans on hover
+    if (!isHovered || pillCount <= 0) {
       setWavePosition(null)
       return
     }
@@ -162,7 +177,7 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
     return () => {
       window.clearInterval(interval)
     }
-  }, [isHovered, pillCount, startAnimationIndex, subscription.isFree])
+  }, [isHovered, pillCount, startAnimationIndex])
 
   if (isLoading) {
     return (
@@ -256,9 +271,15 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
               </>
             ) : (
               <>
-                <span className='font-medium text-[12px] text-[var(--text-tertiary)] tabular-nums'>
-                  ${usage.current.toFixed(2)}
-                </span>
+                <div className='flex items-center font-medium text-[12px] text-[var(--text-tertiary)]'>
+                  <span className='mr-[1px]'>$</span>
+                  <RotatingDigit
+                    value={usage.current}
+                    height={14}
+                    width={7}
+                    textClassName='font-medium text-[12px] text-[var(--text-tertiary)] tabular-nums'
+                  />
+                </div>
                 <span className='font-medium text-[12px] text-[var(--text-tertiary)]'>/</span>
                 <span className='font-medium text-[12px] text-[var(--text-tertiary)] tabular-nums'>
                   ${usage.limit}
@@ -296,7 +317,7 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
           let backgroundColor = baseColor
           let backgroundImage: string | undefined
 
-          if (isHovered && wavePosition !== null && pillCount > 0 && subscription.isFree) {
+          if (isHovered && wavePosition !== null && pillCount > 0) {
             const grayColor = USAGE_PILL_COLORS.UNFILLED
             const activeColor = isAtLimit ? USAGE_PILL_COLORS.AT_LIMIT : USAGE_PILL_COLORS.FILLED
 
