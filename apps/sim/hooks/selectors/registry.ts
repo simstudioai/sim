@@ -549,6 +549,7 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
           searchParams: {
             credentialId,
             query: search,
+            workflowId: context.workflowId,
           },
         }
       )
@@ -576,6 +577,7 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
           searchParams: {
             credentialId,
             query: search,
+            workflowId: context.workflowId,
           },
         }
       )
