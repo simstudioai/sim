@@ -29,7 +29,7 @@ export const workflowExecutorTool: ToolConfig<
     },
   },
   request: {
-    url: '/api/tools/workflow-executor',
+    url: (params) => `/api/workflows/${params.workflowId}/execute`,
     method: 'POST',
     headers: () => ({ 'Content-Type': 'application/json' }),
     body: (params) => params,
