@@ -110,18 +110,22 @@ describe('Memory', () => {
       expect(result[0].content).toBe(messages[0].content)
     })
 
-    it('should count system message tokens toward limit', () => {
+    it('should preserve first system message and exclude it from token count', () => {
       const messages: Message[] = [
-        { role: 'system', content: 'A' }, // ~1 token
+        { role: 'system', content: 'A' }, // System message - always preserved
         { role: 'user', content: 'B' }, // ~1 token
         { role: 'assistant', content: 'C' }, // ~1 token
         { role: 'user', content: 'D' }, // ~1 token
       ]
 
-      // Limit to 2 tokens - should only fit last 2 single-character messages
+      // Limit to 2 tokens - should fit system message + last 2 conversation messages (D, C)
       const result = (memoryService as any).applySlidingWindowByTokens(messages, '2', 'gpt-4o')
 
-      expect(result.length).toBeLessThanOrEqual(2)
+      // Should have: system message + 2 conversation messages = 3 total
+      expect(result.length).toBe(3)
+      expect(result[0].role).toBe('system') // First system message preserved
+      expect(result[1].content).toBe('C') // Second most recent conversation message
+      expect(result[2].content).toBe('D') // Most recent conversation message
     })
 
     it('should process messages from newest to oldest', () => {
