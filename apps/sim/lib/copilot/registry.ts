@@ -14,6 +14,8 @@ export const ToolIds = z.enum([
   'search_documentation',
   'search_online',
   'search_patterns',
+  'search_errors',
+  'remember_debug',
   'make_api_request',
   'get_environment_variables',
   'set_environment_variables',
@@ -134,6 +136,19 @@ export const ToolArgSchemas = {
     limit: z.number().optional().default(3),
   }),
 
+  search_errors: z.object({
+    query: z.string(),
+    limit: z.number().optional().default(5),
+  }),
+
+  remember_debug: z.object({
+    operation: z.enum(['add', 'edit', 'delete']),
+    id: z.string().optional(),
+    problem: z.string().optional(),
+    solution: z.string().optional(),
+    description: z.string().optional(),
+  }),
+
   make_api_request: z.object({
     url: z.string(),
     method: z.enum(['GET', 'POST', 'PUT']),
@@ -215,6 +230,8 @@ export const ToolSSESchemas = {
   search_documentation: toolCallSSEFor('search_documentation', ToolArgSchemas.search_documentation),
   search_online: toolCallSSEFor('search_online', ToolArgSchemas.search_online),
   search_patterns: toolCallSSEFor('search_patterns', ToolArgSchemas.search_patterns),
+  search_errors: toolCallSSEFor('search_errors', ToolArgSchemas.search_errors),
+  remember_debug: toolCallSSEFor('remember_debug', ToolArgSchemas.remember_debug),
   make_api_request: toolCallSSEFor('make_api_request', ToolArgSchemas.make_api_request),
   get_environment_variables: toolCallSSEFor(
     'get_environment_variables',
@@ -357,6 +374,21 @@ export const ToolResultSchemas = {
         workflow_json: z.any().optional(),
       })
     ),
+  }),
+  search_errors: z.object({
+    results: z.array(
+      z.object({
+        problem: z.string().optional(),
+        solution: z.string().optional(),
+        context: z.string().optional(),
+        similarity: z.number().optional(),
+      })
+    ),
+  }),
+  remember_debug: z.object({
+    success: z.boolean(),
+    message: z.string().optional(),
+    id: z.string().optional(),
   }),
   make_api_request: z.object({
     status: z.number(),

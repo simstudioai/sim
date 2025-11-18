@@ -31,6 +31,8 @@ import { PlanClientTool } from '@/lib/copilot/tools/client/other/plan'
 import { SearchDocumentationClientTool } from '@/lib/copilot/tools/client/other/search-documentation'
 import { SearchOnlineClientTool } from '@/lib/copilot/tools/client/other/search-online'
 import { SearchPatternsClientTool } from '@/lib/copilot/tools/client/other/search-patterns'
+import { SearchErrorsClientTool } from '@/lib/copilot/tools/client/other/search-errors'
+import { RememberDebugClientTool } from '@/lib/copilot/tools/client/other/remember-debug'
 import { createExecutionContext, getTool } from '@/lib/copilot/tools/client/registry'
 import { GetEnvironmentVariablesClientTool } from '@/lib/copilot/tools/client/user/get-environment-variables'
 import { GetOAuthCredentialsClientTool } from '@/lib/copilot/tools/client/user/get-oauth-credentials'
@@ -75,6 +77,8 @@ const CLIENT_TOOL_INSTANTIATORS: Record<string, (id: string) => any> = {
   search_online: (id) => new SearchOnlineClientTool(id),
   search_documentation: (id) => new SearchDocumentationClientTool(id),
   search_patterns: (id) => new SearchPatternsClientTool(id),
+  search_errors: (id) => new SearchErrorsClientTool(id),
+  remember_debug: (id) => new RememberDebugClientTool(id),
   get_environment_variables: (id) => new GetEnvironmentVariablesClientTool(id),
   set_environment_variables: (id) => new SetEnvironmentVariablesClientTool(id),
   list_gdrive_files: (id) => new ListGDriveFilesClientTool(id),
@@ -108,6 +112,8 @@ export const CLASS_TOOL_METADATA: Record<string, BaseClientToolMetadata | undefi
   search_online: (SearchOnlineClientTool as any)?.metadata,
   search_documentation: (SearchDocumentationClientTool as any)?.metadata,
   search_patterns: (SearchPatternsClientTool as any)?.metadata,
+  search_errors: (SearchErrorsClientTool as any)?.metadata,
+  remember_debug: (RememberDebugClientTool as any)?.metadata,
   get_environment_variables: (GetEnvironmentVariablesClientTool as any)?.metadata,
   set_environment_variables: (SetEnvironmentVariablesClientTool as any)?.metadata,
   list_gdrive_files: (ListGDriveFilesClientTool as any)?.metadata,
