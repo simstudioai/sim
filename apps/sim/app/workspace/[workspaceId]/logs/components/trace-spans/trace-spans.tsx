@@ -135,18 +135,23 @@ export function TraceSpans({ traceSpans, totalDuration = 0, onExpansionChange }:
         .filter(([, v]) => v)
         .map(([k]) => k)
     )
-    const filterTree = (spans: TraceSpan[]): TraceSpan[] =>
+    const filterTree = (spans: TraceSpan[], parentIsWorkflow = false): TraceSpan[] =>
       spans
         .map((s) => ({ ...s }))
         .filter((s) => {
           const tl = s.type?.toLowerCase?.() || ''
           if (tl === 'workflow') return true
+          // If parent is a workflow span, always include children (child trace spans from workflow blocks)
+          if (parentIsWorkflow) return true
           return allowed.has(tl)
         })
-        .map((s) => ({
-          ...s,
-          children: s.children ? filterTree(s.children) : undefined,
-        }))
+        .map((s) => {
+          const tl = s.type?.toLowerCase?.() || ''
+          return {
+            ...s,
+            children: s.children ? filterTree(s.children, tl === 'workflow') : undefined,
+          }
+        })
     return traceSpans ? filterTree(traceSpans) : []
   }, [traceSpans, effectiveTypeFilters])
 

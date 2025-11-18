@@ -85,8 +85,53 @@ export function useUpdateUsageLimit() {
 
       return response.json()
     },
-    onSuccess: () => {
-      // Invalidate all subscription-related queries
+    onMutate: async ({ limit }) => {
+      await queryClient.cancelQueries({ queryKey: subscriptionKeys.user() })
+      await queryClient.cancelQueries({ queryKey: subscriptionKeys.usage() })
+
+      const previousSubscriptionData = queryClient.getQueryData(subscriptionKeys.user())
+      const previousUsageData = queryClient.getQueryData(subscriptionKeys.usage())
+
+      queryClient.setQueryData(subscriptionKeys.user(), (old: any) => {
+        if (!old) return old
+        const currentUsage = old.data?.usage?.current || 0
+        const newPercentUsed = limit > 0 ? (currentUsage / limit) * 100 : 0
+
+        return {
+          ...old,
+          data: {
+            ...old.data,
+            usage: {
+              ...old.data?.usage,
+              limit,
+              percentUsed: newPercentUsed,
+            },
+          },
+        }
+      })
+
+      queryClient.setQueryData(subscriptionKeys.usage(), (old: any) => {
+        if (!old) return old
+        return {
+          ...old,
+          data: {
+            ...old.data,
+            currentLimit: limit,
+          },
+        }
+      })
+
+      return { previousSubscriptionData, previousUsageData }
+    },
+    onError: (_err, _variables, context) => {
+      if (context?.previousSubscriptionData) {
+        queryClient.setQueryData(subscriptionKeys.user(), context.previousSubscriptionData)
+      }
+      if (context?.previousUsageData) {
+        queryClient.setQueryData(subscriptionKeys.usage(), context.previousUsageData)
+      }
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: subscriptionKeys.user() })
       queryClient.invalidateQueries({ queryKey: subscriptionKeys.usage() })
     },
@@ -106,15 +151,11 @@ export function useUpgradeSubscription() {
 
   return useMutation({
     mutationFn: async ({ plan }: UpgradeSubscriptionParams) => {
-      // This will be handled by the existing subscription upgrade flow
-      // We just need to ensure proper cache invalidation
       return { plan }
     },
     onSuccess: (_data, variables) => {
-      // Invalidate all subscription queries
       queryClient.invalidateQueries({ queryKey: subscriptionKeys.all })
 
-      // Also invalidate organization billing if org context
       if (variables.orgId) {
         queryClient.invalidateQueries({
           queryKey: organizationKeys.billing(variables.orgId),

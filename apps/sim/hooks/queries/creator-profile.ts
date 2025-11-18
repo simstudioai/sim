@@ -154,12 +154,10 @@ export function useSaveCreatorProfile() {
       return result.data
     },
     onSuccess: (_data, variables) => {
-      // Invalidate the profile query to refetch
       queryClient.invalidateQueries({
         queryKey: creatorProfileKeys.profile(variables.referenceId),
       })
 
-      // Dispatch event to notify that a creator profile was saved
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('creator-profile-saved'))
       }

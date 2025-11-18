@@ -196,7 +196,6 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
       const blocked = getBillingStatus(subscriptionData?.data) === 'blocked'
       const canUpg = canUpgrade(subscriptionData?.data)
 
-      // If blocked, try to open billing portal directly for faster recovery
       if (blocked) {
         try {
           const context = subscription.isTeam || subscription.isEnterprise ? 'organization' : 'user'
@@ -224,7 +223,6 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
         }
       }
 
-      // Fallback: Open Settings modal to the subscription tab
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('open-settings', { detail: { tab: 'subscription' } }))
         logger.info('Opened settings to subscription tab', { blocked, canUpgrade: canUpg })
@@ -245,10 +243,12 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
     >
       {/* Top row */}
       <div className='flex items-center justify-between'>
-        <div className='flex items-center gap-[6px]'>
-          <span className='font-medium text-[#FFFFFF] text-[12px]'>{PLAN_NAMES[planType]}</span>
-          <div className='h-[14px] w-[1.5px] bg-[var(--divider)]' />
-          <div className='flex items-center gap-[4px]'>
+        <div className='flex min-w-0 flex-1 items-center gap-[6px]'>
+          <span className='flex-shrink-0 font-medium text-[#FFFFFF] text-[12px]'>
+            {PLAN_NAMES[planType]}
+          </span>
+          <div className='h-[14px] w-[1.5px] flex-shrink-0 bg-[var(--divider)]' />
+          <div className='flex min-w-0 flex-1 items-center gap-[4px]'>
             {isBlocked ? (
               <>
                 <span className='font-medium text-[12px] text-red-400'>Payment</span>
@@ -311,7 +311,6 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
             const pillOffsetFromStart = i - startAnimationIndex
 
             if (pillOffsetFromStart < 0) {
-              // Before the wave start; keep original baseColor.
             } else if (pillOffsetFromStart < headIndex) {
               backgroundColor = isFilled ? baseColor : grayColor
               backgroundImage = `linear-gradient(to right, ${activeColor} 0%, ${activeColor} 100%)`
