@@ -3,7 +3,7 @@
 import { cn } from '@/lib/utils'
 
 export interface RotatingDigitProps {
-  value: number
+  value: number | string
   height?: number
   width?: number
   className?: string
