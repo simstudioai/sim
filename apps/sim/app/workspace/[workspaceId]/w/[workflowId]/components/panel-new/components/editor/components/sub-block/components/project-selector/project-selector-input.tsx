@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import { useParams } from 'next/navigation'
 import { Tooltip } from '@/components/emcn'
 import { SelectorCombobox } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/components/sub-block/components/selector-combobox/selector-combobox'
 import { useDependsOnGate } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/components/sub-block/hooks/use-depends-on-gate'
@@ -31,6 +32,7 @@ export function ProjectSelectorInput({
   previewContextValues,
 }: ProjectSelectorInputProps) {
   const { collaborativeSetSubblockValue } = useCollaborativeWorkflow()
+  const params = useParams()
   const [selectedProjectId, setSelectedProjectId] = useState<string>('')
   // Use the proper hook to get the current value and setter
   const [storeValue] = useSubBlockValue(blockId, subBlock.id)
@@ -49,6 +51,7 @@ export function ProjectSelectorInput({
     (connectedCredential as string) || ''
   )
   const activeWorkflowId = useWorkflowRegistry((s) => s.activeWorkflowId) as string | null
+  const workflowIdFromUrl = (params?.workflowId as string) || activeWorkflowId || ''
   const { finalDisabled } = useDependsOnGate(blockId, subBlock, {
     disabled,
     isPreview,
@@ -78,12 +81,20 @@ export function ProjectSelectorInput({
 
   const selectorResolution = useMemo(() => {
     return resolveSelectorForSubBlock(subBlock, {
-      workflowId: activeWorkflowId || undefined,
+      workflowId: workflowIdFromUrl || undefined,
       credentialId: (isLinear ? linearCredential : jiraCredential) as string | undefined,
       domain,
       teamId: (linearTeamId as string) || undefined,
     })
-  }, [subBlock, activeWorkflowId, isLinear, linearCredential, jiraCredential, domain, linearTeamId])
+  }, [
+    subBlock,
+    workflowIdFromUrl,
+    isLinear,
+    linearCredential,
+    jiraCredential,
+    domain,
+    linearTeamId,
+  ])
 
   const missingCredential = !selectorResolution?.context.credentialId
 
