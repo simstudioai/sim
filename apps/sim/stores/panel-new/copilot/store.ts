@@ -45,6 +45,9 @@ import { GetWorkflowFromNameClientTool } from '@/lib/copilot/tools/client/workfl
 import { ListUserWorkflowsClientTool } from '@/lib/copilot/tools/client/workflow/list-user-workflows'
 import { RunWorkflowClientTool } from '@/lib/copilot/tools/client/workflow/run-workflow'
 import { SetGlobalWorkflowVariablesClientTool } from '@/lib/copilot/tools/client/workflow/set-global-workflow-variables'
+import { DeployWorkflowClientTool } from '@/lib/copilot/tools/client/workflow/deploy-workflow'
+import { CheckDeploymentStatusClientTool } from '@/lib/copilot/tools/client/workflow/check-deployment-status'
+import { NavigateUIClientTool } from '@/lib/copilot/tools/client/navigation/navigate-ui'
 import { createLogger } from '@/lib/logs/console/logger'
 import type {
   ChatContext,
@@ -100,6 +103,9 @@ const CLIENT_TOOL_INSTANTIATORS: Record<string, (id: string) => any> = {
   get_examples_rag: (id) => new GetExamplesRagClientTool(id),
   get_operations_examples: (id) => new GetOperationsExamplesClientTool(id),
   summarize_conversation: (id) => new SummarizeClientTool(id),
+  deploy_workflow: (id) => new DeployWorkflowClientTool(id),
+  check_deployment_status: (id) => new CheckDeploymentStatusClientTool(id),
+  navigate_ui: (id) => new NavigateUIClientTool(id),
 }
 
 // Read-only static metadata for class-based tools (no instances)
@@ -135,6 +141,9 @@ export const CLASS_TOOL_METADATA: Record<string, BaseClientToolMetadata | undefi
   oauth_request_access: (OAuthRequestAccessClientTool as any)?.metadata,
   get_operations_examples: (GetOperationsExamplesClientTool as any)?.metadata,
   summarize_conversation: (SummarizeClientTool as any)?.metadata,
+  deploy_workflow: (DeployWorkflowClientTool as any)?.metadata,
+  check_deployment_status: (CheckDeploymentStatusClientTool as any)?.metadata,
+  navigate_ui: (NavigateUIClientTool as any)?.metadata,
 }
 
 function ensureClientToolInstance(toolName: string | undefined, toolCallId: string | undefined) {

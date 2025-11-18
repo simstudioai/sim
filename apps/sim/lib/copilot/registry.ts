@@ -30,6 +30,9 @@ export const ToolIds = z.enum([
   'set_global_workflow_variables',
   'oauth_request_access',
   'get_trigger_blocks',
+  'deploy_workflow',
+  'check_deployment_status',
+  'navigate_ui',
 ])
 export type ToolId = z.infer<typeof ToolIds>
 
@@ -70,6 +73,20 @@ export const ToolArgSchemas = {
   }),
   // New
   oauth_request_access: z.object({}),
+
+  deploy_workflow: z.object({
+    action: z.enum(['deploy', 'undeploy']).optional().default('deploy'),
+    deployType: z.enum(['api', 'chat']).optional().default('api'),
+  }),
+
+  check_deployment_status: z.object({
+    workflowId: z.string().optional(),
+  }),
+
+  navigate_ui: z.object({
+    destination: z.enum(['workflow', 'new_workflow', 'logs', 'templates', 'vector_db', 'settings']),
+    workflowName: z.string().optional(),
+  }),
 
   edit_workflow: z.object({
     operations: z
@@ -254,6 +271,12 @@ export const ToolSSESchemas = {
   reason: toolCallSSEFor('reason', ToolArgSchemas.reason),
   // New
   oauth_request_access: toolCallSSEFor('oauth_request_access', ToolArgSchemas.oauth_request_access),
+  deploy_workflow: toolCallSSEFor('deploy_workflow', ToolArgSchemas.deploy_workflow),
+  check_deployment_status: toolCallSSEFor(
+    'check_deployment_status',
+    ToolArgSchemas.check_deployment_status
+  ),
+  navigate_ui: toolCallSSEFor('navigate_ui', ToolArgSchemas.navigate_ui),
 } as const
 export type ToolSSESchemaMap = typeof ToolSSESchemas
 
@@ -421,6 +444,30 @@ export const ToolResultSchemas = {
   }),
   read_gdrive_file: z.object({ content: z.string().optional(), data: z.any().optional() }),
   reason: z.object({ reasoning: z.string() }),
+  deploy_workflow: z.object({
+    action: z.enum(['deploy', 'undeploy']).optional(),
+    deployType: z.enum(['api', 'chat']).optional(),
+    isDeployed: z.boolean().optional(),
+    deployedAt: z.string().optional(),
+    needsApiKey: z.boolean().optional(),
+    message: z.string().optional(),
+    endpoint: z.string().optional(),
+    curlCommand: z.string().optional(),
+    apiKeyPlaceholder: z.string().optional(),
+    openedModal: z.boolean().optional(),
+  }),
+  check_deployment_status: z.object({
+    isDeployed: z.boolean(),
+    deploymentTypes: z.array(z.string()),
+    apiDeployed: z.boolean(),
+    chatDeployed: z.boolean(),
+    deployedAt: z.string().nullable(),
+  }),
+  navigate_ui: z.object({
+    destination: z.enum(['workflow', 'new_workflow', 'logs', 'templates', 'vector_db', 'settings']),
+    workflowName: z.string().optional(),
+    navigated: z.boolean(),
+  }),
 } as const
 export type ToolResultSchemaMap = typeof ToolResultSchemas
 

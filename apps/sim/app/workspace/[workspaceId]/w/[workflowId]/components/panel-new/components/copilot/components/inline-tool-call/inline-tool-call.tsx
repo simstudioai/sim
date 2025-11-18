@@ -84,6 +84,19 @@ const ACTION_VERBS = [
   'Applied',
   'Applying',
   'Rejected',
+  'Deploy',
+  'Deploying',
+  'Deployed',
+  'Undeploy',
+  'Undeploying',
+  'Undeployed',
+  'Checking',
+  'Checked',
+  'Opening',
+  'Opened',
+  'Create',
+  'Creating',
+  'Created',
 ] as const
 
 /**
@@ -212,10 +225,10 @@ function ShimmerOverlayText({
 
 /**
  * Determines if a tool call is "special" and should display with gradient styling.
- * Only workflow operation tools (edit, build, run) get the purple gradient.
+ * Only workflow operation tools (edit, build, run, deploy) get the purple gradient.
  */
 function isSpecialToolCall(toolCall: CopilotToolCall): boolean {
-  const workflowOperationTools = ['edit_workflow', 'build_workflow', 'run_workflow']
+  const workflowOperationTools = ['edit_workflow', 'build_workflow', 'run_workflow', 'deploy_workflow']
 
   return workflowOperationTools.includes(toolCall.name)
 }
