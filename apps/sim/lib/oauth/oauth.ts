@@ -906,12 +906,22 @@ export function parseProvider(provider: OAuthProvider): ProviderConfig {
       featureType: 'sharepoint',
     }
   }
-
-  // Handle microsoftteams (no hyphen) -> microsoft-teams (with hyphen)
-  if (provider === 'microsoftteams') {
+  if (provider === 'microsoft-teams' || provider === 'microsoftteams') {
     return {
       baseProvider: 'microsoft',
       featureType: 'microsoft-teams',
+    }
+  }
+  if (provider === 'microsoft-excel') {
+    return {
+      baseProvider: 'microsoft',
+      featureType: 'microsoft-excel',
+    }
+  }
+  if (provider === 'microsoft-planner') {
+    return {
+      baseProvider: 'microsoft',
+      featureType: 'microsoft-planner',
     }
   }
 
