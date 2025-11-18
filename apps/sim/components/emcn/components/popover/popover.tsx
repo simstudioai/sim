@@ -51,7 +51,7 @@
 
 import * as React from 'react'
 import * as PopoverPrimitive from '@radix-ui/react-popover'
-import { ChevronLeft, ChevronRight, Search } from 'lucide-react'
+import { Check, ChevronLeft, ChevronRight, Search } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 /**
@@ -364,6 +364,11 @@ export interface PopoverItemProps extends React.HTMLAttributes<HTMLDivElement> {
    * Whether this item is disabled
    */
   disabled?: boolean
+  /**
+   * Whether to show a checkmark when active
+   * @default false
+   */
+  showCheck?: boolean
 }
 
 /**
@@ -378,7 +383,7 @@ export interface PopoverItemProps extends React.HTMLAttributes<HTMLDivElement> {
  * ```
  */
 const PopoverItem = React.forwardRef<HTMLDivElement, PopoverItemProps>(
-  ({ className, active, rootOnly, disabled, ...props }, ref) => {
+  ({ className, active, rootOnly, disabled, showCheck = false, children, ...props }, ref) => {
     // Try to get context - if not available, we're outside Popover (shouldn't happen)
     const context = React.useContext(PopoverContext)
     const variant = context?.variant || 'default'
@@ -401,7 +406,10 @@ const PopoverItem = React.forwardRef<HTMLDivElement, PopoverItemProps>(
         aria-selected={active}
         aria-disabled={disabled}
         {...props}
-      />
+      >
+        {children}
+        {showCheck && active && <Check className='ml-auto h-[12px] w-[12px]' />}
+      </div>
     )
   }
 )

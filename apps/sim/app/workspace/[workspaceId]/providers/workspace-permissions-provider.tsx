@@ -10,6 +10,7 @@ import {
   useWorkspacePermissions,
   type WorkspacePermissions,
 } from '@/hooks/use-workspace-permissions'
+import { useNotificationStore } from '@/stores/notifications'
 
 const logger = createLogger('WorkspacePermissionsProvider')
 
@@ -60,8 +61,13 @@ export function WorkspacePermissionsProvider({ children }: WorkspacePermissionsP
   // Manage offline mode state locally
   const [isOfflineMode, setIsOfflineMode] = useState(false)
 
+  // Track whether we've already surfaced an offline notification to avoid duplicates
+  const [hasShownOfflineNotification, setHasShownOfflineNotification] = useState(false)
+
   // Get operation error state from collaborative workflow
   const { hasOperationError } = useCollaborativeWorkflow()
+
+  const addNotification = useNotificationStore((state) => state.addNotification)
 
   // Set offline mode when there are operation errors
   useEffect(() => {
@@ -69,6 +75,31 @@ export function WorkspacePermissionsProvider({ children }: WorkspacePermissionsP
       setIsOfflineMode(true)
     }
   }, [hasOperationError])
+
+  /**
+   * Surface a global notification when entering offline mode.
+   * Uses the shared notifications system instead of bespoke UI in individual components.
+   */
+  useEffect(() => {
+    if (!isOfflineMode || hasShownOfflineNotification) {
+      return
+    }
+
+    try {
+      addNotification({
+        level: 'error',
+        message: 'Connection unavailable',
+        // Global notification (no workflowId) so it is visible regardless of the active workflow
+        action: {
+          type: 'refresh',
+          message: '',
+        },
+      })
+      setHasShownOfflineNotification(true)
+    } catch (error) {
+      logger.error('Failed to add offline notification', { error })
+    }
+  }, [addNotification, hasShownOfflineNotification, isOfflineMode])
 
   // Fetch workspace permissions and loading state
   const {
