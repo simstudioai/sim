@@ -1,16 +1,17 @@
 import { createLogger } from '@/lib/logs/console/logger'
+import { getAccurateTokenCount } from '@/lib/tokenization/estimators'
+import type { AgentInputs, Message } from '@/executor/handlers/agent/types'
 import type { ExecutionContext } from '@/executor/types'
 import { buildAPIUrl, buildAuthHeaders } from '@/executor/utils/http'
 import { stringifyJSON } from '@/executor/utils/json'
-import type { AgentInputs, Message } from './types'
 
-const logger = createLogger('MemoryService')
+const logger = createLogger('Memory')
 
 /**
- * Service for managing agent conversation memory
+ * Class for managing agent conversation memory
  * Handles fetching and persisting messages to the memory table
  */
-export class MemoryService {
+export class Memory {
   /**
    * Fetch messages from memory based on memoryType configuration
    */
@@ -31,9 +32,14 @@ export class MemoryService {
       const memoryKey = this.buildMemoryKey(ctx, inputs)
       const messages = await this.fetchFromMemoryAPI(ctx.workflowId, memoryKey)
 
-      // Apply sliding window if configured
+      // Apply sliding window if configured (message-based)
       if (inputs.slidingWindowSize && inputs.memoryType === 'sliding_window') {
         return this.applySlidingWindow(messages, inputs.slidingWindowSize)
+      }
+
+      // Apply sliding window if configured (token-based)
+      if (inputs.slidingWindowTokens && inputs.memoryType === 'sliding_window_tokens') {
+        return this.applySlidingWindowByTokens(messages, inputs.slidingWindowTokens, inputs.model)
       }
 
       return messages
@@ -67,7 +73,8 @@ export class MemoryService {
 
       const memoryKey = this.buildMemoryKey(ctx, inputs)
 
-      // For sliding window, we need to fetch and recompute
+      // For sliding window (message-based), we need to fetch and recompute
+      // For sliding window (token-based), we also need to fetch and recompute
       // For other memory types, use atomic append
       if (inputs.slidingWindowSize && inputs.memoryType === 'sliding_window') {
         // Fetch existing messages
@@ -76,8 +83,24 @@ export class MemoryService {
         // Append new assistant message
         const updatedMessages = [...existingMessages, assistantMessage]
 
-        // Apply sliding window
+        // Apply message-based sliding window
         const messagesToPersist = this.applySlidingWindow(updatedMessages, inputs.slidingWindowSize)
+
+        // Persist entire array (UPSERT is fine here since we're replacing with windowed data)
+        await this.persistToMemoryAPI(ctx.workflowId, memoryKey, messagesToPersist)
+      } else if (inputs.slidingWindowTokens && inputs.memoryType === 'sliding_window_tokens') {
+        // Fetch existing messages
+        const existingMessages = await this.fetchFromMemoryAPI(ctx.workflowId, memoryKey)
+
+        // Append new assistant message
+        const updatedMessages = [...existingMessages, assistantMessage]
+
+        // Apply token-based sliding window
+        const messagesToPersist = this.applySlidingWindowByTokens(
+          updatedMessages,
+          inputs.slidingWindowTokens,
+          inputs.model
+        )
 
         // Persist entire array (UPSERT is fine here since we're replacing with windowed data)
         await this.persistToMemoryAPI(ctx.workflowId, memoryKey, messagesToPersist)
@@ -118,12 +141,22 @@ export class MemoryService {
     try {
       const memoryKey = this.buildMemoryKey(ctx, inputs)
 
-      // For sliding window, we need to fetch and recompute
+      // For sliding window (message-based), we need to fetch and recompute
+      // For sliding window (token-based), we also need to fetch and recompute
       // For other memory types, use atomic append
       if (inputs.slidingWindowSize && inputs.memoryType === 'sliding_window') {
         const existingMessages = await this.fetchFromMemoryAPI(ctx.workflowId, memoryKey)
         const updatedMessages = [...existingMessages, userMessage]
         const messagesToPersist = this.applySlidingWindow(updatedMessages, inputs.slidingWindowSize)
+        await this.persistToMemoryAPI(ctx.workflowId, memoryKey, messagesToPersist)
+      } else if (inputs.slidingWindowTokens && inputs.memoryType === 'sliding_window_tokens') {
+        const existingMessages = await this.fetchFromMemoryAPI(ctx.workflowId, memoryKey)
+        const updatedMessages = [...existingMessages, userMessage]
+        const messagesToPersist = this.applySlidingWindowByTokens(
+          updatedMessages,
+          inputs.slidingWindowTokens,
+          inputs.model
+        )
         await this.persistToMemoryAPI(ctx.workflowId, memoryKey, messagesToPersist)
       } else {
         // Use atomic append for non-windowed memory
@@ -142,9 +175,11 @@ export class MemoryService {
 
     switch (memoryType) {
       case 'conversation_id':
-        if (!conversationId) {
-          logger.warn('conversationId required for conversation_id memory type, using default')
-          return `conversation:default:${ctx.workflowId}`
+        if (!conversationId || conversationId.trim() === '') {
+          throw new Error(
+            'Conversation ID is required when using conversation_id memory type. ' +
+              'Please provide a unique identifier (e.g., user-123, session-abc, customer-456).'
+          )
         }
         return `conversation:${conversationId}:${ctx.workflowId}`
 
@@ -152,8 +187,12 @@ export class MemoryService {
         return `workflow:${ctx.workflowId}:all_conversations`
 
       case 'sliding_window':
-        // Same as all_conversations but with limited retrieval
+        // Same as all_conversations but with limited retrieval by message count
         return `workflow:${ctx.workflowId}:sliding_window`
+
+      case 'sliding_window_tokens':
+        // Same as all_conversations but with limited retrieval by token count
+        return `workflow:${ctx.workflowId}:sliding_window_tokens`
 
       default:
         return `workflow:${ctx.workflowId}:agent_memory`
@@ -189,6 +228,61 @@ export class MemoryService {
   }
 
   /**
+   * Apply token-based sliding window to limit conversation by token count
+   * System message tokens count toward the limit (more accurate token accounting)
+   * Ensures at least 1 message is included even if it exceeds the limit
+   */
+  private applySlidingWindowByTokens(
+    messages: Message[],
+    maxTokens: string,
+    model?: string
+  ): Message[] {
+    const tokenLimit = Number.parseInt(maxTokens, 10)
+
+    if (Number.isNaN(tokenLimit) || tokenLimit <= 0) {
+      logger.warn('Invalid token limit, returning all messages', { maxTokens })
+      return messages
+    }
+
+    const result: Message[] = []
+    let currentTokenCount = 0
+
+    // Process messages from newest to oldest
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const message = messages[i]
+      const messageTokens = getAccurateTokenCount(message.content, model)
+
+      if (currentTokenCount + messageTokens <= tokenLimit) {
+        // Message fits within limit
+        result.unshift(message)
+        currentTokenCount += messageTokens
+      } else if (result.length === 0) {
+        // Include at least 1 message even if it exceeds limit
+        logger.warn('Single message exceeds token limit, including anyway', {
+          messageTokens,
+          tokenLimit,
+          messageRole: message.role,
+        })
+        result.unshift(message)
+        currentTokenCount += messageTokens
+        break
+      } else {
+        // Token limit reached, stop processing
+        break
+      }
+    }
+
+    logger.debug('Applied token-based sliding window', {
+      totalMessages: messages.length,
+      includedMessages: result.length,
+      totalTokens: currentTokenCount,
+      tokenLimit,
+    })
+
+    return result
+  }
+
+  /**
    * Fetch messages from memory API
    */
   private async fetchFromMemoryAPI(workflowId: string, key: string): Promise<Message[]> {
@@ -202,7 +296,7 @@ export class MemoryService {
 
       // Browser-side: Use API
       const headers = await buildAuthHeaders()
-      const url = buildAPIUrl('/api/memory', { workflowId, key })
+      const url = buildAPIUrl(`/api/memory/${encodeURIComponent(key)}`, { workflowId })
 
       const response = await fetch(url.toString(), {
         method: 'GET',
@@ -497,4 +591,4 @@ export class MemoryService {
 }
 
 // Export singleton instance
-export const memoryService = new MemoryService()
+export const memoryService = new Memory()

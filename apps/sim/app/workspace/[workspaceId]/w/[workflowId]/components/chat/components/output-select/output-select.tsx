@@ -23,6 +23,11 @@ interface OutputSelectProps {
   disabled?: boolean
   placeholder?: string
   valueMode?: 'id' | 'label'
+  /**
+   * When true, renders the underlying popover content inline instead of in a portal.
+   * Useful when used inside dialogs or other portalled components that manage scroll locking.
+   */
+  disablePopoverPortal?: boolean
   align?: 'start' | 'end' | 'center'
   maxHeight?: number
 }
@@ -34,6 +39,7 @@ export function OutputSelect({
   disabled = false,
   placeholder = 'Select outputs',
   valueMode = 'id',
+  disablePopoverPortal = false,
   align = 'start',
   maxHeight = 300,
 }: OutputSelectProps) {
@@ -371,9 +377,10 @@ export function OutputSelect({
         side='bottom'
         align={align}
         sideOffset={4}
-        maxHeight={maxHeight}
-        maxWidth={160}
+        maxHeight={220}
+        maxWidth={300}
         minWidth={160}
+        disablePortal={disablePopoverPortal}
         onKeyDown={handleKeyDown}
         tabIndex={0}
         style={{ outline: 'none' }}

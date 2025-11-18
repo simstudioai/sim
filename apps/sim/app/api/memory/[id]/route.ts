@@ -284,8 +284,13 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     }
 
     // Update the memory with new data
+    const now = new Date()
     await db
-      .delete(memory)
+      .update(memory)
+      .set({
+        data: validatedData,
+        updatedAt: now,
+      })
       .where(and(eq(memory.key, id), eq(memory.workflowId, validatedWorkflowId)))
 
     // Fetch the updated memory

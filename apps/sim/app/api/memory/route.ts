@@ -166,30 +166,35 @@ export async function POST(request: NextRequest) {
 
     // Additional validation for agent type
     if (type === 'agent') {
-      if (!data.role || !data.content) {
-        logger.warn(`[${requestId}] Missing agent memory fields`)
-        return NextResponse.json(
-          {
-            success: false,
-            error: {
-              message: 'Agent memory requires role and content',
-            },
-          },
-          { status: 400 }
-        )
-      }
+      // Handle both single message and array of messages
+      const dataToValidate = Array.isArray(data) ? data : [data]
 
-      if (!['user', 'assistant', 'system'].includes(data.role)) {
-        logger.warn(`[${requestId}] Invalid agent role: ${data.role}`)
-        return NextResponse.json(
-          {
-            success: false,
-            error: {
-              message: 'Agent role must be user, assistant, or system',
+      for (const msg of dataToValidate) {
+        if (!msg || typeof msg !== 'object' || !msg.role || !msg.content) {
+          logger.warn(`[${requestId}] Missing agent memory fields in message`)
+          return NextResponse.json(
+            {
+              success: false,
+              error: {
+                message: 'Agent memory requires messages with role and content',
+              },
             },
-          },
-          { status: 400 }
-        )
+            { status: 400 }
+          )
+        }
+
+        if (!['user', 'assistant', 'system'].includes(msg.role)) {
+          logger.warn(`[${requestId}] Invalid agent role: ${msg.role}`)
+          return NextResponse.json(
+            {
+              success: false,
+              error: {
+                message: 'Agent role must be user, assistant, or system',
+              },
+            },
+            { status: 400 }
+          )
+        }
       }
     }
 

@@ -3,6 +3,7 @@ import { createMcpToolId } from '@/lib/mcp/utils'
 import { getAllBlocks } from '@/blocks'
 import type { BlockOutput } from '@/blocks/types'
 import { AGENT, BlockType, DEFAULTS, HTTP } from '@/executor/consts'
+import { memoryService } from '@/executor/handlers/agent/memory'
 import type {
   AgentInputs,
   Message,
@@ -18,7 +19,6 @@ import { getApiKey, getProviderFromModel, transformBlockTool } from '@/providers
 import type { SerializedBlock } from '@/serializer/types'
 import { executeTool } from '@/tools'
 import { getTool, getToolAsync } from '@/tools/utils'
-import { memoryService } from './memory-service'
 
 const logger = createLogger('AgentBlockHandler')
 

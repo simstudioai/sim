@@ -194,7 +194,8 @@ export const AgentBlock: BlockConfig<AgentResponse> = {
         { label: 'None', id: 'none' },
         { label: 'Conversation ID', id: 'conversation_id' },
         { label: 'All conversations', id: 'all_conversations' },
-        { label: 'All conversations sliding', id: 'sliding_window' },
+        { label: 'All conversations sliding (messages)', id: 'sliding_window' },
+        { label: 'All conversations sliding (tokens)', id: 'sliding_window_tokens' },
       ],
       defaultValue: 'none',
     },
@@ -202,7 +203,11 @@ export const AgentBlock: BlockConfig<AgentResponse> = {
       id: 'conversationId',
       title: 'Conversation ID',
       type: 'short-input',
-      placeholder: 'user-1234',
+      placeholder: 'e.g., user-123, session-abc, customer-456',
+      required: {
+        field: 'memoryType',
+        value: ['conversation_id'],
+      },
       condition: {
         field: 'memoryType',
         value: ['conversation_id'],
@@ -216,6 +221,16 @@ export const AgentBlock: BlockConfig<AgentResponse> = {
       condition: {
         field: 'memoryType',
         value: ['sliding_window'],
+      },
+    },
+    {
+      id: 'slidingWindowTokens',
+      title: 'Max Tokens',
+      type: 'short-input',
+      placeholder: 'Enter max tokens (e.g., 4000)...',
+      condition: {
+        field: 'memoryType',
+        value: ['sliding_window_tokens'],
       },
     },
     {
@@ -432,6 +447,11 @@ Example 3 (Array Input):
       type: 'string',
       description:
         'Number of recent messages to include (when memoryType is sliding_window, e.g., "10")',
+    },
+    slidingWindowTokens: {
+      type: 'string',
+      description:
+        'Maximum number of tokens for token-based sliding window memory (when memoryType is sliding_window_tokens, e.g., "4000")',
     },
     model: { type: 'string', description: 'AI model to use' },
     apiKey: { type: 'string', description: 'Provider API key' },

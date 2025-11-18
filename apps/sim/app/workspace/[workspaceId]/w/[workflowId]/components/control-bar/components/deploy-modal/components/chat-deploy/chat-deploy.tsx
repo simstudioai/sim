@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { AlertTriangle, Loader2 } from 'lucide-react'
+import { Input, Label, Textarea } from '@/components/emcn'
 import {
   Alert,
   AlertDescription,
@@ -16,10 +17,7 @@ import {
   Card,
   CardContent,
   ImageUpload,
-  Input,
-  Label,
   Skeleton,
-  Textarea,
 } from '@/components/ui'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getEmailDomain } from '@/lib/urls/utils'

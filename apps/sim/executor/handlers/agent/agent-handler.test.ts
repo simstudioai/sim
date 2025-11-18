@@ -1149,8 +1149,8 @@ describe('AgentBlockHandler', () => {
       const inputs = {
         model: 'gpt-4o',
         messages: [
-          { role: 'system', content: 'You are a helpful assistant.' },
-          { role: 'user', content: 'What should I do?' },
+          { role: 'system' as const, content: 'You are a helpful assistant.' },
+          { role: 'user' as const, content: 'What should I do?' },
         ],
         memories: [
           { role: 'system', content: 'Old system message from memories.' },
@@ -1190,8 +1190,8 @@ describe('AgentBlockHandler', () => {
       const inputs = {
         model: 'gpt-4o',
         messages: [
-          { role: 'system', content: 'You are a helpful assistant.' },
-          { role: 'user', content: 'Continue our conversation.' },
+          { role: 'system' as const, content: 'You are a helpful assistant.' },
+          { role: 'user' as const, content: 'Continue our conversation.' },
         ],
         memories: [
           { role: 'system', content: 'First system message.' },
