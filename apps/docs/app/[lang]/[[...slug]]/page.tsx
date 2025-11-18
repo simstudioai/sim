@@ -200,13 +200,15 @@ export default async function Page(props: { params: Promise<{ slug?: string[]; l
       >
         <div className='relative'>
           <div className='absolute top-1 right-0 flex items-center gap-2'>
-            <CopyPageButton
-              content={`# ${page.data.title}
+            <div className='hidden sm:flex'>
+              <CopyPageButton
+                content={`# ${page.data.title}
 
 ${page.data.description || ''}
 
 ${page.data.content || ''}`}
-            />
+              />
+            </div>
             <PageNavigationArrows previous={neighbours?.previous} next={neighbours?.next} />
           </div>
           <DocsTitle>{page.data.title}</DocsTitle>
