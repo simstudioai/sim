@@ -907,6 +907,14 @@ export function parseProvider(provider: OAuthProvider): ProviderConfig {
     }
   }
 
+  // Handle microsoftteams (no hyphen) -> microsoft-teams (with hyphen)
+  if (provider === 'microsoftteams') {
+    return {
+      baseProvider: 'microsoft',
+      featureType: 'teams',
+    }
+  }
+
   // Handle compound providers (e.g., 'google-email' -> { baseProvider: 'google', featureType: 'email' })
   const [base, feature] = provider.split('-')
 
