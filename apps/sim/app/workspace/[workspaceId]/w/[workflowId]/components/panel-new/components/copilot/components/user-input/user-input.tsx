@@ -21,6 +21,7 @@ import type { ChatContext } from '@/stores/panel-new/copilot/types'
 import {
   AttachedFilesDisplay,
   ContextPills,
+  ContextUsageIndicator,
   MentionMenu,
   ModelSelector,
   ModeSelector,
@@ -97,7 +98,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
     const workspaceId = params.workspaceId as string
 
     // Store hooks
-    const { workflowId, selectedModel, setSelectedModel } = useCopilotStore()
+    const { workflowId, selectedModel, setSelectedModel, contextUsage } = useCopilotStore()
 
     // Internal state
     const [internalMessage, setInternalMessage] = useState('')
@@ -581,7 +582,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
           onDragOver={fileAttachments.handleDragOver}
           onDrop={fileAttachments.handleDrop}
         >
-          {/* Top Row: @ Button + Context Pills + Context Usage Pill */}
+          {/* Top Row: @ Button + Context Usage + Context Pills */}
           <div className='mb-[6px] flex flex-wrap items-center gap-[6px]'>
             <Badge
               variant='outline'
@@ -594,6 +595,11 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
             >
               <AtSign className='h-3 w-3' strokeWidth={1.75} />
             </Badge>
+
+            {/* Context Usage Indicator */}
+            {contextUsage && contextUsage.percentage > 0 && (
+              <ContextUsageIndicator percentage={contextUsage.percentage} size={18} strokeWidth={2.5} />
+            )}
 
             {/* Selected Context Pills */}
             <ContextPills
