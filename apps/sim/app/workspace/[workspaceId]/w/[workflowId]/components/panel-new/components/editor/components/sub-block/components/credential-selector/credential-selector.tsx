@@ -101,7 +101,6 @@ export function CredentialSelector({
     hasForeignMeta,
     credentialsLoading,
     effectiveProviderId,
-    setStoreValue,
   ])
 
   useEffect(() => {
