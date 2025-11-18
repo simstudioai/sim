@@ -587,7 +587,7 @@ describe('workflow store', () => {
 
       const result = updateBlockName('block1', 'Data Processor')
 
-      expect(result).toBe(true)
+      expect(result.success).toBe(true)
 
       const state = useWorkflowStore.getState()
       expect(state.blocks.block1.name).toBe('Data Processor')
@@ -598,7 +598,7 @@ describe('workflow store', () => {
 
       const result = updateBlockName('block1', 'column ad')
 
-      expect(result).toBe(true)
+      expect(result.success).toBe(true)
 
       const state = useWorkflowStore.getState()
       expect(state.blocks.block1.name).toBe('column ad')
@@ -609,7 +609,7 @@ describe('workflow store', () => {
 
       const result = updateBlockName('block2', 'Column AD')
 
-      expect(result).toBe(false)
+      expect(result.success).toBe(false)
 
       const state = useWorkflowStore.getState()
       expect(state.blocks.block2.name).toBe('Employee Length')
@@ -620,7 +620,7 @@ describe('workflow store', () => {
 
       const result = updateBlockName('block2', 'columnad')
 
-      expect(result).toBe(false)
+      expect(result.success).toBe(false)
 
       const state = useWorkflowStore.getState()
       expect(state.blocks.block2.name).toBe('Employee Length')
@@ -631,7 +631,7 @@ describe('workflow store', () => {
 
       const result = updateBlockName('block3', 'employee length')
 
-      expect(result).toBe(false)
+      expect(result.success).toBe(false)
 
       const state = useWorkflowStore.getState()
       expect(state.blocks.block3.name).toBe('Start')
@@ -641,10 +641,10 @@ describe('workflow store', () => {
       const { updateBlockName } = useWorkflowStore.getState()
 
       const result1 = updateBlockName('block1', '')
-      expect(result1).toBe(true)
+      expect(result1.success).toBe(true)
 
       const result2 = updateBlockName('block2', '   ')
-      expect(result2).toBe(true)
+      expect(result2.success).toBe(true)
 
       const state = useWorkflowStore.getState()
       expect(state.blocks.block1.name).toBe('')
@@ -656,7 +656,7 @@ describe('workflow store', () => {
 
       const result = updateBlockName('nonexistent', 'New Name')
 
-      expect(result).toBe(false)
+      expect(result.success).toBe(false)
     })
 
     it('should handle complex normalization cases correctly', () => {
@@ -673,11 +673,11 @@ describe('workflow store', () => {
 
       for (const name of conflictingNames) {
         const result = updateBlockName('block2', name)
-        expect(result).toBe(false)
+        expect(result.success).toBe(false)
       }
 
       const result = updateBlockName('block2', 'Unique Name')
-      expect(result).toBe(true)
+      expect(result.success).toBe(true)
 
       const state = useWorkflowStore.getState()
       expect(state.blocks.block2.name).toBe('Unique Name')

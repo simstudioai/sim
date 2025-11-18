@@ -626,7 +626,7 @@ export const useWorkflowStore = create<WorkflowStore>()(
 
       updateBlockName: (id: string, name: string) => {
         const oldBlock = get().blocks[id]
-        if (!oldBlock) return false
+        if (!oldBlock) return { success: false, changedSubblocks: [] }
 
         // Check for normalized name collisions
         const normalizedNewName = normalizeBlockName(name)
@@ -646,7 +646,7 @@ export const useWorkflowStore = create<WorkflowStore>()(
           logger.error(
             `Cannot rename block to "${name}" - another block "${conflictingBlock[1].name}" already uses the normalized name "${normalizedNewName}"`
           )
-          return false
+          return { success: false, changedSubblocks: [] }
         }
 
         // Create a new state with the updated block name
@@ -666,12 +666,13 @@ export const useWorkflowStore = create<WorkflowStore>()(
         // Update references in subblock store
         const subBlockStore = useSubBlockStore.getState()
         const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
+        const changedSubblocks: Array<{ blockId: string; subBlockId: string; newValue: any }> = []
+
         if (activeWorkflowId) {
           // Get the workflow values for the active workflow
           // workflowValues: {[block_id]:{[subblock_id]:[subblock_value]}}
           const workflowValues = subBlockStore.workflowValues[activeWorkflowId] || {}
           const updatedWorkflowValues = { ...workflowValues }
-          const changedSubblocks: Array<{ blockId: string; subBlockId: string; newValue: any }> = []
 
           // Loop through blocks
           Object.entries(workflowValues).forEach(([blockId, blockValues]) => {
@@ -730,19 +731,17 @@ export const useWorkflowStore = create<WorkflowStore>()(
               [activeWorkflowId]: updatedWorkflowValues,
             },
           })
-
-          // Store changed subblocks for collaborative sync
-          if (changedSubblocks.length > 0) {
-            // Store the changed subblocks for the collaborative function to pick up
-            ;(window as any).__pendingSubblockUpdates = changedSubblocks
-          }
         }
 
         set(newState)
         get().updateLastSaved()
         // Note: Socket.IO handles real-time sync automatically
 
-        return true
+        // Return both success status and changed subblocks for collaborative sync
+        return {
+          success: true,
+          changedSubblocks,
+        }
       },
 
       setBlockAdvancedMode: (id: string, advancedMode: boolean) => {

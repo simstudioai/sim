@@ -403,36 +403,6 @@ export async function workflowExistsInNormalizedTables(workflowId: string): Prom
 }
 
 /**
- * Migrate a workflow from JSON blob to normalized tables
- */
-export async function migrateWorkflowToNormalizedTables(
-  workflowId: string,
-  jsonState: any
-): Promise<{ success: boolean; error?: string }> {
-  try {
-    // Convert JSON state to WorkflowState format
-    // Only include fields that are actually persisted to normalized tables
-    const workflowState: WorkflowState = {
-      blocks: jsonState.blocks || {},
-      edges: jsonState.edges || [],
-      loops: jsonState.loops || {},
-      parallels: jsonState.parallels || {},
-      lastSaved: jsonState.lastSaved,
-      isDeployed: jsonState.isDeployed,
-      deployedAt: jsonState.deployedAt,
-    }
-
-    return await saveWorkflowToNormalizedTables(workflowId, workflowState)
-  } catch (error) {
-    logger.error(`Error migrating workflow ${workflowId} to normalized tables:`, error)
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Unknown error',
-    }
-  }
-}
-
-/**
  * Deploy a workflow by creating a new deployment version
  */
 export async function deployWorkflow(params: {
