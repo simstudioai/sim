@@ -4,7 +4,7 @@ import type { TriggerConfig } from '@/triggers/types'
 export const microsoftTeamsChatSubscriptionTrigger: TriggerConfig = {
   id: 'microsoftteams_chat_subscription',
   name: 'Microsoft Teams Chat',
-  provider: 'microsoftteams',
+  provider: 'microsoft-teams',
   description:
     'Trigger workflow from new messages in Microsoft Teams chats via Microsoft Graph subscriptions',
   version: '1.0.0',
@@ -16,7 +16,7 @@ export const microsoftTeamsChatSubscriptionTrigger: TriggerConfig = {
       title: 'Credentials',
       type: 'oauth-input',
       description: 'This trigger requires microsoft teams credentials to access your account.',
-      provider: 'microsoftteams',
+      provider: 'microsoft-teams',
       requiredScopes: [
         'openid',
         'profile',
