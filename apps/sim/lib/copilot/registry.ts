@@ -84,7 +84,7 @@ export const ToolArgSchemas = {
   }),
 
   navigate_ui: z.object({
-    destination: z.enum(['workflow', 'new_workflow', 'logs', 'templates', 'vector_db', 'settings']),
+    destination: z.enum(['workflow', 'logs', 'templates', 'vector_db', 'settings']),
     workflowName: z.string().optional(),
   }),
 
@@ -464,7 +464,7 @@ export const ToolResultSchemas = {
     deployedAt: z.string().nullable(),
   }),
   navigate_ui: z.object({
-    destination: z.enum(['workflow', 'new_workflow', 'logs', 'templates', 'vector_db', 'settings']),
+    destination: z.enum(['workflow', 'logs', 'templates', 'vector_db', 'settings']),
     workflowName: z.string().optional(),
     navigated: z.boolean(),
   }),

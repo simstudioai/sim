@@ -8,7 +8,7 @@ import { createLogger } from '@/lib/logs/console/logger'
 import { useCopilotStore } from '@/stores/panel-new/copilot/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
-type NavigationDestination = 'workflow' | 'new_workflow' | 'logs' | 'templates' | 'vector_db' | 'settings'
+type NavigationDestination = 'workflow' | 'logs' | 'templates' | 'vector_db' | 'settings'
 
 interface NavigateUIArgs {
   destination: NavigationDestination
@@ -37,8 +37,6 @@ export class NavigateUIClientTool extends BaseClientTool {
     
     if (destination === 'workflow' && workflowName) {
       buttonText = 'Open workflow'
-    } else if (destination === 'new_workflow') {
-      buttonText = 'Create workflow'
     } else if (destination === 'logs') {
       buttonText = 'Open logs'
     } else if (destination === 'templates') {
@@ -88,12 +86,7 @@ export class NavigateUIClientTool extends BaseClientTool {
       let actionIng = 'opening'
       let target = ''
 
-      if (destination === 'new_workflow') {
-        action = 'create new workflow'
-        actionCapitalized = 'Create new workflow'
-        actionPast = 'created new workflow'
-        actionIng = 'creating new workflow'
-      } else if (destination === 'workflow' && workflowName) {
+      if (destination === 'workflow' && workflowName) {
         target = ` workflow "${workflowName}"`
       } else if (destination === 'workflow') {
         target = ' workflows'
@@ -107,10 +100,10 @@ export class NavigateUIClientTool extends BaseClientTool {
         target = ' settings'
       }
 
-      const fullAction = destination === 'new_workflow' ? action : `${action}${target}`
-      const fullActionCapitalized = destination === 'new_workflow' ? actionCapitalized : `${actionCapitalized}${target}`
-      const fullActionPast = destination === 'new_workflow' ? actionPast : `${actionPast}${target}`
-      const fullActionIng = destination === 'new_workflow' ? actionIng : `${actionIng}${target}`
+      const fullAction = `${action}${target}`
+      const fullActionCapitalized = `${actionCapitalized}${target}`
+      const fullActionPast = `${actionPast}${target}`
+      const fullActionIng = `${actionIng}${target}`
 
       switch (state) {
         case ClientToolCallState.success:
@@ -142,8 +135,17 @@ export class NavigateUIClientTool extends BaseClientTool {
     try {
       this.setState(ClientToolCallState.executing)
 
-      const destination = args?.destination
-      const workflowName = args?.workflowName
+      // Get params from copilot store if not provided directly
+      let destination = args?.destination
+      let workflowName = args?.workflowName
+
+      if (!destination) {
+        const toolCallsById = useCopilotStore.getState().toolCallsById
+        const toolCall = toolCallsById[this.toolCallId]
+        const params = toolCall?.params as NavigateUIArgs | undefined
+        destination = params?.destination
+        workflowName = params?.workflowName
+      }
 
       if (!destination) {
         throw new Error('No destination provided')
@@ -174,12 +176,6 @@ export class NavigateUIClientTool extends BaseClientTool {
             navigationUrl = `/workspace/${workspaceId}/w`
             successMessage = 'Navigated to workflows'
           }
-          break
-
-        case 'new_workflow':
-          // Dispatch event to create new workflow
-          window.dispatchEvent(new CustomEvent('create-workflow'))
-          successMessage = 'Created new workflow'
           break
 
         case 'logs':
@@ -220,7 +216,22 @@ export class NavigateUIClientTool extends BaseClientTool {
     } catch (e: any) {
       logger.error('Navigation failed', { message: e?.message })
       this.setState(ClientToolCallState.error)
-      await this.markToolComplete(500, e?.message || 'Failed to navigate')
+      
+      // Get destination info for better error message
+      const toolCallsById = useCopilotStore.getState().toolCallsById
+      const toolCall = toolCallsById[this.toolCallId]
+      const params = toolCall?.params as NavigateUIArgs | undefined
+      const dest = params?.destination
+      const wfName = params?.workflowName
+      
+      let errorMessage = e?.message || 'Failed to navigate'
+      if (dest === 'workflow' && wfName) {
+        errorMessage = `Failed to navigate to workflow "${wfName}": ${e?.message || 'Unknown error'}`
+      } else if (dest) {
+        errorMessage = `Failed to navigate to ${dest}: ${e?.message || 'Unknown error'}`
+      }
+      
+      await this.markToolComplete(500, errorMessage)
     }
   }
 
