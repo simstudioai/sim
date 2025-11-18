@@ -137,11 +137,10 @@ export function TraceSpans({ traceSpans, totalDuration = 0, onExpansionChange }:
     )
     const filterTree = (spans: TraceSpan[], parentIsWorkflow = false): TraceSpan[] =>
       spans
-        .map((s) => ({ ...s }))
+        .map((s) => normalizeChildWorkflowSpan(s))
         .filter((s) => {
           const tl = s.type?.toLowerCase?.() || ''
           if (tl === 'workflow') return true
-          // If parent is a workflow span, always include children (child trace spans from workflow blocks)
           if (parentIsWorkflow) return true
           return allowed.has(tl)
         })
@@ -186,7 +185,6 @@ export function TraceSpans({ traceSpans, totalDuration = 0, onExpansionChange }:
     return () => ro.disconnect()
   }, [])
 
-  // Early return after all hooks are declared to comply with React's Rules of Hooks
   if (!traceSpans || traceSpans.length === 0) {
     return <div className='text-muted-foreground text-sm'>No trace data available</div>
   }
@@ -222,21 +220,19 @@ export function TraceSpans({ traceSpans, totalDuration = 0, onExpansionChange }:
       </div>
       <div ref={containerRef} className='relative w-full overflow-hidden border shadow-sm'>
         {filtered.map((span, index) => {
-          const normalizedSpan = normalizeChildWorkflowSpan(span)
           const hasSubItems = Boolean(
-            (normalizedSpan.children && normalizedSpan.children.length > 0) ||
-              (normalizedSpan.toolCalls && normalizedSpan.toolCalls.length > 0) ||
-              normalizedSpan.input ||
-              normalizedSpan.output
+            (span.children && span.children.length > 0) ||
+              (span.toolCalls && span.toolCalls.length > 0) ||
+              span.input ||
+              span.output
           )
 
-          // Calculate gap from previous span (for sequential execution visualization)
           let gapMs = 0
           let gapPercent = 0
           if (index > 0) {
             const prevSpan = filtered[index - 1]
             const prevEndTime = new Date(prevSpan.endTime).getTime()
-            const currentStartTime = new Date(normalizedSpan.startTime).getTime()
+            const currentStartTime = new Date(span.startTime).getTime()
             gapMs = currentStartTime - prevEndTime
             if (gapMs > 0 && actualTotalDuration > 0) {
               gapPercent = (gapMs / actualTotalDuration) * 100
@@ -246,13 +242,13 @@ export function TraceSpans({ traceSpans, totalDuration = 0, onExpansionChange }:
           return (
             <TraceSpanItem
               key={index}
-              span={normalizedSpan}
+              span={span}
               depth={0}
               totalDuration={
                 actualTotalDuration !== undefined ? actualTotalDuration : totalDuration
               }
               isLast={index === traceSpans.length - 1}
-              parentStartTime={new Date(normalizedSpan.startTime).getTime()}
+              parentStartTime={new Date(span.startTime).getTime()}
               workflowStartTime={workflowStartTime}
               onToggle={handleSpanToggle}
               expandedSpans={expandedSpans}
