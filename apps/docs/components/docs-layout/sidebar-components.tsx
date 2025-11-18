@@ -84,7 +84,7 @@ export function SidebarFolder({
         <button
           onClick={() => setOpen(!open)}
           className={cn(
-            'flex w-full items-center justify-between rounded-md px-2.5 py-1.5 text-left font-medium text-[13px] leading-tight transition-colors',
+            'cursor-pointer flex w-full items-center justify-between rounded-md px-2.5 py-1.5 text-left font-medium text-[13px] leading-tight transition-colors',
             'hover:bg-gray-100/60 dark:hover:bg-gray-800/40',
             'text-gray-800 dark:text-gray-200'
           )}
