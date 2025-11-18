@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { Input, Label } from '@/components/ui'
+import { Input, Label } from '@/components/emcn'
 import { getEmailDomain } from '@/lib/urls/utils'
 import { cn } from '@/lib/utils'
 import { useIdentifierValidation } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/control-bar/components/deploy-modal/components/chat-deploy/hooks/use-identifier-validation'

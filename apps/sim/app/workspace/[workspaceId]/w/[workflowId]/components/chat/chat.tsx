@@ -628,22 +628,22 @@ export function Chat() {
                 <PopoverItem
                   onClick={(e) => {
                     e.stopPropagation()
-                    if (activeWorkflowId) exportChatCSV(activeWorkflowId)
-                  }}
-                  disabled={messages.length === 0}
-                >
-                  <ArrowDownToLine className='h-[14px] w-[14px]' />
-                  <span>Download</span>
-                </PopoverItem>
-                <PopoverItem
-                  onClick={(e) => {
-                    e.stopPropagation()
                     if (activeWorkflowId) clearChat(activeWorkflowId)
                   }}
                   disabled={messages.length === 0}
                 >
                   <Trash className='h-[14px] w-[14px]' />
                   <span>Clear</span>
+                </PopoverItem>
+                <PopoverItem
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    if (activeWorkflowId) exportChatCSV(activeWorkflowId)
+                  }}
+                  disabled={messages.length === 0}
+                >
+                  <ArrowDownToLine className='h-[14px] w-[14px]' />
+                  <span>Download</span>
                 </PopoverItem>
               </PopoverScrollArea>
             </PopoverContent>

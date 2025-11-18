@@ -29,6 +29,7 @@ import {
   McpDynamicArgs,
   McpServerSelector,
   McpToolSelector,
+  MessagesInput,
   ProjectSelectorInput,
   ResponseFormat,
   ScheduleSave,
@@ -813,6 +814,18 @@ function SubBlockComponent({
             triggerId={config.triggerId}
             isPreview={isPreview}
             disabled={disabled}
+          />
+        )
+
+      case 'messages-input':
+        return (
+          <MessagesInput
+            blockId={blockId}
+            subBlockId={config.id}
+            config={config}
+            isPreview={isPreview}
+            previewValue={previewValue as any}
+            disabled={isDisabled}
           />
         )
 

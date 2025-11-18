@@ -20,10 +20,8 @@ import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/w
 
 const logger = createLogger('WorkflowDBHelpers')
 
-// Database types
 export type WorkflowDeploymentVersion = InferSelectModel<typeof workflowDeploymentVersion>
 
-// API response types (dates are serialized as strings)
 export interface WorkflowDeploymentVersionResponse {
   id: string
   version: number
@@ -109,6 +107,77 @@ export async function loadDeployedWorkflowState(
 }
 
 /**
+ * Migrates agent blocks from old format (systemPrompt/userPrompt) to new format (messages array)
+ * This ensures backward compatibility for workflows created before the messages-input refactor.
+ *
+ * @param blocks - Record of block states to migrate
+ * @returns Migrated blocks with messages array format for agent blocks
+ */
+export function migrateAgentBlocksToMessagesFormat(
+  blocks: Record<string, BlockState>
+): Record<string, BlockState> {
+  return Object.fromEntries(
+    Object.entries(blocks).map(([id, block]) => {
+      if (block.type === 'agent') {
+        const systemPrompt = block.subBlocks.systemPrompt?.value
+        const userPrompt = block.subBlocks.userPrompt?.value
+        const messages = block.subBlocks.messages?.value
+
+        // Only migrate if old format exists and new format doesn't
+        if ((systemPrompt || userPrompt) && !messages) {
+          const newMessages: Array<{ role: string; content: string }> = []
+
+          // Add system message first (industry standard)
+          if (systemPrompt) {
+            newMessages.push({
+              role: 'system',
+              content: typeof systemPrompt === 'string' ? systemPrompt : String(systemPrompt),
+            })
+          }
+
+          // Add user message
+          if (userPrompt) {
+            let userContent = userPrompt
+
+            // Handle object format (e.g., { input: "..." })
+            if (typeof userContent === 'object' && userContent !== null) {
+              if ('input' in userContent) {
+                userContent = (userContent as any).input
+              } else {
+                // If it's an object but doesn't have 'input', stringify it
+                userContent = JSON.stringify(userContent)
+              }
+            }
+
+            newMessages.push({
+              role: 'user',
+              content: String(userContent),
+            })
+          }
+
+          // Return block with migrated messages subBlock
+          return [
+            id,
+            {
+              ...block,
+              subBlocks: {
+                ...block.subBlocks,
+                messages: {
+                  id: 'messages',
+                  type: 'messages-input',
+                  value: newMessages,
+                },
+              },
+            },
+          ]
+        }
+      }
+      return [id, block]
+    })
+  )
+}
+
+/**
  * Load workflow state from normalized tables
  * Returns null if no data found (fallback to JSON blob)
  */
@@ -157,6 +226,10 @@ export async function loadWorkflowFromNormalizedTables(
     // Sanitize any invalid custom tools in agent blocks to prevent client crashes
     const { blocks: sanitizedBlocks } = sanitizeAgentToolsInBlocks(blocksMap)
 
+    // Migrate old agent block format (systemPrompt/userPrompt) to new messages array format
+    // This ensures backward compatibility for workflows created before the messages-input refactor
+    const migratedBlocks = migrateAgentBlocksToMessagesFormat(sanitizedBlocks)
+
     // Convert edges to the expected format
     const edgesArray: Edge[] = edges.map((edge) => ({
       id: edge.id,
@@ -198,9 +271,9 @@ export async function loadWorkflowFromNormalizedTables(
 
         // Sync block.data with loop config to ensure all fields are present
         // This allows switching between loop types without losing data
-        if (sanitizedBlocks[subflow.id]) {
-          const block = sanitizedBlocks[subflow.id]
-          sanitizedBlocks[subflow.id] = {
+        if (migratedBlocks[subflow.id]) {
+          const block = migratedBlocks[subflow.id]
+          migratedBlocks[subflow.id] = {
             ...block,
             data: {
               ...block.data,
@@ -229,7 +302,7 @@ export async function loadWorkflowFromNormalizedTables(
     })
 
     return {
-      blocks: sanitizedBlocks,
+      blocks: migratedBlocks,
       edges: edgesArray,
       loops,
       parallels,

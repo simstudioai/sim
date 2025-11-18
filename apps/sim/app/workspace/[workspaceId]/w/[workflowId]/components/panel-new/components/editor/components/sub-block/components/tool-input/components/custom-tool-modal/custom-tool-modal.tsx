@@ -1,18 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { AlertCircle, Code, FileJson, X } from 'lucide-react'
 import { useParams } from 'next/navigation'
+import {
+  Button as EmcnButton,
+  Modal,
+  ModalContent,
+  ModalDescription,
+  ModalFooter,
+  ModalHeader,
+  ModalTitle,
+} from '@/components/emcn'
 import { Trash } from '@/components/emcn/icons/trash'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -1212,26 +1211,35 @@ try {
       </Dialog>
 
       {/* Delete Confirmation Dialog */}
-      <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Are you sure you want to delete this tool?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This action cannot be undone. This will permanently delete the tool and remove it from
-              any workflows that are using it.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
+      <Modal open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+        <ModalContent>
+          <ModalHeader>
+            <ModalTitle>Are you sure you want to delete this tool?</ModalTitle>
+            <ModalDescription>
+              This will permanently delete the tool and remove it from any workflows that are using
+              it.{' '}
+              <span className='text-[var(--text-error)] dark:text-[var(--text-error)]'>
+                This action cannot be undone.
+              </span>
+            </ModalDescription>
+          </ModalHeader>
+          <ModalFooter>
+            <EmcnButton
+              variant='outline'
+              className='h-[32px] px-[12px]'
+              onClick={() => setShowDeleteConfirm(false)}
+            >
+              Cancel
+            </EmcnButton>
+            <EmcnButton
               onClick={handleDelete}
-              className='bg-destructive text-destructive-foreground hover:bg-destructive/90'
+              className='h-[32px] bg-[var(--text-error)] px-[12px] text-[var(--white)] hover:bg-[var(--text-error)] hover:text-[var(--white)] dark:bg-[var(--text-error)] dark:text-[var(--white)] hover:dark:bg-[var(--text-error)] dark:hover:text-[var(--white)]'
             >
               Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+            </EmcnButton>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
     </>
   )
 }

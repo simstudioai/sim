@@ -521,9 +521,10 @@ export function ApiKeys({ onOpenChange, registerCloseHandler }: ApiKeysProps) {
             </div>
           </div>
 
-          <ModalFooter className='flex'>
+          <ModalFooter>
             <Button
-              className='h-9 w-full rounded-[8px] bg-background text-foreground hover:bg-muted dark:bg-background dark:text-foreground dark:hover:bg-muted/80'
+              variant='outline'
+              className='h-[32px] px-[12px]'
               onClick={() => {
                 setIsCreateDialogOpen(false)
                 setNewKeyName('')
@@ -535,15 +536,15 @@ export function ApiKeys({ onOpenChange, registerCloseHandler }: ApiKeysProps) {
             <Button
               type='button'
               variant='primary'
+              className='h-[32px] px-[12px]'
               onClick={handleCreateKey}
-              className='h-9 w-full rounded-[8px] disabled:cursor-not-allowed disabled:opacity-50'
               disabled={
                 !newKeyName.trim() ||
                 createApiKeyMutation.isPending ||
                 (keyType === 'workspace' && !canManageWorkspaceKeys)
               }
             >
-              Create {keyType === 'workspace' ? 'Workspace' : 'Personal'} Key
+              {createApiKeyMutation.isPending ? 'Creating...' : 'Create'}
             </Button>
           </ModalFooter>
         </ModalContent>
