@@ -82,7 +82,7 @@ export function LanguageDropdown() {
         aria-haspopup='listbox'
         aria-expanded={isOpen}
         aria-controls='language-menu'
-        className='flex items-center gap-1.5 rounded-xl px-3 py-2 font-normal text-[0.9375rem] text-foreground/60 leading-[1.4] transition-colors hover:bg-foreground/8 hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring'
+        className='flex cursor-pointer items-center gap-1.5 rounded-xl px-3 py-2 font-normal text-[0.9375rem] text-foreground/60 leading-[1.4] transition-colors hover:bg-foreground/8 hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring'
         style={{
           fontFamily:
             '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
@@ -110,7 +110,7 @@ export function LanguageDropdown() {
                 }}
                 role='option'
                 aria-selected={currentLang === code}
-                className={`flex w-full items-center gap-3 px-3 py-3 text-base transition-colors first:rounded-t-xl last:rounded-b-xl hover:bg-muted/80 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring md:gap-2 md:px-2.5 md:py-2 md:text-sm ${
+                className={`flex w-full cursor-pointer items-center gap-3 px-3 py-3 text-base transition-colors first:rounded-t-xl last:rounded-b-xl hover:bg-muted/80 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring md:gap-2 md:px-2.5 md:py-2 md:text-sm ${
                   currentLang === code ? 'bg-muted/60 font-medium text-primary' : 'text-foreground'
                 }`}
               >

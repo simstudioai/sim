@@ -105,23 +105,18 @@ export function useCreateWorkflow() {
 
       const { workflowState } = buildDefaultWorkflowArtifacts()
 
-      fetch(`/api/workflows/${workflowId}/state`, {
+      const stateResponse = await fetch(`/api/workflows/${workflowId}/state`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(workflowState),
       })
-        .then((response) => {
-          if (!response.ok) {
-            response.text().then((text) => {
-              logger.error('Failed to persist default Start block:', text)
-            })
-          } else {
-            logger.info('Successfully persisted default Start block')
-          }
-        })
-        .catch((error) => {
-          logger.error('Error persisting default Start block:', error)
-        })
+
+      if (!stateResponse.ok) {
+        const text = await stateResponse.text()
+        logger.error('Failed to persist default Start block:', text)
+      } else {
+        logger.info('Successfully persisted default Start block')
+      }
 
       return {
         id: workflowId,

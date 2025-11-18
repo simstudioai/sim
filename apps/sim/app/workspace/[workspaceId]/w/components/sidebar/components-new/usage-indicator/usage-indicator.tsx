@@ -10,6 +10,7 @@ import {
   getSubscriptionStatus,
   getUsage,
 } from '@/lib/subscription/helpers'
+import { isUsageAtLimit, USAGE_PILL_COLORS } from '@/lib/subscription/usage-visualization'
 import { useSubscriptionData } from '@/hooks/queries/subscription'
 import { MIN_SIDEBAR_WIDTH, useSidebarStore } from '@/stores/sidebar/store'
 
@@ -116,11 +117,12 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
 
   /**
    * Calculate which pills should be filled based on usage percentage.
-   * Uses Math.ceil heuristic with dynamic pill count (6-8).
-   * This ensures consistent calculation logic while maintaining responsive pill count.
+   * Uses a percentage-based heuristic with dynamic pill count (6-8).
+   * The warning/limit (red) state is derived from shared usage visualization utilities
+   * so it is consistent with other parts of the app (e.g. UsageHeader).
    */
   const filledPillsCount = Math.ceil((progressPercentage / 100) * pillCount)
-  const isAlmostOut = filledPillsCount === pillCount
+  const isAtLimit = isUsageAtLimit(progressPercentage)
 
   const [isHovered, setIsHovered] = useState(false)
   const [wavePosition, setWavePosition] = useState<number | null>(null)
@@ -286,17 +288,17 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
           const isFilled = i < filledPillsCount
 
           const baseColor = isFilled
-            ? isBlocked || isAlmostOut
-              ? '#ef4444'
-              : '#34B5FF'
-            : '#414141'
+            ? isBlocked || isAtLimit
+              ? USAGE_PILL_COLORS.AT_LIMIT
+              : USAGE_PILL_COLORS.FILLED
+            : USAGE_PILL_COLORS.UNFILLED
 
           let backgroundColor = baseColor
           let backgroundImage: string | undefined
 
           if (isHovered && wavePosition !== null && pillCount > 0 && subscription.isFree) {
-            const grayColor = '#414141'
-            const activeColor = isAlmostOut ? '#ef4444' : '#34B5FF'
+            const grayColor = USAGE_PILL_COLORS.UNFILLED
+            const activeColor = isAtLimit ? USAGE_PILL_COLORS.AT_LIMIT : USAGE_PILL_COLORS.FILLED
 
             /**
              * Single-pass wave: travel from {@link startAnimationIndex} to the end

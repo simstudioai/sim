@@ -1,14 +1,12 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
-import {
-  type FolderInfo,
-  FolderSelector,
-} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/components/sub-block/components/folder-selector/folder-selector'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { SelectorCombobox } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/components/sub-block/components/selector-combobox/selector-combobox'
 import { useDependsOnGate } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/components/sub-block/hooks/use-depends-on-gate'
 import { useForeignCredential } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/components/sub-block/hooks/use-foreign-credential'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/components/sub-block/hooks/use-sub-block-value'
 import type { SubBlockConfig } from '@/blocks/types'
+import { resolveSelectorForSubBlock } from '@/hooks/selectors/resolution'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
@@ -27,19 +25,19 @@ export function FolderSelectorInput({
   isPreview = false,
   previewValue,
 }: FolderSelectorInputProps) {
-  const [storeValue, _setStoreValue] = useSubBlockValue(blockId, subBlock.id)
+  const [storeValue] = useSubBlockValue(blockId, subBlock.id)
   const [connectedCredential] = useSubBlockValue(blockId, 'credential')
   const { collaborativeSetSubblockValue } = useCollaborativeWorkflow()
   const { activeWorkflowId } = useWorkflowRegistry()
   const [selectedFolderId, setSelectedFolderId] = useState<string>('')
-  const [_folderInfo, setFolderInfo] = useState<FolderInfo | null>(null)
-  const provider = (subBlock.provider || subBlock.serviceId || 'google-email').toLowerCase()
+  const providerKey = (subBlock.provider ?? subBlock.serviceId ?? '').toLowerCase()
+  const credentialProvider = subBlock.serviceId ?? subBlock.provider
   const isCopyDestinationSelector =
     subBlock.canonicalParamId === 'copyDestinationId' ||
     subBlock.id === 'copyDestinationFolder' ||
     subBlock.id === 'manualCopyDestinationFolder'
   const { isForeignCredential } = useForeignCredential(
-    subBlock.provider || subBlock.serviceId || 'outlook',
+    credentialProvider,
     (connectedCredential as string) || ''
   )
 
@@ -48,26 +46,22 @@ export function FolderSelectorInput({
 
   // Get the current value from the store or prop value if in preview mode
   useEffect(() => {
-    // When gated/disabled, do not set defaults or write to store
     if (finalDisabled) return
     if (isPreview && previewValue !== undefined) {
       setSelectedFolderId(previewValue)
       return
     }
     const current = storeValue as string | undefined
-    if (current && typeof current === 'string') {
+    if (current) {
       setSelectedFolderId(current)
       return
     }
-    const shouldDefaultInbox = provider !== 'outlook' && !isCopyDestinationSelector
+    const shouldDefaultInbox = providerKey === 'gmail' && !isCopyDestinationSelector
     if (shouldDefaultInbox) {
-      const defaultValue = 'INBOX'
-      setSelectedFolderId(defaultValue)
+      setSelectedFolderId('INBOX')
       if (!isPreview) {
-        collaborativeSetSubblockValue(blockId, subBlock.id, defaultValue)
+        collaborativeSetSubblockValue(blockId, subBlock.id, 'INBOX')
       }
-    } else {
-      setSelectedFolderId('')
     }
   }, [
     blockId,
@@ -77,33 +71,46 @@ export function FolderSelectorInput({
     isPreview,
     previewValue,
     finalDisabled,
+    providerKey,
+    isCopyDestinationSelector,
   ])
 
-  // Handle folder selection
-  const handleFolderChange = useCallback(
-    (folderId: string, info?: FolderInfo) => {
-      setSelectedFolderId(folderId)
-      setFolderInfo(info || null)
+  const credentialId = (connectedCredential as string) || ''
+  const missingCredential = credentialId.length === 0
+  const selectorResolution = useMemo(
+    () =>
+      resolveSelectorForSubBlock(subBlock, {
+        credentialId: credentialId || undefined,
+        workflowId: activeWorkflowId || undefined,
+      }),
+    [subBlock, credentialId, activeWorkflowId]
+  )
+
+  const handleChange = useCallback(
+    (value: string) => {
+      setSelectedFolderId(value)
       if (!isPreview) {
-        collaborativeSetSubblockValue(blockId, subBlock.id, folderId)
+        collaborativeSetSubblockValue(blockId, subBlock.id, value)
       }
     },
     [blockId, subBlock.id, collaborativeSetSubblockValue, isPreview]
   )
 
   return (
-    <FolderSelector
-      value={selectedFolderId}
-      onChange={handleFolderChange}
-      provider={provider}
-      requiredScopes={subBlock.requiredScopes || []}
-      label={subBlock.placeholder || 'Select folder'}
-      disabled={finalDisabled}
-      serviceId={subBlock.serviceId}
-      onFolderInfoChange={setFolderInfo}
-      credentialId={(connectedCredential as string) || ''}
-      workflowId={activeWorkflowId || ''}
-      isForeignCredential={isForeignCredential}
+    <SelectorCombobox
+      blockId={blockId}
+      subBlock={subBlock}
+      selectorKey={selectorResolution?.key ?? 'gmail.labels'}
+      selectorContext={
+        selectorResolution?.context ?? { credentialId, workflowId: activeWorkflowId || '' }
+      }
+      disabled={
+        finalDisabled || isForeignCredential || missingCredential || !selectorResolution?.key
+      }
+      isPreview={isPreview}
+      previewValue={previewValue ?? null}
+      placeholder={subBlock.placeholder || 'Select folder'}
+      onOptionChange={handleChange}
     />
   )
 }

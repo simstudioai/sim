@@ -30,7 +30,7 @@ export function CodeBlock(props: React.ComponentProps<typeof FumadocsCodeBlock>)
               if (pre) handleCopy(pre.textContent || '')
             }}
             className={cn(
-              'rounded-md p-2 transition-all',
+              'cursor-pointer rounded-md p-2 transition-all',
               'border border-border bg-background/80 hover:bg-muted',
               'backdrop-blur-sm'
             )}

@@ -31,7 +31,6 @@ export function useCollaborativeWorkflow() {
     const moveHandler = (e: any) => {
       const { blockId, before, after } = e.detail || {}
       if (!blockId || !before || !after) return
-      // Don't record moves during undo/redo operations
       if (isUndoRedoInProgress.current) return
       undoRedo.recordMove(blockId, before, after)
     }
@@ -40,7 +39,6 @@ export function useCollaborativeWorkflow() {
       const { blockId, oldParentId, newParentId, oldPosition, newPosition, affectedEdges } =
         e.detail || {}
       if (!blockId) return
-      // Don't record during undo/redo operations
       if (isUndoRedoInProgress.current) return
       undoRedo.recordUpdateParent(
         blockId,
@@ -1097,6 +1095,9 @@ export function useCollaborativeWorkflow() {
       // Generate operation ID for queue tracking
       const operationId = crypto.randomUUID()
 
+      // Get fresh activeWorkflowId from store to avoid stale closure
+      const currentActiveWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
+
       // Add to queue for retry mechanism
       addToQueue({
         id: operationId,
@@ -1105,7 +1106,7 @@ export function useCollaborativeWorkflow() {
           target: 'subblock',
           payload: { blockId, subblockId, value },
         },
-        workflowId: activeWorkflowId || '',
+        workflowId: currentActiveWorkflowId || '',
         userId: session?.user?.id || 'unknown',
       })
 
@@ -1134,15 +1135,7 @@ export function useCollaborativeWorkflow() {
         // Best-effort; do not block on clearing
       }
     },
-    [
-      subBlockStore,
-      currentWorkflowId,
-      activeWorkflowId,
-      addToQueue,
-      session?.user?.id,
-      isShowingDiff,
-      isInActiveRoom,
-    ]
+    [subBlockStore, currentWorkflowId, addToQueue, session?.user?.id, isShowingDiff, isInActiveRoom]
   )
 
   // Immediate tag selection (uses queue but processes immediately, no debouncing)

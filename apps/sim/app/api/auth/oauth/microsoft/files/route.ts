@@ -1,11 +1,8 @@
-import { db } from '@sim/db'
-import { account } from '@sim/db/schema'
-import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { getSession } from '@/lib/auth'
+import { authorizeCredentialUse } from '@/lib/auth/credential-access'
 import { createLogger } from '@/lib/logs/console/logger'
 import { generateRequestId } from '@/lib/utils'
-import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
+import { getCredential, refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 
 export const dynamic = 'force-dynamic'
 
@@ -18,46 +15,39 @@ export async function GET(request: NextRequest) {
   const requestId = generateRequestId()
 
   try {
-    // Get the session
-    const session = await getSession()
-
-    // Check if the user is authenticated
-    if (!session?.user?.id) {
-      logger.warn(`[${requestId}] Unauthenticated request rejected`)
-      return NextResponse.json({ error: 'User not authenticated' }, { status: 401 })
-    }
-
     // Get the credential ID from the query params
     const { searchParams } = new URL(request.url)
     const credentialId = searchParams.get('credentialId')
     const query = searchParams.get('query') || ''
+    const workflowId = searchParams.get('workflowId') || undefined
 
     if (!credentialId) {
       logger.warn(`[${requestId}] Missing credential ID`)
       return NextResponse.json({ error: 'Credential ID is required' }, { status: 400 })
     }
 
-    // Get the credential from the database
-    const credentials = await db.select().from(account).where(eq(account.id, credentialId)).limit(1)
+    const authz = await authorizeCredentialUse(request, {
+      credentialId,
+      workflowId,
+      requireWorkflowIdForInternal: false,
+    })
 
-    if (!credentials.length) {
-      logger.warn(`[${requestId}] Credential not found`, { credentialId })
+    if (!authz.ok || !authz.credentialOwnerUserId) {
+      const status = authz.error === 'Credential not found' ? 404 : 403
+      return NextResponse.json({ error: authz.error || 'Unauthorized' }, { status })
+    }
+
+    const credential = await getCredential(requestId, credentialId, authz.credentialOwnerUserId)
+    if (!credential) {
       return NextResponse.json({ error: 'Credential not found' }, { status: 404 })
     }
 
-    const credential = credentials[0]
-
-    // Check if the credential belongs to the user
-    if (credential.userId !== session.user.id) {
-      logger.warn(`[${requestId}] Unauthorized credential access attempt`, {
-        credentialUserId: credential.userId,
-        requestUserId: session.user.id,
-      })
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
-    }
-
     // Refresh access token if needed using the utility function
-    const accessToken = await refreshAccessTokenIfNeeded(credentialId, session.user.id, requestId)
+    const accessToken = await refreshAccessTokenIfNeeded(
+      credentialId,
+      authz.credentialOwnerUserId,
+      requestId
+    )
 
     if (!accessToken) {
       return NextResponse.json({ error: 'Failed to obtain valid access token' }, { status: 401 })

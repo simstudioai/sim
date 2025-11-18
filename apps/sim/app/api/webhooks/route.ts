@@ -137,7 +137,7 @@ export async function POST(request: NextRequest) {
     const isCredentialBased = credentialBasedProviders.includes(provider)
     // Treat Microsoft Teams chat subscription as credential-based for path generation purposes
     const isMicrosoftTeamsChatSubscription =
-      provider === 'microsoftteams' &&
+      provider === 'microsoft-teams' &&
       typeof providerConfig === 'object' &&
       providerConfig?.triggerId === 'microsoftteams_chat_subscription'
 
@@ -297,7 +297,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    if (provider === 'microsoftteams') {
+    if (provider === 'microsoft-teams') {
       const { createTeamsSubscription } = await import('@/lib/webhooks/webhook-helpers')
       logger.info(`[${requestId}] Creating Teams subscription before saving to database`)
       try {
