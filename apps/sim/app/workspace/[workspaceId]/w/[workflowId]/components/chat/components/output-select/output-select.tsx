@@ -377,8 +377,8 @@ export function OutputSelect({
         side='bottom'
         align={align}
         sideOffset={4}
-        maxHeight={220}
-        maxWidth={300}
+        maxHeight={maxHeight}
+        maxWidth={160}
         minWidth={160}
         disablePortal={disablePopoverPortal}
         onKeyDown={handleKeyDown}
