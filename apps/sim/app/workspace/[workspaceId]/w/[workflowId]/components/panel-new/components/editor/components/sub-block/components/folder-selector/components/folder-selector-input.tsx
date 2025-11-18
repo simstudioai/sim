@@ -30,13 +30,14 @@ export function FolderSelectorInput({
   const { collaborativeSetSubblockValue } = useCollaborativeWorkflow()
   const { activeWorkflowId } = useWorkflowRegistry()
   const [selectedFolderId, setSelectedFolderId] = useState<string>('')
-  const provider = (subBlock.provider || subBlock.serviceId || 'gmail').toLowerCase()
+  const providerKey = (subBlock.provider ?? subBlock.serviceId ?? '').toLowerCase()
+  const credentialProvider = subBlock.provider ?? subBlock.serviceId
   const isCopyDestinationSelector =
     subBlock.canonicalParamId === 'copyDestinationId' ||
     subBlock.id === 'copyDestinationFolder' ||
     subBlock.id === 'manualCopyDestinationFolder'
   const { isForeignCredential } = useForeignCredential(
-    subBlock.provider || subBlock.serviceId || 'outlook',
+    credentialProvider,
     (connectedCredential as string) || ''
   )
 
@@ -55,7 +56,7 @@ export function FolderSelectorInput({
       setSelectedFolderId(current)
       return
     }
-    const shouldDefaultInbox = provider !== 'outlook' && !isCopyDestinationSelector
+    const shouldDefaultInbox = providerKey === 'gmail' && !isCopyDestinationSelector
     if (shouldDefaultInbox) {
       setSelectedFolderId('INBOX')
       if (!isPreview) {
@@ -70,7 +71,7 @@ export function FolderSelectorInput({
     isPreview,
     previewValue,
     finalDisabled,
-    provider,
+    providerKey,
     isCopyDestinationSelector,
   ])
 
