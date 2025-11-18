@@ -38,12 +38,8 @@ export default function WorkflowsPage() {
 
     // If we have valid workspace workflows, redirect to the first one
     if (workspaceWorkflows.length > 0) {
-      // Ensure the workflow is set as active before redirecting
-      // This prevents the empty canvas issue on first login
       const firstWorkflowId = workspaceWorkflows[0]
-      setActiveWorkflow(firstWorkflowId).then(() => {
-        router.replace(`/workspace/${workspaceId}/w/${firstWorkflowId}`)
-      })
+      router.replace(`/workspace/${workspaceId}/w/${firstWorkflowId}`)
     }
   }, [isLoading, workflows, workspaceId, router, setActiveWorkflow, isError])
 

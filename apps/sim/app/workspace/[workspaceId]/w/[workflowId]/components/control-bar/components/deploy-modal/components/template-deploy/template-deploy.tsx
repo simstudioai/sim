@@ -27,6 +27,12 @@ import { TagInput } from '@/components/ui/tag-input'
 import { useSession } from '@/lib/auth-client'
 import { createLogger } from '@/lib/logs/console/logger'
 import { WorkflowPreview } from '@/app/workspace/[workspaceId]/w/components/workflow-preview/workflow-preview'
+import {
+  useCreateTemplate,
+  useDeleteTemplate,
+  useTemplateByWorkflow,
+  useUpdateTemplate,
+} from '@/hooks/queries/templates'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('TemplateDeploy')
@@ -55,14 +61,15 @@ interface TemplateDeployProps {
 
 export function TemplateDeploy({ workflowId, onDeploymentComplete }: TemplateDeployProps) {
   const { data: session } = useSession()
-  const [isSubmitting, setIsSubmitting] = useState(false)
-  const [existingTemplate, setExistingTemplate] = useState<any>(null)
-  const [isLoadingTemplate, setIsLoadingTemplate] = useState(false)
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
-  const [isDeleting, setIsDeleting] = useState(false)
   const [creatorOptions, setCreatorOptions] = useState<CreatorOption[]>([])
   const [loadingCreators, setLoadingCreators] = useState(false)
   const [showPreviewDialog, setShowPreviewDialog] = useState(false)
+
+  const { data: existingTemplate, isLoading: isLoadingTemplate } = useTemplateByWorkflow(workflowId)
+  const createMutation = useCreateTemplate()
+  const updateMutation = useUpdateTemplate()
+  const deleteMutation = useDeleteTemplate()
 
   const form = useForm<TemplateFormData>({
     resolver: zodResolver(templateSchema),
@@ -75,7 +82,6 @@ export function TemplateDeploy({ workflowId, onDeploymentComplete }: TemplateDep
     },
   })
 
-  // Fetch creator profiles
   const fetchCreatorOptions = async () => {
     if (!session?.user?.id) return
 
@@ -105,7 +111,6 @@ export function TemplateDeploy({ workflowId, onDeploymentComplete }: TemplateDep
     fetchCreatorOptions()
   }, [session?.user?.id])
 
-  // Auto-select creator profile when there's only one option and no selection yet
   useEffect(() => {
     const currentCreatorId = form.getValues('creatorId')
     if (creatorOptions.length === 1 && !currentCreatorId) {
@@ -114,15 +119,12 @@ export function TemplateDeploy({ workflowId, onDeploymentComplete }: TemplateDep
     }
   }, [creatorOptions, form])
 
-  // Listen for creator profile saved event
   useEffect(() => {
     const handleCreatorProfileSaved = async () => {
       logger.info('Creator profile saved, refreshing profiles...')
 
-      // Refetch creator profiles (autoselection will happen via the effect above)
       await fetchCreatorOptions()
 
-      // Close settings modal and reopen deploy modal to template tab
       window.dispatchEvent(new CustomEvent('close-settings'))
       setTimeout(() => {
         window.dispatchEvent(new CustomEvent('open-deploy-modal', { detail: { tab: 'template' } }))
@@ -136,41 +138,20 @@ export function TemplateDeploy({ workflowId, onDeploymentComplete }: TemplateDep
     }
   }, [])
 
-  // Check for existing template
   useEffect(() => {
-    const checkExistingTemplate = async () => {
-      setIsLoadingTemplate(true)
-      try {
-        const response = await fetch(`/api/templates?workflowId=${workflowId}&limit=1`)
-        if (response.ok) {
-          const result = await response.json()
-          const template = result.data?.[0] || null
-          setExistingTemplate(template)
+    if (existingTemplate) {
+      const tagline = existingTemplate.details?.tagline || ''
+      const about = existingTemplate.details?.about || ''
 
-          if (template) {
-            // Map old template format to new format if needed
-            const tagline = (template.details as any)?.tagline || template.description || ''
-            const about = (template.details as any)?.about || ''
-
-            form.reset({
-              name: template.name,
-              tagline: tagline,
-              about: about,
-              creatorId: template.creatorId || undefined,
-              tags: template.tags || [],
-            })
-          }
-        }
-      } catch (error) {
-        logger.error('Error checking existing template:', error)
-        setExistingTemplate(null)
-      } finally {
-        setIsLoadingTemplate(false)
-      }
+      form.reset({
+        name: existingTemplate.name,
+        tagline: tagline,
+        about: about,
+        creatorId: existingTemplate.creatorId || undefined,
+        tags: existingTemplate.tags || [],
+      })
     }
-
-    checkExistingTemplate()
-  }, [workflowId, session?.user?.id])
+  }, [existingTemplate, form])
 
   const onSubmit = async (data: TemplateFormData) => {
     if (!session?.user) {
@@ -178,85 +159,51 @@ export function TemplateDeploy({ workflowId, onDeploymentComplete }: TemplateDep
       return
     }
 
-    setIsSubmitting(true)
-
     try {
-      // Build template data with new schema
-      const templateData: any = {
+      const templateData = {
         name: data.name,
         details: {
           tagline: data.tagline || '',
           about: data.about || '',
         },
-        creatorId: data.creatorId || null,
+        creatorId: data.creatorId || undefined,
         tags: data.tags || [],
       }
 
-      let response
       if (existingTemplate) {
-        // Update template metadata AND state from current workflow
-        response = await fetch(`/api/templates/${existingTemplate.id}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
+        await updateMutation.mutateAsync({
+          id: existingTemplate.id,
+          data: {
             ...templateData,
-            updateState: true, // Update state from current workflow
-          }),
+            updateState: true,
+          },
         })
       } else {
-        // Create new template with workflowId
-        response = await fetch('/api/templates', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ...templateData, workflowId }),
-        })
+        await createMutation.mutateAsync({ ...templateData, workflowId })
       }
 
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(
-          errorData.error || `Failed to ${existingTemplate ? 'update' : 'create'} template`
-        )
-      }
-
-      const result = await response.json()
-      logger.info(`Template ${existingTemplate ? 'updated' : 'created'} successfully:`, result)
-
-      // Update existing template state
-      setExistingTemplate(result.data || result)
-
+      logger.info(`Template ${existingTemplate ? 'updated' : 'created'} successfully`)
       onDeploymentComplete?.()
     } catch (error) {
       logger.error('Failed to save template:', error)
-    } finally {
-      setIsSubmitting(false)
     }
   }
 
   const handleDelete = async () => {
     if (!existingTemplate) return
 
-    setIsDeleting(true)
     try {
-      const response = await fetch(`/api/templates/${existingTemplate.id}`, {
-        method: 'DELETE',
+      await deleteMutation.mutateAsync(existingTemplate.id)
+      setShowDeleteDialog(false)
+      form.reset({
+        name: '',
+        tagline: '',
+        about: '',
+        creatorId: undefined,
+        tags: [],
       })
-
-      if (response.ok) {
-        setExistingTemplate(null)
-        setShowDeleteDialog(false)
-        form.reset({
-          name: '',
-          tagline: '',
-          about: '',
-          creatorId: undefined,
-          tags: [],
-        })
-      }
     } catch (error) {
       logger.error('Error deleting template:', error)
-    } finally {
-      setIsDeleting(false)
     }
   }
 
@@ -422,7 +369,7 @@ export function TemplateDeploy({ workflowId, onDeploymentComplete }: TemplateDep
                     onChange={field.onChange}
                     placeholder='Type and press Enter to add tags'
                     maxTags={10}
-                    disabled={isSubmitting}
+                    disabled={createMutation.isPending || updateMutation.isPending}
                   />
                 </FormControl>
                 <p className='text-muted-foreground text-xs'>
@@ -447,9 +394,11 @@ export function TemplateDeploy({ workflowId, onDeploymentComplete }: TemplateDep
             <Button
               type='submit'
               variant='primary'
-              disabled={isSubmitting || !form.formState.isValid}
+              disabled={
+                createMutation.isPending || updateMutation.isPending || !form.formState.isValid
+              }
             >
-              {isSubmitting ? (
+              {createMutation.isPending || updateMutation.isPending ? (
                 <>
                   <Loader2 className='mr-[8px] h-[14px] w-[14px] animate-spin' />
                   {existingTemplate ? 'Updating...' : 'Publishing...'}
@@ -479,10 +428,10 @@ export function TemplateDeploy({ workflowId, onDeploymentComplete }: TemplateDep
               </Button>
               <Button
                 onClick={handleDelete}
-                disabled={isDeleting}
+                disabled={deleteMutation.isPending}
                 className='bg-red-600 text-white hover:bg-red-700'
               >
-                {isDeleting ? 'Deleting...' : 'Delete'}
+                {deleteMutation.isPending ? 'Deleting...' : 'Delete'}
               </Button>
             </div>
           </div>
@@ -511,7 +460,6 @@ export function TemplateDeploy({ workflowId, onDeploymentComplete }: TemplateDep
                   )
                 }
 
-                // Ensure the state has the right structure
                 const workflowState: WorkflowState = {
                   blocks: existingTemplate.state.blocks || {},
                   edges: existingTemplate.state.edges || [],
