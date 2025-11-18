@@ -17,6 +17,7 @@ import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/provide
 import {
   CommandList,
   DiffControls,
+  Notifications,
   Panel,
   SubflowNodeComponent,
   Terminal,
@@ -26,10 +27,6 @@ import { Chat } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/ch
 import { Cursors } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/cursors/cursors'
 import { ErrorBoundary } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/error/index'
 import { NoteBlock } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/note-block/note-block'
-import {
-  TriggerWarningDialog,
-  TriggerWarningType,
-} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/trigger-warning-dialog/trigger-warning-dialog'
 import { WorkflowBlock } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/workflow-block'
 import { WorkflowEdge } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-edge/workflow-edge'
 import {
@@ -45,6 +42,7 @@ import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { useStreamCleanup } from '@/hooks/use-stream-cleanup'
 import { useWorkspacePermissions } from '@/hooks/use-workspace-permissions'
 import { useExecutionStore } from '@/stores/execution/store'
+import { useNotificationStore } from '@/stores/notifications/store'
 import { useCopilotStore } from '@/stores/panel-new/copilot/store'
 import { usePanelEditorStore } from '@/stores/panel-new/editor/store'
 import { useGeneralStore } from '@/stores/settings/general/store'
@@ -93,17 +91,6 @@ const WorkflowContent = React.memo(() => {
   // Enhanced edge selection with parent context and unique identifier
   const [selectedEdgeInfo, setSelectedEdgeInfo] = useState<SelectedEdgeInfo | null>(null)
 
-  // State for trigger warning dialog
-  const [triggerWarning, setTriggerWarning] = useState<{
-    open: boolean
-    triggerName: string
-    type: TriggerWarningType
-  }>({
-    open: false,
-    triggerName: '',
-    type: TriggerWarningType.DUPLICATE_TRIGGER,
-  })
-
   // Track whether the active connection drag started from an error handle
   const [isErrorConnectionDrag, setIsErrorConnectionDrag] = useState(false)
 
@@ -115,6 +102,9 @@ const WorkflowContent = React.memo(() => {
 
   // Get workspace ID from the params
   const workspaceId = params.workspaceId as string
+
+  // Notification store
+  const addNotification = useNotificationStore((state) => state.addNotification)
 
   const { workflows, activeWorkflowId, isLoading, setActiveWorkflow } = useWorkflowRegistry()
 
@@ -667,10 +657,10 @@ const WorkflowContent = React.memo(() => {
 
           if (isTriggerBlock) {
             const triggerName = TriggerUtils.getDefaultTriggerName(data.type) || 'trigger'
-            setTriggerWarning({
-              open: true,
-              triggerName,
-              type: TriggerWarningType.TRIGGER_IN_SUBFLOW,
+            addNotification({
+              level: 'error',
+              message: 'Triggers cannot be placed inside loop or parallel subflows.',
+              workflowId: activeWorkflowId || undefined,
             })
             return
           }
@@ -773,13 +763,14 @@ const WorkflowContent = React.memo(() => {
           // Centralized trigger constraints
           const dropIssue = TriggerUtils.getTriggerAdditionIssue(blocks, data.type)
           if (dropIssue) {
-            setTriggerWarning({
-              open: true,
-              triggerName: dropIssue.triggerName,
-              type:
-                dropIssue.issue === 'legacy'
-                  ? TriggerWarningType.LEGACY_INCOMPATIBILITY
-                  : TriggerWarningType.DUPLICATE_TRIGGER,
+            const message =
+              dropIssue.issue === 'legacy'
+                ? 'Cannot add new trigger blocks when a legacy Start block exists. Available in newer workflows.'
+                : `A workflow can only have one ${dropIssue.triggerName} trigger block. Please remove the existing one before adding a new one.`
+            addNotification({
+              level: 'error',
+              message,
+              workflowId: activeWorkflowId || undefined,
             })
             return
           }
@@ -841,7 +832,8 @@ const WorkflowContent = React.memo(() => {
       isPointInLoopNode,
       resizeLoopNodesWrapper,
       addBlock,
-      setTriggerWarning,
+      addNotification,
+      activeWorkflowId,
     ]
   )
 
@@ -959,19 +951,15 @@ const WorkflowContent = React.memo(() => {
       // Centralized trigger constraints
       const additionIssue = TriggerUtils.getTriggerAdditionIssue(blocks, type)
       if (additionIssue) {
-        if (additionIssue.issue === 'legacy') {
-          setTriggerWarning({
-            open: true,
-            triggerName: additionIssue.triggerName,
-            type: TriggerWarningType.LEGACY_INCOMPATIBILITY,
-          })
-        } else {
-          setTriggerWarning({
-            open: true,
-            triggerName: additionIssue.triggerName,
-            type: TriggerWarningType.DUPLICATE_TRIGGER,
-          })
-        }
+        const message =
+          additionIssue.issue === 'legacy'
+            ? 'Cannot add new trigger blocks when a legacy Start block exists. Available in newer workflows.'
+            : `A workflow can only have one ${additionIssue.triggerName} trigger block. Please remove the existing one before adding a new one.`
+        addNotification({
+          level: 'error',
+          message,
+          workflowId: activeWorkflowId || undefined,
+        })
         return
       }
 
@@ -1006,7 +994,8 @@ const WorkflowContent = React.memo(() => {
     findClosestOutput,
     determineSourceHandle,
     effectivePermissions.canEdit,
-    setTriggerWarning,
+    addNotification,
+    activeWorkflowId,
   ])
 
   /**
@@ -1086,10 +1075,16 @@ const WorkflowContent = React.memo(() => {
   useEffect(() => {
     const handleShowTriggerWarning = (event: CustomEvent) => {
       const { type, triggerName } = event.detail
-      setTriggerWarning({
-        open: true,
-        triggerName: triggerName || 'trigger',
-        type: type === 'trigger_in_subflow' ? TriggerWarningType.TRIGGER_IN_SUBFLOW : type,
+      const message =
+        type === 'trigger_in_subflow'
+          ? 'Triggers cannot be placed inside loop or parallel subflows.'
+          : type === 'legacy_incompatibility'
+            ? 'Cannot add new trigger blocks when a legacy Start block exists. Available in newer workflows.'
+            : `A workflow can only have one ${triggerName || 'trigger'} trigger block. Please remove the existing one before adding a new one.`
+      addNotification({
+        level: 'error',
+        message,
+        workflowId: activeWorkflowId || undefined,
       })
     }
 
@@ -1098,7 +1093,7 @@ const WorkflowContent = React.memo(() => {
     return () => {
       window.removeEventListener('show-trigger-warning', handleShowTriggerWarning as EventListener)
     }
-  }, [setTriggerWarning])
+  }, [addNotification, activeWorkflowId])
 
   // Update the onDrop handler to delegate to the shared toolbar-drop handler
   const onDrop = useCallback(
@@ -1849,11 +1844,10 @@ const WorkflowContent = React.memo(() => {
       if (potentialParentId) {
         const block = blocks[node.id]
         if (block && TriggerUtils.isTriggerBlock(block)) {
-          const triggerName = TriggerUtils.getDefaultTriggerName(block.type) || 'trigger'
-          setTriggerWarning({
-            open: true,
-            triggerName,
-            type: TriggerWarningType.TRIGGER_IN_SUBFLOW,
+          addNotification({
+            level: 'error',
+            message: 'Triggers cannot be placed inside loop or parallel subflows.',
+            workflowId: activeWorkflowId || undefined,
           })
           logger.warn('Prevented trigger block from being placed inside a container', {
             blockId: node.id,
@@ -1967,6 +1961,8 @@ const WorkflowContent = React.memo(() => {
       getNodeAbsolutePosition,
       getDragStartPosition,
       setDragStartPosition,
+      addNotification,
+      activeWorkflowId,
     ]
   )
 
@@ -2165,13 +2161,8 @@ const WorkflowContent = React.memo(() => {
         {/* Show DiffControls if diff is available (regardless of current view mode) */}
         <DiffControls />
 
-        {/* Trigger warning dialog */}
-        <TriggerWarningDialog
-          open={triggerWarning.open}
-          onOpenChange={(open) => setTriggerWarning({ ...triggerWarning, open })}
-          triggerName={triggerWarning.triggerName}
-          type={triggerWarning.type}
-        />
+        {/* Notifications display */}
+        <Notifications />
 
         {/* Trigger list for empty workflows - only show after workflow has loaded and hydrated */}
         {isWorkflowReady && isWorkflowEmpty && effectivePermissions.canEdit && <CommandList />}

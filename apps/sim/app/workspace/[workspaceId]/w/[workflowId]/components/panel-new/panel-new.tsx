@@ -32,6 +32,7 @@ import { useDeleteWorkflow, useImportWorkflow } from '@/app/workspace/[workspace
 import { useChatStore } from '@/stores/chat/store'
 import { usePanelStore } from '@/stores/panel-new/store'
 import type { PanelTab } from '@/stores/panel-new/types'
+import { DEFAULT_TERMINAL_HEIGHT, MIN_TERMINAL_HEIGHT, useTerminalStore } from '@/stores/terminal'
 import { useVariablesStore } from '@/stores/variables/store'
 import { useWorkflowJsonStore } from '@/stores/workflows/json/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -129,6 +130,10 @@ export function Panel() {
     if (usageExceeded) {
       openSubscriptionSettings()
       return
+    }
+    const { openOnRun, terminalHeight, setTerminalHeight } = useTerminalStore.getState()
+    if (openOnRun && terminalHeight <= MIN_TERMINAL_HEIGHT) {
+      setTerminalHeight(DEFAULT_TERMINAL_HEIGHT)
     }
     await handleRunWorkflow()
   }, [usageExceeded, handleRunWorkflow])
