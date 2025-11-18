@@ -10,6 +10,7 @@ import {
   Clipboard,
   Filter,
   FilterX,
+  MoreHorizontal,
   RepeatIcon,
   SplitIcon,
   Trash2,
@@ -17,14 +18,12 @@ import {
 import {
   Button,
   Code,
-  NoWrap,
   Popover,
   PopoverContent,
   PopoverItem,
   PopoverScrollArea,
   PopoverTrigger,
   Tooltip,
-  Wrap,
 } from '@/components/emcn'
 import { getBlock } from '@/blocks'
 import type { ConsoleEntry } from '@/stores/terminal'
@@ -254,6 +253,8 @@ export function Terminal() {
     setTerminalHeight,
     outputPanelWidth,
     setOutputPanelWidth,
+    openOnRun,
+    setOpenOnRun,
     // displayMode,
     // setDisplayMode,
     setHasHydrated,
@@ -271,6 +272,8 @@ export function Terminal() {
   const [blockFilterOpen, setBlockFilterOpen] = useState(false)
   const [statusFilterOpen, setStatusFilterOpen] = useState(false)
   const [runIdFilterOpen, setRunIdFilterOpen] = useState(false)
+  const [mainOptionsOpen, setMainOptionsOpen] = useState(false)
+  const [outputOptionsOpen, setOutputOptionsOpen] = useState(false)
 
   // Terminal resize hooks
   const { handleMouseDown } = useTerminalResize()
@@ -927,6 +930,40 @@ export function Terminal() {
                       </Tooltip.Content>
                     </Tooltip.Root>
                   )}
+                  <Popover open={mainOptionsOpen} onOpenChange={setMainOptionsOpen}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant='ghost'
+                        onClick={(e) => {
+                          e.stopPropagation()
+                        }}
+                        aria-label='Terminal options'
+                        className='!p-1.5 -m-1.5'
+                      >
+                        <MoreHorizontal className='h-3.5 w-3.5' />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent
+                      side='bottom'
+                      align='end'
+                      sideOffset={4}
+                      collisionPadding={0}
+                      onClick={(e) => e.stopPropagation()}
+                      style={{ minWidth: '140px', maxWidth: '160px' }}
+                      className='gap-[2px]'
+                    >
+                      <PopoverItem
+                        active={openOnRun}
+                        showCheck
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setOpenOnRun(!openOnRun)
+                        }}
+                      >
+                        <span>Open on run</span>
+                      </PopoverItem>
+                    </PopoverContent>
+                  </Popover>
                   <ToggleButton
                     isExpanded={isExpanded}
                     onClick={(e) => {
@@ -1143,72 +1180,6 @@ export function Terminal() {
                       <span>{showCopySuccess ? 'Copied' : 'Copy output'}</span>
                     </Tooltip.Content>
                   </Tooltip.Root>
-                  <Tooltip.Root>
-                    <Tooltip.Trigger asChild>
-                      <Button
-                        variant='ghost'
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          setWrapText((prev) => !prev)
-                        }}
-                        aria-label='Toggle text wrap'
-                        className='!p-1.5 -m-1.5'
-                      >
-                        {wrapText ? (
-                          <Wrap className='h-3.5 w-3.5' />
-                        ) : (
-                          <NoWrap className='h-3.5 w-3.5' />
-                        )}
-                      </Button>
-                    </Tooltip.Trigger>
-                    <Tooltip.Content>
-                      <span>{wrapText ? 'Wrap text' : 'No wrap'}</span>
-                    </Tooltip.Content>
-                  </Tooltip.Root>
-                  {/* <Popover open={displayPopoverOpen} onOpenChange={setDisplayPopoverOpen}>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant='ghost'
-                        onClick={(e) => {
-                          e.stopPropagation()
-                        }}
-                        aria-label='Display options'
-                        className='!p-1.5 -m-1.5'
-                      >
-                        <MoreHorizontal className='h-3.5 w-3.5' />
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent
-                      side='bottom'
-                      align='end'
-                      sideOffset={4}
-                      collisionPadding={0}
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <PopoverSection>Display</PopoverSection>
-                      <PopoverItem
-                        active={displayMode === 'prettier'}
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          setDisplayMode('prettier')
-                          setDisplayPopoverOpen(false)
-                        }}
-                      >
-                        <span>Prettier</span>
-                      </PopoverItem>
-                      <PopoverItem
-                        active={displayMode === 'raw'}
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          setDisplayMode('raw')
-                          setDisplayPopoverOpen(false)
-                        }}
-                        className='mt-[2px]'
-                      >
-                        <span>Raw</span>
-                      </PopoverItem>
-                    </PopoverContent>
-                  </Popover> */}
                   {hasActiveFilters && (
                     <Tooltip.Root>
                       <Tooltip.Trigger asChild>
@@ -1246,6 +1217,50 @@ export function Terminal() {
                       </Tooltip.Content>
                     </Tooltip.Root>
                   )}
+                  <Popover open={outputOptionsOpen} onOpenChange={setOutputOptionsOpen}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant='ghost'
+                        onClick={(e) => {
+                          e.stopPropagation()
+                        }}
+                        aria-label='Terminal options'
+                        className='!p-1.5 -m-1.5'
+                      >
+                        <MoreHorizontal className='h-3.5 w-3.5' />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent
+                      side='bottom'
+                      align='end'
+                      sideOffset={4}
+                      collisionPadding={0}
+                      onClick={(e) => e.stopPropagation()}
+                      style={{ minWidth: '140px', maxWidth: '160px' }}
+                      className='gap-[2px]'
+                    >
+                      <PopoverItem
+                        active={wrapText}
+                        showCheck
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setWrapText((prev) => !prev)
+                        }}
+                      >
+                        <span>Wrap text</span>
+                      </PopoverItem>
+                      <PopoverItem
+                        active={openOnRun}
+                        showCheck
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setOpenOnRun(!openOnRun)
+                        }}
+                      >
+                        <span>Open on run</span>
+                      </PopoverItem>
+                    </PopoverContent>
+                  </Popover>
                   <ToggleButton
                     isExpanded={isExpanded}
                     onClick={(e) => {

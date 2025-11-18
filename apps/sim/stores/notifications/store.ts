@@ -1,29 +1,76 @@
 import { create } from 'zustand'
+import { persist } from 'zustand/middleware'
 import { createLogger } from '@/lib/logs/console/logger'
-import type { AddNotificationParams, Notification, NotificationCallback } from './types'
 
 const logger = createLogger('NotificationStore')
 
 /**
- * Default duration for notifications in milliseconds
+ * Notification action configuration
+ * Stores serializable data - handlers are reconstructed at runtime
  */
-const DEFAULT_NOTIFICATION_DURATION = 5000
+export interface NotificationAction {
+  /**
+   * Action type identifier for handler reconstruction
+   */
+  type: 'copilot' | 'refresh'
+
+  /**
+   * Message or data to pass to the action handler.
+   *
+   * For:
+   * - {@link NotificationAction.type} = `copilot` - message sent to Copilot
+   * - {@link NotificationAction.type} = `refresh` - optional context, not required for the action
+   */
+  message: string
+}
 
 /**
- * Maximum number of notifications to display at once
+ * Core notification data structure
  */
-const MAX_NOTIFICATIONS = 5
+export interface Notification {
+  /**
+   * Unique identifier for the notification
+   */
+  id: string
+
+  /**
+   * Notification severity level
+   */
+  level: 'info' | 'error'
+
+  /**
+   * Message to display to the user
+   */
+  message: string
+
+  /**
+   * Optional action to execute when user clicks the action button
+   */
+  action?: NotificationAction
+
+  /**
+   * Timestamp when notification was created
+   */
+  createdAt: number
+
+  /**
+   * Optional workflow ID - if provided, notification is workflow-specific
+   * If omitted, notification is shown across all workflows
+   */
+  workflowId?: string
+}
+
+/**
+ * Parameters for adding a new notification
+ * Omits auto-generated fields (id, createdAt)
+ */
+export type AddNotificationParams = Omit<Notification, 'id' | 'createdAt'>
 
 interface NotificationStore {
   /**
    * Array of active notifications (newest first)
    */
   notifications: Notification[]
-
-  /**
-   * Map of timeout IDs for auto-dismissal
-   */
-  timeouts: Map<string, NodeJS.Timeout>
 
   /**
    * Adds a new notification to the stack
@@ -41,201 +88,68 @@ interface NotificationStore {
   removeNotification: (id: string) => void
 
   /**
-   * Dismisses a notification with animation
+   * Gets notifications for a specific workflow
+   * Returns both global notifications (no workflowId) and workflow-specific notifications
    *
-   * @param id - Notification ID to dismiss
+   * @param workflowId - The workflow ID to filter by
+   * @returns Array of notifications for the workflow
    */
-  dismissNotification: (id: string) => void
-
-  /**
-   * Clears all notifications
-   */
-  clearAll: () => void
-
-  /**
-   * Executes the callback for a notification
-   *
-   * @param id - Notification ID
-   */
-  executeCallback: (id: string) => void
+  getNotificationsForWorkflow: (workflowId: string) => Notification[]
 }
 
-export const useNotificationStore = create<NotificationStore>((set, get) => ({
-  notifications: [],
-  timeouts: new Map(),
-
-  addNotification: (params: AddNotificationParams) => {
-    const id = crypto.randomUUID()
-
-    const notification: Notification = {
-      id,
-      level: params.level,
-      message: params.message,
-      callback: params.callback,
-      createdAt: Date.now(),
-    }
-
-    set((state) => {
-      // Add notification to the beginning of the array (newest first)
-      let newNotifications = [notification, ...state.notifications]
-
-      // Limit to MAX_NOTIFICATIONS
-      if (newNotifications.length > MAX_NOTIFICATIONS) {
-        // Remove oldest notifications
-        const removedNotifications = newNotifications.slice(MAX_NOTIFICATIONS)
-        newNotifications = newNotifications.slice(0, MAX_NOTIFICATIONS)
-
-        // Clear timeouts for removed notifications
-        removedNotifications.forEach((n) => {
-          const timeout = state.timeouts.get(n.id)
-          if (timeout) {
-            clearTimeout(timeout)
-            state.timeouts.delete(n.id)
-          }
-        })
-      }
-
-      return { notifications: newNotifications }
-    })
-
-    // Set up auto-dismiss timeout
-    const timeout = setTimeout(() => {
-      get().removeNotification(id)
-    }, DEFAULT_NOTIFICATION_DURATION)
-
-    set((state) => {
-      const newTimeouts = new Map(state.timeouts)
-      newTimeouts.set(id, timeout)
-      return { timeouts: newTimeouts }
-    })
-
-    logger.info('Notification added', {
-      id,
-      level: params.level,
-      message: params.message,
-    })
-
-    return id
-  },
-
-  dismissNotification: (id: string) => {
-    get().removeNotification(id)
-  },
-
-  removeNotification: (id: string) => {
-    set((state) => {
-      // Clear timeout
-      const timeout = state.timeouts.get(id)
-      if (timeout) {
-        clearTimeout(timeout)
-      }
-
-      const newTimeouts = new Map(state.timeouts)
-      newTimeouts.delete(id)
-
-      return {
-        notifications: state.notifications.filter((n) => n.id !== id),
-        timeouts: newTimeouts,
-      }
-    })
-
-    logger.info('Notification removed', { id })
-  },
-
-  clearAll: () => {
-    const { timeouts } = get()
-
-    // Clear all timeouts
-    timeouts.forEach((timeout) => {
-      clearTimeout(timeout)
-    })
-
-    set({
+export const useNotificationStore = create<NotificationStore>()(
+  persist(
+    (set, get) => ({
       notifications: [],
-      timeouts: new Map(),
-    })
 
-    logger.info('All notifications cleared')
-  },
+      addNotification: (params: AddNotificationParams) => {
+        const id = crypto.randomUUID()
 
-  executeCallback: (id: string) => {
-    const notification = get().notifications.find((n) => n.id === id)
+        const notification: Notification = {
+          id,
+          level: params.level,
+          message: params.message,
+          action: params.action,
+          createdAt: Date.now(),
+          workflowId: params.workflowId,
+        }
 
-    if (!notification) {
-      logger.warn('Notification not found for callback execution', { id })
-      return
-    }
+        set((state) => ({
+          notifications: [notification, ...state.notifications],
+        }))
 
-    if (!notification.callback) {
-      logger.warn('Notification has no callback', { id })
-      return
-    }
-
-    try {
-      logger.info('Executing notification callback', { id })
-      const result = notification.callback()
-
-      // Handle async callbacks
-      if (result instanceof Promise) {
-        result.catch((error) => {
-          logger.error('Notification callback failed', { id, error })
+        logger.info('Notification added', {
+          id,
+          level: params.level,
+          message: params.message,
+          workflowId: params.workflowId,
+          actionType: params.action?.type,
         })
-      }
 
-      // Dismiss notification after callback execution
-      get().dismissNotification(id)
-    } catch (error) {
-      logger.error('Notification callback threw error', { id, error })
+        return id
+      },
+
+      removeNotification: (id: string) => {
+        set((state) => ({
+          notifications: state.notifications.filter((n) => n.id !== id),
+        }))
+
+        logger.info('Notification removed', { id })
+      },
+
+      getNotificationsForWorkflow: (workflowId: string) => {
+        return get().notifications.filter((n) => !n.workflowId || n.workflowId === workflowId)
+      },
+    }),
+    {
+      name: 'notification-storage',
+      /**
+       * Only persist workflow-level notifications.
+       * Global notifications (without a workflowId) are kept in memory only.
+       */
+      partialize: (state): Pick<NotificationStore, 'notifications'> => ({
+        notifications: state.notifications.filter((notification) => !!notification.workflowId),
+      }),
     }
-  },
-}))
-
-/**
- * Helper function to add an info notification
- *
- * @param message - Notification message
- * @param callback - Optional callback function
- * @returns Notification ID
- */
-export const addInfoNotification = (message: string, callback?: NotificationCallback): string => {
-  return useNotificationStore.getState().addNotification({
-    level: 'info',
-    message,
-    callback,
-  })
-}
-
-/**
- * Helper function to add an error notification
- *
- * @param message - Notification message
- * @param callback - Optional callback function
- * @returns Notification ID
- */
-export const addErrorNotification = (message: string, callback?: NotificationCallback): string => {
-  return useNotificationStore.getState().addNotification({
-    level: 'error',
-    message,
-    callback,
-  })
-}
-
-/**
- * Helper function to add a workflow block error notification
- *
- * @param blockName - Name of the block that errored
- * @param errorMessage - Error message
- * @param openCopilotCallback - Callback to open copilot with error message
- * @returns Notification ID
- */
-export const addBlockErrorNotification = (
-  blockName: string,
-  errorMessage: string,
-  openCopilotCallback?: NotificationCallback
-): string => {
-  return useNotificationStore.getState().addNotification({
-    level: 'error',
-    message: `${blockName}: ${errorMessage}`,
-    callback: openCopilotCallback,
-  })
-}
+  )
+)

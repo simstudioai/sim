@@ -24,6 +24,7 @@ interface OutputSelectProps {
   placeholder?: string
   valueMode?: 'id' | 'label'
   align?: 'start' | 'end' | 'center'
+  maxHeight?: number
 }
 
 export function OutputSelect({
@@ -34,6 +35,7 @@ export function OutputSelect({
   placeholder = 'Select outputs',
   valueMode = 'id',
   align = 'start',
+  maxHeight = 300,
 }: OutputSelectProps) {
   const [open, setOpen] = useState(false)
   const [highlightedIndex, setHighlightedIndex] = useState(-1)
@@ -369,9 +371,9 @@ export function OutputSelect({
         side='bottom'
         align={align}
         sideOffset={4}
-        maxHeight={300}
-        maxWidth={300}
-        minWidth={200}
+        maxHeight={maxHeight}
+        maxWidth={160}
+        minWidth={160}
         onKeyDown={handleKeyDown}
         tabIndex={0}
         style={{ outline: 'none' }}

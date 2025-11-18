@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { ArrowDown, Plus, RefreshCw } from 'lucide-react'
+import { ArrowDown, Plus } from 'lucide-react'
 import {
   Badge,
   Button,
@@ -174,13 +174,6 @@ export function WorkspaceHeader({
   const activeWorkspaceFull = workspaces.find((w) => w.id === workspaceId) || null
 
   /**
-   * Handles page refresh when disconnected
-   */
-  const handleRefresh = () => {
-    window.location.reload()
-  }
-
-  /**
    * Handle right-click context menu
    */
   const handleContextMenu = (e: React.MouseEvent, workspace: Workspace) => {
@@ -272,23 +265,6 @@ export function WorkspaceHeader({
       </div>
       {/* Workspace Actions */}
       <div className='flex items-center gap-[10px]'>
-        {/* Disconnection Indicator */}
-        {userPermissions.isOfflineMode && (
-          <Tooltip.Root>
-            <Tooltip.Trigger asChild>
-              <Button
-                variant='ghost'
-                type='button'
-                aria-label='Connection lost - click to refresh'
-                className='group !p-[3px] -m-[3px]'
-                onClick={handleRefresh}
-              >
-                <RefreshCw className='h-[14px] w-[14px] text-[var(--text-error)] dark:text-[var(--text-error)]' />
-              </Button>
-            </Tooltip.Trigger>
-            <Tooltip.Content>Connection lost - refresh</Tooltip.Content>
-          </Tooltip.Root>
-        )}
         {/* Invite */}
         <Badge className='cursor-pointer' onClick={() => setIsInviteModalOpen(true)}>
           Invite

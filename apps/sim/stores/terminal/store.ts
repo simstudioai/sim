@@ -14,6 +14,8 @@ interface TerminalState {
   setTerminalHeight: (height: number) => void
   outputPanelWidth: number
   setOutputPanelWidth: (width: number) => void
+  openOnRun: boolean
+  setOpenOnRun: (open: boolean) => void
   // displayMode: DisplayMode
   // setDisplayMode: (mode: DisplayMode) => void
   _hasHydrated: boolean
@@ -24,7 +26,7 @@ interface TerminalState {
  * Terminal height constraints
  * Note: Maximum height is enforced dynamically at 70% of viewport height in the resize hook
  */
-const MIN_TERMINAL_HEIGHT = 30
+export const MIN_TERMINAL_HEIGHT = 30
 export const DEFAULT_TERMINAL_HEIGHT = 196
 
 /**
@@ -55,6 +57,10 @@ export const useTerminalStore = create<TerminalState>()(
       setOutputPanelWidth: (width) => {
         const clampedWidth = Math.max(MIN_OUTPUT_PANEL_WIDTH, width)
         set({ outputPanelWidth: clampedWidth })
+      },
+      openOnRun: true,
+      setOpenOnRun: (open) => {
+        set({ openOnRun: open })
       },
       // displayMode: DEFAULT_DISPLAY_MODE,
       // setDisplayMode: (mode) => {

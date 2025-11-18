@@ -1,12 +1,7 @@
-export {
-  addBlockErrorNotification,
-  addErrorNotification,
-  addInfoNotification,
-  useNotificationStore,
-} from './store'
 export type {
   AddNotificationParams,
   Notification,
-  NotificationCallback,
-  NotificationLevel,
-} from './types'
+  NotificationAction,
+} from './store'
+export { useNotificationStore } from './store'
+export { openCopilotWithMessage } from './utils'

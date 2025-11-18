@@ -601,6 +601,7 @@ export function Chat() {
             disabled={!activeWorkflowId}
             placeholder='Select outputs'
             align='end'
+            maxHeight={180}
           />
         </div>
 
