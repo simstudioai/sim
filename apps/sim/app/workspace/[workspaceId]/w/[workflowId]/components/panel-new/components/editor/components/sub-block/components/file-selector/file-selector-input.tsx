@@ -60,7 +60,7 @@ export function FileSelectorInput({
         : ''
 
   const { isForeignCredential } = useForeignCredential(
-    subBlock.provider || subBlock.serviceId || 'google-drive',
+    subBlock.serviceId || subBlock.provider,
     normalizedCredentialId
   )
 
