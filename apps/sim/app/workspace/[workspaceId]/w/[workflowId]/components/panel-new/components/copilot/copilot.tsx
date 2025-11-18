@@ -1,7 +1,15 @@
 'use client'
 
 import type { MouseEvent as ReactMouseEvent } from 'react'
-import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react'
+import {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import { History, Plus } from 'lucide-react'
 import {
   Button,
@@ -16,6 +24,7 @@ import { Trash } from '@/components/emcn/icons/trash'
 import { createLogger } from '@/lib/logs/console/logger'
 import {
   CopilotMessage,
+  PlanModeSection,
   TodoList,
   UserInput,
   Welcome,
@@ -129,6 +138,28 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
     planTodos,
     setPlanTodos,
   })
+
+  /**
+   * Extract markdown content for plan mode section
+   * Gets the first assistant message content when in plan mode
+   * This represents the initial plan/objective that stays at the top
+   */
+  const planModeMarkdownContent = useMemo(() => {
+    if (mode !== 'plan' || messages.length === 0) {
+      return ''
+    }
+
+    // Find the first assistant message with content (the initial plan)
+    const firstAssistantMessage = messages.find(
+      (msg) => msg.role === 'assistant' && msg.content && msg.content.trim()
+    )
+
+    if (!firstAssistantMessage?.content) {
+      return ''
+    }
+
+    return firstAssistantMessage.content
+  }, [mode, messages])
 
   /**
    * Helper function to focus the copilot input
@@ -460,6 +491,13 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
             ) : (
               /* Normal messages view */
               <div className='relative flex flex-1 flex-col overflow-hidden'>
+                {/* Plan Mode Section - Pinned at top, only shown in plan mode with content */}
+                {mode === 'plan' && planModeMarkdownContent && (
+                  <div className='flex-shrink-0 px-[8px] pt-[8px]'>
+                    <PlanModeSection content={planModeMarkdownContent} />
+                  </div>
+                )}
+
                 <div className='relative flex-1 overflow-hidden'>
                   <div
                     ref={scrollAreaRef}
