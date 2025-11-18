@@ -123,7 +123,7 @@ export class EdgeConstructor {
       }
     }
 
-    if (metadata.routerBlockIds.has(source)) {
+    if (metadata.routerBlockIds.has(source) && handle !== EDGE.ERROR) {
       handle = `${EDGE.ROUTER_PREFIX}${target}`
     }
 

@@ -227,12 +227,8 @@ export function CancelSubscription({ subscription, subscriptionData }: CancelSub
           onClick={() => setIsDialogOpen(true)}
           disabled={isLoading}
           className={cn(
-            'h-8 rounded-[8px] font-medium text-xs transition-all duration-200',
-            error
-              ? 'border-red-500 text-red-500 dark:border-red-500 dark:text-red-500'
-              : isCancelAtPeriodEnd
-                ? 'text-muted-foreground hover:border-green-500 hover:bg-green-500 hover:text-white dark:hover:border-green-500 dark:hover:bg-green-500'
-                : 'text-muted-foreground hover:border-red-500 hover:bg-red-500 hover:text-white dark:hover:border-red-500 dark:hover:bg-red-500'
+            'h-8 rounded-[8px] font-medium text-xs',
+            error && 'border-red-500 text-red-500 dark:border-red-500 dark:text-red-500'
           )}
         >
           {error ? 'Error' : isCancelAtPeriodEnd ? 'Restore' : 'Manage'}

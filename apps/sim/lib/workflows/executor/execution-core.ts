@@ -257,12 +257,7 @@ export async function executeWorkflowCore(
       const startBlock = TriggerUtils.findStartBlock(mergedStates, executionKind, false)
 
       if (!startBlock) {
-        const errorMsg =
-          executionKind === 'api'
-            ? 'No API trigger block found. Add an API Trigger block to this workflow.'
-            : executionKind === 'chat'
-              ? 'No chat trigger block found. Add a Chat Trigger block to this workflow.'
-              : 'No trigger block found for this workflow.'
+        const errorMsg = 'No start block found. Add a start block to this workflow.'
         logger.error(`[${requestId}] ${errorMsg}`)
         throw new Error(errorMsg)
       }

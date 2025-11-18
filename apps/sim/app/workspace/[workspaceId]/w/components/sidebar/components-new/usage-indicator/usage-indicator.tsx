@@ -16,30 +16,39 @@ import { MIN_SIDEBAR_WIDTH, useSidebarStore } from '@/stores/sidebar/store'
 const logger = createLogger('UsageIndicator')
 
 /**
- * Minimum number of pills to display (at minimum sidebar width)
+ * Minimum number of pills to display (at minimum sidebar width).
  */
 const MIN_PILL_COUNT = 6
 
 /**
- * Maximum number of pills to display
+ * Maximum number of pills to display.
  */
 const MAX_PILL_COUNT = 8
 
 /**
- * Width increase (in pixels) required to add one additional pill
+ * Width increase (in pixels) required to add one additional pill.
  */
 const WIDTH_PER_PILL = 50
 
 /**
- * Animation configuration for usage pills
- * Controls how smoothly and quickly the highlight progresses across pills
+ * Animation tick interval in milliseconds.
+ * Controls the update frequency of the wave animation.
  */
 const PILL_ANIMATION_TICK_MS = 30
+
+/**
+ * Speed of the wave animation in pills per second.
+ */
 const PILLS_PER_SECOND = 1.8
+
+/**
+ * Distance (in pill units) the wave advances per animation tick.
+ * Derived from {@link PILLS_PER_SECOND} and {@link PILL_ANIMATION_TICK_MS}.
+ */
 const PILL_STEP_PER_TICK = (PILLS_PER_SECOND * PILL_ANIMATION_TICK_MS) / 1000
 
 /**
- * Plan name mapping
+ * Human-readable plan name labels.
  */
 const PLAN_NAMES = {
   enterprise: 'Enterprise',
@@ -48,17 +57,37 @@ const PLAN_NAMES = {
   free: 'Free',
 } as const
 
+/**
+ * Props for the {@link UsageIndicator} component.
+ */
 interface UsageIndicatorProps {
+  /**
+   * Optional click handler. If provided, overrides the default behavior
+   * of opening the settings modal to the subscription tab.
+   */
   onClick?: () => void
 }
 
+/**
+ * Displays a visual usage indicator showing current subscription usage
+ * with an animated pill bar that responds to hover interactions.
+ *
+ * The component shows:
+ * - Current plan type (Free, Pro, Team, Enterprise)
+ * - Current usage vs. limit (e.g., $7.00 / $10.00)
+ * - Visual pill bar representing usage percentage
+ * - Upgrade button for free plans or when blocked
+ *
+ * @param props - Component props
+ * @returns A usage indicator component with responsive pill visualization
+ */
 export function UsageIndicator({ onClick }: UsageIndicatorProps) {
   const { data: subscriptionData, isLoading } = useSubscriptionData()
   const sidebarWidth = useSidebarStore((state) => state.sidebarWidth)
 
   /**
-   * Calculate pill count based on sidebar width (6-8 pills dynamically)
-   * This provides responsive feedback as the sidebar width changes
+   * Calculate pill count based on sidebar width (6-8 pills dynamically).
+   * This provides responsive feedback as the sidebar width changes.
    */
   const pillCount = useMemo(() => {
     const widthDelta = sidebarWidth - MIN_SIDEBAR_WIDTH
@@ -82,54 +111,56 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
 
   const billingStatus = getBillingStatus(subscriptionData?.data)
   const isBlocked = billingStatus === 'blocked'
-  const showUpgradeButton = planType === 'free' || isBlocked
+  const showUpgradeButton =
+    (planType === 'free' || isBlocked || progressPercentage >= 80) && planType !== 'enterprise'
 
   /**
-   * Calculate which pills should be filled based on usage percentage
-   * Uses shared Math.ceil heuristic but with dynamic pill count (6-8)
-   * This ensures consistent calculation logic while maintaining responsive pill count
+   * Calculate which pills should be filled based on usage percentage.
+   * Uses Math.ceil heuristic with dynamic pill count (6-8).
+   * This ensures consistent calculation logic while maintaining responsive pill count.
    */
   const filledPillsCount = Math.ceil((progressPercentage / 100) * pillCount)
   const isAlmostOut = filledPillsCount === pillCount
 
   const [isHovered, setIsHovered] = useState(false)
   const [wavePosition, setWavePosition] = useState<number | null>(null)
-  const [hasWrapped, setHasWrapped] = useState(false)
 
   const startAnimationIndex = pillCount === 0 ? 0 : Math.min(filledPillsCount, pillCount - 1)
 
   useEffect(() => {
-    if (!isHovered || pillCount <= 0) {
+    const isFreePlan = subscription.isFree
+
+    if (!isHovered || pillCount <= 0 || !isFreePlan) {
       setWavePosition(null)
-      setHasWrapped(false)
       return
     }
 
-    const totalSpan = pillCount
-    let wrapped = false
-    setHasWrapped(false)
+    /**
+     * Maximum distance (in pill units) the wave should travel from
+     * {@link startAnimationIndex} to the end of the row. The wave stops
+     * once it reaches the final pill and does not wrap.
+     */
+    const maxDistance = pillCount <= 0 ? 0 : Math.max(0, pillCount - startAnimationIndex)
+
     setWavePosition(0)
 
     const interval = window.setInterval(() => {
       setWavePosition((prev) => {
         const current = prev ?? 0
-        const next = current + PILL_STEP_PER_TICK
 
-        // Mark as wrapped after first complete cycle
-        if (next >= totalSpan && !wrapped) {
-          wrapped = true
-          setHasWrapped(true)
+        if (current >= maxDistance) {
+          return current
         }
 
-        // Return continuous value, never reset (seamless loop)
-        return next
+        const next = current + PILL_STEP_PER_TICK
+        return next >= maxDistance ? maxDistance : next
       })
     }, PILL_ANIMATION_TICK_MS)
 
     return () => {
       window.clearInterval(interval)
     }
-  }, [isHovered, pillCount, startAnimationIndex])
+  }, [isHovered, pillCount, startAnimationIndex, subscription.isFree])
 
   if (isLoading) {
     return (
@@ -153,7 +184,7 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
     )
   }
 
-  const handleClick = () => {
+  const handleClick = async () => {
     try {
       if (onClick) {
         onClick()
@@ -163,7 +194,35 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
       const blocked = getBillingStatus(subscriptionData?.data) === 'blocked'
       const canUpg = canUpgrade(subscriptionData?.data)
 
-      // Open Settings modal to the subscription tab (upgrade UI lives there)
+      // If blocked, try to open billing portal directly for faster recovery
+      if (blocked) {
+        try {
+          const context = subscription.isTeam || subscription.isEnterprise ? 'organization' : 'user'
+          const organizationId =
+            subscription.isTeam || subscription.isEnterprise
+              ? subscriptionData?.data?.organization?.id
+              : undefined
+
+          const response = await fetch('/api/billing/portal', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ context, organizationId }),
+          })
+
+          if (response.ok) {
+            const { url } = await response.json()
+            window.open(url, '_blank')
+            logger.info('Opened billing portal for blocked account', { context, organizationId })
+            return
+          }
+        } catch (portalError) {
+          logger.warn('Failed to open billing portal, falling back to settings', {
+            error: portalError,
+          })
+        }
+      }
+
+      // Fallback: Open Settings modal to the subscription tab
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('open-settings', { detail: { tab: 'subscription' } }))
         logger.info('Opened settings to subscription tab', { blocked, canUpgrade: canUpg })
@@ -175,7 +234,9 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
 
   return (
     <div
-      className='group flex flex-shrink-0 cursor-pointer flex-col gap-[8px] border-t px-[13.5px] pt-[8px] pb-[10px]'
+      className={`group flex flex-shrink-0 cursor-pointer flex-col gap-[8px] border-t px-[13.5px] pt-[8px] pb-[10px] ${
+        isBlocked ? 'border-red-500/50 bg-red-950/20' : ''
+      }`}
       onClick={handleClick}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
@@ -188,8 +249,8 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
           <div className='flex items-center gap-[4px]'>
             {isBlocked ? (
               <>
-                <span className='font-medium text-[12px] text-[var(--text-tertiary)]'>Over</span>
-                <span className='font-medium text-[12px] text-[var(--text-tertiary)]'>limit</span>
+                <span className='font-medium text-[12px] text-red-400'>Payment</span>
+                <span className='font-medium text-[12px] text-red-400'>Required</span>
               </>
             ) : (
               <>
@@ -207,10 +268,14 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
         {showUpgradeButton && (
           <Button
             variant='ghost'
-            className='-mx-1 !h-auto !px-1 !py-0 !text-[#F473B7] group-hover:!text-[#F789C4] mt-[-2px] transition-colors duration-100'
+            className={`-mx-1 !h-auto !px-1 !py-0 mt-[-2px] transition-colors duration-100 ${
+              isBlocked
+                ? '!text-red-400 group-hover:!text-red-300'
+                : '!text-[#F473B7] group-hover:!text-[#F789C4]'
+            }`}
             onClick={handleClick}
           >
-            <span className='font-medium text-[12px]'>Upgrade</span>
+            <span className='font-medium text-[12px]'>{isBlocked ? 'Fix Now' : 'Upgrade'}</span>
           </Button>
         )}
       </div>
@@ -220,63 +285,42 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
         {Array.from({ length: pillCount }).map((_, i) => {
           const isFilled = i < filledPillsCount
 
-          const baseColor = isFilled ? (isAlmostOut ? '#ef4444' : '#34B5FF') : '#414141'
+          const baseColor = isFilled
+            ? isBlocked || isAlmostOut
+              ? '#ef4444'
+              : '#34B5FF'
+            : '#414141'
 
           let backgroundColor = baseColor
           let backgroundImage: string | undefined
 
-          if (isHovered && wavePosition !== null && pillCount > 0) {
-            const totalSpan = pillCount
+          if (isHovered && wavePosition !== null && pillCount > 0 && subscription.isFree) {
             const grayColor = '#414141'
             const activeColor = isAlmostOut ? '#ef4444' : '#34B5FF'
 
-            if (!hasWrapped) {
-              // First pass: respect original fill state, start from startAnimationIndex
-              const headIndex = Math.floor(wavePosition)
-              const progress = wavePosition - headIndex
+            /**
+             * Single-pass wave: travel from {@link startAnimationIndex} to the end
+             * of the row without wrapping. Previously highlighted pills remain
+             * filled; the wave only affects pills at or after the start index.
+             */
+            const headIndex = Math.floor(wavePosition)
+            const progress = wavePosition - headIndex
 
-              const pillOffsetFromStart =
-                i >= startAnimationIndex
-                  ? i - startAnimationIndex
-                  : totalSpan - startAnimationIndex + i
+            const pillOffsetFromStart = i - startAnimationIndex
 
-              if (pillOffsetFromStart < headIndex) {
-                backgroundColor = baseColor
-                backgroundImage = `linear-gradient(to right, ${activeColor} 0%, ${activeColor} 100%)`
-              } else if (pillOffsetFromStart === headIndex) {
-                const fillPercent = Math.max(0, Math.min(1, progress)) * 100
-                backgroundColor = baseColor
-                backgroundImage = `linear-gradient(to right, ${activeColor} 0%, ${activeColor} ${fillPercent}%, ${baseColor} ${fillPercent}%, ${baseColor} 100%)`
-              }
+            if (pillOffsetFromStart < 0) {
+              // Before the wave start; keep original baseColor.
+            } else if (pillOffsetFromStart < headIndex) {
+              backgroundColor = isFilled ? baseColor : grayColor
+              backgroundImage = `linear-gradient(to right, ${activeColor} 0%, ${activeColor} 100%)`
+            } else if (pillOffsetFromStart === headIndex) {
+              const fillPercent = Math.max(0, Math.min(1, progress)) * 100
+              backgroundColor = isFilled ? baseColor : grayColor
+              backgroundImage = `linear-gradient(to right, ${activeColor} 0%, ${activeColor} ${fillPercent}%, ${
+                isFilled ? baseColor : grayColor
+              } ${fillPercent}%, ${isFilled ? baseColor : grayColor} 100%)`
             } else {
-              // Subsequent passes: render wave at BOTH current and next-cycle positions for seamless wrap
-              const wrappedPosition = wavePosition % totalSpan
-              const currentHead = Math.floor(wrappedPosition)
-              const progress = wrappedPosition - currentHead
-
-              // Primary wave position
-              const primaryFilled = i < currentHead
-              const primaryActive = i === currentHead
-
-              // Secondary wave position (one full cycle ahead, wraps to beginning)
-              const secondaryHead = Math.floor(wavePosition + totalSpan) % totalSpan
-              const secondaryProgress =
-                wavePosition + totalSpan - Math.floor(wavePosition + totalSpan)
-              const secondaryFilled = i < secondaryHead
-              const secondaryActive = i === secondaryHead
-
-              // Render: pill is filled if either wave position has filled it
-              if (primaryFilled || secondaryFilled) {
-                backgroundColor = grayColor
-                backgroundImage = `linear-gradient(to right, ${activeColor} 0%, ${activeColor} 100%)`
-              } else if (primaryActive || secondaryActive) {
-                const activeProgress = primaryActive ? progress : secondaryProgress
-                const fillPercent = Math.max(0, Math.min(1, activeProgress)) * 100
-                backgroundColor = grayColor
-                backgroundImage = `linear-gradient(to right, ${activeColor} 0%, ${activeColor} ${fillPercent}%, ${grayColor} ${fillPercent}%, ${grayColor} 100%)`
-              } else {
-                backgroundColor = grayColor
-              }
+              backgroundColor = isFilled ? baseColor : grayColor
             }
           }
 

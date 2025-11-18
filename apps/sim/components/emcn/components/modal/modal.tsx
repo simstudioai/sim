@@ -41,8 +41,9 @@ import { cn } from '@/lib/utils'
 
 /**
  * Modal z-index configuration
+ * Set higher than Dialog component (10000000) to ensure Settings modal appears on top when opened from Deploy modal
  */
-const MODAL_Z_INDEX = 9999999
+const MODAL_Z_INDEX = 10000100
 
 /**
  * Modal sizing constants

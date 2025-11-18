@@ -35,6 +35,7 @@ import { WandPromptBar } from '@/app/workspace/[workspaceId]/w/[workflowId]/comp
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
 import { useWand } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-wand'
 import type { GenerationType } from '@/blocks/types'
+import { createEnvVarPattern, createReferencePattern } from '@/executor/utils/reference-validation'
 import { useTagSelection } from '@/hooks/use-tag-selection'
 import { normalizeBlockName } from '@/stores/workflows/utils'
 
@@ -99,14 +100,15 @@ const createHighlightFunction = (
     let processedCode = codeToHighlight
 
     // Replace environment variables with placeholders
-    processedCode = processedCode.replace(/\{\{([^}]+)\}\}/g, (match) => {
+    processedCode = processedCode.replace(createEnvVarPattern(), (match) => {
       const placeholder = `__ENV_VAR_${placeholders.length}__`
       placeholders.push({ placeholder, original: match, type: 'env' })
       return placeholder
     })
 
     // Replace variable references with placeholders
-    processedCode = processedCode.replace(/<([^>]+)>/g, (match) => {
+    // Use [^<>]+ to prevent matching across nested brackets (e.g., "<3 <real.ref>" should match separately)
+    processedCode = processedCode.replace(createReferencePattern(), (match) => {
       if (shouldHighlightReference(match)) {
         const placeholder = `__VAR_REF_${placeholders.length}__`
         placeholders.push({ placeholder, original: match, type: 'var' })

@@ -11,7 +11,7 @@ const DEFAULT_CONTAINER_HEIGHT = 300
  * Hook providing utilities for node position, hierarchy, and dimension calculations
  */
 export function useNodeUtilities(blocks: Record<string, any>) {
-  const { getNodes, project } = useReactFlow()
+  const { getNodes } = useReactFlow()
 
   /**
    * Check if a block is a container type (loop, parallel, or subflow)

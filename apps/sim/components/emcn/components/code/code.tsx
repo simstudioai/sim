@@ -81,9 +81,7 @@ function Container({
         'bg-[#1F1F1F] font-medium font-mono text-sm transition-colors',
         'dark:border-[var(--border-strong)]',
         // Overflow handling for long content
-        'overflow-x-auto',
-        // Vertical resize handle
-        'resize-y overflow-y-auto',
+        'overflow-x-auto overflow-y-auto',
         // Streaming state
         isStreaming && 'streaming-effect',
         className

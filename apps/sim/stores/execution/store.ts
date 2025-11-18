@@ -56,7 +56,7 @@ export const useExecutionStore = create<ExecutionState & ExecutionActions>()((se
     if (isExecuting) {
       set({ autoPanDisabled: false })
       // Clear run path when starting a new execution
-      set({ lastRunPath: new Map() })
+      set({ lastRunPath: new Map(), lastRunEdges: new Map() })
     }
   },
   setIsDebugging: (isDebugging) => set({ isDebugging }),
@@ -69,6 +69,12 @@ export const useExecutionStore = create<ExecutionState & ExecutionActions>()((se
     newRunPath.set(blockId, status)
     set({ lastRunPath: newRunPath })
   },
-  clearRunPath: () => set({ lastRunPath: new Map() }),
+  setEdgeRunStatus: (edgeId, status) => {
+    const { lastRunEdges } = get()
+    const newRunEdges = new Map(lastRunEdges)
+    newRunEdges.set(edgeId, status)
+    set({ lastRunEdges: newRunEdges })
+  },
+  clearRunPath: () => set({ lastRunPath: new Map(), lastRunEdges: new Map() }),
   reset: () => set(initialState),
 }))

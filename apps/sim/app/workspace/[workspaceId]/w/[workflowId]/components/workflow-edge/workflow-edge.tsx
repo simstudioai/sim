@@ -1,6 +1,7 @@
 import { X } from 'lucide-react'
 import { BaseEdge, EdgeLabelRenderer, type EdgeProps, getSmoothStepPath } from 'reactflow'
 import type { EdgeDiffStatus } from '@/lib/workflows/diff/types'
+import { useExecutionStore } from '@/stores/execution/store'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff'
 
 interface WorkflowEdgeProps extends EdgeProps {
@@ -43,6 +44,7 @@ export const WorkflowEdge = ({
   const diffAnalysis = useWorkflowDiffStore((state) => state.diffAnalysis)
   const isShowingDiff = useWorkflowDiffStore((state) => state.isShowingDiff)
   const isDiffReady = useWorkflowDiffStore((state) => state.isDiffReady)
+  const lastRunEdges = useExecutionStore((state) => state.lastRunEdges)
 
   const generateEdgeIdentity = (
     sourceId: string,
@@ -78,10 +80,16 @@ export const WorkflowEdge = ({
   const dataSourceHandle = (data as { sourceHandle?: string } | undefined)?.sourceHandle
   const isErrorEdge = (sourceHandle ?? dataSourceHandle) === 'error'
 
+  // Check if this edge was traversed during last execution
+  const edgeRunStatus = lastRunEdges.get(id)
+
   const getEdgeColor = () => {
     if (edgeDiffStatus === 'deleted') return 'var(--text-error)'
     if (isErrorEdge) return 'var(--text-error)'
     if (edgeDiffStatus === 'new') return 'var(--brand-tertiary)'
+    // Show run path status if edge was traversed
+    if (edgeRunStatus === 'success') return 'var(--border-success)'
+    if (edgeRunStatus === 'error') return 'var(--text-error)'
     return 'var(--surface-12)'
   }
 

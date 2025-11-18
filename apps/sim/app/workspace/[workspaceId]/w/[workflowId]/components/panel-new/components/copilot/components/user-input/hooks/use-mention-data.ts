@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
+import { shallow } from 'zustand/shallow'
 import { createLogger } from '@/lib/logs/console/logger'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
@@ -109,7 +110,11 @@ export function useMentionData(props: UseMentionDataProps) {
   const [workflowBlocks, setWorkflowBlocks] = useState<WorkflowBlockItem[]>([])
   const [isLoadingWorkflowBlocks, setIsLoadingWorkflowBlocks] = useState(false)
 
-  const workflowStoreBlocks = useWorkflowStore((state) => state.blocks)
+  // Only subscribe to block keys to avoid re-rendering on position updates
+  const blockKeys = useWorkflowStore(
+    useCallback((state) => Object.keys(state.blocks), []),
+    shallow
+  )
 
   // Use workflow registry as source of truth for workflows
   const registryWorkflows = useWorkflowRegistry((state) => state.workflows)
@@ -139,15 +144,19 @@ export function useMentionData(props: UseMentionDataProps) {
 
   /**
    * Syncs workflow blocks from store
+   * Only re-runs when blocks are added/removed (not on position updates)
    */
   useEffect(() => {
     const syncWorkflowBlocks = async () => {
-      if (!workflowId || !workflowStoreBlocks || Object.keys(workflowStoreBlocks).length === 0) {
+      if (!workflowId || blockKeys.length === 0) {
         setWorkflowBlocks([])
         return
       }
 
       try {
+        // Fetch current blocks from store
+        const workflowStoreBlocks = useWorkflowStore.getState().blocks
+
         const { registry: blockRegistry } = await import('@/blocks/registry')
         const mapped = Object.values(workflowStoreBlocks).map((b: any) => {
           const reg = (blockRegistry as any)[b.type]
@@ -169,7 +178,7 @@ export function useMentionData(props: UseMentionDataProps) {
     }
 
     syncWorkflowBlocks()
-  }, [workflowStoreBlocks, workflowId])
+  }, [blockKeys, workflowId])
 
   /**
    * Ensures past chats are loaded
@@ -323,10 +332,10 @@ export function useMentionData(props: UseMentionDataProps) {
     if (!workflowId) return
     logger.debug('ensureWorkflowBlocksLoaded called', {
       workflowId,
-      storeBlocksCount: Object.keys(workflowStoreBlocks || {}).length,
+      storeBlocksCount: blockKeys.length,
       workflowBlocksCount: workflowBlocks.length,
     })
-  }, [workflowId, workflowStoreBlocks, workflowBlocks.length])
+  }, [workflowId, blockKeys.length, workflowBlocks.length])
 
   return {
     // State
