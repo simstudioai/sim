@@ -133,7 +133,7 @@ async function formatTeamsGraphNotification(
       input: 'Teams notification received',
       webhook: {
         data: {
-          provider: 'microsoftteams',
+          provider: 'microsoft-teams',
           path: foundWebhook?.path || '',
           providerConfig: foundWebhook?.providerConfig || {},
           payload: body,
@@ -397,7 +397,7 @@ async function formatTeamsGraphNotification(
       },
       webhook: {
         data: {
-          provider: 'microsoftteams',
+          provider: 'microsoft-teams',
           path: foundWebhook?.path || '',
           providerConfig: foundWebhook?.providerConfig || {},
           payload: body,
@@ -446,7 +446,7 @@ async function formatTeamsGraphNotification(
     },
     webhook: {
       data: {
-        provider: 'microsoftteams',
+        provider: 'microsoft-teams',
         path: foundWebhook?.path || '',
         providerConfig: foundWebhook?.providerConfig || {},
         payload: body,
@@ -818,7 +818,7 @@ export async function formatWebhookInput(
     }
   }
 
-  if (foundWebhook.provider === 'microsoftteams') {
+  if (foundWebhook.provider === 'microsoft-teams') {
     // Check if this is a Microsoft Graph change notification
     if (body?.value && Array.isArray(body.value) && body.value.length > 0) {
       return await formatTeamsGraphNotification(body, foundWebhook, foundWorkflow, request)
@@ -875,7 +875,7 @@ export async function formatWebhookInput(
 
       webhook: {
         data: {
-          provider: 'microsoftteams',
+          provider: 'microsoft-teams',
           path: foundWebhook.path,
           providerConfig: foundWebhook.providerConfig,
           payload: body,
@@ -1653,7 +1653,7 @@ export function verifyProviderWebhook(
 
       break
     }
-    case 'microsoftteams':
+    case 'microsoft-teams':
       break
     case 'generic':
       if (providerConfig.requireAuth) {
