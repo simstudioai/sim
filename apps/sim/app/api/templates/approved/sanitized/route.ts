@@ -77,6 +77,33 @@ export async function GET(request: NextRequest) {
         // The template.state is already credential-sanitized, now sanitize for copilot
         const copilotSanitized = sanitizeForCopilot(template.state as any)
 
+        // Defensively remove any outputs fields that might have leaked through
+        // This ensures runtime execution data is never sent to copilot
+        if (copilotSanitized?.blocks) {
+          Object.values(copilotSanitized.blocks).forEach((block: any) => {
+            if (block && typeof block === 'object') {
+              delete block.outputs
+              delete block.position
+              delete block.height
+              delete block.layout
+              delete block.horizontalHandles
+              
+              // Also clean nested nodes recursively
+              if (block.nestedNodes) {
+                Object.values(block.nestedNodes).forEach((nestedBlock: any) => {
+                  if (nestedBlock && typeof nestedBlock === 'object') {
+                    delete nestedBlock.outputs
+                    delete nestedBlock.position
+                    delete nestedBlock.height
+                    delete nestedBlock.layout
+                    delete nestedBlock.horizontalHandles
+                  }
+                })
+              }
+            }
+          })
+        }
+
         // Extract description from details
         const details = template.details as { tagline?: string; about?: string } | null
         const description = details?.tagline || details?.about || ''
