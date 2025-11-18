@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { Button, RotatingDigit } from '@/components/emcn'
+import { Button } from '@/components/emcn'
 import { Skeleton } from '@/components/ui'
 import { createLogger } from '@/lib/logs/console/logger'
 import {
@@ -15,6 +15,7 @@ import { isUsageAtLimit, USAGE_PILL_COLORS } from '@/lib/subscription/usage-visu
 import { useSocket } from '@/contexts/socket-context'
 import { subscriptionKeys, useSubscriptionData } from '@/hooks/queries/subscription'
 import { MIN_SIDEBAR_WIDTH, useSidebarStore } from '@/stores/sidebar/store'
+import { RotatingDigit } from './rotating-digit'
 
 const logger = createLogger('UsageIndicator')
 
