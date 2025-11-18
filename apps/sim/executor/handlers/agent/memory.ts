@@ -4,6 +4,7 @@ import type { AgentInputs, Message } from '@/executor/handlers/agent/types'
 import type { ExecutionContext } from '@/executor/types'
 import { buildAPIUrl, buildAuthHeaders } from '@/executor/utils/http'
 import { stringifyJSON } from '@/executor/utils/json'
+import { PROVIDER_DEFINITIONS } from '@/providers/models'
 
 const logger = createLogger('Memory')
 
@@ -15,7 +16,11 @@ export class Memory {
   /**
    * Fetch messages from memory based on memoryType configuration
    */
-  async fetchMemoryMessages(ctx: ExecutionContext, inputs: AgentInputs): Promise<Message[]> {
+  async fetchMemoryMessages(
+    ctx: ExecutionContext,
+    inputs: AgentInputs,
+    blockId: string
+  ): Promise<Message[]> {
     if (!inputs.memoryType || inputs.memoryType === 'none') {
       return []
     }
@@ -26,20 +31,29 @@ export class Memory {
     }
 
     try {
-      // Validate inputs before processing
       this.validateInputs(inputs.conversationId)
 
-      const memoryKey = this.buildMemoryKey(ctx, inputs)
-      const messages = await this.fetchFromMemoryAPI(ctx.workflowId, memoryKey)
+      const memoryKey = this.buildMemoryKey(ctx, inputs, blockId)
+      let messages = await this.fetchFromMemoryAPI(ctx.workflowId, memoryKey)
 
-      // Apply sliding window if configured (message-based)
-      if (inputs.slidingWindowSize && inputs.memoryType === 'sliding_window') {
-        return this.applySlidingWindow(messages, inputs.slidingWindowSize)
-      }
+      switch (inputs.memoryType) {
+        case 'conversation':
+          messages = this.applyContextWindowLimit(messages, inputs.model)
+          break
 
-      // Apply sliding window if configured (token-based)
-      if (inputs.slidingWindowTokens && inputs.memoryType === 'sliding_window_tokens') {
-        return this.applySlidingWindowByTokens(messages, inputs.slidingWindowTokens, inputs.model)
+        case 'sliding_window': {
+          // Default to 10 messages if not specified (matches agent block default)
+          const windowSize = inputs.slidingWindowSize || '10'
+          messages = this.applySlidingWindow(messages, windowSize)
+          break
+        }
+
+        case 'sliding_window_tokens': {
+          // Default to 4000 tokens if not specified (matches agent block default)
+          const maxTokens = inputs.slidingWindowTokens || '4000'
+          messages = this.applySlidingWindowByTokens(messages, maxTokens, inputs.model)
+          break
+        }
       }
 
       return messages
@@ -56,7 +70,8 @@ export class Memory {
   async persistMemoryMessage(
     ctx: ExecutionContext,
     inputs: AgentInputs,
-    assistantMessage: Message
+    assistantMessage: Message,
+    blockId: string
   ): Promise<void> {
     if (!inputs.memoryType || inputs.memoryType === 'none') {
       return
@@ -68,44 +83,34 @@ export class Memory {
     }
 
     try {
-      // Validate inputs before processing
       this.validateInputs(inputs.conversationId, assistantMessage.content)
 
-      const memoryKey = this.buildMemoryKey(ctx, inputs)
+      const memoryKey = this.buildMemoryKey(ctx, inputs, blockId)
 
-      // For sliding window (message-based), we need to fetch and recompute
-      // For sliding window (token-based), we also need to fetch and recompute
-      // For other memory types, use atomic append
-      if (inputs.slidingWindowSize && inputs.memoryType === 'sliding_window') {
-        // Fetch existing messages
+      if (inputs.memoryType === 'sliding_window') {
+        // Default to 10 messages if not specified (matches agent block default)
+        const windowSize = inputs.slidingWindowSize || '10'
+
         const existingMessages = await this.fetchFromMemoryAPI(ctx.workflowId, memoryKey)
-
-        // Append new assistant message
         const updatedMessages = [...existingMessages, assistantMessage]
+        const messagesToPersist = this.applySlidingWindow(updatedMessages, windowSize)
 
-        // Apply message-based sliding window
-        const messagesToPersist = this.applySlidingWindow(updatedMessages, inputs.slidingWindowSize)
-
-        // Persist entire array (UPSERT is fine here since we're replacing with windowed data)
         await this.persistToMemoryAPI(ctx.workflowId, memoryKey, messagesToPersist)
-      } else if (inputs.slidingWindowTokens && inputs.memoryType === 'sliding_window_tokens') {
-        // Fetch existing messages
+      } else if (inputs.memoryType === 'sliding_window_tokens') {
+        // Default to 4000 tokens if not specified (matches agent block default)
+        const maxTokens = inputs.slidingWindowTokens || '4000'
+
         const existingMessages = await this.fetchFromMemoryAPI(ctx.workflowId, memoryKey)
-
-        // Append new assistant message
         const updatedMessages = [...existingMessages, assistantMessage]
-
-        // Apply token-based sliding window
         const messagesToPersist = this.applySlidingWindowByTokens(
           updatedMessages,
-          inputs.slidingWindowTokens,
+          maxTokens,
           inputs.model
         )
 
-        // Persist entire array (UPSERT is fine here since we're replacing with windowed data)
         await this.persistToMemoryAPI(ctx.workflowId, memoryKey, messagesToPersist)
       } else {
-        // Use atomic append for non-windowed memory
+        // Conversation mode: use atomic append for better concurrency
         await this.atomicAppendToMemory(ctx.workflowId, memoryKey, assistantMessage)
       }
 
@@ -115,19 +120,17 @@ export class Memory {
       })
     } catch (error) {
       logger.error('Failed to persist memory message:', error)
-      // Don't throw - memory persistence failure shouldn't break workflow execution
     }
   }
 
   /**
    * Persist user message to memory before agent execution
-   * This ensures the conversation history is complete
-   * Uses atomic append operations to prevent race conditions
    */
   async persistUserMessage(
     ctx: ExecutionContext,
     inputs: AgentInputs,
-    userMessage: Message
+    userMessage: Message,
+    blockId: string
   ): Promise<void> {
     if (!inputs.memoryType || inputs.memoryType === 'none') {
       return
@@ -139,11 +142,8 @@ export class Memory {
     }
 
     try {
-      const memoryKey = this.buildMemoryKey(ctx, inputs)
+      const memoryKey = this.buildMemoryKey(ctx, inputs, blockId)
 
-      // For sliding window (message-based), we need to fetch and recompute
-      // For sliding window (token-based), we also need to fetch and recompute
-      // For other memory types, use atomic append
       if (inputs.slidingWindowSize && inputs.memoryType === 'sliding_window') {
         const existingMessages = await this.fetchFromMemoryAPI(ctx.workflowId, memoryKey)
         const updatedMessages = [...existingMessages, userMessage]
@@ -159,7 +159,6 @@ export class Memory {
         )
         await this.persistToMemoryAPI(ctx.workflowId, memoryKey, messagesToPersist)
       } else {
-        // Use atomic append for non-windowed memory
         await this.atomicAppendToMemory(ctx.workflowId, memoryKey, userMessage)
       }
     } catch (error) {
@@ -168,41 +167,29 @@ export class Memory {
   }
 
   /**
-   * Build memory key based on memoryType and conversationId
+   * Build memory key based on conversationId and blockId
+   * BlockId provides block-level memory isolation
    */
-  private buildMemoryKey(ctx: ExecutionContext, inputs: AgentInputs): string {
-    const { memoryType, conversationId } = inputs
+  private buildMemoryKey(_ctx: ExecutionContext, inputs: AgentInputs, blockId: string): string {
+    const { conversationId } = inputs
 
-    switch (memoryType) {
-      case 'conversation_id':
-        if (!conversationId || conversationId.trim() === '') {
-          throw new Error(
-            'Conversation ID is required when using conversation_id memory type. ' +
-              'Please provide a unique identifier (e.g., user-123, session-abc, customer-456).'
-          )
-        }
-        return `conversation:${conversationId}:${ctx.workflowId}`
-
-      case 'all_conversations':
-        return `workflow:${ctx.workflowId}:all_conversations`
-
-      case 'sliding_window':
-        // Same as all_conversations but with limited retrieval by message count
-        return `workflow:${ctx.workflowId}:sliding_window`
-
-      case 'sliding_window_tokens':
-        // Same as all_conversations but with limited retrieval by token count
-        return `workflow:${ctx.workflowId}:sliding_window_tokens`
-
-      default:
-        return `workflow:${ctx.workflowId}:agent_memory`
+    if (!conversationId || conversationId.trim() === '') {
+      throw new Error(
+        'Conversation ID is required for all memory types. ' +
+          'Please provide a unique identifier (e.g., user-123, session-abc, customer-456).'
+      )
     }
+
+    return `${conversationId}:${blockId}`
   }
 
   /**
    * Apply sliding window to limit number of conversation messages
-   * System messages are kept separately and don't count toward the window size
-   * Following industry standard: window = N recent conversation messages (user/assistant)
+   *
+   * System message handling:
+   * - System messages are excluded from the sliding window count
+   * - Only the first system message is preserved and placed at the start
+   * - This ensures system prompts remain available while limiting conversation history
    */
   private applySlidingWindow(messages: Message[], windowSize: string): Message[] {
     const limit = Number.parseInt(windowSize, 10)
@@ -212,16 +199,11 @@ export class Memory {
       return messages
     }
 
-    // Separate system messages from conversation messages
-    // System messages are kept outside the sliding window (industry standard)
     const systemMessages = messages.filter((msg) => msg.role === 'system')
     const conversationMessages = messages.filter((msg) => msg.role !== 'system')
 
-    // Take last N conversation messages (most recent)
     const recentMessages = conversationMessages.slice(-limit)
 
-    // Reconstruct: ONLY FIRST system message + recent conversation
-    // Multiple system messages in history are consolidated to one
     const firstSystemMessage = systemMessages.length > 0 ? [systemMessages[0]] : []
 
     return [...firstSystemMessage, ...recentMessages]
@@ -229,8 +211,11 @@ export class Memory {
 
   /**
    * Apply token-based sliding window to limit conversation by token count
-   * System message tokens count toward the limit (more accurate token accounting)
-   * Ensures at least 1 message is included even if it exceeds the limit
+   *
+   * System message handling:
+   * - For consistency with message-based sliding window, the first system message is preserved
+   * - System messages are excluded from the token count
+   * - This ensures system prompts are always available while limiting conversation history
    */
   private applySlidingWindowByTokens(
     messages: Message[],
@@ -244,20 +229,22 @@ export class Memory {
       return messages
     }
 
+    // Separate system messages from conversation messages for consistent handling
+    const systemMessages = messages.filter((msg) => msg.role === 'system')
+    const conversationMessages = messages.filter((msg) => msg.role !== 'system')
+
     const result: Message[] = []
     let currentTokenCount = 0
 
-    // Process messages from newest to oldest
-    for (let i = messages.length - 1; i >= 0; i--) {
-      const message = messages[i]
+    // Add conversation messages from most recent backwards
+    for (let i = conversationMessages.length - 1; i >= 0; i--) {
+      const message = conversationMessages[i]
       const messageTokens = getAccurateTokenCount(message.content, model)
 
       if (currentTokenCount + messageTokens <= tokenLimit) {
-        // Message fits within limit
         result.unshift(message)
         currentTokenCount += messageTokens
       } else if (result.length === 0) {
-        // Include at least 1 message even if it exceeds limit
         logger.warn('Single message exceeds token limit, including anyway', {
           messageTokens,
           tokenLimit,
@@ -274,12 +261,118 @@ export class Memory {
 
     logger.debug('Applied token-based sliding window', {
       totalMessages: messages.length,
+      conversationMessages: conversationMessages.length,
       includedMessages: result.length,
       totalTokens: currentTokenCount,
       tokenLimit,
     })
 
-    return result
+    // Preserve first system message and prepend to results (consistent with message-based window)
+    const firstSystemMessage = systemMessages.length > 0 ? [systemMessages[0]] : []
+    return [...firstSystemMessage, ...result]
+  }
+
+  /**
+   * Apply context window limit based on model's maximum context window
+   * Auto-trims oldest conversation messages when approaching the model's context limit
+   * Uses 90% of context window (10% buffer for response)
+   * Only applies if model has contextWindow defined and contextInformationAvailable !== false
+   */
+  private applyContextWindowLimit(messages: Message[], model?: string): Message[] {
+    if (!model) {
+      return messages
+    }
+
+    let contextWindow: number | undefined
+
+    for (const provider of Object.values(PROVIDER_DEFINITIONS)) {
+      if (provider.contextInformationAvailable === false) {
+        continue
+      }
+
+      const matchesPattern = provider.modelPatterns?.some((pattern) => pattern.test(model))
+      const matchesModel = provider.models.some((m) => m.id === model)
+
+      if (matchesPattern || matchesModel) {
+        const modelDef = provider.models.find((m) => m.id === model)
+        if (modelDef?.contextWindow) {
+          contextWindow = modelDef.contextWindow
+          break
+        }
+      }
+    }
+
+    if (!contextWindow) {
+      logger.debug('No context window information available for model, skipping auto-trim', {
+        model,
+      })
+      return messages
+    }
+
+    const maxTokens = Math.floor(contextWindow * 0.9)
+
+    logger.debug('Applying context window limit', {
+      model,
+      contextWindow,
+      maxTokens,
+      totalMessages: messages.length,
+    })
+
+    const systemMessages = messages.filter((msg) => msg.role === 'system')
+    const conversationMessages = messages.filter((msg) => msg.role !== 'system')
+
+    // Count tokens used by system messages first
+    let systemTokenCount = 0
+    for (const msg of systemMessages) {
+      systemTokenCount += getAccurateTokenCount(msg.content, model)
+    }
+
+    // Calculate remaining tokens available for conversation messages
+    const remainingTokens = Math.max(0, maxTokens - systemTokenCount)
+
+    if (systemTokenCount >= maxTokens) {
+      logger.warn('System messages exceed context window limit, including anyway', {
+        systemTokenCount,
+        maxTokens,
+        systemMessageCount: systemMessages.length,
+      })
+      return systemMessages
+    }
+
+    const result: Message[] = []
+    let currentTokenCount = 0
+
+    for (let i = conversationMessages.length - 1; i >= 0; i--) {
+      const message = conversationMessages[i]
+      const messageTokens = getAccurateTokenCount(message.content, model)
+
+      if (currentTokenCount + messageTokens <= remainingTokens) {
+        result.unshift(message)
+        currentTokenCount += messageTokens
+      } else if (result.length === 0) {
+        logger.warn('Single message exceeds remaining context window, including anyway', {
+          messageTokens,
+          remainingTokens,
+          systemTokenCount,
+          messageRole: message.role,
+        })
+        result.unshift(message)
+        currentTokenCount += messageTokens
+        break
+      } else {
+        logger.info('Auto-trimmed conversation history to fit context window', {
+          originalMessages: conversationMessages.length,
+          trimmedMessages: result.length,
+          conversationTokens: currentTokenCount,
+          systemTokens: systemTokenCount,
+          totalTokens: currentTokenCount + systemTokenCount,
+          maxTokens,
+        })
+        break
+      }
+    }
+
+    return [...systemMessages, ...result]
   }
 
   /**
@@ -290,11 +383,9 @@ export class Memory {
       const isBrowser = typeof window !== 'undefined'
 
       if (!isBrowser) {
-        // Server-side: Direct database access
         return await this.fetchFromMemoryDirect(workflowId, key)
       }
 
-      // Browser-side: Use API
       const headers = await buildAuthHeaders()
       const url = buildAPIUrl(`/api/memory/${encodeURIComponent(key)}`, { workflowId })
 
@@ -305,7 +396,6 @@ export class Memory {
 
       if (!response.ok) {
         if (response.status === 404) {
-          // No memory found - return empty array (first conversation)
           return []
         }
         throw new Error(`Failed to fetch memory: ${response.status} ${response.statusText}`)
@@ -317,7 +407,6 @@ export class Memory {
         throw new Error(result.error || 'Failed to fetch memory')
       }
 
-      // Extract messages from memory data
       const memoryData = result.data?.data || result.data
       if (Array.isArray(memoryData)) {
         return memoryData.filter(
@@ -333,7 +422,7 @@ export class Memory {
   }
 
   /**
-   * Direct database access for server-side execution
+   * Direct database access
    */
   private async fetchFromMemoryDirect(workflowId: string, key: string): Promise<Message[]> {
     try {
@@ -344,7 +433,6 @@ export class Memory {
       const result = await db
         .select({
           data: memory.data,
-          type: memory.type,
         })
         .from(memory)
         .where(and(eq(memory.workflowId, workflowId), eq(memory.key, key)))
@@ -380,12 +468,10 @@ export class Memory {
       const isBrowser = typeof window !== 'undefined'
 
       if (!isBrowser) {
-        // Server-side: Direct database access
         await this.persistToMemoryDirect(workflowId, key, messages)
         return
       }
 
-      // Browser-side: Use API
       const headers = await buildAuthHeaders()
       const url = buildAPIUrl('/api/memory')
 
@@ -398,7 +484,6 @@ export class Memory {
         body: stringifyJSON({
           workflowId,
           key,
-          type: 'agent',
           data: messages,
         }),
       })
@@ -420,7 +505,6 @@ export class Memory {
 
   /**
    * Atomically append a message to memory
-   * This prevents race conditions by using database-level JSONB append operations
    */
   private async atomicAppendToMemory(
     workflowId: string,
@@ -431,10 +515,8 @@ export class Memory {
       const isBrowser = typeof window !== 'undefined'
 
       if (!isBrowser) {
-        // Server-side: Use direct database atomic append
         await this.atomicAppendToMemoryDirect(workflowId, key, message)
       } else {
-        // Browser-side: Use API (will be handled by API endpoint)
         const headers = await buildAuthHeaders()
         const url = buildAPIUrl('/api/memory')
 
@@ -447,8 +529,7 @@ export class Memory {
           body: stringifyJSON({
             workflowId,
             key,
-            type: 'agent',
-            data: message, // API will handle appending
+            data: message,
           }),
         })
 
@@ -486,24 +567,19 @@ export class Memory {
       const now = new Date()
       const id = randomUUID()
 
-      // Try to atomically append using JSONB concatenation
-      // This SQL: data = data || '[{new_message}]'::jsonb
-      // If no row exists, insert will create one
       await db
         .insert(memory)
         .values({
           id,
           workflowId,
           key,
-          type: 'agent',
-          data: [message], // Initial array with single message
+          data: [message],
           createdAt: now,
           updatedAt: now,
         })
         .onConflictDoUpdate({
           target: [memory.workflowId, memory.key],
           set: {
-            // Use SQL to atomically append: data || '[{message}]'::jsonb
             data: sql`${memory.data} || ${JSON.stringify([message])}::jsonb`,
             updatedAt: now,
           },
@@ -536,15 +612,12 @@ export class Memory {
       const now = new Date()
       const id = randomUUID()
 
-      // Use UPSERT (INSERT ... ON CONFLICT DO UPDATE) to atomically handle race conditions
-      // This prevents lost updates when multiple requests try to persist simultaneously
       await db
         .insert(memory)
         .values({
           id,
           workflowId,
           key,
-          type: 'agent',
           data: messages,
           createdAt: now,
           updatedAt: now,
@@ -566,19 +639,16 @@ export class Memory {
    * Validate inputs to prevent malicious data or performance issues
    */
   private validateInputs(conversationId?: string, content?: string): void {
-    // Validate conversation ID length
-    if (conversationId && conversationId.trim() !== '') {
+    if (conversationId) {
       if (conversationId.length > 255) {
         throw new Error('Conversation ID too long (max 255 characters)')
       }
 
-      // Check for potentially problematic characters
       if (!/^[a-zA-Z0-9_\-:.@]+$/.test(conversationId)) {
         logger.warn('Conversation ID contains special characters', { conversationId })
       }
     }
 
-    // Validate message content size
     if (content) {
       const contentSize = Buffer.byteLength(content, 'utf8')
       const MAX_CONTENT_SIZE = 100 * 1024 // 100KB
@@ -590,5 +660,4 @@ export class Memory {
   }
 }
 
-// Export singleton instance
 export const memoryService = new Memory()

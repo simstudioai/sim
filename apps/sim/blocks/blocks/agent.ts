@@ -192,10 +192,9 @@ export const AgentBlock: BlockConfig<AgentResponse> = {
       placeholder: 'Select memory...',
       options: [
         { label: 'None', id: 'none' },
-        { label: 'Conversation ID', id: 'conversation_id' },
-        { label: 'All conversations', id: 'all_conversations' },
-        { label: 'All conversations sliding (messages)', id: 'sliding_window' },
-        { label: 'All conversations sliding (tokens)', id: 'sliding_window_tokens' },
+        { label: 'Conversation', id: 'conversation' },
+        { label: 'Sliding window (messages)', id: 'sliding_window' },
+        { label: 'Sliding window (tokens)', id: 'sliding_window_tokens' },
       ],
       defaultValue: 'none',
     },
@@ -206,11 +205,11 @@ export const AgentBlock: BlockConfig<AgentResponse> = {
       placeholder: 'e.g., user-123, session-abc, customer-456',
       required: {
         field: 'memoryType',
-        value: ['conversation_id'],
+        value: ['conversation', 'sliding_window', 'sliding_window_tokens'],
       },
       condition: {
         field: 'memoryType',
-        value: ['conversation_id'],
+        value: ['conversation', 'sliding_window', 'sliding_window_tokens'],
       },
     },
     {
@@ -436,7 +435,8 @@ Example 3 (Array Input):
     },
     memoryType: {
       type: 'string',
-      description: 'Type of memory to use: conversation_id, all_conversations, or sliding_window',
+      description:
+        'Type of memory to use: none, conversation, sliding_window, or sliding_window_tokens',
     },
     conversationId: {
       type: 'string',

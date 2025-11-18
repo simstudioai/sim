@@ -185,63 +185,62 @@ describe('Memory', () => {
   })
 
   describe('buildMemoryKey', () => {
-    it('should build correct key for conversation_id type', () => {
+    it('should build correct key with conversationId:blockId format', () => {
       const inputs: AgentInputs = {
-        memoryType: 'conversation_id',
-        conversationId: 'conv-123',
+        memoryType: 'conversation',
+        conversationId: 'emir',
       }
 
-      const key = (memoryService as any).buildMemoryKey(mockContext, inputs)
-      expect(key).toBe('conversation:conv-123:test-workflow-id')
+      const key = (memoryService as any).buildMemoryKey(mockContext, inputs, 'test-block-id')
+      expect(key).toBe('emir:test-block-id')
     })
 
-    it('should build correct key for all_conversations type', () => {
-      const inputs: AgentInputs = {
-        memoryType: 'all_conversations',
-      }
+    it('should use same key format regardless of memory type', () => {
+      const conversationId = 'user-123'
+      const blockId = 'block-abc'
 
-      const key = (memoryService as any).buildMemoryKey(mockContext, inputs)
-      expect(key).toBe('workflow:test-workflow-id:all_conversations')
-    })
+      const conversationKey = (memoryService as any).buildMemoryKey(
+        mockContext,
+        { memoryType: 'conversation', conversationId },
+        blockId
+      )
+      const slidingWindowKey = (memoryService as any).buildMemoryKey(
+        mockContext,
+        { memoryType: 'sliding_window', conversationId },
+        blockId
+      )
+      const slidingTokensKey = (memoryService as any).buildMemoryKey(
+        mockContext,
+        { memoryType: 'sliding_window_tokens', conversationId },
+        blockId
+      )
 
-    it('should build correct key for sliding_window type', () => {
-      const inputs: AgentInputs = {
-        memoryType: 'sliding_window',
-      }
-
-      const key = (memoryService as any).buildMemoryKey(mockContext, inputs)
-      expect(key).toBe('workflow:test-workflow-id:sliding_window')
-    })
-
-    it('should build correct key for sliding_window_tokens type', () => {
-      const inputs: AgentInputs = {
-        memoryType: 'sliding_window_tokens',
-      }
-
-      const key = (memoryService as any).buildMemoryKey(mockContext, inputs)
-      expect(key).toBe('workflow:test-workflow-id:sliding_window_tokens')
+      // All should produce the same key - memory type only affects processing
+      expect(conversationKey).toBe('user-123:block-abc')
+      expect(slidingWindowKey).toBe('user-123:block-abc')
+      expect(slidingTokensKey).toBe('user-123:block-abc')
     })
 
     it('should throw error for missing conversationId', () => {
       const inputs: AgentInputs = {
-        memoryType: 'conversation_id',
+        memoryType: 'conversation',
         // conversationId missing
       }
 
       expect(() => {
-        ;(memoryService as any).buildMemoryKey(mockContext, inputs)
-      }).toThrow('Conversation ID is required when using conversation_id memory type')
+        ;(memoryService as any).buildMemoryKey(mockContext, inputs, 'test-block-id')
+      }).toThrow('Conversation ID is required for all memory types')
     })
 
     it('should throw error for empty conversationId', () => {
       const inputs: AgentInputs = {
-        memoryType: 'conversation_id',
+        memoryType: 'conversation',
         conversationId: '   ', // Only whitespace
       }
 
       expect(() => {
-        ;(memoryService as any).buildMemoryKey(mockContext, inputs)
-      }).toThrow('Conversation ID is required when using conversation_id memory type')
+        ;(memoryService as any).buildMemoryKey(mockContext, inputs, 'test-block-id')
+      }).toThrow('Conversation ID is required for all memory types')
     })
   })
 

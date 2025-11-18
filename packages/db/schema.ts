@@ -916,9 +916,8 @@ export const memory = pgTable(
   {
     id: text('id').primaryKey(),
     workflowId: text('workflow_id').references(() => workflow.id, { onDelete: 'cascade' }),
-    key: text('key').notNull(), // Identifier for the memory within its context
-    type: text('type').notNull(), // 'agent' or 'raw'
-    data: json('data').notNull(), // Stores either agent message data or raw data
+    key: text('key').notNull(), // Conversation ID provided by user with format: conversationId:blockId
+    data: jsonb('data').notNull(), // Stores agent messages as array of {role, content} objects
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
     deletedAt: timestamp('deleted_at'),
