@@ -911,7 +911,7 @@ export function parseProvider(provider: OAuthProvider): ProviderConfig {
   if (provider === 'microsoftteams') {
     return {
       baseProvider: 'microsoft',
-      featureType: 'teams',
+      featureType: 'microsoft-teams',
     }
   }
 
