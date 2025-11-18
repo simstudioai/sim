@@ -87,6 +87,8 @@ function resolveFileSelector(
       return { key: 'google.drive', context, allowSearch: true }
     case 'google-sheets':
       return { key: 'google.drive', context, allowSearch: true }
+    case 'google-docs':
+      return { key: 'google.drive', context, allowSearch: true }
     default:
       break
   }
