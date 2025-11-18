@@ -35,7 +35,7 @@ export async function GET(request: NextRequest) {
       })
       .from(webhookTable)
       .innerJoin(workflowTable, eq(webhookTable.workflowId, workflowTable.id))
-      .where(and(eq(webhookTable.isActive, true), eq(webhookTable.provider, 'microsoft-teams')))
+      .where(and(eq(webhookTable.isActive, true), eq(webhookTable.provider, 'microsoftteams')))
 
     logger.info(
       `Found ${webhooksWithWorkflows.length} active Teams webhooks, checking for expiring subscriptions`

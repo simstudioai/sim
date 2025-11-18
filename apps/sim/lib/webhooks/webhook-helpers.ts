@@ -623,7 +623,7 @@ export async function cleanupExternalWebhook(
 ): Promise<void> {
   if (webhook.provider === 'airtable') {
     await deleteAirtableWebhook(webhook, workflow, requestId)
-  } else if (webhook.provider === 'microsoft-teams') {
+  } else if (webhook.provider === 'microsoftteams') {
     await deleteTeamsSubscription(webhook, workflow, requestId)
   } else if (webhook.provider === 'telegram') {
     await deleteTelegramWebhook(webhook, requestId)

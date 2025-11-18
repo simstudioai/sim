@@ -71,7 +71,7 @@ const PROVIDER_EXTRACTORS: Record<string, (body: any) => string | null> = {
   hubspot: extractHubSpotIdentifier,
   linear: extractLinearIdentifier,
   jira: extractJiraIdentifier,
-  'microsoft-teams': extractMicrosoftTeamsIdentifier,
+  microsoftteams: extractMicrosoftTeamsIdentifier,
   airtable: extractAirtableIdentifier,
 }
 

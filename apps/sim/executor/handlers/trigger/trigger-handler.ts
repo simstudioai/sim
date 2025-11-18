@@ -55,7 +55,7 @@ export class TriggerBlockHandler implements BlockHandler {
             }
           }
 
-          if (provider === 'microsoft-teams') {
+          if (provider === 'microsoftteams') {
             const providerData = (starterOutput as any)[provider] || webhookData[provider] || {}
             const payloadSource = providerData?.message?.raw || webhookData.payload || {}
             return {
