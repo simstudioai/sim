@@ -1,6 +1,6 @@
 import { db } from '@sim/db'
 import { webhook as webhookTable, workflow as workflowTable } from '@sim/db/schema'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, or } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { verifyCronAuth } from '@/lib/auth/internal'
 import { createLogger } from '@/lib/logs/console/logger'
@@ -35,7 +35,15 @@ export async function GET(request: NextRequest) {
       })
       .from(webhookTable)
       .innerJoin(workflowTable, eq(webhookTable.workflowId, workflowTable.id))
-      .where(and(eq(webhookTable.isActive, true), eq(webhookTable.provider, 'microsoftteams')))
+      .where(
+        and(
+          eq(webhookTable.isActive, true),
+          or(
+            eq(webhookTable.provider, 'microsoft-teams'),
+            eq(webhookTable.provider, 'microsoftteams')
+          )
+        )
+      )
 
     logger.info(
       `Found ${webhooksWithWorkflows.length} active Teams webhooks, checking for expiring subscriptions`

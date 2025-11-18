@@ -906,6 +906,24 @@ export function parseProvider(provider: OAuthProvider): ProviderConfig {
       featureType: 'sharepoint',
     }
   }
+  if (provider === 'microsoft-teams' || provider === 'microsoftteams') {
+    return {
+      baseProvider: 'microsoft',
+      featureType: 'microsoft-teams',
+    }
+  }
+  if (provider === 'microsoft-excel') {
+    return {
+      baseProvider: 'microsoft',
+      featureType: 'microsoft-excel',
+    }
+  }
+  if (provider === 'microsoft-planner') {
+    return {
+      baseProvider: 'microsoft',
+      featureType: 'microsoft-planner',
+    }
+  }
 
   // Handle compound providers (e.g., 'google-email' -> { baseProvider: 'google', featureType: 'email' })
   const [base, feature] = provider.split('-')
