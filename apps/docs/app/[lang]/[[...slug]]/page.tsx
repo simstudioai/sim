@@ -198,7 +198,7 @@ export default async function Page(props: { params: Promise<{ slug?: string[]; l
           component: <CustomFooter />,
         }}
       >
-        <div className='relative'>
+        <div className='relative mt-6 sm:mt-0'>
           <div className='absolute top-1 right-0 flex items-center gap-2'>
             <div className='hidden sm:flex'>
               <CopyPageButton
