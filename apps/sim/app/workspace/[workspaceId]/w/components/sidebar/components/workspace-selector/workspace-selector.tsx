@@ -509,7 +509,6 @@ export function WorkspaceSelector({
                   activeWorkspace?.id === workspace.id && (
                     <Button
                       variant='ghost'
-                      size='icon'
                       onClick={(e) => {
                         e.stopPropagation()
                         handleExportWorkspace()
@@ -526,7 +525,6 @@ export function WorkspaceSelector({
                 {!isEditing && isHovered && workspace.permissions === 'admin' && (
                   <Button
                     variant='ghost'
-                    size='icon'
                     onClick={(e) => handleStartEdit(workspace, e)}
                     className='h-4 w-4 p-0 text-muted-foreground transition-colors hover:bg-transparent hover:text-foreground'
                   >
@@ -559,7 +557,6 @@ export function WorkspaceSelector({
                 {workspace.permissions === 'admin' && (
                   <Button
                     variant='ghost'
-                    size='icon'
                     onClick={(e) => {
                       e.stopPropagation()
                       setWorkspaceToDelete(workspace)
