@@ -392,7 +392,7 @@ export function HelpModal({ open, onOpenChange }: HelpModalProps) {
                       >
                         <SelectValue placeholder='Select a request type' />
                       </SelectTrigger>
-                      <SelectContent className='z-[10000000]'>
+                      <SelectContent className='z-[10000200]'>
                         <SelectItem value='bug'>Bug Report</SelectItem>
                         <SelectItem value='feedback'>Feedback</SelectItem>
                         <SelectItem value='feature_request'>Feature Request</SelectItem>
