@@ -175,55 +175,71 @@ export function buildInviteeOutputs(): Record<string, TriggerOutput> {
         description: 'Whether the event was canceled',
       },
       cancellation: {
-        canceled_by: {
-          type: 'string',
-          description: 'Who canceled the event',
-        },
-        reason: {
-          type: 'string',
-          description: 'Cancellation reason',
+        type: 'object',
+        description: 'Cancellation details',
+        properties: {
+          canceled_by: {
+            type: 'string',
+            description: 'Who canceled the event',
+          },
+          reason: {
+            type: 'string',
+            description: 'Cancellation reason',
+          },
         },
       },
       payment: {
-        id: {
-          type: 'string',
-          description: 'Payment ID',
-        },
-        provider: {
-          type: 'string',
-          description: 'Payment provider',
-        },
-        amount: {
-          type: 'number',
-          description: 'Payment amount',
-        },
-        currency: {
-          type: 'string',
-          description: 'Payment currency',
-        },
-        terms: {
-          type: 'string',
-          description: 'Payment terms',
-        },
-        successful: {
-          type: 'boolean',
-          description: 'Whether payment was successful',
+        type: 'object',
+        description: 'Payment details',
+        properties: {
+          id: {
+            type: 'string',
+            description: 'Payment ID',
+          },
+          provider: {
+            type: 'string',
+            description: 'Payment provider',
+          },
+          amount: {
+            type: 'number',
+            description: 'Payment amount',
+          },
+          currency: {
+            type: 'string',
+            description: 'Payment currency',
+          },
+          terms: {
+            type: 'string',
+            description: 'Payment terms',
+          },
+          successful: {
+            type: 'boolean',
+            description: 'Whether payment was successful',
+          },
         },
       },
       no_show: {
-        created_at: {
-          type: 'string',
-          description: 'No-show marked timestamp',
+        type: 'object',
+        description: 'No-show details',
+        properties: {
+          created_at: {
+            type: 'string',
+            description: 'No-show marked timestamp',
+          },
         },
       },
       reconfirmation: {
-        created_at: {
-          type: 'string',
-          description: 'Reconfirmation timestamp',
-        },
-        confirmed_at: {
-          type: 'string',
-          description: 'Confirmation timestamp',
+        type: 'object',
+        description: 'Reconfirmation details',
+        properties: {
+          created_at: {
+            type: 'string',
+            description: 'Reconfirmation timestamp',
+          },
+          confirmed_at: {
+            type: 'string',
+            description: 'Confirmation timestamp',
+          },
         },
       },
     },
@@ -257,17 +273,21 @@ export function buildRoutingFormOutputs(): Record<string, TriggerOutput> {
         description: 'Routing form URI',
       },
       submitter: {
-        uri: {
-          type: 'string',
-          description: 'Submitter URI',
-        },
-        email: {
-          type: 'string',
-          description: 'Submitter email address',
-        },
-        name: {
-          type: 'string',
-          description: 'Submitter full name',
+        type: 'object',
+        description: 'Submitter details',
+        properties: {
+          uri: {
+            type: 'string',
+            description: 'Submitter URI',
+          },
+          email: {
+            type: 'string',
+            description: 'Submitter email address',
+          },
+          name: {
+            type: 'string',
+            description: 'Submitter full name',
+          },
         },
       },
       submitter_type: {
@@ -277,13 +297,17 @@ export function buildRoutingFormOutputs(): Record<string, TriggerOutput> {
       questions_and_answers: questionsAndAnswersOutputs,
       tracking: trackingOutputs,
       result: {
-        type: {
-          type: 'string',
-          description: 'Result type (event_type, custom_message, or external_url)',
-        },
-        value: {
-          type: 'string',
-          description: 'Result value (event type URI, message, or URL)',
+        type: 'object',
+        description: 'Routing result details',
+        properties: {
+          type: {
+            type: 'string',
+            description: 'Result type (event_type, custom_message, or external_url)',
+          },
+          value: {
+            type: 'string',
+            description: 'Result value (event type URI, message, or URL)',
+          },
         },
       },
       created_at: {
