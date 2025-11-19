@@ -721,7 +721,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
     if (currentLoop && isLoopBlock) {
       containingLoopBlockId = blockId
       const loopType = currentLoop.loopType || 'for'
-      const contextualTags: string[] = ['index', 'currentIteration']
+      const contextualTags: string[] = ['index']
       if (loopType === 'forEach') {
         contextualTags.push('currentItem')
         contextualTags.push('items')
@@ -743,7 +743,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
       const [loopId, loop] = containingLoop
       containingLoopBlockId = loopId
       const loopType = loop.loopType || 'for'
-      const contextualTags: string[] = ['index', 'currentIteration']
+      const contextualTags: string[] = ['index']
       if (loopType === 'forEach') {
         contextualTags.push('currentItem')
         contextualTags.push('items')
@@ -1214,10 +1214,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
         blockGroup &&
         (blockGroup.blockType === 'loop' || blockGroup.blockType === 'parallel')
       ) {
-        if (
-          !tag.includes('.') &&
-          ['index', 'currentItem', 'items', 'currentIteration'].includes(tag)
-        ) {
+        if (!tag.includes('.') && ['index', 'currentItem', 'items'].includes(tag)) {
           processedTag = `${blockGroup.blockType}.${tag}`
         } else {
           processedTag = tag
@@ -1500,9 +1497,6 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
                         } else if (nestedTag.key === 'items') {
                           displayIcon = 'I'
                           tagDescription = 'array'
-                        } else if (nestedTag.key === 'currentIteration') {
-                          displayIcon = '#'
-                          tagDescription = 'number'
                         }
                       } else if (nestedTag.fullTag) {
                         const tagParts = nestedTag.fullTag.split('.')
