@@ -34,10 +34,6 @@ export const usePanelStore = create<PanelState>()(
           document.documentElement.removeAttribute('data-panel-active-tab')
         }
       },
-      previousTab: null,
-      setPreviousTab: (tab) => {
-        set({ previousTab: tab })
-      },
       _hasHydrated: false,
       setHasHydrated: (hasHydrated) => {
         set({ _hasHydrated: hasHydrated })

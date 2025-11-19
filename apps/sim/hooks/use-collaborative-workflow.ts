@@ -889,7 +889,7 @@ export function useCollaborativeWorkflow() {
       }
       findAllDescendants(id)
 
-      // If the currently edited block is among the blocks being removed, clear selection to restore the last tab
+      // If the currently edited block is among the blocks being removed, clear selection to reset the panel
       const currentEditedBlockId = usePanelEditorStore.getState().currentBlockId
       if (currentEditedBlockId && blocksToRemove.has(currentEditedBlockId)) {
         usePanelEditorStore.getState().clearCurrentBlock()

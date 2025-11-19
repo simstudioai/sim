@@ -42,29 +42,18 @@ export const usePanelEditorStore = create<PanelEditorState>()(
       setCurrentBlockId: (blockId) => {
         set({ currentBlockId: blockId })
 
-        // When a block is selected, switch to editor tab and remember previous tab
+        // When a block is selected, always switch to the editor tab
         if (blockId !== null) {
           const panelState = usePanelStore.getState()
-          const currentTab = panelState.activeTab
-
-          // Only save the previous tab if we're not already on the editor tab
-          if (currentTab !== 'editor') {
-            panelState.setPreviousTab(currentTab)
-            panelState.setActiveTab('editor')
-          }
+          panelState.setActiveTab('editor')
         }
       },
       clearCurrentBlock: () => {
         set({ currentBlockId: null })
 
-        // When selection is cleared, restore the previous tab
+        // When selection is cleared (e.g. clicking on the canvas), switch to the toolbar tab
         const panelState = usePanelStore.getState()
-        const previousTab = panelState.previousTab
-
-        if (previousTab !== null) {
-          panelState.setActiveTab(previousTab)
-          panelState.setPreviousTab(null)
-        }
+        panelState.setActiveTab('toolbar')
       },
       setConnectionsHeight: (height) => {
         const clampedHeight = Math.max(
