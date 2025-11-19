@@ -97,7 +97,7 @@ export const createTool: ToolConfig<Neo4jCreateParams, Neo4jResponse> = {
   outputs: {
     message: { type: 'string', description: 'Operation status message' },
     summary: {
-      type: 'object',
+      type: 'json',
       description: 'Creation summary with counters for nodes and relationships created',
     },
   },

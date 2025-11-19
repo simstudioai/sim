@@ -104,7 +104,7 @@ export const deleteTool: ToolConfig<Neo4jDeleteParams, Neo4jResponse> = {
   outputs: {
     message: { type: 'string', description: 'Operation status message' },
     summary: {
-      type: 'object',
+      type: 'json',
       description: 'Delete summary with counters for nodes and relationships deleted',
     },
   },

@@ -96,6 +96,6 @@ export const updateTool: ToolConfig<Neo4jUpdateParams, Neo4jResponse> = {
 
   outputs: {
     message: { type: 'string', description: 'Operation status message' },
-    summary: { type: 'object', description: 'Update summary with counters for properties set' },
+    summary: { type: 'json', description: 'Update summary with counters for properties set' },
   },
 }

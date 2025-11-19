@@ -11,7 +11,6 @@ export async function createNeo4jDriver(config: Neo4jConnectionConfig) {
     connectionTimeout: 10000,
   })
 
-  // Test the connection
   await driver.verifyConnectivity()
 
   return driver
@@ -28,7 +27,6 @@ export function validateCypherQuery(
     }
   }
 
-  // Block dangerous operations unless explicitly allowed
   if (!allowDangerousOps) {
     const dangerousPatterns = [
       /DROP\s+DATABASE/i,
@@ -56,7 +54,6 @@ export function validateCypherQuery(
     }
   }
 
-  // Basic syntax validation
   const trimmedQuery = query.trim()
   if (trimmedQuery.length === 0) {
     return {
@@ -69,7 +66,6 @@ export function validateCypherQuery(
 }
 
 export function sanitizeLabelName(name: string): string {
-  // Neo4j label names should start with a letter and contain only alphanumeric characters and underscores
   if (!/^[a-zA-Z][a-zA-Z0-9_]*$/.test(name)) {
     throw new Error(
       'Invalid label name. Must start with a letter and contain only letters, numbers, and underscores.'
@@ -79,7 +75,6 @@ export function sanitizeLabelName(name: string): string {
 }
 
 export function sanitizePropertyKey(key: string): string {
-  // Neo4j property keys should start with a letter and contain only alphanumeric characters and underscores
   if (!/^[a-zA-Z][a-zA-Z0-9_]*$/.test(key)) {
     throw new Error(
       'Invalid property key. Must start with a letter and contain only letters, numbers, and underscores.'
@@ -89,7 +84,6 @@ export function sanitizePropertyKey(key: string): string {
 }
 
 export function sanitizeRelationshipType(type: string): string {
-  // Neo4j relationship types are typically uppercase with underscores
   if (!/^[A-Z][A-Z0-9_]*$/.test(type)) {
     throw new Error(
       'Invalid relationship type. Must start with an uppercase letter and contain only uppercase letters, numbers, and underscores.'
@@ -103,21 +97,17 @@ export function convertNeo4jTypesToJSON(value: unknown): unknown {
     return value
   }
 
-  // Handle Neo4j Integer type
   if (typeof value === 'object' && value !== null && 'toNumber' in value) {
     return (value as any).toNumber()
   }
 
-  // Handle arrays
   if (Array.isArray(value)) {
     return value.map(convertNeo4jTypesToJSON)
   }
 
-  // Handle objects (including Neo4j nodes and relationships)
   if (typeof value === 'object') {
     const obj = value as any
 
-    // Handle Neo4j Node
     if (obj.labels && obj.properties && obj.identity) {
       return {
         identity: obj.identity.toNumber ? obj.identity.toNumber() : obj.identity,
@@ -126,7 +116,6 @@ export function convertNeo4jTypesToJSON(value: unknown): unknown {
       }
     }
 
-    // Handle Neo4j Relationship
     if (obj.type && obj.properties && obj.identity && obj.start && obj.end) {
       return {
         identity: obj.identity.toNumber ? obj.identity.toNumber() : obj.identity,
@@ -137,7 +126,6 @@ export function convertNeo4jTypesToJSON(value: unknown): unknown {
       }
     }
 
-    // Handle Neo4j Path
     if (obj.start && obj.end && obj.segments) {
       return {
         start: convertNeo4jTypesToJSON(obj.start),
@@ -151,7 +139,6 @@ export function convertNeo4jTypesToJSON(value: unknown): unknown {
       }
     }
 
-    // Handle regular objects
     const result: Record<string, unknown> = {}
     for (const [key, val] of Object.entries(obj)) {
       result[key] = convertNeo4jTypesToJSON(val)

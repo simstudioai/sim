@@ -39,7 +39,6 @@ export async function POST(request: NextRequest) {
       `[${requestId}] Executing Neo4j query on ${params.host}:${params.port}/${params.database}`
     )
 
-    // Validate Cypher query
     const validation = validateCypherQuery(params.cypherQuery)
     if (!validation.isValid) {
       logger.warn(`[${requestId}] Cypher query validation failed: ${validation.error}`)
@@ -49,7 +48,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Create driver and session
     driver = await createNeo4jDriver({
       host: params.host,
       port: params.port,
@@ -61,20 +59,19 @@ export async function POST(request: NextRequest) {
 
     session = driver.session({ database: params.database })
 
-    // Add LIMIT clause if specified and not already in query
     let finalQuery = params.cypherQuery.trim()
     if (params.limit && !/\bLIMIT\s+\d+/i.test(finalQuery)) {
       finalQuery = `${finalQuery} LIMIT ${params.limit}`
     }
 
-    // Execute query
     const result = await session.run(finalQuery, params.parameters)
 
-    // Convert Neo4j types to JSON-serializable format
     const records = result.records.map((record) => {
       const obj: Record<string, unknown> = {}
       record.keys.forEach((key) => {
-        obj[key] = convertNeo4jTypesToJSON(record.get(key))
+        if (typeof key === 'string') {
+          obj[key] = convertNeo4jTypesToJSON(record.get(key))
+        }
       })
       return obj
     })

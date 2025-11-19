@@ -30,7 +30,6 @@ export async function POST(request: NextRequest) {
       `[${requestId}] Executing Neo4j update on ${params.host}:${params.port}/${params.database}`
     )
 
-    // Validate Cypher query
     const validation = validateCypherQuery(params.cypherQuery)
     if (!validation.isValid) {
       logger.warn(`[${requestId}] Cypher query validation failed: ${validation.error}`)
@@ -40,7 +39,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Create driver and session
     driver = await createNeo4jDriver({
       host: params.host,
       port: params.port,
@@ -52,7 +50,6 @@ export async function POST(request: NextRequest) {
 
     session = driver.session({ database: params.database })
 
-    // Execute update query
     const result = await session.run(params.cypherQuery, params.parameters)
 
     const summary = {

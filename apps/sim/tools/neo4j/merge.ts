@@ -97,7 +97,7 @@ export const mergeTool: ToolConfig<Neo4jMergeParams, Neo4jResponse> = {
   outputs: {
     message: { type: 'string', description: 'Operation status message' },
     summary: {
-      type: 'object',
+      type: 'json',
       description: 'Merge summary with counters for nodes/relationships created or matched',
     },
   },

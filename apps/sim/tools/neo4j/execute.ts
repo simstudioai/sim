@@ -99,6 +99,6 @@ export const executeTool: ToolConfig<Neo4jExecuteParams, Neo4jResponse> = {
     message: { type: 'string', description: 'Operation status message' },
     records: { type: 'array', description: 'Array of records returned from the query' },
     recordCount: { type: 'number', description: 'Number of records returned' },
-    summary: { type: 'object', description: 'Execution summary with timing and counters' },
+    summary: { type: 'json', description: 'Execution summary with timing and counters' },
   },
 }

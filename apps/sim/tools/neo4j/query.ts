@@ -106,6 +106,6 @@ export const queryTool: ToolConfig<Neo4jQueryParams, Neo4jResponse> = {
     message: { type: 'string', description: 'Operation status message' },
     records: { type: 'array', description: 'Array of records returned from the query' },
     recordCount: { type: 'number', description: 'Number of records returned' },
-    summary: { type: 'object', description: 'Query execution summary with timing and counters' },
+    summary: { type: 'json', description: 'Query execution summary with timing and counters' },
   },
 }

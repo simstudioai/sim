@@ -35,6 +35,8 @@ export type GenerationType =
   | 'mongodb-sort'
   | 'mongodb-documents'
   | 'mongodb-update'
+  | 'neo4j-cypher'
+  | 'neo4j-parameters'
 
 export type SubBlockType =
   | 'short-input' // Single line input
