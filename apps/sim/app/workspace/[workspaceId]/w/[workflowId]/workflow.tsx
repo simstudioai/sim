@@ -118,8 +118,6 @@ const WorkflowContent = React.memo(() => {
     getDragStartPosition,
   } = useWorkflowStore()
 
-  // (moved) resizeLoopNodesWrapper defined after hooks that provide resizeLoopNodes
-
   // Get copilot cleanup function
   const copilotCleanup = useCopilotStore((state) => state.cleanup)
 
@@ -656,7 +654,6 @@ const WorkflowContent = React.memo(() => {
             data.enableTriggerMode === true
 
           if (isTriggerBlock) {
-            const triggerName = TriggerUtils.getDefaultTriggerName(data.type) || 'trigger'
             addNotification({
               level: 'error',
               message: 'Triggers cannot be placed inside loop or parallel subflows.',

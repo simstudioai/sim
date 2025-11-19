@@ -5,6 +5,7 @@ import { redactApiKeys } from '@/lib/utils'
 import type { NormalizedBlockOutput } from '@/executor/types'
 import { useExecutionStore } from '@/stores/execution/store'
 import { useNotificationStore } from '@/stores/notifications'
+import { useGeneralStore } from '@/stores/settings/general/store'
 import type { ConsoleEntry, ConsoleStore, ConsoleUpdate } from './types'
 
 const logger = createLogger('TerminalConsoleStore')
@@ -102,24 +103,29 @@ export const useTerminalConsoleStore = create<ConsoleStore>()(
           const newEntry = get().entries[0]
 
           // Surface error notifications immediately when error entries are added
+          // Only show if error notifications are enabled in settings
           if (newEntry?.error) {
-            try {
-              const errorMessage = String(newEntry.error)
+            const { isErrorNotificationsEnabled } = useGeneralStore.getState()
 
-              useNotificationStore.getState().addNotification({
-                level: 'error',
-                message: errorMessage,
-                workflowId: entry.workflowId,
-                action: {
-                  type: 'copilot',
+            if (isErrorNotificationsEnabled) {
+              try {
+                const errorMessage = String(newEntry.error)
+
+                useNotificationStore.getState().addNotification({
+                  level: 'error',
                   message: errorMessage,
-                },
-              })
-            } catch (notificationError) {
-              logger.error('Failed to create block error notification', {
-                entryId: newEntry.id,
-                error: notificationError,
-              })
+                  workflowId: entry.workflowId,
+                  action: {
+                    type: 'copilot',
+                    message: errorMessage,
+                  },
+                })
+              } catch (notificationError) {
+                logger.error('Failed to create block error notification', {
+                  entryId: newEntry.id,
+                  error: notificationError,
+                })
+              }
             }
           }
 
