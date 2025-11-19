@@ -188,7 +188,7 @@ function ShimmerOverlayText({
       {actionVerb ? (
         <>
           <span style={{ color: '#B8B8B8' }}>{actionVerb}</span>
-          <span style={{ color: '#787878' }}>{remainder}</span>
+          <span style={{ color: 'var(--text-muted)' }}>{remainder}</span>
         </>
       ) : (
         <span>{text}</span>

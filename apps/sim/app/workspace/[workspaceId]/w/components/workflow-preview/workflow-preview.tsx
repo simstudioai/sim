@@ -329,7 +329,7 @@ export function WorkflowPreview({
 
   return (
     <ReactFlowProvider>
-      <div style={{ height, width, backgroundColor: '#1B1B1B' }} className={cn('preview-mode')}>
+      <div style={{ height, width, backgroundColor: 'var(--bg)' }} className={cn('preview-mode')}>
         <ReactFlow
           nodes={nodes}
           edges={edges}

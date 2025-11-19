@@ -874,8 +874,8 @@ export const WorkflowBlock = memo(function WorkflowBlock({
                       variant='outline'
                       className='cursor-pointer'
                       style={{
-                        borderColor: !childIsDeployed ? '#EF4444' : '#FF6600',
-                        color: !childIsDeployed ? '#EF4444' : '#FF6600',
+                        borderColor: !childIsDeployed ? 'var(--text-error)' : 'var(--warning)',
+                        color: !childIsDeployed ? 'var(--text-error)' : 'var(--warning)',
                       }}
                       onClick={(e) => {
                         e.stopPropagation()
@@ -903,8 +903,8 @@ export const WorkflowBlock = memo(function WorkflowBlock({
                     variant='outline'
                     className='cursor-pointer'
                     style={{
-                      borderColor: '#FF6600',
-                      color: '#FF6600',
+                      borderColor: 'var(--warning)',
+                      color: 'var(--warning)',
                     }}
                     onClick={(e) => {
                       e.stopPropagation()
@@ -957,7 +957,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
                   <Badge
                     variant='outline'
                     className='cursor-pointer'
-                    style={{ borderColor: '#FF6600', color: '#FF6600' }}
+                    style={{ borderColor: 'var(--warning)', color: 'var(--warning)' }}
                     onClick={(e) => {
                       e.stopPropagation()
                       reactivateWebhook(webhookId)

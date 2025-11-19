@@ -126,7 +126,7 @@ export function TeamUsage({ hasAdminAccess }: TeamUsageProps) {
             organizationId={activeOrg.id}
           />
         ) : (
-          <span className='font-medium text-[#B1B1B1] text-[12px] tabular-nums'>
+          <span className='font-medium text-[12px] text-[var(--text-secondary)] tabular-nums'>
             ${currentCap.toFixed(0)}
           </span>
         )

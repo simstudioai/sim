@@ -827,7 +827,7 @@ export function Terminal() {
                         >
                           <div
                             className='h-[6px] w-[6px] rounded-[2px]'
-                            style={{ backgroundColor: '#EF4444' }}
+                            style={{ backgroundColor: 'var(--text-error)' }}
                           />
                           <span className='flex-1'>Error</span>
                           {filters.statuses.has('error') && <Check className='h-3 w-3' />}
@@ -1086,12 +1086,16 @@ export function Terminal() {
                             <div
                               className='h-[6px] w-[6px] rounded-[2px]'
                               style={{
-                                backgroundColor: statusInfo.isError ? '#EF4444' : '#B7B7B7',
+                                backgroundColor: statusInfo.isError
+                                  ? 'var(--text-error)'
+                                  : '#B7B7B7',
                               }}
                             />
                             <span
                               className='font-medium text-[11.5px]'
-                              style={{ color: statusInfo.isError ? '#EF4444' : '#B7B7B7' }}
+                              style={{
+                                color: statusInfo.isError ? 'var(--text-error)' : '#B7B7B7',
+                              }}
                             >
                               {statusInfo.label}
                             </span>
