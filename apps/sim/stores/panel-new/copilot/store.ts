@@ -2678,6 +2678,51 @@ export const useCopilotStore = create<CopilotStore>()(
       }
     },
 
+    savePlanArtifact: async (content: string) => {
+      const { currentChat } = get()
+      
+      // Update local state
+      set({ streamingPlanContent: content })
+      
+      // Update database if we have a current chat
+      if (currentChat) {
+        try {
+          const currentMessages = get().messages
+          const dbMessages = validateMessagesForLLM(currentMessages)
+          const { mode, selectedModel } = get()
+          
+          await fetch('/api/copilot/chat/update-messages', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              chatId: currentChat.id,
+              messages: dbMessages,
+              planArtifact: content,
+              config: {
+                mode,
+                model: selectedModel,
+              },
+            }),
+          })
+          
+          // Update local chat object
+          set({
+            currentChat: {
+              ...currentChat,
+              planArtifact: content,
+            },
+          })
+          
+          logger.info('[PlanArtifact] Saved plan artifact', {
+            chatId: currentChat.id,
+            contentLength: content.length,
+          })
+        } catch (error) {
+          logger.error('[PlanArtifact] Failed to save plan artifact', error)
+        }
+      }
+    },
+
     // Diff updates are out of scope for minimal store
     updateDiffStore: async (_yamlContent: string) => {},
     updateDiffStoreWithWorkflowState: async (_workflowState: any) => {},

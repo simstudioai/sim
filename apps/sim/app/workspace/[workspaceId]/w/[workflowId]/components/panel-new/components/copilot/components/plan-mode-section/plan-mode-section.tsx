@@ -1,10 +1,11 @@
 'use client'
 
-import React, { useCallback, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { GripHorizontal } from 'lucide-react'
+import { Check, GripHorizontal, Pencil, X } from 'lucide-react'
 import { Button } from '@/components/emcn'
+import { Textarea } from '@/components/ui'
 import { Trash } from '@/components/emcn/icons/trash'
 import { cn } from '@/lib/utils'
 
@@ -24,6 +25,8 @@ interface PlanModeSectionProps {
   maxHeight?: number
   /** Callback when clear button is clicked */
   onClear?: () => void
+  /** Callback when content is saved */
+  onSave?: (newContent: string) => void
 }
 
 /**
@@ -42,10 +45,21 @@ export function PlanModeSection({
   minHeight = 80,
   maxHeight = 600,
   onClear,
+  onSave,
 }: PlanModeSectionProps) {
   const [height, setHeight] = useState(initialHeight)
   const [isResizing, setIsResizing] = useState(false)
+  const [isEditing, setIsEditing] = useState(false)
+  const [editedContent, setEditedContent] = useState(content)
   const resizeStartRef = useRef({ y: 0, startHeight: 0 })
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+
+  // Update edited content when content prop changes
+  useEffect(() => {
+    if (!isEditing) {
+      setEditedContent(content)
+    }
+  }, [content, isEditing])
 
   /**
    * Handles the start of a resize operation
@@ -98,6 +112,35 @@ export function PlanModeSection({
       }
     }
   }, [isResizing, handleResizeMove, handleResizeEnd])
+
+  /**
+   * Handles entering edit mode
+   */
+  const handleEdit = useCallback(() => {
+    setIsEditing(true)
+    setEditedContent(content)
+    setTimeout(() => {
+      textareaRef.current?.focus()
+    }, 50)
+  }, [content])
+
+  /**
+   * Handles saving edited content
+   */
+  const handleSave = useCallback(() => {
+    if (onSave && editedContent.trim() !== content.trim()) {
+      onSave(editedContent.trim())
+    }
+    setIsEditing(false)
+  }, [editedContent, content, onSave])
+
+  /**
+   * Handles canceling edit mode
+   */
+  const handleCancelEdit = useCallback(() => {
+    setEditedContent(content)
+    setIsEditing(false)
+  }, [content])
   const markdownComponents = useMemo(
     () => ({
       // Paragraph
@@ -230,30 +273,75 @@ export function PlanModeSection({
       )}
       style={{ height: `${height}px` }}
     >
-      {/* Header with clear button */}
+      {/* Header with edit/save/clear buttons */}
       <div className='flex flex-shrink-0 items-center justify-between border-b border-[var(--border-strong)] pl-[12px] pr-[2px] py-[6px] dark:border-[var(--border-strong)]'>
         <span className='text-[11px] font-[500] text-[var(--text-secondary)] uppercase tracking-wide dark:text-[var(--text-secondary)]'>
           Workflow Plan
         </span>
-        {onClear && (
-          <Button
-            variant='ghost'
-            className='h-[18px] w-[18px] p-0 hover:text-[var(--text-primary)] ml-auto'
-            onClick={onClear}
-            aria-label='Clear workflow plan'
-          >
-            <Trash className='h-[11px] w-[11px]' />
-          </Button>
-        )}
+        <div className='ml-auto flex items-center gap-[4px]'>
+          {isEditing ? (
+            <>
+              <Button
+                variant='ghost'
+                className='h-[18px] w-[18px] p-0 hover:text-[var(--text-primary)]'
+                onClick={handleCancelEdit}
+                aria-label='Cancel editing'
+              >
+                <X className='h-[11px] w-[11px]' />
+              </Button>
+              <Button
+                variant='ghost'
+                className='h-[18px] w-[18px] p-0 hover:text-[var(--text-primary)]'
+                onClick={handleSave}
+                aria-label='Save changes'
+              >
+                <Check className='h-[12px] w-[12px]' />
+              </Button>
+            </>
+          ) : (
+            <>
+              {onSave && (
+                <Button
+                  variant='ghost'
+                  className='h-[18px] w-[18px] p-0 hover:text-[var(--text-primary)]'
+                  onClick={handleEdit}
+                  aria-label='Edit workflow plan'
+                >
+                  <Pencil className='h-[10px] w-[10px]' />
+                </Button>
+              )}
+              {onClear && (
+                <Button
+                  variant='ghost'
+                  className='h-[18px] w-[18px] p-0 hover:text-[var(--text-primary)]'
+                  onClick={onClear}
+                  aria-label='Clear workflow plan'
+                >
+                  <Trash className='h-[11px] w-[11px]' />
+                </Button>
+              )}
+            </>
+          )}
+        </div>
       </div>
 
       {/* Scrollable content area */}
       <div className='flex-1 overflow-y-auto overflow-x-hidden px-[12px] py-[10px]'>
-        <div className='max-w-full break-words'>
-          <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
-            {content.trim()}
-          </ReactMarkdown>
-        </div>
+        {isEditing ? (
+          <Textarea
+            ref={textareaRef}
+            value={editedContent}
+            onChange={(e) => setEditedContent(e.target.value)}
+            className='h-full min-h-full w-full resize-none border-0 bg-transparent p-0 font-season text-[13px] font-[470] leading-[1.4rem] text-[var(--text-primary)] outline-none ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 dark:text-[var(--text-primary)]'
+            placeholder='Enter your workflow plan...'
+          />
+        ) : (
+          <div className='max-w-full break-words'>
+            <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+              {content.trim()}
+            </ReactMarkdown>
+          </div>
+        )}
       </div>
 
       {/* Resize handle */}

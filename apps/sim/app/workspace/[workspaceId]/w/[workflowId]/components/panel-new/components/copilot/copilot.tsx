@@ -104,6 +104,7 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
     workflowId: copilotWorkflowId,
     setPlanTodos,
     clearPlanArtifact,
+    savePlanArtifact,
   } = useCopilotStore()
 
   // Initialize copilot
@@ -491,7 +492,11 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
                 {/* Design Document Section - Pinned at top, shown in all modes when available */}
                 {designDocumentContent && (
                   <div className='flex-shrink-0 px-[8px] pt-[8px]'>
-                    <PlanModeSection content={designDocumentContent} onClear={clearPlanArtifact} />
+                    <PlanModeSection
+                      content={designDocumentContent}
+                      onClear={clearPlanArtifact}
+                      onSave={savePlanArtifact}
+                    />
                   </div>
                 )}
 

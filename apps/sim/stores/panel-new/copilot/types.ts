@@ -195,6 +195,7 @@ export interface CopilotActions {
   updatePlanTodoStatus: (id: string, status: 'executing' | 'completed') => void
   closePlanTodos: () => void
   clearPlanArtifact: () => Promise<void>
+  savePlanArtifact: (content: string) => Promise<void>
 
   handleStreamingResponse: (
     stream: ReadableStream,
