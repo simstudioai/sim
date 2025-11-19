@@ -25,6 +25,7 @@ export interface GeneralSettings {
   theme: 'light' | 'dark' | 'system'
   telemetryEnabled: boolean
   billingUsageNotificationsEnabled: boolean
+  errorNotificationsEnabled: boolean
 }
 
 /**
@@ -49,6 +50,7 @@ async function fetchGeneralSettings(): Promise<GeneralSettings> {
     theme: data.theme || 'system',
     telemetryEnabled: data.telemetryEnabled ?? true,
     billingUsageNotificationsEnabled: data.billingUsageNotificationsEnabled ?? true,
+    errorNotificationsEnabled: data.errorNotificationsEnabled ?? true,
   }
 }
 
@@ -69,6 +71,7 @@ function syncSettingsToZustand(settings: GeneralSettings) {
     theme: settings.theme,
     telemetryEnabled: settings.telemetryEnabled,
     isBillingUsageNotificationsEnabled: settings.billingUsageNotificationsEnabled,
+    isErrorNotificationsEnabled: settings.errorNotificationsEnabled,
   })
 }
 
