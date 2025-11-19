@@ -103,6 +103,7 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
     areChatsFresh,
     workflowId: copilotWorkflowId,
     setPlanTodos,
+    clearPlanArtifact,
   } = useCopilotStore()
 
   // Initialize copilot
@@ -489,7 +490,7 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
                 {/* Design Document Section - Pinned at top, shown in all modes when available */}
                 {designDocumentContent && (
                   <div className='flex-shrink-0 px-[8px] pt-[8px]'>
-                    <PlanModeSection content={designDocumentContent} />
+                    <PlanModeSection content={designDocumentContent} onClear={clearPlanArtifact} />
                   </div>
                 )}
 

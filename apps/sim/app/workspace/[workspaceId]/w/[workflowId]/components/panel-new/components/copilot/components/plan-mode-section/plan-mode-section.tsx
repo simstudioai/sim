@@ -4,6 +4,8 @@ import React, { useCallback, useMemo, useRef, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { GripHorizontal } from 'lucide-react'
+import { Button } from '@/components/emcn'
+import { Trash } from '@/components/emcn/icons/trash'
 import { cn } from '@/lib/utils'
 
 /**
@@ -20,6 +22,8 @@ interface PlanModeSectionProps {
   minHeight?: number
   /** Maximum height in pixels */
   maxHeight?: number
+  /** Callback when clear button is clicked */
+  onClear?: () => void
 }
 
 /**
@@ -37,6 +41,7 @@ export function PlanModeSection({
   initialHeight = 180,
   minHeight = 80,
   maxHeight = 600,
+  onClear,
 }: PlanModeSectionProps) {
   const [height, setHeight] = useState(initialHeight)
   const [isResizing, setIsResizing] = useState(false)
@@ -225,6 +230,23 @@ export function PlanModeSection({
       )}
       style={{ height: `${height}px` }}
     >
+      {/* Header with clear button */}
+      <div className='flex flex-shrink-0 items-center justify-between border-b border-[var(--border-strong)] pl-[12px] pr-[2px] py-[6px] dark:border-[var(--border-strong)]'>
+        <span className='text-[11px] font-[500] text-[var(--text-secondary)] uppercase tracking-wide dark:text-[var(--text-secondary)]'>
+          Workflow Plan
+        </span>
+        {onClear && (
+          <Button
+            variant='ghost'
+            className='h-[18px] w-[18px] p-0 hover:text-[var(--text-primary)] ml-auto'
+            onClick={onClear}
+            aria-label='Clear workflow plan'
+          >
+            <Trash className='h-[11px] w-[11px]' />
+          </Button>
+        )}
+      </div>
+
       {/* Scrollable content area */}
       <div className='flex-1 overflow-y-auto overflow-x-hidden px-[12px] py-[10px]'>
         <div className='max-w-full break-words'>

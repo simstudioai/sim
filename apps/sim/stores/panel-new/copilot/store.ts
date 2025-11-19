@@ -1601,7 +1601,7 @@ export const useCopilotStore = create<CopilotStore>()(
         model: chatModel,
         hasPlanArtifact: !!planArtifact,
       })
-      
+
       // Capture previous chat/messages for optimistic background save
       const previousChat = currentChat
       const previousMessages = get().messages
@@ -2635,6 +2635,48 @@ export const useCopilotStore = create<CopilotStore>()(
       })
     },
     closePlanTodos: () => set({ showPlanTodos: false }),
+
+    clearPlanArtifact: async () => {
+      const { currentChat } = get()
+      
+      // Clear from local state
+      set({ streamingPlanContent: '' })
+      
+      // Update database if we have a current chat
+      if (currentChat) {
+        try {
+          const currentMessages = get().messages
+          const dbMessages = validateMessagesForLLM(currentMessages)
+          const { mode, selectedModel } = get()
+          
+          await fetch('/api/copilot/chat/update-messages', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              chatId: currentChat.id,
+              messages: dbMessages,
+              planArtifact: null,
+              config: {
+                mode,
+                model: selectedModel,
+              },
+            }),
+          })
+          
+          // Update local chat object
+          set({
+            currentChat: {
+              ...currentChat,
+              planArtifact: null,
+            },
+          })
+          
+          logger.info('[PlanArtifact] Cleared plan artifact', { chatId: currentChat.id })
+        } catch (error) {
+          logger.error('[PlanArtifact] Failed to clear plan artifact', error)
+        }
+      }
+    },
 
     // Diff updates are out of scope for minimal store
     updateDiffStore: async (_yamlContent: string) => {},
