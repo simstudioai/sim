@@ -14,7 +14,7 @@ import {
   ModalTitle,
   Textarea,
 } from '@/components/emcn'
-import { Alert, AlertDescription, Card, CardContent, Skeleton } from '@/components/ui'
+import { Alert, AlertDescription, Skeleton } from '@/components/ui'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getEmailDomain } from '@/lib/urls/utils'
 import { OutputSelect } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/chat/components/output-select/output-select'
@@ -219,10 +219,6 @@ export function ChatDeploy({
         throw new Error(error.error || 'Failed to delete chat')
       }
 
-      if (onUndeploy) {
-        await onUndeploy()
-      }
-
       setExistingChat(null)
       setImageUrl(null)
       setImageUploadError(null)
@@ -260,12 +256,9 @@ export function ChatDeploy({
             <ModalHeader>
               <ModalTitle>Delete Chat?</ModalTitle>
               <ModalDescription>
-                This will permanently delete your chat deployment at "{getEmailDomain()}/chat/
-                {existingChat?.identifier}" and undeploy the workflow. All users will lose access
-                immediately.{' '}
-                <span className='text-[var(--text-error)] dark:text-[var(--text-error)]'>
-                  This action cannot be undone.
-                </span>
+                This will delete your chat deployment at "{getEmailDomain()}/chat/
+                {existingChat?.identifier}". All users will lose access to the chat interface. You
+                can recreate this chat deployment at any time.
               </ModalDescription>
             </ModalHeader>
             <ModalFooter>
@@ -339,7 +332,7 @@ export function ChatDeploy({
           </div>
           <div className='space-y-2'>
             <Label htmlFor='description' className='font-medium text-sm'>
-              Description (Optional)
+              Description
             </Label>
             <Textarea
               id='description'
@@ -353,21 +346,17 @@ export function ChatDeploy({
           </div>
           <div className='space-y-2'>
             <Label className='font-medium text-sm'>Chat Output</Label>
-            <Card className='rounded-[8px] border-input shadow-none'>
-              <CardContent className='p-1'>
-                <OutputSelect
-                  workflowId={workflowId}
-                  selectedOutputs={formData.selectedOutputBlocks}
-                  onOutputSelect={(values) => updateField('selectedOutputBlocks', values)}
-                  placeholder='Select which block outputs to use'
-                  disabled={chatSubmitting}
-                />
-              </CardContent>
-            </Card>
+            <OutputSelect
+              workflowId={workflowId}
+              selectedOutputs={formData.selectedOutputBlocks}
+              onOutputSelect={(values) => updateField('selectedOutputBlocks', values)}
+              placeholder='Select which block outputs to use'
+              disabled={chatSubmitting}
+            />
             {errors.outputBlocks && (
               <p className='text-destructive text-sm'>{errors.outputBlocks}</p>
             )}
-            <p className='mt-2 text-muted-foreground text-xs'>
+            <p className='mt-2 text-[11px] text-[var(--text-secondary)]'>
               Select which block's output to return to the user in the chat interface
             </p>
           </div>
@@ -438,12 +427,9 @@ export function ChatDeploy({
           <ModalHeader>
             <ModalTitle>Delete Chat?</ModalTitle>
             <ModalDescription>
-              This will permanently delete your chat deployment at "{getEmailDomain()}/chat/
-              {existingChat?.identifier}" and undeploy the workflow. All users will lose access
-              immediately.{' '}
-              <span className='text-[var(--text-error)] dark:text-[var(--text-error)]'>
-                This action cannot be undone.
-              </span>
+              This will delete your chat deployment at "{getEmailDomain()}/chat/
+              {existingChat?.identifier}". All users will lose access to the chat interface. You can
+              recreate this chat deployment at any time.
             </ModalDescription>
           </ModalHeader>
           <ModalFooter>
