@@ -1572,7 +1572,7 @@ export async function refreshOAuthToken(
     const { headers, bodyParams } = buildAuthRequest(config, refreshToken)
 
     // Refresh the token
-    const response = await fetch(tokenEndpoint, {
+    const response = await fetch(config.tokenEndpoint, {
       method: 'POST',
       headers,
       body: new URLSearchParams(bodyParams).toString(),

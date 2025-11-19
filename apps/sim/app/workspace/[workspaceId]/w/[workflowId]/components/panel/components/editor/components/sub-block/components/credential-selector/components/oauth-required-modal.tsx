@@ -1,7 +1,7 @@
 'use client'
 
-import { useState } from 'react'
 import { Check } from 'lucide-react'
+import { useState } from 'react'
 import { Button, Modal, ModalBody, ModalContent, ModalFooter, ModalHeader } from '@/components/emcn'
 import { client } from '@/lib/auth/auth-client'
 import { createLogger } from '@/lib/logs/console/logger'
@@ -12,6 +12,7 @@ import {
   type OAuthProvider,
   parseProvider,
 } from '@/lib/oauth'
+
 
 const logger = createLogger('OAuthRequiredModal')
 
