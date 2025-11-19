@@ -2,18 +2,15 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { Loader2, MoreVertical, X } from 'lucide-react'
-import { Badge, Button } from '@/components/emcn'
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-  Button as UIButton,
-} from '@/components/ui'
+  Badge,
+  Button,
+  Popover,
+  PopoverContent,
+  PopoverItem,
+  PopoverTrigger,
+} from '@/components/emcn'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui'
 import { getEnv } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
 import type { WorkflowDeploymentVersionResponse } from '@/lib/workflows/db-helpers'
@@ -855,39 +852,34 @@ export function DeployModal({
                                       className='px-4 py-2.5'
                                       onClick={(e) => e.stopPropagation()}
                                     >
-                                      <DropdownMenu
+                                      <Popover
                                         open={openDropdown === v.version}
                                         onOpenChange={(open) =>
                                           setOpenDropdown(open ? v.version : null)
                                         }
                                       >
-                                        <DropdownMenuTrigger asChild>
-                                          <UIButton
+                                        <PopoverTrigger asChild>
+                                          <Button
                                             variant='ghost'
-                                            size='icon'
-                                            className='h-8 w-8'
                                             disabled={activatingVersion === v.version}
+                                            className='h-8 w-8 p-0'
                                           >
                                             <MoreVertical className='h-4 w-4' />
-                                          </UIButton>
-                                        </DropdownMenuTrigger>
-                                        <DropdownMenuContent
-                                          align='end'
-                                          className='z-[10000050]'
-                                          onCloseAutoFocus={(event) => event.preventDefault()}
-                                        >
-                                          <DropdownMenuItem
+                                          </Button>
+                                        </PopoverTrigger>
+                                        <PopoverContent align='end'>
+                                          <PopoverItem
                                             onClick={() => openVersionPreview(v.version)}
                                           >
                                             {v.isActive ? 'View Active' : 'Inspect'}
-                                          </DropdownMenuItem>
-                                          <DropdownMenuItem
+                                          </PopoverItem>
+                                          <PopoverItem
                                             onClick={() => handleStartRename(v.version, v.name)}
                                           >
                                             Rename
-                                          </DropdownMenuItem>
-                                        </DropdownMenuContent>
-                                      </DropdownMenu>
+                                          </PopoverItem>
+                                        </PopoverContent>
+                                      </Popover>
                                     </td>
                                   </tr>
                                 ))}
@@ -903,22 +895,20 @@ export function DeployModal({
                               {versions.length}
                             </span>
                             <div className='flex gap-2'>
-                              <UIButton
+                              <Button
                                 variant='outline'
-                                size='sm'
                                 onClick={() => setCurrentPage(currentPage - 1)}
                                 disabled={currentPage === 1}
                               >
                                 Previous
-                              </UIButton>
-                              <UIButton
+                              </Button>
+                              <Button
                                 variant='outline'
-                                size='sm'
                                 onClick={() => setCurrentPage(currentPage + 1)}
                                 disabled={currentPage * itemsPerPage >= versions.length}
                               >
                                 Next
-                              </UIButton>
+                              </Button>
                             </div>
                           </div>
                         )}
