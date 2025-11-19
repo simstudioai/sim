@@ -1,8 +1,8 @@
 'use client'
 
-import { Plus, Search } from 'lucide-react'
+import { Search } from 'lucide-react'
 import { useParams } from 'next/navigation'
-import { Button } from '@/components/ui/button'
+import { Button } from '@/components/emcn'
 import {
   ChunkTableSkeleton,
   KnowledgeHeader,
@@ -63,12 +63,8 @@ export function DocumentLoading({
                   </div>
                 </div>
 
-                <Button
-                  disabled
-                  size='sm'
-                  className='flex items-center gap-1 bg-[var(--brand-primary-hex)] font-[480] text-muted-foreground shadow-[0_0_0_0_var(--brand-primary-hex)] transition-all duration-200 hover:bg-[var(--brand-primary-hover-hex)] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)] disabled:opacity-50'
-                >
-                  <Plus className='h-3.5 w-3.5' />
+                <Button disabled variant='primary' className='flex items-center gap-1'>
+                  <div className='h-3.5 w-3.5 animate-pulse rounded bg-primary-foreground/30' />
                   <span>Create Chunk</span>
                 </Button>
               </div>

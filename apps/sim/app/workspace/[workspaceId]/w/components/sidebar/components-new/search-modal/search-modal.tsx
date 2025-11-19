@@ -539,6 +539,7 @@ export function SearchModal({
                             key={`${item.type}-${item.id}`}
                             data-search-item-index={globalIndex}
                             onClick={() => handleItemClick(item)}
+                            onMouseDown={(e) => e.preventDefault()}
                             className={cn(
                               'group flex h-[28px] w-full items-center gap-[8px] rounded-[6px] bg-[var(--surface-4)]/60 px-[10px] text-left text-[15px] transition-all focus:outline-none dark:bg-[var(--surface-4)]/60',
                               isSelected

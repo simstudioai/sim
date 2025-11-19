@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { AlertCircle, Code, FileJson, X } from 'lucide-react'
+import { AlertCircle, Code, FileJson, Wand2, X } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
   Button as EmcnButton,
@@ -9,9 +9,14 @@ import {
   ModalFooter,
   ModalHeader,
   ModalTitle,
+  Popover,
+  PopoverAnchor,
+  PopoverContent,
+  PopoverItem,
+  PopoverScrollArea,
+  PopoverSection,
 } from '@/components/emcn'
 import { Trash } from '@/components/emcn/icons/trash'
-import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -33,7 +38,6 @@ import {
   TagDropdown,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/components/sub-block/components/tag-dropdown/tag-dropdown'
 import { CodeEditor } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/editor/components/sub-block/components/tool-input/components/code-editor/code-editor'
-import { WandPromptBar } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/wand-prompt-bar/wand-prompt-bar'
 import { useWand } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-wand'
 import {
   useCreateCustomTool,
@@ -88,8 +92,16 @@ export function CustomToolModal({
   const [isEditing, setIsEditing] = useState(false)
   const [toolId, setToolId] = useState<string | undefined>(undefined)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [isSchemaPromptActive, setIsSchemaPromptActive] = useState(false)
+  const [schemaPromptInput, setSchemaPromptInput] = useState('')
+  const [schemaPromptSummary, setSchemaPromptSummary] = useState<string | null>(null)
+  const schemaPromptInputRef = useRef<HTMLInputElement | null>(null)
 
-  // AI Code Generation Hooks
+  const [isCodePromptActive, setIsCodePromptActive] = useState(false)
+  const [codePromptInput, setCodePromptInput] = useState('')
+  const [codePromptSummary, setCodePromptSummary] = useState<string | null>(null)
+  const codePromptInputRef = useRef<HTMLInputElement | null>(null)
+
   const schemaGeneration = useWand({
     wandConfig: {
       enabled: true,
@@ -173,7 +185,6 @@ Example 2:
     onStreamChunk: (chunk) => {
       setJsonSchema((prev) => {
         const newSchema = prev + chunk
-        // Clear error as soon as streaming starts
         if (schemaError) setSchemaError(null)
         return newSchema
       })
@@ -205,7 +216,7 @@ Example Scenario:
 User Prompt: "Fetch user data from an API. Use the User ID passed in as 'userId' and an API Key stored as the 'SERVICE_API_KEY' environment variable."
 
 Generated Code:
-const userId = <block.content>; // Correct: Accessing input parameter without quotes
+const userId = userId; // Correct: Accessing userId input parameter without quotes
 const apiKey = {{SERVICE_API_KEY}}; // Correct: Accessing environment variable without quotes
 const url = \`https://api.example.com/users/\${userId}\`;
 
@@ -258,7 +269,6 @@ try {
   const [searchTerm, setSearchTerm] = useState('')
   const [cursorPosition, setCursorPosition] = useState(0)
   const codeEditorRef = useRef<HTMLDivElement>(null)
-  const schemaParamsDropdownRef = useRef<HTMLDivElement>(null)
   const [activeSourceBlockId, setActiveSourceBlockId] = useState<string | null>(null)
   // Add state for dropdown positioning
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0 })
@@ -292,21 +302,6 @@ try {
       resetForm()
     }
   }, [open, initialValues])
-
-  // Close schema params dropdown on outside click
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (
-        schemaParamsDropdownRef.current &&
-        !schemaParamsDropdownRef.current.contains(event.target as Node)
-      ) {
-        setShowSchemaParams(false)
-      }
-    }
-
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [])
 
   const resetForm = () => {
     setJsonSchema('')
@@ -784,6 +779,86 @@ try {
     }
   }
 
+  // Schema inline wand handlers (copied from regular sub-block UX)
+  const handleSchemaWandClick = () => {
+    if (schemaGeneration.isLoading || schemaGeneration.isStreaming) return
+    setIsSchemaPromptActive(true)
+    setSchemaPromptInput(schemaPromptSummary ?? '')
+    setTimeout(() => {
+      schemaPromptInputRef.current?.focus()
+    }, 0)
+  }
+
+  const handleSchemaPromptBlur = () => {
+    if (!schemaPromptInput.trim() && !schemaGeneration.isStreaming) {
+      setIsSchemaPromptActive(false)
+    }
+  }
+
+  const handleSchemaPromptChange = (value: string) => {
+    setSchemaPromptInput(value)
+  }
+
+  const handleSchemaPromptSubmit = () => {
+    const trimmedPrompt = schemaPromptInput.trim()
+    if (!trimmedPrompt || schemaGeneration.isLoading || schemaGeneration.isStreaming) return
+    setSchemaPromptSummary(trimmedPrompt)
+    schemaGeneration.generateStream({ prompt: trimmedPrompt })
+    setSchemaPromptInput('')
+    setIsSchemaPromptActive(false)
+  }
+
+  const handleSchemaPromptKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      handleSchemaPromptSubmit()
+    } else if (e.key === 'Escape') {
+      e.preventDefault()
+      setSchemaPromptInput('')
+      setIsSchemaPromptActive(false)
+    }
+  }
+
+  // Code inline wand handlers
+  const handleCodeWandClick = () => {
+    if (codeGeneration.isLoading || codeGeneration.isStreaming) return
+    setIsCodePromptActive(true)
+    setCodePromptInput(codePromptSummary ?? '')
+    setTimeout(() => {
+      codePromptInputRef.current?.focus()
+    }, 0)
+  }
+
+  const handleCodePromptBlur = () => {
+    if (!codePromptInput.trim() && !codeGeneration.isStreaming) {
+      setIsCodePromptActive(false)
+    }
+  }
+
+  const handleCodePromptChange = (value: string) => {
+    setCodePromptInput(value)
+  }
+
+  const handleCodePromptSubmit = () => {
+    const trimmedPrompt = codePromptInput.trim()
+    if (!trimmedPrompt || codeGeneration.isLoading || codeGeneration.isStreaming) return
+    setCodePromptSummary(trimmedPrompt)
+    codeGeneration.generateStream({ prompt: trimmedPrompt })
+    setCodePromptInput('')
+    setIsCodePromptActive(false)
+  }
+
+  const handleCodePromptKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      handleCodePromptSubmit()
+    } else if (e.key === 'Escape') {
+      e.preventDefault()
+      setCodePromptInput('')
+      setIsCodePromptActive(false)
+    }
+  }
+
   const handleDelete = async () => {
     if (!toolId || !isEditing) return
 
@@ -858,11 +933,10 @@ try {
     <>
       <Dialog open={open} onOpenChange={handleClose}>
         <DialogContent
-          className='flex h-[80vh] flex-col gap-0 p-0 sm:max-w-[700px]'
+          className='flex h-[80vh] w-full max-w-[840px] flex-col gap-0 p-0'
           style={{ zIndex: 99999999 }}
           hideCloseButton
           onKeyDown={(e) => {
-            // Intercept Escape key when dropdowns are open
             if (e.key === 'Escape' && (showEnvVars || showTags || showSchemaParams)) {
               e.preventDefault()
               e.stopPropagation()
@@ -877,26 +951,16 @@ try {
               <DialogTitle className='font-medium text-lg'>
                 {isEditing ? 'Edit Agent Tool' : 'Create Agent Tool'}
               </DialogTitle>
-              <Button variant='ghost' size='icon' className='h-8 w-8 p-0' onClick={handleClose}>
+              <EmcnButton variant='ghost' onClick={handleClose}>
                 <X className='h-4 w-4' />
                 <span className='sr-only'>Close</span>
-              </Button>
+              </EmcnButton>
             </div>
             <DialogDescription className='mt-1.5'>
               Step {activeSection === 'schema' ? '1' : '2'} of 2:{' '}
               {activeSection === 'schema' ? 'Define schema' : 'Implement code'}
             </DialogDescription>
           </DialogHeader>
-
-          {/* Error Alert */}
-          {schemaError && (
-            <div className='px-6 pt-4'>
-              <Alert variant='destructive'>
-                <AlertCircle className='h-4 w-4' />
-                <AlertDescription>{schemaError}</AlertDescription>
-              </Alert>
-            </div>
-          )}
 
           <div className='flex min-h-0 flex-1 flex-col overflow-hidden'>
             <div className='flex border-b'>
@@ -919,70 +983,63 @@ try {
             </div>
 
             <div className='relative flex-1 overflow-auto px-6 pt-6 pb-12'>
-              {/* Schema Section AI Prompt Bar */}
-              {activeSection === 'schema' && (
-                <WandPromptBar
-                  isVisible={schemaGeneration.isPromptVisible}
-                  isLoading={schemaGeneration.isLoading}
-                  isStreaming={schemaGeneration.isStreaming}
-                  promptValue={schemaGeneration.promptInputValue}
-                  onSubmit={(prompt: string) => schemaGeneration.generateStream({ prompt })}
-                  onCancel={
-                    schemaGeneration.isStreaming
-                      ? schemaGeneration.cancelGeneration
-                      : schemaGeneration.hidePromptInline
-                  }
-                  onChange={schemaGeneration.updatePromptValue}
-                  placeholder='Describe the JSON schema to generate...'
-                  className='!top-0 relative mb-2'
-                />
-              )}
-
-              {/* Code Section AI Prompt Bar */}
-              {activeSection === 'code' && (
-                <WandPromptBar
-                  isVisible={codeGeneration.isPromptVisible}
-                  isLoading={codeGeneration.isLoading}
-                  isStreaming={codeGeneration.isStreaming}
-                  promptValue={codeGeneration.promptInputValue}
-                  onSubmit={(prompt: string) => codeGeneration.generateStream({ prompt })}
-                  onCancel={
-                    codeGeneration.isStreaming
-                      ? codeGeneration.cancelGeneration
-                      : codeGeneration.hidePromptInline
-                  }
-                  onChange={codeGeneration.updatePromptValue}
-                  placeholder='Describe the JavaScript code to generate...'
-                  className='!top-0 relative mb-2'
-                />
-              )}
-
               <div
                 className={cn(
                   'flex h-full flex-1 flex-col',
                   activeSection === 'schema' ? 'block' : 'hidden'
                 )}
               >
-                <div className='mb-1 flex min-h-6 items-center justify-between'>
-                  <div className='flex items-center gap-2'>
+                <div className='mb-1 flex min-h-6 items-center justify-between gap-2'>
+                  <div className='flex min-w-0 items-center gap-2'>
                     <FileJson className='h-4 w-4' />
                     <Label htmlFor='json-schema' className='font-medium'>
                       JSON Schema
                     </Label>
+                    {schemaError && (
+                      <div className='ml-2 flex min-w-0 items-center gap-1 text-destructive text-xs'>
+                        <AlertCircle className='h-3 w-3 flex-shrink-0' />
+                        <span className='truncate'>{schemaError}</span>
+                      </div>
+                    )}
+                  </div>
+                  <div className='flex min-w-0 flex-1 items-center justify-end gap-1 pr-[4px]'>
+                    {!isSchemaPromptActive && schemaPromptSummary && (
+                      <span className='text-muted-foreground text-xs italic'>
+                        with {schemaPromptSummary}
+                      </span>
+                    )}
+                    {!isSchemaPromptActive ? (
+                      <button
+                        type='button'
+                        onClick={handleSchemaWandClick}
+                        disabled={schemaGeneration.isLoading || schemaGeneration.isStreaming}
+                        className='inline-flex h-[16px] w-[16px] items-center justify-center rounded-full hover:bg-transparent disabled:opacity-50'
+                        aria-label='Generate schema with AI'
+                      >
+                        <Wand2 className='!h-[12px] !w-[12px] text-[var(--text-secondary)]' />
+                      </button>
+                    ) : (
+                      <input
+                        ref={schemaPromptInputRef}
+                        type='text'
+                        value={schemaGeneration.isStreaming ? 'Generating...' : schemaPromptInput}
+                        onChange={(e) => handleSchemaPromptChange(e.target.value)}
+                        onBlur={handleSchemaPromptBlur}
+                        onKeyDown={handleSchemaPromptKeyDown}
+                        disabled={schemaGeneration.isStreaming}
+                        className='h-[16px] w-full border-none bg-transparent py-0 pr-[2px] text-right font-medium text-[12px] text-[var(--text-primary)] leading-[14px] placeholder:text-[#737373] focus:outline-none'
+                        placeholder='Describe schema...'
+                      />
+                    )}
                   </div>
                 </div>
-                <CodeEditor
-                  value={jsonSchema}
-                  onChange={handleJsonSchemaChange}
-                  language='json'
-                  showWandButton={true}
-                  onWandClick={() => {
-                    schemaGeneration.isPromptVisible
-                      ? schemaGeneration.hidePromptInline()
-                      : schemaGeneration.showPromptInline()
-                  }}
-                  wandButtonDisabled={schemaGeneration.isLoading || schemaGeneration.isStreaming}
-                  placeholder={`{
+                <div className='relative'>
+                  <CodeEditor
+                    value={jsonSchema}
+                    onChange={handleJsonSchemaChange}
+                    language='json'
+                    showWandButton={false}
+                    placeholder={`{
   "type": "function",
   "function": {
     "name": "addItemToOrder",
@@ -999,14 +1056,16 @@ try {
     }
   }
 }`}
-                  minHeight='360px'
-                  className={cn(
-                    (schemaGeneration.isLoading || schemaGeneration.isStreaming) &&
-                      'cursor-not-allowed opacity-50'
-                  )}
-                  disabled={schemaGeneration.isLoading || schemaGeneration.isStreaming} // Use disabled prop instead of readOnly
-                  onKeyDown={handleKeyDown} // Pass keydown handler
-                />
+                    minHeight='360px'
+                    className={cn(
+                      schemaError && 'border-red-500',
+                      (schemaGeneration.isLoading || schemaGeneration.isStreaming) &&
+                        'cursor-not-allowed opacity-50'
+                    )}
+                    disabled={schemaGeneration.isLoading || schemaGeneration.isStreaming} // Use disabled prop instead of readOnly
+                    onKeyDown={handleKeyDown} // Pass keydown handler
+                  />
+                </div>
                 <div className='h-6' />
               </div>
 
@@ -1016,12 +1075,42 @@ try {
                   activeSection === 'code' ? 'block' : 'hidden'
                 )}
               >
-                <div className='mb-1 flex min-h-6 items-center justify-between'>
-                  <div className='flex items-center gap-2'>
+                <div className='mb-1 flex min-h-6 items-center justify-between gap-2'>
+                  <div className='flex min-w-0 items-center gap-2'>
                     <Code className='h-4 w-4' />
                     <Label htmlFor='function-code' className='font-medium'>
-                      Code (optional)
+                      Code
                     </Label>
+                  </div>
+                  <div className='flex min-w-0 flex-1 items-center justify-end gap-1 pr-[4px]'>
+                    {!isCodePromptActive && codePromptSummary && (
+                      <span className='text-muted-foreground text-xs italic'>
+                        with {codePromptSummary}
+                      </span>
+                    )}
+                    {!isCodePromptActive ? (
+                      <button
+                        type='button'
+                        onClick={handleCodeWandClick}
+                        disabled={codeGeneration.isLoading || codeGeneration.isStreaming}
+                        className='inline-flex h-[16px] w-[16px] items-center justify-center rounded-full hover:bg-transparent disabled:opacity-50'
+                        aria-label='Generate code with AI'
+                      >
+                        <Wand2 className='!h-[12px] !w-[12px] text-[var(--text-secondary)]' />
+                      </button>
+                    ) : (
+                      <input
+                        ref={codePromptInputRef}
+                        type='text'
+                        value={codeGeneration.isStreaming ? 'Generating...' : codePromptInput}
+                        onChange={(e) => handleCodePromptChange(e.target.value)}
+                        onBlur={handleCodePromptBlur}
+                        onKeyDown={handleCodePromptKeyDown}
+                        disabled={codeGeneration.isStreaming}
+                        className='h-[16px] w-full border-none bg-transparent py-0 pr-[2px] text-right font-medium text-[12px] text-[var(--text-primary)] leading-[14px] placeholder:text-[#737373] focus:outline-none'
+                        placeholder='Describe code...'
+                      />
+                    )}
                   </div>
                   {codeError &&
                     !codeGeneration.isStreaming && ( // Hide code error while streaming
@@ -1049,13 +1138,7 @@ try {
                     value={functionCode}
                     onChange={handleFunctionCodeChange}
                     language='javascript'
-                    showWandButton={true}
-                    onWandClick={() => {
-                      codeGeneration.isPromptVisible
-                        ? codeGeneration.hidePromptInline()
-                        : codeGeneration.showPromptInline()
-                    }}
-                    wandButtonDisabled={codeGeneration.isLoading || codeGeneration.isStreaming}
+                    showWandButton={false}
                     placeholder={
                       '// This code will be executed when the tool is called. You can use environment variables with {{VARIABLE_NAME}}.'
                     }
@@ -1117,31 +1200,50 @@ try {
 
                   {/* Schema parameters dropdown */}
                   {showSchemaParams && schemaParameters.length > 0 && (
-                    <div
-                      ref={schemaParamsDropdownRef}
-                      className='absolute z-[9999] mt-1 w-64 overflow-visible rounded-md border bg-popover shadow-md'
-                      style={{
-                        top: `${dropdownPosition.top}px`,
-                        left: `${dropdownPosition.left}px`,
+                    <Popover
+                      open={showSchemaParams}
+                      onOpenChange={(open) => {
+                        if (!open) {
+                          setShowSchemaParams(false)
+                        }
                       }}
                     >
-                      <div className='py-1'>
-                        <div className='px-2 pt-2.5 pb-0.5 font-medium text-muted-foreground text-xs'>
-                          Available Parameters
-                        </div>
-                        <div>
+                      <PopoverAnchor asChild>
+                        <div
+                          className='pointer-events-none'
+                          style={{
+                            position: 'absolute',
+                            top: `${dropdownPosition.top}px`,
+                            left: `${dropdownPosition.left}px`,
+                            width: '1px',
+                            height: '1px',
+                          }}
+                        />
+                      </PopoverAnchor>
+                      <PopoverContent
+                        maxHeight={240}
+                        className='min-w-[260px] max-w-[260px]'
+                        side='bottom'
+                        align='start'
+                        collisionPadding={6}
+                        style={{ zIndex: 100000000 }}
+                        onOpenAutoFocus={(e) => e.preventDefault()}
+                        onCloseAutoFocus={(e) => e.preventDefault()}
+                      >
+                        <PopoverScrollArea>
+                          <PopoverSection>Available Parameters</PopoverSection>
                           {schemaParameters.map((param, index) => (
-                            <button
+                            <PopoverItem
                               key={param.name}
-                              onClick={() => handleSchemaParamSelect(param.name)}
+                              rootOnly
+                              active={index === schemaParamSelectedIndex}
                               onMouseEnter={() => setSchemaParamSelectedIndex(index)}
-                              className={cn(
-                                'flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm',
-                                'hover:bg-accent hover:text-accent-foreground',
-                                'focus:bg-accent focus:text-accent-foreground focus:outline-none',
-                                index === schemaParamSelectedIndex &&
-                                  'bg-accent text-accent-foreground'
-                              )}
+                              onMouseDown={(e) => {
+                                e.preventDefault()
+                                e.stopPropagation()
+                                handleSchemaParamSelect(param.name)
+                              }}
+                              className='flex items-center gap-2'
                             >
                               <div
                                 className='flex h-5 w-5 items-center justify-center rounded'
@@ -1151,11 +1253,11 @@ try {
                               </div>
                               <span className='flex-1 truncate'>{param.name}</span>
                               <span className='text-muted-foreground text-xs'>{param.type}</span>
-                            </button>
+                            </PopoverItem>
                           ))}
-                        </div>
-                      </div>
-                    </div>
+                        </PopoverScrollArea>
+                      </PopoverContent>
+                    </Popover>
                   )}
                 </div>
                 <div className='h-6' />
@@ -1166,18 +1268,17 @@ try {
           <DialogFooter className='mt-auto border-t px-6 py-4'>
             <div className='flex w-full justify-between'>
               {isEditing ? (
-                <Button
-                  variant='destructive'
-                  size='sm'
+                <EmcnButton
+                  className='h-[32px] gap-1 bg-[var(--text-error)] px-[12px] text-[var(--white)] hover:bg-[var(--text-error)] hover:text-[var(--white)] dark:bg-[var(--text-error)] dark:text-[var(--white)] hover:dark:bg-[var(--text-error)] dark:hover:text-[var(--white)]'
                   onClick={() => setShowDeleteConfirm(true)}
-                  className='gap-1'
                 >
                   <Trash className='h-4 w-4' />
                   Delete
-                </Button>
+                </EmcnButton>
               ) : (
-                <Button
+                <EmcnButton
                   variant='outline'
+                  className='h-[32px] px-[12px]'
                   onClick={() => {
                     if (activeSection === 'code') {
                       setActiveSection('schema')
@@ -1186,23 +1287,30 @@ try {
                   disabled={activeSection === 'schema'}
                 >
                   Back
-                </Button>
+                </EmcnButton>
               )}
               <div className='flex space-x-2'>
-                <Button variant='outline' onClick={handleClose}>
+                <EmcnButton variant='outline' className='h-[32px] px-[12px]' onClick={handleClose}>
                   Cancel
-                </Button>
+                </EmcnButton>
                 {activeSection === 'schema' ? (
-                  <Button
+                  <EmcnButton
+                    variant='primary'
+                    className='h-[32px] px-[12px]'
                     onClick={() => setActiveSection('code')}
                     disabled={!isSchemaValid || !!schemaError}
                   >
                     Next
-                  </Button>
+                  </EmcnButton>
                 ) : (
-                  <Button onClick={handleSave} disabled={!isSchemaValid || !!schemaError}>
+                  <EmcnButton
+                    variant='primary'
+                    className='h-[32px] px-[12px]'
+                    onClick={handleSave}
+                    disabled={!isSchemaValid || !!schemaError}
+                  >
                     {isEditing ? 'Update Tool' : 'Save Tool'}
-                  </Button>
+                  </EmcnButton>
                 )}
               </div>
             </div>
@@ -1214,7 +1322,7 @@ try {
       <Modal open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
         <ModalContent>
           <ModalHeader>
-            <ModalTitle>Are you sure you want to delete this tool?</ModalTitle>
+            <ModalTitle>Delete custom tool?</ModalTitle>
             <ModalDescription>
               This will permanently delete the tool and remove it from any workflows that are using
               it.{' '}
@@ -1224,19 +1332,21 @@ try {
             </ModalDescription>
           </ModalHeader>
           <ModalFooter>
-            <EmcnButton
+            <Button
               variant='outline'
               className='h-[32px] px-[12px]'
               onClick={() => setShowDeleteConfirm(false)}
+              disabled={deleteToolMutation.isPending}
             >
               Cancel
-            </EmcnButton>
-            <EmcnButton
+            </Button>
+            <Button
               onClick={handleDelete}
+              disabled={deleteToolMutation.isPending}
               className='h-[32px] bg-[var(--text-error)] px-[12px] text-[var(--white)] hover:bg-[var(--text-error)] hover:text-[var(--white)] dark:bg-[var(--text-error)] dark:text-[var(--white)] hover:dark:bg-[var(--text-error)] dark:hover:text-[var(--white)]'
             >
-              Delete
-            </EmcnButton>
+              {deleteToolMutation.isPending ? 'Deleting...' : 'Delete'}
+            </Button>
           </ModalFooter>
         </ModalContent>
       </Modal>

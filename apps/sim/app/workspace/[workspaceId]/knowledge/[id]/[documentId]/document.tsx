@@ -3,9 +3,9 @@
 import { Suspense, startTransition, useCallback, useEffect, useState } from 'react'
 import { ChevronLeft, ChevronRight, Circle, CircleOff, FileText, Plus } from 'lucide-react'
 import { useParams, useSearchParams } from 'next/navigation'
-import { Tooltip } from '@/components/emcn'
+import { Button, Tooltip } from '@/components/emcn'
 import { Trash } from '@/components/emcn/icons/trash'
-import { Button, Checkbox, SearchHighlight } from '@/components/ui'
+import { Checkbox, SearchHighlight } from '@/components/ui'
 import { createLogger } from '@/lib/logs/console/logger'
 import {
   CreateChunkModal,
@@ -679,8 +679,8 @@ export function Document({
                 <Button
                   onClick={() => setIsCreateChunkModalOpen(true)}
                   disabled={documentData?.processingStatus === 'failed' || !userPermissions.canEdit}
-                  size='sm'
-                  className='flex items-center gap-1 bg-[var(--brand-primary-hex)] font-[480] text-white shadow-[0_0_0_0_var(--brand-primary-hex)] transition-all duration-200 hover:bg-[var(--brand-primary-hover-hex)] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)] disabled:cursor-not-allowed disabled:opacity-50'
+                  variant='primary'
+                  className='flex items-center gap-1'
                 >
                   <Plus className='h-3.5 w-3.5' />
                   <span>Create Chunk</span>

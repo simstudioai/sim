@@ -220,7 +220,8 @@ export function General() {
           />
         </div>
 
-        <div className='flex items-center justify-between'>
+        {/* TODO: Add floating controls back when we implement the new UI for it */}
+        {/* <div className='flex items-center justify-between'>
           <div className='flex items-center gap-2'>
             <Label htmlFor='floating-controls' className='font-normal'>
               Floating controls
@@ -248,7 +249,7 @@ export function General() {
             onCheckedChange={handleFloatingControlsChange}
             disabled={updateSetting.isPending}
           />
-        </div>
+        </div> */}
 
         <div className='flex items-center justify-between'>
           <div className='flex items-center gap-2'>
