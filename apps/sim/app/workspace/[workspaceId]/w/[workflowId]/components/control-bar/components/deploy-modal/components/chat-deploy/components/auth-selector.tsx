@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import { Check, Copy, Eye, EyeOff, Plus, RefreshCw } from 'lucide-react'
-import { Input, Label } from '@/components/emcn'
+import { Button, Input, Label } from '@/components/emcn'
 import { Trash } from '@/components/emcn/icons/trash'
-import { Button, Card, CardContent } from '@/components/ui'
+import { Card, CardContent } from '@/components/ui'
 import { getEnv, isTruthy } from '@/lib/env'
 import { cn, generatePassword } from '@/lib/utils'
 import type { AuthType } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/control-bar/components/deploy-modal/components/chat-deploy/hooks/use-chat-form'
@@ -142,7 +142,7 @@ export function AuthSelector({
                 value={password}
                 onChange={(e) => onPasswordChange(e.target.value)}
                 disabled={disabled}
-                className='h-10 rounded-[8px] pr-32'
+                className='pr-32'
                 required={!isExistingChat}
                 autoComplete='new-password'
               />
@@ -150,15 +150,13 @@ export function AuthSelector({
                 <Button
                   type='button'
                   variant='ghost'
-                  size='sm'
                   onClick={handleGeneratePassword}
                   disabled={disabled}
                   className={cn(
                     'group h-7 w-7 rounded-md p-0',
-                    'text-muted-foreground/60 transition-all duration-200',
-                    'hover:bg-muted/50 hover:text-foreground',
+                    'transition-all duration-200',
                     'disabled:cursor-not-allowed disabled:opacity-50',
-                    'focus-visible:ring-2 focus-visible:ring-muted-foreground/20 focus-visible:ring-offset-1'
+                    'focus-visible:ring-2 focus-visible:ring-offset-1'
                   )}
                 >
                   <RefreshCw className='h-3.5 w-3.5 transition-transform duration-200 group-hover:rotate-90' />
@@ -167,41 +165,37 @@ export function AuthSelector({
                 <Button
                   type='button'
                   variant='ghost'
-                  size='sm'
                   onClick={() => copyToClipboard(password)}
                   disabled={!password || disabled}
                   className={cn(
                     'group h-7 w-7 rounded-md p-0',
-                    'text-muted-foreground/60 transition-all duration-200',
-                    'hover:bg-muted/50 hover:text-foreground',
+                    'transition-all duration-200',
                     'disabled:cursor-not-allowed disabled:opacity-30',
-                    'focus-visible:ring-2 focus-visible:ring-muted-foreground/20 focus-visible:ring-offset-1'
+                    'focus-visible:ring-2 focus-visible:ring-offset-1'
                   )}
                 >
                   {copySuccess ? (
-                    <Check className='h-3.5 w-3.5 text-foreground' />
+                    <Check className='h-3.5 w-3.5' />
                   ) : (
-                    <Copy className='h-3.5 w-3.5 ' />
+                    <Copy className='h-3.5 w-3.5' />
                   )}
                   <span className='sr-only'>Copy password</span>
                 </Button>
                 <Button
                   type='button'
                   variant='ghost'
-                  size='sm'
                   onClick={() => setShowPassword(!showPassword)}
                   disabled={disabled}
                   className={cn(
                     'group h-7 w-7 rounded-md p-0',
-                    'text-muted-foreground/60 transition-all duration-200',
-                    'hover:bg-muted/50 hover:text-foreground',
-                    'focus-visible:ring-2 focus-visible:ring-muted-foreground/20 focus-visible:ring-offset-1'
+                    'transition-all duration-200',
+                    'focus-visible:ring-2 focus-visible:ring-offset-1'
                   )}
                 >
                   {showPassword ? (
-                    <EyeOff className='h-3.5 w-3.5 ' />
+                    <EyeOff className='h-3.5 w-3.5' />
                   ) : (
-                    <Eye className='h-3.5 w-3.5 ' />
+                    <Eye className='h-3.5 w-3.5' />
                   )}
                   <span className='sr-only'>
                     {showPassword ? 'Hide password' : 'Show password'}
@@ -232,7 +226,7 @@ export function AuthSelector({
                 value={newEmail}
                 onChange={(e) => setNewEmail(e.target.value)}
                 disabled={disabled}
-                className='h-10 flex-1 rounded-[8px]'
+                className='flex-1'
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
                     e.preventDefault()
@@ -242,9 +236,10 @@ export function AuthSelector({
               />
               <Button
                 type='button'
+                variant='default'
                 onClick={handleAddEmail}
                 disabled={!newEmail.trim() || disabled}
-                className='h-10 shrink-0 rounded-[8px]'
+                className='shrink-0 gap-[4px]'
               >
                 <Plus className='h-4 w-4' />
                 Add
@@ -263,10 +258,9 @@ export function AuthSelector({
                         <Button
                           type='button'
                           variant='ghost'
-                          size='icon'
                           onClick={() => handleRemoveEmail(email)}
                           disabled={disabled}
-                          className='h-7 w-7 opacity-70'
+                          className='h-7 w-7 p-0 opacity-70'
                         >
                           <Trash className='h-4 w-4' />
                         </Button>

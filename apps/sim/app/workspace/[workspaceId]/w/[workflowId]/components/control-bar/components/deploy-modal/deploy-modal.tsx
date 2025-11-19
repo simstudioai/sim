@@ -658,10 +658,7 @@ export function DeployModal({
               <div className='flex items-center gap-2'>
                 <DialogTitle className='font-medium text-lg'>Deploy Workflow</DialogTitle>
                 {needsRedeployment && versions.length > 0 && versionToActivate === null && (
-                  <Badge
-                    variant='outline'
-                    className='border-purple-500/20 bg-purple-500/10 text-purple-600 dark:text-purple-400'
-                  >
+                  <Badge variant='default'>
                     {versions.find((v) => v.isActive)?.name ||
                       `v${versions.find((v) => v.isActive)?.version}`}{' '}
                     active
@@ -876,6 +873,7 @@ export function DeployModal({
                                         </DropdownMenuTrigger>
                                         <DropdownMenuContent
                                           align='end'
+                                          className='z-[10000050]'
                                           onCloseAutoFocus={(event) => event.preventDefault()}
                                         >
                                           <DropdownMenuItem

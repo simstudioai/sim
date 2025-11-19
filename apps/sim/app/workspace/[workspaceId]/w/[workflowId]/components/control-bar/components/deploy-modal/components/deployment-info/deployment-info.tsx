@@ -133,7 +133,7 @@ export function DeploymentInfo({
             </Button>
             {deploymentInfo.needsRedeployment && (
               <Button
-                variant='outline'
+                variant='primary'
                 onClick={onRedeploy}
                 disabled={isSubmitting}
                 className='h-8 text-xs'

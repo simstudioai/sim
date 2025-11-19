@@ -1,4 +1,10 @@
 import { airtableWebhookTrigger } from '@/triggers/airtable'
+import {
+  calendlyInviteeCanceledTrigger,
+  calendlyInviteeCreatedTrigger,
+  calendlyRoutingFormSubmittedTrigger,
+  calendlyWebhookTrigger,
+} from '@/triggers/calendly'
 import { genericWebhookTrigger } from '@/triggers/generic'
 import {
   githubIssueClosedTrigger,
@@ -83,6 +89,10 @@ import { whatsappWebhookTrigger } from '@/triggers/whatsapp'
 export const TRIGGER_REGISTRY: TriggerRegistry = {
   slack_webhook: slackWebhookTrigger,
   airtable_webhook: airtableWebhookTrigger,
+  calendly_webhook: calendlyWebhookTrigger,
+  calendly_invitee_created: calendlyInviteeCreatedTrigger,
+  calendly_invitee_canceled: calendlyInviteeCanceledTrigger,
+  calendly_routing_form_submitted: calendlyRoutingFormSubmittedTrigger,
   generic_webhook: genericWebhookTrigger,
   github_webhook: githubWebhookTrigger,
   github_issue_opened: githubIssueOpenedTrigger,

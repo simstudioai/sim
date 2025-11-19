@@ -42,6 +42,7 @@
     "cronstrue": "3.3.0",
     "drizzle-orm": "^0.44.5",
     "mongodb": "6.19.0",
+    "neo4j-driver": "6.0.1",
     "onedollarstats": "0.0.10",
     "postgres": "^3.4.5",
     "remark-gfm": "4.0.1",

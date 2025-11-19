@@ -9,7 +9,7 @@ interface DeployStatusProps {
 export function DeployStatus({ needsRedeployment }: DeployStatusProps) {
   return (
     <div className='flex items-center gap-2'>
-      <span className='font-medium text-muted-foreground text-xs'>Status:</span>
+      <span className='font-medium text-[var(--text-secondary)] text-xs'>Status:</span>
       <div className='flex items-center gap-1.5'>
         <div className='relative flex items-center justify-center'>
           {needsRedeployment ? (
@@ -28,8 +28,8 @@ export function DeployStatus({ needsRedeployment }: DeployStatusProps) {
           className={cn(
             'font-medium text-xs',
             needsRedeployment
-              ? 'bg-amber-50 text-amber-600 dark:bg-amber-900/20 dark:text-amber-400'
-              : 'bg-green-50 text-green-600 dark:bg-green-900/20 dark:text-green-400'
+              ? 'text-amber-600 dark:text-amber-400'
+              : 'text-green-600 dark:text-green-400'
           )}
         >
           {needsRedeployment ? 'Changes Detected' : 'Active'}

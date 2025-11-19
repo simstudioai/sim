@@ -1,0 +1,224 @@
+---
+title: Calendly
+description: Manage Calendly scheduling and events
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="calendly"
+  color="#FFFFFF"
+/>
+
+## Usage Instructions
+
+Integrate Calendly into your workflow. Manage event types, scheduled events, invitees, and webhooks. Can also trigger workflows based on Calendly webhook events (invitee scheduled, invitee canceled, routing form submitted). Requires Personal Access Token.
+
+
+
+## Tools
+
+### `calendly_get_current_user`
+
+Get information about the currently authenticated Calendly user
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Calendly Personal Access Token |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `resource` | object | Current user information |
+
+### `calendly_list_event_types`
+
+Retrieve a list of all event types for a user or organization
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Calendly Personal Access Token |
+| `user` | string | No | Return only event types that belong to this user \(URI format\) |
+| `organization` | string | No | Return only event types that belong to this organization \(URI format\) |
+| `count` | number | No | Number of results per page \(default: 20, max: 100\) |
+| `pageToken` | string | No | Page token for pagination |
+| `sort` | string | No | Sort order for results \(e.g., "name:asc", "name:desc"\) |
+| `active` | boolean | No | Filter by active status \(true for active, false for inactive\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `collection` | array | Array of event type objects |
+
+### `calendly_get_event_type`
+
+Get detailed information about a specific event type
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Calendly Personal Access Token |
+| `eventTypeUuid` | string | Yes | Event type UUID \(can be full URI or just the UUID\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `resource` | object | Event type details |
+
+### `calendly_list_scheduled_events`
+
+Retrieve a list of scheduled events for a user or organization
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Calendly Personal Access Token |
+| `user` | string | No | Return events that belong to this user \(URI format\) |
+| `organization` | string | No | Return events that belong to this organization \(URI format\) |
+| `invitee_email` | string | No | Return events where invitee has this email |
+| `count` | number | No | Number of results per page \(default: 20, max: 100\) |
+| `max_start_time` | string | No | Return events with start time before this time \(ISO 8601 format\) |
+| `min_start_time` | string | No | Return events with start time after this time \(ISO 8601 format\) |
+| `pageToken` | string | No | Page token for pagination |
+| `sort` | string | No | Sort order for results \(e.g., "start_time:asc", "start_time:desc"\) |
+| `status` | string | No | Filter by status \("active" or "canceled"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `collection` | array | Array of scheduled event objects |
+
+### `calendly_get_scheduled_event`
+
+Get detailed information about a specific scheduled event
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Calendly Personal Access Token |
+| `eventUuid` | string | Yes | Scheduled event UUID \(can be full URI or just the UUID\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `resource` | object | Scheduled event details |
+
+### `calendly_list_event_invitees`
+
+Retrieve a list of invitees for a scheduled event
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Calendly Personal Access Token |
+| `eventUuid` | string | Yes | Scheduled event UUID \(can be full URI or just the UUID\) |
+| `count` | number | No | Number of results per page \(default: 20, max: 100\) |
+| `email` | string | No | Filter invitees by email address |
+| `pageToken` | string | No | Page token for pagination |
+| `sort` | string | No | Sort order for results \(e.g., "created_at:asc", "created_at:desc"\) |
+| `status` | string | No | Filter by status \("active" or "canceled"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `collection` | array | Array of invitee objects |
+
+### `calendly_cancel_event`
+
+Cancel a scheduled event
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Calendly Personal Access Token |
+| `eventUuid` | string | Yes | Scheduled event UUID to cancel \(can be full URI or just the UUID\) |
+| `reason` | string | No | Reason for cancellation \(will be sent to invitees\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `resource` | object | Cancellation details |
+
+### `calendly_list_webhooks`
+
+Retrieve a list of webhook subscriptions for an organization
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Calendly Personal Access Token |
+| `organization` | string | Yes | Organization URI to list webhooks for |
+| `count` | number | No | Number of results per page \(default: 20, max: 100\) |
+| `pageToken` | string | No | Page token for pagination |
+| `scope` | string | No | Filter by scope \("organization" or "user"\) |
+| `user` | string | No | Filter webhooks by user URI \(for user-scoped webhooks\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `collection` | array | Array of webhook subscription objects |
+
+### `calendly_create_webhook`
+
+Create a new webhook subscription to receive real-time event notifications
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Calendly Personal Access Token |
+| `url` | string | Yes | URL to receive webhook events \(must be HTTPS\) |
+| `events` | json | Yes | Array of event types to subscribe to \(e.g., \["invitee.created", "invitee.canceled"\]\) |
+| `organization` | string | Yes | Organization URI |
+| `user` | string | No | User URI \(required for user-scoped webhooks\) |
+| `scope` | string | Yes | Webhook scope: "organization" or "user" |
+| `signing_key` | string | No | Optional signing key to verify webhook signatures |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `resource` | object | Created webhook subscription details |
+
+### `calendly_delete_webhook`
+
+Delete a webhook subscription
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Calendly Personal Access Token |
+| `webhookUuid` | string | Yes | Webhook subscription UUID to delete \(can be full URI or just the UUID\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Whether the webhook was successfully deleted |
+| `message` | string | Status message |
+
+
+
+## Notes
+
+- Category: `tools`
+- Type: `calendly`

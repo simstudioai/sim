@@ -26,9 +26,10 @@ Add a new memory to the database or append to existing memory with the same ID.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `id` | string | Yes | Identifier for the memory. If a memory with this ID already exists, the new data will be appended to it. |
+| `conversationId` | string | Yes | Conversation identifier \(e.g., user-123, session-abc\). If a memory with this conversationId already exists for this block, the new message will be appended to it. |
 | `role` | string | Yes | Role for agent memory \(user, assistant, or system\) |
 | `content` | string | Yes | Content for agent memory |
+| `blockId` | string | No | Optional block ID. If not provided, uses the current block ID from execution context. |
 
 #### Output
 
@@ -40,20 +41,22 @@ Add a new memory to the database or append to existing memory with the same ID.
 
 ### `memory_get`
 
-Retrieve a specific memory by its ID
+Retrieve memory by conversationId, blockId, blockName, or a combination. Returns all matching memories.
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `id` | string | Yes | Identifier for the memory to retrieve |
+| `conversationId` | string | No | Conversation identifier \(e.g., user-123, session-abc\). If provided alone, returns all memories for this conversation across all blocks. |
+| `blockId` | string | No | Block identifier. If provided alone, returns all memories for this block across all conversations. If provided with conversationId, returns memories for that specific conversation in this block. |
+| `blockName` | string | No | Block name. Alternative to blockId. If provided alone, returns all memories for blocks with this name. If provided with conversationId, returns memories for that conversation in blocks with this name. |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the memory was retrieved successfully |
-| `memories` | array | Array of memory data for the requested ID |
+| `memories` | array | Array of memory objects with conversationId, blockId, blockName, and data fields |
 | `message` | string | Success or error message |
 | `error` | string | Error message if operation failed |
 
@@ -71,19 +74,21 @@ Retrieve all memories from the database
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether all memories were retrieved successfully |
-| `memories` | array | Array of all memory objects with keys, types, and data |
+| `memories` | array | Array of all memory objects with key, conversationId, blockId, blockName, and data fields |
 | `message` | string | Success or error message |
 | `error` | string | Error message if operation failed |
 
 ### `memory_delete`
 
-Delete a specific memory by its ID
+Delete memories by conversationId, blockId, blockName, or a combination. Supports bulk deletion.
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `id` | string | Yes | Identifier for the memory to delete |
+| `conversationId` | string | No | Conversation identifier \(e.g., user-123, session-abc\). If provided alone, deletes all memories for this conversation across all blocks. |
+| `blockId` | string | No | Block identifier. If provided alone, deletes all memories for this block across all conversations. If provided with conversationId, deletes memories for that specific conversation in this block. |
+| `blockName` | string | No | Block name. Alternative to blockId. If provided alone, deletes all memories for blocks with this name. If provided with conversationId, deletes memories for that conversation in blocks with this name. |
 
 #### Output
 

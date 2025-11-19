@@ -1,0 +1,176 @@
+---
+title: Neo4j
+description: Connect to Neo4j graph database
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="neo4j"
+  color="#FFFFFF"
+/>
+
+## Usage Instructions
+
+Integrate Neo4j graph database into the workflow. Can query, create, merge, update, and delete nodes and relationships.
+
+
+
+## Tools
+
+### `neo4j_query`
+
+Execute MATCH queries to read nodes and relationships from Neo4j graph database
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | Neo4j server hostname or IP address |
+| `port` | number | Yes | Neo4j server port \(default: 7687 for Bolt protocol\) |
+| `database` | string | Yes | Database name to connect to |
+| `username` | string | Yes | Neo4j username |
+| `password` | string | Yes | Neo4j password |
+| `encryption` | string | No | Connection encryption mode \(enabled, disabled\) |
+| `cypherQuery` | string | Yes | Cypher query to execute \(typically MATCH statements\) |
+| `parameters` | object | No | Parameters for the Cypher query as a JSON object |
+| `limit` | number | No | Maximum number of records to return |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `records` | array | Array of records returned from the query |
+| `recordCount` | number | Number of records returned |
+| `summary` | object | Query execution summary with timing and counters |
+
+### `neo4j_create`
+
+Execute CREATE statements to add new nodes and relationships to Neo4j graph database
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | Neo4j server hostname or IP address |
+| `port` | number | Yes | Neo4j server port \(default: 7687 for Bolt protocol\) |
+| `database` | string | Yes | Database name to connect to |
+| `username` | string | Yes | Neo4j username |
+| `password` | string | Yes | Neo4j password |
+| `encryption` | string | No | Connection encryption mode \(enabled, disabled\) |
+| `cypherQuery` | string | Yes | Cypher CREATE statement to execute |
+| `parameters` | object | No | Parameters for the Cypher query as a JSON object |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `summary` | object | Creation summary with counters for nodes and relationships created |
+
+### `neo4j_merge`
+
+Execute MERGE statements to find or create nodes and relationships in Neo4j (upsert operation)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | Neo4j server hostname or IP address |
+| `port` | number | Yes | Neo4j server port \(default: 7687 for Bolt protocol\) |
+| `database` | string | Yes | Database name to connect to |
+| `username` | string | Yes | Neo4j username |
+| `password` | string | Yes | Neo4j password |
+| `encryption` | string | No | Connection encryption mode \(enabled, disabled\) |
+| `cypherQuery` | string | Yes | Cypher MERGE statement to execute |
+| `parameters` | object | No | Parameters for the Cypher query as a JSON object |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `summary` | object | Merge summary with counters for nodes/relationships created or matched |
+
+### `neo4j_update`
+
+Execute SET statements to update properties of existing nodes and relationships in Neo4j
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | Neo4j server hostname or IP address |
+| `port` | number | Yes | Neo4j server port \(default: 7687 for Bolt protocol\) |
+| `database` | string | Yes | Database name to connect to |
+| `username` | string | Yes | Neo4j username |
+| `password` | string | Yes | Neo4j password |
+| `encryption` | string | No | Connection encryption mode \(enabled, disabled\) |
+| `cypherQuery` | string | Yes | Cypher query with MATCH and SET statements to update properties |
+| `parameters` | object | No | Parameters for the Cypher query as a JSON object |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `summary` | object | Update summary with counters for properties set |
+
+### `neo4j_delete`
+
+Execute DELETE or DETACH DELETE statements to remove nodes and relationships from Neo4j
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | Neo4j server hostname or IP address |
+| `port` | number | Yes | Neo4j server port \(default: 7687 for Bolt protocol\) |
+| `database` | string | Yes | Database name to connect to |
+| `username` | string | Yes | Neo4j username |
+| `password` | string | Yes | Neo4j password |
+| `encryption` | string | No | Connection encryption mode \(enabled, disabled\) |
+| `cypherQuery` | string | Yes | Cypher query with MATCH and DELETE/DETACH DELETE statements |
+| `parameters` | object | No | Parameters for the Cypher query as a JSON object |
+| `detach` | boolean | No | Whether to use DETACH DELETE to remove relationships before deleting nodes |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `summary` | object | Delete summary with counters for nodes and relationships deleted |
+
+### `neo4j_execute`
+
+Execute arbitrary Cypher queries on Neo4j graph database for complex operations
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | Neo4j server hostname or IP address |
+| `port` | number | Yes | Neo4j server port \(default: 7687 for Bolt protocol\) |
+| `database` | string | Yes | Database name to connect to |
+| `username` | string | Yes | Neo4j username |
+| `password` | string | Yes | Neo4j password |
+| `encryption` | string | No | Connection encryption mode \(enabled, disabled\) |
+| `cypherQuery` | string | Yes | Cypher query to execute \(any valid Cypher statement\) |
+| `parameters` | object | No | Parameters for the Cypher query as a JSON object |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `records` | array | Array of records returned from the query |
+| `recordCount` | number | Number of records returned |
+| `summary` | object | Execution summary with timing and counters |
+
+
+
+## Notes
+
+- Category: `tools`
+- Type: `neo4j`

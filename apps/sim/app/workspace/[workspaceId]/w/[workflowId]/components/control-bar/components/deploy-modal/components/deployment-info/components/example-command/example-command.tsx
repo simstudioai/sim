@@ -147,14 +147,14 @@ export function ExampleCommand({
           {showLabel && <Label className='font-medium text-sm'>Example</Label>}
           <div className='flex items-center gap-1'>
             <Button
-              variant={mode === 'sync' ? 'primary' : 'outline'}
+              variant={mode === 'sync' ? 'active' : 'default'}
               onClick={() => setMode('sync')}
               className='h-6 min-w-[50px] px-2 py-1 text-xs'
             >
               Sync
             </Button>
             <Button
-              variant={mode === 'stream' ? 'primary' : 'outline'}
+              variant={mode === 'stream' ? 'active' : 'default'}
               onClick={() => setMode('stream')}
               className='h-6 min-w-[50px] px-2 py-1 text-xs'
             >
@@ -163,7 +163,7 @@ export function ExampleCommand({
             {isAsyncEnabled && (
               <>
                 <Button
-                  variant={mode === 'async' ? 'primary' : 'outline'}
+                  variant={mode === 'async' ? 'active' : 'default'}
                   onClick={() => setMode('async')}
                   className='h-6 min-w-[50px] px-2 py-1 text-xs'
                 >
