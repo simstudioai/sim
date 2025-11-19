@@ -531,6 +531,20 @@ import {
   slackUpdateMessageTool,
 } from '@/tools/slack'
 import { smsSendTool } from '@/tools/sms'
+import {
+  snowflakeDeleteRowsTool,
+  snowflakeDescribeTableTool,
+  snowflakeExecuteQueryTool,
+  snowflakeInsertRowsTool,
+  snowflakeListDatabasesTool,
+  snowflakeListFileFormatsTool,
+  snowflakeListSchemasTool,
+  snowflakeListStagesTool,
+  snowflakeListTablesTool,
+  snowflakeListViewsTool,
+  snowflakeListWarehousesTool,
+  snowflakeUpdateRowsTool,
+} from '@/tools/snowflake'
 import { stagehandAgentTool, stagehandExtractTool } from '@/tools/stagehand'
 import {
   stripeCancelPaymentIntentTool,
@@ -1317,4 +1331,16 @@ export const tools: Record<string, ToolConfig> = {
   salesforce_create_task: salesforceCreateTaskTool,
   salesforce_update_task: salesforceUpdateTaskTool,
   salesforce_delete_task: salesforceDeleteTaskTool,
+  snowflake_execute_query: snowflakeExecuteQueryTool,
+  snowflake_insert_rows: snowflakeInsertRowsTool,
+  snowflake_update_rows: snowflakeUpdateRowsTool,
+  snowflake_delete_rows: snowflakeDeleteRowsTool,
+  snowflake_list_databases: snowflakeListDatabasesTool,
+  snowflake_list_schemas: snowflakeListSchemasTool,
+  snowflake_list_tables: snowflakeListTablesTool,
+  snowflake_list_views: snowflakeListViewsTool,
+  snowflake_list_warehouses: snowflakeListWarehousesTool,
+  snowflake_list_file_formats: snowflakeListFileFormatsTool,
+  snowflake_list_stages: snowflakeListStagesTool,
+  snowflake_describe_table: snowflakeDescribeTableTool,
 }

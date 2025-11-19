@@ -1,8 +1,11 @@
 'use client'
 
+import { useState } from 'react'
 import { Check } from 'lucide-react'
 import {
   Button,
+  Input,
+  Label,
   Modal,
   ModalContent,
   ModalDescription,
@@ -246,6 +249,13 @@ export function OAuthRequiredModal({
   serviceId,
   newScopes = [],
 }: OAuthRequiredModalProps) {
+  const [snowflakeAccountUrl, setSnowflakeAccountUrl] = useState('')
+  const [snowflakeClientId, setSnowflakeClientId] = useState('')
+  const [snowflakeClientSecret, setSnowflakeClientSecret] = useState('')
+  const [accountUrlError, setAccountUrlError] = useState('')
+  const [clientIdError, setClientIdError] = useState('')
+  const [clientSecretError, setClientSecretError] = useState('')
+
   const effectiveServiceId = serviceId || getServiceIdFromScopes(provider, requiredScopes)
   const { baseProvider } = parseProvider(provider)
   const baseProviderConfig = OAUTH_PROVIDERS[baseProvider]
@@ -275,6 +285,67 @@ export function OAuthRequiredModal({
   const handleConnectDirectly = async () => {
     try {
       const providerId = getProviderIdFromServiceId(effectiveServiceId)
+
+      // Special handling for Snowflake - requires account URL, client ID, and client secret
+      if (providerId === 'snowflake') {
+        let hasError = false
+
+        if (!snowflakeAccountUrl.trim()) {
+          setAccountUrlError('Account URL is required')
+          hasError = true
+        }
+
+        if (!snowflakeClientId.trim()) {
+          setClientIdError('Client ID is required')
+          hasError = true
+        }
+
+        if (!snowflakeClientSecret.trim()) {
+          setClientSecretError('Client Secret is required')
+          hasError = true
+        }
+
+        if (hasError) {
+          return
+        }
+
+        onClose()
+
+        logger.info('Initiating Snowflake OAuth with user credentials:', {
+          accountUrl: snowflakeAccountUrl,
+          hasClientId: !!snowflakeClientId,
+          hasClientSecret: !!snowflakeClientSecret,
+        })
+
+        // Call the authorize endpoint with user credentials
+        try {
+          const response = await fetch('/api/auth/snowflake/authorize', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              accountUrl: snowflakeAccountUrl,
+              clientId: snowflakeClientId,
+              clientSecret: snowflakeClientSecret,
+            }),
+          })
+
+          if (!response.ok) {
+            throw new Error('Failed to initiate Snowflake OAuth')
+          }
+
+          const data = await response.json()
+
+          // Redirect to Snowflake authorization page
+          window.location.href = data.authUrl
+        } catch (error) {
+          logger.error('Error initiating Snowflake OAuth:', error)
+          // TODO: Show error to user
+        }
+
+        return
+      }
 
       onClose()
 
@@ -319,6 +390,75 @@ export function OAuthRequiredModal({
               </p>
             </div>
           </div>
+
+          {getProviderIdFromServiceId(effectiveServiceId) === 'snowflake' && (
+            <div className='flex flex-col gap-4'>
+              <div className='flex flex-col gap-2'>
+                <Label htmlFor='snowflake-account-url' className='font-medium text-sm'>
+                  Account URL
+                </Label>
+                <Input
+                  id='snowflake-account-url'
+                  placeholder='xy12345.us-east-1.snowflakecomputing.com'
+                  value={snowflakeAccountUrl}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                    setSnowflakeAccountUrl(e.target.value)
+                    setAccountUrlError('')
+                  }}
+                  className='font-mono text-sm'
+                />
+                {accountUrlError && <p className='text-destructive text-xs'>{accountUrlError}</p>}
+                <p className='text-muted-foreground text-xs'>
+                  Your Snowflake account identifier (e.g.,
+                  myorg-account123.us-east-1.snowflakecomputing.com)
+                </p>
+              </div>
+
+              <div className='flex flex-col gap-2'>
+                <Label htmlFor='snowflake-client-id' className='font-medium text-sm'>
+                  Client ID
+                </Label>
+                <Input
+                  id='snowflake-client-id'
+                  type='text'
+                  placeholder='Enter OAuth Client ID'
+                  value={snowflakeClientId}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                    setSnowflakeClientId(e.target.value)
+                    setClientIdError('')
+                  }}
+                  className='font-mono text-sm'
+                />
+                {clientIdError && <p className='text-destructive text-xs'>{clientIdError}</p>}
+                <p className='text-muted-foreground text-xs'>
+                  From your Snowflake security integration (OAUTH_CLIENT_ID)
+                </p>
+              </div>
+
+              <div className='flex flex-col gap-2'>
+                <Label htmlFor='snowflake-client-secret' className='font-medium text-sm'>
+                  Client Secret
+                </Label>
+                <Input
+                  id='snowflake-client-secret'
+                  type='password'
+                  placeholder='Enter OAuth Client Secret'
+                  value={snowflakeClientSecret}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                    setSnowflakeClientSecret(e.target.value)
+                    setClientSecretError('')
+                  }}
+                  className='font-mono text-sm'
+                />
+                {clientSecretError && (
+                  <p className='text-destructive text-xs'>{clientSecretError}</p>
+                )}
+                <p className='text-muted-foreground text-xs'>
+                  From your Snowflake security integration (OAUTH_CLIENT_SECRET)
+                </p>
+              </div>
+            </div>
+          )}
 
           {displayScopes.length > 0 && (
             <div className='rounded-md border bg-muted/50'>

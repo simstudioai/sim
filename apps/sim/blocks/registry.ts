@@ -70,6 +70,7 @@ import { ScheduleBlock } from '@/blocks/blocks/schedule'
 import { SerperBlock } from '@/blocks/blocks/serper'
 import { SharepointBlock } from '@/blocks/blocks/sharepoint'
 import { SlackBlock } from '@/blocks/blocks/slack'
+import { SnowflakeBlock } from '@/blocks/blocks/snowflake'
 import { StagehandBlock } from '@/blocks/blocks/stagehand'
 import { StagehandAgentBlock } from '@/blocks/blocks/stagehand_agent'
 import { StartTriggerBlock } from '@/blocks/blocks/start_trigger'
@@ -172,6 +173,7 @@ export const registry: Record<string, BlockConfig> = {
   stagehand: StagehandBlock,
   stagehand_agent: StagehandAgentBlock,
   slack: SlackBlock,
+  snowflake: SnowflakeBlock,
   starter: StarterBlock,
   start_trigger: StartTriggerBlock,
   input_trigger: InputTriggerBlock,
