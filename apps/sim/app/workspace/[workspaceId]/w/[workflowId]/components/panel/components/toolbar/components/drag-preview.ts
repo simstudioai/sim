@@ -18,7 +18,7 @@ export function createDragPreview(info: DragItemInfo): HTMLElement {
   const preview = document.createElement('div')
   preview.style.cssText = `
     width: 250px;
-    background: #232323;
+    background: var(--surface-1);
     border-radius: 8px;
     padding: 8px 9px;
     display: flex;

@@ -552,11 +552,15 @@ export function MentionMenu({
                         active={index === submenuActiveIndex}
                       >
                         <span className='min-w-0 flex-1 truncate'>{log.workflowName}</span>
-                        <span className='text-[#AEAEAE] text-[10px] dark:text-[#AEAEAE]'>·</span>
+                        <span className='text-[10px] text-[var(--text-tertiary)] dark:text-[var(--text-tertiary)]'>
+                          ·
+                        </span>
                         <span className='whitespace-nowrap text-[10px]'>
                           {formatTimestamp(log.createdAt)}
                         </span>
-                        <span className='text-[#AEAEAE] text-[10px] dark:text-[#AEAEAE]'>·</span>
+                        <span className='text-[10px] text-[var(--text-tertiary)] dark:text-[var(--text-tertiary)]'>
+                          ·
+                        </span>
                         <span className='text-[10px] capitalize'>
                           {(log.trigger || 'manual').toLowerCase()}
                         </span>

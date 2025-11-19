@@ -25,7 +25,7 @@ const SubflowNodeStyles: React.FC = () => {
       /* Drag-over states */
       .loop-node-drag-over,
       .parallel-node-drag-over {
-        box-shadow: 0 0 0 1.75px #33B4FF !important;
+        box-shadow: 0 0 0 1.75px var(--brand-secondary) !important;
         border-radius: 8px !important;
       }
 
