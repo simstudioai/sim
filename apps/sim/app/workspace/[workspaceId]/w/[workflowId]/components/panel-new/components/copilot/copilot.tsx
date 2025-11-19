@@ -478,6 +478,7 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
                     value={inputValue}
                     onChange={setInputValue}
                     panelWidth={panelWidth}
+                    hasPlanArtifact={!!designDocumentContent}
                   />
                 </div>
                 <div className='flex-shrink-0 pt-[8px]'>
@@ -580,6 +581,7 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
                     value={inputValue}
                     onChange={setInputValue}
                     panelWidth={panelWidth}
+                    hasPlanArtifact={!!designDocumentContent}
                   />
                 </div>
               </div>

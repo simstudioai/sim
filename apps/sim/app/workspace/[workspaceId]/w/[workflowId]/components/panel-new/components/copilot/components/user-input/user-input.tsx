@@ -59,6 +59,7 @@ interface UserInputProps {
   onChange?: (value: string) => void
   panelWidth?: number
   clearOnSubmit?: boolean
+  hasPlanArtifact?: boolean
 }
 
 interface UserInputRef {
@@ -89,6 +90,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
       onChange: onControlledChange,
       panelWidth = 308,
       clearOnSubmit = true,
+      hasPlanArtifact = false,
     },
     ref
   ) => {
@@ -328,6 +330,27 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
         onAbort()
       }
     }, [onAbort, isLoading])
+
+    const handleBuildPlan = useCallback(() => {
+      if (disabled || isLoading) return
+
+      // Switch to build mode
+      if (onModeChange) {
+        onModeChange('build')
+      }
+
+      // Send the message
+      onSubmit('build the workflow according to the design plan', [], contextManagement.selectedContexts as any)
+
+      // Clear form if needed
+      if (clearOnSubmit) {
+        setMessage('')
+        fileAttachments.clearAttachedFiles()
+        contextManagement.clearContexts()
+      }
+
+      logger.info('Build Plan button clicked')
+    }, [disabled, isLoading, onModeChange, onSubmit, contextManagement, clearOnSubmit, setMessage, fileAttachments])
 
     const handleKeyDown = useCallback(
       (e: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -582,7 +605,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
           onDragOver={fileAttachments.handleDragOver}
           onDrop={fileAttachments.handleDrop}
         >
-          {/* Top Row: @ Button + Context Usage + Context Pills */}
+          {/* Top Row: @ Button + Context Usage + Context Pills + Build Plan Button */}
           <div className='mb-[6px] flex flex-wrap items-center gap-[6px]'>
             <Badge
               variant='outline'
@@ -606,6 +629,19 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
               contexts={contextManagement.selectedContexts}
               onRemoveContext={contextManagement.removeContext}
             />
+
+            {/* Build Plan Button - Only shown when plan artifact exists */}
+            {hasPlanArtifact && (
+              <Button
+                variant='default'
+                onClick={handleBuildPlan}
+                disabled={disabled || isLoading}
+                className='ml-auto h-[22px] px-[10px] text-[11px]'
+                title='Build workflow from plan'
+              >
+                Build Plan
+              </Button>
+            )}
           </div>
 
           {/* Attached Files Display */}
