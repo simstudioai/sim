@@ -178,15 +178,10 @@ export function useChatResize({
     (e: MouseEvent) => {
       if (!isResizingRef.current || !activeDirectionRef.current) return
 
-      const deltaX = e.clientX - resizeStartRef.current.x
-      const deltaY = e.clientY - resizeStartRef.current.y
+      let deltaX = e.clientX - resizeStartRef.current.x
+      let deltaY = e.clientY - resizeStartRef.current.y
       const initial = initialStateRef.current
       const direction = activeDirectionRef.current
-
-      let newX = initial.x
-      let newY = initial.y
-      let newWidth = initial.width
-      let newHeight = initial.height
 
       // Get layout bounds
       const sidebarWidth = Number.parseInt(
@@ -198,6 +193,56 @@ export function useChatResize({
       const terminalHeight = Number.parseInt(
         getComputedStyle(document.documentElement).getPropertyValue('--terminal-height') || '0'
       )
+
+      // Clamp vertical drag when resizing from the top so the chat does not grow downward
+      // after its top edge hits the top of the viewport.
+      if (direction === 'top' || direction === 'top-left' || direction === 'top-right') {
+        // newY = initial.y + deltaY should never be less than 0
+        const maxUpwardDelta = initial.y
+        if (deltaY < -maxUpwardDelta) {
+          deltaY = -maxUpwardDelta
+        }
+      }
+
+      // Clamp vertical drag when resizing from the bottom so the chat does not grow upward
+      // after its bottom edge hits the top of the terminal.
+      if (direction === 'bottom' || direction === 'bottom-left' || direction === 'bottom-right') {
+        const maxBottom = window.innerHeight - terminalHeight
+        const initialBottom = initial.y + initial.height
+        const maxDeltaY = maxBottom - initialBottom
+
+        if (deltaY > maxDeltaY) {
+          deltaY = maxDeltaY
+        }
+      }
+
+      // Clamp horizontal drag when resizing from the left so the chat does not grow to the right
+      // after its left edge hits the sidebar.
+      if (direction === 'left' || direction === 'top-left' || direction === 'bottom-left') {
+        const minLeft = sidebarWidth
+        const minDeltaX = minLeft - initial.x
+
+        if (deltaX < minDeltaX) {
+          deltaX = minDeltaX
+        }
+      }
+
+      // Clamp horizontal drag when resizing from the right so the chat does not grow to the left
+      // after its right edge hits the panel.
+      if (direction === 'right' || direction === 'top-right' || direction === 'bottom-right') {
+        const maxRight = window.innerWidth - panelWidth
+        const initialRight = initial.x + initial.width
+        const maxDeltaX = maxRight - initialRight
+
+        if (deltaX > maxDeltaX) {
+          deltaX = maxDeltaX
+        }
+      }
+
+      let newX = initial.x
+      let newY = initial.y
+      let newWidth = initial.width
+      let newHeight = initial.height
 
       // Calculate new dimensions based on resize direction
       switch (direction) {
