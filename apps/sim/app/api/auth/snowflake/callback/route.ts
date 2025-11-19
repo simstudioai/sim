@@ -1,7 +1,6 @@
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
-import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getBaseUrl } from '@/lib/urls/utils'
 import { db } from '@/../../packages/db'
@@ -41,10 +40,12 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(`${getBaseUrl()}/workspace?error=snowflake_invalid_callback`)
     }
 
-    // Decode state to get account URL and code verifier
+    // Decode state to get account URL, credentials, and code verifier
     let stateData: {
       userId: string
       accountUrl: string
+      clientId: string
+      clientSecret: string
       timestamp: number
       codeVerifier: string
     }
@@ -54,6 +55,8 @@ export async function GET(request: NextRequest) {
       logger.info('Decoded state successfully', {
         userId: stateData.userId,
         accountUrl: stateData.accountUrl,
+        hasClientId: !!stateData.clientId,
+        hasClientSecret: !!stateData.clientSecret,
         age: Date.now() - stateData.timestamp,
         hasCodeVerifier: !!stateData.codeVerifier,
       })
@@ -79,12 +82,13 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(`${getBaseUrl()}/workspace?error=snowflake_state_expired`)
     }
 
-    const clientId = env.SNOWFLAKE_CLIENT_ID
-    const clientSecret = env.SNOWFLAKE_CLIENT_SECRET
+    // Use user-provided credentials from state
+    const clientId = stateData.clientId
+    const clientSecret = stateData.clientSecret
 
     if (!clientId || !clientSecret) {
-      logger.error('Snowflake OAuth credentials not configured')
-      return NextResponse.redirect(`${getBaseUrl()}/workspace?error=snowflake_not_configured`)
+      logger.error('Missing client credentials in state')
+      return NextResponse.redirect(`${getBaseUrl()}/workspace?error=snowflake_missing_credentials`)
     }
 
     // Exchange authorization code for tokens
@@ -165,12 +169,22 @@ export async function GET(request: NextRequest) {
       ? new Date(now.getTime() + tokens.expires_in * 1000)
       : new Date(now.getTime() + 10 * 60 * 1000) // Default 10 minutes
 
+    // Store user-provided OAuth credentials securely
+    // We use the password field to store a JSON object with clientId and clientSecret
+    // and idToken to store the accountUrl for easier retrieval
+    const oauthCredentials = JSON.stringify({
+      clientId: stateData.clientId,
+      clientSecret: stateData.clientSecret,
+    })
+
     const accountData = {
       userId: session.user.id,
       providerId: 'snowflake',
       accountId: stateData.accountUrl, // Store the Snowflake account URL here
       accessToken: tokens.access_token,
       refreshToken: tokens.refresh_token || null,
+      idToken: stateData.accountUrl, // Store accountUrl for easier access
+      password: oauthCredentials, // Store clientId and clientSecret as JSON
       accessTokenExpiresAt: expiresAt,
       scope: tokens.scope || null,
       updatedAt: now,

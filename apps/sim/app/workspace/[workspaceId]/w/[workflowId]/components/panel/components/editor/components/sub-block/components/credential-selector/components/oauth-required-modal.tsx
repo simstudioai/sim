@@ -273,7 +273,11 @@ export function OAuthRequiredModal({
   newScopes = [],
 }: OAuthRequiredModalProps) {
   const [snowflakeAccountUrl, setSnowflakeAccountUrl] = useState('')
+  const [snowflakeClientId, setSnowflakeClientId] = useState('')
+  const [snowflakeClientSecret, setSnowflakeClientSecret] = useState('')
   const [accountUrlError, setAccountUrlError] = useState('')
+  const [clientIdError, setClientIdError] = useState('')
+  const [clientSecretError, setClientSecretError] = useState('')
 
   const effectiveServiceId = serviceId || getServiceIdFromScopes(provider, requiredScopes)
   const { baseProvider } = parseProvider(provider)
@@ -305,20 +309,64 @@ export function OAuthRequiredModal({
     try {
       const providerId = getProviderIdFromServiceId(effectiveServiceId)
 
-      // Special handling for Snowflake - requires account URL
+      // Special handling for Snowflake - requires account URL, client ID, and client secret
       if (providerId === 'snowflake') {
+        let hasError = false
+
         if (!snowflakeAccountUrl.trim()) {
           setAccountUrlError('Account URL is required')
+          hasError = true
+        }
+
+        if (!snowflakeClientId.trim()) {
+          setClientIdError('Client ID is required')
+          hasError = true
+        }
+
+        if (!snowflakeClientSecret.trim()) {
+          setClientSecretError('Client Secret is required')
+          hasError = true
+        }
+
+        if (hasError) {
           return
         }
 
         onClose()
 
-        logger.info('Initiating Snowflake OAuth:', {
+        logger.info('Initiating Snowflake OAuth with user credentials:', {
           accountUrl: snowflakeAccountUrl,
+          hasClientId: !!snowflakeClientId,
+          hasClientSecret: !!snowflakeClientSecret,
         })
 
-        window.location.href = `/api/auth/snowflake/authorize?accountUrl=${encodeURIComponent(snowflakeAccountUrl)}`
+        // Call the authorize endpoint with user credentials
+        try {
+          const response = await fetch('/api/auth/snowflake/authorize', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              accountUrl: snowflakeAccountUrl,
+              clientId: snowflakeClientId,
+              clientSecret: snowflakeClientSecret,
+            }),
+          })
+
+          if (!response.ok) {
+            throw new Error('Failed to initiate Snowflake OAuth')
+          }
+
+          const data = await response.json()
+
+          // Redirect to Snowflake authorization page
+          window.location.href = data.authUrl
+        } catch (error) {
+          logger.error('Error initiating Snowflake OAuth:', error)
+          // TODO: Show error to user
+        }
+
         return
       }
 
@@ -352,7 +400,7 @@ export function OAuthRequiredModal({
 
   return (
     <Modal open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <ModalContent className='w-[460px]'>
+<ModalContent className='w-[460px]'>
         <ModalHeader>Connect {providerName}</ModalHeader>
         <ModalBody>
           <div className='flex flex-col gap-[16px]'>

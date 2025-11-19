@@ -1529,28 +1529,43 @@ function buildAuthRequest(
  * This is a server-side utility function to refresh OAuth tokens
  * @param providerId The provider ID (e.g., 'google-drive')
  * @param refreshToken The refresh token to use
- * @param metadata Optional metadata (e.g., accountUrl for Snowflake)
+ * @param metadata Optional metadata (e.g., accountUrl, clientId, clientSecret for Snowflake)
  * @returns Object containing the new access token and expiration time in seconds, or null if refresh failed
  */
 export async function refreshOAuthToken(
   providerId: string,
   refreshToken: string,
-  metadata?: { accountUrl?: string }
+  metadata?: { accountUrl?: string; clientId?: string; clientSecret?: string }
 ): Promise<{ accessToken: string; expiresIn: number; refreshToken: string } | null> {
   try {
     // Get the provider from the providerId (e.g., 'google-drive' -> 'google')
     const provider = providerId.split('-')[0]
 
-    // Get provider configuration
-    const config = getProviderAuthConfig(provider)
+    let config: ProviderAuthConfig
 
-    // For Snowflake, use the account-specific token endpoint
-    let tokenEndpoint = config.tokenEndpoint
-    if (provider === 'snowflake' && metadata?.accountUrl) {
-      tokenEndpoint = `https://${metadata.accountUrl}/oauth/token-request`
-      logger.info('Using Snowflake account-specific token endpoint', {
+    if (provider === 'snowflake' && metadata?.clientId && metadata?.clientSecret) {
+      config = {
+        tokenEndpoint: `https://${metadata.accountUrl}/oauth/token-request`,
+        clientId: metadata.clientId,
+        clientSecret: metadata.clientSecret,
+        useBasicAuth: false,
+        supportsRefreshTokenRotation: true,
+      }
+      logger.info('Using user-provided Snowflake OAuth credentials for token refresh', {
         accountUrl: metadata.accountUrl,
+        hasClientId: !!metadata.clientId,
+        hasClientSecret: !!metadata.clientSecret,
       })
+    } else {
+      config = getProviderAuthConfig(provider)
+
+      // For Snowflake without user credentials, use the account-specific token endpoint
+      if (provider === 'snowflake' && metadata?.accountUrl) {
+        config.tokenEndpoint = `https://${metadata.accountUrl}/oauth/token-request`
+        logger.info('Using Snowflake account-specific token endpoint', {
+          accountUrl: metadata.accountUrl,
+        })
+      }
     }
 
     // Build authentication request
