@@ -40,8 +40,18 @@ export class DeployWorkflowClientTool extends BaseClientTool {
     const action = params?.action || 'deploy'
     const deployType = params?.deployType || 'api'
     
+    // Check if workflow is already deployed
+    const workflowId = params?.workflowId || useWorkflowRegistry.getState().activeWorkflowId
+    const isAlreadyDeployed = workflowId 
+      ? useWorkflowRegistry.getState().getWorkflowDeploymentStatus(workflowId)?.isDeployed 
+      : false
+    
     let buttonText = action.charAt(0).toUpperCase() + action.slice(1)
-    if (action === 'deploy' && deployType === 'chat') {
+    
+    // Change to "Redeploy" if already deployed
+    if (action === 'deploy' && isAlreadyDeployed) {
+      buttonText = 'Redeploy'
+    } else if (action === 'deploy' && deployType === 'chat') {
       buttonText = 'Deploy as chat'
     }
     
@@ -77,13 +87,30 @@ export class DeployWorkflowClientTool extends BaseClientTool {
     getDynamicText: (params, state) => {
       const action = params?.action === 'undeploy' ? 'undeploy' : 'deploy'
       const deployType = params?.deployType || 'api'
-      const actionPast = action === 'undeploy' ? 'undeployed' : 'deployed'
-      const actionIng = action === 'undeploy' ? 'undeploying' : 'deploying'
-      const actionCapitalized = action.charAt(0).toUpperCase() + action.slice(1)
+      
+      // Check if workflow is already deployed
+      const workflowId = params?.workflowId || useWorkflowRegistry.getState().activeWorkflowId
+      const isAlreadyDeployed = workflowId 
+        ? useWorkflowRegistry.getState().getWorkflowDeploymentStatus(workflowId)?.isDeployed 
+        : false
+      
+      // Determine action text based on deployment status
+      let actionText = action
+      let actionTextIng = action === 'undeploy' ? 'undeploying' : 'deploying'
+      let actionTextPast = action === 'undeploy' ? 'undeployed' : 'deployed'
+      
+      // If already deployed and action is deploy, change to redeploy
+      if (action === 'deploy' && isAlreadyDeployed) {
+        actionText = 'redeploy'
+        actionTextIng = 'redeploying'
+        actionTextPast = 'redeployed'
+      }
+      
+      const actionCapitalized = actionText.charAt(0).toUpperCase() + actionText.slice(1)
       
       // Special text for chat deployment
       const isChatDeploy = action === 'deploy' && deployType === 'chat'
-      const displayAction = isChatDeploy ? 'deploy as chat' : action
+      const displayAction = isChatDeploy ? 'deploy as chat' : actionText
       const displayActionCapitalized = isChatDeploy ? 'Deploy as chat' : actionCapitalized
 
       switch (state) {
@@ -98,9 +125,9 @@ export class DeployWorkflowClientTool extends BaseClientTool {
         case ClientToolCallState.error:
           return `Failed to ${displayAction} workflow`
         case ClientToolCallState.aborted:
-          return isChatDeploy ? 'Aborted opening chat deployment' : `Aborted ${actionIng} workflow`
+          return isChatDeploy ? 'Aborted opening chat deployment' : `Aborted ${actionTextIng} workflow`
         case ClientToolCallState.rejected:
-          return isChatDeploy ? 'Skipped opening chat deployment' : `Skipped ${actionIng} workflow`
+          return isChatDeploy ? 'Skipped opening chat deployment' : `Skipped ${actionTextIng} workflow`
       }
       return undefined
     },
