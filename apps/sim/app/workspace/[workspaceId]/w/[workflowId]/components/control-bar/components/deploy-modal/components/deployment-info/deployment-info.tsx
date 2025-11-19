@@ -143,8 +143,9 @@ export function DeploymentInfo({
               </Button>
             )}
             <Button
+              variant='outline'
               disabled={isUndeploying}
-              className='h-8 bg-red-500 text-white text-xs hover:bg-red-600'
+              className='h-8 text-xs'
               onClick={() => setShowUndeployModal(true)}
             >
               {isUndeploying ? <Loader2 className='mr-1.5 h-3.5 w-3.5 animate-spin' /> : null}
