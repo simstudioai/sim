@@ -81,9 +81,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       .where(and(eq(member.userId, session.user.id), eq(member.organizationId, organizationId)))
       .then((rows) => rows[0])
 
-    const isPersonalTransfer = sub.referenceId === session.user.id
-
-    if (!isPersonalTransfer && (!mem || (mem.role !== 'owner' && mem.role !== 'admin'))) {
+    if (!mem || (mem.role !== 'owner' && mem.role !== 'admin')) {
       return NextResponse.json(
         { error: 'Unauthorized - user is not admin of organization' },
         { status: 403 }
