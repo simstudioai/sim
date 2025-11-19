@@ -100,7 +100,6 @@ export interface LoopBlock {
   width: number
   height: number
   executionState: {
-    currentIteration: number
     isExecuting: boolean
     startTime: null | number
     endTime: null | number
