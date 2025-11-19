@@ -4,7 +4,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { Check, Copy } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { Tooltip } from '@/components/emcn'
+import { Code, Tooltip } from '@/components/emcn'
 
 /**
  * Recursively extracts text content from React elements
@@ -28,56 +28,30 @@ const getTextContent = (element: React.ReactNode): string => {
   return ''
 }
 
-// Fix for code block text rendering issues
+// Global layout fixes for markdown content inside the copilot panel
 if (typeof document !== 'undefined') {
   const styleId = 'copilot-markdown-fix'
   if (!document.getElementById(styleId)) {
     const style = document.createElement('style')
     style.id = styleId
     style.textContent = `
-      .copilot-markdown-wrapper pre {
-        color: #F5F5F5 !important;
-        font-weight: 400 !important;
-        text-shadow: none !important;
-        filter: none !important;
-        opacity: 1 !important;
-        -webkit-font-smoothing: antialiased !important;
-        -moz-osx-font-smoothing: grayscale !important;
-        text-rendering: optimizeLegibility !important;
+      /* Prevent any markdown content from expanding beyond the panel */
+      .copilot-markdown-wrapper,
+      .copilot-markdown-wrapper * {
         max-width: 100% !important;
-        overflow: auto !important;
-      }
-      
-      .dark .copilot-markdown-wrapper pre {
-        color: #F0F0F0 !important;
-      }
-      
-      .copilot-markdown-wrapper pre code,
-      .copilot-markdown-wrapper pre code *,
-      .copilot-markdown-wrapper pre span,
-      .copilot-markdown-wrapper pre div {
-        color: inherit !important;
-        opacity: 1 !important;
-        font-weight: 400 !important;
-        text-shadow: none !important;
-        filter: none !important;
-        -webkit-font-smoothing: antialiased !important;
-        -moz-osx-font-smoothing: grayscale !important;
-        text-rendering: optimizeLegibility !important;
       }
 
-      /* Prevent any markdown content from expanding beyond the panel */
-      .copilot-markdown-wrapper, .copilot-markdown-wrapper * {
-        max-width: 100% !important;
-      }
-      .copilot-markdown-wrapper p, .copilot-markdown-wrapper li {
+      .copilot-markdown-wrapper p,
+      .copilot-markdown-wrapper li {
         overflow-wrap: anywhere !important;
         word-break: break-word !important;
       }
+
       .copilot-markdown-wrapper a {
         overflow-wrap: anywhere !important;
         word-break: break-all !important;
       }
+
       .copilot-markdown-wrapper code:not(pre code) {
         white-space: normal !important;
         overflow-wrap: anywhere !important;
@@ -219,7 +193,7 @@ export default function CopilotMarkdownRenderer({ content }: CopilotMarkdownRend
         </li>
       ),
 
-      // Code blocks
+      // Code blocks - render using shared Code.Viewer for consistent styling
       pre: ({ children }: React.HTMLAttributes<HTMLPreElement>) => {
         let codeContent: React.ReactNode = children
         let language = 'code'
@@ -272,13 +246,24 @@ export default function CopilotMarkdownRenderer({ content }: CopilotMarkdownRend
           }
         }
 
+        // Map markdown language tag to Code.Viewer supported languages
+        const normalizedLanguage = (language || '').toLowerCase()
+        const viewerLanguage: 'javascript' | 'json' | 'python' =
+          normalizedLanguage === 'json'
+            ? 'json'
+            : normalizedLanguage === 'python' || normalizedLanguage === 'py'
+              ? 'python'
+              : 'javascript'
+
         return (
-          <div className='my-6 w-0 min-w-full rounded-md bg-gray-900 text-sm dark:bg-black'>
-            <div className='flex items-center justify-between border-gray-700 border-b px-4 py-1.5 dark:border-gray-800'>
-              <span className='font-season text-gray-400 text-xs'>{language}</span>
+          <div className='my-6 w-0 min-w-full overflow-hidden rounded-md border border-[var(--border-strong)] bg-[#1F1F1F] text-sm'>
+            <div className='flex items-center justify-between border-[var(--border-strong)] border-b px-4 py-1.5'>
+              <span className='font-season text-[#A3A3A3] text-xs'>
+                {language === 'code' ? viewerLanguage : language}
+              </span>
               <button
                 onClick={handleCopy}
-                className='text-muted-foreground transition-colors hover:text-gray-300'
+                className='text-[#A3A3A3] transition-colors hover:text-gray-300'
                 title='Copy'
               >
                 {showCopySuccess ? (
@@ -288,11 +273,12 @@ export default function CopilotMarkdownRenderer({ content }: CopilotMarkdownRend
                 )}
               </button>
             </div>
-            <div className='overflow-x-auto'>
-              <pre className='whitespace-pre p-4 font-mono text-[#F5F5F5] text-sm leading-relaxed dark:text-[#F0F0F0]'>
-                {actualCodeText}
-              </pre>
-            </div>
+            <Code.Viewer
+              code={actualCodeText}
+              showGutter
+              language={viewerLanguage}
+              className='m-0 rounded-none border-0 bg-transparent'
+            />
           </div>
         )
       },
@@ -307,7 +293,7 @@ export default function CopilotMarkdownRenderer({ content }: CopilotMarkdownRend
         if (inline) {
           return (
             <code
-              className='whitespace-normal break-all rounded bg-gray-300 px-1 py-0.5 font-mono text-[#707070] text-[0.9em] dark:bg-[var(--surface-11)] dark:text-[#E8E8E8]'
+              className='whitespace-normal break-all rounded border border-[var(--border-strong)] bg-[#1F1F1F] px-1 py-0.5 font-mono text-[#eeeeee] text-[0.9em]'
               {...props}
             >
               {children}
