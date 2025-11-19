@@ -1,14 +1,20 @@
 'use client'
 
-import { Plus, Search } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { ChevronDown } from 'lucide-react'
+import { Button, Popover, PopoverAnchor, PopoverContent, PopoverItem } from '@/components/emcn'
 import {
   KnowledgeBaseCardSkeletonGrid,
   KnowledgeHeader,
+  SearchInput,
 } from '@/app/workspace/[workspaceId]/knowledge/components'
+import {
+  filterButtonClass,
+  SORT_OPTIONS,
+} from '@/app/workspace/[workspaceId]/knowledge/components/shared'
 
 export default function KnowledgeLoading() {
   const breadcrumbs = [{ id: 'knowledge', label: 'Knowledge' }]
+  const currentSortLabel = SORT_OPTIONS[0]?.label || 'Last Updated'
 
   return (
     <div className='flex h-screen flex-col pl-64'>
@@ -22,26 +28,37 @@ export default function KnowledgeLoading() {
             <div className='px-6 pb-6'>
               {/* Search and Create Section */}
               <div className='mb-4 flex items-center justify-between pt-1'>
-                <div className='relative max-w-md flex-1'>
-                  <div className='relative flex items-center'>
-                    <Search className='-translate-y-1/2 pointer-events-none absolute top-1/2 left-3 h-[18px] w-[18px] transform text-muted-foreground' />
-                    <input
-                      type='text'
-                      placeholder='Search knowledge bases...'
-                      disabled
-                      className='h-10 w-full rounded-md border bg-background px-9 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:font-medium file:text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50'
-                    />
-                  </div>
-                </div>
-
-                <Button
+                <SearchInput
+                  value=''
+                  onChange={() => {}}
+                  placeholder='Search knowledge bases...'
                   disabled
-                  size='sm'
-                  className='flex items-center gap-1 bg-[var(--brand-primary-hex)] font-[480] text-muted-foreground shadow-[0_0_0_0_var(--brand-primary-hex)] transition-all duration-200 hover:bg-[var(--brand-primary-hover-hex)] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)] disabled:opacity-50'
-                >
-                  <Plus className='h-3.5 w-3.5' />
-                  <span>Create</span>
-                </Button>
+                />
+
+                <div className='flex items-center gap-2'>
+                  {/* Sort Dropdown */}
+                  <Popover open={false}>
+                    <PopoverAnchor asChild>
+                      <Button variant='outline' className={filterButtonClass} disabled>
+                        {currentSortLabel}
+                        <ChevronDown className='ml-2 h-4 w-4 text-muted-foreground' />
+                      </Button>
+                    </PopoverAnchor>
+                    <PopoverContent align='end' side='bottom' sideOffset={4}>
+                      {SORT_OPTIONS.map((option) => (
+                        <PopoverItem key={option.value} disabled>
+                          {option.label}
+                        </PopoverItem>
+                      ))}
+                    </PopoverContent>
+                  </Popover>
+
+                  {/* Create Button */}
+                  <Button disabled variant='primary' className='flex items-center gap-1'>
+                    <div className='h-3.5 w-3.5 animate-pulse rounded bg-primary-foreground/30' />
+                    <span>Create</span>
+                  </Button>
+                </div>
               </div>
 
               {/* Content Area */}

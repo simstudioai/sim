@@ -1,15 +1,15 @@
 'use client'
 
 import { Check } from 'lucide-react'
-import { Button } from '@/components/emcn/components/button/button'
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
+  Button,
+  Modal,
+  ModalContent,
+  ModalDescription,
+  ModalFooter,
+  ModalHeader,
+  ModalTitle,
+} from '@/components/emcn'
 import { client } from '@/lib/auth-client'
 import { createLogger } from '@/lib/logs/console/logger'
 import {
@@ -298,15 +298,15 @@ export function OAuthRequiredModal({
   }
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className='sm:max-w-md'>
-        <DialogHeader>
-          <DialogTitle>Additional Access Required</DialogTitle>
-          <DialogDescription>
+    <Modal open={isOpen} onOpenChange={(open) => !open && onClose()}>
+      <ModalContent className='sm:max-w-md'>
+        <ModalHeader>
+          <ModalTitle>Additional Access Required</ModalTitle>
+          <ModalDescription>
             The "{toolName}" tool requires access to your {providerName} account to function
             properly.
-          </DialogDescription>
-        </DialogHeader>
+          </ModalDescription>
+        </ModalHeader>
         <div className='flex flex-col gap-4 py-4'>
           <div className='flex items-center gap-4'>
             <div className='rounded-full bg-muted p-2'>
@@ -345,20 +345,20 @@ export function OAuthRequiredModal({
             </div>
           )}
         </div>
-        <DialogFooter className='flex flex-col gap-2 sm:flex-row'>
-          <Button variant='outline' onClick={onClose} className='sm:order-1'>
+        <ModalFooter>
+          <Button variant='outline' onClick={onClose} className='h-[32px] px-[12px]'>
             Cancel
           </Button>
           <Button
             variant='primary'
             type='button'
             onClick={handleConnectDirectly}
-            className='sm:order-3'
+            className='h-[32px] px-[12px]'
           >
             Connect Now
           </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </ModalFooter>
+      </ModalContent>
+    </Modal>
   )
 }

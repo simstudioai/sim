@@ -152,7 +152,7 @@ export function CodeEditor({
       highlights.push({
         start: match.index,
         end: match.index + match[0].length,
-        replacement: `<span class="text-blue-500">${match[0]}</span>`,
+        replacement: `<span class="text-[#34B5FF] dark:text-[#34B5FF]">${match[0]}</span>`,
       })
     }
 
@@ -166,7 +166,7 @@ export function CodeEditor({
           highlights.push({
             start: match.index,
             end: match.index + match[0].length,
-            replacement: `<span class="text-blue-500">${escaped}</span>`,
+            replacement: `<span class="text-[#34B5FF] dark:text-[#34B5FF]">${escaped}</span>`,
           })
         }
       }
@@ -196,7 +196,7 @@ export function CodeEditor({
             highlights.push({
               start: match.index,
               end: match.index + match[0].length,
-              replacement: `<span class="text-green-600 font-medium">${match[0]}</span>`,
+              replacement: `<span class="text-[#34B5FF] dark:text-[#34B5FF] font-medium">${match[0]}</span>`,
             })
           }
         }
