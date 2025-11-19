@@ -554,9 +554,13 @@ function validateMessagesForLLM(messages: CopilotMessage[]): any[] {
           .trim()
       }
 
-      // Strip thinking tags and todo tags from content
+      // Strip thinking, design_workflow, and todo tags from content
       if (content) {
-        content = stripTodoTags(content.replace(/<thinking>[\s\S]*?<\/thinking>/g, '')).trim()
+        content = stripTodoTags(
+          content
+            .replace(/<thinking>[\s\S]*?<\/thinking>/g, '')
+            .replace(/<design_workflow>[\s\S]*?<\/design_workflow>/g, '')
+        ).trim()
       }
 
       return {
@@ -603,6 +607,8 @@ interface StreamingContext {
   currentTextBlock: any | null
   isInThinkingBlock: boolean
   currentThinkingBlock: any | null
+  isInDesignWorkflowBlock: boolean
+  designWorkflowContent: string
   pendingContent: string
   newChatId?: string
   doneEventCount: number
@@ -826,6 +832,7 @@ const sseHandlers: Record<string, SSEHandler> = {
     const name: string | undefined = toolData.name || data?.toolName
     if (!id) return
     const args = toolData.arguments
+    const isPartial = toolData.partial === true
     const { toolCallsById } = get()
 
     // Ensure class-based client tool instances are registered (for interrupts/display)
@@ -1066,6 +1073,8 @@ const sseHandlers: Record<string, SSEHandler> = {
 
     const thinkingStartRegex = /<thinking>/
     const thinkingEndRegex = /<\/thinking>/
+    const designWorkflowStartRegex = /<design_workflow>/
+    const designWorkflowEndRegex = /<\/design_workflow>/
 
     const appendTextToContent = (text: string) => {
       if (!text) return
@@ -1085,7 +1094,57 @@ const sseHandlers: Record<string, SSEHandler> = {
     }
 
     while (contentToProcess.length > 0) {
-      if (!context.isInThinkingBlock) {
+      // Handle design_workflow tags (takes priority over other content processing)
+      if (context.isInDesignWorkflowBlock) {
+        const endMatch = designWorkflowEndRegex.exec(contentToProcess)
+        if (endMatch) {
+          const designContent = contentToProcess.substring(0, endMatch.index)
+          context.designWorkflowContent += designContent
+          context.isInDesignWorkflowBlock = false
+          
+          // Update store with complete design workflow content
+          const { mode } = get()
+          if (mode === 'plan') {
+            logger.info('[design_workflow] Tag complete, setting plan content', {
+              contentLength: context.designWorkflowContent.length,
+            })
+            set({ streamingPlanContent: context.designWorkflowContent })
+          }
+          
+          contentToProcess = contentToProcess.substring(endMatch.index + endMatch[0].length)
+          hasProcessedContent = true
+        } else {
+          // Still in design_workflow block, accumulate content
+          context.designWorkflowContent += contentToProcess
+          
+          // Update store with partial content for streaming effect
+          const { mode } = get()
+          if (mode === 'plan') {
+            set({ streamingPlanContent: context.designWorkflowContent })
+          }
+          
+          contentToProcess = ''
+          hasProcessedContent = true
+        }
+        continue
+      }
+
+      if (!context.isInThinkingBlock && !context.isInDesignWorkflowBlock) {
+        // Check for design_workflow start tag first
+        const designStartMatch = designWorkflowStartRegex.exec(contentToProcess)
+        if (designStartMatch) {
+          const textBeforeDesign = contentToProcess.substring(0, designStartMatch.index)
+          if (textBeforeDesign) {
+            appendTextToContent(textBeforeDesign)
+            hasProcessedContent = true
+          }
+          context.isInDesignWorkflowBlock = true
+          context.designWorkflowContent = ''
+          contentToProcess = contentToProcess.substring(designStartMatch.index + designStartMatch[0].length)
+          hasProcessedContent = true
+          continue
+        }
+
         const nextMarkIndex = contentToProcess.indexOf('<marktodo>')
         const nextCheckIndex = contentToProcess.indexOf('<checkofftodo>')
         const hasMark = nextMarkIndex >= 0
@@ -1472,6 +1531,7 @@ const initialState = {
   inputValue: '',
   planTodos: [] as Array<{ id: string; content: string; completed?: boolean; executing?: boolean }>,
   showPlanTodos: false,
+  streamingPlanContent: '',
   toolCallsById: {} as Record<string, CopilotToolCall>,
   suppressAutoSelect: false,
   contextUsage: null,
@@ -1484,7 +1544,7 @@ export const useCopilotStore = create<CopilotStore>()(
     // Basic mode controls
     setMode: (mode) => set({ mode }),
 
-    // Clear messages
+    // Clear messages (don't clear streamingPlanContent - let it persist)
     clearMessages: () => set({ messages: [], contextUsage: null }),
 
     // Workflow selection
@@ -1633,6 +1693,7 @@ export const useCopilotStore = create<CopilotStore>()(
         messageCheckpoints: {},
         planTodos: [],
         showPlanTodos: false,
+        streamingPlanContent: '',
         suppressAutoSelect: true,
         contextUsage: null,
       })
@@ -1935,7 +1996,11 @@ export const useCopilotStore = create<CopilotStore>()(
             abortController: null,
           }))
         } else {
-          set({ isSendingMessage: false, isAborting: false, abortController: null })
+          set({
+            isSendingMessage: false,
+            isAborting: false,
+            abortController: null,
+          })
         }
 
         // Immediately put all in-progress tools into aborted state
@@ -2292,6 +2357,8 @@ export const useCopilotStore = create<CopilotStore>()(
         currentTextBlock: null,
         isInThinkingBlock: false,
         currentThinkingBlock: null,
+        isInDesignWorkflowBlock: false,
+        designWorkflowContent: '',
         pendingContent: '',
         doneEventCount: 0,
       }

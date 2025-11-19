@@ -86,6 +86,7 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
     inputValue,
     planTodos,
     showPlanTodos,
+    streamingPlanContent,
     sendMessage,
     abortMessage,
     createNewChat,
@@ -140,26 +141,41 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
   })
 
   /**
-   * Extract markdown content for plan mode section
-   * Gets the first assistant message content when in plan mode
-   * This represents the initial plan/objective that stays at the top
+   * Get markdown content for plan mode section
+   * Uses streamingPlanContent from design_workflow tool when available,
+   * otherwise falls back to first assistant message content
    */
   const planModeMarkdownContent = useMemo(() => {
-    if (mode !== 'plan' || messages.length === 0) {
+    if (mode !== 'plan') {
       return ''
     }
 
-    // Find the first assistant message with content (the initial plan)
+    // Prefer streaming content from design_workflow tool
+    if (streamingPlanContent) {
+      logger.info('[PlanMode] Using streaming plan content', {
+        contentLength: streamingPlanContent.length,
+      })
+      return streamingPlanContent
+    }
+
+    // Fallback: find the first assistant message with content (the initial plan)
+    if (messages.length === 0) {
+      return ''
+    }
+
     const firstAssistantMessage = messages.find(
       (msg) => msg.role === 'assistant' && msg.content && msg.content.trim()
     )
 
-    if (!firstAssistantMessage?.content) {
-      return ''
+    const fallbackContent = firstAssistantMessage?.content || ''
+    if (fallbackContent) {
+      logger.info('[PlanMode] Using fallback content from first assistant message', {
+        contentLength: fallbackContent.length,
+      })
     }
 
-    return firstAssistantMessage.content
-  }, [mode, messages])
+    return fallbackContent
+  }, [mode, streamingPlanContent, messages])
 
   /**
    * Helper function to focus the copilot input

@@ -115,6 +115,9 @@ export interface CopilotState {
   planTodos: Array<{ id: string; content: string; completed?: boolean; executing?: boolean }>
   showPlanTodos: boolean
 
+  // Streaming plan content from design_workflow tool (for plan mode section)
+  streamingPlanContent: string
+
   // Map of toolCallId -> CopilotToolCall for quick access during streaming
   toolCallsById: Record<string, CopilotToolCall>
 
