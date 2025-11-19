@@ -107,6 +107,8 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           provenance: false
           sbom: false
+          cache-from: ${{ github.ref == 'refs/heads/main' && format('type=registry,ref={0}:latest-amd64', matrix.ghcr_image) || '' }}
+          cache-to: type=inline
 
   # Build ARM64 images for GHCR (main branch only, runs in parallel)
   build-ghcr-arm64:
@@ -158,6 +160,10 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           provenance: false
           sbom: false
+          cache-from: |
+            type=registry,ref=${{ matrix.image }}:latest-arm64
+            type=registry,ref=${{ matrix.image }}:${{ github.sha }}-arm64
+          cache-to: type=inline
 
   # Create GHCR multi-arch manifests (only for main, after both builds)
   create-ghcr-manifests:
