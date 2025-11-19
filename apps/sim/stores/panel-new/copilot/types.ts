@@ -53,16 +53,9 @@ export type ChatContext =
   | { kind: 'templates'; templateId?: string; label: string }
   | { kind: 'docs'; label: string }
 
-export interface CopilotChat {
-  id: string
-  title: string | null
-  model: string
-  messages: CopilotMessage[]
-  messageCount: number
-  previewYaml: string | null
-  createdAt: Date
-  updatedAt: Date
-}
+import type { CopilotChat as ApiCopilotChat } from '@/lib/copilot/api'
+
+export type CopilotChat = ApiCopilotChat
 
 export type CopilotMode = 'ask' | 'build' | 'plan'
 

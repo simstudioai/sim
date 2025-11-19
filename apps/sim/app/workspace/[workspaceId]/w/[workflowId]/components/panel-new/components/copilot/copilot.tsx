@@ -141,41 +141,20 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
   })
 
   /**
-   * Get markdown content for plan mode section
-   * Uses streamingPlanContent from design_workflow tool when available,
-   * otherwise falls back to first assistant message content
+   * Get markdown content for design document section
+   * Available in all modes once created
    */
-  const planModeMarkdownContent = useMemo(() => {
-    if (mode !== 'plan') {
-      return ''
-    }
-
-    // Prefer streaming content from design_workflow tool
+  const designDocumentContent = useMemo(() => {
+    // Use streaming content if available
     if (streamingPlanContent) {
-      logger.info('[PlanMode] Using streaming plan content', {
+      logger.info('[DesignDocument] Using streaming plan content', {
         contentLength: streamingPlanContent.length,
       })
       return streamingPlanContent
     }
 
-    // Fallback: find the first assistant message with content (the initial plan)
-    if (messages.length === 0) {
-      return ''
-    }
-
-    const firstAssistantMessage = messages.find(
-      (msg) => msg.role === 'assistant' && msg.content && msg.content.trim()
-    )
-
-    const fallbackContent = firstAssistantMessage?.content || ''
-    if (fallbackContent) {
-      logger.info('[PlanMode] Using fallback content from first assistant message', {
-        contentLength: fallbackContent.length,
-      })
-    }
-
-    return fallbackContent
-  }, [mode, streamingPlanContent, messages])
+    return ''
+  }, [streamingPlanContent])
 
   /**
    * Helper function to focus the copilot input
@@ -507,10 +486,10 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
             ) : (
               /* Normal messages view */
               <div className='relative flex flex-1 flex-col overflow-hidden'>
-                {/* Plan Mode Section - Pinned at top, only shown in plan mode with content */}
-                {mode === 'plan' && planModeMarkdownContent && (
+                {/* Design Document Section - Pinned at top, shown in all modes when available */}
+                {designDocumentContent && (
                   <div className='flex-shrink-0 px-[8px] pt-[8px]'>
-                    <PlanModeSection content={planModeMarkdownContent} />
+                    <PlanModeSection content={designDocumentContent} />
                   </div>
                 )}
 

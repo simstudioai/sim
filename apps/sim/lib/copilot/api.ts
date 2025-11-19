@@ -24,6 +24,14 @@ export interface CopilotMessage {
 }
 
 /**
+ * Chat config stored in database
+ */
+export interface CopilotChatConfig {
+  mode?: 'ask' | 'build' | 'plan'
+  model?: string
+}
+
+/**
  * Chat interface for copilot conversations
  */
 export interface CopilotChat {
@@ -33,6 +41,8 @@ export interface CopilotChat {
   messages: CopilotMessage[]
   messageCount: number
   previewYaml: string | null
+  planArtifact: string | null
+  config: CopilotChatConfig | null
   createdAt: Date
   updatedAt: Date
 }

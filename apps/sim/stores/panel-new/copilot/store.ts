@@ -537,6 +537,7 @@ function stripTodoTags(text: string): string {
   return text
     .replace(/<marktodo>[\s\S]*?<\/marktodo>/g, '')
     .replace(/<checkofftodo>[\s\S]*?<\/checkofftodo>/g, '')
+    .replace(/<design_workflow>[\s\S]*?<\/design_workflow>/g, '')
     .replace(/[ \t]+\n/g, '\n')
     .replace(/\n{2,}/g, '\n')
 }
@@ -1102,14 +1103,11 @@ const sseHandlers: Record<string, SSEHandler> = {
           context.designWorkflowContent += designContent
           context.isInDesignWorkflowBlock = false
           
-          // Update store with complete design workflow content
-          const { mode } = get()
-          if (mode === 'plan') {
-            logger.info('[design_workflow] Tag complete, setting plan content', {
-              contentLength: context.designWorkflowContent.length,
-            })
-            set({ streamingPlanContent: context.designWorkflowContent })
-          }
+          // Update store with complete design workflow content (available in all modes)
+          logger.info('[design_workflow] Tag complete, setting plan content', {
+            contentLength: context.designWorkflowContent.length,
+          })
+          set({ streamingPlanContent: context.designWorkflowContent })
           
           contentToProcess = contentToProcess.substring(endMatch.index + endMatch[0].length)
           hasProcessedContent = true
@@ -1117,11 +1115,8 @@ const sseHandlers: Record<string, SSEHandler> = {
           // Still in design_workflow block, accumulate content
           context.designWorkflowContent += contentToProcess
           
-          // Update store with partial content for streaming effect
-          const { mode } = get()
-          if (mode === 'plan') {
-            set({ streamingPlanContent: context.designWorkflowContent })
-          }
+          // Update store with partial content for streaming effect (available in all modes)
+          set({ streamingPlanContent: context.designWorkflowContent })
           
           contentToProcess = ''
           hasProcessedContent = true
@@ -1594,9 +1589,24 @@ export const useCopilotStore = create<CopilotStore>()(
         useWorkflowDiffStore.getState().clearDiff()
       } catch {}
 
+      // Restore plan content and config (mode/model) from selected chat
+      const planArtifact = chat.planArtifact || ''
+      const chatConfig = chat.config || {}
+      const chatMode = chatConfig.mode || get().mode
+      const chatModel = chatConfig.model || get().selectedModel
+      
+      logger.info('[Chat] Restoring chat config', {
+        chatId: chat.id,
+        mode: chatMode,
+        model: chatModel,
+        hasPlanArtifact: !!planArtifact,
+      })
+      
       // Capture previous chat/messages for optimistic background save
       const previousChat = currentChat
       const previousMessages = get().messages
+      const previousMode = get().mode
+      const previousModel = get().selectedModel
 
       // Optimistically set selected chat and normalize messages for UI
       set({
@@ -1604,18 +1614,30 @@ export const useCopilotStore = create<CopilotStore>()(
         messages: normalizeMessagesForUI(chat.messages || []),
         planTodos: [],
         showPlanTodos: false,
+        streamingPlanContent: planArtifact,
+        mode: chatMode,
+        selectedModel: chatModel as CopilotStore['selectedModel'],
         suppressAutoSelect: false,
         contextUsage: null,
       })
 
-      // Background-save the previous chat's latest messages before switching (optimistic)
+      // Background-save the previous chat's latest messages, plan artifact, and config before switching (optimistic)
       try {
         if (previousChat && previousChat.id !== chat.id) {
           const dbMessages = validateMessagesForLLM(previousMessages)
+          const previousPlanArtifact = get().streamingPlanContent
           fetch('/api/copilot/chat/update-messages', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ chatId: previousChat.id, messages: dbMessages }),
+            body: JSON.stringify({
+              chatId: previousChat.id,
+              messages: dbMessages,
+              planArtifact: previousPlanArtifact || null,
+              config: {
+                mode: previousMode,
+                model: previousModel,
+              },
+            }),
           }).catch(() => {})
         }
       } catch {}
@@ -1674,14 +1696,22 @@ export const useCopilotStore = create<CopilotStore>()(
 
       // Background-save the current chat before clearing (optimistic)
       try {
-        const { currentChat } = get()
+        const { currentChat, streamingPlanContent, mode, selectedModel } = get()
         if (currentChat) {
           const currentMessages = get().messages
           const dbMessages = validateMessagesForLLM(currentMessages)
           fetch('/api/copilot/chat/update-messages', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ chatId: currentChat.id, messages: dbMessages }),
+            body: JSON.stringify({
+              chatId: currentChat.id,
+              messages: dbMessages,
+              planArtifact: streamingPlanContent || null,
+              config: {
+                mode,
+                model: selectedModel,
+              },
+            }),
           }).catch(() => {})
         }
       } catch {}
@@ -1767,6 +1797,12 @@ export const useCopilotStore = create<CopilotStore>()(
               } else {
                 const normalizedMessages = normalizeMessagesForUI(updatedCurrentChat.messages || [])
 
+                // Restore plan artifact and config from refreshed chat
+                const refreshedPlanArtifact = updatedCurrentChat.planArtifact || ''
+                const refreshedConfig = updatedCurrentChat.config || {}
+                const refreshedMode = refreshedConfig.mode || get().mode
+                const refreshedModel = refreshedConfig.model || get().selectedModel
+
                 // Build toolCallsById map from all tool calls in normalized messages
                 const toolCallsById: Record<string, CopilotToolCall> = {}
                 for (const msg of normalizedMessages) {
@@ -1783,6 +1819,9 @@ export const useCopilotStore = create<CopilotStore>()(
                   currentChat: updatedCurrentChat,
                   messages: normalizedMessages,
                   toolCallsById,
+                  streamingPlanContent: refreshedPlanArtifact,
+                  mode: refreshedMode,
+                  selectedModel: refreshedModel as CopilotStore['selectedModel'],
                 })
               }
               try {
@@ -1791,6 +1830,19 @@ export const useCopilotStore = create<CopilotStore>()(
             } else if (!isSendingMessage && !suppressAutoSelect) {
               const mostRecentChat: CopilotChat = data.chats[0]
               const normalizedMessages = normalizeMessagesForUI(mostRecentChat.messages || [])
+
+              // Restore plan artifact and config from most recent chat
+              const planArtifact = mostRecentChat.planArtifact || ''
+              const chatConfig = mostRecentChat.config || {}
+              const chatMode = chatConfig.mode || get().mode
+              const chatModel = chatConfig.model || get().selectedModel
+
+              logger.info('[Chat] Auto-selecting most recent chat with config', {
+                chatId: mostRecentChat.id,
+                mode: chatMode,
+                model: chatModel,
+                hasPlanArtifact: !!planArtifact,
+              })
 
               // Build toolCallsById map from all tool calls in normalized messages
               const toolCallsById: Record<string, CopilotToolCall> = {}
@@ -1808,6 +1860,9 @@ export const useCopilotStore = create<CopilotStore>()(
                 currentChat: mostRecentChat,
                 messages: normalizedMessages,
                 toolCallsById,
+                streamingPlanContent: planArtifact,
+                mode: chatMode,
+                selectedModel: chatModel as CopilotStore['selectedModel'],
               })
               try {
                 await get().loadMessageCheckpoints(mostRecentChat.id)
@@ -1900,10 +1955,22 @@ export const useCopilotStore = create<CopilotStore>()(
           })
         } catch {}
 
+        // Prepend design document to message if available
+        const { streamingPlanContent } = get()
+        let messageToSend = message
+        if (streamingPlanContent && streamingPlanContent.trim()) {
+          messageToSend = `Design Document:\n\n${streamingPlanContent}\n\n==============\n\nUser Query:\n\n${message}`
+          logger.info('[DesignDocument] Prepending plan content to message', {
+            planLength: streamingPlanContent.length,
+            originalMessageLength: message.length,
+            finalMessageLength: messageToSend.length,
+          })
+        }
+
         const apiMode: 'ask' | 'agent' | 'plan' =
           mode === 'ask' ? 'ask' : mode === 'plan' ? 'plan' : 'agent'
         const result = await sendStreamingMessage({
-          message,
+          message: messageToSend,
           userMessageId: userMessage.id,
           chatId: currentChat?.id,
           workflowId,
@@ -2007,7 +2074,7 @@ export const useCopilotStore = create<CopilotStore>()(
         abortAllInProgressTools(set, get)
 
         // Persist whatever contentBlocks/text we have to keep ordering for reloads
-        const { currentChat } = get()
+        const { currentChat, streamingPlanContent, mode, selectedModel } = get()
         if (currentChat) {
           try {
             const currentMessages = get().messages
@@ -2015,7 +2082,15 @@ export const useCopilotStore = create<CopilotStore>()(
             fetch('/api/copilot/chat/update-messages', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ chatId: currentChat.id, messages: dbMessages }),
+              body: JSON.stringify({
+                chatId: currentChat.id,
+                messages: dbMessages,
+                planArtifact: streamingPlanContent || null,
+                config: {
+                  mode,
+                  model: selectedModel,
+                },
+              }),
             }).catch(() => {})
           } catch {}
         }
@@ -2435,16 +2510,35 @@ export const useCopilotStore = create<CopilotStore>()(
           await get().handleNewChatCreation(context.newChatId)
         }
 
-        // Persist full message state (including contentBlocks) to database
-        const { currentChat } = get()
+        // Persist full message state (including contentBlocks), plan artifact, and config to database
+        const { currentChat, streamingPlanContent, mode, selectedModel } = get()
         if (currentChat) {
           try {
             const currentMessages = get().messages
             const dbMessages = validateMessagesForLLM(currentMessages)
+            const config = {
+              mode,
+              model: selectedModel,
+            }
+            
             await fetch('/api/copilot/chat/update-messages', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ chatId: currentChat.id, messages: dbMessages }),
+              body: JSON.stringify({
+                chatId: currentChat.id,
+                messages: dbMessages,
+                planArtifact: streamingPlanContent || null,
+                config,
+              }),
+            })
+            
+            // Update local chat object with plan artifact and config
+            set({
+              currentChat: {
+                ...currentChat,
+                planArtifact: streamingPlanContent || null,
+                config,
+              },
             })
           } catch {}
         }
@@ -2464,13 +2558,19 @@ export const useCopilotStore = create<CopilotStore>()(
 
     // Handle new chat creation from stream
     handleNewChatCreation: async (newChatId: string) => {
+      const { mode, selectedModel, streamingPlanContent } = get()
       const newChat: CopilotChat = {
         id: newChatId,
         title: null,
-        model: 'gpt-4',
+        model: selectedModel,
         messages: get().messages,
         messageCount: get().messages.length,
         previewYaml: null,
+        planArtifact: streamingPlanContent || null,
+        config: {
+          mode,
+          model: selectedModel,
+        },
         createdAt: new Date(),
         updatedAt: new Date(),
       }
