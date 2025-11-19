@@ -56,7 +56,6 @@ async function fetchApiKeys(workspaceId: string): Promise<ApiKeysResponse> {
     personalKeys = personalData.keys || []
   }
 
-  // Client-side conflict detection
   const workspaceKeyNames = new Set(workspaceKeys.map((k) => k.name))
   const conflicts = personalKeys
     .filter((key) => workspaceKeyNames.has(key.name))
@@ -71,14 +70,13 @@ async function fetchApiKeys(workspaceId: string): Promise<ApiKeysResponse> {
 
 /**
  * Hook to fetch API keys (both workspace and personal)
- * API keys change infrequently, cache for 60 seconds
  */
 export function useApiKeys(workspaceId: string) {
   return useQuery({
     queryKey: apiKeysKeys.combined(workspaceId),
     queryFn: () => fetchApiKeys(workspaceId),
     enabled: !!workspaceId,
-    staleTime: 60 * 1000, // 60 seconds
+    staleTime: 60 * 1000,
     placeholderData: keepPreviousData,
   })
 }
@@ -119,7 +117,6 @@ export function useCreateApiKey() {
       return response.json()
     },
     onSuccess: (_data, variables) => {
-      // Invalidate API keys cache
       queryClient.invalidateQueries({
         queryKey: apiKeysKeys.combined(variables.workspaceId),
       })
@@ -161,7 +158,6 @@ export function useDeleteApiKey() {
       return response.json()
     },
     onSuccess: (_data, variables) => {
-      // Invalidate API keys cache
       queryClient.invalidateQueries({
         queryKey: apiKeysKeys.combined(variables.workspaceId),
       })
@@ -202,7 +198,6 @@ export function useUpdateWorkspaceApiKeySettings() {
       return response.json()
     },
     onSuccess: (_data, variables) => {
-      // Invalidate workspace settings cache
       queryClient.invalidateQueries({
         queryKey: workspaceKeys.settings(variables.workspaceId),
       })

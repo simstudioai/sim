@@ -1,10 +1,8 @@
-import { useCallback, useRef } from 'react'
-import { useQueryClient } from '@tanstack/react-query'
+import { useRef } from 'react'
 import { AlertCircle } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useActiveOrganization } from '@/lib/auth-client'
-import { createLogger } from '@/lib/logs/console/logger'
 import { getSubscriptionStatus } from '@/lib/subscription/helpers'
 import { getBaseUrl } from '@/lib/urls/utils'
 import { UsageHeader } from '@/app/workspace/[workspaceId]/w/components/sidebar/components-new/settings-modal/components/shared/usage-header'
@@ -12,10 +10,8 @@ import {
   UsageLimit,
   type UsageLimitRef,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/components-new/settings-modal/components/subscription/components'
-import { organizationKeys, useOrganizationBilling } from '@/hooks/queries/organization'
+import { useOrganizationBilling } from '@/hooks/queries/organization'
 import { useSubscriptionData } from '@/hooks/queries/subscription'
-
-const logger = createLogger('TeamUsage')
 
 interface TeamUsageProps {
   hasAdminAccess: boolean
@@ -24,27 +20,13 @@ interface TeamUsageProps {
 export function TeamUsage({ hasAdminAccess }: TeamUsageProps) {
   const { data: activeOrg } = useActiveOrganization()
   const { data: subscriptionData } = useSubscriptionData()
-  const queryClient = useQueryClient()
   const subscriptionStatus = getSubscriptionStatus(subscriptionData?.data)
 
-  // Fetch organization billing data using React Query
   const {
     data: billingData,
     isLoading: isLoadingOrgBilling,
     error,
   } = useOrganizationBilling(activeOrg?.id || '')
-
-  const handleLimitUpdated = useCallback(
-    async (newLimit: number) => {
-      // Invalidate the billing query to refetch with the new limit
-      if (activeOrg?.id) {
-        await queryClient.invalidateQueries({
-          queryKey: organizationKeys.billing(activeOrg.id),
-        })
-      }
-    },
-    [activeOrg?.id, queryClient]
-  )
 
   const usageLimitRef = useRef<UsageLimitRef | null>(null)
 
@@ -146,7 +128,6 @@ export function TeamUsage({ hasAdminAccess }: TeamUsageProps) {
             minimumLimit={minimumBilling}
             context='organization'
             organizationId={activeOrg.id}
-            onLimitUpdated={handleLimitUpdated}
           />
         ) : (
           <span className='font-medium text-[#B1B1B1] text-[12px] tabular-nums'>
