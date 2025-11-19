@@ -87,8 +87,6 @@ export class WorkflowBlockHandler implements BlockHandler {
         const normalized = parseJSON(inputs.inputMapping, inputs.inputMapping)
 
         if (normalized && typeof normalized === 'object' && !Array.isArray(normalized)) {
-          // Perform lazy cleanup: remove orphaned fields from inputMapping
-          // that no longer exist in the child workflow's inputFormat
           const cleanedMapping = await lazyCleanupInputMapping(
             ctx.workflowId || 'unknown',
             block.id,
@@ -115,11 +113,15 @@ export class WorkflowBlockHandler implements BlockHandler {
       })
 
       const startTime = performance.now()
+
       const result = await subExecutor.execute(workflowId)
       const executionResult = this.toExecutionResult(result)
       const duration = performance.now() - startTime
 
-      logger.info(`Child workflow ${childWorkflowName} completed in ${Math.round(duration)}ms`)
+      logger.info(`Child workflow ${childWorkflowName} completed in ${Math.round(duration)}ms`, {
+        success: executionResult.success,
+        hasLogs: (executionResult.logs?.length ?? 0) > 0,
+      })
 
       const childTraceSpans = this.captureChildWorkflowLogs(executionResult, childWorkflowName, ctx)
 
@@ -131,17 +133,6 @@ export class WorkflowBlockHandler implements BlockHandler {
         childTraceSpans
       )
 
-      if ((mappedResult as any).success === false) {
-        const childError = (mappedResult as any).error || 'Unknown error'
-        const errorWithSpans = new Error(
-          `Error in child workflow "${childWorkflowName}": ${childError}`
-        ) as any
-        errorWithSpans.childTraceSpans = childTraceSpans
-        errorWithSpans.childWorkflowName = childWorkflowName
-        errorWithSpans.executionResult = executionResult
-        throw errorWithSpans
-      }
-
       return mappedResult
     } catch (error: any) {
       logger.error(`Error executing child workflow ${workflowId}:`, error)
@@ -150,24 +141,43 @@ export class WorkflowBlockHandler implements BlockHandler {
       const workflowMetadata = workflows[workflowId]
       const childWorkflowName = workflowMetadata?.name || workflowId
 
-      const originalError = error.message || 'Unknown error'
-      if (originalError.startsWith('Error in child workflow')) {
-        throw error
+      if (error.executionResult?.logs) {
+        const executionResult = error.executionResult as ExecutionResult
+
+        logger.info(`Extracting child trace spans from error.executionResult`, {
+          hasLogs: (executionResult.logs?.length ?? 0) > 0,
+          logCount: executionResult.logs?.length ?? 0,
+        })
+
+        const childTraceSpans = this.captureChildWorkflowLogs(
+          executionResult,
+          childWorkflowName,
+          ctx
+        )
+
+        logger.info(`Captured ${childTraceSpans.length} child trace spans from failed execution`)
+
+        return {
+          success: false,
+          childWorkflowName,
+          result: {},
+          error: error.message || 'Child workflow execution failed',
+          childTraceSpans: childTraceSpans,
+        } as Record<string, any>
       }
 
-      const wrappedError = new Error(
-        `Error in child workflow "${childWorkflowName}": ${originalError}`
-      ) as any
-      if (error.childTraceSpans) {
-        wrappedError.childTraceSpans = error.childTraceSpans
+      if (error.childTraceSpans && Array.isArray(error.childTraceSpans)) {
+        return {
+          success: false,
+          childWorkflowName,
+          result: {},
+          error: error.message || 'Child workflow execution failed',
+          childTraceSpans: error.childTraceSpans,
+        } as Record<string, any>
       }
-      if (error.childWorkflowName) {
-        wrappedError.childWorkflowName = error.childWorkflowName
-      }
-      if (error.executionResult) {
-        wrappedError.executionResult = error.executionResult
-      }
-      throw wrappedError
+
+      const originalError = error.message || 'Unknown error'
+      throw new Error(`Error in child workflow "${childWorkflowName}": ${originalError}`)
     }
   }
 
@@ -435,21 +445,21 @@ export class WorkflowBlockHandler implements BlockHandler {
     childTraceSpans?: WorkflowTraceSpan[]
   ): BlockOutput {
     const success = childResult.success !== false
-    if (!success) {
-      logger.warn(`Child workflow ${childWorkflowName} failed`)
-      const failure: Record<string, any> = {
-        success: false,
-        childWorkflowName,
-        error: childResult.error || 'Child workflow execution failed',
-      }
-      if (Array.isArray(childTraceSpans) && childTraceSpans.length > 0) {
-        failure.childTraceSpans = childTraceSpans
-      }
-      return failure as Record<string, any>
-    }
-
     const result = childResult.output || {}
 
+    if (!success) {
+      logger.warn(`Child workflow ${childWorkflowName} failed`)
+      // Return failure with child trace spans so they can be displayed
+      return {
+        success: false,
+        childWorkflowName,
+        result,
+        error: childResult.error || 'Child workflow execution failed',
+        childTraceSpans: childTraceSpans || [],
+      } as Record<string, any>
+    }
+
+    // Success case
     return {
       success: true,
       childWorkflowName,
