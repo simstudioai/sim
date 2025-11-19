@@ -2,14 +2,27 @@ import neo4j from 'neo4j-driver'
 import type { Neo4jConnectionConfig } from '@/tools/neo4j/types'
 
 export async function createNeo4jDriver(config: Neo4jConnectionConfig) {
-  const protocol = config.encryption === 'enabled' ? 'neo4j+s' : 'neo4j'
+  const isAuraHost = config.host.includes('.databases.neo4j.io')
+
+  let protocol: string
+  if (isAuraHost) {
+    protocol = 'neo4j+s'
+  } else {
+    protocol = config.encryption === 'enabled' ? 'bolt+s' : 'bolt'
+  }
+
   const uri = `${protocol}://${config.host}:${config.port}`
 
-  const driver = neo4j.driver(uri, neo4j.auth.basic(config.username, config.password), {
-    encrypted: config.encryption === 'enabled' ? 'ENCRYPTION_ON' : 'ENCRYPTION_OFF',
+  const driverConfig: any = {
     maxConnectionPoolSize: 1,
     connectionTimeout: 10000,
-  })
+  }
+
+  if (!protocol.endsWith('+s')) {
+    driverConfig.encrypted = config.encryption === 'enabled' ? 'ENCRYPTION_ON' : 'ENCRYPTION_OFF'
+  }
+
+  const driver = neo4j.driver(uri, neo4j.auth.basic(config.username, config.password), driverConfig)
 
   await driver.verifyConnectivity()
 

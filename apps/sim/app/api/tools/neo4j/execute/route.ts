@@ -2,7 +2,11 @@ import { randomUUID } from 'crypto'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createLogger } from '@/lib/logs/console/logger'
-import { convertNeo4jTypesToJSON, createNeo4jDriver, validateCypherQuery } from '../utils'
+import {
+  convertNeo4jTypesToJSON,
+  createNeo4jDriver,
+  validateCypherQuery,
+} from '@/app/api/tools/neo4j/utils'
 
 const logger = createLogger('Neo4jExecuteAPI')
 
@@ -14,7 +18,7 @@ const ExecuteSchema = z.object({
   password: z.string().min(1, 'Password is required'),
   encryption: z.enum(['enabled', 'disabled']).default('disabled'),
   cypherQuery: z.string().min(1, 'Cypher query is required'),
-  parameters: z.record(z.unknown()).optional().default({}),
+  parameters: z.record(z.unknown()).nullable().optional().default({}),
 })
 
 export async function POST(request: NextRequest) {

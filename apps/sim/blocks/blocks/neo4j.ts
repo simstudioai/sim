@@ -33,6 +33,7 @@ export const Neo4jBlock: BlockConfig<Neo4jResponse> = {
       type: 'short-input',
       placeholder: 'localhost or your.neo4j.host',
       required: true,
+      password: true,
     },
     {
       id: 'port',
@@ -455,7 +456,7 @@ Return ONLY the Cypher query.`,
     },
     {
       id: 'parameters',
-      title: 'Parameters (JSON)',
+      title: 'Parameters',
       type: 'code',
       placeholder: '{"name": "Alice", "minAge": 21}',
       wandConfig: {
@@ -607,20 +608,28 @@ Return ONLY valid JSON.`,
         }
       },
       params: (params) => {
-        const { operation, ...rest } = params
+        const { operation, parameters, ...rest } = params
 
         let parsedParameters
-        if (rest.parameters && typeof rest.parameters === 'string' && rest.parameters.trim()) {
-          try {
-            parsedParameters = JSON.parse(rest.parameters)
-          } catch (parseError) {
-            const errorMsg = parseError instanceof Error ? parseError.message : 'Unknown JSON error'
-            throw new Error(
-              `Invalid JSON parameters format: ${errorMsg}. Please check your JSON syntax.`
-            )
+        if (typeof parameters === 'string') {
+          const trimmed = parameters.trim()
+          if (trimmed === '') {
+            parsedParameters = undefined
+          } else {
+            try {
+              parsedParameters = JSON.parse(trimmed)
+            } catch (parseError) {
+              const errorMsg =
+                parseError instanceof Error ? parseError.message : 'Unknown JSON error'
+              throw new Error(
+                `Invalid JSON parameters format: ${errorMsg}. Please check your JSON syntax.`
+              )
+            }
           }
-        } else if (rest.parameters && typeof rest.parameters === 'object') {
-          parsedParameters = rest.parameters
+        } else if (parameters && typeof parameters === 'object') {
+          parsedParameters = parameters
+        } else {
+          parsedParameters = undefined
         }
 
         const connectionConfig = {
@@ -638,8 +647,10 @@ Return ONLY valid JSON.`,
           result.cypherQuery = rest.cypherQuery
         }
 
-        if (parsedParameters !== undefined) {
+        if (parsedParameters !== undefined && parsedParameters !== null) {
           result.parameters = parsedParameters
+        } else {
+          result.parameters = undefined
         }
 
         if (rest.limit && rest.limit !== '') {

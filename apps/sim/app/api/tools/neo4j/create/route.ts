@@ -2,7 +2,11 @@ import { randomUUID } from 'crypto'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createLogger } from '@/lib/logs/console/logger'
-import { createNeo4jDriver, validateCypherQuery } from '../utils'
+import {
+  convertNeo4jTypesToJSON,
+  createNeo4jDriver,
+  validateCypherQuery,
+} from '@/app/api/tools/neo4j/utils'
 
 const logger = createLogger('Neo4jCreateAPI')
 
@@ -14,7 +18,7 @@ const CreateSchema = z.object({
   password: z.string().min(1, 'Password is required'),
   encryption: z.enum(['enabled', 'disabled']).default('disabled'),
   cypherQuery: z.string().min(1, 'Cypher query is required'),
-  parameters: z.record(z.unknown()).optional().default({}),
+  parameters: z.record(z.unknown()).nullable().optional().default({}),
 })
 
 export async function POST(request: NextRequest) {
@@ -52,6 +56,16 @@ export async function POST(request: NextRequest) {
 
     const result = await session.run(params.cypherQuery, params.parameters)
 
+    const records = result.records.map((record) => {
+      const obj: Record<string, unknown> = {}
+      record.keys.forEach((key) => {
+        if (typeof key === 'string') {
+          obj[key] = convertNeo4jTypesToJSON(record.get(key))
+        }
+      })
+      return obj
+    })
+
     const summary = {
       resultAvailableAfter: result.summary.resultAvailableAfter.toNumber(),
       resultConsumedAfter: result.summary.resultConsumedAfter.toNumber(),
@@ -71,11 +85,13 @@ export async function POST(request: NextRequest) {
     }
 
     logger.info(
-      `[${requestId}] Create executed successfully, created ${summary.counters.nodesCreated} nodes and ${summary.counters.relationshipsCreated} relationships`
+      `[${requestId}] Create executed successfully, created ${summary.counters.nodesCreated} nodes and ${summary.counters.relationshipsCreated} relationships, returned ${records.length} records`
     )
 
     return NextResponse.json({
       message: `Created ${summary.counters.nodesCreated} nodes and ${summary.counters.relationshipsCreated} relationships`,
+      records,
+      recordCount: records.length,
       summary,
     })
   } catch (error) {
