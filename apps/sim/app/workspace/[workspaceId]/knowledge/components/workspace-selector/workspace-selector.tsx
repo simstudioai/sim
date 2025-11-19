@@ -136,7 +136,6 @@ export function WorkspaceSelector({
         <PopoverTrigger asChild>
           <Button
             variant='outline'
-            size='sm'
             disabled={disabled || isLoading || isUpdating}
             className={filterButtonClass}
           >

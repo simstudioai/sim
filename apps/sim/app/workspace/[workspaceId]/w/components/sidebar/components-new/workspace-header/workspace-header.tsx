@@ -18,7 +18,7 @@ import { createLogger } from '@/lib/logs/console/logger'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { ContextMenu } from '../workflow-list/components/context-menu/context-menu'
 import { DeleteModal } from '../workflow-list/components/delete-modal/delete-modal'
-import { InviteModal } from './components'
+import { InviteModal } from './components/invite-modal/invite-modal'
 
 const logger = createLogger('WorkspaceHeader')
 

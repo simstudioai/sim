@@ -42,7 +42,6 @@ import {
   ToolInput,
   TriggerSave,
   VariablesInput,
-  WebhookConfig,
 } from './components'
 
 /**
@@ -589,27 +588,6 @@ function SubBlockComponent({
             disabled={isDisabled}
           />
         )
-
-      case 'webhook-config': {
-        const webhookValue =
-          isPreview && subBlockValues
-            ? {
-                webhookProvider: subBlockValues.webhookProvider?.value,
-                webhookPath: subBlockValues.webhookPath?.value,
-                providerConfig: subBlockValues.providerConfig?.value,
-              }
-            : previewValue
-
-        return (
-          <WebhookConfig
-            blockId={blockId}
-            subBlockId={config.id}
-            isPreview={isPreview}
-            value={webhookValue as any}
-            disabled={isDisabled}
-          />
-        )
-      }
 
       case 'schedule-save':
         return <ScheduleSave blockId={blockId} isPreview={isPreview} disabled={disabled} />

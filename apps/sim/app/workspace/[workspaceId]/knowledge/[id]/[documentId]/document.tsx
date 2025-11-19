@@ -339,7 +339,6 @@ export function Document({
               <Tooltip.Trigger asChild>
                 <Button
                   variant='ghost'
-                  size='sm'
                   onClick={(e) => {
                     e.stopPropagation()
                     handleToggleEnabled(chunk.id)
@@ -362,7 +361,6 @@ export function Document({
               <Tooltip.Trigger asChild>
                 <Button
                   variant='ghost'
-                  size='sm'
                   onClick={(e) => {
                     e.stopPropagation()
                     handleDeleteChunk(chunk.id)
@@ -781,7 +779,6 @@ export function Document({
                       <div className='flex items-center gap-1'>
                         <Button
                           variant='ghost'
-                          size='sm'
                           onClick={prevPage}
                           disabled={!hasPrevPage}
                           className='h-8 w-8 p-0'
@@ -822,7 +819,6 @@ export function Document({
 
                         <Button
                           variant='ghost'
-                          size='sm'
                           onClick={nextPage}
                           disabled={!hasNextPage}
                           className='h-8 w-8 p-0'

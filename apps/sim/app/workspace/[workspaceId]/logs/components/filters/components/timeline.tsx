@@ -40,7 +40,7 @@ export default function Timeline({ variant = 'default' }: TimelineProps = {}) {
   return (
     <Popover open={isPopoverOpen} onOpenChange={setIsPopoverOpen}>
       <PopoverTrigger asChild>
-        <Button variant='outline' size='sm' className={filterButtonClass}>
+        <Button variant='outline' className={filterButtonClass}>
           {timeRange}
           <ChevronDown className='ml-2 h-4 w-4 text-muted-foreground' />
         </Button>

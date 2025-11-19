@@ -82,7 +82,6 @@ export function KnowledgeHeader({ breadcrumbs, options }: KnowledgeHeaderProps) 
               <PopoverTrigger asChild>
                 <Button
                   variant='outline'
-                  size='sm'
                   className={filterButtonClass}
                   aria-label='Knowledge base actions menu'
                 >
