@@ -25,9 +25,9 @@
 'use client'
 
 import * as React from 'react'
-import { GripHorizontal, X, Save } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { GripHorizontal, Save, X } from 'lucide-react'
 import { Button } from '@/components/emcn'
+import { cn } from '@/lib/utils'
 import CopilotMarkdownRenderer from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/copilot/components/copilot-message/components/markdown-renderer'
 
 /**
