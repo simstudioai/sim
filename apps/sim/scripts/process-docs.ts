@@ -34,7 +34,7 @@ interface ProcessingOptions {
  */
 async function processDocs(options: ProcessingOptions = {}) {
   const config = {
-    docsPath: options.docsPath || path.join(process.cwd(), '../../apps/docs/content/docs'),
+    docsPath: options.docsPath || path.join(process.cwd(), '../../apps/docs/content/docs/en'),
     baseUrl: options.baseUrl || (isDev ? 'http://localhost:4000' : 'https://docs.sim.ai'),
     chunkSize: options.chunkSize || 1024,
     minChunkSize: options.minChunkSize || 100,
@@ -216,24 +216,30 @@ async function main() {
 
 Usage: bun run process-docs.ts [options]
 
+By default, processes English (en) documentation only.
+Note: Use --clear flag when changing language scope to remove old embeddings.
+
 Options:
   --clear          Clear existing embeddings before processing
   --dry-run        Process and display results without saving to DB
   --verbose        Show detailed output including text previews
-  --path <path>    Custom path to docs directory
+  --path <path>    Custom path to docs directory (default: docs/en)
   --url <url>      Custom base URL for links
   --chunk-size <n> Custom chunk size in tokens (default: 1024)
   --help, -h       Show this help message
 
 Examples:
-  # Dry run to test chunking
+  # Dry run to test chunking (English docs)
   bun run process-docs.ts --dry-run
 
-  # Process and save to database
+  # Process and save to database (English docs)
   bun run process-docs.ts
 
-  # Clear existing and reprocess
+  # Clear existing and reprocess (English docs)
   bun run process-docs.ts --clear
+
+  # Process a different language
+  bun run process-docs.ts --path ../../apps/docs/content/docs/es
 
   # Custom path with verbose output
   bun run process-docs.ts --path ./my-docs --verbose

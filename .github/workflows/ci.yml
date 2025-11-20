@@ -198,10 +198,30 @@ jobs:
             "${IMAGE_BASE}:${{ github.sha }}-arm64"
           docker manifest push "${IMAGE_BASE}:${{ github.sha }}"
 
-  # Process docs embeddings (after ECR images are pushed)
+  # Check if docs changed
+  check-docs-changes:
+    name: Check Docs Changes
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    outputs:
+      docs_changed: ${{ steps.filter.outputs.docs }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2  # Need at least 2 commits to detect changes
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            docs:
+              - 'apps/docs/content/docs/en/**'
+              - 'apps/sim/scripts/process-docs.ts'
+              - 'apps/sim/lib/chunkers/**'
+
+  # Process docs embeddings (only when docs change, after ECR images are pushed)
   process-docs:
     name: Process Docs
-    needs: build-amd64
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging')
+    needs: [build-amd64, check-docs-changes]
+    if: needs.check-docs-changes.outputs.docs_changed == 'true'
     uses: ./.github/workflows/docs-embeddings.yml
     secrets: inherit
