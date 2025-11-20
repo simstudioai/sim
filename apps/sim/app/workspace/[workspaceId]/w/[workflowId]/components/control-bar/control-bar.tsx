@@ -78,12 +78,11 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
 
   // Store hooks
   const { lastSaved, setNeedsRedeploymentFlag, blocks } = useWorkflowStore()
-  const {
-    workflows,
-    activeWorkflowId,
-    duplicateWorkflow,
-    isLoading: isRegistryLoading,
-  } = useWorkflowRegistry()
+  const { workflows, activeWorkflowId, duplicateWorkflow, hydration } = useWorkflowRegistry()
+  const isRegistryLoading =
+    hydration.phase === 'idle' ||
+    hydration.phase === 'metadata-loading' ||
+    hydration.phase === 'state-loading'
   const { isExecuting, handleRunWorkflow, handleCancelExecution } = useWorkflowExecution()
   const { setActiveTab, togglePanel, isOpen } = usePanelStore()
   const { getFolderTree, expandedFolders } = useFolderStore()
