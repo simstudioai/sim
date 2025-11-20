@@ -27,8 +27,6 @@ interface PlanModeSectionProps {
   onClear?: () => void
   /** Callback when content is saved */
   onSave?: (newContent: string) => void
-  /** Callback when Build Plan button is clicked */
-  onBuildPlan?: () => void
 }
 
 /**
@@ -48,7 +46,6 @@ export function PlanModeSection({
   maxHeight = 600,
   onClear,
   onSave,
-  onBuildPlan,
 }: PlanModeSectionProps) {
   // Default to 75% of max height
   const defaultHeight = initialHeight ?? Math.floor(maxHeight * 0.75)
@@ -278,8 +275,8 @@ export function PlanModeSection({
       )}
       style={{ height: `${height}px` }}
     >
-      {/* Header with build/edit/save/clear buttons */}
-      <div className='flex flex-shrink-0 items-center justify-between border-b border-[var(--border-strong)] pl-[12px] pr-[2px] py-[6px] dark:border-[var(--border-strong)]'>
+      {/* Header with edit and clear controls */}
+      <div className='flex flex-shrink-0 items-center justify-between border-b border-[var(--border-strong)] pl-[12px] pr-[4px] py-[6px] dark:border-[var(--border-strong)]'>
         <span className='text-[11px] font-[500] text-[var(--text-secondary)] uppercase tracking-wide dark:text-[var(--text-secondary)]'>
           Workflow Plan
         </span>
@@ -305,16 +302,6 @@ export function PlanModeSection({
             </>
           ) : (
             <>
-              {onBuildPlan && (
-                <Button
-                  variant='default'
-                  onClick={onBuildPlan}
-                  className='h-[22px] px-[10px] text-[11px]'
-                  title='Build workflow from plan'
-                >
-                  Build Plan
-                </Button>
-              )}
               {onSave && (
                 <Button
                   variant='ghost'

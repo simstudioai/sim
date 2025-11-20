@@ -328,22 +328,6 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
   }, [])
 
   /**
-   * Handles Build Plan button click
-   * Switches to build mode and sends a message to build the workflow
-   */
-  const handleBuildPlan = useCallback(() => {
-    if (!activeWorkflowId || isSendingMessage) return
-
-    // Switch to build mode
-    setMode('build')
-
-    // Send the build message
-    handleSubmit('build the workflow according to the design plan')
-
-    logger.info('Build Plan button clicked')
-  }, [activeWorkflowId, isSendingMessage, setMode, handleSubmit])
-
-  /**
    * Handles chat deletion
    * @param chatId - ID of the chat to delete
    */
@@ -495,6 +479,7 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
                     value={inputValue}
                     onChange={setInputValue}
                     panelWidth={panelWidth}
+                    hasPlanArtifact={Boolean(designDocumentContent)}
                   />
                 </div>
                 <div className='flex-shrink-0 pt-[8px]'>
@@ -511,7 +496,6 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
                       content={designDocumentContent}
                       onClear={clearPlanArtifact}
                       onSave={savePlanArtifact}
-                      onBuildPlan={handleBuildPlan}
                     />
                   </div>
                 )}
@@ -602,6 +586,7 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
                     value={inputValue}
                     onChange={setInputValue}
                     panelWidth={panelWidth}
+                    hasPlanArtifact={Boolean(designDocumentContent)}
                   />
                 </div>
               </div>
