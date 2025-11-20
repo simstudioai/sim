@@ -3,19 +3,16 @@
 import { useEffect, useRef, useState } from 'react'
 import { Loader2, MoreVertical, X } from 'lucide-react'
 import {
+  Badge,
   Button,
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui'
+  Popover,
+  PopoverContent,
+  PopoverItem,
+  PopoverTrigger,
+} from '@/components/emcn'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui'
 import { getEnv } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
-import { cn } from '@/lib/utils'
 import type { WorkflowDeploymentVersionResponse } from '@/lib/workflows/db-helpers'
 import { getInputFormatExample as getInputFormatExampleUtil } from '@/lib/workflows/deployment-utils'
 import {
@@ -547,19 +544,14 @@ export function DeployModal({
               <div className='flex items-center gap-2'>
                 <DialogTitle className='font-medium text-lg'>Deploy Workflow</DialogTitle>
                 {needsRedeployment && versions.length > 0 && versionToActivate === null && (
-                  <span className='inline-flex items-center rounded-md bg-purple-500/10 px-2 py-1 font-medium text-purple-600 text-xs dark:text-purple-400'>
+                  <Badge variant='default'>
                     {versions.find((v) => v.isActive)?.name ||
                       `v${versions.find((v) => v.isActive)?.version}`}{' '}
                     active
-                  </span>
+                  </Badge>
                 )}
               </div>
-              <Button
-                variant='ghost'
-                size='icon'
-                className='h-8 w-8 p-0'
-                onClick={handleCloseModal}
-              >
+              <Button variant='ghost' className='h-8 w-8 p-0' onClick={handleCloseModal}>
                 <X className='h-4 w-4' />
                 <span className='sr-only'>Close</span>
               </Button>
@@ -569,46 +561,30 @@ export function DeployModal({
           <div className='flex flex-1 flex-col overflow-hidden'>
             <div className='flex h-14 flex-none items-center border-b px-6'>
               <div className='flex gap-2'>
-                <button
+                <Button
+                  variant={activeTab === 'api' ? 'active' : 'default'}
                   onClick={() => setActiveTab('api')}
-                  className={`rounded-md px-3 py-1 text-sm transition-colors ${
-                    activeTab === 'api'
-                      ? 'bg-accent text-foreground'
-                      : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground'
-                  }`}
                 >
                   API
-                </button>
-                <button
+                </Button>
+                <Button
+                  variant={activeTab === 'chat' ? 'active' : 'default'}
                   onClick={() => setActiveTab('chat')}
-                  className={`rounded-md px-3 py-1 text-sm transition-colors ${
-                    activeTab === 'chat'
-                      ? 'bg-accent text-foreground'
-                      : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground'
-                  }`}
                 >
                   Chat
-                </button>
-                <button
+                </Button>
+                <Button
+                  variant={activeTab === 'versions' ? 'active' : 'default'}
                   onClick={() => setActiveTab('versions')}
-                  className={`rounded-md px-3 py-1 text-sm transition-colors ${
-                    activeTab === 'versions'
-                      ? 'bg-accent text-foreground'
-                      : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground'
-                  }`}
                 >
                   Versions
-                </button>
-                <button
+                </Button>
+                <Button
+                  variant={activeTab === 'template' ? 'active' : 'default'}
                   onClick={() => setActiveTab('template')}
-                  className={`rounded-md px-3 py-1 text-sm transition-colors ${
-                    activeTab === 'template'
-                      ? 'bg-accent text-foreground'
-                      : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground'
-                  }`}
                 >
                   Template
-                </button>
+                </Button>
               </div>
             </div>
 
@@ -632,17 +608,7 @@ export function DeployModal({
                           } to production.`}
                         </div>
                         <div className='flex gap-2'>
-                          <Button
-                            onClick={onDeploy}
-                            disabled={isSubmitting}
-                            className={cn(
-                              'gap-2 font-medium',
-                              'bg-[var(--brand-primary-hover-hex)] hover:bg-[var(--brand-primary-hover-hex)]',
-                              'shadow-[0_0_0_0_var(--brand-primary-hover-hex)] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)]',
-                              'text-white transition-all duration-200',
-                              'disabled:opacity-50 disabled:hover:bg-[var(--brand-primary-hover-hex)] disabled:hover:shadow-none'
-                            )}
-                          >
+                          <Button variant='primary' onClick={onDeploy} disabled={isSubmitting}>
                             {isSubmitting ? (
                               <>
                                 <Loader2 className='mr-1.5 h-3.5 w-3.5 animate-spin' />
@@ -775,38 +741,34 @@ export function DeployModal({
                                       className='px-4 py-2.5'
                                       onClick={(e) => e.stopPropagation()}
                                     >
-                                      <DropdownMenu
+                                      <Popover
                                         open={openDropdown === v.version}
                                         onOpenChange={(open) =>
                                           setOpenDropdown(open ? v.version : null)
                                         }
                                       >
-                                        <DropdownMenuTrigger asChild>
+                                        <PopoverTrigger asChild>
                                           <Button
                                             variant='ghost'
-                                            size='icon'
-                                            className='h-8 w-8'
                                             disabled={activatingVersion === v.version}
+                                            className='h-8 w-8 p-0'
                                           >
                                             <MoreVertical className='h-4 w-4' />
                                           </Button>
-                                        </DropdownMenuTrigger>
-                                        <DropdownMenuContent
-                                          align='end'
-                                          onCloseAutoFocus={(event) => event.preventDefault()}
-                                        >
-                                          <DropdownMenuItem
+                                        </PopoverTrigger>
+                                        <PopoverContent align='end'>
+                                          <PopoverItem
                                             onClick={() => openVersionPreview(v.version)}
                                           >
                                             {v.isActive ? 'View Active' : 'Inspect'}
-                                          </DropdownMenuItem>
-                                          <DropdownMenuItem
+                                          </PopoverItem>
+                                          <PopoverItem
                                             onClick={() => handleStartRename(v.version, v.name)}
                                           >
                                             Rename
-                                          </DropdownMenuItem>
-                                        </DropdownMenuContent>
-                                      </DropdownMenu>
+                                          </PopoverItem>
+                                        </PopoverContent>
+                                      </Popover>
                                     </td>
                                   </tr>
                                 ))}
@@ -824,7 +786,6 @@ export function DeployModal({
                             <div className='flex gap-2'>
                               <Button
                                 variant='outline'
-                                size='sm'
                                 onClick={() => setCurrentPage(currentPage - 1)}
                                 disabled={currentPage === 1}
                               >
@@ -832,7 +793,6 @@ export function DeployModal({
                               </Button>
                               <Button
                                 variant='outline'
-                                size='sm'
                                 onClick={() => setCurrentPage(currentPage + 1)}
                                 disabled={currentPage * itemsPerPage >= versions.length}
                               >
@@ -890,28 +850,16 @@ export function DeployModal({
                       }
                     }}
                     disabled={chatSubmitting}
-                    className={cn(
-                      'gap-2 font-medium',
-                      'bg-red-500 hover:bg-red-600',
-                      'shadow-[0_0_0_0_rgb(239,68,68)] hover:shadow-[0_0_0_4px_rgba(239,68,68,0.15)]',
-                      'text-white transition-all duration-200',
-                      'disabled:opacity-50 disabled:hover:bg-red-500 disabled:hover:shadow-none'
-                    )}
+                    className='bg-red-500 text-white hover:bg-red-600'
                   >
                     Delete
                   </Button>
                 )}
                 <Button
                   type='button'
+                  variant='primary'
                   onClick={handleChatFormSubmit}
                   disabled={chatSubmitting || !isChatFormValid}
-                  className={cn(
-                    'gap-2 font-medium',
-                    'bg-[var(--brand-primary-hover-hex)] hover:bg-[var(--brand-primary-hover-hex)]',
-                    'shadow-[0_0_0_0_var(--brand-primary-hover-hex)] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)]',
-                    'text-white transition-all duration-200',
-                    'disabled:opacity-50 disabled:hover:bg-[var(--brand-primary-hover-hex)] disabled:hover:shadow-none'
-                  )}
                 >
                   {chatSubmitting ? (
                     <>

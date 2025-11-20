@@ -721,7 +721,8 @@ export function Terminal() {
                       align='start'
                       sideOffset={4}
                       onClick={(e) => e.stopPropagation()}
-                      style={{ minWidth: '120px', maxWidth: '120px' }}
+                      minWidth={120}
+                      maxWidth={200}
                     >
                       <PopoverScrollArea style={{ maxHeight: '140px' }}>
                         {uniqueBlocks.map((block, index) => {

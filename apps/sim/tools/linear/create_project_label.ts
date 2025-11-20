@@ -68,20 +68,16 @@ export const linearCreateProjectLabelTool: ToolConfig<
         name: params.name,
       }
 
-      if (params.color !== undefined && params.color !== null && params.color !== '') {
+      if (params.color != null && params.color !== '') {
         input.color = params.color
       }
-      if (
-        params.description !== undefined &&
-        params.description !== null &&
-        params.description !== ''
-      ) {
+      if (params.description != null && params.description !== '') {
         input.description = params.description
       }
-      if (params.isGroup !== undefined && params.isGroup !== null) {
+      if (params.isGroup != null) {
         input.isGroup = params.isGroup
       }
-      if (params.parentId !== undefined && params.parentId !== null && params.parentId !== '') {
+      if (params.parentId != null && params.parentId !== '') {
         input.parentId = params.parentId
       }
 
@@ -121,8 +117,16 @@ export const linearCreateProjectLabelTool: ToolConfig<
     }
 
     const result = data.data.projectLabelCreate
+    if (!result.success) {
+      return {
+        success: false,
+        error: 'Project label creation was not successful',
+        output: {},
+      }
+    }
+
     return {
-      success: result.success,
+      success: true,
       output: {
         projectLabel: result.projectLabel,
       },

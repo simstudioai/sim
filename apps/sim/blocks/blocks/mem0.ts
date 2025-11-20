@@ -148,23 +148,14 @@ export const Mem0Block: BlockConfig<Mem0Response> = {
         if (params.operation === 'add') {
           if (!params.messages) {
             errors.push('Messages are required for add operation')
+          } else if (!Array.isArray(params.messages) || params.messages.length === 0) {
+            errors.push('Messages must be a non-empty array')
           } else {
-            try {
-              const messagesArray =
-                typeof params.messages === 'string' ? JSON.parse(params.messages) : params.messages
-
-              if (!Array.isArray(messagesArray) || messagesArray.length === 0) {
-                errors.push('Messages must be a non-empty array')
-              } else {
-                for (const msg of messagesArray) {
-                  if (!msg.role || !msg.content) {
-                    errors.push("Each message must have 'role' and 'content' properties")
-                    break
-                  }
-                }
+            for (const msg of params.messages) {
+              if (!msg.role || !msg.content) {
+                errors.push("Each message must have 'role' and 'content' properties")
+                break
               }
-            } catch (_e: any) {
-              errors.push('Messages must be valid JSON')
             }
           }
 

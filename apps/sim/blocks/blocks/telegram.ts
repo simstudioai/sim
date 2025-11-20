@@ -282,7 +282,7 @@ export const TelegramBlock: BlockConfig<TelegramResponse> = {
       type: 'json',
       description: 'Files to attach (UI upload)',
     },
-    files: { type: 'json', description: 'Files to attach (UserFile array)' },
+    files: { type: 'array', description: 'Files to attach (UserFile array)' },
     caption: { type: 'string', description: 'Caption for media' },
     messageId: { type: 'string', description: 'Message ID to delete' },
   },

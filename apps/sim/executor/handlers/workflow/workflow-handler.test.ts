@@ -220,7 +220,9 @@ describe('WorkflowBlockHandler', () => {
       expect(result).toEqual({
         success: false,
         childWorkflowName: 'Child Workflow',
+        result: {},
         error: 'Child workflow failed',
+        childTraceSpans: [],
       })
     })
 

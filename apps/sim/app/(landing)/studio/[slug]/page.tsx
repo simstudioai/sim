@@ -61,6 +61,7 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
                 width={450}
                 height={360}
                 className='h-auto w-full'
+                sizes='(max-width: 768px) 100vw, 450px'
                 priority
                 itemProp='image'
               />
@@ -131,7 +132,7 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
       {related.length > 0 && (
         <div className='mx-auto max-w-[900px] px-6 pb-24 sm:px-8 md:px-12'>
           <h2 className='mb-4 font-medium text-[24px]'>Related posts</h2>
-          <div className='grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3'>
+          <div className='grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3'>
             {related.map((p) => (
               <Link key={p.slug} href={`/studio/${p.slug}`} className='group'>
                 <div className='overflow-hidden rounded-lg border border-gray-200'>
@@ -141,6 +142,8 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
                     width={600}
                     height={315}
                     className='h-[160px] w-full object-cover'
+                    sizes='(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw'
+                    loading='lazy'
                   />
                   <div className='p-3'>
                     <div className='mb-1 text-gray-600 text-xs'>

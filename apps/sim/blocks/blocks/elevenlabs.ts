@@ -38,6 +38,7 @@ export const ElevenLabsBlock: BlockConfig<ElevenLabsBlockResponse> = {
         { label: 'eleven_turbo_v2', id: 'eleven_turbo_v2' },
         { label: 'eleven_turbo_v2_5', id: 'eleven_turbo_v2_5' },
         { label: 'eleven_flash_v2_5', id: 'eleven_flash_v2_5' },
+        { label: 'eleven_v3', id: 'eleven_v3' },
       ],
     },
     {

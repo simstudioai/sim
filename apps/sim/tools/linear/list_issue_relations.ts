@@ -95,6 +95,14 @@ export const linearListIssueRelationsTool: ToolConfig<
       }
     }
 
+    if (!data.data?.issue) {
+      return {
+        success: false,
+        error: 'Issue not found',
+        output: {},
+      }
+    }
+
     const result = data.data.issue.relations
     return {
       success: true,

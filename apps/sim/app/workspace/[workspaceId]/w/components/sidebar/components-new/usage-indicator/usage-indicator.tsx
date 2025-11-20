@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { Button } from '@/components/emcn'
 import { Skeleton } from '@/components/ui'
 import { createLogger } from '@/lib/logs/console/logger'
@@ -11,8 +12,10 @@ import {
   getUsage,
 } from '@/lib/subscription/helpers'
 import { isUsageAtLimit, USAGE_PILL_COLORS } from '@/lib/subscription/usage-visualization'
-import { useSubscriptionData } from '@/hooks/queries/subscription'
+import { useSocket } from '@/contexts/socket-context'
+import { subscriptionKeys, useSubscriptionData } from '@/hooks/queries/subscription'
 import { MIN_SIDEBAR_WIDTH, useSidebarStore } from '@/stores/sidebar/store'
+import { RotatingDigit } from './rotating-digit'
 
 const logger = createLogger('UsageIndicator')
 
@@ -85,6 +88,20 @@ interface UsageIndicatorProps {
 export function UsageIndicator({ onClick }: UsageIndicatorProps) {
   const { data: subscriptionData, isLoading } = useSubscriptionData()
   const sidebarWidth = useSidebarStore((state) => state.sidebarWidth)
+  const { onOperationConfirmed } = useSocket()
+  const queryClient = useQueryClient()
+
+  // Listen for completed operations to update usage
+  useEffect(() => {
+    const handleOperationConfirmed = () => {
+      // Small delay to ensure backend has updated usage
+      setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: subscriptionKeys.user() })
+      }, 1000)
+    }
+
+    onOperationConfirmed(handleOperationConfirmed)
+  }, [onOperationConfirmed, queryClient])
 
   /**
    * Calculate pill count based on sidebar width (6-8 pills dynamically).
@@ -130,9 +147,8 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
   const startAnimationIndex = pillCount === 0 ? 0 : Math.min(filledPillsCount, pillCount - 1)
 
   useEffect(() => {
-    const isFreePlan = subscription.isFree
-
-    if (!isHovered || pillCount <= 0 || !isFreePlan) {
+    // Animation enabled for all plans on hover
+    if (!isHovered || pillCount <= 0) {
       setWavePosition(null)
       return
     }
@@ -162,7 +178,7 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
     return () => {
       window.clearInterval(interval)
     }
-  }, [isHovered, pillCount, startAnimationIndex, subscription.isFree])
+  }, [isHovered, pillCount, startAnimationIndex])
 
   if (isLoading) {
     return (
@@ -196,7 +212,6 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
       const blocked = getBillingStatus(subscriptionData?.data) === 'blocked'
       const canUpg = canUpgrade(subscriptionData?.data)
 
-      // If blocked, try to open billing portal directly for faster recovery
       if (blocked) {
         try {
           const context = subscription.isTeam || subscription.isEnterprise ? 'organization' : 'user'
@@ -224,7 +239,6 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
         }
       }
 
-      // Fallback: Open Settings modal to the subscription tab
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('open-settings', { detail: { tab: 'subscription' } }))
         logger.info('Opened settings to subscription tab', { blocked, canUpgrade: canUpg })
@@ -245,10 +259,12 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
     >
       {/* Top row */}
       <div className='flex items-center justify-between'>
-        <div className='flex items-center gap-[6px]'>
-          <span className='font-medium text-[#FFFFFF] text-[12px]'>{PLAN_NAMES[planType]}</span>
-          <div className='h-[14px] w-[1.5px] bg-[var(--divider)]' />
-          <div className='flex items-center gap-[4px]'>
+        <div className='flex min-w-0 flex-1 items-center gap-[6px]'>
+          <span className='flex-shrink-0 font-medium text-[#FFFFFF] text-[12px]'>
+            {PLAN_NAMES[planType]}
+          </span>
+          <div className='h-[14px] w-[1.5px] flex-shrink-0 bg-[var(--divider)]' />
+          <div className='flex min-w-0 flex-1 items-center gap-[4px]'>
             {isBlocked ? (
               <>
                 <span className='font-medium text-[12px] text-red-400'>Payment</span>
@@ -256,9 +272,15 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
               </>
             ) : (
               <>
-                <span className='font-medium text-[12px] text-[var(--text-tertiary)] tabular-nums'>
-                  ${usage.current.toFixed(2)}
-                </span>
+                <div className='flex items-center font-medium text-[12px] text-[var(--text-tertiary)]'>
+                  <span className='mr-[1px]'>$</span>
+                  <RotatingDigit
+                    value={usage.current}
+                    height={14}
+                    width={7}
+                    textClassName='font-medium text-[12px] text-[var(--text-tertiary)] tabular-nums'
+                  />
+                </div>
                 <span className='font-medium text-[12px] text-[var(--text-tertiary)]'>/</span>
                 <span className='font-medium text-[12px] text-[var(--text-tertiary)] tabular-nums'>
                   ${usage.limit}
@@ -296,7 +318,7 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
           let backgroundColor = baseColor
           let backgroundImage: string | undefined
 
-          if (isHovered && wavePosition !== null && pillCount > 0 && subscription.isFree) {
+          if (isHovered && wavePosition !== null && pillCount > 0) {
             const grayColor = USAGE_PILL_COLORS.UNFILLED
             const activeColor = isAtLimit ? USAGE_PILL_COLORS.AT_LIMIT : USAGE_PILL_COLORS.FILLED
 
@@ -311,7 +333,6 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
             const pillOffsetFromStart = i - startAnimationIndex
 
             if (pillOffsetFromStart < 0) {
-              // Before the wave start; keep original baseColor.
             } else if (pillOffsetFromStart < headIndex) {
               backgroundColor = isFilled ? baseColor : grayColor
               backgroundImage = `linear-gradient(to right, ${activeColor} 0%, ${activeColor} 100%)`

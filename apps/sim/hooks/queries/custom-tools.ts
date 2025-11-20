@@ -223,7 +223,6 @@ export function useUpdateCustomTool() {
     mutationFn: async ({ workspaceId, toolId, updates }: UpdateCustomToolParams) => {
       logger.info(`Updating custom tool: ${toolId} in workspace ${workspaceId}`)
 
-      // Get the current tool to merge with updates
       const currentTools = queryClient.getQueryData<CustomToolDefinition[]>(
         customToolsKeys.list(workspaceId)
       )
@@ -263,15 +262,12 @@ export function useUpdateCustomTool() {
       return data.data
     },
     onMutate: async ({ workspaceId, toolId, updates }) => {
-      // Cancel outgoing refetches
       await queryClient.cancelQueries({ queryKey: customToolsKeys.list(workspaceId) })
 
-      // Snapshot the previous value
       const previousTools = queryClient.getQueryData<CustomToolDefinition[]>(
         customToolsKeys.list(workspaceId)
       )
 
-      // Optimistically update to the new value
       if (previousTools) {
         queryClient.setQueryData<CustomToolDefinition[]>(
           customToolsKeys.list(workspaceId),
@@ -291,13 +287,11 @@ export function useUpdateCustomTool() {
       return { previousTools }
     },
     onError: (_err, variables, context) => {
-      // Rollback on error
       if (context?.previousTools) {
         queryClient.setQueryData(customToolsKeys.list(variables.workspaceId), context.previousTools)
       }
     },
     onSettled: (_data, _error, variables) => {
-      // Always refetch after error or success
       queryClient.invalidateQueries({ queryKey: customToolsKeys.list(variables.workspaceId) })
     },
   })
@@ -338,15 +332,12 @@ export function useDeleteCustomTool() {
     onMutate: async ({ workspaceId, toolId }) => {
       if (!workspaceId) return
 
-      // Cancel outgoing refetches
       await queryClient.cancelQueries({ queryKey: customToolsKeys.list(workspaceId) })
 
-      // Snapshot the previous value
       const previousTools = queryClient.getQueryData<CustomToolDefinition[]>(
         customToolsKeys.list(workspaceId)
       )
 
-      // Optimistically update to the new value
       if (previousTools) {
         queryClient.setQueryData<CustomToolDefinition[]>(
           customToolsKeys.list(workspaceId),
@@ -357,13 +348,11 @@ export function useDeleteCustomTool() {
       return { previousTools, workspaceId }
     },
     onError: (_err, _variables, context) => {
-      // Rollback on error
       if (context?.previousTools && context?.workspaceId) {
         queryClient.setQueryData(customToolsKeys.list(context.workspaceId), context.previousTools)
       }
     },
     onSettled: (_data, _error, variables) => {
-      // Always refetch after error or success
       if (variables.workspaceId) {
         queryClient.invalidateQueries({ queryKey: customToolsKeys.list(variables.workspaceId) })
       }

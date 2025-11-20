@@ -7,6 +7,7 @@ import { API_ENDPOINTS } from '@/stores/constants'
 import { useVariablesStore } from '@/stores/panel/variables/store'
 import type {
   DeploymentStatus,
+  HydrationState,
   WorkflowMetadata,
   WorkflowRegistry,
 } from '@/stores/workflows/registry/types'
@@ -15,163 +16,15 @@ import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 const logger = createLogger('WorkflowRegistry')
-
-let isFetching = false
-let lastFetchTimestamp = 0
-
-async function fetchWorkflowsFromDB(workspaceId?: string): Promise<void> {
-  if (typeof window === 'undefined') return
-
-  // Prevent concurrent fetch operations
-  if (isFetching) {
-    logger.info('Fetch already in progress, skipping duplicate request')
-    return
-  }
-
-  const fetchStartTime = Date.now()
-  isFetching = true
-
-  try {
-    useWorkflowRegistry.getState().setLoading(true)
-
-    const url = new URL(API_ENDPOINTS.WORKFLOWS, window.location.origin)
-
-    if (workspaceId) {
-      url.searchParams.append('workspaceId', workspaceId)
-    }
-
-    const response = await fetch(url.toString(), { method: 'GET' })
-
-    if (!response.ok) {
-      if (response.status === 401) {
-        logger.warn('User not authenticated for workflow fetch')
-        useWorkflowRegistry.setState({ workflows: {}, isLoading: false })
-        return
-      }
-      throw new Error(`Failed to fetch workflows: ${response.statusText}`)
-    }
-
-    // Check if this fetch is still relevant (not superseded by a newer fetch)
-    if (fetchStartTime < lastFetchTimestamp) {
-      logger.info('Fetch superseded by newer operation, discarding results')
-      return
-    }
-
-    // Update timestamp to mark this as the most recent fetch
-    lastFetchTimestamp = fetchStartTime
-
-    const { data } = await response.json()
-
-    if (!data || !Array.isArray(data)) {
-      logger.info('No workflows found in database')
-
-      // Only clear workflows if we're confident this is a legitimate empty state
-      const currentWorkflows = useWorkflowRegistry.getState().workflows
-      const hasExistingWorkflows = Object.keys(currentWorkflows).length > 0
-
-      if (hasExistingWorkflows) {
-        logger.warn(
-          'Received empty workflow data but local workflows exist - possible race condition, preserving local state'
-        )
-        useWorkflowRegistry.setState({ isLoading: false })
-        return
-      }
-
-      useWorkflowRegistry.setState({ workflows: {}, isLoading: false })
-      return
-    }
-
-    // Process workflows
-    const registryWorkflows: Record<string, WorkflowMetadata> = {}
-    const deploymentStatuses: Record<string, any> = {}
-
-    data.forEach((workflow) => {
-      const {
-        id,
-        name,
-        description,
-        color,
-        variables,
-        createdAt,
-        workspaceId,
-        folderId,
-        isDeployed,
-        deployedAt,
-        apiKey,
-      } = workflow
-
-      // Add to registry
-      registryWorkflows[id] = {
-        id,
-        name,
-        description: description || '',
-        color: color || '#3972F6',
-        lastModified: createdAt ? new Date(createdAt) : new Date(),
-        createdAt: createdAt ? new Date(createdAt) : new Date(),
-        workspaceId,
-        folderId: folderId || null,
-      }
-
-      // Extract deployment status from database
-      if (isDeployed || deployedAt) {
-        deploymentStatuses[id] = {
-          isDeployed: isDeployed || false,
-          deployedAt: deployedAt ? new Date(deployedAt) : undefined,
-          apiKey: apiKey || undefined,
-          needsRedeployment: false,
-        }
-      }
-
-      if (variables && typeof variables === 'object') {
-        useVariablesStore.setState((state) => {
-          const withoutWorkflow = Object.fromEntries(
-            Object.entries(state.variables).filter(([, v]: any) => v.workflowId !== id)
-          )
-          return {
-            variables: { ...withoutWorkflow, ...variables },
-          }
-        })
-      }
-    })
-
-    // Update registry with loaded workflows and deployment statuses
-    useWorkflowRegistry.setState({
-      workflows: registryWorkflows,
-      deploymentStatuses: deploymentStatuses,
-      isLoading: false,
-      error: null,
-    })
-
-    // Mark that initial load has completed
-    hasInitiallyLoaded = true
-
-    // Only set first workflow as active if no active workflow is set and we have workflows
-    const currentState = useWorkflowRegistry.getState()
-    if (!currentState.activeWorkflowId && Object.keys(registryWorkflows).length > 0) {
-      const firstWorkflowId = Object.keys(registryWorkflows)[0]
-      useWorkflowRegistry.setState({ activeWorkflowId: firstWorkflowId })
-      logger.info(`Set first workflow as active: ${firstWorkflowId}`)
-    }
-
-    logger.info(
-      `Successfully loaded ${Object.keys(registryWorkflows).length} workflows from database`
-    )
-  } catch (error) {
-    logger.error('Error fetching workflows from DB:', error)
-
-    // Mark that initial load has completed even on error
-    // This prevents indefinite waiting for workflows that failed to load
-    hasInitiallyLoaded = true
-
-    useWorkflowRegistry.setState({
-      isLoading: false,
-      error: `Failed to load workflows: ${error instanceof Error ? error.message : 'Unknown error'}`,
-    })
-    throw error
-  } finally {
-    isFetching = false
-  }
+const initialHydration: HydrationState = {
+  phase: 'idle',
+  workspaceId: null,
+  workflowId: null,
+  requestId: null,
+  error: null,
 }
+
+const createRequestId = () => `${Date.now()}-${Math.random().toString(16).slice(2)}`
 
 // Track workspace transitions to prevent race conditions
 let isWorkspaceTransitioning = false
@@ -215,49 +68,62 @@ function setWorkspaceTransitioning(isTransitioning: boolean): void {
   }
 }
 
-/**
- * Checks if workspace is currently in transition
- * @returns True if workspace is transitioning
- */
-export function isWorkspaceInTransition(): boolean {
-  return isWorkspaceTransitioning
-}
-
-/**
- * Checks if workflows have been initially loaded
- * @returns True if the initial workflow load has completed at least once
- */
-export function hasWorkflowsInitiallyLoaded(): boolean {
-  return hasInitiallyLoaded
-}
-
-// Track if initial load has happened to prevent premature navigation
-let hasInitiallyLoaded = false
-
 export const useWorkflowRegistry = create<WorkflowRegistry>()(
   devtools(
     (set, get) => ({
       // Store state
       workflows: {},
       activeWorkflowId: null,
-      isLoading: false,
       error: null,
       deploymentStatuses: {},
+      hydration: initialHydration,
 
-      setLoading: (loading: boolean) => {
-        set({ isLoading: loading })
+      beginMetadataLoad: (workspaceId: string) => {
+        set((state) => ({
+          error: null,
+          hydration: {
+            phase: 'metadata-loading',
+            workspaceId,
+            workflowId: null,
+            requestId: null,
+            error: null,
+          },
+        }))
       },
 
-      setWorkflows: (workflows: WorkflowMetadata[]) => {
-        set({
-          workflows: workflows.reduce(
-            (acc, w) => {
-              acc[w.id] = w
-              return acc
-            },
-            {} as Record<string, WorkflowMetadata>
-          ),
-        })
+      completeMetadataLoad: (workspaceId: string, workflows: WorkflowMetadata[]) => {
+        const mapped = workflows.reduce<Record<string, WorkflowMetadata>>((acc, workflow) => {
+          acc[workflow.id] = workflow
+          return acc
+        }, {})
+
+        set((state) => ({
+          workflows: mapped,
+          error: null,
+          hydration:
+            state.hydration.phase === 'state-loading'
+              ? state.hydration
+              : {
+                  phase: 'metadata-ready',
+                  workspaceId,
+                  workflowId: null,
+                  requestId: null,
+                  error: null,
+                },
+        }))
+      },
+
+      failMetadataLoad: (workspaceId: string | null, errorMessage: string) => {
+        set((state) => ({
+          error: errorMessage,
+          hydration: {
+            phase: 'error',
+            workspaceId: workspaceId ?? state.hydration.workspaceId,
+            workflowId: state.hydration.workflowId,
+            requestId: null,
+            error: errorMessage,
+          },
+        }))
       },
 
       // Switch to workspace - just clear state, let sidebar handle workflow loading
@@ -276,9 +142,6 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
         try {
           logger.info(`Switching to workspace: ${workspaceId}`)
 
-          // Reset the initial load flag when switching workspaces
-          hasInitiallyLoaded = false
-
           // Clear current workspace state
           resetWorkflowStores()
 
@@ -286,8 +149,15 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
           set({
             activeWorkflowId: null,
             workflows: {},
-            isLoading: true,
+            deploymentStatuses: {},
             error: null,
+            hydration: {
+              phase: 'metadata-loading',
+              workspaceId,
+              workflowId: null,
+              requestId: null,
+              error: null,
+            },
           })
 
           logger.info(`Successfully switched to workspace: ${workspaceId}`)
@@ -295,7 +165,13 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
           logger.error(`Error switching to workspace ${workspaceId}:`, { error })
           set({
             error: `Failed to switch workspace: ${error instanceof Error ? error.message : 'Unknown error'}`,
-            isLoading: false,
+            hydration: {
+              phase: 'error',
+              workspaceId,
+              workflowId: null,
+              requestId: null,
+              error: error instanceof Error ? error.message : 'Unknown error',
+            },
           })
         } finally {
           setWorkspaceTransitioning(false)
@@ -406,11 +282,152 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
         }
       },
 
+      loadWorkflowState: async (workflowId: string) => {
+        const { workflows } = get()
+
+        if (!workflows[workflowId]) {
+          const message = `Workflow not found: ${workflowId}`
+          logger.error(message)
+          set({ error: message })
+          throw new Error(message)
+        }
+
+        const requestId = createRequestId()
+
+        set((state) => ({
+          error: null,
+          hydration: {
+            phase: 'state-loading',
+            workspaceId: state.hydration.workspaceId,
+            workflowId,
+            requestId,
+            error: null,
+          },
+        }))
+
+        try {
+          const response = await fetch(`/api/workflows/${workflowId}`, { method: 'GET' })
+          if (!response.ok) {
+            throw new Error(`Failed to load workflow ${workflowId}`)
+          }
+
+          const workflowData = (await response.json()).data
+          let workflowState: any
+
+          if (workflowData?.state) {
+            workflowState = {
+              blocks: workflowData.state.blocks || {},
+              edges: workflowData.state.edges || [],
+              loops: workflowData.state.loops || {},
+              parallels: workflowData.state.parallels || {},
+              isDeployed: workflowData.isDeployed || false,
+              deployedAt: workflowData.deployedAt ? new Date(workflowData.deployedAt) : undefined,
+              apiKey: workflowData.apiKey,
+              lastSaved: Date.now(),
+              deploymentStatuses: {},
+            }
+          } else {
+            workflowState = {
+              blocks: {},
+              edges: [],
+              loops: {},
+              parallels: {},
+              isDeployed: false,
+              deployedAt: undefined,
+              deploymentStatuses: {},
+              lastSaved: Date.now(),
+            }
+
+            logger.info(
+              `Workflow ${workflowId} has no state yet - will load from DB or show empty canvas`
+            )
+          }
+
+          const nextDeploymentStatuses =
+            workflowData?.isDeployed || workflowData?.deployedAt
+              ? {
+                  ...get().deploymentStatuses,
+                  [workflowId]: {
+                    isDeployed: workflowData.isDeployed || false,
+                    deployedAt: workflowData.deployedAt
+                      ? new Date(workflowData.deployedAt)
+                      : undefined,
+                    apiKey: workflowData.apiKey || undefined,
+                    needsRedeployment: false,
+                  },
+                }
+              : get().deploymentStatuses
+
+          const currentHydration = get().hydration
+          if (
+            currentHydration.requestId !== requestId ||
+            currentHydration.workflowId !== workflowId
+          ) {
+            logger.info('Discarding stale workflow hydration result', {
+              workflowId,
+              requestId,
+            })
+            return
+          }
+
+          useWorkflowStore.setState(workflowState)
+          useSubBlockStore.getState().initializeFromWorkflow(workflowId, workflowState.blocks || {})
+
+          if (workflowData?.variables && typeof workflowData.variables === 'object') {
+            useVariablesStore.setState((state) => {
+              const withoutWorkflow = Object.fromEntries(
+                Object.entries(state.variables).filter(([, v]: any) => v.workflowId !== workflowId)
+              )
+              return {
+                variables: { ...withoutWorkflow, ...workflowData.variables },
+              }
+            })
+          }
+
+          window.dispatchEvent(
+            new CustomEvent('active-workflow-changed', {
+              detail: { workflowId },
+            })
+          )
+
+          set((state) => ({
+            activeWorkflowId: workflowId,
+            error: null,
+            deploymentStatuses: nextDeploymentStatuses,
+            hydration: {
+              phase: 'ready',
+              workspaceId: state.hydration.workspaceId,
+              workflowId,
+              requestId,
+              error: null,
+            },
+          }))
+
+          logger.info(`Switched to workflow ${workflowId}`)
+        } catch (error) {
+          const message =
+            error instanceof Error
+              ? error.message
+              : `Failed to load workflow ${workflowId}: Unknown error`
+          logger.error(message)
+          set((state) => ({
+            error: message,
+            hydration: {
+              phase: 'error',
+              workspaceId: state.hydration.workspaceId,
+              workflowId,
+              requestId: null,
+              error: message,
+            },
+          }))
+          throw error
+        }
+      },
+
       // Modified setActiveWorkflow to work with clean DB-only architecture
       setActiveWorkflow: async (id: string) => {
-        const { workflows, activeWorkflowId } = get()
+        const { activeWorkflowId } = get()
 
-        // Check if workflow is already active AND has data loaded
         const workflowStoreState = useWorkflowStore.getState()
         const hasWorkflowData = Object.keys(workflowStoreState.blocks).length > 0
 
@@ -419,88 +436,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
           return
         }
 
-        if (!workflows[id]) {
-          logger.error(`Workflow ${id} not found in registry`)
-          set({ error: `Workflow not found: ${id}` })
-          throw new Error(`Workflow not found: ${id}`)
-        }
-
-        logger.info(`Switching to workflow ${id}`)
-
-        // Fetch workflow state from database
-        const response = await fetch(`/api/workflows/${id}`, { method: 'GET' })
-        const workflowData = response.ok ? (await response.json()).data : null
-
-        let workflowState: any
-
-        if (workflowData?.state) {
-          // API returns normalized data in state
-          workflowState = {
-            blocks: workflowData.state.blocks || {},
-            edges: workflowData.state.edges || [],
-            loops: workflowData.state.loops || {},
-            parallels: workflowData.state.parallels || {},
-            isDeployed: workflowData.isDeployed || false,
-            deployedAt: workflowData.deployedAt ? new Date(workflowData.deployedAt) : undefined,
-            apiKey: workflowData.apiKey,
-            lastSaved: Date.now(),
-            deploymentStatuses: {},
-          }
-        } else {
-          // If no state in DB, use empty state (Start block was created during workflow creation)
-          workflowState = {
-            blocks: {},
-            edges: [],
-            loops: {},
-            parallels: {},
-            isDeployed: false,
-            deployedAt: undefined,
-            deploymentStatuses: {},
-            lastSaved: Date.now(),
-          }
-
-          logger.info(`Workflow ${id} has no state yet - will load from DB or show empty canvas`)
-        }
-
-        if (workflowData?.isDeployed || workflowData?.deployedAt) {
-          set((state) => ({
-            deploymentStatuses: {
-              ...state.deploymentStatuses,
-              [id]: {
-                isDeployed: workflowData.isDeployed || false,
-                deployedAt: workflowData.deployedAt ? new Date(workflowData.deployedAt) : undefined,
-                apiKey: workflowData.apiKey || undefined,
-                needsRedeployment: false, // Default to false when loading from DB
-              },
-            },
-          }))
-        }
-
-        // Update all stores atomically to prevent race conditions
-        // Set activeWorkflowId and workflow state together
-        set({ activeWorkflowId: id, error: null })
-        useWorkflowStore.setState(workflowState)
-        useSubBlockStore.getState().initializeFromWorkflow(id, (workflowState as any).blocks || {})
-
-        // Load workflow variables if they exist
-        if (workflowData?.variables && typeof workflowData.variables === 'object') {
-          useVariablesStore.setState((state) => {
-            const withoutWorkflow = Object.fromEntries(
-              Object.entries(state.variables).filter(([, v]: any) => v.workflowId !== id)
-            )
-            return {
-              variables: { ...withoutWorkflow, ...workflowData.variables },
-            }
-          })
-        }
-
-        window.dispatchEvent(
-          new CustomEvent('active-workflow-changed', {
-            detail: { workflowId: id },
-          })
-        )
-
-        logger.info(`Switched to workflow ${id}`)
+        await get().loadWorkflowState(id)
       },
 
       /**
@@ -712,7 +648,6 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
             set({
               workflows: newWorkflows,
               activeWorkflowId: newActiveWorkflowId,
-              isLoading: true,
               error: null,
             })
 
@@ -759,9 +694,6 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
             }
 
             logger.info(`Rolled back deletion of workflow ${id}`)
-          },
-          onComplete: () => {
-            set({ isLoading: false })
           },
           errorMessage: `Failed to delete workflow ${id}`,
         })
@@ -843,8 +775,10 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
 
         set({
           activeWorkflowId: null,
-          isLoading: true,
+          workflows: {},
+          deploymentStatuses: {},
           error: null,
+          hydration: initialHydration,
         })
 
         logger.info('Logout complete - all workflow data cleared')

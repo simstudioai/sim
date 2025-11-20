@@ -23,10 +23,12 @@ Ajoutez une nouvelle mémoire à la base de données ou complétez une mémoire 
 #### Entrée
 
 | Paramètre | Type | Obligatoire | Description |
-| --------- | ---- | ----------- | ----------- |
-| `id` | string | Oui | Identifiant pour la mémoire. Si une mémoire avec cet ID existe déjà, les nouvelles données y seront ajoutées. |
-| `role` | string | Oui | Rôle pour la mémoire de l'agent \(user, assistant, ou system\) |
-| `content` | string | Oui | Contenu pour la mémoire de l'agent |
+| --------- | ---- | ---------- | ----------- |
+| `conversationId` | chaîne | Non | Identifiant de conversation (par ex., user-123, session-abc). Si une mémoire avec cet identifiant de conversation existe déjà pour ce bloc, le nouveau message y sera ajouté. |
+| `id` | chaîne | Non | Paramètre hérité pour l'identifiant de conversation. Utilisez conversationId à la place. Fourni pour la rétrocompatibilité. |
+| `role` | chaîne | Oui | Rôle pour la mémoire de l'agent (user, assistant, ou system) |
+| `content` | chaîne | Oui | Contenu pour la mémoire de l'agent |
+| `blockId` | chaîne | Non | ID de bloc optionnel. Si non fourni, utilise l'ID du bloc actuel du contexte d'exécution, ou par défaut "default". |
 
 #### Sortie
 
@@ -38,22 +40,25 @@ Ajoutez une nouvelle mémoire à la base de données ou complétez une mémoire 
 
 ### `memory_get`
 
-Récupérer une mémoire spécifique par son identifiant
+Récupérer la mémoire par conversationId, blockId, blockName, ou une combinaison. Renvoie toutes les mémoires correspondantes.
 
 #### Entrée
 
 | Paramètre | Type | Obligatoire | Description |
-| --------- | ---- | ----------- | ----------- |
-| `id` | string | Oui | Identifiant de la mémoire à récupérer |
+| --------- | ---- | ---------- | ----------- |
+| `conversationId` | chaîne | Non | Identifiant de conversation (par ex., user-123, session-abc). Si fourni seul, renvoie toutes les mémoires pour cette conversation à travers tous les blocs. |
+| `id` | chaîne | Non | Paramètre hérité pour l'identifiant de conversation. Utilisez conversationId à la place. Fourni pour la rétrocompatibilité. |
+| `blockId` | chaîne | Non | Identifiant de bloc. Si fourni seul, renvoie toutes les mémoires pour ce bloc à travers toutes les conversations. Si fourni avec conversationId, renvoie les mémoires pour cette conversation spécifique dans ce bloc. |
+| `blockName` | chaîne | Non | Nom du bloc. Alternative à blockId. Si fourni seul, renvoie toutes les mémoires pour les blocs avec ce nom. Si fourni avec conversationId, renvoie les mémoires pour cette conversation dans les blocs avec ce nom. |
 
 #### Sortie
 
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Indique si la mémoire a été récupérée avec succès |
-| `memories` | array | Tableau de données de mémoire pour l'identifiant demandé |
-| `message` | string | Message de succès ou d'erreur |
-| `error` | string | Message d'erreur si l'opération a échoué |
+| `success` | booléen | Indique si la mémoire a été récupérée avec succès |
+| `memories` | tableau | Tableau d'objets de mémoire avec les champs conversationId, blockId, blockName et data |
+| `message` | chaîne | Message de succès ou d'erreur |
+| `error` | chaîne | Message d'erreur si l'opération a échoué |
 
 ### `memory_get_all`
 
@@ -68,20 +73,23 @@ Récupérer toutes les mémoires de la base de données
 
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Indique si toutes les mémoires ont été récupérées avec succès |
-| `memories` | array | Tableau de tous les objets de mémoire avec leurs clés, types et données |
-| `message` | string | Message de succès ou d'erreur |
-| `error` | string | Message d'erreur si l'opération a échoué |
+| `success` | booléen | Indique si toutes les mémoires ont été récupérées avec succès |
+| `memories` | tableau | Tableau de tous les objets de mémoire avec les champs key, conversationId, blockId, blockName et data |
+| `message` | chaîne | Message de succès ou d'erreur |
+| `error` | chaîne | Message d'erreur si l'opération a échoué |
 
 ### `memory_delete`
 
-Supprimer un souvenir spécifique par son ID
+Supprimer des mémoires par conversationId, blockId, blockName, ou une combinaison. Prend en charge la suppression en masse.
 
 #### Entrée
 
 | Paramètre | Type | Obligatoire | Description |
-| --------- | ---- | ---------- | ----------- |
-| `id` | chaîne | Oui | Identifiant du souvenir à supprimer |
+| --------- | ---- | ----------- | ----------- |
+| `conversationId` | chaîne | Non | Identifiant de conversation \(par exemple, user-123, session-abc\). Si fourni seul, supprime toutes les mémoires pour cette conversation dans tous les blocs. |
+| `id` | chaîne | Non | Paramètre hérité pour l'identifiant de conversation. Utilisez conversationId à la place. Fourni pour la rétrocompatibilité. |
+| `blockId` | chaîne | Non | Identifiant de bloc. Si fourni seul, supprime toutes les mémoires pour ce bloc dans toutes les conversations. Si fourni avec conversationId, supprime les mémoires pour cette conversation spécifique dans ce bloc. |
+| `blockName` | chaîne | Non | Nom du bloc. Alternative à blockId. Si fourni seul, supprime toutes les mémoires pour les blocs avec ce nom. Si fourni avec conversationId, supprime les mémoires pour cette conversation dans les blocs avec ce nom. |
 
 #### Sortie
 

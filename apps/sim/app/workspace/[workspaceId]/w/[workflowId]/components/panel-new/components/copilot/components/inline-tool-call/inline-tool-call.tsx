@@ -498,30 +498,40 @@ export function InlineToolCall({
       const url = params.url || ''
       const method = (params.method || '').toUpperCase()
       return (
-        <div className='w-full overflow-hidden rounded border border-muted bg-card'>
-          <div className='grid grid-cols-2 gap-0 border-muted/60 border-b bg-muted/40 py-1.5'>
-            <div className='self-start px-2 font-medium font-season text-[#858585] text-[10px] uppercase tracking-wide dark:text-[#E0E0E0]'>
-              Method
-            </div>
-            <div className='self-start px-2 font-medium font-season text-[#858585] text-[10px] uppercase tracking-wide dark:text-[#E0E0E0]'>
-              Endpoint
-            </div>
-          </div>
-          <div className='grid grid-cols-[auto_1fr] gap-2 py-1.5'>
-            <div className='self-start px-2'>
-              <span className='inline-flex rounded bg-muted px-1.5 py-0.5 font-[470] font-mono text-[#707070] text-xs dark:text-[#E8E8E8]'>
-                {method || 'GET'}
-              </span>
-            </div>
-            <div className='min-w-0 self-start px-2'>
-              <span
-                className='block overflow-x-auto whitespace-nowrap font-[470] font-mono text-[#707070] text-xs dark:text-[#E8E8E8]'
-                title={url}
-              >
-                {url || 'URL not provided'}
-              </span>
-            </div>
-          </div>
+        <div className='w-full overflow-hidden rounded-[4px] border border-[var(--border-strong)] bg-[#1F1F1F]'>
+          <table className='w-full table-fixed bg-transparent'>
+            <thead className='bg-transparent'>
+              <tr className='border-[var(--border-strong)] border-b bg-transparent'>
+                <th className='w-[26%] border-[var(--border-strong)] border-r bg-transparent px-[10px] py-[5px] text-left font-medium text-[14px] text-[var(--text-tertiary)]'>
+                  Method
+                </th>
+                <th className='w-[74%] bg-transparent px-[10px] py-[5px] text-left font-medium text-[14px] text-[var(--text-tertiary)]'>
+                  Endpoint
+                </th>
+              </tr>
+            </thead>
+            <tbody className='bg-transparent'>
+              <tr className='group relative border-[var(--border-strong)] border-t bg-transparent'>
+                <td className='relative w-[26%] border-[var(--border-strong)] border-r bg-transparent p-0'>
+                  <div className='px-[10px] py-[8px]'>
+                    <span className='font-mono text-muted-foreground text-xs'>
+                      {method || 'GET'}
+                    </span>
+                  </div>
+                </td>
+                <td className='relative w-[74%] bg-transparent p-0'>
+                  <div className='min-w-0 px-[10px] py-[8px]'>
+                    <span
+                      className='block break-all font-mono text-muted-foreground text-xs'
+                      title={url}
+                    >
+                      {url || 'URL not provided'}
+                    </span>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       )
     }
@@ -534,7 +544,7 @@ export function InlineToolCall({
       const normalizedEntries: Array<[string, string]> = []
       Object.entries(variables).forEach(([key, value]) => {
         if (typeof value === 'object' && value !== null && 'name' in value && 'value' in value) {
-          // Handle {name: "key", value: "val"} format
+          // Handle { name: "KEY", value: "VAL" } format
           normalizedEntries.push([String((value as any).name), String((value as any).value)])
         } else {
           // Handle direct key-value format
@@ -543,35 +553,48 @@ export function InlineToolCall({
       })
 
       return (
-        <div className='w-full overflow-hidden rounded border border-muted bg-card'>
-          <div className='grid grid-cols-[160px_1fr] gap-0 border-muted/60 border-b bg-muted/40 py-1.5'>
-            <div className='self-start px-2 font-medium font-season text-[#858585] text-[11px] uppercase tracking-wide dark:text-[#E0E0E0]'>
-              Name
-            </div>
-            <div className='self-start px-2 font-medium font-season text-[#858585] text-[11px] uppercase tracking-wide dark:text-[#E0E0E0]'>
-              Value
-            </div>
-          </div>
-          {normalizedEntries.length === 0 ? (
-            <div className='px-2 py-1.5 font-[470] font-season text-[#707070] text-xs dark:text-[#E8E8E8]'>
-              No variables provided
-            </div>
-          ) : (
-            <div className='divide-y divide-muted/60'>
-              {normalizedEntries.map(([name, value]) => (
-                <div key={name} className='grid grid-cols-[160px_1fr] gap-0 py-1.5'>
-                  <div className='self-start px-2 font-medium font-season text-amber-800 text-xs dark:text-amber-200'>
-                    {name}
-                  </div>
-                  <div className='min-w-0 self-start overflow-x-auto px-2'>
-                    <span className='whitespace-nowrap font-[470] font-mono text-amber-700 text-xs dark:text-amber-300'>
-                      {value}
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+        <div className='w-full overflow-hidden rounded-[4px] border border-[var(--border-strong)] bg-[#1F1F1F]'>
+          <table className='w-full table-fixed bg-transparent'>
+            <thead className='bg-transparent'>
+              <tr className='border-[var(--border-strong)] border-b bg-transparent'>
+                <th className='w-[36%] border-[var(--border-strong)] border-r bg-transparent px-[10px] py-[5px] text-left font-medium text-[14px] text-[var(--text-tertiary)]'>
+                  Name
+                </th>
+                <th className='w-[64%] bg-transparent px-[10px] py-[5px] text-left font-medium text-[14px] text-[var(--text-tertiary)]'>
+                  Value
+                </th>
+              </tr>
+            </thead>
+            <tbody className='bg-transparent'>
+              {normalizedEntries.length === 0 ? (
+                <tr className='border-[var(--border-strong)] border-t bg-transparent'>
+                  <td colSpan={2} className='px-[10px] py-[8px] text-muted-foreground text-xs'>
+                    No variables provided
+                  </td>
+                </tr>
+              ) : (
+                normalizedEntries.map(([name, value]) => (
+                  <tr
+                    key={name}
+                    className='group relative border-[var(--border-strong)] border-t bg-transparent'
+                  >
+                    <td className='relative w-[36%] border-[var(--border-strong)] border-r bg-transparent p-0'>
+                      <div className='px-[10px] py-[8px]'>
+                        <span className='truncate font-medium text-foreground text-xs'>{name}</span>
+                      </div>
+                    </td>
+                    <td className='relative w-[64%] bg-transparent p-0'>
+                      <div className='min-w-0 px-[10px] py-[8px]'>
+                        <span className='block overflow-x-auto whitespace-nowrap font-mono text-muted-foreground text-xs'>
+                          {value}
+                        </span>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
         </div>
       )
     }

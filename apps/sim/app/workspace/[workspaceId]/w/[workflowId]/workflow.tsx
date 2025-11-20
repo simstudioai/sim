@@ -47,7 +47,7 @@ import { useCopilotStore } from '@/stores/panel-new/copilot/store'
 import { usePanelEditorStore } from '@/stores/panel-new/editor/store'
 import { useGeneralStore } from '@/stores/settings/general/store'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
-import { hasWorkflowsInitiallyLoaded, useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { getUniqueBlockName } from '@/stores/workflows/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
@@ -83,7 +83,6 @@ interface BlockData {
 
 const WorkflowContent = React.memo(() => {
   // State
-  const [isWorkflowReady, setIsWorkflowReady] = useState(false)
 
   // State for tracking node dragging
   const [draggedNodeId, setDraggedNodeId] = useState<string | null>(null)
@@ -102,11 +101,12 @@ const WorkflowContent = React.memo(() => {
 
   // Get workspace ID from the params
   const workspaceId = params.workspaceId as string
+  const workflowIdParam = params.workflowId as string
 
   // Notification store
   const addNotification = useNotificationStore((state) => state.addNotification)
 
-  const { workflows, activeWorkflowId, isLoading, setActiveWorkflow } = useWorkflowRegistry()
+  const { workflows, activeWorkflowId, hydration, setActiveWorkflow } = useWorkflowRegistry()
 
   // Use the clean abstraction for current workflow state
   const currentWorkflow = useCurrentWorkflow()
@@ -118,8 +118,6 @@ const WorkflowContent = React.memo(() => {
     getDragStartPosition,
   } = useWorkflowStore()
 
-  // (moved) resizeLoopNodesWrapper defined after hooks that provide resizeLoopNodes
-
   // Get copilot cleanup function
   const copilotCleanup = useCopilotStore((state) => state.cleanup)
 
@@ -128,6 +126,13 @@ const WorkflowContent = React.memo(() => {
 
   // Extract workflow data from the abstraction
   const { blocks, edges, isDiffMode, lastSaved } = currentWorkflow
+
+  const isWorkflowReady =
+    hydration.phase === 'ready' &&
+    hydration.workflowId === workflowIdParam &&
+    activeWorkflowId === workflowIdParam &&
+    Boolean(workflows[workflowIdParam]) &&
+    lastSaved !== undefined
 
   // Node utilities hook for position/hierarchy calculations (requires blocks)
   const {
@@ -656,7 +661,6 @@ const WorkflowContent = React.memo(() => {
             data.enableTriggerMode === true
 
           if (isTriggerBlock) {
-            const triggerName = TriggerUtils.getDefaultTriggerName(data.type) || 'trigger'
             addNotification({
               level: 'error',
               message: 'Triggers cannot be placed inside loop or parallel subflows.',
@@ -1212,10 +1216,19 @@ const WorkflowContent = React.memo(() => {
   useEffect(() => {
     let cancelled = false
     const currentId = params.workflowId as string
+    const currentWorkspaceHydration = hydration.workspaceId
+
+    const isRegistryReady = hydration.phase !== 'metadata-loading' && hydration.phase !== 'idle'
 
     // Wait for registry to be ready to prevent race conditions
-    // Don't proceed if: no workflowId, registry is loading, or workflow not in registry
-    if (!currentId || isLoading || !workflows[currentId]) return
+    if (
+      !currentId ||
+      !workflows[currentId] ||
+      !isRegistryReady ||
+      (currentWorkspaceHydration && currentWorkspaceHydration !== workspaceId)
+    ) {
+      return
+    }
 
     if (activeWorkflowId !== currentId) {
       // Clear diff and set as active
@@ -1232,25 +1245,15 @@ const WorkflowContent = React.memo(() => {
     return () => {
       cancelled = true
     }
-  }, [params.workflowId, workflows, activeWorkflowId, setActiveWorkflow, isLoading])
-
-  // Track when workflow is ready for rendering
-  useEffect(() => {
-    const currentId = params.workflowId as string
-
-    // Workflow is ready when:
-    // 1. We have an active workflow that matches the URL
-    // 2. The workflow exists in the registry
-    // 3. Workflows are not currently loading
-    // 4. The workflow store has been initialized (lastSaved exists means state was loaded)
-    const shouldBeReady =
-      activeWorkflowId === currentId &&
-      Boolean(workflows[currentId]) &&
-      !isLoading &&
-      lastSaved !== undefined
-
-    setIsWorkflowReady(shouldBeReady)
-  }, [activeWorkflowId, params.workflowId, workflows, isLoading, lastSaved])
+  }, [
+    params.workflowId,
+    workflows,
+    activeWorkflowId,
+    setActiveWorkflow,
+    hydration.phase,
+    hydration.workspaceId,
+    workspaceId,
+  ])
 
   // Preload workspace environment - React Query handles caching automatically
   useWorkspaceEnvironment(workspaceId)
@@ -1261,8 +1264,8 @@ const WorkflowContent = React.memo(() => {
       const workflowIds = Object.keys(workflows)
       const currentId = params.workflowId as string
 
-      // Wait for initial load to complete before making navigation decisions
-      if (!hasWorkflowsInitiallyLoaded() || isLoading) {
+      // Wait for metadata to finish loading before making navigation decisions
+      if (hydration.phase === 'metadata-loading' || hydration.phase === 'idle') {
         return
       }
 
@@ -1305,7 +1308,7 @@ const WorkflowContent = React.memo(() => {
     }
 
     validateAndNavigate()
-  }, [params.workflowId, workflows, isLoading, workspaceId, router])
+  }, [params.workflowId, workflows, hydration.phase, workspaceId, router])
 
   // Cache block configs to prevent unnecessary re-fetches
   const blockConfigCache = useRef<Map<string, any>>(new Map())

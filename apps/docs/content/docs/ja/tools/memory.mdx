@@ -24,9 +24,11 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | パラメータ | 型 | 必須 | 説明 |
 | --------- | ---- | -------- | ----------- |
-| `id` | string | はい | メモリーの識別子。このIDのメモリーが既に存在する場合、新しいデータはそれに追加されます。 |
-| `role` | string | はい | エージェントメモリーの役割（user、assistant、またはsystem） |
-| `content` | string | はい | エージェントメモリーのコンテンツ |
+| `conversationId` | string | いいえ | 会話識別子（例：user-123、session-abc）。このブロックに対してこの会話IDのメモリがすでに存在する場合、新しいメッセージはそれに追加されます。 |
+| `id` | string | いいえ | 会話識別子のレガシーパラメータ。代わりにconversationIdを使用してください。後方互換性のために提供されています。 |
+| `role` | string | はい | エージェントメモリの役割（user、assistant、またはsystem） |
+| `content` | string | はい | エージェントメモリのコンテンツ |
+| `blockId` | string | いいえ | オプションのブロックID。提供されない場合、実行コンテキストから現在のブロックIDを使用するか、デフォルトで「default」になります。 |
 
 #### 出力
 
@@ -38,20 +40,23 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 ### `memory_get`
 
-IDで特定のメモリを取得する
+conversationId、blockId、blockName、またはそれらの組み合わせによってメモリを取得します。一致するすべてのメモリを返します。
 
 #### 入力
 
 | パラメータ | 型 | 必須 | 説明 |
 | --------- | ---- | -------- | ----------- |
-| `id` | string | はい | 取得するメモリの識別子 |
+| `conversationId` | string | いいえ | 会話識別子（例：user-123、session-abc）。単独で提供された場合、すべてのブロックにわたるこの会話のすべてのメモリを返します。 |
+| `id` | string | いいえ | 会話識別子のレガシーパラメータ。代わりにconversationIdを使用してください。後方互換性のために提供されています。 |
+| `blockId` | string | いいえ | ブロック識別子。単独で提供された場合、すべての会話にわたるこのブロックのすべてのメモリを返します。conversationIdと一緒に提供された場合、そのブロック内の特定の会話のメモリを返します。 |
+| `blockName` | string | いいえ | ブロック名。blockIdの代替。単独で提供された場合、この名前を持つブロックのすべてのメモリを返します。conversationIdと一緒に提供された場合、この名前を持つブロック内のその会話のメモリを返します。 |
 
 #### 出力
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
 | `success` | boolean | メモリが正常に取得されたかどうか |
-| `memories` | array | リクエストされたIDのメモリデータの配列 |
+| `memories` | array | conversationId、blockId、blockName、およびdataフィールドを含むメモリオブジェクトの配列 |
 | `message` | string | 成功またはエラーメッセージ |
 | `error` | string | 操作が失敗した場合のエラーメッセージ |
 
@@ -69,19 +74,22 @@ IDで特定のメモリを取得する
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
 | `success` | boolean | すべてのメモリが正常に取得されたかどうか |
-| `memories` | array | キー、型、データを含むすべてのメモリオブジェクトの配列 |
+| `memories` | array | key、conversationId、blockId、blockName、およびdataフィールドを含むすべてのメモリオブジェクトの配列 |
 | `message` | string | 成功またはエラーメッセージ |
 | `error` | string | 操作が失敗した場合のエラーメッセージ |
 
 ### `memory_delete`
 
-IDで特定のメモリを削除する
+conversationId、blockId、blockName、またはそれらの組み合わせによってメモリを削除します。一括削除をサポートしています。
 
 #### 入力
 
 | パラメータ | 型 | 必須 | 説明 |
 | --------- | ---- | -------- | ----------- |
-| `id` | string | はい | 削除するメモリの識別子 |
+| `conversationId` | string | いいえ | 会話識別子（例：user-123、session-abc）。単独で提供された場合、すべてのブロックにわたるこの会話のすべてのメモリを削除します。 |
+| `id` | string | いいえ | 会話識別子のレガシーパラメータ。代わりにconversationIdを使用してください。後方互換性のために提供されています。 |
+| `blockId` | string | いいえ | ブロック識別子。単独で提供された場合、すべての会話にわたるこのブロックのすべてのメモリを削除します。conversationIdと共に提供された場合、そのブロック内の特定の会話のメモリを削除します。 |
+| `blockName` | string | いいえ | ブロック名。blockIdの代替。単独で提供された場合、この名前を持つブロックのすべてのメモリを削除します。conversationIdと共に提供された場合、この名前を持つブロック内のその会話のメモリを削除します。 |
 
 #### 出力
 

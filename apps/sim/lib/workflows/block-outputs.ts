@@ -1,3 +1,4 @@
+import { normalizeInputFormatValue } from '@/lib/workflows/input-format-utils'
 import { classifyStartBlockType, StartBlockPath, TRIGGER_TYPES } from '@/lib/workflows/triggers'
 import {
   type InputFormatField,
@@ -21,24 +22,6 @@ const UNIFIED_START_OUTPUTS: OutputDefinition = {
   input: { type: 'string', description: 'Primary user input or message' },
   conversationId: { type: 'string', description: 'Conversation thread identifier' },
   files: { type: 'files', description: 'User uploaded files' },
-}
-
-function normalizeInputFormatValue(inputFormatValue: any): InputFormatField[] {
-  if (
-    inputFormatValue === null ||
-    inputFormatValue === undefined ||
-    (Array.isArray(inputFormatValue) && inputFormatValue.length === 0)
-  ) {
-    return []
-  }
-
-  if (!Array.isArray(inputFormatValue)) {
-    return []
-  }
-
-  return inputFormatValue.filter(
-    (field) => field && typeof field === 'object' && field.name && field.name.trim() !== ''
-  )
 }
 
 function applyInputFormatFields(

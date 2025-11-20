@@ -3,24 +3,18 @@
 import { useEffect, useRef, useState } from 'react'
 import { AlertTriangle, Loader2 } from 'lucide-react'
 import {
-  Alert,
-  AlertDescription,
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  Card,
-  CardContent,
-  ImageUpload,
+  Button,
   Input,
   Label,
-  Skeleton,
+  Modal,
+  ModalContent,
+  ModalDescription,
+  ModalFooter,
+  ModalHeader,
+  ModalTitle,
   Textarea,
-} from '@/components/ui'
+} from '@/components/emcn'
+import { Alert, AlertDescription, Skeleton } from '@/components/ui'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getEmailDomain } from '@/lib/urls/utils'
 import { OutputSelect } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/chat/components/output-select/output-select'
@@ -225,10 +219,6 @@ export function ChatDeploy({
         throw new Error(error.error || 'Failed to delete chat')
       }
 
-      if (onUndeploy) {
-        await onUndeploy()
-      }
-
       setExistingChat(null)
       setImageUrl(null)
       setImageUploadError(null)
@@ -261,42 +251,42 @@ export function ChatDeploy({
         </div>
 
         {/* Delete Confirmation Dialog */}
-        <AlertDialog open={showDeleteConfirmation} onOpenChange={setShowDeleteConfirmation}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Delete Chat?</AlertDialogTitle>
-              <AlertDialogDescription>
-                This will permanently delete your chat deployment at{' '}
-                <span className='font-mono text-destructive'>
-                  {getEmailDomain()}/chat/{existingChat?.identifier}
-                </span>{' '}
-                and undeploy the workflow.
-                <span className='mt-2 block'>
-                  All users will lose access immediately, and this action cannot be undone.
-                </span>
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter className='flex'>
-              <AlertDialogCancel className='h-9 w-full rounded-[8px]' disabled={isDeleting}>
+        <Modal open={showDeleteConfirmation} onOpenChange={setShowDeleteConfirmation}>
+          <ModalContent>
+            <ModalHeader>
+              <ModalTitle>Delete Chat?</ModalTitle>
+              <ModalDescription>
+                This will delete your chat deployment at "{getEmailDomain()}/chat/
+                {existingChat?.identifier}". All users will lose access to the chat interface. You
+                can recreate this chat deployment at any time.
+              </ModalDescription>
+            </ModalHeader>
+            <ModalFooter>
+              <Button
+                variant='outline'
+                className='h-[32px] px-[12px]'
+                onClick={() => setShowDeleteConfirmation(false)}
+                disabled={isDeleting}
+              >
                 Cancel
-              </AlertDialogCancel>
-              <AlertDialogAction
+              </Button>
+              <Button
                 onClick={handleDelete}
                 disabled={isDeleting}
-                className='h-9 w-full rounded-[8px] bg-red-500 text-white transition-all duration-200 hover:bg-red-600 dark:bg-red-500 dark:hover:bg-red-600'
+                className='h-[32px] bg-[var(--text-error)] px-[12px] text-[var(--white)] hover:bg-[var(--text-error)] hover:text-[var(--white)] dark:bg-[var(--text-error)] dark:text-[var(--white)] hover:dark:bg-[var(--text-error)] dark:hover:text-[var(--white)]'
               >
                 {isDeleting ? (
-                  <span className='flex items-center'>
-                    <Loader2 className='mr-2 h-4 w-4 animate-spin' />
+                  <>
+                    <Loader2 className='mr-2 h-3.5 w-3.5 animate-spin' />
                     Deleting...
-                  </span>
+                  </>
                 ) : (
                   'Delete'
                 )}
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+              </Button>
+            </ModalFooter>
+          </ModalContent>
+        </Modal>
       </>
     )
   }
@@ -337,13 +327,12 @@ export function ChatDeploy({
               onChange={(e) => updateField('title', e.target.value)}
               required
               disabled={chatSubmitting}
-              className='h-10 rounded-[8px]'
             />
             {errors.title && <p className='text-destructive text-sm'>{errors.title}</p>}
           </div>
           <div className='space-y-2'>
             <Label htmlFor='description' className='font-medium text-sm'>
-              Description (Optional)
+              Description
             </Label>
             <Textarea
               id='description'
@@ -352,26 +341,22 @@ export function ChatDeploy({
               onChange={(e) => updateField('description', e.target.value)}
               rows={3}
               disabled={chatSubmitting}
-              className='min-h-[80px] resize-none rounded-[8px]'
+              className='min-h-[80px] resize-none'
             />
           </div>
           <div className='space-y-2'>
             <Label className='font-medium text-sm'>Chat Output</Label>
-            <Card className='rounded-[8px] border-input shadow-none'>
-              <CardContent className='p-1'>
-                <OutputSelect
-                  workflowId={workflowId}
-                  selectedOutputs={formData.selectedOutputBlocks}
-                  onOutputSelect={(values) => updateField('selectedOutputBlocks', values)}
-                  placeholder='Select which block outputs to use'
-                  disabled={chatSubmitting}
-                />
-              </CardContent>
-            </Card>
+            <OutputSelect
+              workflowId={workflowId}
+              selectedOutputs={formData.selectedOutputBlocks}
+              onOutputSelect={(values) => updateField('selectedOutputBlocks', values)}
+              placeholder='Select which block outputs to use'
+              disabled={chatSubmitting}
+            />
             {errors.outputBlocks && (
               <p className='text-destructive text-sm'>{errors.outputBlocks}</p>
             )}
-            <p className='mt-2 text-muted-foreground text-xs'>
+            <p className='mt-2 text-[11px] text-[var(--text-secondary)]'>
               Select which block's output to return to the user in the chat interface
             </p>
           </div>
@@ -398,14 +383,14 @@ export function ChatDeploy({
               onChange={(e) => updateField('welcomeMessage', e.target.value)}
               rows={3}
               disabled={chatSubmitting}
-              className='min-h-[80px] resize-none rounded-[8px]'
+              className='min-h-[80px] resize-none'
             />
             <p className='text-muted-foreground text-xs'>
               This message will be displayed when users first open the chat
             </p>
           </div>
 
-          <div className='space-y-2'>
+          {/* <div className='space-y-2'>
             <Label className='font-medium text-sm'>Chat Logo</Label>
             <ImageUpload
               value={imageUrl}
@@ -426,7 +411,7 @@ export function ChatDeploy({
                 Upload a logo for your chat (PNG, JPEG - max 5MB)
               </p>
             )}
-          </div>
+          </div> */}
 
           <button
             type='button'
@@ -437,42 +422,42 @@ export function ChatDeploy({
         </div>
       </form>
 
-      <AlertDialog open={showDeleteConfirmation} onOpenChange={setShowDeleteConfirmation}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Chat?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will permanently delete your chat deployment at{' '}
-              <span className='font-mono text-destructive'>
-                {getEmailDomain()}/chat/{existingChat?.identifier}
-              </span>{' '}
-              and undeploy the workflow.
-              <span className='mt-2 block'>
-                All users will lose access immediately, and this action cannot be undone.
-              </span>
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter className='flex'>
-            <AlertDialogCancel className='h-9 w-full rounded-[8px]' disabled={isDeleting}>
+      <Modal open={showDeleteConfirmation} onOpenChange={setShowDeleteConfirmation}>
+        <ModalContent>
+          <ModalHeader>
+            <ModalTitle>Delete Chat?</ModalTitle>
+            <ModalDescription>
+              This will delete your chat deployment at "{getEmailDomain()}/chat/
+              {existingChat?.identifier}". All users will lose access to the chat interface. You can
+              recreate this chat deployment at any time.
+            </ModalDescription>
+          </ModalHeader>
+          <ModalFooter>
+            <Button
+              variant='outline'
+              className='h-[32px] px-[12px]'
+              onClick={() => setShowDeleteConfirmation(false)}
+              disabled={isDeleting}
+            >
               Cancel
-            </AlertDialogCancel>
-            <AlertDialogAction
+            </Button>
+            <Button
               onClick={handleDelete}
               disabled={isDeleting}
-              className='h-9 w-full rounded-[8px] bg-red-500 text-white transition-all duration-200 hover:bg-red-600 dark:bg-red-500 dark:hover:bg-red-600'
+              className='h-[32px] bg-[var(--text-error)] px-[12px] text-[var(--white)] hover:bg-[var(--text-error)] hover:text-[var(--white)] dark:bg-[var(--text-error)] dark:text-[var(--white)] hover:dark:bg-[var(--text-error)] dark:hover:text-[var(--white)]'
             >
               {isDeleting ? (
-                <span className='flex items-center'>
-                  <Loader2 className='mr-2 h-4 w-4 animate-spin' />
+                <>
+                  <Loader2 className='mr-2 h-3.5 w-3.5 animate-spin' />
                   Deleting...
-                </span>
+                </>
               ) : (
                 'Delete'
               )}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
     </>
   )
 }

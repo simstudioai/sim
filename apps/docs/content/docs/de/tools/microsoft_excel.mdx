@@ -26,7 +26,7 @@ In Sim bietet die Microsoft Excel-Integration nahtlosen Zugriff auf Tabellenkalk
 
 ## Nutzungsanweisungen
 
-Integrieren Sie Microsoft Excel in den Workflow. Kann Tabellen lesen, schreiben, aktualisieren und ergänzen. Erfordert OAuth.
+Integrieren Sie Microsoft Excel in den Workflow. Kann lesen, schreiben, aktualisieren, zu Tabellen hinzufügen und neue Arbeitsblätter erstellen.
 
 ## Tools
 
@@ -90,6 +90,23 @@ Neue Zeilen zu einer Microsoft Excel-Tabelle hinzufügen
 | `index` | number | Index der ersten Zeile, die hinzugefügt wurde |
 | `values` | array | Array von Zeilen, die zur Tabelle hinzugefügt wurden |
 | `metadata` | object | Metadaten der Tabellenkalkulation |
+
+### `microsoft_excel_worksheet_add`
+
+Ein neues Arbeitsblatt (Tabellenblatt) in einer Microsoft Excel-Arbeitsmappe erstellen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `spreadsheetId` | string | Ja | Die ID der Excel-Arbeitsmappe, zu der das Arbeitsblatt hinzugefügt werden soll |
+| `worksheetName` | string | Ja | Der Name des neuen Arbeitsblatts. Muss innerhalb der Arbeitsmappe eindeutig sein und darf 31 Zeichen nicht überschreiten |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `worksheet` | object | Details des neu erstellten Arbeitsblatts |
 
 ## Hinweise
 

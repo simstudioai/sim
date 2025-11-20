@@ -445,7 +445,7 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
     manualChannel: { type: 'string', description: 'Manual channel identifier' },
     text: { type: 'string', description: 'Message text' },
     attachmentFiles: { type: 'json', description: 'Files to attach (UI upload)' },
-    files: { type: 'json', description: 'Files to attach (UserFile array)' },
+    files: { type: 'array', description: 'Files to attach (UserFile array)' },
     title: { type: 'string', description: 'Canvas title' },
     content: { type: 'string', description: 'Canvas content' },
     limit: { type: 'string', description: 'Message limit' },

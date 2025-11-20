@@ -1,18 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams } from 'next/navigation'
-import { Button } from '@/components/emcn/components'
+import {
+  Button,
+  Modal,
+  ModalContent,
+  ModalDescription,
+  ModalFooter,
+  ModalHeader,
+  ModalTitle,
+} from '@/components/emcn'
 import { Trash } from '@/components/emcn/icons/trash'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
 import { createLogger } from '@/lib/logs/console/logger'
 import { parseCronToHumanReadable } from '@/lib/schedules/utils'
 import { cn } from '@/lib/utils'
@@ -480,26 +478,35 @@ export function ScheduleSave({ blockId, isPreview = false, disabled = false }: S
         </div>
       )}
 
-      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Schedule Configuration</AlertDialogTitle>
-            <AlertDialogDescription>
+      <Modal open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <ModalContent>
+          <ModalHeader>
+            <ModalTitle>Delete schedule?</ModalTitle>
+            <ModalDescription>
               Are you sure you want to delete this schedule configuration? This will stop the
-              workflow from running automatically. This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
+              workflow from running automatically.{' '}
+              <span className='text-[var(--text-error)] dark:text-[var(--text-error)]'>
+                This action cannot be undone.
+              </span>
+            </ModalDescription>
+          </ModalHeader>
+          <ModalFooter>
+            <Button
+              variant='outline'
+              onClick={() => setShowDeleteDialog(false)}
+              className='h-[32px] px-[12px]'
+            >
+              Cancel
+            </Button>
+            <Button
               onClick={handleDeleteConfirm}
-              className='bg-destructive text-destructive-foreground hover:bg-destructive/90'
+              className='h-[32px] bg-[var(--text-error)] px-[12px] text-[var(--white)] hover:bg-[var(--text-error)] hover:text-[var(--white)] dark:bg-[var(--text-error)] dark:text-[var(--white)] hover:dark:bg-[var(--text-error)] dark:hover:text-[var(--white)]'
             >
               Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
     </div>
   )
 }

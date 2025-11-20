@@ -148,21 +148,29 @@ export function FileUpload({
     const maxSizeInBytes = maxSize * 1024 * 1024
     const validFiles: File[] = []
     let totalNewSize = 0
+    let sizeExceededFile: string | null = null
 
     for (let i = 0; i < files.length; i++) {
       const file = files[i]
       if (existingTotalSize + totalNewSize + file.size > maxSizeInBytes) {
-        logger.error(
-          `Adding ${file.name} would exceed the maximum size limit of ${maxSize}MB`,
-          activeWorkflowId
-        )
+        const errorMessage = `Adding ${file.name} would exceed the maximum size limit of ${maxSize}MB`
+        logger.error(errorMessage, activeWorkflowId)
+        if (!sizeExceededFile) {
+          sizeExceededFile = errorMessage
+        }
       } else {
         validFiles.push(file)
         totalNewSize += file.size
       }
     }
 
-    if (validFiles.length === 0) return
+    if (validFiles.length === 0) {
+      if (sizeExceededFile) {
+        setUploadError(sizeExceededFile)
+        setTimeout(() => setUploadError(null), 5000)
+      }
+      return
+    }
 
     const uploading = validFiles.map((file) => ({
       id: `upload-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,

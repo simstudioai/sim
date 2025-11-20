@@ -1,18 +1,14 @@
-import { Check, ChevronDown } from 'lucide-react'
-import { Button } from '@/components/emcn'
+import { useState } from 'react'
+import { ChevronDown } from 'lucide-react'
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
-import {
-  commandListClass,
-  dropdownContentClass,
-  filterButtonClass,
-  timelineDropdownListStyle,
-} from '@/app/workspace/[workspaceId]/logs/components/filters/components/shared'
+  Button,
+  Popover,
+  PopoverContent,
+  PopoverItem,
+  PopoverScrollArea,
+  PopoverTrigger,
+} from '@/components/emcn'
+import { filterButtonClass } from '@/app/workspace/[workspaceId]/logs/components/filters/components/shared'
 import { useFilterStore } from '@/stores/logs/filters/store'
 import type { TimeRange } from '@/stores/logs/filters/types'
 
@@ -22,6 +18,8 @@ type TimelineProps = {
 
 export default function Timeline({ variant = 'default' }: TimelineProps = {}) {
   const { timeRange, setTimeRange } = useFilterStore()
+  const [isPopoverOpen, setIsPopoverOpen] = useState(false)
+
   const specificTimeRanges: TimeRange[] = [
     'Past 30 minutes',
     'Past hour',
@@ -34,52 +32,49 @@ export default function Timeline({ variant = 'default' }: TimelineProps = {}) {
     'Past 30 days',
   ]
 
+  const handleTimeRangeSelect = (range: TimeRange) => {
+    setTimeRange(range)
+    setIsPopoverOpen(false)
+  }
+
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
+    <Popover open={isPopoverOpen} onOpenChange={setIsPopoverOpen}>
+      <PopoverTrigger asChild>
         <Button variant='outline' className={filterButtonClass}>
           {timeRange}
           <ChevronDown className='ml-2 h-4 w-4 text-muted-foreground' />
         </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent
+      </PopoverTrigger>
+      <PopoverContent
         align={variant === 'header' ? 'end' : 'start'}
         side='bottom'
-        avoidCollisions={false}
         sideOffset={4}
-        className={dropdownContentClass}
+        maxHeight={144}
       >
-        <div
-          className={`${commandListClass} py-1`}
-          style={variant === 'header' ? undefined : timelineDropdownListStyle}
-        >
-          <DropdownMenuItem
-            key='all'
-            onSelect={() => {
-              setTimeRange('All time')
-            }}
-            className='flex cursor-pointer items-center justify-between px-3 py-2 font-[380] text-card-foreground text-sm hover:bg-secondary/50 focus:bg-secondary/50'
+        <PopoverScrollArea>
+          <PopoverItem
+            active={timeRange === 'All time'}
+            showCheck
+            onClick={() => handleTimeRangeSelect('All time')}
           >
-            <span>All time</span>
-            {timeRange === 'All time' && <Check className='h-4 w-4 text-muted-foreground' />}
-          </DropdownMenuItem>
+            All time
+          </PopoverItem>
 
-          <DropdownMenuSeparator />
+          {/* Separator */}
+          <div className='my-[2px] h-px bg-[var(--surface-11)]' />
 
           {specificTimeRanges.map((range) => (
-            <DropdownMenuItem
+            <PopoverItem
               key={range}
-              onSelect={() => {
-                setTimeRange(range)
-              }}
-              className='flex cursor-pointer items-center justify-between px-3 py-2 font-[380] text-card-foreground text-sm hover:bg-secondary/50 focus:bg-secondary/50'
+              active={timeRange === range}
+              showCheck
+              onClick={() => handleTimeRangeSelect(range)}
             >
-              <span>{range}</span>
-              {timeRange === range && <Check className='h-4 w-4 text-muted-foreground' />}
-            </DropdownMenuItem>
+              {range}
+            </PopoverItem>
           ))}
-        </div>
-      </DropdownMenuContent>
-    </DropdownMenu>
+        </PopoverScrollArea>
+      </PopoverContent>
+    </Popover>
   )
 }

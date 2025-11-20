@@ -19,15 +19,15 @@ export const linearReadIssuesTool: ToolConfig<LinearReadIssuesParams, LinearRead
   params: {
     teamId: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-only',
-      description: 'Linear team ID',
+      description: 'Linear team ID to filter by',
     },
     projectId: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-only',
-      description: 'Linear project ID',
+      description: 'Linear project ID to filter by',
     },
   },
 
@@ -43,15 +43,20 @@ export const linearReadIssuesTool: ToolConfig<LinearReadIssuesParams, LinearRead
         Authorization: `Bearer ${params.accessToken}`,
       }
     },
-    body: (params) => ({
-      query: `
-        query Issues($teamId: ID!, $projectId: ID!) {
-          issues(
-            filter: {
-              team: { id: { eq: $teamId } }
-              project: { id: { eq: $projectId } }
-            }
-          ) {
+    body: (params) => {
+      const filter: Record<string, any> = {}
+
+      if (params.teamId != null && params.teamId !== '') {
+        filter.team = { id: { eq: params.teamId } }
+      }
+      if (params.projectId != null && params.projectId !== '') {
+        filter.project = { id: { eq: params.projectId } }
+      }
+
+      return {
+        query: `
+        query Issues($filter: IssueFilter) {
+          issues(filter: $filter) {
             nodes {
               id
               title
@@ -63,15 +68,32 @@ export const linearReadIssuesTool: ToolConfig<LinearReadIssuesParams, LinearRead
           }
         }
       `,
-      variables: {
-        teamId: params.teamId,
-        projectId: params.projectId,
-      },
-    }),
+        variables: {
+          filter: Object.keys(filter).length > 0 ? filter : undefined,
+        },
+      }
+    },
   },
 
   transformResponse: async (response) => {
     const data = await response.json()
+
+    if (data.errors) {
+      return {
+        success: false,
+        error: data.errors[0]?.message || 'Failed to fetch issues',
+        output: {},
+      }
+    }
+
+    if (!data.data?.issues) {
+      return {
+        success: false,
+        error: 'No issues data returned',
+        output: {},
+      }
+    }
+
     return {
       success: true,
       output: {

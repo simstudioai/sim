@@ -24,9 +24,11 @@ Añade una nueva memoria a la base de datos o agrega a una memoria existente con
 
 | Parámetro | Tipo | Obligatorio | Descripción |
 | --------- | ---- | ----------- | ----------- |
-| `id` | string | Sí | Identificador para la memoria. Si ya existe una memoria con este ID, los nuevos datos se añadirán a ella. |
-| `role` | string | Sí | Rol para la memoria del agente \(usuario, asistente o sistema\) |
+| `conversationId` | string | No | Identificador de conversación (p. ej., user-123, session-abc). Si ya existe una memoria con este conversationId para este bloque, el nuevo mensaje se añadirá a ella. |
+| `id` | string | No | Parámetro heredado para el identificador de conversación. Use conversationId en su lugar. Proporcionado para compatibilidad con versiones anteriores. |
+| `role` | string | Sí | Rol para la memoria del agente (user, assistant o system) |
 | `content` | string | Sí | Contenido para la memoria del agente |
+| `blockId` | string | No | ID de bloque opcional. Si no se proporciona, utiliza el ID del bloque actual del contexto de ejecución, o por defecto "default". |
 
 #### Salida
 
@@ -38,20 +40,23 @@ Añade una nueva memoria a la base de datos o agrega a una memoria existente con
 
 ### `memory_get`
 
-Recuperar una memoria específica por su ID
+Recuperar memoria por conversationId, blockId, blockName o una combinación. Devuelve todas las memorias coincidentes.
 
 #### Entrada
 
 | Parámetro | Tipo | Obligatorio | Descripción |
 | --------- | ---- | ----------- | ----------- |
-| `id` | string | Sí | Identificador de la memoria a recuperar |
+| `conversationId` | string | No | Identificador de conversación (p. ej., user-123, session-abc). Si se proporciona solo, devuelve todas las memorias para esta conversación en todos los bloques. |
+| `id` | string | No | Parámetro heredado para el identificador de conversación. Use conversationId en su lugar. Proporcionado para compatibilidad con versiones anteriores. |
+| `blockId` | string | No | Identificador de bloque. Si se proporciona solo, devuelve todas las memorias para este bloque en todas las conversaciones. Si se proporciona con conversationId, devuelve las memorias para esa conversación específica en este bloque. |
+| `blockName` | string | No | Nombre del bloque. Alternativa a blockId. Si se proporciona solo, devuelve todas las memorias para bloques con este nombre. Si se proporciona con conversationId, devuelve las memorias para esa conversación en bloques con este nombre. |
 
 #### Salida
 
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
-| `success` | boolean | Indica si la memoria se recuperó correctamente |
-| `memories` | array | Array de datos de memoria para el ID solicitado |
+| `success` | boolean | Si la memoria fue recuperada con éxito |
+| `memories` | array | Array de objetos de memoria con campos conversationId, blockId, blockName y data |
 | `message` | string | Mensaje de éxito o error |
 | `error` | string | Mensaje de error si la operación falló |
 
@@ -68,20 +73,23 @@ Recuperar todas las memorias de la base de datos
 
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
-| `success` | boolean | Indica si todas las memorias se recuperaron correctamente |
-| `memories` | array | Array de todos los objetos de memoria con claves, tipos y datos |
+| `success` | boolean | Si todas las memorias fueron recuperadas con éxito |
+| `memories` | array | Array de todos los objetos de memoria con campos key, conversationId, blockId, blockName y data |
 | `message` | string | Mensaje de éxito o error |
 | `error` | string | Mensaje de error si la operación falló |
 
 ### `memory_delete`
 
-Eliminar una memoria específica por su ID
+Eliminar memorias por conversationId, blockId, blockName o una combinación. Admite eliminación masiva.
 
 #### Entrada
 
 | Parámetro | Tipo | Obligatorio | Descripción |
 | --------- | ---- | ----------- | ----------- |
-| `id` | string | Sí | Identificador de la memoria a eliminar |
+| `conversationId` | string | No | Identificador de conversación (p. ej., user-123, session-abc). Si se proporciona solo, elimina todas las memorias para esta conversación en todos los bloques. |
+| `id` | string | No | Parámetro heredado para el identificador de conversación. Use conversationId en su lugar. Proporcionado para compatibilidad con versiones anteriores. |
+| `blockId` | string | No | Identificador de bloque. Si se proporciona solo, elimina todas las memorias para este bloque en todas las conversaciones. Si se proporciona con conversationId, elimina las memorias para esa conversación específica en este bloque. |
+| `blockName` | string | No | Nombre del bloque. Alternativa a blockId. Si se proporciona solo, elimina todas las memorias para bloques con este nombre. Si se proporciona con conversationId, elimina las memorias para esa conversación en bloques con este nombre. |
 
 #### Salida
 

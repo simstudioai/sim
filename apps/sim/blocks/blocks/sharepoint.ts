@@ -360,7 +360,7 @@ export const SharepointBlock: BlockConfig<SharepointResponse> = {
     folderPath: { type: 'string', description: 'Folder path for file upload' },
     fileName: { type: 'string', description: 'File name override' },
     uploadFiles: { type: 'json', description: 'Files to upload (UI upload)' },
-    files: { type: 'json', description: 'Files to upload (UserFile array)' },
+    files: { type: 'array', description: 'Files to upload (UserFile array)' },
   },
   outputs: {
     sites: {

@@ -5,6 +5,7 @@ import { Badge } from '@/components/emcn/components/badge/badge'
 import { Tooltip } from '@/components/emcn/components/tooltip/tooltip'
 import { getEnv, isTruthy } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
+import { createMcpToolId } from '@/lib/mcp/utils'
 import { cn } from '@/lib/utils'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { useBlockCore } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
@@ -13,6 +14,7 @@ import {
   useBlockDimensions,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-block-dimensions'
 import { SELECTOR_TYPES_HYDRATION_REQUIRED, type SubBlockConfig } from '@/blocks/types'
+import { useMcpServers, useMcpToolsQuery } from '@/hooks/queries/mcp'
 import { useCredentialName } from '@/hooks/queries/oauth-credentials'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { useKnowledgeBaseName } from '@/hooks/use-knowledge-base-name'
@@ -98,10 +100,37 @@ const isVariableAssignmentsArray = (
 }
 
 /**
+ * Type guard for agent messages array
+ */
+const isMessagesArray = (value: unknown): value is Array<{ role: string; content: string }> => {
+  return (
+    Array.isArray(value) &&
+    value.length > 0 &&
+    value.every(
+      (item) =>
+        typeof item === 'object' &&
+        item !== null &&
+        'role' in item &&
+        'content' in item &&
+        typeof item.role === 'string' &&
+        typeof item.content === 'string'
+    )
+  )
+}
+
+/**
  * Formats a subblock value for display, intelligently handling nested objects and arrays.
  */
 const getDisplayValue = (value: unknown): string => {
   if (value == null || value === '') return '-'
+
+  if (isMessagesArray(value)) {
+    const firstMessage = value[0]
+    if (!firstMessage?.content || firstMessage.content.trim() === '') return '-'
+    const content = firstMessage.content.trim()
+    // Show first 50 characters of the first message content
+    return content.length > 50 ? `${content.slice(0, 50)}...` : content
+  }
 
   if (isVariableAssignmentsArray(value)) {
     const names = value.map((a) => a.variableName).filter((name): name is string => !!name)
@@ -286,10 +315,31 @@ const SubBlockRow = ({
       ? (workflowMap[rawValue]?.name ?? null)
       : null
 
-  // Subscribe to variables store to reactively update when variables change
+  // Hydrate MCP server ID to name using TanStack Query
+  const { data: mcpServers = [] } = useMcpServers(workspaceId || '')
+  const mcpServerDisplayName = useMemo(() => {
+    if (subBlock?.type !== 'mcp-server-selector' || typeof rawValue !== 'string') {
+      return null
+    }
+    const server = mcpServers.find((s) => s.id === rawValue)
+    return server?.name ?? null
+  }, [subBlock?.type, rawValue, mcpServers])
+
+  const { data: mcpToolsData = [] } = useMcpToolsQuery(workspaceId || '')
+  const mcpToolDisplayName = useMemo(() => {
+    if (subBlock?.type !== 'mcp-tool-selector' || typeof rawValue !== 'string') {
+      return null
+    }
+
+    const tool = mcpToolsData.find((t) => {
+      const toolId = createMcpToolId(t.serverId, t.name)
+      return toolId === rawValue
+    })
+    return tool?.name ?? null
+  }, [subBlock?.type, rawValue, mcpToolsData])
+
   const allVariables = useVariablesStore((state) => state.variables)
 
-  // Special handling for variables-input to hydrate variable IDs to names from variables store
   const variablesDisplayValue = useMemo(() => {
     if (subBlock?.type !== 'variables-input' || !isVariableAssignmentsArray(rawValue)) {
       return null
@@ -327,12 +377,17 @@ const SubBlockRow = ({
     variablesDisplayValue ||
     knowledgeBaseDisplayName ||
     workflowSelectionName ||
+    mcpServerDisplayName ||
+    mcpToolDisplayName ||
     selectorDisplayName
   const displayValue = maskedValue || hydratedName || (isSelectorType && value ? '-' : value)
 
   return (
     <div className='flex items-center gap-[8px]'>
-      <span className='min-w-0 truncate text-[14px] text-[var(--text-tertiary)]' title={title}>
+      <span
+        className='min-w-0 truncate text-[14px] text-[var(--text-tertiary)] capitalize'
+        title={title}
+      >
         {title}
       </span>
       {displayValue !== undefined && (
@@ -739,7 +794,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
         ref={contentRef}
         onClick={handleClick}
         className={cn(
-          'relative z-[20] w-[250px] cursor-default select-none rounded-[8px] bg-[var(--surface-2)]'
+          'relative z-[20] w-[250px] cursor-default select-none rounded-[8px] border border-[var(--border)] bg-[var(--surface-2)]'
         )}
       >
         {isPending && (

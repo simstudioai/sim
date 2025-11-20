@@ -406,7 +406,6 @@ export const settings = pgTable('settings', {
   // General settings
   theme: text('theme').notNull().default('system'),
   autoConnect: boolean('auto_connect').notNull().default(true),
-  autoFillEnvVars: boolean('auto_fill_env_vars').notNull().default(true), // DEPRECATED: autofill feature removed
   autoPan: boolean('auto_pan').notNull().default(true),
   consoleExpandedByDefault: boolean('console_expanded_by_default').notNull().default(true),
 
@@ -425,6 +424,9 @@ export const settings = pgTable('settings', {
   showFloatingControls: boolean('show_floating_controls').notNull().default(true),
   showTrainingControls: boolean('show_training_controls').notNull().default(false),
   superUserModeEnabled: boolean('super_user_mode_enabled').notNull().default(true),
+
+  // Notification preferences
+  errorNotificationsEnabled: boolean('error_notifications_enabled').notNull().default(true),
 
   // Copilot preferences - maps model_id to enabled/disabled boolean
   copilotEnabledModels: jsonb('copilot_enabled_models').notNull().default('{}'),
@@ -916,9 +918,8 @@ export const memory = pgTable(
   {
     id: text('id').primaryKey(),
     workflowId: text('workflow_id').references(() => workflow.id, { onDelete: 'cascade' }),
-    key: text('key').notNull(), // Identifier for the memory within its context
-    type: text('type').notNull(), // 'agent' or 'raw'
-    data: json('data').notNull(), // Stores either agent message data or raw data
+    key: text('key').notNull(), // Conversation ID provided by user with format: conversationId:blockId
+    data: jsonb('data').notNull(), // Stores agent messages as array of {role, content} objects
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
     deletedAt: timestamp('deleted_at'),

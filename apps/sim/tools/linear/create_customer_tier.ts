@@ -69,21 +69,13 @@ export const linearCreateCustomerTierTool: ToolConfig<
         color: params.color,
       }
 
-      if (
-        params.displayName !== undefined &&
-        params.displayName !== null &&
-        params.displayName !== ''
-      ) {
+      if (params.displayName != null && params.displayName !== '') {
         input.displayName = params.displayName
       }
-      if (
-        params.description !== undefined &&
-        params.description !== null &&
-        params.description !== ''
-      ) {
+      if (params.description != null && params.description !== '') {
         input.description = params.description
       }
-      if (params.position !== undefined && params.position !== null) {
+      if (params.position != null) {
         input.position = params.position
       }
 
@@ -124,8 +116,16 @@ export const linearCreateCustomerTierTool: ToolConfig<
     }
 
     const result = data.data.customerTierCreate
+    if (!result.success) {
+      return {
+        success: false,
+        error: 'Customer tier creation was not successful',
+        output: {},
+      }
+    }
+
     return {
-      success: result.success,
+      success: true,
       output: {
         customerTier: result.customerTier,
       },

@@ -74,23 +74,19 @@ export const linearUpdateCustomerRequestTool: ToolConfig<
       const input: Record<string, any> = {}
 
       // Optional fields with proper validation
-      if (params.body !== undefined && params.body !== null && params.body !== '') {
+      if (params.body != null && params.body !== '') {
         input.body = params.body
       }
-      if (params.priority !== undefined && params.priority !== null) {
+      if (params.priority != null) {
         input.priority = params.priority
       }
-      if (
-        params.customerId !== undefined &&
-        params.customerId !== null &&
-        params.customerId !== ''
-      ) {
+      if (params.customerId != null && params.customerId !== '') {
         input.customerId = params.customerId
       }
-      if (params.issueId !== undefined && params.issueId !== null && params.issueId !== '') {
+      if (params.issueId != null && params.issueId !== '') {
         input.issueId = params.issueId
       }
-      if (params.projectId !== undefined && params.projectId !== null && params.projectId !== '') {
+      if (params.projectId != null && params.projectId !== '') {
         input.projectId = params.projectId
       }
 

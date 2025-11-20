@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { ArrowDown, Braces, Square } from 'lucide-react'
+import { Braces, Square } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import {
   BubbleChatPreview,
@@ -81,12 +81,11 @@ export function Panel() {
   // Hooks
   const userPermissions = useUserPermissionsContext()
   const { isImporting, handleFileChange } = useImportWorkflow({ workspaceId })
-  const {
-    workflows,
-    activeWorkflowId,
-    duplicateWorkflow,
-    isLoading: isRegistryLoading,
-  } = useWorkflowRegistry()
+  const { workflows, activeWorkflowId, duplicateWorkflow, hydration } = useWorkflowRegistry()
+  const isRegistryLoading =
+    hydration.phase === 'idle' ||
+    hydration.phase === 'metadata-loading' ||
+    hydration.phase === 'state-loading'
   const { getJson } = useWorkflowJsonStore()
   const { blocks } = useWorkflowStore()
 
@@ -270,14 +269,6 @@ export function Panel() {
     workspaceId,
   ])
 
-  /**
-   * Handles triggering file input for workflow import
-   */
-  const handleImportWorkflow = useCallback(() => {
-    setIsMenuOpen(false)
-    fileInputRef.current?.click()
-  }, [])
-
   // Compute run button state
   const canRun = userPermissions.canRead // Running only requires read permissions
   const isLoadingPermissions = userPermissions.isLoading
@@ -348,13 +339,6 @@ export function Panel() {
                   >
                     <Braces className='h-3 w-3' />
                     <span>Export workflow</span>
-                  </PopoverItem>
-                  <PopoverItem
-                    onClick={handleImportWorkflow}
-                    disabled={isImporting || !userPermissions.canEdit}
-                  >
-                    <ArrowDown className='h-3 w-3' />
-                    <span>Import workflow</span>
                   </PopoverItem>
                   <PopoverItem
                     onClick={handleDuplicateWorkflow}
@@ -522,16 +506,6 @@ export function Panel() {
 
       {/* Floating Variables Modal */}
       <Variables />
-
-      {/* Hidden file input for workflow import */}
-      <input
-        ref={fileInputRef}
-        type='file'
-        accept='.json,.zip'
-        multiple
-        style={{ display: 'none' }}
-        onChange={handleFileChange}
-      />
     </>
   )
 }

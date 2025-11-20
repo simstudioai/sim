@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import * as DialogPrimitive from '@radix-ui/react-dialog'
 import * as VisuallyHidden from '@radix-ui/react-visually-hidden'
+import fuzzysort from 'fuzzysort'
 import { BookOpen, Layout, RepeatIcon, ScrollText, Search, SplitIcon } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import { Dialog, DialogPortal, DialogTitle } from '@/components/ui/dialog'
@@ -98,7 +99,6 @@ export function SearchModal({
   const workspaceId = params.workspaceId as string
   const brand = useBrandConfig()
 
-  // Get all available blocks - only when on workflow page
   const blocks = useMemo(() => {
     if (!isOnWorkflowPage) return []
 
@@ -118,7 +118,6 @@ export function SearchModal({
         })
       )
 
-    // Add special blocks (loop and parallel)
     const specialBlocks: BlockItem[] = [
       {
         id: 'loop',
@@ -147,7 +146,6 @@ export function SearchModal({
     const allTriggers = getTriggersForSidebar()
     const priorityOrder = ['Start', 'Schedule', 'Webhook']
 
-    // Sort triggers with priority order matching toolbar
     const sortedTriggers = allTriggers.sort((a, b) => {
       const aIndex = priorityOrder.indexOf(a.name)
       const bIndex = priorityOrder.indexOf(b.name)
@@ -173,7 +171,6 @@ export function SearchModal({
     )
   }, [isOnWorkflowPage])
 
-  // Get all available tools - only when on workflow page
   const tools = useMemo(() => {
     if (!isOnWorkflowPage) return []
 
@@ -192,7 +189,6 @@ export function SearchModal({
       )
   }, [isOnWorkflowPage])
 
-  // Define pages
   const pages = useMemo(
     (): PageItem[] => [
       {
@@ -218,7 +214,6 @@ export function SearchModal({
     [workspaceId, brand.documentationUrl]
   )
 
-  // Define docs
   const docs = useMemo((): DocItem[] => {
     const allBlocks = getAllBlocks()
     const docsItems: DocItem[] = []
@@ -238,11 +233,9 @@ export function SearchModal({
     return docsItems
   }, [])
 
-  // Combine all items into a single flattened list
   const allItems = useMemo((): SearchItem[] => {
     const items: SearchItem[] = []
 
-    // Add workspaces
     workspaces.forEach((workspace) => {
       items.push({
         id: workspace.id,
@@ -253,7 +246,6 @@ export function SearchModal({
       })
     })
 
-    // Add workflows
     workflows.forEach((workflow) => {
       items.push({
         id: workflow.id,
@@ -265,7 +257,6 @@ export function SearchModal({
       })
     })
 
-    // Add pages
     pages.forEach((page) => {
       items.push({
         id: page.id,
@@ -277,7 +268,6 @@ export function SearchModal({
       })
     })
 
-    // Add blocks
     blocks.forEach((block) => {
       items.push({
         id: block.id,
@@ -290,7 +280,6 @@ export function SearchModal({
       })
     })
 
-    // Add triggers
     triggers.forEach((trigger) => {
       items.push({
         id: trigger.id,
@@ -304,7 +293,6 @@ export function SearchModal({
       })
     })
 
-    // Add tools
     tools.forEach((tool) => {
       items.push({
         id: tool.id,
@@ -317,7 +305,6 @@ export function SearchModal({
       })
     })
 
-    // Add docs
     docs.forEach((doc) => {
       items.push({
         id: doc.id,
@@ -336,7 +323,6 @@ export function SearchModal({
     []
   )
 
-  // Filter items based on search query and enforce section ordering
   const filteredItems = useMemo(() => {
     const orderMap = sectionOrder.reduce<Record<SearchItem['type'], number>>(
       (acc, type, index) => {
@@ -346,27 +332,48 @@ export function SearchModal({
       {} as Record<SearchItem['type'], number>
     )
 
-    const baseItems = !searchQuery.trim()
-      ? allItems
-      : allItems.filter(
-          (item) =>
-            item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            item.description?.toLowerCase().includes(searchQuery.toLowerCase())
-        )
+    if (!searchQuery.trim()) {
+      return [...allItems].sort((a, b) => {
+        const aOrder = orderMap[a.type] ?? Number.MAX_SAFE_INTEGER
+        const bOrder = orderMap[b.type] ?? Number.MAX_SAFE_INTEGER
+        return aOrder - bOrder
+      })
+    }
 
-    return [...baseItems].sort((a, b) => {
-      const aOrder = orderMap[a.type] ?? Number.MAX_SAFE_INTEGER
-      const bOrder = orderMap[b.type] ?? Number.MAX_SAFE_INTEGER
-      return aOrder - bOrder
+    const results = fuzzysort.go(searchQuery, allItems, {
+      keys: ['name', 'description'],
+      limit: 100,
+      threshold: -1000,
+      all: true,
+      scoreFn: (a) => {
+        const nameScore = a[0] ? a[0].score : Number.NEGATIVE_INFINITY
+        const descScore = a[1] ? a[1].score : Number.NEGATIVE_INFINITY
+
+        return Math.max(nameScore * 2, descScore)
+      },
     })
+
+    return results
+      .map((result) => ({
+        item: result.obj,
+        score: result.score,
+      }))
+      .sort((a, b) => {
+        if (Math.abs(a.score - b.score) > 100) {
+          return b.score - a.score
+        }
+
+        const aOrder = orderMap[a.item.type] ?? Number.MAX_SAFE_INTEGER
+        const bOrder = orderMap[b.item.type] ?? Number.MAX_SAFE_INTEGER
+        return aOrder - bOrder
+      })
+      .map((result) => result.item)
   }, [allItems, searchQuery, sectionOrder])
 
-  // Reset selected index when filtered items change
   useEffect(() => {
     setSelectedIndex(0)
   }, [filteredItems])
 
-  // Clear search when modal closes
   useEffect(() => {
     if (!open) {
       setSearchQuery('')
@@ -374,7 +381,6 @@ export function SearchModal({
     }
   }, [open])
 
-  // Handle item selection
   const handleItemClick = useCallback(
     (item: SearchItem) => {
       switch (item.type) {
@@ -411,7 +417,6 @@ export function SearchModal({
     [router, onOpenChange]
   )
 
-  // Handle keyboard navigation
   useEffect(() => {
     if (!open) return
 
@@ -442,7 +447,6 @@ export function SearchModal({
     return () => document.removeEventListener('keydown', handleKeyDown)
   }, [open, selectedIndex, filteredItems, handleItemClick, onOpenChange])
 
-  // Scroll selected item into view
   useEffect(() => {
     if (open && selectedIndex >= 0) {
       const element = document.querySelector(`[data-search-item-index="${selectedIndex}"]`)
@@ -455,7 +459,6 @@ export function SearchModal({
     }
   }, [selectedIndex, open])
 
-  // Group items by type for sectioned display
   const groupedItems = useMemo(() => {
     const groups: Record<string, SearchItem[]> = {
       workspace: [],
@@ -476,7 +479,6 @@ export function SearchModal({
     return groups
   }, [filteredItems])
 
-  // Section titles mapping
   const sectionTitles: Record<string, string> = {
     workspace: 'Workspaces',
     workflow: 'Workflows',
@@ -539,6 +541,7 @@ export function SearchModal({
                             key={`${item.type}-${item.id}`}
                             data-search-item-index={globalIndex}
                             onClick={() => handleItemClick(item)}
+                            onMouseDown={(e) => e.preventDefault()}
                             className={cn(
                               'group flex h-[28px] w-full items-center gap-[8px] rounded-[6px] bg-[var(--surface-4)]/60 px-[10px] text-left text-[15px] transition-all focus:outline-none dark:bg-[var(--surface-4)]/60',
                               isSelected
