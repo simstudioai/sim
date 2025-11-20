@@ -32,6 +32,7 @@ const logger = createLogger('FileUploadsSettings')
 const isBillingEnabled = isTruthy(getEnv('NEXT_PUBLIC_BILLING_ENABLED'))
 
 const SUPPORTED_EXTENSIONS = [
+  // Documents
   'pdf',
   'csv',
   'doc',
@@ -47,9 +48,23 @@ const SUPPORTED_EXTENSIONS = [
   'json',
   'yaml',
   'yml',
+  // Audio formats
+  'mp3',
+  'm4a',
+  'wav',
+  'webm',
+  'ogg',
+  'flac',
+  'aac',
+  'opus',
+  // Video formats
+  'mp4',
+  'mov',
+  'avi',
+  'mkv',
 ] as const
 const ACCEPT_ATTR =
-  '.pdf,.csv,.doc,.docx,.txt,.md,.xlsx,.xls,.html,.htm,.pptx,.ppt,.json,.yaml,.yml'
+  '.pdf,.csv,.doc,.docx,.txt,.md,.xlsx,.xls,.html,.htm,.pptx,.ppt,.json,.yaml,.yml,.mp3,.m4a,.wav,.webm,.ogg,.flac,.aac,.opus,.mp4,.mov,.avi,.mkv'
 
 export function Files() {
   const params = useParams()

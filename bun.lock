@@ -237,6 +237,7 @@
     },
   },
   "trustedDependencies": [
+    "ffmpeg-static",
     "sharp",
   ],
   "overrides": {

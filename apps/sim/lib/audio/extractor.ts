@@ -1,3 +1,4 @@
+import { execSync } from 'node:child_process'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
@@ -9,9 +10,26 @@ import type {
   AudioMetadata,
 } from '@/lib/audio/types'
 
-// Set ffmpeg binary path
-if (ffmpegStatic) {
-  ffmpeg.setFfmpegPath(ffmpegStatic)
+// Set ffmpeg binary path with fallback to system ffmpeg
+try {
+  if (ffmpegStatic && typeof ffmpegStatic === 'string') {
+    ffmpeg.setFfmpegPath(ffmpegStatic)
+  } else {
+    // Try to find system ffmpeg
+    try {
+      const systemFfmpeg = execSync('which ffmpeg', { encoding: 'utf-8' }).trim()
+      if (systemFfmpeg) {
+        ffmpeg.setFfmpegPath(systemFfmpeg)
+        console.log('[FFmpeg] Using system ffmpeg:', systemFfmpeg)
+      }
+    } catch {
+      console.warn(
+        '[FFmpeg] ffmpeg-static not available and system ffmpeg not found. Please install ffmpeg: brew install ffmpeg (macOS) or apt-get install ffmpeg (Linux)'
+      )
+    }
+  }
+} catch (error) {
+  console.warn('[FFmpeg] Failed to set ffmpeg path:', error)
 }
 
 /**

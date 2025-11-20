@@ -65,5 +65,8 @@
     "*.{js,jsx,ts,tsx,json,css,scss}": [
       "biome check --write --no-errors-on-unmatched --files-ignore-unknown=true"
     ]
-  }
+  },
+  "trustedDependencies": [
+    "ffmpeg-static"
+  ]
 }
