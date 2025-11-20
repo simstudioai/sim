@@ -194,8 +194,6 @@ export function MCP() {
       setActiveInputField(null)
       setActiveHeaderIndex(null)
       clearTestResult()
-
-      // TanStack Query mutations automatically invalidate and refetch tools
     } catch (error) {
       logger.error('Failed to add MCP server:', error)
     } finally {
