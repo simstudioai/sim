@@ -53,6 +53,7 @@
     "@biomejs/biome": "2.0.0-beta.5",
     "@next/env": "15.4.1",
     "@octokit/rest": "^21.0.0",
+    "@tailwindcss/typography": "0.5.19",
     "drizzle-kit": "^0.31.4",
     "husky": "9.1.7",
     "lint-staged": "16.0.0",

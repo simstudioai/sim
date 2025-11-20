@@ -63,7 +63,7 @@ export default async function StudioIndex({
       </div> */}
 
       {/* Grid layout for consistent rows */}
-      <div className='grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3'>
+      <div className='grid grid-cols-1 gap-4 md:grid-cols-2 md:gap-6 lg:grid-cols-3'>
         {posts.map((p, i) => {
           return (
             <Link key={p.slug} href={`/studio/${p.slug}`} className='group flex flex-col'>
@@ -74,6 +74,8 @@ export default async function StudioIndex({
                   width={800}
                   height={450}
                   className='h-48 w-full object-cover'
+                  sizes='(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw'
+                  loading='lazy'
                 />
                 <div className='flex flex-1 flex-col p-4'>
                   <div className='mb-2 text-gray-600 text-xs'>
