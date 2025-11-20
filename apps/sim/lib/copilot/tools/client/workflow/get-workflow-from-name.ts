@@ -34,7 +34,7 @@ export class GetWorkflowFromNameClientTool extends BaseClientTool {
     getDynamicText: (params, state) => {
       if (params?.workflow_name && typeof params.workflow_name === 'string') {
         const workflowName = params.workflow_name
-        
+
         switch (state) {
           case ClientToolCallState.success:
             return `Read ${workflowName}`

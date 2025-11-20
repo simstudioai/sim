@@ -1,7 +1,7 @@
+import { createLogger } from '@/lib/logs/console/logger'
+import { resolveStartCandidates, StartBlockPath } from '@/lib/workflows/triggers'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
-import { resolveStartCandidates, StartBlockPath } from '@/lib/workflows/triggers'
-import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('DeploymentUtils')
 
@@ -129,4 +129,3 @@ export function getInputFormatExample(
 
   return inputFormatExample
 }
-

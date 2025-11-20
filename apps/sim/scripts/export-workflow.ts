@@ -2,14 +2,14 @@
 
 /**
  * Export workflow JSON from database
- * 
+ *
  * Usage:
  *   bun apps/sim/scripts/export-workflow.ts <workflow-id>
- * 
+ *
  * This script exports a workflow in the same format as the export API route.
  * It fetches the workflow state from normalized tables, combines it with metadata
  * and variables, sanitizes it, and outputs the JSON.
- * 
+ *
  * Make sure DATABASE_URL or POSTGRES_URL is set in your environment.
  */
 
@@ -23,9 +23,9 @@ console.log = () => {}
 console.warn = () => {}
 console.error = () => {}
 
-import { db, workflow } from '../../../packages/db/index.js'
-import { eq } from 'drizzle-orm'
 import { writeFileSync } from 'fs'
+import { eq } from 'drizzle-orm'
+import { db, workflow } from '../../../packages/db/index.js'
 import { loadWorkflowFromNormalizedTables } from '../lib/workflows/db-helpers.js'
 import { sanitizeForExport } from '../lib/workflows/json-sanitizer.js'
 
@@ -35,7 +35,9 @@ const workflowId = args[0]
 const outputFile = args[1] // Optional output filename
 
 if (!workflowId) {
-  process.stderr.write('Usage: bun apps/sim/scripts/export-workflow.ts <workflow-id> [output-file]\n')
+  process.stderr.write(
+    'Usage: bun apps/sim/scripts/export-workflow.ts <workflow-id> [output-file]\n'
+  )
   process.stderr.write('\n')
   process.stderr.write('Examples:\n')
   process.stderr.write('  bun apps/sim/scripts/export-workflow.ts abc123\n')
@@ -104,7 +106,7 @@ async function exportWorkflow(workflowId: string, outputFile?: string): Promise<
       process.stderr.write(`Workflow exported to ${outputFile}\n`)
     } else {
       // Output the JSON to stdout only
-      process.stdout.write(jsonString + '\n')
+      process.stdout.write(`${jsonString}\n`)
     }
   } catch (error) {
     process.stderr.write(`Error exporting workflow: ${error}\n`)
@@ -121,4 +123,3 @@ exportWorkflow(workflowId, outputFile)
     process.stderr.write(`Unexpected error: ${error}\n`)
     process.exit(1)
   })
-

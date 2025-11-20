@@ -46,33 +46,31 @@ export function ContextUsageIndicator({
           style={{ width: size, height: size }}
         >
           <svg width={size} height={size} className='rotate-[-90deg]'>
-        <circle
-          cx={size / 2}
-          cy={size / 2}
-          r={radius}
-          stroke='currentColor'
-          strokeWidth={strokeWidth}
-          fill='none'
-          className='text-muted-foreground/20'
-        />
-        <circle
-          cx={size / 2}
-          cy={size / 2}
-          r={radius}
-          stroke={color}
-          strokeWidth={strokeWidth}
-          fill='none'
-          strokeDasharray={circumference}
-          strokeDashoffset={offset}
-          className='transition-all duration-300 ease-in-out'
-          strokeLinecap='round'
-        />
+            <circle
+              cx={size / 2}
+              cy={size / 2}
+              r={radius}
+              stroke='currentColor'
+              strokeWidth={strokeWidth}
+              fill='none'
+              className='text-muted-foreground/20'
+            />
+            <circle
+              cx={size / 2}
+              cy={size / 2}
+              r={radius}
+              stroke={color}
+              strokeWidth={strokeWidth}
+              fill='none'
+              strokeDasharray={circumference}
+              strokeDashoffset={offset}
+              className='transition-all duration-300 ease-in-out'
+              strokeLinecap='round'
+            />
           </svg>
         </div>
       </Tooltip.Trigger>
-      <Tooltip.Content side='top'>
-        {displayPercentage}% context used
-      </Tooltip.Content>
+      <Tooltip.Content side='top'>{displayPercentage}% context used</Tooltip.Content>
     </Tooltip.Root>
   )
 }

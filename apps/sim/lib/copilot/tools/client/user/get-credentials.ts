@@ -26,7 +26,10 @@ export class GetCredentialsClientTool extends BaseClientTool {
       [ClientToolCallState.pending]: { text: 'Fetching connected integrations', icon: Loader2 },
       [ClientToolCallState.executing]: { text: 'Fetching connected integrations', icon: Loader2 },
       [ClientToolCallState.success]: { text: 'Fetched connected integrations', icon: Key },
-      [ClientToolCallState.error]: { text: 'Failed to fetch connected integrations', icon: XCircle },
+      [ClientToolCallState.error]: {
+        text: 'Failed to fetch connected integrations',
+        icon: XCircle,
+      },
       [ClientToolCallState.aborted]: {
         text: 'Aborted fetching connected integrations',
         icon: MinusCircle,
@@ -68,4 +71,3 @@ export class GetCredentialsClientTool extends BaseClientTool {
     }
   }
 }
-

@@ -54,12 +54,12 @@ export class SetGlobalWorkflowVariablesClientTool extends BaseClientTool {
           .slice(0, 2)
           .map((op: any) => op.name)
           .filter(Boolean)
-        
+
         if (varNames.length > 0) {
           const varList = varNames.join(', ')
           const more = params.operations.length > 2 ? '...' : ''
           const displayText = `${varList}${more}`
-          
+
           switch (state) {
             case ClientToolCallState.success:
               return `Set ${displayText}`

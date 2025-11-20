@@ -43,7 +43,7 @@ export class GetBlocksMetadataClientTool extends BaseClientTool {
           .join(', ')
         const more = params.blockIds.length > 3 ? '...' : ''
         const blocks = `${blockList}${more}`
-        
+
         switch (state) {
           case ClientToolCallState.success:
             return `Searched ${blocks}`

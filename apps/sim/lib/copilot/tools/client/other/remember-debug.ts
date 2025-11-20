@@ -25,13 +25,13 @@ export class RememberDebugClientTool extends BaseClientTool {
     interrupt: undefined,
     getDynamicText: (params, state) => {
       const operation = params?.operation
-      
+
       if (operation === 'add' || operation === 'edit') {
         // For add/edit, show from problem or solution
         const text = params?.problem || params?.solution
         if (text && typeof text === 'string') {
           const truncated = text.length > 40 ? `${text.slice(0, 40)}...` : text
-          
+
           switch (state) {
             case ClientToolCallState.success:
               return `Validated fix ${truncated}`
@@ -52,7 +52,7 @@ export class RememberDebugClientTool extends BaseClientTool {
         const text = params?.problem || params?.solution || params?.id
         if (text && typeof text === 'string') {
           const truncated = text.length > 40 ? `${text.slice(0, 40)}...` : text
-          
+
           switch (state) {
             case ClientToolCallState.success:
               return `Adjusted fix ${truncated}`
@@ -69,7 +69,7 @@ export class RememberDebugClientTool extends BaseClientTool {
           }
         }
       }
-      
+
       return undefined
     },
   }
@@ -78,4 +78,3 @@ export class RememberDebugClientTool extends BaseClientTool {
     return
   }
 }
-

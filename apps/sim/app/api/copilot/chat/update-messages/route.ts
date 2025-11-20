@@ -72,8 +72,8 @@ export async function POST(req: NextRequest) {
 
     // Update chat with new messages, plan artifact, and config
     const updateData: Record<string, any> = {
-        messages: messages,
-        updatedAt: new Date(),
+      messages: messages,
+      updatedAt: new Date(),
     }
 
     if (planArtifact !== undefined) {

@@ -4,11 +4,10 @@ import {
   type BaseClientToolMetadata,
   ClientToolCallState,
 } from '@/lib/copilot/tools/client/base-tool'
-import { ExecuteResponseSuccessSchema } from '@/lib/copilot/tools/shared/schemas'
 import { createLogger } from '@/lib/logs/console/logger'
+import { getInputFormatExample } from '@/lib/workflows/deployment-utils'
 import { useCopilotStore } from '@/stores/panel-new/copilot/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-import { getInputFormatExample } from '@/lib/workflows/deployment-utils'
 
 interface DeployWorkflowArgs {
   action: 'deploy' | 'undeploy'
@@ -36,25 +35,25 @@ export class DeployWorkflowClientTool extends BaseClientTool {
     const toolCallsById = useCopilotStore.getState().toolCallsById
     const toolCall = toolCallsById[this.toolCallId]
     const params = toolCall?.params as DeployWorkflowArgs | undefined
-    
+
     const action = params?.action || 'deploy'
     const deployType = params?.deployType || 'api'
-    
+
     // Check if workflow is already deployed
     const workflowId = params?.workflowId || useWorkflowRegistry.getState().activeWorkflowId
-    const isAlreadyDeployed = workflowId 
-      ? useWorkflowRegistry.getState().getWorkflowDeploymentStatus(workflowId)?.isDeployed 
+    const isAlreadyDeployed = workflowId
+      ? useWorkflowRegistry.getState().getWorkflowDeploymentStatus(workflowId)?.isDeployed
       : false
-    
+
     let buttonText = action.charAt(0).toUpperCase() + action.slice(1)
-    
+
     // Change to "Redeploy" if already deployed
     if (action === 'deploy' && isAlreadyDeployed) {
       buttonText = 'Redeploy'
     } else if (action === 'deploy' && deployType === 'chat') {
       buttonText = 'Deploy as chat'
     }
-    
+
     return {
       accept: { text: buttonText, icon: Rocket },
       reject: { text: 'Skip', icon: XCircle },
@@ -87,27 +86,27 @@ export class DeployWorkflowClientTool extends BaseClientTool {
     getDynamicText: (params, state) => {
       const action = params?.action === 'undeploy' ? 'undeploy' : 'deploy'
       const deployType = params?.deployType || 'api'
-      
+
       // Check if workflow is already deployed
       const workflowId = params?.workflowId || useWorkflowRegistry.getState().activeWorkflowId
-      const isAlreadyDeployed = workflowId 
-        ? useWorkflowRegistry.getState().getWorkflowDeploymentStatus(workflowId)?.isDeployed 
+      const isAlreadyDeployed = workflowId
+        ? useWorkflowRegistry.getState().getWorkflowDeploymentStatus(workflowId)?.isDeployed
         : false
-      
+
       // Determine action text based on deployment status
       let actionText = action
       let actionTextIng = action === 'undeploy' ? 'undeploying' : 'deploying'
       let actionTextPast = action === 'undeploy' ? 'undeployed' : 'deployed'
-      
+
       // If already deployed and action is deploy, change to redeploy
       if (action === 'deploy' && isAlreadyDeployed) {
         actionText = 'redeploy'
         actionTextIng = 'redeploying'
         actionTextPast = 'redeployed'
       }
-      
+
       const actionCapitalized = actionText.charAt(0).toUpperCase() + actionText.slice(1)
-      
+
       // Special text for chat deployment
       const isChatDeploy = action === 'deploy' && deployType === 'chat'
       const displayAction = isChatDeploy ? 'deploy as chat' : actionText
@@ -115,9 +114,13 @@ export class DeployWorkflowClientTool extends BaseClientTool {
 
       switch (state) {
         case ClientToolCallState.success:
-          return isChatDeploy ? 'Opened chat deployment settings' : `${actionCapitalized}ed workflow`
+          return isChatDeploy
+            ? 'Opened chat deployment settings'
+            : `${actionCapitalized}ed workflow`
         case ClientToolCallState.executing:
-          return isChatDeploy ? 'Opening chat deployment settings' : `${actionCapitalized}ing workflow`
+          return isChatDeploy
+            ? 'Opening chat deployment settings'
+            : `${actionCapitalized}ing workflow`
         case ClientToolCallState.generating:
           return `Preparing to ${displayAction} workflow`
         case ClientToolCallState.pending:
@@ -125,9 +128,13 @@ export class DeployWorkflowClientTool extends BaseClientTool {
         case ClientToolCallState.error:
           return `Failed to ${displayAction} workflow`
         case ClientToolCallState.aborted:
-          return isChatDeploy ? 'Aborted opening chat deployment' : `Aborted ${actionTextIng} workflow`
+          return isChatDeploy
+            ? 'Aborted opening chat deployment'
+            : `Aborted ${actionTextIng} workflow`
         case ClientToolCallState.rejected:
-          return isChatDeploy ? 'Skipped opening chat deployment' : `Skipped ${actionTextIng} workflow`
+          return isChatDeploy
+            ? 'Skipped opening chat deployment'
+            : `Skipped ${actionTextIng} workflow`
       }
       return undefined
     },
@@ -222,10 +229,10 @@ export class DeployWorkflowClientTool extends BaseClientTool {
         if (!hasKeys) {
           // Mark as rejected since we can't deploy without an API key
           this.setState(ClientToolCallState.rejected)
-          
+
           // Open the API keys modal to help user create one
           this.openApiKeysModal()
-          
+
           await this.markToolComplete(
             200,
             'Cannot deploy without an API key. Opened API key settings so you can create one. Once you have an API key, try deploying again.',
@@ -257,7 +264,7 @@ export class DeployWorkflowClientTool extends BaseClientTool {
       }
 
       const json = await res.json()
-      
+
       let successMessage = ''
       let resultData: any = {
         action,
@@ -267,20 +274,21 @@ export class DeployWorkflowClientTool extends BaseClientTool {
 
       if (action === 'deploy') {
         // Generate the curl command for the deployed workflow (matching deploy modal format)
-        const appUrl = typeof window !== 'undefined' 
-          ? window.location.origin 
-          : process.env.NEXT_PUBLIC_APP_URL || 'https://app.sim.ai'
+        const appUrl =
+          typeof window !== 'undefined'
+            ? window.location.origin
+            : process.env.NEXT_PUBLIC_APP_URL || 'https://app.sim.ai'
         const endpoint = `${appUrl}/api/workflows/${workflowId}/execute`
         const apiKeyPlaceholder = '$SIM_API_KEY'
-        
+
         // Get input format example (returns empty string if no inputs, or -d flag with example data)
         const inputExample = getInputFormatExample(false)
-        
+
         // Match the exact format from deploy modal
         const curlCommand = `curl -X POST -H "X-API-Key: ${apiKeyPlaceholder}" -H "Content-Type: application/json"${inputExample} ${endpoint}`
 
         successMessage = 'Workflow deployed successfully. You can now call it via the API.'
-        
+
         resultData = {
           ...resultData,
           endpoint,
@@ -323,4 +331,3 @@ export class DeployWorkflowClientTool extends BaseClientTool {
     await this.handleAccept(args)
   }
 }
-

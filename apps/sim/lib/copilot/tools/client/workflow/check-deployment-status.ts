@@ -15,11 +15,7 @@ export class CheckDeploymentStatusClientTool extends BaseClientTool {
   static readonly id = 'check_deployment_status'
 
   constructor(toolCallId: string) {
-    super(
-      toolCallId,
-      CheckDeploymentStatusClientTool.id,
-      CheckDeploymentStatusClientTool.metadata
-    )
+    super(toolCallId, CheckDeploymentStatusClientTool.id, CheckDeploymentStatusClientTool.metadata)
   }
 
   static readonly metadata: BaseClientToolMetadata = {
@@ -66,15 +62,15 @@ export class CheckDeploymentStatusClientTool extends BaseClientTool {
       const chatDeploy = chatDeployRes.ok ? await chatDeployRes.json() : null
 
       const isApiDeployed = apiDeploy?.isDeployed || false
-      const isChatDeployed = chatDeploy?.isDeployed && chatDeploy?.deployment ? true : false
+      const isChatDeployed = !!(chatDeploy?.isDeployed && chatDeploy?.deployment)
 
       const deploymentTypes: string[] = []
-      
+
       if (isApiDeployed) {
         // Default to sync API, could be extended to detect streaming/async
         deploymentTypes.push('api')
       }
-      
+
       if (isChatDeployed) {
         deploymentTypes.push('chat')
       }
@@ -102,4 +98,3 @@ export class CheckDeploymentStatusClientTool extends BaseClientTool {
     }
   }
 }
-

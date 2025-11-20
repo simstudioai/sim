@@ -23,19 +23,22 @@ import {
   registerClientTool,
   registerToolStateSync,
 } from '@/lib/copilot/tools/client/manager'
+import { NavigateUIClientTool } from '@/lib/copilot/tools/client/navigation/navigate-ui'
 import { CheckoffTodoClientTool } from '@/lib/copilot/tools/client/other/checkoff-todo'
 import { MakeApiRequestClientTool } from '@/lib/copilot/tools/client/other/make-api-request'
 import { MarkTodoInProgressClientTool } from '@/lib/copilot/tools/client/other/mark-todo-in-progress'
 import { OAuthRequestAccessClientTool } from '@/lib/copilot/tools/client/other/oauth-request-access'
 import { PlanClientTool } from '@/lib/copilot/tools/client/other/plan'
+import { RememberDebugClientTool } from '@/lib/copilot/tools/client/other/remember-debug'
 import { SearchDocumentationClientTool } from '@/lib/copilot/tools/client/other/search-documentation'
+import { SearchErrorsClientTool } from '@/lib/copilot/tools/client/other/search-errors'
 import { SearchOnlineClientTool } from '@/lib/copilot/tools/client/other/search-online'
 import { SearchPatternsClientTool } from '@/lib/copilot/tools/client/other/search-patterns'
-import { SearchErrorsClientTool } from '@/lib/copilot/tools/client/other/search-errors'
-import { RememberDebugClientTool } from '@/lib/copilot/tools/client/other/remember-debug'
 import { createExecutionContext, getTool } from '@/lib/copilot/tools/client/registry'
 import { GetCredentialsClientTool } from '@/lib/copilot/tools/client/user/get-credentials'
 import { SetEnvironmentVariablesClientTool } from '@/lib/copilot/tools/client/user/set-environment-variables'
+import { CheckDeploymentStatusClientTool } from '@/lib/copilot/tools/client/workflow/check-deployment-status'
+import { DeployWorkflowClientTool } from '@/lib/copilot/tools/client/workflow/deploy-workflow'
 import { EditWorkflowClientTool } from '@/lib/copilot/tools/client/workflow/edit-workflow'
 import { GetGlobalWorkflowVariablesClientTool } from '@/lib/copilot/tools/client/workflow/get-global-workflow-variables'
 import { GetUserWorkflowClientTool } from '@/lib/copilot/tools/client/workflow/get-user-workflow'
@@ -44,9 +47,6 @@ import { GetWorkflowFromNameClientTool } from '@/lib/copilot/tools/client/workfl
 import { ListUserWorkflowsClientTool } from '@/lib/copilot/tools/client/workflow/list-user-workflows'
 import { RunWorkflowClientTool } from '@/lib/copilot/tools/client/workflow/run-workflow'
 import { SetGlobalWorkflowVariablesClientTool } from '@/lib/copilot/tools/client/workflow/set-global-workflow-variables'
-import { DeployWorkflowClientTool } from '@/lib/copilot/tools/client/workflow/deploy-workflow'
-import { CheckDeploymentStatusClientTool } from '@/lib/copilot/tools/client/workflow/check-deployment-status'
-import { NavigateUIClientTool } from '@/lib/copilot/tools/client/navigation/navigate-ui'
 import { createLogger } from '@/lib/logs/console/logger'
 import type {
   ChatContext,
@@ -173,7 +173,7 @@ function resolveToolDisplay(
     const def = getTool(toolName) as any
     const toolMetadata = def?.metadata || CLASS_TOOL_METADATA[toolName]
     const meta = toolMetadata?.displayNames || {}
-    
+
     // Exact state first
     const ds = meta?.[state]
     if (ds?.text || ds?.icon) {
@@ -191,7 +191,7 @@ function resolveToolDisplay(
       }
       return { text: ds.text, icon: ds.icon }
     }
-    
+
     // Fallback order (prefer pre-execution states for unknown states like pending)
     const fallbackOrder: ClientToolCallState[] = [
       (ClientToolCallState as any).generating,
@@ -1102,22 +1102,22 @@ const sseHandlers: Record<string, SSEHandler> = {
           const designContent = contentToProcess.substring(0, endMatch.index)
           context.designWorkflowContent += designContent
           context.isInDesignWorkflowBlock = false
-          
+
           // Update store with complete design workflow content (available in all modes)
           logger.info('[design_workflow] Tag complete, setting plan content', {
             contentLength: context.designWorkflowContent.length,
           })
           set({ streamingPlanContent: context.designWorkflowContent })
-          
+
           contentToProcess = contentToProcess.substring(endMatch.index + endMatch[0].length)
           hasProcessedContent = true
         } else {
           // Still in design_workflow block, accumulate content
           context.designWorkflowContent += contentToProcess
-          
+
           // Update store with partial content for streaming effect (available in all modes)
           set({ streamingPlanContent: context.designWorkflowContent })
-          
+
           contentToProcess = ''
           hasProcessedContent = true
         }
@@ -1135,7 +1135,9 @@ const sseHandlers: Record<string, SSEHandler> = {
           }
           context.isInDesignWorkflowBlock = true
           context.designWorkflowContent = ''
-          contentToProcess = contentToProcess.substring(designStartMatch.index + designStartMatch[0].length)
+          contentToProcess = contentToProcess.substring(
+            designStartMatch.index + designStartMatch[0].length
+          )
           hasProcessedContent = true
           continue
         }
@@ -1149,13 +1151,13 @@ const sseHandlers: Record<string, SSEHandler> = {
           hasMark && hasCheck
             ? Math.min(nextMarkIndex, nextCheckIndex)
             : hasMark
-            ? nextMarkIndex
-            : hasCheck
-            ? nextCheckIndex
-            : -1
+              ? nextMarkIndex
+              : hasCheck
+                ? nextCheckIndex
+                : -1
 
         if (nextTagIndex >= 0) {
-          const isMarkTodo = hasMark && (nextMarkIndex === nextTagIndex)
+          const isMarkTodo = hasMark && nextMarkIndex === nextTagIndex
           const tagStart = isMarkTodo ? '<marktodo>' : '<checkofftodo>'
           const tagEnd = isMarkTodo ? '</marktodo>' : '</checkofftodo>'
           const closingIndex = contentToProcess.indexOf(tagEnd, nextTagIndex + tagStart.length)
@@ -1165,7 +1167,9 @@ const sseHandlers: Record<string, SSEHandler> = {
             break
           }
 
-          const todoId = contentToProcess.substring(nextTagIndex + tagStart.length, closingIndex).trim()
+          const todoId = contentToProcess
+            .substring(nextTagIndex + tagStart.length, closingIndex)
+            .trim()
           logger.info(
             isMarkTodo ? '[TODO] Detected marktodo tag' : '[TODO] Detected checkofftodo tag',
             { todoId }
@@ -1195,17 +1199,18 @@ const sseHandlers: Record<string, SSEHandler> = {
           // Remove the tag AND newlines around it, but preserve ONE newline if both sides had them
           let beforeTag = contentToProcess.substring(0, nextTagIndex)
           let afterTag = contentToProcess.substring(closingIndex + tagEnd.length)
-          
+
           const hadNewlineBefore = /(\r?\n)+$/.test(beforeTag)
           const hadNewlineAfter = /^(\r?\n)+/.test(afterTag)
-          
+
           // Strip trailing newlines before the tag
           beforeTag = beforeTag.replace(/(\r?\n)+$/, '')
           // Strip leading newlines after the tag
           afterTag = afterTag.replace(/^(\r?\n)+/, '')
-          
+
           // If there were newlines on both sides, add back ONE to preserve paragraph breaks
-          contentToProcess = beforeTag + (hadNewlineBefore && hadNewlineAfter ? '\n' : '') + afterTag
+          contentToProcess =
+            beforeTag + (hadNewlineBefore && hadNewlineAfter ? '\n' : '') + afterTag
           context.currentTextBlock = null
           hasProcessedContent = true
           continue
@@ -1279,27 +1284,27 @@ const sseHandlers: Record<string, SSEHandler> = {
           context.currentTextBlock = null
           contentToProcess = contentToProcess.substring(startMatch.index + startMatch[0].length)
           hasProcessedContent = true
-          } else {
-            // Check if content might contain partial todo tags and hold them back
-            let partialTagIndex = contentToProcess.lastIndexOf('<')
-            
-            // Also check for partial marktodo or checkofftodo tags
-            const partialMarkTodo = contentToProcess.lastIndexOf('<marktodo')
-            const partialCheckoffTodo = contentToProcess.lastIndexOf('<checkofftodo')
-            
-            if (partialMarkTodo > partialTagIndex) {
-              partialTagIndex = partialMarkTodo
-            }
-            if (partialCheckoffTodo > partialTagIndex) {
-              partialTagIndex = partialCheckoffTodo
-            }
-            
-            let textToAdd = contentToProcess
-            let remaining = ''
-            if (partialTagIndex >= 0 && partialTagIndex > contentToProcess.length - 50) {
-              textToAdd = contentToProcess.substring(0, partialTagIndex)
-              remaining = contentToProcess.substring(partialTagIndex)
-            }
+        } else {
+          // Check if content might contain partial todo tags and hold them back
+          let partialTagIndex = contentToProcess.lastIndexOf('<')
+
+          // Also check for partial marktodo or checkofftodo tags
+          const partialMarkTodo = contentToProcess.lastIndexOf('<marktodo')
+          const partialCheckoffTodo = contentToProcess.lastIndexOf('<checkofftodo')
+
+          if (partialMarkTodo > partialTagIndex) {
+            partialTagIndex = partialMarkTodo
+          }
+          if (partialCheckoffTodo > partialTagIndex) {
+            partialTagIndex = partialCheckoffTodo
+          }
+
+          let textToAdd = contentToProcess
+          let remaining = ''
+          if (partialTagIndex >= 0 && partialTagIndex > contentToProcess.length - 50) {
+            textToAdd = contentToProcess.substring(0, partialTagIndex)
+            remaining = contentToProcess.substring(partialTagIndex)
+          }
           if (textToAdd) {
             context.accumulatedContent.append(textToAdd)
             if (context.currentTextBlock && context.contentBlocks.length > 0) {
@@ -1594,7 +1599,7 @@ export const useCopilotStore = create<CopilotStore>()(
       const chatConfig = chat.config || {}
       const chatMode = chatConfig.mode || get().mode
       const chatModel = chatConfig.model || get().selectedModel
-      
+
       logger.info('[Chat] Restoring chat config', {
         chatId: chat.id,
         mode: chatMode,
@@ -1958,7 +1963,7 @@ export const useCopilotStore = create<CopilotStore>()(
         // Prepend design document to message if available
         const { streamingPlanContent } = get()
         let messageToSend = message
-        if (streamingPlanContent && streamingPlanContent.trim()) {
+        if (streamingPlanContent?.trim()) {
           messageToSend = `Design Document:\n\n${streamingPlanContent}\n\n==============\n\nUser Query:\n\n${message}`
           logger.info('[DesignDocument] Prepending plan content to message', {
             planLength: streamingPlanContent.length,
@@ -2520,7 +2525,7 @@ export const useCopilotStore = create<CopilotStore>()(
               mode,
               model: selectedModel,
             }
-            
+
             await fetch('/api/copilot/chat/update-messages', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -2531,7 +2536,7 @@ export const useCopilotStore = create<CopilotStore>()(
                 config,
               }),
             })
-            
+
             // Update local chat object with plan artifact and config
             set({
               currentChat: {
@@ -2638,17 +2643,17 @@ export const useCopilotStore = create<CopilotStore>()(
 
     clearPlanArtifact: async () => {
       const { currentChat } = get()
-      
+
       // Clear from local state
       set({ streamingPlanContent: '' })
-      
+
       // Update database if we have a current chat
       if (currentChat) {
         try {
           const currentMessages = get().messages
           const dbMessages = validateMessagesForLLM(currentMessages)
           const { mode, selectedModel } = get()
-          
+
           await fetch('/api/copilot/chat/update-messages', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -2662,7 +2667,7 @@ export const useCopilotStore = create<CopilotStore>()(
               },
             }),
           })
-          
+
           // Update local chat object
           set({
             currentChat: {
@@ -2670,7 +2675,7 @@ export const useCopilotStore = create<CopilotStore>()(
               planArtifact: null,
             },
           })
-          
+
           logger.info('[PlanArtifact] Cleared plan artifact', { chatId: currentChat.id })
         } catch (error) {
           logger.error('[PlanArtifact] Failed to clear plan artifact', error)
@@ -2680,17 +2685,17 @@ export const useCopilotStore = create<CopilotStore>()(
 
     savePlanArtifact: async (content: string) => {
       const { currentChat } = get()
-      
+
       // Update local state
       set({ streamingPlanContent: content })
-      
+
       // Update database if we have a current chat
       if (currentChat) {
         try {
           const currentMessages = get().messages
           const dbMessages = validateMessagesForLLM(currentMessages)
           const { mode, selectedModel } = get()
-          
+
           await fetch('/api/copilot/chat/update-messages', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -2704,7 +2709,7 @@ export const useCopilotStore = create<CopilotStore>()(
               },
             }),
           })
-          
+
           // Update local chat object
           set({
             currentChat: {
@@ -2712,7 +2717,7 @@ export const useCopilotStore = create<CopilotStore>()(
               planArtifact: content,
             },
           })
-          
+
           logger.info('[PlanArtifact] Saved plan artifact', {
             chatId: currentChat.id,
             contentLength: content.length,

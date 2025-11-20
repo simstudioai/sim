@@ -60,7 +60,10 @@ interface WorkflowDiffState {
 }
 
 interface WorkflowDiffActions {
-  setProposedChanges: (jsonContent: string | WorkflowState, diffAnalysis?: DiffAnalysis) => Promise<WorkflowState | null>
+  setProposedChanges: (
+    jsonContent: string | WorkflowState,
+    diffAnalysis?: DiffAnalysis
+  ) => Promise<WorkflowState | null>
   mergeProposedChanges: (jsonContent: string, diffAnalysis?: DiffAnalysis) => Promise<void>
   clearDiff: () => void
   getCurrentWorkflowForCanvas: () => WorkflowState
@@ -204,17 +207,16 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
             })
 
             logger.info('Diff created successfully')
-            
+
             // Return the proposedState so callers can use it immediately without waiting for batched updates
             return result.diff.proposedState
-          } else {
-            logger.error('Failed to create diff:', result.errors)
-            batchedUpdate({
-              isDiffReady: false,
-              diffError: result.errors?.join(', ') || 'Failed to create diff',
-            })
-            throw new Error(result.errors?.join(', ') || 'Failed to create diff')
           }
+          logger.error('Failed to create diff:', result.errors)
+          batchedUpdate({
+            isDiffReady: false,
+            diffError: result.errors?.join(', ') || 'Failed to create diff',
+          })
+          throw new Error(result.errors?.join(', ') || 'Failed to create diff')
         },
 
         mergeProposedChanges: async (jsonContent: string, diffAnalysis?: DiffAnalysis) => {

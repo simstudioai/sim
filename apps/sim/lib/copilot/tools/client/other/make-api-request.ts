@@ -40,21 +40,21 @@ export class MakeApiRequestClientTool extends BaseClientTool {
       if (params?.url && typeof params.url === 'string') {
         const method = params.method || 'GET'
         let url = params.url
-        
+
         // Extract domain from URL for cleaner display
         try {
           const urlObj = new URL(url)
           url = urlObj.hostname + urlObj.pathname
           if (url.length > 40) {
-            url = url.slice(0, 40) + '...'
+            url = `${url.slice(0, 40)}...`
           }
         } catch {
           // If URL parsing fails, just truncate
           if (url.length > 40) {
-            url = url.slice(0, 40) + '...'
+            url = `${url.slice(0, 40)}...`
           }
         }
-        
+
         switch (state) {
           case ClientToolCallState.success:
             return `${method} ${url} complete`

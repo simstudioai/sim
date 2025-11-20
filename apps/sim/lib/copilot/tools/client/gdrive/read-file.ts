@@ -38,7 +38,7 @@ export class ReadGDriveFileClientTool extends BaseClientTool {
       if (params?.fileId && typeof params.fileId === 'string') {
         const fileId = params.fileId
         const fileType = params?.type ? ` (${params.type})` : ''
-        
+
         switch (state) {
           case ClientToolCallState.success:
             return `Read file ${fileId}${fileType}`

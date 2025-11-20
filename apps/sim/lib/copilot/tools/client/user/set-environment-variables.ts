@@ -52,7 +52,7 @@ export class SetEnvironmentVariablesClientTool extends BaseClientTool {
       if (params?.variables && typeof params.variables === 'object') {
         const count = Object.keys(params.variables).length
         const varText = count === 1 ? 'variable' : 'variables'
-        
+
         switch (state) {
           case ClientToolCallState.success:
             return `Set ${count} ${varText}`

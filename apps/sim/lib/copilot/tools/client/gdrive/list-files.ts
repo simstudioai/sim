@@ -37,7 +37,7 @@ export class ListGDriveFilesClientTool extends BaseClientTool {
       if (searchQuery && typeof searchQuery === 'string') {
         const query = searchQuery
         const truncated = query.length > 40 ? `${query.slice(0, 40)}...` : query
-        
+
         switch (state) {
           case ClientToolCallState.success:
             return `Listed files matching ${truncated}`

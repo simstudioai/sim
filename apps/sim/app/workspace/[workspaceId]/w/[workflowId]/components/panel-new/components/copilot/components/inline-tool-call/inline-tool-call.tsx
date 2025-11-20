@@ -231,7 +231,12 @@ function ShimmerOverlayText({
  * Only workflow operation tools (edit, build, run, deploy) get the purple gradient.
  */
 function isSpecialToolCall(toolCall: CopilotToolCall): boolean {
-  const workflowOperationTools = ['edit_workflow', 'build_workflow', 'run_workflow', 'deploy_workflow']
+  const workflowOperationTools = [
+    'edit_workflow',
+    'build_workflow',
+    'run_workflow',
+    'deploy_workflow',
+  ]
 
   return workflowOperationTools.includes(toolCall.name)
 }

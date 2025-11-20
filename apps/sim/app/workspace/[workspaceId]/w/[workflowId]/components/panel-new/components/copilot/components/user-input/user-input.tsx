@@ -83,15 +83,15 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
       isLoading = false,
       isAborting = false,
       placeholder,
-    className,
-    mode = 'build',
-    onModeChange,
-    value: controlledValue,
-    onChange: onControlledChange,
-    panelWidth = 308,
-    clearOnSubmit = true,
-    hasPlanArtifact = false,
-  },
+      className,
+      mode = 'build',
+      onModeChange,
+      value: controlledValue,
+      onChange: onControlledChange,
+      panelWidth = 308,
+      clearOnSubmit = true,
+      hasPlanArtifact = false,
+    },
     ref
   ) => {
     // Refs and external hooks
@@ -287,7 +287,9 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
 
         const failedUploads = fileAttachments.attachedFiles.filter((f) => !f.uploading && !f.key)
         if (failedUploads.length > 0) {
-          logger.error(`Some files failed to upload: ${failedUploads.map((f) => f.name).join(', ')}`)
+          logger.error(
+            `Some files failed to upload: ${failedUploads.map((f) => f.name).join(', ')}`
+          )
         }
 
         const fileAttachmentsForApi = fileAttachments.attachedFiles

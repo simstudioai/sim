@@ -41,7 +41,7 @@ export class GetWorkflowConsoleClientTool extends BaseClientTool {
       const limit = params?.limit
       if (limit && typeof limit === 'number') {
         const logText = limit === 1 ? 'execution log' : 'execution logs'
-        
+
         switch (state) {
           case ClientToolCallState.success:
             return `Fetched last ${limit} ${logText}`

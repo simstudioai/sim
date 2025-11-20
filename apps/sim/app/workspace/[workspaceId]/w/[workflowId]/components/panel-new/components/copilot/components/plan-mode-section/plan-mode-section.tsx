@@ -1,111 +1,119 @@
+/**
+ * Plan Mode Section component with resizable markdown content display.
+ * Displays markdown content in a separate section at the top of the copilot panel.
+ * Follows emcn design principles with consistent spacing, typography, and color scheme.
+ *
+ * @example
+ * ```tsx
+ * import { PlanModeSection } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/copilot/components'
+ *
+ * function CopilotPanel() {
+ *   const plan = "# My Plan\n\nThis is a plan description..."
+ *
+ *   return (
+ *     <PlanModeSection
+ *       content={plan}
+ *       initialHeight={200}
+ *       minHeight={100}
+ *       maxHeight={600}
+ *     />
+ *   )
+ * }
+ * ```
+ */
+
 'use client'
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
-import { Check, GripHorizontal, Pencil, X } from 'lucide-react'
-import { Button } from '@/components/emcn'
-import { Textarea } from '@/components/ui'
-import { Trash } from '@/components/emcn/icons/trash'
+import * as React from 'react'
+import { GripHorizontal } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import CopilotMarkdownRenderer from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/copilot/components/copilot-message/components/markdown-renderer'
 
 /**
- * Props for the PlanModeSection component
+ * Shared border and background styles
  */
-interface PlanModeSectionProps {
-  /** Markdown content to display */
+const SURFACE_5 = 'bg-[var(--surface-5)] dark:bg-[var(--surface-5)]'
+const SURFACE_9 = 'bg-[var(--surface-9)] dark:bg-[var(--surface-9)]'
+const BORDER_STRONG = 'border-[var(--border-strong)] dark:border-[var(--border-strong)]'
+
+export interface PlanModeSectionProps {
+  /**
+   * Markdown content to display
+   */
   content: string
-  /** Optional class name for additional styling */
+  /**
+   * Optional class name for additional styling
+   */
   className?: string
-  /** Initial height of the section in pixels */
+  /**
+   * Initial height of the section in pixels
+   * @default 180
+   */
   initialHeight?: number
-  /** Minimum height in pixels */
+  /**
+   * Minimum height in pixels
+   * @default 80
+   */
   minHeight?: number
-  /** Maximum height in pixels */
+  /**
+   * Maximum height in pixels
+   * @default 600
+   */
   maxHeight?: number
-  /** Callback when clear button is clicked */
-  onClear?: () => void
-  /** Callback when content is saved */
-  onSave?: (newContent: string) => void
 }
 
 /**
- * Plan Mode Section component
- * Displays markdown content in a separate section at the top of the copilot panel
- * Follows emcn design principles with consistent spacing, typography, and color scheme
- * Features: pinned position, resizable height, internal scrolling
- *
- * @param props - Component props
- * @returns Rendered plan mode section with markdown content
+ * Plan Mode Section component for displaying markdown content with resizable height.
+ * Features: pinned position, resizable height with drag handle, internal scrolling.
  */
-export function PlanModeSection({
+const PlanModeSection: React.FC<PlanModeSectionProps> = ({
   content,
   className,
-  initialHeight,
+  initialHeight = 180,
   minHeight = 80,
   maxHeight = 600,
-  onClear,
-  onSave,
-}: PlanModeSectionProps) {
-  // Default to 75% of max height
-  const defaultHeight = initialHeight ?? Math.floor(maxHeight * 0.75)
-  const [height, setHeight] = useState(defaultHeight)
-  const [isResizing, setIsResizing] = useState(false)
-  const [isEditing, setIsEditing] = useState(false)
-  const [editedContent, setEditedContent] = useState(content)
-  const resizeStartRef = useRef({ y: 0, startHeight: 0 })
-  const textareaRef = useRef<HTMLTextAreaElement>(null)
+}) => {
+  const [height, setHeight] = React.useState(initialHeight)
+  const [isResizing, setIsResizing] = React.useState(false)
+  const resizeStartRef = React.useRef({ y: 0, startHeight: 0 })
 
-  // Update edited content when content prop changes
-  useEffect(() => {
-    if (!isEditing) {
-      setEditedContent(content)
-    }
-  }, [content, isEditing])
+  const handleResizeStart = React.useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault()
+      setIsResizing(true)
+      resizeStartRef.current = {
+        y: e.clientY,
+        startHeight: height,
+      }
+    },
+    [height]
+  )
 
-  /**
-   * Handles the start of a resize operation
-   */
-  const handleResizeStart = useCallback((e: React.MouseEvent) => {
-    e.preventDefault()
-    setIsResizing(true)
-    resizeStartRef.current = {
-      y: e.clientY,
-      startHeight: height,
-    }
-  }, [height])
+  const handleResizeMove = React.useCallback(
+    (e: MouseEvent) => {
+      if (!isResizing) return
 
-  /**
-   * Handles mouse movement during resize
-   */
-  const handleResizeMove = useCallback((e: MouseEvent) => {
-    if (!isResizing) return
+      const deltaY = e.clientY - resizeStartRef.current.y
+      const newHeight = Math.max(
+        minHeight,
+        Math.min(maxHeight, resizeStartRef.current.startHeight + deltaY)
+      )
+      setHeight(newHeight)
+    },
+    [isResizing, minHeight, maxHeight]
+  )
 
-    const deltaY = e.clientY - resizeStartRef.current.y
-    const newHeight = Math.max(
-      minHeight,
-      Math.min(maxHeight, resizeStartRef.current.startHeight + deltaY)
-    )
-    setHeight(newHeight)
-  }, [isResizing, minHeight, maxHeight])
-
-  /**
-   * Handles the end of a resize operation
-   */
-  const handleResizeEnd = useCallback(() => {
+  const handleResizeEnd = React.useCallback(() => {
     setIsResizing(false)
   }, [])
 
-  /**
-   * Set up and clean up resize event listeners
-   */
   React.useEffect(() => {
     if (isResizing) {
       document.addEventListener('mousemove', handleResizeMove)
       document.addEventListener('mouseup', handleResizeEnd)
       document.body.style.cursor = 'ns-resize'
       document.body.style.userSelect = 'none'
-      
+
       return () => {
         document.removeEventListener('mousemove', handleResizeMove)
         document.removeEventListener('mouseup', handleResizeEnd)
@@ -115,242 +123,25 @@ export function PlanModeSection({
     }
   }, [isResizing, handleResizeMove, handleResizeEnd])
 
-  /**
-   * Handles entering edit mode
-   */
-  const handleEdit = useCallback(() => {
-    setIsEditing(true)
-    setEditedContent(content)
-    setTimeout(() => {
-      textareaRef.current?.focus()
-    }, 50)
-  }, [content])
-
-  /**
-   * Handles saving edited content
-   */
-  const handleSave = useCallback(() => {
-    if (onSave && editedContent.trim() !== content.trim()) {
-      onSave(editedContent.trim())
-    }
-    setIsEditing(false)
-  }, [editedContent, content, onSave])
-
-  /**
-   * Handles canceling edit mode
-   */
-  const handleCancelEdit = useCallback(() => {
-    setEditedContent(content)
-    setIsEditing(false)
-  }, [content])
-  const markdownComponents = useMemo(
-    () => ({
-      // Paragraph
-      p: ({ children }: React.HTMLAttributes<HTMLParagraphElement>) => (
-        <p className='mb-2 font-season text-[13px] font-[470] leading-[1.4rem] text-[var(--text-secondary)] last:mb-0 dark:text-[var(--text-secondary)]'>
-          {children}
-        </p>
-      ),
-
-      // Headings
-      h1: ({ children }: React.HTMLAttributes<HTMLHeadingElement>) => (
-        <h1 className='mb-3 font-season text-[16px] font-[500] text-[var(--text-primary)] dark:text-[var(--text-primary)]'>
-          {children}
-        </h1>
-      ),
-      h2: ({ children }: React.HTMLAttributes<HTMLHeadingElement>) => (
-        <h2 className='mb-2.5 font-season text-[15px] font-[500] text-[var(--text-primary)] dark:text-[var(--text-primary)]'>
-          {children}
-        </h2>
-      ),
-      h3: ({ children }: React.HTMLAttributes<HTMLHeadingElement>) => (
-        <h3 className='mb-2 font-season text-[14px] font-[500] text-[var(--text-primary)] dark:text-[var(--text-primary)]'>
-          {children}
-        </h3>
-      ),
-      h4: ({ children }: React.HTMLAttributes<HTMLHeadingElement>) => (
-        <h4 className='mb-1.5 font-season text-[13px] font-[500] text-[var(--text-primary)] dark:text-[var(--text-primary)]'>
-          {children}
-        </h4>
-      ),
-
-      // Lists
-      ul: ({ children }: React.HTMLAttributes<HTMLUListElement>) => (
-        <ul className='my-2 space-y-1 pl-5 font-season text-[13px] font-[470] text-[var(--text-secondary)] dark:text-[var(--text-secondary)] [list-style-type:disc]'>
-          {children}
-        </ul>
-      ),
-      ol: ({ children }: React.HTMLAttributes<HTMLOListElement>) => (
-        <ol className='my-2 space-y-1 pl-5 font-season text-[13px] font-[470] text-[var(--text-secondary)] dark:text-[var(--text-secondary)] [list-style-type:decimal]'>
-          {children}
-        </ol>
-      ),
-      li: ({ children }: React.HTMLAttributes<HTMLLIElement>) => (
-        <li className='text-[13px] leading-[1.4rem]'>{children}</li>
-      ),
-
-      // Code blocks
-      pre: ({ children }: React.HTMLAttributes<HTMLPreElement>) => (
-        <pre className='my-2 overflow-x-auto rounded-[4px] bg-[var(--surface-5)] p-3 font-mono text-[12px] dark:bg-[var(--surface-5)]'>
-          {children}
-        </pre>
-      ),
-
-      // Inline code
-      code: ({
-        inline,
-        children,
-        ...props
-      }: React.HTMLAttributes<HTMLElement> & { inline?: boolean }) => {
-        if (inline) {
-          return (
-            <code
-              className='rounded-[3px] bg-[var(--surface-5)] px-1.5 py-0.5 font-mono text-[11px] text-[var(--text-primary)] dark:bg-[var(--surface-5)] dark:text-[var(--text-primary)]'
-              {...props}
-            >
-              {children}
-            </code>
-          )
-        }
-        return (
-          <code
-            className='font-mono text-[12px] text-[var(--text-primary)] dark:text-[var(--text-primary)]'
-            {...props}
-          >
-            {children}
-          </code>
-        )
-      },
-
-      // Blockquote
-      blockquote: ({ children }: React.HTMLAttributes<HTMLQuoteElement>) => (
-        <blockquote className='my-2 border-l-2 border-[var(--border-strong)] pl-4 font-season text-[13px] font-[470] italic text-[var(--text-secondary)] dark:border-[var(--border-strong)] dark:text-[var(--text-secondary)]'>
-          {children}
-        </blockquote>
-      ),
-
-      // Horizontal rule
-      hr: () => (
-        <hr className='my-3 border-[var(--border-strong)] dark:border-[var(--border-strong)]' />
-      ),
-
-      // Links
-      a: ({ children, href }: React.AnchorHTMLAttributes<HTMLAnchorElement>) => (
-        <a
-          href={href}
-          className='text-[var(--brand-400)] underline decoration-[var(--brand-400)]/30 underline-offset-2 transition-colors hover:decoration-[var(--brand-400)] dark:text-[var(--brand-400)]'
-          target='_blank'
-          rel='noopener noreferrer'
-        >
-          {children}
-        </a>
-      ),
-
-      // Strong/Bold
-      strong: ({ children }: React.HTMLAttributes<HTMLElement>) => (
-        <strong className='font-[500] text-[var(--text-primary)] dark:text-[var(--text-primary)]'>
-          {children}
-        </strong>
-      ),
-
-      // Emphasis/Italic
-      em: ({ children }: React.HTMLAttributes<HTMLElement>) => (
-        <em className='italic text-[var(--text-secondary)] dark:text-[var(--text-secondary)]'>
-          {children}
-        </em>
-      ),
-    }),
-    []
-  )
-
   if (!content || !content.trim()) {
     return null
   }
 
   return (
     <div
-      className={cn(
-        'relative flex flex-col rounded-[4px] bg-[var(--surface-5)] dark:bg-[var(--surface-5)]',
-        className
-      )}
+      className={cn('relative flex flex-col rounded-[4px]', SURFACE_5, className)}
       style={{ height: `${height}px` }}
     >
-      {/* Header with edit and clear controls */}
-      <div className='flex flex-shrink-0 items-center justify-between border-b border-[var(--border-strong)] pl-[12px] pr-[4px] py-[6px] dark:border-[var(--border-strong)]'>
-        <span className='text-[11px] font-[500] text-[var(--text-secondary)] uppercase tracking-wide dark:text-[var(--text-secondary)]'>
-          Workflow Plan
-        </span>
-        <div className='ml-auto flex items-center gap-[4px]'>
-          {isEditing ? (
-            <>
-              <Button
-                variant='ghost'
-                className='h-[18px] w-[18px] p-0 hover:text-[var(--text-primary)]'
-                onClick={handleCancelEdit}
-                aria-label='Cancel editing'
-              >
-                <X className='h-[11px] w-[11px]' />
-              </Button>
-              <Button
-                variant='ghost'
-                className='h-[18px] w-[18px] p-0 hover:text-[var(--text-primary)]'
-                onClick={handleSave}
-                aria-label='Save changes'
-              >
-                <Check className='h-[12px] w-[12px]' />
-              </Button>
-            </>
-          ) : (
-            <>
-              {onSave && (
-                <Button
-                  variant='ghost'
-                  className='h-[18px] w-[18px] p-0 hover:text-[var(--text-primary)]'
-                  onClick={handleEdit}
-                  aria-label='Edit workflow plan'
-                >
-                  <Pencil className='h-[10px] w-[10px]' />
-                </Button>
-              )}
-              {onClear && (
-                <Button
-                  variant='ghost'
-                  className='h-[18px] w-[18px] p-0 hover:text-[var(--text-primary)]'
-                  onClick={onClear}
-                  aria-label='Clear workflow plan'
-                >
-                  <Trash className='h-[11px] w-[11px]' />
-                </Button>
-              )}
-            </>
-          )}
-        </div>
-      </div>
-
-      {/* Scrollable content area */}
       <div className='flex-1 overflow-y-auto overflow-x-hidden px-[12px] py-[10px]'>
-        {isEditing ? (
-          <Textarea
-            ref={textareaRef}
-            value={editedContent}
-            onChange={(e) => setEditedContent(e.target.value)}
-            className='h-full min-h-full w-full resize-none border-0 bg-transparent p-0 font-season text-[13px] font-[470] leading-[1.4rem] text-[var(--text-primary)] outline-none ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 dark:text-[var(--text-primary)]'
-            placeholder='Enter your workflow plan...'
-          />
-        ) : (
-          <div className='max-w-full break-words'>
-            <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
-              {content.trim()}
-            </ReactMarkdown>
-          </div>
-        )}
+        <CopilotMarkdownRenderer content={content.trim()} />
       </div>
 
-      {/* Resize handle */}
       <div
         className={cn(
-          'group flex h-[20px] w-full cursor-ns-resize items-center justify-center border-t border-[var(--border-strong)] transition-colors hover:bg-[var(--surface-9)] dark:border-[var(--border-strong)] dark:hover:bg-[var(--surface-9)]',
-          isResizing && 'bg-[var(--surface-9)] dark:bg-[var(--surface-9)]'
+          'group flex h-[20px] w-full cursor-ns-resize items-center justify-center border-t',
+          BORDER_STRONG,
+          'transition-colors hover:bg-[var(--surface-9)] dark:hover:bg-[var(--surface-9)]',
+          isResizing && SURFACE_9
         )}
         onMouseDown={handleResizeStart}
         role='separator'
@@ -363,3 +154,6 @@ export function PlanModeSection({
   )
 }
 
+PlanModeSection.displayName = 'PlanModeSection'
+
+export { PlanModeSection }

@@ -33,7 +33,7 @@ export class GetOperationsExamplesClientTool extends BaseClientTool {
       if (params?.query && typeof params.query === 'string') {
         const query = params.query
         const truncated = query.length > 40 ? `${query.slice(0, 40)}...` : query
-        
+
         switch (state) {
           case ClientToolCallState.success:
             return `Designed ${truncated}`

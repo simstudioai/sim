@@ -42,7 +42,7 @@ export class EditWorkflowClientTool extends BaseClientTool {
    */
   private getSanitizedWorkflowJson(workflowState: any): string | undefined {
     const logger = createLogger('EditWorkflowClientTool')
-    
+
     if (!this.workflowId) {
       logger.warn('No workflowId available for getting sanitized workflow JSON')
       return undefined
@@ -143,7 +143,7 @@ export class EditWorkflowClientTool extends BaseClientTool {
     // This ensures consistency between edit_workflow and get_user_workflow results
     const diffStore = useWorkflowDiffStore.getState()
     const actualDiffWorkflow = diffStore.diffWorkflow
-    
+
     // Get the workflow state that was applied, merge subblocks, and sanitize
     // This matches what get_user_workflow would return
     const workflowJson = actualDiffWorkflow
@@ -286,7 +286,7 @@ export class EditWorkflowClientTool extends BaseClientTool {
       // The diff engine may transform the workflow state (e.g., assign new IDs), so we must use
       // the returned proposedState rather than the original result.workflowState
       let actualDiffWorkflow: WorkflowState | null = null
-      
+
       if (result.workflowState) {
         try {
           if (!this.hasAppliedDiff) {
@@ -295,7 +295,9 @@ export class EditWorkflowClientTool extends BaseClientTool {
             actualDiffWorkflow = await diffStore.setProposedChanges(result.workflowState)
             logger.info('diff proposed changes set for edit_workflow with direct workflow state', {
               hasProposedState: !!actualDiffWorkflow,
-              blocksCount: actualDiffWorkflow ? Object.keys(actualDiffWorkflow.blocks || {}).length : 0,
+              blocksCount: actualDiffWorkflow
+                ? Object.keys(actualDiffWorkflow.blocks || {}).length
+                : 0,
             })
             this.hasAppliedDiff = true
           } else {
@@ -311,7 +313,7 @@ export class EditWorkflowClientTool extends BaseClientTool {
       } else {
         throw new Error('No workflow state returned from server')
       }
-      
+
       if (!actualDiffWorkflow) {
         throw new Error('Failed to retrieve workflow from diff store after setting changes')
       }

@@ -27,7 +27,7 @@ export class SearchPatternsClientTool extends BaseClientTool {
       if (params?.queries && Array.isArray(params.queries) && params.queries.length > 0) {
         const firstQuery = String(params.queries[0])
         const truncated = firstQuery.length > 50 ? `${firstQuery.slice(0, 50)}...` : firstQuery
-        
+
         switch (state) {
           case ClientToolCallState.success:
             return `Searched ${truncated}`
@@ -51,4 +51,3 @@ export class SearchPatternsClientTool extends BaseClientTool {
     return
   }
 }
-

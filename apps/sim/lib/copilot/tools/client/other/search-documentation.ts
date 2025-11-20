@@ -34,7 +34,7 @@ export class SearchDocumentationClientTool extends BaseClientTool {
       if (params?.query && typeof params.query === 'string') {
         const query = params.query
         const truncated = query.length > 50 ? `${query.slice(0, 50)}...` : query
-        
+
         switch (state) {
           case ClientToolCallState.success:
             return `Searched docs for ${truncated}`

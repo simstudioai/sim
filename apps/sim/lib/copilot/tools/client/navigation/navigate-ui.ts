@@ -34,7 +34,7 @@ export class NavigateUIClientTool extends BaseClientTool {
     const workflowName = params?.workflowName
 
     let buttonText = 'Navigate'
-    
+
     if (destination === 'workflow' && workflowName) {
       buttonText = 'Open workflow'
     } else if (destination === 'logs') {
@@ -80,10 +80,10 @@ export class NavigateUIClientTool extends BaseClientTool {
       const destination = params?.destination as NavigationDestination | undefined
       const workflowName = params?.workflowName
 
-      let action = 'open'
-      let actionCapitalized = 'Open'
-      let actionPast = 'opened'
-      let actionIng = 'opening'
+      const action = 'open'
+      const actionCapitalized = 'Open'
+      const actionPast = 'opened'
+      const actionIng = 'opening'
       let target = ''
 
       if (destination === 'workflow' && workflowName) {
@@ -216,21 +216,21 @@ export class NavigateUIClientTool extends BaseClientTool {
     } catch (e: any) {
       logger.error('Navigation failed', { message: e?.message })
       this.setState(ClientToolCallState.error)
-      
+
       // Get destination info for better error message
       const toolCallsById = useCopilotStore.getState().toolCallsById
       const toolCall = toolCallsById[this.toolCallId]
       const params = toolCall?.params as NavigateUIArgs | undefined
       const dest = params?.destination
       const wfName = params?.workflowName
-      
+
       let errorMessage = e?.message || 'Failed to navigate'
       if (dest === 'workflow' && wfName) {
         errorMessage = `Failed to navigate to workflow "${wfName}": ${e?.message || 'Unknown error'}`
       } else if (dest) {
         errorMessage = `Failed to navigate to ${dest}: ${e?.message || 'Unknown error'}`
       }
-      
+
       await this.markToolComplete(500, errorMessage)
     }
   }
@@ -239,4 +239,3 @@ export class NavigateUIClientTool extends BaseClientTool {
     await this.handleAccept(args)
   }
 }
-

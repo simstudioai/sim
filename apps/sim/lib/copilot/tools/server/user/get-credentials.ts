@@ -117,4 +117,3 @@ export const getCredentialsServerTool: BaseServerTool<GetCredentialsParams, any>
     }
   },
 }
-
