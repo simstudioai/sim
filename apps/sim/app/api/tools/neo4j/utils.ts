@@ -2,7 +2,8 @@ import neo4j from 'neo4j-driver'
 import type { Neo4jConnectionConfig } from '@/tools/neo4j/types'
 
 export async function createNeo4jDriver(config: Neo4jConnectionConfig) {
-  const isAuraHost = config.host.includes('.databases.neo4j.io')
+  const isAuraHost =
+    config.host === 'databases.neo4j.io' || config.host.endsWith('.databases.neo4j.io')
 
   let protocol: string
   if (isAuraHost) {
