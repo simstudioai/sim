@@ -915,7 +915,7 @@ try {
       styleEl.id = styleId
       styleEl.textContent = `
         [data-radix-portal] [data-radix-dialog-overlay] {
-          z-index: 99999998 !important;
+          z-index: 10000048 !important;
         }
       `
       document.head.appendChild(styleEl)
@@ -934,7 +934,7 @@ try {
       <Dialog open={open} onOpenChange={handleClose}>
         <DialogContent
           className='flex h-[80vh] w-full max-w-[840px] flex-col gap-0 p-0'
-          style={{ zIndex: 99999999 }}
+          style={{ zIndex: 10000050 }}
           hideCloseButton
           onKeyDown={(e) => {
             if (e.key === 'Escape' && (showEnvVars || showTags || showSchemaParams)) {
