@@ -1,0 +1,159 @@
+---
+title: Calendly
+description: Verwalte Calendly-Terminplanung und Ereignisse
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="calendly"
+  color="#FFFFFF"
+/>
+
+## Nutzungsanleitung
+
+Integriere Calendly in deinen Arbeitsablauf. Verwalte Ereignistypen, geplante Ereignisse, Eingeladene und Webhooks. Kann auch Workflows basierend auf Calendly-Webhook-Ereignissen auslösen (Teilnehmer geplant, Teilnehmer storniert, Routing-Formular übermittelt). Erfordert einen persönlichen Zugriffstoken.
+
+## Tools
+
+### `calendly_get_current_user`
+
+Erhalte Informationen über den aktuell authentifizierten Calendly-Benutzer
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Ja | Calendly persönlicher Zugriffstoken |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `resource` | object | Informationen zum aktuellen Benutzer |
+
+### `calendly_list_event_types`
+
+Rufe eine Liste aller Ereignistypen für einen Benutzer oder eine Organisation ab
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Ja | Calendly persönlicher Zugriffstoken |
+| `user` | string | Nein | Gibt nur Ereignistypen zurück, die zu diesem Benutzer gehören \(URI-Format\) |
+| `organization` | string | Nein | Gibt nur Ereignistypen zurück, die zu dieser Organisation gehören \(URI-Format\) |
+| `count` | number | Nein | Anzahl der Ergebnisse pro Seite \(Standard: 20, max: 100\) |
+| `pageToken` | string | Nein | Seitentoken für Paginierung |
+| `sort` | string | Nein | Sortierreihenfolge für Ergebnisse \(z.B. "name:asc", "name:desc"\) |
+| `active` | boolean | Nein | Bei true werden nur aktive Ereignistypen angezeigt. Bei false oder nicht ausgewählt werden alle Ereignistypen angezeigt \(sowohl aktive als auch inaktive\). |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `collection` | array | Array von Ereignistyp-Objekten |
+
+### `calendly_get_event_type`
+
+Detaillierte Informationen über einen bestimmten Ereignistyp abrufen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Ja | Calendly persönliches Zugriffstoken |
+| `eventTypeUuid` | string | Ja | Ereignistyp UUID \(kann vollständige URI oder nur die UUID sein\) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `resource` | object | Details zum Ereignistyp |
+
+### `calendly_list_scheduled_events`
+
+Eine Liste geplanter Ereignisse für einen Benutzer oder eine Organisation abrufen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Ja | Calendly persönliches Zugriffstoken |
+| `user` | string | Nein | Gibt Ereignisse zurück, die zu diesem Benutzer gehören \(URI-Format\). Entweder "user" oder "organization" muss angegeben werden. |
+| `organization` | string | Nein | Gibt Ereignisse zurück, die zu dieser Organisation gehören \(URI-Format\). Entweder "user" oder "organization" muss angegeben werden. |
+| `invitee_email` | string | Nein | Gibt Ereignisse zurück, bei denen der Eingeladene diese E-Mail hat |
+| `count` | number | Nein | Anzahl der Ergebnisse pro Seite \(Standard: 20, max: 100\) |
+| `max_start_time` | string | Nein | Gibt Ereignisse mit Startzeit vor diesem Zeitpunkt zurück \(ISO 8601-Format\) |
+| `min_start_time` | string | Nein | Gibt Ereignisse mit Startzeit nach diesem Zeitpunkt zurück \(ISO 8601-Format\) |
+| `pageToken` | string | Nein | Seitentoken für Paginierung |
+| `sort` | string | Nein | Sortierreihenfolge für Ergebnisse \(z.B. "start_time:asc", "start_time:desc"\) |
+| `status` | string | Nein | Nach Status filtern \("active" oder "canceled"\) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `collection` | array | Array von geplanten Ereignisobjekten |
+
+### `calendly_get_scheduled_event`
+
+Detaillierte Informationen über ein bestimmtes geplantes Ereignis abrufen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Ja | Calendly persönliches Zugriffstoken |
+| `eventUuid` | string | Ja | UUID des geplanten Ereignisses \(kann vollständige URI oder nur die UUID sein\) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `resource` | object | Details zum geplanten Ereignis |
+
+### `calendly_list_event_invitees`
+
+Eine Liste der Eingeladenen für ein geplantes Ereignis abrufen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Ja | Calendly persönliches Zugriffstoken |
+| `eventUuid` | string | Ja | UUID des geplanten Ereignisses \(kann vollständige URI oder nur die UUID sein\) |
+| `count` | number | Nein | Anzahl der Ergebnisse pro Seite \(Standard: 20, max: 100\) |
+| `email` | string | Nein | Eingeladene nach E-Mail-Adresse filtern |
+| `pageToken` | string | Nein | Seitentoken für Paginierung |
+| `sort` | string | Nein | Sortierreihenfolge für Ergebnisse \(z.B. "created_at:asc", "created_at:desc"\) |
+| `status` | string | Nein | Nach Status filtern \("active" oder "canceled"\) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `collection` | array | Array von Eingeladenen-Objekten |
+
+### `calendly_cancel_event`
+
+Geplanten Termin stornieren
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Ja | Calendly persönliches Zugriffstoken |
+| `eventUuid` | string | Ja | UUID des geplanten Termins, der storniert werden soll \(kann vollständige URI oder nur die UUID sein\) |
+| `reason` | string | Nein | Grund für die Stornierung \(wird an die Eingeladenen gesendet\) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `resource` | object | Stornierungsdetails |
+
+## Hinweise
+
+- Kategorie: `tools`
+- Typ: `calendly`
